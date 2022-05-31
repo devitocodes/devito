@@ -15,6 +15,7 @@
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
         <script src="_static/jquery.js"></script>
         <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
@@ -82,12 +83,12 @@
            <div itemprop="articleBody">
              
   <section id="module-devito.types.equation">
-<span id="equation"></span><h1>Equation<a class="headerlink" href="#module-devito.types.equation" title="Permalink to this headline"></a></h1>
+<span id="equation"></span><h1>Equation<a class="headerlink" href="#module-devito.types.equation" title="Permalink to this heading"></a></h1>
 <p>User API to specify equations.</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.equation.Eq">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></span><span class="sig-name descname"><span class="pre">Eq</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Eq"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.Eq" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">sympy.core.relational.Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.lazy.Evaluable</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Equality</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">Evaluable</span></code></p>
 <p>An equal relation between two objects, the left-hand side and the
 right-hand side.</p>
 <p>The left-hand side may be a Function or a SparseFunction. The right-hand
@@ -230,27 +231,11 @@ but xreplace does:</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.equation.Inc">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></span><span class="sig-name descname"><span class="pre">Inc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#Inc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.Inc" title="Permalink to this definition"></a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.types.equation.Eq" title="devito.types.equation.Eq"><code class="xref py py-class docutils literal notranslate"><span class="pre">devito.types.equation.Eq</span></code></a></p>
-<p>An increment relation between two objects, the left-hand side and the
-right-hand side.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>lhs</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a><em> or </em><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction" title="devito.types.SparseFunction"><em>SparseFunction</em></a>) – The left-hand side.</p></li>
-<li><p><strong>rhs</strong> (<em>expr-like</em>) – The right-hand side.</p></li>
-<li><p><strong>subdomain</strong> (<a class="reference internal" href="subdomain.html#devito.types.SubDomain" title="devito.types.SubDomain"><em>SubDomain</em></a><em>, </em><em>optional</em>) – To restrict the computation of the Eq to a particular sub-region in the
-computational domain.</p></li>
-<li><p><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
-defined weights.</p></li>
-<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
-left-hand side or in the right-hand side, but that should be honored when
-constructing an Operator.</p></li>
-</ul>
-</dd>
-</dl>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Reduction</span></code></p>
+<p>An increment Reduction.</p>
 <p class="rubric">Examples</p>
 <p>Inc may be used to express tensor contractions. Below, a summation along
-the user-defined Dimension <code class="docutils literal notranslate"><span class="pre">i</span></code>.</p>
+the user-defined Dimension <cite>i</cite>.</p>
 <div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">devito</span> <span class="kn">import</span> <span class="n">Grid</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Inc</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">grid</span> <span class="o">=</span> <span class="n">Grid</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span>
@@ -264,6 +249,18 @@ the user-defined Dimension <code class="docutils literal notranslate"><span clas
 <p class="rubric">Notes</p>
 <p>An Inc can be thought of as the augmented assignment ‘+=’ in an imperative
 programming language (e.g., <code class="docutils literal notranslate"><span class="pre">a[i]</span> <span class="pre">+=</span> <span class="pre">c</span></code>).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="devito.types.equation.ReduceMax">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></span><span class="sig-name descname"><span class="pre">ReduceMax</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#ReduceMax"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.ReduceMax" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Reduction</span></code></p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="devito.types.equation.ReduceMin">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.equation.</span></span><span class="sig-name descname"><span class="pre">ReduceMin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomain</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coefficients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/equation.html#ReduceMin"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.equation.ReduceMin" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Reduction</span></code></p>
 </dd></dl>
 
 </section>

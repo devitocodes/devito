@@ -14,6 +14,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -80,7 +81,7 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="n">as_tuple</span>
 <span class="kn">from</span> <span class="nn">devito.types.lazy</span> <span class="kn">import</span> <span class="n">Evaluable</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;ReduceMax&#39;</span><span class="p">,</span> <span class="s1">&#39;ReduceMin&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
@@ -130,7 +131,7 @@
 <span class="sd">    (e.g., ``a[i] = b[i]*c``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Reduction</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">subdomain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -238,33 +239,30 @@
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
-<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Reduction</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    An increment relation between two objects, the left-hand side and the</span>
-<span class="sd">    right-hand side.</span>
+<span class="sd">    An Eq in which the right-hand side represents a reduction operation, whose</span>
+<span class="sd">    result is stored in to the left-hand side.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    lhs : Function or SparseFunction</span>
-<span class="sd">        The left-hand side.</span>
-<span class="sd">    rhs : expr-like</span>
-<span class="sd">        The right-hand side.</span>
-<span class="sd">    subdomain : SubDomain, optional</span>
-<span class="sd">        To restrict the computation of the Eq to a particular sub-region in the</span>
-<span class="sd">        computational domain.</span>
-<span class="sd">    coefficients : Substitutions, optional</span>
-<span class="sd">        Can be used to replace symbolic finite difference weights with user</span>
-<span class="sd">        defined weights.</span>
-<span class="sd">    implicit_dims : Dimension or list of Dimension, optional</span>
-<span class="sd">        An ordered list of Dimensions that do not explicitly appear in either the</span>
-<span class="sd">        left-hand side or in the right-hand side, but that should be honored when</span>
-<span class="sd">        constructing an Operator.</span>
+    <span class="n">is_Reduction</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
+
+
+<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An increment Reduction.</span>
 
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    Inc may be used to express tensor contractions. Below, a summation along</span>
-<span class="sd">    the user-defined Dimension ``i``.</span>
+<span class="sd">    the user-defined Dimension `i`.</span>
 
 <span class="sd">    &gt;&gt;&gt; from devito import Grid, Dimension, Function, Inc</span>
 <span class="sd">    &gt;&gt;&gt; grid = Grid(shape=(4, 4))</span>
@@ -281,12 +279,15 @@
 <span class="sd">    programming language (e.g., ``a[i] += c``).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Increment</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">pass</span></div>
 
-    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;Inc(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
 
-    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+<div class="viewcode-block" id="ReduceMax"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMax">[docs]</a><span class="k">class</span> <span class="nc">ReduceMax</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="ReduceMin"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMin">[docs]</a><span class="k">class</span> <span class="nc">ReduceMin</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+    <span class="k">pass</span></div>
 </pre></div>
 
            </div>

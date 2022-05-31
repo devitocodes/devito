@@ -14,6 +14,7 @@
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
         <script src="../../../_static/jquery.js"></script>
         <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
@@ -281,6 +282,8 @@
         <span class="n">op</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="c1"># Potentially required for lazily allocated Functions</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_mode</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;mode&#39;</span><span class="p">]</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_options</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_allocator</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;allocator&#39;</span><span class="p">]</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_platform</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">]</span>
 
@@ -290,8 +293,8 @@
                                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">profiler</span><span class="o">.</span><span class="n">_ext_calls</span><span class="p">]))</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_func_table</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">byproduct</span><span class="o">.</span><span class="n">funcs</span><span class="p">]))</span>
 
-        <span class="c1"># Internal state. May be used to store information about previous runs,</span>
-        <span class="c1"># autotuning reports, etc</span>
+        <span class="c1"># Internal mutable state to store information about previous runs, autotuning</span>
+        <span class="c1"># reports, etc</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_state</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_initialize_state</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Produced by the various compilation passes</span>
@@ -311,7 +314,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_initialize_state</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;optimizations&#39;</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;mode&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;opt&#39;</span><span class="p">])}</span>
+        <span class="k">return</span> <span class="p">{}</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_dsl</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -382,6 +385,8 @@
 <span class="sd">              as parallelism.</span>
 <span class="sd">            * Optimize Clusters for performance</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sregistry</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sregistry&#39;</span><span class="p">]</span>
+
         <span class="c1"># Build a sequence of Clusters from a sequence of Eqs</span>
         <span class="n">clusters</span> <span class="o">=</span> <span class="n">clusterize</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
@@ -395,7 +400,7 @@
         <span class="n">profiler</span><span class="o">.</span><span class="n">record_ops_variation</span><span class="p">(</span><span class="n">init_ops</span><span class="p">,</span> <span class="n">final_ops</span><span class="p">)</span>
 
         <span class="c1"># Generate implicit Clusters from higher level abstractions</span>
-        <span class="n">clusters</span> <span class="o">=</span> <span class="n">generate_implicit</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+        <span class="n">clusters</span> <span class="o">=</span> <span class="n">generate_implicit</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">sregistry</span><span class="o">=</span><span class="n">sregistry</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">ClusterGroup</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
 
@@ -561,7 +566,7 @@
 
         <span class="c1"># An ArgumentsMap carries additional metadata that may be used by</span>
         <span class="c1"># the subsequent phases of the arguments processing</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ArgumentsMap</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_allocator</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_platform</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ArgumentsMap</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
 
         <span class="c1"># Process Dimensions</span>
         <span class="c1"># A topological sorting is used so that derived Dimensions are processed after</span>
@@ -913,8 +918,7 @@
                     <span class="k">if</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
                         <span class="n">perf_args</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
                         <span class="k">break</span>
-        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Performance[mode=</span><span class="si">%s</span><span class="s2">] arguments: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_state</span><span class="p">[</span><span class="s1">&#39;optimizations&#39;</span><span class="p">],</span>
-                                                     <span class="n">perf_args</span><span class="p">))</span>
+        <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Performance[mode=</span><span class="si">%s</span><span class="s2">] arguments: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode</span><span class="p">,</span> <span class="n">perf_args</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">summary</span>
 
@@ -962,12 +966,14 @@
 
 <span class="k">class</span> <span class="nc">ArgumentsMap</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
 
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">allocator</span><span class="p">,</span> <span class="n">platform</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">op</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="o">=</span> <span class="n">grid</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">allocator</span> <span class="o">=</span> <span class="n">allocator</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">platform</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">allocator</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_allocator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_platform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_options</span>
 
         <span class="c1"># Compute total used memory</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">memused</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">nbytes</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">))</span>
