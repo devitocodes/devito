@@ -150,11 +150,17 @@ class CodePrinter(C99CodePrinter):
         PREC = precedence(expr)
         return self.parenthesize("%s / %s" % (lhs, rhs), PREC)
 
+    def _print_InlineIf(self, expr):
+        cond = self._print(expr.cond)
+        true_expr = self._print(expr.true_expr)
+        false_expr = self._print(expr.false_expr)
+        PREC = precedence(expr)
+        return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
+
     def _print_UnaryOp(self, expr):
         return expr.__str__()
 
     _print_DefFunction = _print_UnaryOp
-    _print_InlineIf = _print_UnaryOp
     _print_MacroArgument = _print_UnaryOp
     _print_IndexedData = _print_UnaryOp
     _print_IndexSum = _print_UnaryOp
@@ -170,8 +176,9 @@ class CodePrinter(C99CodePrinter):
         return str(expr)
 
 
-# Always parenthesize IntDiv within expressions
+# Always parenthesize IntDiv and InlineIf within expressions
 PRECEDENCE_VALUES['IntDiv'] = 1
+PRECEDENCE_VALUES['InlineIf'] = 1
 
 
 def ccode(expr, dtype=np.float32, **settings):

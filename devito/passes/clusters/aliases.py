@@ -11,11 +11,10 @@ from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forwar
                        IterationInstance, IterationSpace, Interval, Cluster,
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties)
-from devito.passes.clusters.utils import timed_pass
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
-                          split)
+                          split, timed_pass)
 from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
                           CustomDimension, IncrDimension, Indexed, Hyperplane)
 from devito.types.grid import MultiSubDimension

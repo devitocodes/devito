@@ -2,7 +2,7 @@ from ctypes import c_int, c_double, c_void_p
 
 from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
-from devito.tools import Pickable
+from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'c_volatile_int',
            'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global', 'Hyperplane']
@@ -75,13 +75,14 @@ class FIndexed(Indexed, Pickable):
     `uX[x*ny + y]`, where `X` is a string provided by the caller.
     """
 
-    def __new__(cls, indexed, pname):
+    def __new__(cls, indexed, pname, strides=None):
         plabel = Symbol(name=pname, dtype=indexed.dtype)
         base = IndexedData(plabel, shape=indexed.shape, function=indexed.function)
         obj = super().__new__(cls, base, *indexed.indices)
 
         obj.indexed = indexed
         obj.pname = pname
+        obj.strides = as_tuple(strides)
 
         return obj
 
@@ -90,12 +91,24 @@ class FIndexed(Indexed, Pickable):
 
     __str__ = __repr__
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.strides,)
+
     @property
     def name(self):
         return self.function.name
 
+    @property
+    def free_symbols(self):
+        # The functional representation of the FIndexed "hides" the strides, which
+        # are however actual free symbols of the object, since they contribute to
+        # the address calculation just like all other free_symbols
+        return (super().free_symbols |
+                set().union(*[i.free_symbols for i in self.strides]))
+
     # Pickling support
     _pickle_args = ['indexed', 'pname']
+    _pickle_kwargs = ['strides']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

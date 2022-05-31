@@ -51,17 +51,7 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
           implemented by other passes).
     **kwargs
         Additional compilation options.
-        Accepted: ['opt-mem-space', 'opt-dtype', 'opt-noinit'].
-        * 'opt_mem_space': Allocate the buffer in the given memory space, rather
-        than in the `mapped` memory space (default). For example, one could pass
-        `local` for the local memory space (also see Array.__doc__), that is:
-
-            * the host DRAM if platform=CPU
-            * the device DRAM if platform=GPU
-
-        * 'opt_dtype': A callback that takes a buffering candidate as input
-        and returns the data type of the buffer, which would otherwise default
-        to the data type of the buffering candidate itself.
+        Accepted: ['opt_noinit', 'opt_buffer'].
         * 'opt_noinit': By default, a read buffer always triggers the generation
         of an initializing Cluster (see example below). When the size of the
         buffer is 1, the step-through Cluster may suffice, however. In such
@@ -70,6 +60,8 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
         pass, as the step-through Cluster cannot be further transformed or
         the buffer might never be initialized with the content of the buffered
         Function.
+        * 'opt_buffer': A callback that takes a buffering candidate as input
+        and returns a buffer, which would otherwise default to an Array.
 
     Examples
     --------
@@ -108,9 +100,8 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
 
     options = {
         'buf-async-degree': options['buf-async-degree'],
-        'buf-mem-space': kwargs.get('opt_mem_space', 'mapped'),
-        'buf-dtype': kwargs.get('opt_dtype', lambda f: f.dtype),
-        'buf-noinit': kwargs.get('opt_noinit', False)
+        'buf-noinit': kwargs.get('opt_noinit', False),
+        'buf-callback': kwargs.get('opt_buffer'),
     }
 
     return Buffering(callback, sregistry, options).process(clusters)
@@ -308,8 +299,7 @@ class Buffer(object):
                  bds=None, mds=None):
         # Parse compilation options
         async_degree = options['buf-async-degree']
-        space = options['buf-mem-space']
-        dtype = options['buf-dtype'](function)
+        callback = options['buf-callback']
 
         self.function = function
         self.accessv = accessv
@@ -409,11 +399,17 @@ class Buffer(object):
                 self.itintervals_mapper.setdefault(i, (interval.relaxed, (), Forward))
 
         # Finally create the actual buffer
-        self.buffer = Array(name=sregistry.make_name(prefix='%sb' % function.name),
-                            dimensions=dims,
-                            dtype=dtype,
-                            halo=function.halo,
-                            space=space)
+        kwargs = {
+            'name': sregistry.make_name(prefix='%sb' % function.name),
+            'dimensions': dims,
+            'dtype': function.dtype,
+            'halo': function.halo,
+            'space': 'mapped'
+        }
+        try:
+            self.buffer = callback(function, **kwargs)
+        except TypeError:
+            self.buffer = Array(**kwargs)
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,

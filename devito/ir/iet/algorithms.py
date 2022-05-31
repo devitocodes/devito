@@ -20,7 +20,12 @@ def iet_build(stree):
             return List(body=queues.pop(i))
 
         elif i.is_Exprs:
-            exprs = [Increment(e) if e.is_Increment else Expression(e) for e in i.exprs]
+            exprs = []
+            for e in i.exprs:
+                if e.is_Increment:
+                    exprs.append(Increment(e))
+                else:
+                    exprs.append(Expression(e, operation=e.operation))
             body = ExpressionBundle(i.ispace, i.ops, i.traffic, body=exprs)
 
         elif i.is_Conditional:

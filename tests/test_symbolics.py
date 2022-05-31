@@ -3,8 +3,8 @@ import pytest
 import numpy as np
 
 from sympy import Symbol
-from devito import (Grid, Function, solve, TimeFunction, Eq, Operator, norm,  # noqa
-                    Le, Ge, Gt, Lt)  # noqa
+from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
@@ -51,7 +51,49 @@ def test_floatification_issue_1627(dtype, expected):
     assert str(exprs[0]) == expected
 
 
-def test_indexed_free_symbols():
+def test_constant():
+    c = Constant(name='c')
+
+    assert c.free_symbols == {c}
+    assert c.bound_symbols == set()
+
+
+def test_dimension():
+    d = Dimension(name='d')
+
+    assert d.free_symbols == {d}
+    assert d.bound_symbols == {d.symbolic_min, d.symbolic_max, d.symbolic_size}
+
+
+def test_subdimension():
+    d = Dimension(name='d')
+
+    di = SubDimension.middle(name='di', parent=d, thickness_left=4, thickness_right=4)
+    assert di.free_symbols == {di}
+    assert di.bound_symbols == {d.symbolic_min, d.symbolic_max} | set(di._thickness_map)
+
+    dl = SubDimension.left(name='dl', parent=d, thickness=4)
+    assert dl.free_symbols == {dl}
+    assert dl.bound_symbols == {d.symbolic_min, dl.thickness.left[0]}
+
+    dr = SubDimension.right(name='dr', parent=d, thickness=4)
+    assert dr.free_symbols == {dr}
+    assert dr.bound_symbols == {d.symbolic_max, dr.thickness.right[0]}
+
+
+def test_timefunction():
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions
+    t = grid.stepping_dim
+
+    f = TimeFunction(name='f', grid=grid)
+
+    assert f.free_symbols == {t, x, y}
+    assert f.bound_symbols == ({f.indexed, f._C_symbol} |
+                               t.bound_symbols | x.bound_symbols | y.bound_symbols)
+
+
+def test_indexed():
     grid = Grid(shape=(10, 10))
     x, y = grid.dimensions
 

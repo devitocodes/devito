@@ -7,14 +7,14 @@ from collections import OrderedDict, namedtuple
 from functools import singledispatch
 from operator import itemgetter
 
-from devito.ir import (Block, Definition, DeviceFunction, EntryFunction,
-                       PragmaTransfer, FindSymbols, MapExprStmts, Transformer)
+from devito.ir import (Block, Definition, DeviceCall, DeviceFunction, EntryFunction,
+                       FindSymbols, MapExprStmts, Transformer)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
 from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
                               SizeOf, VOID, Keyword, ccode)
-from devito.tools import as_mapper, as_tuple, filter_sorted, flatten, prod
+from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM
 from devito.types.basic import AbstractFunction
 
@@ -111,8 +111,8 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
-        alloc = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        alloc = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free = self.lang['host-free'](obj._C_symbol)
 
@@ -143,16 +143,16 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        size = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
-        alloc0 = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free0 = self.lang['host-free'](obj._C_symbol)
 
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
         memptr = VOID(Byref(pobj), '**')
-        size = SizeOf(obj._C_typedata)*prod(obj.array.symbolic_shape)
-        alloc1 = self.lang['host-alloc'](memptr, alignment, size)
+        nbytes = SizeOf(obj._C_typedata)*obj.array.size
+        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free1 = self.lang['host-free'](pobj)
 
@@ -239,22 +239,6 @@ class DataManager(object):
 
         return iet, {}
 
-    @iet_visit
-    def derive_transfers(self, iet):
-        """
-        Collect all symbols that cause host-device data transfer, distinguishing
-        between reads and writes.
-        """
-        return ([], [])
-
-    @iet_pass
-    def place_transfers(self, iet, **kwargs):
-        """
-        Create a new IET with host-device data transfers. This requires mapping
-        symbols to the suitable memory spaces.
-        """
-        return iet, {}
-
     @iet_pass
     def place_casts(self, iet, **kwargs):
         """
@@ -288,10 +272,8 @@ class DataManager(object):
 
     def process(self, graph):
         """
-        Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
+        Apply the `place_definitions` and `place_casts` passes.
         """
-        mapper = self.derive_transfers(graph)
-        self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
         self.place_casts(graph)
 
@@ -316,7 +298,7 @@ class DeviceAwareDataManager(DataManager):
         self.gpu_fit = options['gpu-fit']
 
     def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped:
+        if obj._mem_mapped or obj._mem_host:
             super()._alloc_array_on_high_bw_mem(site, obj, storage)
         else:
             # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
@@ -327,8 +309,8 @@ class DeviceAwareDataManager(DataManager):
             doalloc = self.lang['device-alloc']
             dofree = self.lang['device-free']
 
-            size = SizeOf(obj._C_typedata)*prod(obj.symbolic_shape)
-            init = doalloc(size, deviceid, retobj=obj)
+            nbytes = SizeOf(obj._C_typedata)*obj.size
+            init = doalloc(nbytes, deviceid, retobj=obj)
 
             free = dofree(obj._C_name, deviceid)
 
@@ -340,11 +322,11 @@ class DeviceAwareDataManager(DataManager):
         bandwidth memory.
         """
         # If Array gets allocated directly in the device memory, there's nothing to map
-        if obj._mem_local:
+        if not obj._mem_mapped:
             return
 
-        mmap = PragmaTransfer(self.lang._map_alloc, obj)
-        unmap = PragmaTransfer(self.lang._map_delete, obj)
+        mmap = self.lang._map_alloc(obj)
+        unmap = self.lang._map_delete(obj)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
@@ -359,13 +341,13 @@ class DeviceAwareDataManager(DataManager):
         `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
         synchronize the host and device copies, while the latter does not.
         """
-        mmap = PragmaTransfer(self.lang._map_to, obj)
+        mmap = self.lang._map_to(obj)
 
         if read_only is False:
-            unmap = [PragmaTransfer(self.lang._map_update, obj),
-                     PragmaTransfer(self.lang._map_release, obj, devicerm=devicerm)]
+            unmap = [self.lang._map_update(obj),
+                     self.lang._map_release(obj, devicerm=devicerm)]
         else:
-            unmap = PragmaTransfer(self.lang._map_delete, obj, devicerm=devicerm)
+            unmap = self.lang._map_delete(obj, devicerm=devicerm)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
@@ -382,6 +364,10 @@ class DeviceAwareDataManager(DataManager):
 
     @iet_visit
     def derive_transfers(self, iet):
+        """
+        Collect all symbols that cause host-device data transfer, distinguishing
+        between reads and writes.
+        """
 
         def needs_transfer(f):
             return (isinstance(f, AbstractFunction) and
@@ -392,6 +378,7 @@ class DeviceAwareDataManager(DataManager):
         reads = set()
         for i, v in MapExprStmts().visit(iet).items():
             if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
+               not isinstance(i, DeviceCall) and \
                not isinstance(iet, DeviceFunction):
                 # Not an offloaded Iteration tree
                 continue
@@ -404,6 +391,10 @@ class DeviceAwareDataManager(DataManager):
 
     @iet_pass
     def place_transfers(self, iet, **kwargs):
+        """
+        Create a new IET with host-device data transfers. This requires mapping
+        symbols to the suitable memory spaces.
+        """
 
         @singledispatch
         def _place_transfers(iet, mapper):
@@ -435,6 +426,14 @@ class DeviceAwareDataManager(DataManager):
 
             iet = self._dump_transfers(iet, storage)
 
-            return iet, {'args': devicerm}
+            return iet, {}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
+
+    def process(self, graph):
+        """
+        Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
+        """
+        mapper = self.derive_transfers(graph)
+        self.place_transfers(graph, mapper=mapper)
+        super().process(graph)

@@ -10,22 +10,22 @@ import cgen as c
 from sympy import IndexedBase, sympify
 
 from devito.data import FULL
-from devito.ir.equations import DummyEq
+from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
-from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import (AbstractFunction, AbstractSymbol, Indexed,
-                                LocalObject, Symbol)
+from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types import Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree', 'Definition',
            'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
            'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
-           'SyncSpot', 'Pragma', 'PragmaTransfer', 'DummyExpr', 'BlankLine',
-           'ParallelTree', 'BusyWait', 'CallableBody']
+           'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
+           'BusyWait', 'CallableBody', 'Transfer', 'HPtr', 'DPtr']
 
 # First-class IET nodes
 
@@ -38,7 +38,6 @@ class Node(Signer):
     is_Iteration = False
     is_While = False
     is_Expression = False
-    is_Increment = False
     is_Callable = False
     is_CallableBody = False
     is_Conditional = False
@@ -249,12 +248,18 @@ class Call(ExprStmt, Node):
         Explicitly tagging these AbstractFunctions is useful in the case of external
         calls, that is whenever the compiler would be unable to retrieve that
         information by analysis of the IET graph.
+    types : tuple, optional
+        An N-tuple of CallArgTypes for an N-arguments Call. It may be used to
+        describe the input arguments types when it's neither implicit in the
+        argument (e.g., a generic SymPy expression, host pointer vs device
+        pointer) nor evident from the context (e.g., the Call represents a call
+        to an external routine rather than to a local Callable).
     """
 
     is_Call = True
 
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
-                 cast=False, writes=None):
+                 cast=False, writes=None, types=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -265,6 +270,10 @@ class Call(ExprStmt, Node):
         self.is_indirect = is_indirect
         self.cast = cast
         self._writes = as_tuple(writes)
+        self.types = as_tuple(types)
+
+        # Sanity check
+        assert not self.types or len(self.types) == len(self.arguments)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -318,7 +327,7 @@ class Call(ExprStmt, Node):
         if self.base is not None:
             retval.append(self.base)
         if self.retobj is not None:
-            retval.extend(self.retobj.free_symbols)
+            retval.append(self.retobj)
         return tuple(filter_ordered(retval))
 
     @property
@@ -348,14 +357,17 @@ class Expression(ExprStmt, Node):
         A bag of pragmas attached to this Expression.
     init : bool, optional
         True if an initialization, False otherwise (default).
+    operation : Operation, optional
+        Special operation performed by the Expression (e.g., a reduction).
     """
 
     is_Expression = True
 
-    def __init__(self, expr, pragmas=None, init=False):
+    def __init__(self, expr, pragmas=None, init=False, operation=None):
         self.expr = expr
         self.pragmas = as_tuple(pragmas)
         self.init = init
+        self.operation = operation
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -396,11 +408,16 @@ class Expression(ExprStmt, Node):
         return self.expr.lhs.is_Indexed
 
     @property
+    def is_reduction(self):
+        """True if the RHS performs a reduction operation, False otherwise."""
+        return self.operation in (OpInc, OpMin, OpMax)
+
+    @property
     def is_initializable(self):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return ((self.is_scalar and not self.is_Increment) or
+        return ((self.is_scalar and not self.is_reduction) or
                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
@@ -427,11 +444,21 @@ class AugmentedExpression(Expression):
 
     """A node representing an augmented assignment, such as +=, -=, &=, ...."""
 
-    is_Increment = True
+    def __init__(self, expr, pragmas=None, operation=None):
+        super().__init__(expr, pragmas=pragmas, operation=operation)
 
-    def __init__(self, expr, op, pragmas=None):
-        super(AugmentedExpression, self).__init__(expr, pragmas=pragmas)
-        self.op = op
+    @property
+    def is_initializable(self):
+        return False
+
+    @property
+    def op(self):
+        try:
+            return self.operation.name
+        except AttributeError:
+            # Not an ir.Operation
+            assert not self.is_reduction
+            return self.operation
 
 
 class Increment(AugmentedExpression):
@@ -439,7 +466,7 @@ class Increment(AugmentedExpression):
     """Shortcut for ``AugmentedExpression(expr, '+'), since it's so widely used."""
 
     def __init__(self, expr, pragmas=None):
-        super(Increment, self).__init__(expr, '+', pragmas=pragmas)
+        super().__init__(expr, pragmas=pragmas, operation=OpInc)
 
 
 class Iteration(Node):
@@ -694,13 +721,13 @@ class CallableBody(Node):
         Statements unpacking data from composite types.
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
-    objs : list of Definitions, optional
-        Object definitions for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
+    objs : list of Definitions, optional
+        Object definitions for `body`.
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
     frees : list of Calls, optional
@@ -709,11 +736,11 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'allocs', 'objs', 'casts', 'maps',
+    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'maps', 'objs',
                     'body', 'unmaps', 'frees']
 
-    def __init__(self, body, init=None, unpacks=None, allocs=None, objs=None,
-                 casts=None, maps=None, unmaps=None, frees=None):
+    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
+                 objs=None, maps=None, unmaps=None, frees=None):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -721,17 +748,17 @@ class CallableBody(Node):
         self.init = as_tuple(init)
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
-        self.objs = as_tuple(objs)
         self.casts = as_tuple(casts)
         self.maps = as_tuple(maps)
+        self.objs = as_tuple(objs)
         self.unmaps = as_tuple(unmaps)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
-        return ("<CallableBody <unpacks=%d, allocs=%d, objs=%d, casts=%d, "
-                "maps=%d> <unmaps=%d, frees=%d>>" %
-                (len(self.unpacks), len(self.allocs), len(self.objs),
-                 len(self.casts), len(self.maps), len(self.unmaps),
+        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, maps=%d, "
+                "objs=%d> <unmaps=%d, frees=%d>>" %
+                (len(self.unpacks), len(self.allocs), len(self.casts),
+                 len(self.maps), len(self.objs), len(self.unmaps),
                  len(self.frees)))
 
 
@@ -824,6 +851,10 @@ class TimedList(List):
     @property
     def timer(self):
         return self._timer
+
+    @property
+    def functions(self):
+        return (self.timer,)
 
 
 class Definition(ExprStmt, Node):
@@ -933,17 +964,19 @@ class Dereference(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        return ((self.pointee.indexed.label, self.pointer.indexed.label) +
-                (self.pointer.indexify(),) +
-                tuple(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:])) +
-                tuple(self.pointer.free_symbols))
+        ret = [self.pointee.indexed, self.pointer.indexed, self.pointer.indexify()]
+        if self.pointer.is_PointerArray or \
+           self.pointer.is_TempFunction:
+            ret.extend(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:]))
+            ret.extend(self.pointer.free_symbols)
+        return tuple(filter_ordered(ret))
 
     @property
     def defines(self):
         if self.pointer.is_PointerArray or \
            self.pointer.is_TempFunction or \
            self.pointee._mem_stack:
-            return (self.pointee.indexed,)
+            return (self.pointee.indexed, self.pointee)
         else:
             return (self.pointee,)
 
@@ -1069,51 +1102,36 @@ class Prodder(Call):
 class Pragma(Node):
 
     """
-    One or more pragmas floating in the IET.
+    One or more pragmas floating in the IET constructed through a callback.
     """
 
-    def __init__(self, pragmas):
+    def __init__(self, callback, arguments=None):
         super().__init__()
-        self.pragmas = as_tuple(pragmas)
+
+        self.callback = callback
+        self.arguments = as_tuple(arguments)
 
     def __repr__(self):
         return '<Pragmas>'
+
+    @cached_property
+    def pragmas(self):
+        return as_tuple(self.callback(*self.arguments))
 
 
 class Transfer(object):
 
     """
-    A mixin for nodes representing data transfers.
+    An interface for Nodes that represent host-device data transfers.
     """
-
-    pass
-
-
-class PragmaTransfer(Pragma, Transfer):
-
-    """
-    A data transfer between host and device expressed by means of one or more pragmas.
-    """
-
-    def __init__(self, callback, function, **kwargs):
-        super().__init__(callback(function, **kwargs))
-        self.callback = callback
-        self.function = function
-        self.kwargs = kwargs
 
     @property
-    def functions(self):
-        return (self.function,)
+    def function(self):
+        raise NotImplementedError
 
-    @cached_property
-    def expr_symbols(self):
-        retval = [self.function.indexed]
-        for i in flatten(self.kwargs.items()):
-            try:
-                retval.extend(i.free_symbols)
-            except AttributeError:
-                pass
-        return tuple(retval)
+    @property
+    def imask(self):
+        raise NotImplementedError
 
 
 class ParallelIteration(Iteration):
@@ -1408,3 +1426,11 @@ Metadata for Callables. ``root`` is a pointer to the callable
 Iteration/Expression tree. ``local`` is a boolean indicating whether the
 definition of the callable is known or not.
 """
+
+
+class CallArgType(Tag):
+    pass
+
+
+HPtr = CallArgType('host pointer')
+DPtr = CallArgType('device pointer')

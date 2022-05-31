@@ -3,9 +3,13 @@ from devito.data import FULL
 __all__ = ['make_clause_reduction']
 
 
-def make_clause_reduction(symbols):
+def make_clause_reduction(reductions):
+    """
+    Build a string representing a reduction clause given a list of
+    2-tuples `(symbol, ir.Operation)`.
+    """
     args = []
-    for i in symbols:
+    for i, r in reductions:
         if i.is_Indexed:
             f = i.function
             bounds = []
@@ -20,4 +24,4 @@ def make_clause_reduction(symbols):
             args.append('%s%s' % (i.name, ''.join(bounds)))
         else:
             args.append(str(i))
-    return 'reduction(+:%s)' % ','.join(args)
+    return 'reduction(%s:%s)' % (r.name, ','.join(args))

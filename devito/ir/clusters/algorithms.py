@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from functools import partial
 from itertools import groupby
 
@@ -5,13 +6,14 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
-from devito.ir.support import Any, Backward, Forward, IterationSpace
+from devito.ir.support import Any, Backward, Forward, IterationSpace, PARALLEL_IF_ATOMIC
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.queue import Queue, QueueStateful
-from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
-                          timed_pass)
+from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
+                          is_integer, timed_pass)
+from devito.types import Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
@@ -35,6 +37,9 @@ def clusterize(exprs, options=None, **kwargs):
 
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters, options)
+
+    # Input normalization (e.g., SSA)
+    clusters = normalize(clusters, **kwargs)
 
     return ClusterGroup(clusters)
 
@@ -314,3 +319,69 @@ class Stepper(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
+
+
+def normalize(clusters, **kwargs):
+    sregistry = kwargs['sregistry']
+
+    clusters = normalize_nested_indexeds(clusters, sregistry)
+    clusters = normalize_reductions(clusters, sregistry)
+
+    return clusters
+
+
+@cluster_pass(mode='all')
+def normalize_nested_indexeds(cluster, sregistry):
+    """
+    Recursively extract nested Indexeds in to temporaries.
+    """
+
+    def pull_indexeds(expr, subs, mapper, parent=None):
+        for i in retrieve_indexed(expr):
+            if i in mapper:
+                continue
+
+            for e in i.indices:
+                pull_indexeds(e, subs, mapper, parent=i)
+
+            if parent is not None:
+                # Nested Indexed, requires a temporary
+                k = i.xreplace(mapper)
+                v = Symbol(name=sregistry.make_name(), dtype=i.function.dtype)
+                subs[k] = v
+
+                # Update substitution status
+                mapper[i] = v
+
+    processed = []
+    for e in cluster.exprs:
+        subs = OrderedDict()
+        pull_indexeds(e, subs, {})
+
+        # Construct temporaries and apply substitution to `e`, in cascade
+        for k, v in subs.items():
+            processed.append(Eq(v, k))
+            e = e.xreplace({k: v})
+        processed.append(e)
+
+    return cluster.rebuild(processed)
+
+
+@cluster_pass(mode='all')
+def normalize_reductions(cluster, sregistry):
+    """
+    Extract the right-hand sides of reduction Eq's in to temporaries.
+    """
+    if not any(PARALLEL_IF_ATOMIC in v for v in cluster.properties.values()):
+        return cluster
+
+    processed = []
+    for e in cluster.exprs:
+        if e.is_Increment and e.lhs.function.is_AbstractFunction:
+            v = Symbol(name=sregistry.make_name(), dtype=e.dtype)
+            processed.extend([e.func(v, e.rhs, operation=None),
+                              e.func(e.lhs, v)])
+        else:
+            processed.append(e)
+
+    return cluster.rebuild(processed)

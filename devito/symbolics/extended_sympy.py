@@ -5,6 +5,7 @@ Extended SymPy hierarchy.
 import numpy as np
 import sympy
 from sympy import Expr, Integer, Function, Number, Tuple, sympify
+from sympy.core.decorators import call_highest_priority
 
 from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
@@ -70,6 +71,10 @@ class IntDiv(sympy.Expr):
 
     is_commutative = True
 
+    # Set the operator priority higher than SymPy (10.0) to force the overridden
+    # operators to be used
+    _op_priority = sympy.Expr._op_priority + 1.
+
     def __new__(cls, lhs, rhs, params=None):
         if rhs == 0:
             raise ValueError("Cannot divide by 0")
@@ -96,6 +101,13 @@ class IntDiv(sympy.Expr):
         return "IntDiv(%s, %s)" % (self.lhs, self.rhs)
 
     __repr__ = __str__
+
+    @call_highest_priority('__rmul__')
+    def __mul__(self, other):
+        if other is self.rhs:
+            # a*(i/a) => i
+            return self.lhs
+        return super().__mul__(other)
 
 
 class BasicWrapperMixin(object):
@@ -565,8 +577,20 @@ class InlineIf(sympy.Expr, Pickable):
 
 # Shortcuts (mostly for retrocompatibility)
 
+class CHAR(Cast):
+    _base_typ = 'char'
+
+
 class INT(Cast):
     _base_typ = 'int'
+
+
+class LONG(Cast):
+    _base_typ = 'long'
+
+
+class ULONG(Cast):
+    _base_typ = 'unsigned long'
 
 
 class FLOAT(Cast):
@@ -587,6 +611,10 @@ class CastStar(object):
 
     def __new__(cls, base=''):
         return cls.base(base, '*')
+
+
+class CHARP(CastStar):
+    base = CHAR
 
 
 class INTP(CastStar):
@@ -635,13 +663,18 @@ def rfunc(func, item, *args):
 
 
 cast_mapper = {
+    np.int8: CHAR,
+    np.uint8: CHAR,
     int: INT,
     np.int32: INT,
-    np.int64: INT,
+    np.int64: LONG,
+    np.uint64: ULONG,
     np.float32: FLOAT,
     float: DOUBLE,
     np.float64: DOUBLE,
 
+    (np.int8, '*'): CHARP,
+    (np.uint8, '*'): CHARP,
     (int, '*'): INTP,
     (np.int32, '*'): INTP,
     (np.int64, '*'): INTP,

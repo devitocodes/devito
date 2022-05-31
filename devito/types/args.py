@@ -6,7 +6,7 @@ __all__ = ['ArgProvider']
 class ArgProvider(object):
 
     """
-    A base class for types that can provide runtime values for dynamically
+    A mixin class for types that can provide runtime values for dynamically
     executed (JIT-compiled) code.
     """
 
