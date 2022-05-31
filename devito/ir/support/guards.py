@@ -27,12 +27,7 @@ class Guard(object):
 
     @property
     def negated(self):
-        try:
-            return negations[self.__class__](*self._args_rebuild)
-        except TypeError:
-            # Some complex relations involving custom SymPy subtypes (e.g.
-            # FieldFromPointer, IndexedPointer) mystically end up here
-            return negations[self.__class__](*self._args_rebuild, evaluate=False)
+        return negations[self.__class__](*self._args_rebuild, evaluate=False)
 
 
 # *** GuardFactor
