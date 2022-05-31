@@ -359,11 +359,10 @@ def normalize_nested_indexeds(cluster, sregistry):
         pull_indexeds(e, subs, {})
 
         # Construct temporaries and apply substitution to `e`, in cascade
-        pe = e
         for k, v in subs.items():
             processed.append(Eq(v, k))
-            pe = pe.xreplace({k: v})
-        processed.append(pe)
+            e = e.xreplace({k: v})
+        processed.append(e)
 
     return cluster.rebuild(processed)
 
