@@ -95,10 +95,11 @@ jobs:
           sympy: "1.10"
 
         - name: pytest-docker-py38-icc-omp
-          python-version: 3.8
+          python-version: '3.8'
           os: ubuntu-18.04
           arch: "icc"
           language: "openmp"
+          sympy: 1.8
 
         - set: base
           test-set: 'not adjoint'
@@ -115,8 +116,8 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: matrix.name != 'pytest-docker-py37-gcc-omp'
-      uses: actions/setup-python@v4
+      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
+      uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -151,9 +152,7 @@ jobs:
     - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
       run : |
-          if [ "${{ matrix.arch }}" == 'icc' ]; then
-              sudo apt-get install -y gcc
-          else
+          if [ "${{ matrix.arch }}" != 'icc' ]; then
               sudo apt-get install -y ${{ matrix.arch }}
           fi
 
@@ -176,9 +175,10 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ steps.set-intelrun.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
-      if: matrix.name != 'pytest-docker-py37-gcc-omp'
+      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
       uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}

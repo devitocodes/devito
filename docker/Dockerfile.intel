@@ -5,161 +5,44 @@
 #   docker build --network=host --file docker/Dockerfile.intel --tag devito/intel:1.0 .
 #
 # RUN:
-#   docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito
-#   docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito
+#   docker run --rm -it devito/intel:1.0
+#
+# Start a terminal session:
+#   docker run --rm -it devito/intel:1.0 /bin/bash
+#
+# RUN a few tests:
+#   docker run --rm --name testrun 'devito/intel:1.0' python -m pytest -m "not parallel" tests/test_operator.py
+#
 ##############################################################
 # Inherited from: https://github.com/intel/oneapi-containers/blob/master/images/docker/hpckit/Dockerfile.ubuntu-18.04
 # Copyright (c) 2019-2020 Intel Corporation.
 # SPDX-License-Identifier: BSD-3-Clause
 
-FROM ubuntu:18.04 as build
+FROM intel/oneapi-hpckit:latest
 
-RUN mkdir -p /opt/build && mkdir -p /opt/dist
-
-RUN apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates curl
-
-# install cmake
-RUN cd /opt/build && \
-    curl -LO https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
-    mkdir -p /opt/dist//usr/local && \
-    /bin/bash cmake-3.20.2-linux-x86_64.sh --prefix=/opt/dist//usr/local --skip-license
-
-FROM ubuntu:18.04
-
-COPY --from=build /opt/dist /
-
-ARG DEBIAN_FRONTEND=noninteractive
-ARG APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1
-
-# install OS tools
+# Update toolkit packages first (existing sources in image)
 RUN apt-get update -y && \
-apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-build-essential \
-pkg-config \
-ca-certificates \
-gnupg \
-libarchive13 \
-wget
-
-# COPY third-party-programs.txt /
-
-# add apt repo public key
-ARG url=https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2023.PUB
-RUN wget $url
-RUN file=$(basename "$url") && \
-    apt-key add "$file" && \
-    rm "$file"
-
-# configure the repository
-ARG repo=https://apt.repos.intel.com/oneapi
-RUN echo "deb $repo all main" > /etc/apt/sources.list.d/oneAPI.list
-
-# disable cert check
-ARG disable_cert_check=
-RUN if [ "$disable_cert_check" ] ; then echo "Acquire::https::Verify-Peer \"false\";\nAcquire::https::Verify-Host \"false\";" > /etc/apt/apt.conf.d/99-disable-cert-check ; fi
-
-# install Intel(R) oneAPI Base Toolkit
-RUN apt-get update -y && \
-apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-intel-basekit-getting-started \
-intel-oneapi-advisor \
-intel-oneapi-ccl-devel \
-intel-oneapi-common-licensing \
-intel-oneapi-common-vars \
-intel-oneapi-compiler-dpcpp-cpp \
-intel-oneapi-dal-devel \
-intel-oneapi-dev-utilities \
-intel-oneapi-dnnl-devel \
-intel-oneapi-dpcpp-debugger \
-intel-oneapi-ipp-devel \
-intel-oneapi-ippcp-devel \
-intel-oneapi-libdpstd-devel \
-intel-oneapi-mkl-devel \
-intel-oneapi-onevpl-devel \
-intel-oneapi-python \
-intel-oneapi-tbb-devel \
-intel-oneapi-vtune \
---
-
-# install Intel GPU drivers
-RUN echo 'deb [trusted=yes arch=amd64] https://repositories.intel.com/graphics/ubuntu bionic main' \
-> /etc/apt/sources.list.d/intel-graphics.list
-
-ARG url=https://repositories.intel.com/graphics/intel-graphics.key
-RUN wget $url && file=$(basename "$url") && \
-    file=$(basename "$url") && \
-    apt-key add "$file" && \
-    rm "$file"
+    apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0
 
 RUN apt-get update -y && \
-apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-intel-opencl \
-intel-level-zero-gpu \
-level-zero \
-level-zero-devel
+    apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
+    apt-utils \
+    python3-dev \
+    python3-venv
 
-# install Intel(R) oneAPI HPC Toolkit
-RUN apt-get update -y && \
-apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-intel-hpckit-getting-started \
-intel-oneapi-clck \
-intel-oneapi-common-licensing \
-intel-oneapi-common-vars \
-intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic \
-intel-oneapi-compiler-fortran \
-intel-oneapi-dev-utilities \
-intel-oneapi-inspector \
-intel-oneapi-itac \
-intel-oneapi-mpi-devel \
---
-
-# setvars.sh environment variables
-RUN env > default_env_vars; \
-. /opt/intel/oneapi/setvars.sh; \
-env > env_vars; \
-diff default_env_vars env_vars \
-| grep ">" | sed  s/..// \
-| sort \
-| sed 's/^/export /' | sed "s/=/='/" | sed "s/$/'/" \
->> /root/.oneapi_env_vars; \
-# clean up
-rm *env_vars; \
-rm -rf /var/lib/apt/lists/*
-
-# ARG INTEL_HOME=/opt/intel/oneapi/
-# ENV PATH $INTEL_HOME/mpi/latest/bin:$INTEL_HOME/mpi/latest/include:$INTEL_HOME/compilers/latest/linux/bin/intel64:$INTEL_HOME/mpi/latest/libfabric/bin:${PATH}
-# ENV LD_LIBRARY_PATH $INTEL_HOME/compiler/latest/linux/lib:$INTEL_HOME/mpi/latest/lib:$INTEL_HOME/mpi/latest/include:${LD_LIBRARY_PATH}
-
-RUN apt-get update -y && \
-apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
-python3-dev \
-python3-venv \
-gcc \
-g++
+# Copy Devito
+ADD . /app/devito
+# Remove git files
+RUN rm -rf /app/devito/.git
 
 ## INSTALL DEVITO
-
-ADD ./requirements.txt /app/requirements.txt
-ADD ./requirements-optional.txt /app/requirements-optional.txt
-ADD ./requirements-mpi.txt /app/requirements-mpi.txt
-
 RUN python3 -m venv /venv
-RUN /venv/bin/pip install --no-cache-dir --upgrade pip
-RUN /venv/bin/pip install --no-cache-dir jupyter
-RUN /venv/bin/pip install --no-cache-dir wheel
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements.txt
-RUN /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt
-RUN . /opt/intel/oneapi/mpi/latest/env/vars.sh && /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt
+RUN /venv/bin/pip install --upgrade --ignore-installed --no-cache-dir --upgrade pip
+RUN /venv/bin/pip install --upgrade --ignore-installed --no-cache-dir jupyter
+RUN /venv/bin/pip install --upgrade --ignore-installed --no-cache-dir wheel
+# RUN . /opt/intel/oneapi/mpi/latest/env/vars.sh && /venv/bin/pip install --no-cache-dir -r /app/devito/requirements-mpi.txt
+RUN /venv/bin/pip install --ignore-installed --no-cache-dir devito[extras]
 RUN rm -rf ~/.cache/pip
-
-ADD ./devito /app/devito
-ADD ./tests /app/tests
-ADD ./scripts /app/scripts
-ADD ./examples /app/examples
-ADD ./benchmarks /app/benchmarks
-COPY setup.cfg /app/
 
 ADD docker/run-jupyterlab.sh /jupyter
 ADD docker/run-tests.sh /tests
@@ -170,7 +53,7 @@ ADD docker/nvdashboard.json /app/nvdashboard.json
 RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
     /venv/bin/jupyter serverextension enable dask_labextension 
 
-## Environment Variables for Intel Compilers use
+## Environment Variables for Intel Compilers
 # Set arch to Intel (icc)
 ENV DEVITO_ARCH="intel" 
 ENV DEVITO_LANGUAGE="openmp"
@@ -197,15 +80,11 @@ RUN mkdir -p /app && \
 
 # Change to the app user.
 USER app
-WORKDIR /app
-
-CMD ["/bin/bash"]
+WORKDIR /app/devito
 
 ARG ICC_HOME=/opt/intel/oneapi/compiler/latest/
 ARG MPICC_HOME=/opt/intel/oneapi/mpi/latest/
 ENV PATH $MPICC_HOME/bin:$MPICC_HOME/include:$ICC_HOME/linux/bin/intel64:$ICC_HOME/libfabric/bin:${PATH}
 ENV LD_LIBRARY_PATH $ICC_HOME/linux/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:$MPICC_HOME/lib:$MPICC_HOME/include:${LD_LIBRARY_PATH}
 
-# ENTRYPOINT ["source /root/.oneapi_env_vars && \"$@\"", "/docker-entrypoint.sh"]
-# ENTRYPOINT ["bash", "-c", ". /opt/intel/oneapi/mpi/latest/env/vars.sh  && \"$@\"", "../docker-entrypoint.sh"]
 ENTRYPOINT ["/docker-entrypoint.sh"]

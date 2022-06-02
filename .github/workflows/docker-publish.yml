@@ -188,7 +188,7 @@ jobs:
         - name: Run simple test
           run: |
              docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
+             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' python -m pytest tests/test_operator.py
 
         # NOTE: Suitable for the time being but will need to modify when we switch runners
         - name: Clean
