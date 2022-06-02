@@ -495,6 +495,29 @@ class SparseFunction(AbstractSparseFunction):
                      for d in self.grid.dimensions)
 
     @cached_property
+    def _relative_position_map(self):
+        """
+        Symbols map for the position of the sparse points relative to the indices of the vector wich contain and acess the data
+        Notes
+        -----
+        The expression `(coord - origin)/spacing` could also be computed in the
+        mathematically equivalent expanded form `coord/spacing -
+        origin/spacing`. This particular form is problematic when a sparse
+        point is in close proximity of the grid origin, since due to a larger
+        machine precision error it may cause a +-1 error in the computation of
+        the position. We mitigate this problem by computing the positions
+        individually (hence the need for a position map).
+        """
+        symbols = self._point_symbols 
+        eqs = tuple([((c - o) / i.spacing) for c, o, i in
+                                zip(self._coordinate_symbols,
+                                    self.grid.origin_symbols,
+                                    self.grid.dimensions[:self.grid.dim])])
+
+        return OrderedDict([(eq, p) for p, eq in
+                            zip(symbols, eqs)])
+
+    @cached_property
     def _position_map(self):
         """
         Symbols map for the position of the sparse points relative to the grid
