@@ -406,6 +406,105 @@ class CubicInterpolator(GenericInterpolator):
     def grid(self):
         return self.sfunction.grid
 
+    def _cubic_equation(self, expr, position, dim_pos, idx_subs, idx2d, idx3d=None):
+        """
+        Generate the basic cubic equation.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        position: List
+            Elements which represents the position of the interpolation point multiplied
+            by their respective coefficients.
+        pn: List, optional
+            Contains the symbols which will be used as the neighbors points, if is that
+            the case.
+        idx_subs: dict, optional
+            Structure responsible for mapping the order of substitution of dimensions in
+            expr.
+        When idx_subs is not None, expr is used as element which represents the neighbors
+        points. Otherwise, pn is used.
+        """
+
+        def cubicConv(arg, option):
+            """
+            option = 1, ponto imediatamente vizinho ao ponto de intepolação.
+            Onde 0 < |arg| < 1
+            option = 2, pontos extremos da vizinhança.
+            Onde 1 < |arg| < 2
+            """
+            a = -1/2
+            if option == 1:
+                return (a+2)*(abs(arg)**3) - (a+3)*(abs(arg)**2) + 1
+            elif option == 2:
+                return a*(abs(arg)**3) - 5*a*(abs(arg)**2) + 8*a*abs(arg) - 4*a
+
+        # Values ​​that define which cubic kernel will be used
+        option = [2, 1, 1, 2]
+
+        pos = sympy.Matrix(position)
+
+        dim_pos = sympy.Matrix(dim_pos)
+
+        # Neighboring points(interpolation) or source value (injection)
+        p = [expr.xreplace(subs) for subs in idx_subs]
+        p = sympy.Matrix(p)
+
+        # Defines the kernel witch will be multiplied by the neighboring
+        # points(or source value)
+        base_index = [idx3d, idx2d]
+        index_opt = [b for b in base_index if b is not None]
+        arg_kernel = [pp - dim for pp, dim in zip(pos, dim_pos)]
+
+        kernel = [cubicConv(arg, option[opt]) for arg, opt in zip(arg_kernel, index_opt)]
+        kernel = np.prod(kernel)
+        kernel = [kernel*cubicConv(arg_kernel[-1], option[ii]) for ii in range(4)]
+
+        # Defining the final shape of the cubic equation
+        points = [point*k.subs(idx) for point, k, idx in zip(p, kernel, idx_subs)]
+
+        return points
+
+    def _bicubic_equations(self, expr, idx_subs, dim_pos=None):
+        """
+        Generate equations responsible for bicubic interpolation's computation.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        idx_subs: dict
+            Structure responsible for mapping the order of substitution
+            of dimensions in expr.
+        dim_pos: tuple
+            Structure containing the spatial dimensions of the field
+        """
+        pos = self.sfunction._point_symbols
+
+        eqs = [self._cubic_equation(expr, pos, dim_pos, idx_subs=idx_subs[ii*4:(ii+1)*4], idx2d=ii)
+               for ii in range(4)]
+        return eqs
+
+    def _tricubic_equations(self, expr, idx_subs, dim_pos=None):
+        """
+        Generate equations responsible for tricubic interpolation's computation.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        idx_subs: dict
+            Structure responsible for mapping the order of substitution
+            of dimensions in expr.
+        dim_pos: tuple
+            Structure containing the spatial dimensions of the field
+        """
+        pos = self.sfunction._point_symbols
+
+        eqs = []
+        eqs.extend([self._cubic_equation(expr, pos, dim_pos, idx_subs=idx_subs[(ind*4)+(16*ii):((1+ind)*4)+16*ii], idx2d=ind, idx3d=ii)
+                    for ii in range(4) for ind in range(4)])
+
+        return eqs
+
     def _interpolation_indices(self, variables, offset=0, field_offset=0):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
@@ -473,7 +572,32 @@ class CubicInterpolator(GenericInterpolator):
             # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
-            return temps
+            
+            rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
+            summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
+
+            dim_pos = self.sfunction.grid.dimensions
+
+            # Checks if the data is 3D or 2D
+            if len(dim_pos) == 3:
+                eqs = [np.sum(v) for v in self._tricubic_equations(_expr,
+                                                                   idx_subs,
+                                                                   dim_pos=dim_pos)]
+            else:
+                eqs = [np.sum(v) for v in self._bicubic_equations(_expr,
+                                                                  idx_subs,
+                                                                  dim_pos=dim_pos)]
+
+            # Creates Sympy equation using the values in eq as
+            # the right side of the equation
+            summands.extend([Inc(rhs, v, implicit_dims=self.sfunction.dimensions)
+                             for v in eqs])
+
+            # Write/Incr `self`
+            lhs = self.sfunction.subs(self_subs)
+            last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
+
+            return temps + summands + last
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
