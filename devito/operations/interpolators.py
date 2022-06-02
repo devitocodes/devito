@@ -10,7 +10,7 @@ from devito.tools import powerset, flatten, prod
 from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
                           Evaluable, Symbol, SubFunction)
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'CubicInterpolator']
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
@@ -386,5 +386,83 @@ class PrecomputedInterpolator(GenericInterpolator):
             rhs = prod(coeffs) * _expr
             _field = _field.subs(dim_subs)
             return [Eq(_field, _field + rhs.subs(dim_subs))]
+
+        return Injection(field, expr, offset, self, callback)
+
+
+class CubicInterpolator(GenericInterpolator):
+    """
+    Concrete implementation of GenericInterpolator implementing a cubic interpolation
+    scheme.
+    Parameters
+    ----------
+    sfunction: The SparseFunction that this Interpolator operates on.
+    """
+
+    def __init__(self, sfunction):
+        self.sfunction = sfunction
+
+    @property
+    def grid(self):
+        return self.sfunction.grid
+
+    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        """
+        def callback():
+
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                _expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                _expr = expr
+
+            variables = list(retrieve_function_carriers(_expr))
+
+            # Need to get origin of the field in case it is staggered
+            # TODO: handle each variable staggereing spearately
+            field_offset = variables[0].origin
+
+            return 
+
+        return Interpolation(expr, offset, increment, self_subs, self, callback)
+
+    def inject(self, field, expr, offset=0):
+        """
+        Generate equations injecting an arbitrary expression into a field.
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : expr-like
+            Injected expression.
+        offset : int, optional
+            Additional offset from the boundary.
+        """
+        def callback():
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                _expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                _expr = expr
+
+            variables = list(retrieve_function_carriers(_expr)) + [field]
+
+            # Need to get origin of the field in case it is staggered
+            field_offset = field.origin
+
+
+            return 
 
         return Injection(field, expr, offset, self, callback)
