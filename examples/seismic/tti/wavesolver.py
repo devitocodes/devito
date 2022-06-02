@@ -1,11 +1,11 @@
 # coding: utf-8
 from devito import Function, TimeFunction, warning, DevitoCheckpoint, CheckpointOperator
 from devito.tools import memoized_meth
-from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
+from examples.seismic.tti.operators import ForwardOperator, AdjointOperator, ForwardOperator_tb
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
 from pyrevolve import Revolver
-
+from devito import norm
 
 class AnisotropicWaveSolver(object):
     """
@@ -58,6 +58,12 @@ class AnisotropicWaveSolver(object):
                                space_order=self.space_order, kernel=self.kernel,
                                **self._kwargs)
 
+    @memoized_meth
+    def op_fwd_tb(self, save=False):
+        """Cached operator for forward runs with buffered wavefield"""
+        return ForwardOperator_tb(self.model, save=save, geometry=self.geometry,
+                               space_order=self.space_order, kernel=self.kernel,
+                               **self._kwargs)
     @memoized_meth
     def op_adj(self):
         """Cached operator for adjoint runs"""
@@ -152,9 +158,110 @@ class AnisotropicWaveSolver(object):
         if self.model.dim < 3:
             kwargs.pop('phi', None)
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, v=v,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+        op = self.op_fwd(save)
+        summary = op.apply(src=src, rec=rec, u=u, v=v,
+                           dt=kwargs.pop('dt', self.dt), **kwargs)
+
         return rec, u, v, summary
+
+    def forward_plain(self, src=None, rec=None, u=None, v=None, model=None,
+                save=False, **kwargs):
+        """
+        Forward modelling function that creates the necessary
+        data objects for running a forward modelling operator.
+
+        Parameters
+        ----------
+        geometry : AcquisitionGeometry
+            Geometry object that contains the source (SparseTimeFunction) and
+            receivers (SparseTimeFunction) and their position.
+        u : TimeFunction, optional
+            The computed wavefield first component.
+        v : TimeFunction, optional
+            The computed wavefield second component.
+        model : Model, optional
+            Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        epsilon : Function or float, optional
+            The time-constant first Thomsen parameter.
+        delta : Function or float, optional
+            The time-constant second Thomsen parameter.
+        theta : Function or float, optional
+            The time-constant Dip angle (radians).
+        phi : Function or float, optional
+            The time-constant Azimuth angle (radians).
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
+        kernel : str, optional
+            Type of discretization, centered or shifted.
+
+        Returns
+        -------
+        Receiver, wavefield and performance summary.
+        """
+        if self.kernel == 'staggered':
+            time_order = 1
+            dims = self.model.space_dimensions
+            stagg_u = (-dims[-1])
+            stagg_v = (-dims[0], -dims[1]) if self.model.grid.dim == 3 else (-dims[0])
+        else:
+            time_order = 2
+            stagg_u = stagg_v = None
+        # Source term is read-only, so re-use the default
+        src = src or self.geometry.src
+        # Create a new receiver object to store the result
+        rec = rec or self.geometry.rec
+
+        # Create the forward wavefield if not provided
+        if u is None:
+            u = TimeFunction(name='u', grid=self.model.grid, staggered=stagg_u,
+                             save=self.geometry.nt if save else None,
+                             time_order=time_order,
+                             space_order=self.space_order)
+        # Create the forward wavefield if not provided
+        if v is None:
+            v = TimeFunction(name='v', grid=self.model.grid, staggered=stagg_v,
+                             save=self.geometry.nt if save else None,
+                             time_order=time_order,
+                             space_order=self.space_order)
+
+        if self.kernel == 'staggered':
+            vx, vz, vy = particle_velocity_fields(self.model, self.space_order)
+            kwargs["vx"] = vx
+            kwargs["vz"] = vz
+            if vy is not None:
+                kwargs["vy"] = vy
+
+        model = model or self.model
+
+        nx, ny, nz = self.model.grid.shape
+        u.data[0, int(nx/2), int(ny/2), 50] = 10
+        v.data[0, int(nx/2), int(ny/2), 50] = 10
+        
+        print(norm(u))
+        print(norm(v))
+
+        # Pick vp and Thomsen parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
+        if self.model.dim < 3:
+            kwargs.pop('phi', None)
+        # Execute operator and return wavefield and receiver data
+        op = self.op_fwd_tb(save)
+        summary = op.apply(time_M=self.geometry.nt, u=u, v=v, dt=kwargs.pop('dt', self.dt), **kwargs)
+        print(norm(u))
+        print(norm(v))
+
+        import matplotlib.pyplot as plt
+        from examples.cfd import plot_field
+        from examples.seismic import plot_image
+
+        plot_image(u.data[0, :, :, 50], cmap="viridis")
+        plt.show()
+        plot_image(v.data[0, :, :, 50], cmap="viridis")
+        plt.show()
+
+        return u, v, summary
 
     def adjoint(self, rec, srca=None, p=None, r=None, model=None,
                 save=None, **kwargs):

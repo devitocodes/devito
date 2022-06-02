@@ -81,7 +81,8 @@ def autotune(operator, args, level, mode):
         if timesteps is None:
             return args, {}
     elif len(steppers) == 2:  # When time is blocked
-        t_squeezer = (63 if at_args['time_M'] > 64 else at_args['time_M'] - 1)
+        t_squeezer = (at_args['time_M'] - 2 if at_args['time_M'] > 64 else at_args['time_M'] - 1)
+        # t_squeezer = (at_args['time_M'] - 1)
         options['squeezer'] = t_squeezer
         stepper = steppers.pop()
         timesteps = init_time_bounds(stepper, at_args, args)
@@ -127,7 +128,7 @@ def autotune(operator, args, level, mode):
             run = [(k, v) for k, v in bs + nt if k in at_args]
             at_args.update(dict(run))
 
-            if run[0][0] == 'time0_blk0_size' and (run[0][1] < 63 or run[0][1] > 65):
+            if run[0][0] == 'time0_blk0_size' and (run[0][1] < 63 or run[0][1] > 513):
                 continue
 
             # Drop run if not at least one block per thread
@@ -330,9 +331,9 @@ def generate_block_shapes(blockable, args, level):
         for bs in list(ret):
             handle = []
             for v in options['blocksize-l1']:
-                # To be a valid block size, it must be smaller than
-                # and divide evenly the parent's block size
-                if all(v <= i and i % v == 0 for _, i in bs):
+                # To be a valid blocksize, it must be smaller than and divide evenly
+                # the parent's block size
+                if all(v < i and i % v == 0 for _, i in bs):
                     ret.append(bs + tuple((d.step, v) for d in level_1))
             ret.remove(bs)
 
@@ -380,8 +381,8 @@ def generate_nthreads(nthreads, args, level):
 
 options = {
     'squeezer': 4,
-    'blocksize-l0': (8, 16, 24, 32, 64),
-    'blocksize-l1': (4, 8, 16, 32),
+    'blocksize-l0': (8, 16, 24, 32, 64, 128, 256),
+    'blocksize-l1': (4, 8, 16, 32, 64),
 }
 """Autotuning options."""
 

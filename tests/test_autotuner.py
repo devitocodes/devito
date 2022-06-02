@@ -273,13 +273,13 @@ def test_hierarchical_blocking(opt_options):
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
-    assert op._state['autotuning'][0]['runs'] == 15
+    assert op._state['autotuning'][0]['runs'] == 12
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][0]['tuned']) == 4
 
     # 'aggressive' mode
     op.apply(time_M=0, autotune='aggressive')
-    assert op._state['autotuning'][1]['runs'] == 63
+    assert op._state['autotuning'][1]['runs'] == 48
     assert op._state['autotuning'][1]['tpr'] == options['squeezer'] + 1
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
@@ -356,7 +356,7 @@ def test_wavefront_blocking():
     # 'aggressive' mode
     op.apply(time_M=64, autotune='aggressive')
     assert op._state['autotuning'][0]['runs'] == 4
-    assert op._state['autotuning'][1]['runs'] == 16
+    assert op._state['autotuning'][1]['runs'] == 13
     assert op._state['autotuning'][0]['tpr'] == 64
     assert op._state['autotuning'][1]['tpr'] == 64
     assert len(op._state['autotuning'][1]['tuned']) == 5

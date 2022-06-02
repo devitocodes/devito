@@ -298,7 +298,6 @@ class DAG(object):
             except ValueError:
                 ind_node, dep_node, label = i
                 self.labels[ind_node][dep_node] = label
-            # import pdb;pdb.set_trace()
             self.add_edge(ind_node, dep_node)
 
     def __contains__(self, key):

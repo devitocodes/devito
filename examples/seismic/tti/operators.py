@@ -716,6 +716,59 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     return Operator(eqn + rec_term + [dm_update], subs=model.spacing_map,
                     name='GradientTTI', **kwargs)
 
+def ForwardOperator_tb(model, geometry, space_order=4,
+                       save=False, kernel='centered', **kwargs):
+    """
+    Construct an forward modelling operator in an tti media.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    save : int or Buffer, optional
+        Saving flag, True saves all time steps. False saves three timesteps.
+        Defaults to False.
+    kernel : str, optional
+        Type of discretization, centered or shifted
+    """
+
+    dt = model.grid.time_dim.spacing
+    m = model.m
+    time_order = 1 if kernel == 'staggered' else 2
+    if kernel == 'staggered':
+        stagg_u = stagg_v = NODE
+    else:
+        stagg_u = stagg_v = None
+
+    # Create symbols for forward wavefield, source and receivers
+    u = TimeFunction(name='u', grid=model.grid, staggered=stagg_u,
+                     save=geometry.nt if save else None,
+                     time_order=time_order, space_order=space_order)
+    v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
+                     save=geometry.nt if save else None,
+                     time_order=time_order, space_order=space_order)
+
+    # FD kernels of the PDE
+    FD_kernel = kernels[(kernel, len(model.shape))]
+    stencils = FD_kernel(model, u, v, space_order)
+
+    # Source and receivers
+    # expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
+    # stencils += src.inject(field=u.forward, expr=expr)
+    # stencils += src.inject(field=v.forward, expr=expr)
+    # stencils += rec.interpolate(expr=u + v)
+
+    # Substitute spacing terms to reduce flops
+    kwargs['opt'] = ('advanced', {'skewing': True, 'blocklevels': 2})
+    return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
+
 
 kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
            ('staggered', 3): kernel_staggered_3d, ('staggered', 2): kernel_staggered_2d}
+
+

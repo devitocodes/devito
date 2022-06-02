@@ -551,7 +551,6 @@ class IntelCompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        # import pdb;pdb.set_trace()
         if platform is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags += ["-qopt-zmm-usage=high"]

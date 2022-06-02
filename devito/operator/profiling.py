@@ -325,6 +325,7 @@ class AdvisorProfiler(AdvancedProfiler):
             # shared object files
             compiler = configuration['compiler']
             compiler.add_include_dirs(self.path.joinpath('include').as_posix())
+            # print(compiler.include_dirs)
             compiler.add_libraries(self._default_libs)
             libdir = self.path.joinpath('lib64').as_posix()
             compiler.add_library_dirs(libdir)

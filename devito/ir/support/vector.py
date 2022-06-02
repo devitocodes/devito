@@ -104,6 +104,10 @@ class Vector(tuple):
         # (i.e., such that their distance is a non-zero integer) are found
         for i in self.distance(other):
             try:
+                try:
+                    i = i.subs('time', 0)
+                except:
+                    pass
                 val = int(i)
                 if val < 0:
                     return True
@@ -140,6 +144,10 @@ class Vector(tuple):
         # (i.e., such that their distance is a non-zero integer) are found
         for i in self.distance(other):
             try:
+                try:
+                    i = i.subs('time', 0)
+                except:
+                    pass
                 val = int(i)
                 if val > 0:
                     return True
@@ -179,6 +187,10 @@ class Vector(tuple):
         # though it can't be assumed anything about `v1 < 0` and `v1 == v0`
         for i in self.distance(other):
             try:
+                try:
+                    i = i.subs('time', 0)
+                except:
+                    pass
                 val = int(i)
                 if val < 0:
                     return True

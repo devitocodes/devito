@@ -5,7 +5,7 @@ from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     factorize, fission, fuse, optimize_pows,
-                                    optimize_hyperplanes)
+                                    optimize_hyperplanes, skewing)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -241,7 +241,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Linearize n-dimensional Indexeds
         linearize(graph, mode=options['linearize'], sregistry=sregistry)
-
         return graph
 
 

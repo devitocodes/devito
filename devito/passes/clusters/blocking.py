@@ -71,11 +71,11 @@ def skewing(clusters, sregistry, options):
         * `skewinner` (boolean, False): enable/disable loop skewing along the
            innermost loop.
     """
-    if options['blockrelax']:
-        analyzer = AnalyzeBlocking()
-    else:
-        analyzer = AnalyzeHeuristicBlocking(options)
-    clusters = analyzer.process(clusters)
+    # if options['blockrelax']:
+    # analyzer = AnalyzeBlocking()
+    # else:
+    # analyzer = AnalyzeHeuristicBlocking(options)
+    # clusters = analyzer.process(clusters)
 
     if options['blocktime']:
         clusters = SynthesizeTBlocking(sregistry, options).process(clusters)
@@ -205,7 +205,9 @@ class AnalyzeSkewing(Queue):
         d = prefix[-1].dim
 
         for c in clusters:
-            if TILABLE not in c.properties[d]:
+            # PARALLEL* and AFFINE are necessary conditions
+            if AFFINE not in c.properties[d] or \
+               not ({PARALLEL, PARALLEL_IF_PVT} & c.properties[d]):
                 return clusters
 
         processed = attach_property(clusters, d, SKEWABLE)
@@ -491,7 +493,7 @@ class SynthesizeSkewing(Queue):
                 return clusters
 
             skew_dims = [i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]]
-            if len(skew_dims) > 2:
+            if len(skew_dims) > 2 or len(skew_dims) == 0:
                 return clusters
             skew_dim = skew_dims[-1]
 
@@ -556,10 +558,14 @@ def get_skewing_factor(cluster):
         Input Cluster, subject of the computation
     '''
     functions = {i.function for i in retrieve_indexed(cluster.exprs)}
-    try:
-        sf = int(max([i.space_order for i in functions])/2)
-    except AttributeError:
-        sf = 1
+    orders = []
+    for i in functions:
+        try:
+            orders.append(i.space_order)
+        except AttributeError:
+            pass
+    
+    sf = int(max(orders)/2)
     return (sf if sf else 1)
 
 
@@ -631,11 +637,9 @@ class RelaxSkewed(Queue):
             # lvalues = as_list(mapper.values())
 
             # Update `relations` with the newly created `Dimension`s
-            # import pdb;pdb.set_trace()
             relations = []
             for r in c.ispace.relations:
                 if any(f in r for f in family_dims) and mapper:
-                    # import pdb;pdb.set_trace()
                     rl = as_list(r)
                     newr = [j.xreplace(mapper) for j in rl]
                     relations.append(as_tuple(newr))
