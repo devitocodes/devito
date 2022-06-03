@@ -7,7 +7,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import LinearInterpolator, PrecomputedInterpolator, CubicInterpolator
+from devito.operations import LinearInterpolator, PrecomputedInterpolator, CubicInterpolator, SincInterpolator
 from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
                               retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
@@ -450,8 +450,11 @@ class SparseFunction(AbstractSparseFunction):
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
         self.cubic = kwargs.get('cubic', False)
+        self.sinc = kwargs.get('sinc', False)
         if self.cubic:
             self.interpolator = CubicInterpolator(self)
+        elif self.sinc:
+            self.interpolator = SincInterpolator(self)
         else:
             self.interpolator = LinearInterpolator(self)
         # Set up sparse point coordinates
@@ -548,6 +551,9 @@ class SparseFunction(AbstractSparseFunction):
         """Index increments in each dimension for each point symbol."""
         if self.cubic:
             return tuple(product(range(-1,3), repeat=self.grid.dim))
+        elif self.sinc:
+            r = self.interpolator.r
+            return tuple(product(range(-r + 1, r+1), repeat=self.grid.dim))
         return tuple(product(range(2), repeat=self.grid.dim))
 
     @cached_property
