@@ -876,8 +876,25 @@ class SincInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
-            
+             # Verify if is a 2D or 3D interpolation
+            dim_pos = field.space_dimensions
+            if len(dim_pos) == 2:
+                result = self._sinc_equations2D(_expr, idx_subs, dim_pos=dim_pos)
+            else:
+                result = self._sinc_equations3D(_expr, idx_subs, dim_pos=dim_pos)
 
-            
+            size = np.prod(np.shape(result))
+            eqs = [e[0] for e in np.reshape(result, (size, 1))]
+
+            eqns = [Inc(field.xreplace(vsub), b,
+                        implicit_dims=self.sfunction.dimensions)
+                    for b, vsub in zip(eqs, idx_subs)]
+
+            # Creates the symbolic equation that calls the populate function
+            err = Symbol(name='err', dtype=np.int32)
+            populate = [Eq(err, sympy.Function(name="populate")(),
+                        implicit_dims=self.sfunction.dimensions[0])]
+
+            return populate + temps + eqns
 
         return Injection(field, expr, offset, self, callback)
