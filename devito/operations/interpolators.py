@@ -626,7 +626,27 @@ class CubicInterpolator(GenericInterpolator):
             # Need to get origin of the field in case it is staggered
             field_offset = field.origin
 
+             # List of indirection indices for all adjacent grid points
+            idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                          field_offset=field_offset)
 
-            return 
+            dim_pos = self.sfunction.grid.dimensions
+            if len(dim_pos) == 3:
+                eqs = [v for v in self._tricubic_equations(_expr,
+                                                           idx_subs,
+                                                           dim_pos=dim_pos)]
+            else:
+                eqs = [v for v in self._bicubic_equations(_expr,
+                                                          idx_subs,
+                                                          dim_pos=dim_pos)]
+
+            size = np.prod(np.shape(eqs))
+            eqs = [e[0] for e in np.reshape(eqs, (size, 1))]
+
+            eqns = [Inc(field.xreplace(vsub), b,
+                        implicit_dims=self.sfunction.dimensions)
+                    for b, vsub in zip(eqs, idx_subs)]
+
+            return temps + eqns
 
         return Injection(field, expr, offset, self, callback)
