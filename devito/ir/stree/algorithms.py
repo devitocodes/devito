@@ -14,7 +14,7 @@ from devito.tools import Bunch, DefaultOrderedDict, flatten
 __all__ = ['stree_build']
 
 
-def stree_build(clusters):
+def stree_build(clusters, **kwargs):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
@@ -22,7 +22,7 @@ def stree_build(clusters):
     stree = stree_schedule(clusters)
 
     # Add in section nodes
-    stree = stree_section(stree)
+    stree = stree_section(stree, **kwargs)
 
     # Add in halo update nodes
     stree = stree_make_halo(stree)
@@ -160,7 +160,7 @@ def stree_make_halo(stree):
     return stree
 
 
-def stree_section(stree):
+def stree_section(stree, profiler=None, **kwargs):
     """
     Add NodeSections to a ScheduleTree. A NodeSection, or simply "section",
     defines a sub-tree with the following properties:
@@ -172,6 +172,8 @@ def stree_section(stree):
             * different, but all of type SubDimension;
         * The Dimension of the immediate children cannot be a TimeDimension.
     """
+    if profiler is None:
+        return stree
 
     class Section(object):
         def __init__(self, node):

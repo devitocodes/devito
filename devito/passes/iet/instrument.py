@@ -12,6 +12,8 @@ def instrument(graph, **kwargs):
 
     # Construct a fresh Timer object
     profiler = kwargs['profiler']
+    if profiler is None:
+        return
     timer = Timer(profiler.name, list(profiler.all_sections))
 
     instrument_sections(graph, timer=timer, **kwargs)
