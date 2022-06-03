@@ -874,4 +874,4 @@ class TestGuards(object):
 
         guard = GuardOverflow(freespace, size)
 
-        assert ccode(guard) == 'freespace >= (x_size + 2)*(y_size + 2)'
+        assert ccode(guard) == 'freespace >= f_vec->size[0]*f_vec->size[1]'

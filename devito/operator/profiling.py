@@ -8,6 +8,7 @@ from time import time as seq_time
 import os
 
 import cgen as c
+import numpy as np
 from sympy import S
 
 from devito.ir.iet import (BusyWait, ExpressionBundle, List, TimedList, Section,
@@ -216,11 +217,17 @@ class AdvancedProfiler(Profiler):
             # Number of FLOPs performed
             ops = int(subs_op_args(data.ops, args))
 
-            # Number of grid points computed
-            points = int(subs_op_args(data.points, args))
+            try:
+                # Number of grid points computed
+                points = int(subs_op_args(data.points, args))
 
-            # Compulsory traffic
-            traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
+                # Compulsory traffic
+                traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
+            except TypeError:
+                # E.g., the section has a dynamic loop size
+                points = np.nan
+
+                traffic = np.nan
 
             # Runtime itermaps/itershapes
             itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
@@ -359,6 +366,10 @@ class PerformanceSummary(OrderedDict):
         # Do not show unexecuted Sections (i.e., loop trip count was 0)
         if ops == 0 or traffic == 0:
             return
+        # Do not show dynamic Sections (i.e., loop trip counts varies dynamically)
+        if traffic is not None and np.isnan(traffic):
+            assert np.isnan(points)
+            return
 
         k = PerfKey(name, rank)
 
@@ -396,6 +407,9 @@ class PerformanceSummary(OrderedDict):
         ops = sum(v.ops for v in self.input.values())
         traffic = sum(v.traffic for v in self.input.values())
 
+        if np.isnan(traffic):
+            return
+
         gflops = float(ops)/10**9
         gflopss = gflops/time
         oi = float(ops/traffic)
@@ -406,6 +420,9 @@ class PerformanceSummary(OrderedDict):
         """
         Add the typical GPoints/s finite-difference metric.
         """
+        if np.isnan(points):
+            return
+
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 

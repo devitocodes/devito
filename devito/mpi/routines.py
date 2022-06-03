@@ -16,7 +16,7 @@ from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
-from devito.tools import OrderedSet, dtype_to_mpitype, dtype_to_ctype, flatten, generator
+from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten, generator
 from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
 from devito.types.dense import AliasFunction
 
@@ -41,7 +41,6 @@ class HaloExchangeBuilder(object):
 
         obj._cache_halo = OrderedDict()
         obj._cache_dims = OrderedDict()
-        obj._objs = OrderedSet()
         obj._regions = OrderedDict()
         obj._msgs = OrderedDict()
         obj._efuncs = []
@@ -63,10 +62,6 @@ class HaloExchangeBuilder(object):
     @property
     def regions(self):
         return [i for i in self._regions.values() if i is not None]
-
-    @property
-    def objs(self):
-        return list(self._objs) + self.msgs + self.regions
 
     def make(self, hs):
         """
@@ -299,8 +294,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.append(haloupdate)
-        self._objs.add(f.grid.distributor._obj_comm)
-        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -342,9 +335,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
                     if d not in hse.loc_indices]
         bufg = Array(name=self.sregistry.make_name(prefix='bufg'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0)
+                     dimensions=buf_dims, dtype=f.dtype, padding=0,
+                     liveness='eager')
         bufs = Array(name=self.sregistry.make_name(prefix='bufs'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0)
+                     dimensions=buf_dims, dtype=f.dtype, padding=0,
+                     liveness='eager')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -362,8 +357,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         count = reduce(mul, bufs.shape, 1)
-        rrecv = MPIRequestObject(name='rrecv')
-        rsend = MPIRequestObject(name='rsend')
+        rrecv = MPIRequestObject(name='rrecv', liveness='eager')
+        rsend = MPIRequestObject(name='rsend', liveness='eager')
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                          fromrank, Integer(13), comm, Byref(rrecv)])
         send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
@@ -551,8 +546,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
         self._efuncs.extend([haloupdate, halowait])
-        self._objs.add(f.grid.distributor._obj_comm)
-        self._objs.add(f.grid.distributor._obj_neighborhood)
 
         return haloupdate, halowait
 
@@ -724,7 +717,6 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
             _, _, haloupdate, halowait = self._cache_dims[f.dimensions]
 
         self._cache_halo[(f.ndim, hse)] = (haloupdate, halowait)
-        self._objs.add(f.grid.distributor._obj_comm)
 
         return haloupdate, halowait
 
@@ -916,7 +908,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
             testsend = Call('MPI_Test', [rsend, Byref(lflag), Macro('MPI_STATUS_IGNORE')])
 
-            update = AugmentedExpression(DummyEq(gflag, lflag), '&')
+            update = AugmentedExpression(DummyEq(gflag, lflag), operation='&')
 
             body.append(Iteration([testsend, update, testrecv, update],
                                   dim, msg.npeers - 1))

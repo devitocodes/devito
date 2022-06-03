@@ -209,6 +209,8 @@ class Operator(Callable):
         op._cfunction = None
 
         # Potentially required for lazily allocated Functions
+        op._mode = kwargs['mode']
+        op._options = kwargs['options']
         op._allocator = kwargs['allocator']
         op._platform = kwargs['platform']
 
@@ -218,8 +220,8 @@ class Operator(Callable):
                                            for i in profiler._ext_calls]))
         op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
-        # Internal state. May be used to store information about previous runs,
-        # autotuning reports, etc
+        # Internal mutable state to store information about previous runs, autotuning
+        # reports, etc
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
@@ -239,7 +241,7 @@ class Operator(Callable):
 
     @classmethod
     def _initialize_state(cls, **kwargs):
-        return {'optimizations': kwargs.get('mode', configuration['opt'])}
+        return {}
 
     @classmethod
     def _specialize_dsl(cls, expressions, **kwargs):
@@ -310,6 +312,8 @@ class Operator(Callable):
               as parallelism.
             * Optimize Clusters for performance
         """
+        sregistry = kwargs['sregistry']
+
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
 
@@ -323,7 +327,7 @@ class Operator(Callable):
         profiler.record_ops_variation(init_ops, final_ops)
 
         # Generate implicit Clusters from higher level abstractions
-        clusters = generate_implicit(clusters)
+        clusters = generate_implicit(clusters, sregistry=sregistry)
 
         return ClusterGroup(clusters)
 
@@ -489,7 +493,7 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(args, grid, self._allocator, self._platform)
+        args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
         # Process Dimensions
         # A topological sorting is used so that derived Dimensions are processed after
@@ -841,8 +845,7 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-        perf("Performance[mode=%s] arguments: %s" % (self._state['optimizations'],
-                                                     perf_args))
+        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
 
@@ -890,12 +893,14 @@ class Operator(Callable):
 
 class ArgumentsMap(dict):
 
-    def __init__(self, args, grid, allocator, platform):
+    def __init__(self, args, grid, op):
         super().__init__(args)
 
         self.grid = grid
-        self.allocator = allocator
-        self.platform = platform
+
+        self.allocator = op._allocator
+        self.platform = op._platform
+        self.options = op._options
 
         # Compute total used memory
         self.memused = sum(v.nbytes for v in args.values() if isinstance(v, np.ndarray))

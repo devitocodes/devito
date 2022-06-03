@@ -14,7 +14,7 @@ from devito.data import default_allocator
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
-from devito.types.caching import Cached
+from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
@@ -29,6 +29,21 @@ class CodeSymbol(object):
 
     """
     Abstract base class for objects representing symbols in the generated code.
+
+    The _C_* properties describe the object in C-land. For example its name and
+    its type.
+
+    The _mem_* properties describe the object memory allocation strategy. There
+    are three axes with a few possible values each:
+
+        *"liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
+        *"space": `_mem_local`, `_mem_mapped`, `_mem_host`
+        *"scope": `_mem_stack`, `_mem_heap`
+
+    For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
+    is allocated within the Operator entry point, on either the host or device
+    memory (but not both), and on the heap. Refer to the __doc__ of the single
+    _mem_* properties for more info.
     """
 
     @abc.abstractmethod
@@ -113,6 +128,83 @@ class CodeSymbol(object):
         """
         return (self,)
 
+    @property
+    def _mem_external(self):
+        """
+        True if the associated data is allocated and freed in Python, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_internal_eager(self):
+        """
+        True if the associated data is allocated and freed inside the first
+        Callable in which the symbol appears as a free variable.
+        """
+        return False
+
+    @property
+    def _mem_internal_lazy(self):
+        """
+        True if the associated data is allocated and freed at the level of
+        the Operator entry point.
+        """
+        return False
+
+    @property
+    def _mem_local(self):
+        """
+        True if the associated data is allocated in the underlying platform's
+        local memory space, False otherwise.
+
+        The local memory space is:
+
+            * the host DRAM if platform=CPU
+            * the device DRAM if platform=GPU
+        """
+        return False
+
+    @property
+    def _mem_mapped(self):
+        """
+        True if the associated data is allocated in the underlying platform's
+        local memory space and subsequently mapped to the underlying platform's
+        remote memory space, False otherwise.
+
+        The local memory space is:
+
+            * the host DRAM if platform=CPU
+            * the device DRAM if platform=GPU
+
+        The remote memory space is:
+
+            * the host DRAM if platform=GPU
+            * the device DRAM if platform=CPU
+        """
+        return not self._mem_local
+
+    @property
+    def _mem_host(self):
+        """
+        True if the associated data is systematically allocated in the host DRAM.
+        """
+        return False
+
+    @property
+    def _mem_stack(self):
+        """
+        True if the associated data should be allocated on the stack, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_heap(self):
+        """
+        True if the associated data was/is/will be allocated on the heap,
+        False otherwise.
+        """
+        return False
+
 
 class Basic(CodeSymbol):
 
@@ -150,7 +242,6 @@ class Basic(CodeSymbol):
 
     # Top hierarchy
     is_AbstractFunction = False
-    is_AbstractSymbol = False
     is_AbstractObject = False
 
     # Symbolic objects created internally by Devito
@@ -176,21 +267,21 @@ class Basic(CodeSymbol):
     is_TempFunction = False
     is_SparseTimeFunction = False
     is_SparseFunction = False
-    is_PrecomputedSparseFunction = False
-    is_PrecomputedSparseTimeFunction = False
 
     # Time dependence
     is_TimeDependent = False
 
-    # Tensor and Vector valued objects
-    is_VectorValued = False
-    is_TensorValued = False
-
-    # Basic symbolic object properties
-    is_Scalar = False
-
     # Some other properties
     is_PerfKnob = False  # Does it impact the Operator performance?
+
+    @property
+    def bound_symbols(self):
+        """
+        Unlike SymPy, we systematically define `bound_symbols` on all of
+        the API and internal objects that may be used to construct an
+        Operator.
+        """
+        return set()
 
 
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
@@ -417,49 +508,27 @@ class Symbol(AbstractSymbol, Cached):
     __hash__ = Cached.__hash__
 
 
-class DataSymbol(AbstractSymbol, Cached):
+class DataSymbol(AbstractSymbol, Uncached):
 
     """
-    A scalar symbol, cached by both Devito and SymPy, which carries data.
+    A unique scalar symbol that carries data.
     """
-
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        return cls
 
     def __new__(cls, *args, **kwargs):
-        key = cls._cache_key(*args, **kwargs)
-        obj = cls._cache_get(key)
-
-        if obj is not None:
-            return obj
-
-        # Not in cache. Create a new Symbol via sympy.Symbol
+        # Create a new Symbol via sympy.Symbol
         name = kwargs.get('name') or args[0]
         assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-        # Create new, unique type instance from cls and the symbol name
-        newcls = type(name, (cls,), dict(cls.__dict__))
-
-        # Create the new Symbol and invoke __init__
-        newobj = sympy.Symbol.__new__(newcls, name, **assumptions)
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
         newobj.__init_finalize__(*args, **kwargs)
 
-        # Store new instance in symbol cache
-        Cached.__init__(newobj, newcls)
-
         return newobj
 
-    __hash__ = Cached.__hash__
-
-    # Pickling support
-
-    @property
-    def _pickle_reconstruct(self):
-        return self.__class__.__base__
+    __hash__ = Uncached.__hash__
 
 
 class Scalar(Symbol, ArgProvider):
@@ -481,8 +550,6 @@ class Scalar(Symbol, ArgProvider):
         Any SymPy assumptions, such as ``nonnegative=True``. Refer to the
         SymPy documentation for more information.
     """
-
-    is_Scalar = True
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
@@ -944,71 +1011,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return DimensionTuple(*ret, getters=self.dimensions)
 
     @cached_property
+    def bound_symbols(self):
+        return ({self._C_symbol, self.indexed} |
+                set().union(*[d.bound_symbols for d in self.dimensions]))
+
+    @cached_property
     def indexed(self):
         """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
-
-    @property
-    def _mem_local(self):
-        """
-        True if the associated data is allocated in the underlying platform's
-        local memory space, False otherwise.
-
-        The local memory space is:
-
-            * the host DRAM if platform=CPU
-            * the device DRAM if platform=GPU
-
-        Defaults to False because AbstractFunctions are normally allocated in
-        the host DRAM regardless of the underlying platform, and then
-        dynamically mapped to device DRAM (directly from the generated code) if
-        the underlying platform turns out to be a device.
-        """
-        return False
-
-    @property
-    def _mem_mapped(self):
-        """
-        True if the associated data is allocated in the underlying platform's
-        local memory space and subsequently mapped to the underlying platform's
-        remote memory space, False otherwise.
-
-        The local memory space is:
-
-            * the host DRAM if platform=CPU
-            * the device DRAM if platform=GPU
-
-        The remote memory space is:
-
-            * the host DRAM if platform=GPU
-            * the device DRAM if platform=CPU
-
-        Defaults to True, thus relaxing `_mem_local`.
-        """
-        return not self._mem_local
-
-    @property
-    def _mem_external(self):
-        """
-        True if the associated data was/is/will be allocated directly
-        from Python (e.g., via NumPy arrays), False otherwise.
-        """
-        return False
-
-    @property
-    def _mem_stack(self):
-        """
-        True if the associated data should be allocated on the stack, False otherwise.
-        """
-        return False
-
-    @property
-    def _mem_heap(self):
-        """
-        True if the associated data was/is/will be allocated on the heap,
-        False otherwise.
-        """
-        return False
 
     @property
     def size(self):
@@ -1168,7 +1178,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 class AbstractObject(Basic, sympy.Basic, Pickable):
 
     """
-    Base class for pointers to objects with derived type.
+    Base class for objects with derived type.
 
     The hierarchy is structured as follows
 
@@ -1234,10 +1244,10 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class Object(AbstractObject, ArgProvider):
+class Object(AbstractObject, ArgProvider, Uncached):
 
     """
-    Pointer to object with derived type, provided by an outer scope.
+    Object with derived type defined in Python.
     """
 
     is_Object = True
@@ -1245,6 +1255,12 @@ class Object(AbstractObject, ArgProvider):
     def __init__(self, name, dtype, value=None):
         super(Object, self).__init__(name, dtype)
         self.value = value
+
+    __hash__ = Uncached.__hash__
+
+    @property
+    def _mem_external(self):
+        return True
 
     @property
     def _arg_names(self):
@@ -1266,7 +1282,8 @@ class Object(AbstractObject, ArgProvider):
             Dictionary of user-provided argument overrides.
         """
         if self.name in kwargs:
-            return {self.name: kwargs.pop(self.name)}
+            obj = kwargs.pop(self.name)
+            return {self.name: obj._arg_defaults()[obj.name]}
         else:
             return self._arg_defaults()
 
@@ -1274,8 +1291,7 @@ class Object(AbstractObject, ArgProvider):
 class CompositeObject(Object):
 
     """
-    Pointer to object with composite type (e.g., a C struct), provided
-    by an outer scope.
+    Object with composite type (e.g., a C struct) defined in Python.
     """
 
     _dtype_cache = {}
@@ -1306,9 +1322,6 @@ class CompositeObject(Object):
     def fields(self):
         return [i for i, _ in self.pfields]
 
-    def _hashable_content(self):
-        return (self.name, self.pfields)
-
     @cached_property
     def _C_typedecl(self):
         return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
@@ -1321,7 +1334,7 @@ class CompositeObject(Object):
 class LocalObject(AbstractObject):
 
     """
-    Pointer to object with derived type, defined in the local scope.
+    Object with derived type defined inside an Operator.
     """
 
     is_LocalObject = True
@@ -1335,9 +1348,24 @@ class LocalObject(AbstractObject):
         self.name = name
         self.constructor_args = as_tuple(constructor_args)
 
+        self._liveness = kwargs.get('liveness', 'lazy')
+        assert self._liveness in ['eager', 'lazy']
+
+    @property
+    def liveness(self):
+        return self._liveness
+
+    @property
+    def _mem_internal_eager(self):
+        return self._liveness == 'eager'
+
+    @property
+    def _mem_internal_lazy(self):
+        return self._liveness == 'lazy'
+
     # Pickling support
     _pickle_args = ['name']
-    _pickle_kwargs = ['constructor_args']
+    _pickle_kwargs = ['constructor_args', 'liveness']
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
@@ -1370,6 +1398,9 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.function,)
+
     @property
     def _C_name(self):
         return self.name
@@ -1389,6 +1420,10 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
     @property
     def base(self):
         return self
+
+    @property
+    def indices(self):
+        return ()
 
     @property
     def dtype(self):

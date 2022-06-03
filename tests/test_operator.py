@@ -145,11 +145,11 @@ class TestCodeGen(object):
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_AbstractFunction
         assert op.parameters[1].name == 'constant'
-        assert op.parameters[1].is_Scalar
+        assert op.parameters[1].is_Symbol
         assert op.parameters[2].name == 'x_M'
-        assert op.parameters[2].is_Scalar
+        assert op.parameters[2].is_Symbol
         assert op.parameters[3].name == 'x_m'
-        assert op.parameters[3].is_Scalar
+        assert op.parameters[3].is_Symbol
         assert op.parameters[4].name == 'timers'
         assert op.parameters[4].is_Object
         assert 'a_dense[x + 1] = 2.0F*constant + a_dense[x + 1]' in str(op)
@@ -1387,7 +1387,7 @@ class TestDeclarator(object):
         x = Dimension(name="x")
         a = Array(name='a', dimensions=(x,), dtype=np.int32, scope='stack')
         init_value = ListInitializer([0, 0])
-        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value)))
+        list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value), ispace=None))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
         iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]

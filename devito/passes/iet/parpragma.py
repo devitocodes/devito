@@ -1,20 +1,24 @@
 import numpy as np
 import cgen as c
+from cached_property import cached_property
 from sympy import And, Max, true
 
 from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
-                       FindSymbols, FindNodes, ParallelTree, Prodder, List, Transformer,
-                       IsPerfectIteration, filter_iterations, retrieve_iteration_tree,
-                       VECTORIZED)
+                       FindSymbols, FindNodes, ParallelTree, Pragma, Prodder, Transfer,
+                       List, Transformer, IsPerfectIteration, OpInc, filter_iterations,
+                       retrieve_iteration_tree, VECTORIZED)
+from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.langbase import LangBB, LangTransformer, DeviceAwareMixin
+from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
+                                        make_sections_from_imask)
 from devito.symbolics import INT, ccode
-from devito.tools import as_tuple, prod
-from devito.types import Symbol, NThreadsBase
+from devito.tools import as_tuple, flatten, prod
+from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
-           'PragmaDeviceAwareTransformer', 'PragmaLangBB']
+           'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer',
+           'PragmaDeviceAwareDataManager']
 
 
 class PragmaTransformer(LangTransformer):
@@ -92,7 +96,7 @@ class PragmaSimdTransformer(PragmaTransformer):
             if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
                not self._support_array_reduction(self.compiler):
                 exprs = FindNodes(Expression).visit(candidate)
-                reductions = [i.output for i in exprs if i.is_Increment]
+                reductions = [i.output for i in exprs if i.is_reduction]
                 if any(i.is_Indexed for i in reductions):
                     continue
 
@@ -243,19 +247,21 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
-        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_Increment]
-        reductions = [i.output for i in exprs]
+        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
+        reductions = [(i.output, i.operation) for i in exprs]
 
-        test0 = all(not i.is_Indexed for i in reductions)
+        test0 = all(not i.is_Indexed for i, _ in reductions)
         test1 = (self._support_array_reduction(self.compiler) and
                  all(i.is_Affine for i in partree.collapsed))
 
         if test0 or test1:
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
-        else:
-            # Make sure the increment is atomic
+        elif all(i is OpInc for _, i in reductions):
+            # Use atomic increments
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
+        else:
+            raise NotImplementedError
 
         partree = Transformer(mapper).visit(partree)
 
@@ -414,16 +420,57 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         iet = Transformer(mapper).visit(iet)
 
-        # The new arguments introduced by this pass
-        args = [i for i in FindSymbols().visit(iet) if isinstance(i, (NThreadsBase))]
-        for n in FindNodes(VExpanded).visit(iet):
-            args.extend([(n.pointee, True), n.pointer])
-
-        return iet, {'args': args, 'includes': [self.lang['header']]}
+        return iet, {'includes': [self.lang['header']]}
 
     @iet_pass
     def make_parallel(self, iet):
         return self._make_parallel(iet)
+
+
+class PragmaTransfer(Pragma, Transfer):
+
+    """
+    A data transfer between host and device expressed by means of one or more pragmas.
+    """
+
+    def __init__(self, callback, function, imask=None, arguments=None):
+        super().__init__(callback, arguments)
+
+        self._function = function
+        self._imask = imask
+
+    @property
+    def function(self):
+        return self._function
+
+    @property
+    def imask(self):
+        return self._imask
+
+    @cached_property
+    def sections(self):
+        return make_sections_from_imask(self.function, self.imask)
+
+    @cached_property
+    def pragmas(self):
+        # Stringify sections
+        sections = ''.join(['[%s:%s]' % (ccode(i), ccode(j)) for i, j in self.sections])
+        arguments = [ccode(i) for i in self.arguments]
+        return as_tuple(self.callback(self.function.name, sections, *arguments))
+
+    @property
+    def functions(self):
+        return (self.function,)
+
+    @cached_property
+    def expr_symbols(self):
+        retval = [self.function.indexed]
+        for i in self.arguments + tuple(flatten(self.sections)):
+            try:
+                retval.extend(i.free_symbols)
+            except AttributeError:
+                pass
+        return tuple(retval)
 
 
 class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
@@ -523,78 +570,61 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
             return super()._make_nested_partree(partree)
 
 
+class PragmaDeviceAwareDataManager(DeviceAwareDataManager):
+
+    def process(self, graph):
+        super().process(graph)
+        self.place_devptr(graph)
+
+    @iet_pass
+    def place_devptr(self, iet, **kwargs):
+        """
+        Transform `iet` such that device pointers are used in DeviceCalls.
+        """
+        return iet, {}
+
+
 class PragmaLangBB(LangBB):
 
     @classmethod
-    def _make_sections_from_imask(cls, f, imask):
-        sections = cls._make_symbolic_sections_from_imask(f, imask)
-
-        sections = ['[%s:%s]' % (ccode(start), ccode(size)) for start, size in sections]
-        sections = ''.join(sections)
-
-        return sections
-
-    @classmethod
     def _map_to(cls, f, imask=None, queueid=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-enter-to'](f.name, sections)
+        return PragmaTransfer(cls.mapper['map-enter-to'], f, imask)
 
     _map_to_wait = _map_to
 
     @classmethod
     def _map_alloc(cls, f, imask=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-enter-alloc'](f.name, sections)
+        return PragmaTransfer(cls.mapper['map-enter-alloc'], f, imask)
 
     @classmethod
     def _map_present(cls, f, imask=None):
         return
 
-    @classmethod
-    def _map_wait(cls, queueid=None):
-        try:
-            return cls.mapper['map-wait'](queueid)
-        except KeyError:
-            # Not all languages may provide an explicit wait construct
-            return None
+    # Not all languages may provide an explicit wait construct
+    _map_wait = None
 
     @classmethod
     def _map_update(cls, f, imask=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-update'](f.name, sections)
+        return PragmaTransfer(cls.mapper['map-update'], f, imask)
 
     @classmethod
     def _map_update_host(cls, f, imask=None, queueid=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-update-host'](f.name, sections)
+        return PragmaTransfer(cls.mapper['map-update-host'], f, imask)
 
     _map_update_host_async = _map_update_host
 
     @classmethod
     def _map_update_device(cls, f, imask=None, queueid=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-update-device'](f.name, sections)
+        return PragmaTransfer(cls.mapper['map-update-device'], f, imask)
 
     _map_update_device_async = _map_update_device
 
     @classmethod
     def _map_release(cls, f, imask=None, devicerm=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        return cls.mapper['map-release'](f.name, sections,
-                                         (' if(%s)' % devicerm.name) if devicerm else '')
-
-    @classmethod
-    def _map_delete(cls, f, imask=None, devicerm=None):
-        sections = cls._make_sections_from_imask(f, imask)
-        # This ugly condition is to avoid a copy-back when, due to
-        # domain decomposition, the local size of a Function is 0, which
-        # would cause a crash
-        items = []
-        if devicerm is not None:
-            items.append(devicerm.name)
-        items.extend(['(%s != 0)' % i for i in cls._map_data(f)])
-        cond = ' if(%s)' % ' && '.join(items)
-        return cls.mapper['map-exit-delete'](f.name, sections, cond)
+        if devicerm:
+            return PragmaTransfer(cls.mapper['map-release-if'], f, imask, devicerm)
+        else:
+            return PragmaTransfer(cls.mapper['map-release'], f, imask)
 
 
 # Utils

@@ -1,15 +1,13 @@
 from collections import Counter, defaultdict
 from itertools import groupby, product
 
-from devito.ir.clusters import Cluster, ClusterGroup, Queue
+from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope
-from devito.passes.clusters.utils import cluster_pass
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
-from devito.types import Hyperplane, Symbol
+from devito.types import Hyperplane
 
-__all__ = ['Lift', 'fuse', 'optimize_pows', 'extract_increments',
-           'fission', 'optimize_hyperplanes']
+__all__ = ['Lift', 'fuse', 'optimize_pows', 'fission', 'optimize_hyperplanes']
 
 
 class Lift(Queue):
@@ -271,28 +269,6 @@ def optimize_pows(cluster, *args):
     return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])
 
 
-@cluster_pass(mode='sparse')
-def extract_increments(cluster, sregistry, *args):
-    """
-    Extract the RHSs of non-local tensor expressions performing an associative
-    and commutative increment, and assign them to temporaries.
-    """
-    processed = []
-    for e in cluster.exprs:
-        if e.is_Increment and e.lhs.function.is_Input:
-            handle = Symbol(name=sregistry.make_name(), dtype=e.dtype).indexify()
-            if e.rhs.is_Number or e.rhs.is_Symbol:
-                extracted = e.rhs
-            else:
-                extracted = e.rhs.func(*[i for i in e.rhs.args if i != e.lhs])
-            processed.extend([e.func(handle, extracted, is_Increment=False),
-                              e.func(e.lhs, handle)])
-        else:
-            processed.append(e)
-
-    return cluster.rebuild(processed)
-
-
 class Fission(Queue):
 
     """
@@ -322,7 +298,14 @@ class Fission(Queue):
         for (it, guards), g in groupby(clusters, key=lambda c: self._key(c, prefix)):
             group = list(g)
 
-            if any(SEQUENTIAL in c.properties[it.dim] for c in group) or guards:
+            try:
+                test0 = any(SEQUENTIAL in c.properties[it.dim] for c in group)
+            except AttributeError:
+                # `it` is None because `c`'s IterationSpace has no `d` Dimension,
+                # hence `key = (it, guards) = (None, guards)`
+                test0 = True
+
+            if test0 or guards:
                 # Heuristic: no gain from fissioning if unable to ultimately
                 # increase the number of collapsable iteration spaces, hence give up
                 processed.extend(group)

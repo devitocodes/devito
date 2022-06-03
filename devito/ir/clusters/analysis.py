@@ -1,4 +1,4 @@
-from devito.ir.clusters.queue import QueueStateful
+from devito.ir.clusters.visitors import QueueStateful
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
                                ROUNDABLE, SEQUENTIAL, Forward)
 from devito.tools import as_tuple, flatten, timed_pass
@@ -100,7 +100,7 @@ class Parallelism(Detector):
                 # False alarm, the dependence is over a locally-defined symbol
                 continue
 
-            if dep.is_increment:
+            if dep.is_reduction:
                 is_parallel_atomic = True
                 continue
 

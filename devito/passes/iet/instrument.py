@@ -69,4 +69,4 @@ def instrument_sections(iet, **kwargs):
 
     headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
 
-    return piet, {'args': timer, 'headers': headers}
+    return piet, {'headers': headers}

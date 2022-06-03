@@ -153,6 +153,14 @@ class Interval(AbstractInterval):
     def _rebuild(self):
         return Interval(self.dim, self.lower, self.upper, self.stamp)
 
+    @property
+    def symbolic_min(self):
+        return self.dim.symbolic_min + self.lower
+
+    @property
+    def symbolic_max(self):
+        return self.dim.symbolic_max + self.upper
+
     @cached_property
     def size(self):
         """
@@ -192,8 +200,8 @@ class Interval(AbstractInterval):
             npoints /= n
         else:
             # Typically we end up here (Dimension, SubDimension, BlockDimension)
-            upper_extreme = self.dim.symbolic_max + self.upper
-            lower_extreme = self.dim.symbolic_min + self.lower
+            upper_extreme = self.symbolic_max
+            lower_extreme = self.symbolic_min
 
             npoints = (upper_extreme - lower_extreme + 1)
 
@@ -540,6 +548,8 @@ class IterationInterval(object):
         return "%s%s" % (self.interval, self.direction)
 
     def __eq__(self, other):
+        if not isinstance(other, IterationInterval):
+            return False
         return self.direction is other.direction and self.interval == other.interval
 
     def __hash__(self):

@@ -2,17 +2,20 @@
 Passes to gather and form implicit equations from DSL abstractions.
 """
 
+from functools import singledispatch
+from math import floor
+
 from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
                        SEQUENTIAL)
-from devito.symbolics import retrieve_dimensions
-from devito.tools import filter_sorted, timed_pass
-from devito.types.grid import MultiSubDimension
+from devito.tools import as_tuple, timed_pass
+from devito.types import Eq
+from devito.types.grid import MultiSubDimension, SubDomainSet
 
 __all__ = ['generate_implicit']
 
 
 @timed_pass()
-def generate_implicit(clusters):
+def generate_implicit(clusters, sregistry):
     """
     Create and add implicit expressions from high-level abstractions.
 
@@ -23,7 +26,7 @@ def generate_implicit(clusters):
 
         * MultiSubDomains attached to input equations.
     """
-    clusters = LowerMultiSubDimensions().process(clusters)
+    clusters = LowerMultiSubDimensions(sregistry).process(clusters)
 
     return clusters
 
@@ -49,15 +52,35 @@ class LowerMultiSubDimensions(Queue):
         Cluster([Eq(f[t1, xi_n, yi_n], f[t0, xi_n, yi_n] + 1)])
     """
 
+    def __init__(self, sregistry):
+        super().__init__()
+
+        self.sregistry = sregistry
+
+    def _hook_syncs(self, cluster, level):
+        """
+        The *Prefetch SyncOps may require their own suitably adjusted
+        thickness assigments. This method pulls such SyncOps.
+        """
+        syncs = []
+        for i in cluster.ispace[:level]:
+            for s in cluster.syncs.get(i.dim, ()):
+                if s.is_Fetch:
+                    syncs.append(s)
+        return tuple(syncs)
+
+    def _make_key_hook(self, cluster, level):
+        return (self._hook_syncs(cluster, level),)
+
     def callback(self, clusters, prefix):
         try:
-            dd = prefix[-1].dim
+            dim = prefix[-1].dim
         except IndexError:
-            dd = None
+            dim = None
 
         # The non-MultiSubDimension closest to a MultiSubDimension triggers
         # the pass. For example, `t` in an `t, xi_n, yi_n` iteration space
-        if msdim(dd):
+        if msdim(dim):
             return clusters
 
         idx = len(prefix)
@@ -80,33 +103,31 @@ class LowerMultiSubDimensions(Queue):
             ispace0 = c.ispace[:n]
             ispace1 = c.ispace[n:]
 
-            # The implicit expressions introduced by the MultiSubDomain
-            exprs = d.msd._implicit_exprs
+            # The "implicit expressions" created for the MultiSubDomain
+            exprs, dims, sub_iterators = make_implicit_exprs(d.msd, c)
 
-            # The implicit Dimensions and iterators induced by the MultiSubDomain
-            # NOTE: `filter_sorted` is for deterministic code generation, should
-            # there ever be a crazy MultiSubDomain with multiple implicit Dimensions
-            dims = filter_sorted(retrieve_dimensions(exprs, deep=True))
-            idims = tuple(i for i in dims if not i.is_SubIterator)
-            intervals = [Interval(i, 0, 0) for i in idims]
-            sub_iterators = {i.root: i for i in dims if i.is_SubIterator}
-
-            # The local IterationSpace of the implicit Dimensions, if any
-            relations = (ispace0.itdimensions + idims,
-                         idims + ispace1.itdimensions)
+            # The IterationSpace induced by the MultiSubDomain
+            intervals = [Interval(i, 0, 0) for i in dims]
+            relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
             ispaceN = IterationSpace(
-                IntervalGroup(intervals, relations=relations),
-                sub_iterators
+                IntervalGroup(intervals, relations=relations), sub_iterators
             )
 
             ispace = IterationSpace.union(ispace0, ispaceN)
             properties = {i.dim: {SEQUENTIAL} for i in ispace}
             if len(ispaceN) == 0:
                 # Special case: we can factorize the thickness assignments
-                # once and for all at the top of the current IterationInterval
+                # once and for all at the top of the current IterationInterval,
+                # and reuse them for one or more (potentially non-consecutive)
+                # `clusters`
                 if ispaceN not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
-                    retained = c.ispace[:n-1].dimensions
+                    retained = {None} | set(c.ispace[:n-1].dimensions)
+
+                    # A fetch SyncOp along `dim` binds the thickness assignments
+                    if self._hook_syncs(c, n):
+                        retained.add(dim)
+
                     guards = {d: v for d, v in c.guards.items() if d in retained}
                     syncs = {d: v for d, v in c.syncs.items() if d in retained}
 
@@ -131,9 +152,6 @@ class LowerMultiSubDimensions(Queue):
         return (c.guards, c.syncs, ispaceN)
 
 
-# Utils
-
-
 def msdim(d):
     try:
         for i in d._defines:
@@ -142,3 +160,22 @@ def msdim(d):
     except AttributeError:
         pass
     return None
+
+
+@singledispatch
+def make_implicit_exprs(msd, cluster):
+    # Retval: (exprs, iteration dimensions, subiterators)
+    return (), (), {}
+
+
+@make_implicit_exprs.register(SubDomainSet)
+def _(msd, *args):
+    ret = []
+    for j in range(len(msd._local_bounds)):
+        index = floor(j/2)
+        d = msd.dimensions[index]
+        f = msd._functions[j]
+
+        ret.append(Eq(d.thickness[j % 2][0], f.indexify()))
+
+    return as_tuple(ret), (msd._implicit_dimension,), {}

@@ -6,25 +6,21 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
                                Stencil, detect_io, detect_accesses)
 from devito.symbolics import IntDiv, uxreplace
-from devito.tools import Pickable, frozendict
-from devito.types import Eq
+from devito.tools import Pickable, Tag, frozendict
+from devito.types import Eq, Inc, ReduceMax, ReduceMin
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax']
 
 
 class IREq(sympy.Eq):
 
-    _state = ('is_Increment', 'ispace', 'conditionals', 'implicit_dims')
+    _state = ('ispace', 'conditionals', 'implicit_dims', 'operation')
 
     @property
     def is_Scalar(self):
         return self.lhs.is_Symbol
 
     is_scalar = is_Scalar
-
-    @property
-    def is_Increment(self):
-        return self._is_Increment
 
     @property
     def ispace(self):
@@ -54,6 +50,18 @@ class IREq(sympy.Eq):
     def state(self):
         return {i: getattr(self, i) for i in self._state}
 
+    @property
+    def operation(self):
+        return self._operation
+
+    @property
+    def is_Reduction(self):
+        return self.operation in (OpInc, OpMin, OpMax)
+
+    @property
+    def is_Increment(self):
+        return self.operation is OpInc
+
     def apply(self, func):
         """
         Apply a callable to `self` and each expr-like attribute carried by `self`,
@@ -63,6 +71,36 @@ class IREq(sympy.Eq):
         kwargs = dict(self.state)
         kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
         return self.func(*args, **kwargs)
+
+
+class Operation(Tag):
+
+    """
+    Special operation performed by an Eq.
+    """
+
+    @classmethod
+    def detect(cls, expr):
+        reduction_mapper = {
+            Inc: OpInc,
+            ReduceMax: OpMax,
+            ReduceMin: OpMin
+        }
+        try:
+            return reduction_mapper[type(expr)]
+        except KeyError:
+            pass
+
+        # NOTE: in the future we might want to track down other kinds
+        # of operations here (e.g., memcpy). However, we don't care for
+        # now, since they would remain unexploited inside the compiler
+
+        return None
+
+
+OpInc = Operation('+')
+OpMax = Operation('max')
+OpMin = Operation('min')
 
 
 class LoweredEq(IREq):
@@ -153,9 +191,8 @@ class LoweredEq(IREq):
         expr._ispace = ispace
         expr._conditionals = conditionals
         expr._reads, expr._writes = detect_io(expr)
-
-        expr._is_Increment = input_expr.is_Increment
         expr._implicit_dims = input_expr.implicit_dims
+        expr._operation = Operation.detect(input_expr)
 
         return expr
 
@@ -185,9 +222,10 @@ class ClusterizedEq(IREq, Pickable):
     There are two main differences between a LoweredEq and a
     ClusterizedEq:
 
-    * In a ClusterizedEq, the IterationSpace must *always* be provided
-      by the caller.
-    * A ClusterizedEq is "frozen", meaning that any call to ``xreplace``
+    * To construct a ClusterizedEq, the IterationSpace must be provided
+      by the caller, whie in a LoweredEq the IterationSpace is derived
+      by analysis of the input.
+    * A ClusterizedEq is "frozen", meaning that any call to e.g. `xreplace`
       will not trigger re-evaluation (e.g., mathematical simplification)
       of the expression.
 
@@ -199,9 +237,18 @@ class ClusterizedEq(IREq, Pickable):
             # origin: ClusterizedEq(expr, **kwargs)
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
-            for i in cls._state:
-                v = kwargs[i] if i in kwargs else getattr(input_expr, i, None)
-                setattr(expr, '_%s' % i, v)
+            if isinstance(input_expr, IREq):
+                for i in cls._state:
+                    try:
+                        v = kwargs[i]
+                    except KeyError:
+                        v = getattr(input_expr, i, None)
+                    setattr(expr, '_%s' % i, v)
+            else:
+                expr._ispace = kwargs['ispace']
+                expr._conditionals = kwargs.get('conditionals', frozendict())
+                expr._implicit_dims = input_expr.implicit_dims
+                expr._operation = Operation.detect(input_expr)
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)

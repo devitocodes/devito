@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_void_p, c_int, cast, byref
+from ctypes import POINTER, Structure, c_void_p, c_int, c_ulong, cast, byref
 from functools import wraps, reduce
 from math import ceil
 from operator import mul
@@ -20,7 +20,8 @@ from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
-                          ctypes_to_cstr, memoized_meth, dtype_to_ctype)
+                          ctypes_to_cstr, memoized_meth, dtype_to_ctype,
+                          humanbytes)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
@@ -116,7 +117,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         @wraps(func)
         def wrapper(self):
             if self._data is None:
-                debug("Allocating memory for %s%s" % (self.name, self.shape_allocated))
+                debug("Allocating host memory for %s%s [%s]"
+                      % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
@@ -305,6 +307,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             size = self.grid.dimension_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
+
+    @property
+    def symbolic_shape(self):
+        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
 
     @property
     def size_global(self):
@@ -668,18 +674,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _C_typedecl = Struct(_C_structname,
                          [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_nopad_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_domain_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
+                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
                           Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
-                                          (_C_field_size, POINTER(c_int)),
-                                          (_C_field_nopad_size, POINTER(c_int)),
-                                          (_C_field_domain_size, POINTER(c_int)),
+                                          (_C_field_size, POINTER(c_ulong)),
+                                          (_C_field_nopad_size, POINTER(c_ulong)),
+                                          (_C_field_domain_size, POINTER(c_ulong)),
                                           (_C_field_halo_size, POINTER(c_int)),
                                           (_C_field_halo_ofs, POINTER(c_int)),
                                           (_C_field_owned_ofs, POINTER(c_int))]}))
@@ -691,11 +697,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_void_p)
-        dataobj._obj.size = (c_int*self.ndim)(*data.shape)
+        dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
         # MPI-related fields
-        dataobj._obj.npsize = (c_int*self.ndim)(*[i - sum(j) for i, j in
-                                                  zip(data.shape, self._size_padding)])
-        dataobj._obj.dsize = (c_int*self.ndim)(*self._size_domain)
+        dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
+                                                    zip(data.shape, self._size_padding)])
+        dataobj._obj.dsize = (c_ulong*self.ndim)(*self._size_domain)
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
@@ -1560,7 +1566,8 @@ class TempFunction(DiscreteFunction):
         ret = tuple(sum(i) for i in zip(domain, halo))
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    shape_allocated = DiscreteFunction.symbolic_shape
+    shape_allocated = AbstractFunction.symbolic_shape
+    symbolic_shape = AbstractFunction.symbolic_shape
 
     def make(self, shape=None, initializer=None, allocator=None, **kwargs):
         """

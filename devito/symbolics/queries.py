@@ -6,8 +6,8 @@ from devito.tools import as_tuple, is_integer
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
            'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
-           'q_identity', 'q_inc', 'q_symbol', 'q_multivar', 'q_monoaffine',
-           'q_dimension', 'q_positive', 'q_negative']
+           'q_identity', 'q_symbol', 'q_multivar', 'q_monoaffine', 'q_dimension',
+           'q_positive', 'q_negative']
 
 
 # The following SymPy objects are considered tree leaves:
@@ -86,13 +86,6 @@ def q_indirect(expr):
     if not expr.is_Indexed:
         return False
     return any(retrieve_indexed(i) for i in expr.indices)
-
-
-def q_inc(expr):
-    try:
-        return expr.is_Increment
-    except AttributeError:
-        return False
 
 
 def q_multivar(expr, vars):
