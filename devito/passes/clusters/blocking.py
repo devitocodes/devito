@@ -369,7 +369,7 @@ class SynthesizeTBlocking(Queue):
 
             elif d._depth == 1:  # Interchanged non-Time loops are not PARALLEL anymore
                 properties = dict(c.properties)
-                properties.update({d: c.properties[d] - {PARALLEL}})
+                properties.update({d: c.properties[d] - {PARALLEL, PARALLEL_IF_PVT}})
                 processed.append(c.rebuild(properties=properties))
             else:
                 processed.append(c)

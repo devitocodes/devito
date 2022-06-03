@@ -765,6 +765,9 @@ def ForwardOperator_tb(model, geometry, space_order=4,
 
     # Substitute spacing terms to reduce flops
     kwargs['opt'] = ('advanced', {'skewing': True, 'blocklevels': 2})
+# AutoTuner: run <time0_blk0_size=64,x0_blk0_size=32,y0_blk0_size=32,x0_blk1_size=8,y0_blk1_size=8,nthreads=8> took 5.535859 (s) in 294 timesteps
+
+    # kwargs['opt'] = ('advanced', {'skewing': False, 'blocklevels': 1})
     return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
 
