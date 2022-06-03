@@ -669,6 +669,89 @@ class SincInterpolator(GenericInterpolator):
     def grid(self):
         return self.sfunction.grid
 
+    def _sinc_equation(self, expr, position, dim_pos, idx_subs, idx2d, idx3d=None):
+        """
+        Generate the basic sinc equation.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        position: List
+            Elements which represents the position of the interpolation point
+            multiplied by their respective coefficients.
+        dim_pos: Symbol
+            Symbol representing the dimension wich will be used to form the sinc
+            equations.
+        idx_subs: dict
+            Structure responsible for mapping the order of substitution of dimensions
+            in expr.
+        idx_2d: Integer
+            Defines which iteration of second dimension is being used.
+        idx3d: Integer, optional
+            defines which iteration of third dimension is being used, if it is a 3D interpolation.
+        """
+
+        # Defining the symbolic function responsible for accessing the pre-computed coefficient value
+        def sincKernel(args):
+            coeffs = sympy.Function(name="acessCoeffs")(args)
+            return coeffs
+
+        npoints = self.r*2
+
+        pos = sympy.Matrix(position)
+
+        dim_pos = sympy.Matrix(dim_pos)
+
+        p = [expr.xreplace(subs) for subs in idx_subs]
+        p = sympy.Matrix(p)
+
+        index_opt = [idx3d, idx2d]
+        index_opt = [b for b in index_opt if b is not None]
+        arg_kernel = [pos[ii] - dim for ii, dim in enumerate(dim_pos)]
+
+        kernel = [sincKernel(arg) for arg, index in zip(arg_kernel, enumerate(index_opt))]
+
+        kernel = np.prod(kernel)
+        kernel = [kernel*sincKernel(arg_kernel[-1]) for ii in range(npoints)]
+
+        points = [point*k.subs(idx) for point, k, idx in zip(p, kernel, idx_subs)]
+
+        return points
+
+    def _sinc_equations2D(self, expr, idx_subs, dim_pos=None):
+        """
+        Generate equations responsible for 2D sinc interpolation's computation.
+        """
+        # Gets the list containing the symbols px and py 
+        pos = self.sfunction._point_symbols
+
+        # n = number of neighbor points
+        n = self.r*2
+
+        # Generation of equations
+        eqs = [self._sinc_equation(expr, pos, dim_pos, idx_subs[ii*n:(ii+1)*n], idx2d=ii)
+               for ii in range(n)]
+
+        return eqs
+
+    def _sinc_equations3D(self, expr, idx_subs, dim_pos=None):
+        """
+        Generate equations responsible for 3D sinc interpolation's computation.
+        """
+
+        # Gets the list containing the symbols px, py and pz 
+        pos = self.sfunction._point_symbols
+
+        # n = number of neighbor points
+        n = self.r*2
+
+        # Generation of equations
+        eqs = []
+        eqs.extend([self._sinc_equation(expr, pos, dim_pos, idx_subs=idx_subs[(ind*n)+(n*n*ii):((1+ind)*n)+n*n*ii],
+                    idx2d=ind, idx3d=ii) for ii in range(n) for ind in range(n)])
+
+        return eqs
+
     def _interpolation_indices(self, variables, offset=0, field_offset=0):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
@@ -736,7 +819,31 @@ class SincInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
-            return temps
+            rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
+            summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
+
+            # Verify if is a 2D or 3D interpolation
+            dim_pos = self.sfunction.grid.dimensions
+            if len(dim_pos) == 2:
+                result = self._sinc_equations2D(_expr, idx_subs, dim_pos=dim_pos)
+            else:
+                result = self._sinc_equations3D(_expr, idx_subs, dim_pos=dim_pos)
+
+            eqs = [np.sum(v) for v in result]
+
+            summands.extend([Inc(rhs, v, implicit_dims=self.sfunction.dimensions)
+                             for v in eqs])
+
+            # Write/Incr `self`
+            lhs = self.sfunction.subs(self_subs)
+            last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
+
+            # Creates the symbolic equation that calls the populate function
+            err = Symbol(name='err', dtype=np.int32)
+            populate = [Eq(err, sympy.Function(name="populate")(),
+                        implicit_dims=self.sfunction.dimensions[0])]
+
+            return populate + temps + summands + last
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
@@ -769,6 +876,8 @@ class SincInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
-            return  temps 
+            
+
+            
 
         return Injection(field, expr, offset, self, callback)

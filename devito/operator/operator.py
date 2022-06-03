@@ -5,6 +5,7 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 import numpy as np
+import os
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
@@ -133,7 +134,8 @@ class Operator(Callable):
     """
 
     _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h',
+                         f'{os.path.expanduser("~")}/lookuptable.h']
     _default_globals = []
 
     def __new__(cls, expressions, **kwargs):
