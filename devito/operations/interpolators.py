@@ -10,7 +10,7 @@ from devito.tools import powerset, flatten, prod
 from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
                           Evaluable, Symbol, SubFunction)
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'CubicInterpolator']
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'CubicInterpolator', 'SincInterpolator']
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
@@ -648,5 +648,127 @@ class CubicInterpolator(GenericInterpolator):
                     for b, vsub in zip(eqs, idx_subs)]
 
             return temps + eqns
+
+        return Injection(field, expr, offset, self, callback)
+
+
+class SincInterpolator(GenericInterpolator):
+    """
+    Concrete implementation of GenericInterpolator implementing a Sinc interpolation
+    scheme, using a method that is windowed by a Kaiser Function.
+    Parameters
+    ----------
+    sfunction: The SparseFunction that this Interpolator operates on.
+    """
+
+    def __init__(self, sfunction):
+        self.sfunction = sfunction
+        self.r = 4
+
+    @property
+    def grid(self):
+        return self.sfunction.grid
+
+    def _interpolation_indices(self, variables, offset=0, field_offset=0):
+        """
+        Generate interpolation indices for the DiscreteFunctions in ``variables``.
+        """
+        index_matrix, points = self.sfunction._index_matrix(offset)
+
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            # Introduce ConditionalDimension so that we don't go OOB
+            mapper = {}
+            for j, d in zip(idx, self.grid.dimensions):
+                p = points[j]
+                lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                               evaluate=False)
+                ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                               evaluate=False)
+                condition = sympy.And(lb, ub, evaluate=False)
+                mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
+                                                 condition=condition, indirect=True)
+            # Track Indexed substitutions
+            idx_subs.append(mapper)
+
+        # Temporaries for the position
+        temps = [Eq(v, k, implicit_dims=self.sfunction.dimensions)
+                 for k, v in self.sfunction._position_map.items()]
+
+        temps.extend([Eq(v, k.subs(self.sfunction._position_map),
+                      implicit_dims=self.sfunction.dimensions)
+                      for k, v in self.sfunction._relative_position_map.items()])
+
+        # Temporaries for the indirection dimensions
+        temps.extend([Eq(v, k.subs(self.sfunction._position_map),
+                         implicit_dims=self.sfunction.dimensions)
+                      for k, v in points.items()])
+
+        return idx_subs, temps
+
+    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        offset : int, optional
+            Additional offset from the boundary.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        """
+        def callback():
+
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                _expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                _expr = expr
+
+            variables = list(retrieve_function_carriers(_expr))
+
+            # Need to get origin of the field in case it is staggered
+            # TODO: handle each variable staggereing spearately
+            field_offset = variables[0].origin
+
+            idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                          field_offset=field_offset)
+
+            return temps
+
+        return Interpolation(expr, offset, increment, self_subs, self, callback)
+
+    def inject(self, field, expr, offset=0):
+        """
+        Generate equations injecting an arbitrary expression into a field.
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : expr-like
+            Injected expression.
+        offset : int, optional
+            Additional offset from the boundary.
+        """
+        def callback():
+
+            # Derivatives must be evaluated before the introduction of indirect accesses
+            try:
+                _expr = expr.evaluate
+            except AttributeError:
+                # E.g., a generic SymPy expression or a number
+                _expr = expr
+
+            variables = list(retrieve_function_carriers(_expr)) + [field]
+
+            # Need to get origin of the field in case it is staggered
+            field_offset = field.origin
+            # List of indirection indices for all adjacent grid points
+            idx_subs, temps = self._interpolation_indices(variables, offset,
+                                                          field_offset=field_offset)
+
+            return  temps 
 
         return Injection(field, expr, offset, self, callback)
