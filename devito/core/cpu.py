@@ -147,7 +147,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
-        mpiize(graph, sregistry=sregistry, options=options)
+        mpiize(graph, **kwargs)
 
         # Shared-memory parallelism
         if options['openmp']:
@@ -217,7 +217,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         avoid_denormals(graph, platform=platform)
 
         # Distributed-memory parallelism
-        mpiize(graph, sregistry=sregistry, options=options)
+        mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
         relax_incr_dimensions(graph)
@@ -312,7 +312,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'blocking': partial(relax_incr_dimensions),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
-            'mpi': partial(mpiize, sregistry=sregistry, options=options),
+            'mpi': partial(mpiize, **kwargs),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
             'simd': partial(parizer.make_simd),

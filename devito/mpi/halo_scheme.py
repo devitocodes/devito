@@ -425,9 +425,17 @@ def classify(exprs, ispace):
                 # Max or Min is the same since `d` isn't an `ispace` Dimension
                 func = Max
             candidates = [i for i in aindices if not is_integer(i)]
-            candidates = {(i.origin if d.is_Stepping else i) - d: i for i in candidates}
+            m = {}
+            for i in candidates:
+                try:
+                    k = i.origin - d
+                except AttributeError:
+                    # E.g., `i=otime`, that is a plain Symbol, or `i` not a
+                    # SteppingDimension
+                    k = i - d
+                m[k] = i
             try:
-                loc_indices[d] = candidates[func(*candidates.keys())]
+                loc_indices[d] = m[func(*m.keys())]
             except KeyError:
                 # E.g., `aindices = [0, 1, d+1]` -- it doesn't really matter
                 # what we put here, so we place 0 as it's the old behaviour
