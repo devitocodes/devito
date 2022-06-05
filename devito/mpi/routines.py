@@ -281,7 +281,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                            grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
-            key = "".join(str(d) for d in f.dimensions)
+            key = str(len(self._cache_dims))
             sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
             gather = self._make_copy(df, hse, key)
             scatter = self._make_copy(df, hse, key, swap=True)
@@ -300,8 +300,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_copy(self, f, hse, key, swap=False):
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
-        buf = Array(name=self.sregistry.make_name(prefix='buf'),
-                    dimensions=dims, dtype=f.dtype, padding=0)
+        buf = Array(name='buf%s' % key, dimensions=dims, dtype=f.dtype, padding=0)
 
         f_offsets = []
         f_indices = []
@@ -332,10 +331,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         comm = f.grid.distributor._obj_comm
 
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
-        bufg = Array(name=self.sregistry.make_name(prefix='bufg'),
-                     dimensions=dims, dtype=f.dtype, padding=0, liveness='eager')
-        bufs = Array(name=self.sregistry.make_name(prefix='bufs'),
-                     dimensions=dims, dtype=f.dtype, padding=0, liveness='eager')
+        bufg = Array(name='bufg%s' % key, dimensions=dims, dtype=f.dtype,
+                     padding=0, liveness='eager')
+        bufs = Array(name='bufs%s' % key, dimensions=dims, dtype=f.dtype,
+                     padding=0, liveness='eager')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -528,7 +527,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
                            grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
-            key = "".join(str(d) for d in f.dimensions)
+            key = str(len(self._cache_dims))
             sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
             gather = self._make_copy(df, hse, key)
             wait = self._make_wait(df, hse, key, msg=msg)
@@ -584,13 +583,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return Call(name, [f] + ofsg + [fromrank, torank, comm, msg])
 
     def _make_haloupdate(self, f, hse, key, msg=None):
-        iet = super(OverlapHaloExchangeBuilder, self)._make_haloupdate(f, hse, key,
-                                                                       msg=msg)
+        iet = super()._make_haloupdate(f, hse, key, msg=msg)
         iet = iet._rebuild(parameters=iet.parameters + (msg,))
         return iet
 
     def _call_haloupdate(self, name, f, hse, msg):
-        call = super(OverlapHaloExchangeBuilder, self)._call_haloupdate(name, f, hse)
+        call = super()._call_haloupdate(name, f, hse)
         call = call._rebuild(arguments=call.arguments + (msg,))
         return call
 
