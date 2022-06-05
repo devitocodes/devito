@@ -48,6 +48,8 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("Apple LLVM"):
         compiler = "clang"
+    elif ver.startswith("Homebrew clang"):
+        compiler = "clang"
     elif ver.startswith("icc"):
         compiler = "icc"
     elif ver.startswith("pgcc"):
@@ -410,9 +412,15 @@ class ClangCompiler(Compiler):
                 self.ldflags += ['-march=%s' % platform.march]
         elif platform is M1:
             # NOTE:
-            # -march=native unsupported
-            # openmp unusable
-            pass
+            # This requires to install Aplle's llvm (through brew) to install the openmp
+            # librairies and c++ includes. Once installed, both Apple's default clang and
+            # howebrew clang support openmp. Check that openmnp lib exist.
+            if path.exists('/opt/homebrew/opt/llvm/lib/libomp.dylib'):
+                self.ldflags += ['-mcpu=apple-m1', '-fopenmp']
+                self.ldflags += ['-L/opt/homebrew/opt/llvm/lib']
+            else:
+                warning("Openmp librairies not foud. Install homebrew llvm:"
+                        " `brew install llvm`")
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
