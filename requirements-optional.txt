@@ -1,3 +1,2 @@
 matplotlib
-ipyparallel<8.4
 pandas
