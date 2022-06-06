@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import ast
 import os
 import sys
 from io import StringIO
@@ -12,11 +11,6 @@ from devito.xdslpasses.iet.parpragma import make_simd
 from xdsl.parser import Parser
 from xdsl.printer import Printer
 from xdsl.ir import MLContext
-from xdsl.dialects.std import Std
-from xdsl.dialects.scf import Scf
-from xdsl.dialects.affine import Affine
-from xdsl.dialects.arith import Arith
-from xdsl.dialects.memref import MemRef
 from xdsl.dialects.builtin import Builtin, ModuleOp
 
 
@@ -29,9 +23,7 @@ class XdslOptMain:
     available_passes: Dict[str, Callable[[MLContext, ModuleOp], None]]
     pipeline: List[Callable[[ModuleOp], None]]
 
-    passes_native = [
-       make_simd 
-    ]
+    passes_native = [make_simd]
 
     passes_integrated = [
         # TODO
@@ -64,8 +56,8 @@ class XdslOptMain:
 
     def register_all_dialects(self):
         """Register all dialects that can be used."""
-        builtin = Builtin(self.ctx)
-        iet = IET(self.ctx)
+        builtin = Builtin(self.ctx)  # noqa
+        iet = IET(self.ctx)   # noqa
 
     @staticmethod
     def get_passes_as_dict(
@@ -176,8 +168,7 @@ arg_parser.add_argument(
     "-p",
     "--passes",
     required=False,
-    help=
-    f"Delimited list of passes. Available passes are: {pass_names} or 'all'",
+    help=f"Delimited list of passes. Available passes are: {pass_names} or 'all'",
     type=str,
     default="")
 arg_parser.add_argument("-o",
@@ -212,4 +203,3 @@ def __main__(args: argparse.Namespace):
 if __name__ == "__main__":
     args = arg_parser.parse_args()
     __main__(args)
- 

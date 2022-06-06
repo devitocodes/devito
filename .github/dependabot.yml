@@ -11,7 +11,7 @@ updates:
       interval: "daily"
     # Add assignees
     assignees:
-      - "mloubout"
+      - "georgebisbas"
     commit-message:
       prefix: "pip prod"
       prefix-development: "pip dev"

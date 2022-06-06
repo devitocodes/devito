@@ -33,6 +33,9 @@ from devito.mpi.routines import mpi_registry
 from devito.operator import profiler_registry, operator_registry
 
 
+# Imports from xdsl
+from devito.xdslpasses import *  # noqa
+
 from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
 del get_versions
