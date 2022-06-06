@@ -10,7 +10,8 @@ from devito.tools import powerset, flatten, prod
 from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
                           Evaluable, Symbol, SubFunction)
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'CubicInterpolator', 'SincInterpolator']
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator',
+           'CubicInterpolator', 'SincInterpolator']
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
@@ -480,7 +481,8 @@ class CubicInterpolator(GenericInterpolator):
         """
         pos = self.sfunction._point_symbols
 
-        eqs = [self._cubic_equation(expr, pos, dim_pos, idx_subs=idx_subs[ii*4:(ii+1)*4], idx2d=ii)
+        eqs = [self._cubic_equation(expr, pos, dim_pos,
+               idx_subs=idx_subs[ii*4:(ii+1)*4], idx2d=ii)
                for ii in range(4)]
         return eqs
 
@@ -500,7 +502,9 @@ class CubicInterpolator(GenericInterpolator):
         pos = self.sfunction._point_symbols
 
         eqs = []
-        eqs.extend([self._cubic_equation(expr, pos, dim_pos, idx_subs=idx_subs[(ind*4)+(16*ii):((1+ind)*4)+16*ii], idx2d=ind, idx3d=ii)
+        eqs.extend([self._cubic_equation(expr, pos, dim_pos,
+                    idx_subs=idx_subs[(ind*4)+(16*ii):((1+ind)*4)+16*ii],
+                    idx2d=ind, idx3d=ii)
                     for ii in range(4) for ind in range(4)])
 
         return eqs
@@ -532,7 +536,8 @@ class CubicInterpolator(GenericInterpolator):
         temps = [Eq(v, k, implicit_dims=self.sfunction.dimensions)
                  for k, v in self.sfunction._position_map.items()]
 
-        temps.extend([Eq(v, k.subs(self.sfunction._position_map), implicit_dims=self.sfunction.dimensions)
+        temps.extend([Eq(v, k.subs(self.sfunction._position_map),
+                      implicit_dims=self.sfunction.dimensions)
                      for k, v in self.sfunction._relative_position_map.items()])
 
         # Temporaries for the indirection dimensions
@@ -568,11 +573,11 @@ class CubicInterpolator(GenericInterpolator):
             # Need to get origin of the field in case it is staggered
             # TODO: handle each variable staggereing spearately
             field_offset = variables[0].origin
-            
+
             # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
-            
+
             rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
             summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
 
@@ -626,7 +631,7 @@ class CubicInterpolator(GenericInterpolator):
             # Need to get origin of the field in case it is staggered
             field_offset = field.origin
 
-             # List of indirection indices for all adjacent grid points
+            # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
@@ -688,10 +693,12 @@ class SincInterpolator(GenericInterpolator):
         idx_2d: Integer
             Defines which iteration of second dimension is being used.
         idx3d: Integer, optional
-            defines which iteration of third dimension is being used, if it is a 3D interpolation.
+            defines which iteration of third dimension is being used,
+            if it is a 3D interpolation.
         """
 
-        # Defining the symbolic function responsible for accessing the pre-computed coefficient value
+        # Defining the symbolic function responsible for accessing
+        # the pre-computed coefficient value
         def sincKernel(args):
             coeffs = sympy.Function(name="acessCoeffs")(args)
             return coeffs
@@ -722,7 +729,7 @@ class SincInterpolator(GenericInterpolator):
         """
         Generate equations responsible for 2D sinc interpolation's computation.
         """
-        # Gets the list containing the symbols px and py 
+        # Gets the list containing the symbols px and py
         pos = self.sfunction._point_symbols
 
         # n = number of neighbor points
@@ -739,7 +746,7 @@ class SincInterpolator(GenericInterpolator):
         Generate equations responsible for 3D sinc interpolation's computation.
         """
 
-        # Gets the list containing the symbols px, py and pz 
+        # Gets the list containing the symbols px, py and pz
         pos = self.sfunction._point_symbols
 
         # n = number of neighbor points
@@ -747,7 +754,8 @@ class SincInterpolator(GenericInterpolator):
 
         # Generation of equations
         eqs = []
-        eqs.extend([self._sinc_equation(expr, pos, dim_pos, idx_subs=idx_subs[(ind*n)+(n*n*ii):((1+ind)*n)+n*n*ii],
+        eqs.extend([self._sinc_equation(expr, pos, dim_pos,
+                    idx_subs=idx_subs[(ind*n)+(n*n*ii):((1+ind)*n)+n*n*ii],
                     idx2d=ind, idx3d=ii) for ii in range(n) for ind in range(n)])
 
         return eqs
@@ -876,7 +884,7 @@ class SincInterpolator(GenericInterpolator):
             idx_subs, temps = self._interpolation_indices(variables, offset,
                                                           field_offset=field_offset)
 
-             # Verify if is a 2D or 3D interpolation
+            # Verify if is a 2D or 3D interpolation
             dim_pos = field.space_dimensions
             if len(dim_pos) == 2:
                 result = self._sinc_equations2D(_expr, idx_subs, dim_pos=dim_pos)

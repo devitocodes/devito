@@ -7,7 +7,8 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import LinearInterpolator, PrecomputedInterpolator, CubicInterpolator, SincInterpolator
+from devito.operations import (LinearInterpolator, PrecomputedInterpolator,
+                               CubicInterpolator, SincInterpolator)
 from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
                               retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
@@ -504,7 +505,8 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _relative_position_map(self):
         """
-        Symbols map for the position of the sparse points relative to the indices of the vector wich contain and acess the data
+        Symbols map for the position of the sparse points relative to the indices
+        of the vector wich contain and acess the data
         Notes
         -----
         The expression `(coord - origin)/spacing` could also be computed in the
@@ -515,11 +517,11 @@ class SparseFunction(AbstractSparseFunction):
         the position. We mitigate this problem by computing the positions
         individually (hence the need for a position map).
         """
-        symbols = self._point_symbols 
+        symbols = self._point_symbols
         eqs = tuple([((c - o) / i.spacing) for c, o, i in
-                                zip(self._coordinate_symbols,
-                                    self.grid.origin_symbols,
-                                    self.grid.dimensions[:self.grid.dim])])
+                    zip(self._coordinate_symbols,
+                        self.grid.origin_symbols,
+                        self.grid.dimensions[:self.grid.dim])])
 
         return OrderedDict([(eq, p) for p, eq in
                             zip(symbols, eqs)])
@@ -550,7 +552,7 @@ class SparseFunction(AbstractSparseFunction):
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
         if self.cubic:
-            return tuple(product(range(-1,3), repeat=self.grid.dim))
+            return tuple(product(range(-1, 3), repeat=self.grid.dim))
         elif self.sinc:
             r = self.interpolator.r
             return tuple(product(range(-r + 1, r+1), repeat=self.grid.dim))
