@@ -75,16 +75,13 @@ def autotune(operator, args, level, mode):
     # Detect the time-stepping Iteration; shrink its iteration range so that
     # each autotuning run only takes a few iterations
     steppers = {i for i in flatten(trees) if i.dim.is_Time}
-    if len(steppers) == 0:
-        stepper = None
-        timesteps = 1
-    elif len(steppers) == 1:
+    if len(steppers) == 1:
         stepper = steppers.pop()
         timesteps = init_time_bounds(stepper, at_args, args)
         if timesteps is None:
             return args, {}
     else:
-        warning("cannot perform autotuning unless there is one time loop; skipping")
+        warning("cannot perform autotuning with %d time loops; skipping" % len(steppers))
         return args, {}
 
     # Use a fresh Timer for auto-tuning
@@ -220,7 +217,7 @@ def init_time_bounds(stepper, at_args, args):
 
 
 def check_time_bounds(stepper, at_args, args, mode):
-    if mode != 'runtime' or stepper is None:
+    if mode != 'runtime':
         return True
     dim = stepper.dim.root
     if stepper.direction is Backward:
@@ -319,13 +316,13 @@ def generate_block_shapes(blockable, args, level):
         for bs in list(ret):
             handle = []
             for v in options['blocksize-l1']:
-                # To be a valid blocksize, it must be smaller than and divide evenly
-                # the parent's block size
+                # To be a valid block size, it must be smaller than
+                # and divide evenly the parent's block size
                 if all(v <= i and i % v == 0 for _, i in bs):
                     ret.append(bs + tuple((d.step, v) for d in level_1))
             ret.remove(bs)
 
-    # Generate level-n (n > 1) block shapes
+    # Generate level-n (n > 2) block shapes
     # TODO -- currently, there's no Operator producing depth>2 hierarchical blocking,
     # so for simplicity we ignore this for the time being
 
