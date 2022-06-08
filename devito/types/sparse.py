@@ -509,15 +509,6 @@ class SparseFunction(AbstractSparseFunction):
         """
         Symbols map for the position of the sparse points relative to the indices
         of the vector wich contain and acess the data
-        Notes
-        -----
-        The expression `(coord - origin)/spacing` could also be computed in the
-        mathematically equivalent expanded form `coord/spacing -
-        origin/spacing`. This particular form is problematic when a sparse
-        point is in close proximity of the grid origin, since due to a larger
-        machine precision error it may cause a +-1 error in the computation of
-        the position. We mitigate this problem by computing the positions
-        individually (hence the need for a position map).
         """
         symbols = self._point_symbols
         eqs = tuple([((c - o) / i.spacing) for c, o, i in

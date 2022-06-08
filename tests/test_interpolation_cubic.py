@@ -109,10 +109,9 @@ def test_interpolate(shape, coords, npoints=20):
     p = points(a.grid, coords, npoints=npoints, cubic=True)
     expr = p.interpolate(a)
     op = Operator(expr)
-    # print(p.coordinates.data)
+
     op(a=a)
 
-    # Precisão 3D nao bate em 10-6 mas sim em 10-5
     expected_values = [point[1]**2 for point in p.coordinates.data]
 
     assert np.allclose(p.data[:], expected_values, atol=1e-5)
