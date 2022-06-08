@@ -603,8 +603,7 @@ class IndexDerivative(IndexSum):
 
         w = self.weights
         d = w.dimension
-        mapper = {w.subs(d, i): w.weights[n]
-                  for n, i in enumerate(range(d._min, d._max + 1))}
+        mapper = {w.subs(d, i): w.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
         return expr

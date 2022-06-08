@@ -207,7 +207,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic, expand):
-    # The stencil positions
+    # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec, x0=x0)
 
     # Finite difference weights from Taylor approximation given these positions
@@ -215,6 +215,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
         weights = symbolic_weights(expr, deriv_order, indices, x0)
     else:
         weights = numeric_weights(deriv_order, indices, x0)
+
     # Enforce fixed precision FD coefficients to avoid variations in results
     weights = [sympify(w).evalf(_PRECISION) for w in weights]
 

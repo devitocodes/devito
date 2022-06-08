@@ -147,6 +147,8 @@ class IndexSet(tuple):
     """
 
     def __new__(cls, dim, indices=None, expr=None, fd=None):
+        assert indices is not None or expr is not None
+
         if fd is None:
             try:
                 v = {d for d in expr.free_symbols if isinstance(d, StencilDimension)}
@@ -271,13 +273,13 @@ def generate_indices_cartesian(expr, dim, order, side, x0):
     ----------
     expr : expr-like
         Expression that is differentiated.
-    dim: Dimension
+    dim : Dimension
         Dimensions w.r.t which the derivative is taken.
-    order: int
+    order : int
         Order of the finite-difference scheme.
-    side: Side
+    side : Side
         Side of the scheme (centered, left, right).
-    x0: dict of {Dimension: Dimension or expr-like or Number}
+    x0 : dict of {Dimension: Dimension or expr-like or Number}
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
@@ -316,13 +318,13 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
     ----------
     expr : expr-like
         Expression that is differentiated.
-    dim: Dimension
+    dim : Dimension
         Dimensions w.r.t which the derivative is taken.
-    order: int
+    order : int
         Order of the finite-difference scheme.
-    side: Side, optional
+    side : Side, optional
         Side of the scheme (centered, left, right).
-    x0: dict of {Dimension: Dimension or expr-like or Number}, optional
+    x0 : dict of {Dimension: Dimension or expr-like or Number}, optional
         Origin of the scheme, ie. `x`, `x + .5 * x.spacing`, ...
 
     Returns
