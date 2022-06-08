@@ -544,12 +544,8 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
-        if self.cubic:
-            return tuple(product(range(-1, 3), repeat=self.grid.dim))
-        elif self.sinc:
-            r = self.interpolator.r
-            return tuple(product(range(-r + 1, r+1), repeat=self.grid.dim))
-        return tuple(product(range(2), repeat=self.grid.dim))
+        r = self._radius
+        return tuple(product(range(-r + 1, r+1), repeat=self.grid.dim))
 
     @cached_property
     def _coordinate_symbols(self):
