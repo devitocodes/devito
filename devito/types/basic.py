@@ -18,7 +18,8 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
+           'CompositeObject', 'IndexedData', 'DeviceMap']
 
 
 Size = namedtuple('Size', 'left right')
@@ -1371,28 +1372,24 @@ class LocalObject(AbstractObject):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase, Basic, Pickable):
+class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     """
     Wrapper class that inserts a pointer to the symbolic data object.
     """
 
-    def __new__(cls, label, shape=None, function=None, cfield=None):
+    def __new__(cls, label, shape=None, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
             label = Symbol(name=label, dtype=None)
         with sympy_mutex:
             obj = sympy.IndexedBase.__new__(cls, label, shape)
-
         obj.function = function
-        obj.cfield = cfield
-
         return obj
 
     def func(self, *args):
         obj = super().func(*args)
         obj.function = self.function
-        obj.cfield = self.cfield
         return obj
 
     def __getitem__(self, indices, **kwargs):
@@ -1400,7 +1397,7 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         return Indexed(self, *as_tuple(indices))
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.function, str(self.cfield))
+        return super()._hashable_content() + (self.function,)
 
     @property
     def _C_name(self):
@@ -1441,8 +1438,16 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         return ret
 
     # Pickling support
-    _pickle_kwargs = ['label', 'shape', 'function', 'cfield']
+    _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class IndexedData(IndexedBase):
+    pass
+
+
+class DeviceMap(IndexedBase):
+    pass
 
 
 class BoundSymbol(AbstractSymbol):

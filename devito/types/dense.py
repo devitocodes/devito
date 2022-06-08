@@ -25,7 +25,7 @@ from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
-from devito.types.basic import AbstractFunction, IndexedData, Size
+from devito.types.basic import AbstractFunction, DeviceMap, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
@@ -775,14 +775,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return RegionMeta(offset, size)
 
     @cached_property
-    def indexed(self):
-        return IndexedData(self.name, shape=self.shape, function=self.function,
-                           cfield=self._C_field_data)
-
-    @cached_property
     def dmap(self):
-        return IndexedData('d_%s' % self.name, shape=self.shape,
-                           function=self.function, cfield=self._C_field_dmap)
+        return DeviceMap('d_%s' % self.name, shape=self.shape, function=self.function)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""

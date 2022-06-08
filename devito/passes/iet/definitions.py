@@ -260,7 +260,7 @@ class DataManager(object):
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
-        casts = [self.lang.PointerCast(i.function, obj=i.cfield) for i in bases
+        casts = [self.lang.PointerCast(i.function, obj=i) for i in bases
                  if i not in defines]
 
         # Incorporate the newly created casts

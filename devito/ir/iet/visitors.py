@@ -18,7 +18,8 @@ from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, Basic, IndexedData
-from devito.types import ArrayObject, CompositeObject, Dimension, Pointer
+from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
+                          IndexedData, DeviceMap)
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
@@ -243,17 +244,18 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
-        if isinstance(o.obj, Pointer):
-            obj = o.obj.name
-        elif isinstance(o.obj, ArrayObject):
-            obj = '%s->%s' % (o.obj.name, f._C_name)
-        elif o.obj is not None:
-            obj = o.obj
-        else:
-            obj = f._C_name
+
         if f.is_PointerArray:
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
-            rvalue = '(%s**) %s' % (f._C_typedata, obj)
+
+            if isinstance(o.obj, ArrayObject):
+                v = '%s->%s' % (o.obj.name, f._C_name)
+            elif isinstance(o.obj, IndexedData):
+                v = f._C_name
+            else:
+                assert False
+            rvalue = '(%s**) %s' % (f._C_typedata, v)
+
         else:
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
@@ -264,10 +266,24 @@ class CGen(Visitor):
                 lvalue = c.Value(f._C_typedata, '*%s' % o.flat)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
+
             if f.is_DiscreteFunction:
-                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, f._C_name, obj)
+                if isinstance(o.obj, IndexedData):
+                    v = f._C_field_data
+                elif isinstance(o.obj, DeviceMap):
+                    v = f._C_field_dmap
+                else:
+                    assert False
+
+                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, f._C_name, v)
             else:
-                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, obj)
+                if isinstance(o.obj, Pointer):
+                    v = o.obj.name
+                else:
+                    v = f._C_name
+
+                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, v)
+
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
