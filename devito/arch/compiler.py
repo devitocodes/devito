@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
-                         check_cuda_runtime)
+                         check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -410,17 +410,15 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
-        elif platform is M1:
+        elif platform is M1 and language == 'openmp':
             # NOTE:
-            # This requires to install Aplle's llvm (through brew) to install the openmp
-            # librairies and c++ includes. Once installed, both Apple's default clang and
-            # howebrew clang support openmp. Check that openmnp lib exist.
-            if path.exists('/opt/homebrew/opt/llvm/lib/libomp.dylib'):
-                self.ldflags += ['-mcpu=apple-m1', '-fopenmp']
-                self.ldflags += ['-L/opt/homebrew/opt/llvm/lib']
-            else:
-                warning("Openmp librairies not foud. Install homebrew llvm:"
-                        " `brew install llvm`")
+            # Apple M1 supports OpenMP through Apple's LLVM compiler.
+            # The compiler can be installed with Homebrew or can be built from scratch.
+            # Check if installed and set compiler flags accordingly
+            llvmm1 = get_m1_llvm_path()
+            if llvmm1:
+                self.ldflags += ['-mcpu=apple-m1', '-fopenmp', '-L%s' % llvmm1['libs']]
+                self.cflags += ['-Xclang', '-I%s' % llvmm1['includes']]
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
