@@ -1377,27 +1377,30 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
     Wrapper class that inserts a pointer to the symbolic data object.
     """
 
-    def __new__(cls, label, shape=None, function=None):
+    def __new__(cls, label, shape=None, function=None, cfield=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
             label = Symbol(name=label, dtype=None)
         with sympy_mutex:
             obj = sympy.IndexedBase.__new__(cls, label, shape)
+
         obj.function = function
+        obj.cfield = cfield
+
         return obj
 
     def func(self, *args):
-        obj = super(IndexedData, self).func(*args)
+        obj = super().func(*args)
         obj.function = self.function
+        obj.cfield = self.cfield
         return obj
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
-        indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
-        return Indexed(*indexed.args)
+        return Indexed(self, *as_tuple(indices))
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.function,)
+        return super()._hashable_content() + (self.function, str(self.cfield))
 
     @property
     def _C_name(self):
@@ -1438,7 +1441,7 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         return ret
 
     # Pickling support
-    _pickle_kwargs = ['label', 'shape', 'function']
+    _pickle_kwargs = ['label', 'shape', 'function', 'cfield']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

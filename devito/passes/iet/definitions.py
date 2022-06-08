@@ -252,17 +252,16 @@ class DataManager(object):
         # Candidates
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
 
-        # A cast is needed only if the underlying data object isn't already
+        # Create Function -> n-dimensional array casts
+        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
+        # NOTE: a cast is needed only if the underlying data object isn't already
         # defined inside the kernel, which happens, for example, when:
         # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
-        needs_cast = lambda f: f.indexed not in defines
-
-        # Create Function -> n-dimensional array casts
-        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
-        functions = sorted({i.function for i in indexeds}, key=lambda i: i.name)
-        casts = [self.lang.PointerCast(f) for f in functions if needs_cast(f)]
+        bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
+        casts = [self.lang.PointerCast(i.function, obj=i.cfield) for i in bases
+                 if i not in defines]
 
         # Incorporate the newly created casts
         if casts:

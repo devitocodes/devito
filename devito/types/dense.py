@@ -25,7 +25,7 @@ from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
-from devito.types.basic import AbstractFunction, Size
+from devito.types.basic import AbstractFunction, IndexedData, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
@@ -671,15 +671,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     _C_field_halo_size = 'hsize'
     _C_field_halo_ofs = 'hofs'
     _C_field_owned_ofs = 'oofs'
+    _C_field_dmap = 'dmap'
 
-    _C_typedecl = Struct(_C_structname,
-                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
+    _C_typedecl = Struct(_C_structname, [
+        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs),
+        Value(ctypes_to_cstr(c_void_p), _C_field_dmap)
+    ])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
@@ -688,7 +691,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           (_C_field_domain_size, POINTER(c_ulong)),
                                           (_C_field_halo_size, POINTER(c_int)),
                                           (_C_field_halo_ofs, POINTER(c_int)),
-                                          (_C_field_owned_ofs, POINTER(c_int))]}))
+                                          (_C_field_owned_ofs, POINTER(c_int)),
+                                          (_C_field_dmap, c_void_p)]}))
 
     def _C_make_dataobj(self, data):
         """
@@ -705,6 +709,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+
+        # Fields used only within C-land
+        dataobj._obj.dmap = c_void_p(0)
 
         # stash a reference to the array on _obj, so we don't let it get freed
         # while we hold onto _obj
@@ -766,6 +773,16 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise ValueError("Unknown region `%s`" % str(region))
 
         return RegionMeta(offset, size)
+
+    @cached_property
+    def indexed(self):
+        return IndexedData(self.name, shape=self.shape, function=self.function,
+                           cfield=self._C_field_data)
+
+    @cached_property
+    def dmap(self):
+        return IndexedData('d_%s' % self.name, shape=self.shape,
+                           function=self.function, cfield=self._C_field_dmap)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""

@@ -247,6 +247,8 @@ class CGen(Visitor):
             obj = o.obj.name
         elif isinstance(o.obj, ArrayObject):
             obj = '%s->%s' % (o.obj.name, f._C_name)
+        elif o.obj is not None:
+            obj = o.obj
         else:
             obj = f._C_name
         if f.is_PointerArray:
@@ -263,7 +265,7 @@ class CGen(Visitor):
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
             if f.is_DiscreteFunction:
-                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, obj, f._C_field_data)
+                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, f._C_name, obj)
             else:
                 rvalue = '(%s %s) %s' % (f._C_typedata, rshape, obj)
         return c.Initializer(lvalue, rvalue)
