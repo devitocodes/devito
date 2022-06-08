@@ -410,15 +410,15 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
-        elif platform is M1 and language == 'openmp':
+        elif platform is M1:
             # NOTE:
             # Apple M1 supports OpenMP through Apple's LLVM compiler.
             # The compiler can be installed with Homebrew or can be built from scratch.
             # Check if installed and set compiler flags accordingly
-            llvmm1 = get_m1_llvm_path()
-            if llvmm1:
+            llvmm1 = get_m1_llvm_path(language)
+            if llvmm1 and language == 'openmp':
                 self.ldflags += ['-mcpu=apple-m1', '-fopenmp', '-L%s' % llvmm1['libs']]
-                self.cflags += ['-Xclang', '-I%s' % llvmm1['includes']]
+                self.cflags += ['-Xclang', '-I%s' % llvmm1['include']]
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures

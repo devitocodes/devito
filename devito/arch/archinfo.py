@@ -378,7 +378,7 @@ def get_cuda_path():
 
 
 @memoized_func
-def get_m1_llvm_path():
+def get_m1_llvm_path(language):
     # Check if Apple's llvm is installed (installable via Homebrew), which supports
     # OpenMP.
     # Check that we are on apple system
@@ -395,14 +395,17 @@ def get_m1_llvm_path():
                   if "InstalledDir" in v][0][:-4]
         # ** Fourth check if the libraries are installed
         if os.path.exists(os.path.join(prefix, 'lib', 'libomp.dylib')):
-            libs = "%s/lib" % prefix
-            includes = "%s/include" % prefix
-            return {'libs': libs, 'includes': includes}
-        else:
+            libs = os.path.join(prefix, "lib")
+            include = os.path.join(prefix, "include")
+            return {'libs': libs, 'include': include}
+        elif language == "openmp":
             warning("Apple's arm64 clang found but openmp libraries not found."
                     "Install Apple LLVM for OpenMP support, i.e. `brew install llvm`")
+        else:
+            pass
     else:
-        warning("Apple's x86 clang found, OpenMP is not supported.")
+        if language == "openmp":
+            warning("Apple's x86 clang found, OpenMP is not supported.")
     return None
 
 
