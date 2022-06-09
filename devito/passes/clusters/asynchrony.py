@@ -1,13 +1,13 @@
 from collections import OrderedDict, defaultdict
 
-import numpy as np
 from sympy import And
 
 from devito.ir import (Forward, GuardBound, GuardBoundNext, Queue, Vector,
                        SEQUENTIAL, WaitLock, WithLock, FetchUpdate, FetchPrefetch,
-                       PrefetchUpdate, WaitPrefetch, Delete, normalize_syncs)
+                       PrefetchUpdate, WaitPrefetch, Delete, ReleaseLock,
+                       normalize_syncs)
 from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
+from devito.tools import (DefaultOrderedDict, flatten, frozendict, is_integer,
                           indices_to_sections, timed_pass)
 from devito.types import CustomDimension, Lock
 
@@ -130,7 +130,9 @@ class Tasker(Asynchronous):
                     assert lock.size == 1
                     indices = [0]
 
-                tasks[c0].extend(WithLock(lock[i]) for i in indices)
+                tasks[c0].extend(flatten(
+                    (ReleaseLock(lock[i]), WithLock(lock[i])) for i in indices
+                ))
 
         processed = []
         for c in clusters:

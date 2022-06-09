@@ -1,7 +1,6 @@
 from collections import namedtuple
 
 from cached_property import cached_property
-from sympy import Or
 import cgen as c
 import numpy as np
 
@@ -251,15 +250,13 @@ def _make_thread_func(name, iet, root, threads, sregistry):
     return tfunc, isdata, sdata
 
 
-def _make_thread_activate(threads, sdata, sync_ops, sregistry):
+def _make_thread_activate(threads, sdata, sregistry):
     if threads.size == 1:
         d = threads.index
     else:
         d = Symbol(name=sregistry.make_name(prefix=threads.index.name))
 
-    sync_locks = [s for s in sync_ops if s.is_SyncLock]
-    condition = Or(*([CondNe(s.handle, 2) for s in sync_locks] +
-                     [CondNe(FieldFromComposite(sdata._field_flag, sdata[d]), 1)]))
+    condition = CondNe(FieldFromComposite(sdata._field_flag, sdata[d]), 1)
 
     if threads.size == 1:
         activation = [While(condition)]
@@ -269,7 +266,6 @@ def _make_thread_activate(threads, sdata, sync_ops, sregistry):
 
     activation.extend([DummyExpr(FieldFromComposite(i.name, sdata[d]), i)
                        for i in sdata.dynamic_fields])
-    activation.extend([DummyExpr(s.handle, 0) for s in sync_locks])
     activation.append(DummyExpr(FieldFromComposite(sdata._field_flag, sdata[d]), 2))
     activation = List(
         header=[c.Line(), c.Comment("Activate `%s`" % threads.name)],
@@ -299,7 +295,7 @@ def _make_thread_finalize(threads, sdata):
     return threadswait
 
 
-def make_thread_ctx(name, iet, root, npthreads, sync_ops, sregistry):
+def make_thread_ctx(name, iet, root, npthreads, sregistry):
     """
     Shortcut to create a ThreadFunction and all support data structures and
     routines to implement communication between the main thread and the child
@@ -308,7 +304,7 @@ def make_thread_ctx(name, iet, root, npthreads, sync_ops, sregistry):
     threads = _make_threads(npthreads, sregistry)
     tfunc, isdata, sdata = _make_thread_func(name, iet, root, threads, sregistry)
     init = _make_thread_init(threads, tfunc, isdata, sdata, sregistry)
-    activate = _make_thread_activate(threads, sdata, sync_ops, sregistry)
+    activate = _make_thread_activate(threads, sdata, sregistry)
     finalize = _make_thread_finalize(threads, sdata)
 
     return ThreadCtx(threads, sdata, [tfunc, isdata], init, activate, finalize)

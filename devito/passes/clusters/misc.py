@@ -2,7 +2,7 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope
+from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WithLock
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
@@ -147,7 +147,7 @@ class Fusion(Queue):
             for k, v in i.items():
                 for s in v:
                     if s.is_WaitLock or \
-                       (self.fusetasks and s.is_WithLock):
+                       (self.fusetasks and isinstance(s, (WithLock, ReleaseLock))):
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)

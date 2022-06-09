@@ -7,8 +7,8 @@ from devito.data import FULL
 from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr,
                            derive_parameters, make_thread_ctx)
-from devito.ir.support import (WaitLock, WithLock, FetchUpdate, FetchPrefetch,
-                               PrefetchUpdate, WaitPrefetch, Delete)
+from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
+                               FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite
@@ -44,6 +44,18 @@ class Orchestrator(object):
 
         return iet
 
+    def _make_releaselock(self, iet, sync_ops, *args):
+        preactions = []
+        preactions.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
+        preactions.extend(DummyExpr(s.handle, 0) for s in sync_ops)
+
+        iet = List(
+            header=c.Comment("Release lock(s) as soon as possible"),
+            body=preactions + [iet]
+        )
+
+        return iet
+
     def _make_withlock(self, iet, sync_ops, pieces, root):
         fid = SharedData._symbolic_id
 
@@ -74,7 +86,7 @@ class Orchestrator(object):
         # asynchronously by a pthread in the `npthreads` pool
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
-        tctx = make_thread_ctx(name, body, root, npthreads, sync_ops, self.sregistry)
+        tctx = make_thread_ctx(name, body, root, npthreads, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
 
         # Schedule computation to the first available thread
@@ -137,7 +149,7 @@ class Orchestrator(object):
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(body=iet.body + tuple(postactions))
-        tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
+        tctx = make_thread_ctx(name, body, root, None, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
 
         # The IET degenerates to the threads activation logic
@@ -216,7 +228,7 @@ class Orchestrator(object):
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(header=c.Line(), body=prefetches)
-        tctx = make_thread_ctx(name, body, root, None, sync_ops, self.sregistry)
+        tctx = make_thread_ctx(name, body, root, None, self.sregistry)
         pieces.funcs.extend(tctx.funcs)
 
         # Glue together all the IET pieces, including the activation logic
@@ -267,6 +279,7 @@ class Orchestrator(object):
             # The SyncOps are to be processed in the following order
             return [WaitLock,
                     WithLock,
+                    ReleaseLock,
                     Delete,
                     FetchUpdate,
                     FetchPrefetch,
@@ -276,6 +289,7 @@ class Orchestrator(object):
         callbacks = {
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
+            ReleaseLock: self._make_releaselock,
             Delete: self._make_delete,
             FetchUpdate: self._make_fetchupdate,
             FetchPrefetch: self._make_fetchprefetch,

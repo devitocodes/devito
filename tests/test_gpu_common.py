@@ -146,12 +146,13 @@ class TestStreaming(object):
         assert len(sections) == 3
         assert str(sections[0].body[0].body[0].body[0].body[0]) == 'while(lock0[0] == 0);'
         body = sections[2].body[0].body[0]
+        assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
+        assert str(body.body[1]) == 'lock0[0] = 0;'
+        body = body.body[2]
         assert (str(body.body[1].condition) ==
-                'Ne(lock0[0], 2) | '
                 'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'lock0[0] = 0;'
-        assert str(body.body[4]) == 'sdata0[wi0].flag = 2;'
+        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
 
         op.apply(time_M=nt-2)
 
@@ -222,23 +223,23 @@ class TestStreaming(object):
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
+        assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
+        assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
+        body = body.body[2]
         assert (str(body.body[1].condition) ==
-                'Ne(lock0[0], 2) | '
                 'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
-        assert (str(body.body[1].body[0]) ==
-                'wi0 = (wi0 + 1)%(npthreads0);')
+        assert str(body.body[1].body[0]) == 'wi0 = (wi0 + 1)%(npthreads0);'
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'lock0[0] = 0;'  # Set-lock
-        assert str(body.body[4]) == 'sdata0[wi0].flag = 2;'
+        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
         body = sections[3].body[0].body[0]
+        assert str(body.body[0].condition) == 'Ne(lock1[0], 2)'
+        assert str(body.body[1]) == 'lock1[0] = 0;'  # Set-lock
+        body = body.body[2]
         assert (str(body.body[1].condition) ==
-                'Ne(lock1[0], 2) | '
                 'Ne(FieldFromComposite(flag, sdata1[wi1], ()), 1)')  # Wait-thread
-        assert (str(body.body[1].body[0]) ==
-                'wi1 = (wi1 + 1)%(npthreads1);')
+        assert str(body.body[1].body[0]) == 'wi1 = (wi1 + 1)%(npthreads1);'
         assert str(body.body[2]) == 'sdata1[wi1].time = time;'
-        assert str(body.body[3]) == 'lock1[0] = 0;'  # Set-lock
-        assert str(body.body[4]) == 'sdata1[wi1].flag = 2;'
+        assert str(body.body[3]) == 'sdata1[wi1].flag = 2;'
         assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 19
@@ -281,16 +282,15 @@ class TestStreaming(object):
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
+        assert str(body.body[0].condition) == 'Ne(lock0[0], 2) | Ne(lock1[0], 2)'
+        assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
+        assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
+        body = body.body[3]
         assert (str(body.body[1].condition) ==
-                'Ne(lock0[0], 2) | '
-                'Ne(lock1[0], 2) | '
                 'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
-        assert (str(body.body[1].body[0]) ==
-                'wi0 = (wi0 + 1)%(npthreads0);')
+        assert str(body.body[1].body[0]) == 'wi0 = (wi0 + 1)%(npthreads0);'
         assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'lock0[0] = 0;'  # Set-lock
-        assert str(body.body[4]) == 'lock1[0] = 0;'  # Set-lock
-        assert str(body.body[5]) == 'sdata0[wi0].flag = 2;'
+        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 22
@@ -353,8 +353,9 @@ class TestStreaming(object):
         assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t2] == 0);'
         for i in range(3):
-            assert 'lock0[t' in str(sections[1].body[0].body[0].body[6 + i])  # Set-lock
-        assert str(sections[1].body[0].body[0].body[9]) == 'sdata0[wi0].flag = 2;'
+            assert 'lock0[t' in str(sections[1].body[0].body[0].body[1 + i])  # Set-lock
+        assert str(sections[1].body[0].body[0].body[4].body[-1]) ==\
+            'sdata0[wi0].flag = 2;'
         assert len(op1._func_table) == 2
         exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 26
