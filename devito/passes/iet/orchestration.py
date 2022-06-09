@@ -13,7 +13,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite
 from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
-from devito.types import SharedData
+from devito.types import SharedData, QueueID
 
 __init__ = ['Orchestrator']
 
@@ -57,7 +57,7 @@ class Orchestrator(object):
         return iet
 
     def _make_withlock(self, iet, sync_ops, pieces, root):
-        fid = SharedData._symbolic_id
+        qid = QueueID()
 
         # Sorting for deterministic code gen
         locks = sorted({s.lock for s in sync_ops}, key=lambda i: i.name)
@@ -73,9 +73,9 @@ class Orchestrator(object):
         for s in sync_ops:
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
-            preactions.append(self.lang._map_update_host_async(s.target, imask, fid))
+            preactions.append(self.lang._map_update_host_async(s.target, imask, qid))
         if self.lang._map_wait is not None:
-            preactions.append(self.lang._map_wait(fid))
+            preactions.append(self.lang._map_wait(qid))
         preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         preactions.append(BlankLine)
 
@@ -132,7 +132,7 @@ class Orchestrator(object):
         return iet
 
     def _make_prefetchupdate(self, iet, sync_ops, pieces, root):
-        fid = SharedData._symbolic_id
+        qid = QueueID()
 
         postactions = [BlankLine]
         for s in sync_ops:
@@ -142,9 +142,9 @@ class Orchestrator(object):
 
             imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
-            postactions.append(self.lang._map_update_device_async(s.target, imask, fid))
+            postactions.append(self.lang._map_update_device_async(s.target, imask, qid))
         if self.lang._map_wait is not None:
-            postactions.append(self.lang._map_wait(fid))
+            postactions.append(self.lang._map_wait(qid))
 
         # Turn prefetch IET into a ThreadFunction
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
@@ -183,7 +183,7 @@ class Orchestrator(object):
         return iet
 
     def _make_fetchprefetch(self, iet, sync_ops, pieces, root):
-        fid = SharedData._symbolic_id
+        qid = QueueID()
 
         fetches = []
         prefetches = []
@@ -208,7 +208,7 @@ class Orchestrator(object):
 
             # Construct prefetch IET
             imask = [(pfc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            prefetch = self.lang._map_to_wait(f, imask, fid)
+            prefetch = self.lang._map_to_wait(f, imask, qid)
             prefetches.append(Conditional(pcond, prefetch))
 
         # Turn init IET into a Callable

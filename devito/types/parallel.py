@@ -22,7 +22,7 @@ from devito.types.misc import Pointer, VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'DevicePointer']
+           'NPThreads', 'DeviceRM', 'DevicePointer', 'QueueID']
 
 
 class NThreadsBase(Scalar):
@@ -161,11 +161,9 @@ class SharedData(ThreadArray):
     """
 
     # Mandatory, or "static", fields
-    _field_id = 'id'
     _field_deviceid = 'deviceid'
     _field_flag = 'flag'
 
-    _symbolic_id = Symbol(name=_field_id, dtype=np.int32)
     _symbolic_deviceid = Symbol(name=_field_deviceid, dtype=np.int32)
     _symbolic_flag = VolatileInt(name=_field_flag)
 
@@ -177,12 +175,8 @@ class SharedData(ThreadArray):
     @classmethod
     def __pfields_setup__(cls, **kwargs):
         fields = as_list(kwargs.get('fields'))
-        fields.extend([cls._symbolic_id, cls._symbolic_deviceid, cls._symbolic_flag])
+        fields.extend([cls._symbolic_deviceid, cls._symbolic_flag])
         return [(i._C_name, i._C_ctype) for i in fields]
-
-    @cached_property
-    def symbolic_id(self):
-        return self._symbolic_id
 
     @cached_property
     def symbolic_deviceid(self):
@@ -304,6 +298,14 @@ class DeviceRM(DeviceSymbol):
             return {self.name: int(bool(kwargs[self.name]))}
         except KeyError:
             return self._arg_defaults()
+
+
+class QueueID(Symbol):
+
+    def __new__(cls, *args, **kwargs):
+        kwargs.setdefault('name', 'qid')
+        kwargs['is_const'] = True
+        return super().__new__(cls, *args, **kwargs)
 
 
 class DevicePointer(Pointer):

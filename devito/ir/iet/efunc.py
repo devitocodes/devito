@@ -7,10 +7,11 @@ import numpy as np
 from devito.ir.iet.nodes import (BlankLine, Call, Callable, Conditional, Dereference,
                                  DummyExpr, Iteration, List, PointerCast, Return, While,
                                  CallableBody)
-from devito.ir.iet.utils import derive_parameters, diff_parameters
+from devito.ir.iet.utils import derive_parameters
+from devito.ir.iet.visitors import FindSymbols
 from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Macro
-from devito.tools import as_tuple
-from devito.types import PThreadArray, SharedData, Symbol, Pointer
+from devito.tools import as_tuple, split
+from devito.types import PThreadArray, SharedData, Symbol, QueueID, Pointer
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc',
            'EntryFunction', 'ThreadFunction', 'make_thread_ctx',
@@ -161,14 +162,17 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
     else:
         callback = lambda body: Iteration(body, d, threads.size - 1)
 
-    # A unique identifier for each created pthread
-    pthreadid = d + threads.base_id
-
     # Initialize `sdata`
-    arguments = list(isdata.parameters)
-    arguments[-3] = sdata.symbolic_base + d
-    arguments[-2] = pthreadid
-    arguments[-1] = sregistry.deviceid
+    arguments = []
+    for a in isdata.parameters:
+        if isinstance(a, QueueID):
+            # Different pthreads use different queues
+            arguments.append(threads.base_id + d)
+        elif isinstance(a, SharedData):
+            # Each pthread has its own SharedData copy
+            arguments.append(sdata.symbolic_base + d)
+        else:
+            arguments.append(a)
     call0 = Call(isdata.name, arguments)
 
     # Create pthreads
@@ -186,33 +190,32 @@ def _make_thread_init(threads, tfunc, isdata, sdata, sregistry):
 
 
 def _make_thread_func(name, iet, root, threads, sregistry):
-    sid = SharedData._symbolic_id
     sdeviceid = SharedData._symbolic_deviceid
 
     # Create the SharedData, that is the data structure that will be used by the
-    # main thread to pass information dows to the child thread(s)
-    required, parameters, dynamic_parameters = diff_parameters(iet, root, [sid])
-    parameters = sorted(parameters, key=lambda i: i.is_Function)  # Allow casting
+    # main thread to pass information down to the child thread(s)
+    parameters = derive_parameters(iet)
+    defines = FindSymbols('defines').visit(root.body)
+    ncparams, cparams = split(parameters, lambda i: i in defines)
+    cparams = sorted(cparams, key=lambda i: i.is_Function)  # Allow casting
     sdata = SharedData(name=sregistry.make_name(prefix='sdata'), npthreads=threads.size,
-                       fields=required, dynamic_fields=dynamic_parameters)
+                       fields=parameters, dynamic_fields=ncparams)
 
     # Create a Callable to initialize `sdata` with the known const values
     sbase = sdata.symbolic_base
     iname = 'init_%s' % sdata.dtype._type_.__name__
     ibody = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
-             for i in parameters]
+             for i in cparams]
     ibody.extend([
         BlankLine,
-        DummyExpr(FieldFromPointer(sdata._field_id, sbase), sid),
         DummyExpr(FieldFromPointer(sdata._field_deviceid, sbase), sdeviceid),
         DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)
     ])
-    iparameters = parameters + [sdata, sid, sdeviceid]
-    isdata = Callable(iname, ibody, 'void', iparameters, 'static')
+    icparams = cparams + [sdata, sdeviceid]
+    isdata = Callable(iname, ibody, 'void', icparams, 'static')
 
     # Prepend the SharedData fields available upon thread activation
-    preactions = [DummyExpr(i, FieldFromPointer(i.name, sbase))
-                  for i in dynamic_parameters]
+    preactions = [DummyExpr(i, FieldFromPointer(i.name, sbase)) for i in ncparams]
 
     # Append the flag reset
     postactions = [List(body=[
@@ -235,12 +238,11 @@ def _make_thread_func(name, iet, root, threads, sregistry):
 
     # Unpack `sdata`
     unpack = [PointerCast(sdata, tparameter), BlankLine]
-    for i in parameters:
+    for i in cparams:
         if i.is_AbstractFunction:
             unpack.append(Dereference(i, sdata))
         else:
             unpack.append(DummyExpr(i, FieldFromPointer(i.name, sbase)))
-    unpack.append(DummyExpr(sid, FieldFromPointer(sdata._field_id, sbase)))
     unpack.append(DummyExpr(sdeviceid, FieldFromPointer(sdata._field_deviceid, sbase)))
 
     iet = CallableBody([iet, Return(Macro('NULL'))], unpacks=unpack)

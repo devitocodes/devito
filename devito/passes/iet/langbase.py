@@ -47,14 +47,14 @@ class LangBB(object, metaclass=LangMeta):
     PointerCast = PointerCast
 
     @classmethod
-    def _map_to(cls, f, imask=None, queueid=None):
+    def _map_to(cls, f, imask=None, qid=None):
         """
         Allocate and copy Function from host to device memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_to_wait(cls, f, imask=None, queueid=None):
+    def _map_to_wait(cls, f, imask=None, qid=None):
         """
         Allocate and copy Function from host to device memory and explicitly wait.
         """
@@ -75,7 +75,7 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_wait(cls, queueid=None):
+    def _map_wait(cls, qid=None):
         """
         Explicitly wait on event.
         """
@@ -89,28 +89,28 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_update_host(cls, f, imask=None, queueid=None):
+    def _map_update_host(cls, f, imask=None, qid=None):
         """
         Copy Function from device to host memory (alternative to _map_update).
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_host_async(cls, f, imask=None, queueid=None):
+    def _map_update_host_async(cls, f, imask=None, qid=None):
         """
         Asynchronously copy Function from device to host memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_device(cls, f, imask=None, queueid=None):
+    def _map_update_device(cls, f, imask=None, qid=None):
         """
         Copy Function from host to device memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_device_async(cls, f, imask=None, queueid=None):
+    def _map_update_device_async(cls, f, imask=None, qid=None):
         """
         Asynchronously copy Function from host to device memory and explicitly wait.
         """
