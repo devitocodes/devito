@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
-                         check_cuda_runtime)
+                         check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -47,6 +47,8 @@ def sniff_compiler_version(cc):
     elif ver.startswith("clang"):
         compiler = "clang"
     elif ver.startswith("Apple LLVM"):
+        compiler = "clang"
+    elif ver.startswith("Homebrew clang"):
         compiler = "clang"
     elif ver.startswith("icc"):
         compiler = "icc"
@@ -410,9 +412,13 @@ class ClangCompiler(Compiler):
                 self.ldflags += ['-march=%s' % platform.march]
         elif platform is M1:
             # NOTE:
-            # -march=native unsupported
-            # openmp unusable
-            pass
+            # Apple M1 supports OpenMP through Apple's LLVM compiler.
+            # The compiler can be installed with Homebrew or can be built from scratch.
+            # Check if installed and set compiler flags accordingly
+            llvmm1 = get_m1_llvm_path(language)
+            if llvmm1 and language == 'openmp':
+                self.ldflags += ['-mcpu=apple-m1', '-fopenmp', '-L%s' % llvmm1['libs']]
+                self.cflags += ['-Xclang', '-I%s' % llvmm1['include']]
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
