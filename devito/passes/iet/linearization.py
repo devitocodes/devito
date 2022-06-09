@@ -203,12 +203,12 @@ def linearize_pointers(iet, key):
     mapper = {}
 
     # Linearize casts, e.g. `float *u = (float*) u_vec->data`
-    mapper.update({n: n._rebuild(flat=n.function.name)
+    mapper.update({n: n._rebuild(flat=True)
                    for n in FindNodes(PointerCast).visit(iet)
                    if n.function in candidates})
 
     # Linearize array dereferences, e.g. `float *r1 = (float*) pr1[tid]`
-    mapper.update({n: n._rebuild(flat=n.pointee.name)
+    mapper.update({n: n._rebuild(flat=True)
                    for n in FindNodes(Dereference).visit(iet)
                    if n.pointer.is_PointerArray and n.pointee in candidates})
 

@@ -162,7 +162,7 @@ class CodePrinter(C99CodePrinter):
 
     _print_DefFunction = _print_UnaryOp
     _print_MacroArgument = _print_UnaryOp
-    _print_IndexedData = _print_UnaryOp
+    _print_IndexedBase = _print_UnaryOp
     _print_IndexSum = _print_UnaryOp
     _print_Keyword = _print_UnaryOp
 

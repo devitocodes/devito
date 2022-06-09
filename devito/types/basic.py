@@ -1019,6 +1019,19 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
 
+    @cached_property
+    def dmap(self):
+        """
+        A symbolic pointer to the device data map. If there's no such a map,
+        return None.
+        """
+        if self._mem_mapped:
+            return DeviceMap('d_%s' % self.name, shape=self.shape, function=self.function)
+        elif self._mem_local:
+            return self.indexed
+        else:
+            return None
+
     @property
     def size(self):
         """

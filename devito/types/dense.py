@@ -25,7 +25,7 @@ from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
-from devito.types.basic import AbstractFunction, DeviceMap, Size
+from devito.types.basic import AbstractFunction, Size
 from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
@@ -773,10 +773,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise ValueError("Unknown region `%s`" % str(region))
 
         return RegionMeta(offset, size)
-
-    @cached_property
-    def dmap(self):
-        return DeviceMap('d_%s' % self.name, shape=self.shape, function=self.function)
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""

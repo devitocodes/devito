@@ -17,7 +17,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, Basic, IndexedData
+from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
@@ -246,8 +246,10 @@ class CGen(Visitor):
         f = o.function
 
         if f.is_PointerArray:
+            # lvalue
             lvalue = c.Value(f._C_typedata, '**%s' % f.name)
 
+            # rvalue
             if isinstance(o.obj, ArrayObject):
                 v = '%s->%s' % (o.obj.name, f._C_name)
             elif isinstance(o.obj, IndexedData):
@@ -257,16 +259,22 @@ class CGen(Visitor):
             rvalue = '(%s**) %s' % (f._C_typedata, v)
 
         else:
+            # lvalue
+            if f.is_DiscreteFunction:
+                v = o.obj.name
+            else:
+                v = f.name
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (f.name, shape))
+                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (v, shape))
             else:
                 rshape = '*'
-                lvalue = c.Value(f._C_typedata, '*%s' % o.flat)
+                lvalue = c.Value(f._C_typedata, '*%s' % v)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
+            # rvalue
             if f.is_DiscreteFunction:
                 if isinstance(o.obj, IndexedData):
                     v = f._C_field_data
@@ -300,7 +308,7 @@ class CGen(Visitor):
             else:
                 rvalue = '(%s *) %s[%s]' % (a1._C_typedata, a1.name, a1.dim.name)
                 lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(a0._C_typedata, '*restrict %s' % o.flat)
+                    a0._data_alignment, c.Value(a0._C_typedata, '*restrict %s' % a0.name)
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)

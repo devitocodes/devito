@@ -16,7 +16,6 @@ from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitialize
                               SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM
-from devito.types.basic import AbstractFunction
 from devito.types.dense import AliasFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
