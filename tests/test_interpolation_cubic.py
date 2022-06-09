@@ -5,7 +5,9 @@ from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunctio
 
 
 def unit_box(name='a', shape=(11, 11), grid=None):
-    """Create a field with value 0. to 1. in each dimension"""
+    """
+    Create a field with value 0. to 1. in each dimension
+    """
     grid = grid or Grid(shape=shape)
     a = Function(name=name, grid=grid)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
@@ -14,7 +16,9 @@ def unit_box(name='a', shape=(11, 11), grid=None):
 
 
 def exp_box(name='a', shape=(11, 11), grid=None):
-    """Create a field with exponential values"""
+    """
+    Create a field with exponential values
+    """
     def init_data(f):
         for i in range(f.data.shape[0]):
             for j in range(f.data.shape[1]):
@@ -33,7 +37,9 @@ def exp_box(name='a', shape=(11, 11), grid=None):
 
 
 def unit_box_time(name='a', shape=(11, 11),):
-    """Create a field with value 0. to 1. in each dimension"""
+    """
+    Create a field with value 0. to 1. in each dimension
+    """
     grid = Grid(shape=shape)
     a = TimeFunction(name=name, grid=grid, time_order=1)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
@@ -43,7 +49,9 @@ def unit_box_time(name='a', shape=(11, 11),):
 
 
 def exp_box_time(name='a', shape=(11, 11), grid=None):
-    """Create a field with exponential values"""
+    """
+    Create a field with exponential values
+    """
     def init_data(f):
         for i in range(f.data.shape[1]):
             for j in range(f.data.shape[2]):
@@ -63,7 +71,8 @@ def exp_box_time(name='a', shape=(11, 11), grid=None):
 
 
 def points(grid, ranges, npoints, name='points', cubic=None, sinc=None):
-    """Create a set of sparse points from a set of coordinate
+    """
+    Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
     points = SparseFunction(name=name, grid=grid, npoint=npoints, cubic=cubic, sinc=sinc)
@@ -73,7 +82,8 @@ def points(grid, ranges, npoints, name='points', cubic=None, sinc=None):
 
 
 def time_points(grid, ranges, npoints, name='points', nt=10, cubic=None, sinc=None):
-    """Create a set of sparse points from a set of coordinate
+    """
+    Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
     points = SparseTimeFunction(name=name, grid=grid, npoint=npoints,
@@ -84,7 +94,8 @@ def time_points(grid, ranges, npoints, name='points', nt=10, cubic=None, sinc=No
 
 
 def custom_points(grid, ranges, npoints, name='points', cubic=None, sinc=None):
-    """Create a set of sparse points from a set of coordinate
+    """
+    Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
     scale = Dimension(name="scale")
@@ -101,7 +112,8 @@ def custom_points(grid, ranges, npoints, name='points', cubic=None, sinc=None):
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     """
 
@@ -122,7 +134,8 @@ def test_interpolate(shape, coords, npoints=20):
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate_cumm(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     """
     a = exp_box(shape=shape)
@@ -142,7 +155,8 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate_time_shift(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     This test verifies the optional time shifting for SparseTimeFunctions
     """
@@ -176,7 +190,8 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate_array(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     """
     a = exp_box(shape=shape)
@@ -195,7 +210,8 @@ def test_interpolate_array(shape, coords, npoints=20):
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate_custom(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid.
     """
     a = exp_box(shape=shape)
@@ -244,7 +260,8 @@ def test_interpolation_dx():
     ((101, 101, 101), [(3.4, 95.), (3., 92), (10., 10.)])
 ])
 def test_interpolate_indexed(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
+    """
+    Test generic point interpolation testing the x-coordinate of an
     abitrary set of points going across the grid. Unlike other tests,
     here we interpolate an expression built using the indexed notation.
     """

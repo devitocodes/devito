@@ -399,7 +399,6 @@ class CubicInterpolator(GenericInterpolator):
     ----------
     sfunction: The SparseFunction that this Interpolator operates on.
     """
-
     def __init__(self, sfunction):
         self.sfunction = sfunction
 
@@ -426,13 +425,12 @@ class CubicInterpolator(GenericInterpolator):
         When idx_subs is not None, expr is used as element which represents the neighbors
         points. Otherwise, pn is used.
         """
-
         def cubicConv(arg, option):
             """
-            option = 1, ponto imediatamente vizinho ao ponto de intepolação.
-            Onde 0 < |arg| < 1
-            option = 2, pontos extremos da vizinhança.
-            Onde 1 < |arg| < 2
+            option = 1, point immediately adjacent to the interpolation point.
+            Where 0 < |arg| < 1
+            option = 2, endpoints of the neighborhood.
+            Where 1 < |arg| < 2
             """
             a = -1/2
             if option == 1:
