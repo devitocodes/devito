@@ -413,7 +413,7 @@ class CubicInterpolator(GenericInterpolator):
         ----------
         expr : expr-like
             Input expression to interpolate.
-        position: List
+        position: list
             Elements which represents the position of the interpolation point multiplied
             by their respective coefficients.
         pn: List, optional
@@ -422,6 +422,11 @@ class CubicInterpolator(GenericInterpolator):
         idx_subs: dict, optional
             Structure responsible for mapping the order of substitution of dimensions in
             expr.
+        idx2d: int
+            Defines which iteration of second dimension is being used.
+        idx3d: int, optional
+            defines which iteration of third dimension is being used,
+            if it is a 3D interpolation.
         When idx_subs is not None, expr is used as element which represents the neighbors
         points. Otherwise, pn is used.
         """
@@ -688,9 +693,9 @@ class SincInterpolator(GenericInterpolator):
         idx_subs: dict
             Structure responsible for mapping the order of substitution of dimensions
             in expr.
-        idx_2d: Integer
+        idx2d: int
             Defines which iteration of second dimension is being used.
-        idx3d: Integer, optional
+        idx3d: int, optional
             defines which iteration of third dimension is being used,
             if it is a 3D interpolation.
         """
