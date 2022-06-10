@@ -714,11 +714,11 @@ class CallableBody(Node):
     ----------
     body : Node or list of Node
         The actual body.
+    unpacks : list of Nodes, optional
+        Statements unpacking data from composite types.
     init : Node, optional
         A piece of IET to perform some initialization relevant for `body`
         (e.g., to initialize the target language runtime).
-    unpacks : list of Nodes, optional
-        Statements unpacking data from composite types.
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
@@ -736,7 +736,7 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['init', 'unpacks', 'allocs', 'casts', 'maps', 'objs',
+    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'maps', 'objs',
                     'body', 'unmaps', 'frees']
 
     def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,

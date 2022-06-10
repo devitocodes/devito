@@ -5,8 +5,8 @@ from sympy import Or
 
 from devito.data import FULL
 from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
-                           Transformer, BlankLine, BusyWait, DummyExpr,
-                           derive_parameters, make_thread_ctx)
+                           Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
+                           AsyncCallable, derive_parameters)
 from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
                                FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete)
 from devito.passes.iet.engine import iet_pass
@@ -59,17 +59,7 @@ class Orchestrator(object):
     def _make_withlock(self, iet, sync_ops, pieces, root):
         qid = QueueID()
 
-        # Sorting for deterministic code gen
-        locks = sorted({s.lock for s in sync_ops}, key=lambda i: i.name)
-
-        # The `min` is used to pick the maximum possible degree of parallelism.
-        # For example, assume there are two locks in the given `sync_ops`, `lock0(i)`
-        # and `lock1(j)`. If, say, `lock0` protects 3 entries of a certain Function
-        # `u`, while `lock1` protects 2 entries of the Function `v`, then there
-        # will never be more than 2 threads in flight concurrently
-        npthreads = min(i.size for i in locks)
-
-        preactions = [BlankLine]
+        preactions = []
         for s in sync_ops:
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
                      for d in s.target.dimensions]
@@ -82,24 +72,15 @@ class Orchestrator(object):
         postactions = [BlankLine]
         postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
-        # Turn `iet` into a ThreadFunction so that it can be executed
-        # asynchronously by a pthread in the `npthreads` pool
+        # Turn `iet` into an AsyncCallable so that subsequent passes know
+        # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
-        tctx = make_thread_ctx(name, body, root, npthreads, self.sregistry)
-        pieces.funcs.extend(tctx.funcs)
+        func = AsyncCallable(name, body)
+        pieces.funcs.append(func)
 
-        # Schedule computation to the first available thread
-        iet = tctx.activate
-
-        # Fire up the threads
-        pieces.init.append(tctx.init)
-
-        # Final wait before jumping back to Python land
-        pieces.finalize.append(tctx.finalize)
-
-        # Keep track of created objects
-        pieces.objs.add(sync_ops, tctx.sdata, tctx.threads)
+        # The corresponding AsyncCall
+        iet = AsyncCall(name, func.parameters)
 
         return iet
 
@@ -146,7 +127,7 @@ class Orchestrator(object):
         if self.lang._map_wait is not None:
             postactions.append(self.lang._map_wait(qid))
 
-        # Turn prefetch IET into a ThreadFunction
+        # Turn prefetch IET into a AsyncCallable
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(body=iet.body + tuple(postactions))
         tctx = make_thread_ctx(name, body, root, None, self.sregistry)
@@ -216,8 +197,7 @@ class Orchestrator(object):
         name = self.sregistry.make_name(prefix='init_device')
         body = List(body=fetches)
         parameters = filter_sorted(functions + derive_parameters(body))
-        func = Callable(name, body, 'void', parameters, 'static')
-        pieces.funcs.append(func)
+        pieces.funcs.append(Callable(name, body, 'void', parameters, 'static'))
 
         # Perform initial fetch by the main thread
         pieces.init.append(List(
@@ -225,32 +205,13 @@ class Orchestrator(object):
             body=[Call(name, parameters), BlankLine]
         ))
 
-        # Turn prefetch IET into a ThreadFunction
+        # Turn prefetch IET into a AsyncCallable
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(header=c.Line(), body=prefetches)
-        tctx = make_thread_ctx(name, body, root, None, self.sregistry)
-        pieces.funcs.extend(tctx.funcs)
+        func = AsyncCallable(name, prefetches)
+        pieces.funcs.append(func)
 
         # Glue together all the IET pieces, including the activation logic
-        sdata = tctx.sdata
-        threads = tctx.threads
-        iet = List(body=[
-            BlankLine,
-            BusyWait(CondNe(FieldFromComposite(sdata._field_flag,
-                                               sdata[threads.index]), 1))
-        ] + presents + [
-            iet,
-            tctx.activate
-        ])
-
-        # Fire up the threads
-        pieces.init.append(tctx.init)
-
-        # Final wait before jumping back to Python land
-        pieces.finalize.append(tctx.finalize)
-
-        # Keep track of created objects
-        pieces.objs.add(sync_ops, sdata, threads)
+        iet = List(body=presents + [iet, AsyncCall(name, func.parameters)])
 
         return iet
 
@@ -317,10 +278,8 @@ class Orchestrator(object):
 
         iet = Transformer(subs).visit(iet)
 
-        # Add initialization and finalization code
-        init = List(body=pieces.init, footer=c.Line())
-        finalize = List(header=c.Line(), body=pieces.finalize)
-        body = iet.body._rebuild(body=(init,) + iet.body.body + (finalize,))
+        # Inject initialization code
+        body = iet.body._rebuild(body=tuple(pieces.init) + iet.body.body)
         iet = iet._rebuild(body=body)
 
         return iet, {

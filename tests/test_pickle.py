@@ -214,7 +214,7 @@ def test_shared_data():
     s = Scalar(name='s')
     a = Scalar(name='a')
 
-    sdata = SharedData(name='sdata', npthreads=2, fields=[s], dynamic_fields=[a])
+    sdata = SharedData(name='sdata', npthreads=2, cfields=[s], ncfields=[a])
 
     pkl_sdata = pickle.dumps(sdata)
     new_sdata = pickle.loads(pkl_sdata)
@@ -223,7 +223,8 @@ def test_shared_data():
     assert sdata.size == new_sdata.size
     assert sdata.fields == new_sdata.fields
     assert sdata.pfields == new_sdata.pfields
-    assert sdata.dynamic_fields == new_sdata.dynamic_fields
+    assert sdata.cfields == new_sdata.cfields
+    assert sdata.ncfields == new_sdata.ncfields
 
     ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
 
