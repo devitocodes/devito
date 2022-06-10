@@ -9,8 +9,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_prodders,
-                               is_on_device, linearize, relax_incr_dimensions,
-                               split_async_compute)
+                               is_on_device, linearize, relax_incr_dimensions)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -285,15 +284,11 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         sregistry = kwargs['sregistry']
 
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
-
-        def orchestrate(graph):
-            #TODO
-            #split_async_compute(graph, sregistry=sregistry)
-            cls._Target.Orchestrator(sregistry).process(graph)  #, root=graph.root)
+        orchestrator = cls._Target.Orchestrator(sregistry)
 
         return {
             'parallel': parizer.make_parallel,
-            'orchestrate': orchestrate,
+            'orchestrate': partial(orchestrator.process),
             'mpi': partial(mpiize, sregistry=sregistry, options=options),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
