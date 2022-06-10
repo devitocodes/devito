@@ -1,9 +1,35 @@
-from devito.ir.iet import IterationTree, FindSections, FindSymbols
+from devito.ir.iet import FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
 from devito.tools import filter_ordered
 from devito.types import Array, Global, LocalObject
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters']
+
+
+class IterationTree(tuple):
+
+    """
+    Represent a sequence of nested Iterations.
+    """
+
+    @property
+    def root(self):
+        return self[0] if self else None
+
+    @property
+    def inner(self):
+        return self[-1] if self else None
+
+    @property
+    def dimensions(self):
+        return [i.dim for i in self]
+
+    def __repr__(self):
+        return "IterationTree%s" % super(IterationTree, self).__repr__()
+
+    def __getitem__(self, key):
+        ret = super(IterationTree, self).__getitem__(key)
+        return IterationTree(ret) if isinstance(key, slice) else ret
 
 
 def retrieve_iteration_tree(node, mode='normal'):

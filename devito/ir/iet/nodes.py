@@ -21,9 +21,9 @@ from devito.types import Indexed, LocalObject, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'HaloSpot', 'IterationTree', 'Definition',
-           'ExpressionBundle', 'AugmentedExpression', 'Increment', 'Return',
-           'While', 'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
+           'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
+           'AugmentedExpression', 'Increment', 'Return', 'While',
+           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
            'BusyWait', 'CallableBody', 'Transfer', 'HPtr', 'DPtr']
 
@@ -1392,32 +1392,6 @@ class HaloSpot(Node):
 
 
 # Utility classes
-
-
-class IterationTree(tuple):
-
-    """
-    Represent a sequence of nested Iterations.
-    """
-
-    @property
-    def root(self):
-        return self[0] if self else None
-
-    @property
-    def inner(self):
-        return self[-1] if self else None
-
-    @property
-    def dimensions(self):
-        return [i.dim for i in self]
-
-    def __repr__(self):
-        return "IterationTree%s" % super(IterationTree, self).__repr__()
-
-    def __getitem__(self, key):
-        ret = super(IterationTree, self).__getitem__(key)
-        return IterationTree(ret) if isinstance(key, slice) else ret
 
 
 MetaCall = namedtuple('MetaCall', 'root local')
