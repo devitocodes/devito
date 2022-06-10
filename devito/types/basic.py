@@ -182,7 +182,7 @@ class CodeSymbol(object):
             * the host DRAM if platform=GPU
             * the device DRAM if platform=CPU
         """
-        return not self._mem_local
+        return False
 
     @property
     def _mem_host(self):
@@ -1055,6 +1055,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @cached_property
     def _C_symbol(self):
         return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
+
+    @property
+    def _mem_mapped(self):
+        return not self._mem_local
 
     def _make_pointer(self):
         """Generate a symbolic pointer to self."""

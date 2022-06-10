@@ -1658,10 +1658,6 @@ class AliasFunction(DiscreteFunction):
     __shape_setup__ = Function.__shape_setup__
 
     @property
-    def _mem_mapped(self):
-        return False
-
-    @property
     def data(self):
         # Any attempt at allocating data by the user should fail miserably
         raise TypeError("AliasFunction cannot allocate data")
