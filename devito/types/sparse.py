@@ -453,11 +453,13 @@ class SparseFunction(AbstractSparseFunction):
         self.cubic = kwargs.get('cubic', False)
         self.sinc = kwargs.get('sinc', False)
         if self.cubic:
-            self.interpolator = CubicInterpolator(self)
             self._radius = 2
+            self.interpolator = CubicInterpolator(self)
+            
         elif self.sinc:
-            self.interpolator = SincInterpolator(self)
             self._radius = 4
+            self.interpolator = SincInterpolator(self)
+            
         else:
             self.interpolator = LinearInterpolator(self)
         # Set up sparse point coordinates
