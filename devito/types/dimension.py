@@ -1314,6 +1314,9 @@ class StencilDimension(BasicDimension):
         if self._size < 1:
             raise ValueError("Expected size greater than 0 (got %s)" % self._size)
 
+    def _hashable_content(self):
+        return super()._hashable_content() + (self._min, self._max, self._spacing)
+
     @cached_property
     def symbolic_size(self):
         return sympy.Number(self._size)

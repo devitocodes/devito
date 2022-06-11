@@ -393,8 +393,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def function(self):
         return self
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         return self
 
     def indexify(self):
@@ -958,8 +957,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                 return False
         return True
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         # Average values if at a location not on the Function's grid
         if self._is_on_grid:
             return self

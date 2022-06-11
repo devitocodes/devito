@@ -172,8 +172,7 @@ class TensorFunction(AbstractTensor):
         return np.all([self[i, j] == 0 for j in range(self.cols)
                        for i in range(self.rows) if i != j])
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         return self.applyfunc(lambda x: getattr(x, 'evaluate', x))
 
     def values(self):

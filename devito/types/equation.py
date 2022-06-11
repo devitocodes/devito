@@ -70,22 +70,17 @@ class Eq(sympy.Eq, Evaluable):
 
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Eq is defined."""
-        return self._subdomain
-
-    @cached_property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         """
         Evaluate the Equation or system of Equations.
 
         The RHS of the Equation is evaluated at the indices of the LHS if required.
         """
         try:
-            lhs, rhs = self.lhs.evaluate, self.rhs._eval_at(self.lhs).evaluate
+            lhs = self.lhs._evaluate(**kwargs)
+            rhs = self.rhs._eval_at(self.lhs)._evaluate(**kwargs)
         except AttributeError:
-            lhs, rhs = self._evaluate_args()
+            lhs, rhs = self._evaluate_args(**kwargs)
         eq = self.func(lhs, rhs, subdomain=self.subdomain,
                        coefficients=self.substitutions,
                        implicit_dims=self._implicit_dims)
@@ -118,6 +113,11 @@ class Eq(sympy.Eq, Evaluable):
                     for l in lhss]
         else:
             return [self]
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Eq is defined."""
+        return self._subdomain
 
     @property
     def substitutions(self):

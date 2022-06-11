@@ -2,20 +2,15 @@ from collections import OrderedDict
 from collections.abc import Iterable
 
 from cached_property import cached_property
-import numpy as np
 import sympy
 
-from devito.finite_differences.finite_difference import (generic_derivative,
-                                                         first_derivative,
-                                                         cross_derivative)
-from devito.finite_differences.differentiable import Differentiable
-from devito.finite_differences.tools import direct, transpose
+from .finite_difference import generic_derivative, first_derivative, cross_derivative
+from .differentiable import Differentiable
+from .tools import direct, transpose
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
-from devito.types.array import Array
-from devito.types.dimension import StencilDimension
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Derivative', 'Weights']
+__all__ = ['Derivative']
 
 
 class Derivative(sympy.Derivative, Differentiable):
@@ -314,18 +309,17 @@ class Derivative(sympy.Derivative, Differentiable):
             # the expression as is.
             return self._new_from_self(x0=x0)
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         # Evaluate finite-difference.
         # NOTE: `evaluate` and `_eval_fd` split for potential future different
         # types of discretizations
-        return self._eval_fd(self.expr)
+        return self._eval_fd(self.expr, **kwargs)
 
     @property
     def _eval_deriv(self):
         return self._eval_fd(self.expr)
 
-    def _eval_fd(self, expr):
+    def _eval_fd(self, expr, **kwargs):
         """
         Evaluate the finite-difference approximation of the Derivative.
         Evaluation is carried out via the following three steps:
@@ -340,50 +334,28 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         # Step 1: Evaluate derivatives within expression
         try:
-            expr = expr._eval_deriv
+            expr = expr._evaluate(**kwargs)
         except AttributeError:
             pass
+
+        # If True, the derivative will be fully expanded as a sum of products,
+        # otherwise an IndexSum will returned
+        expand = kwargs.get('expand', True)
 
         # Step 2: Evaluate FD of the new expression
         if self.side is not None and self.deriv_order == 1:
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
-                                   x0=self.x0)
+                                   x0=self.x0, expand=expand)
         elif len(self.dims) > 1:
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
-                                   matvec=self.transpose, x0=self.x0)
+                                   matvec=self.transpose, x0=self.x0, expand=expand)
         else:
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
-                                     matvec=self.transpose, x0=self.x0)
+                                     matvec=self.transpose, x0=self.x0, expand=expand)
 
         # Step 3: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 
         return res
-
-
-class Weights(Array):
-
-    """
-    The weights (or coefficients) of a finite-difference expansion.
-    """
-
-    def __init_finalize__(self, *args, **kwargs):
-        dimensions = as_tuple(kwargs.get('dimensions'))
-        weights = kwargs.get('initvalue')
-
-        assert len(dimensions) == 1
-        d = dimensions[0]
-        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
-        assert isinstance(weights, (list, tuple, np.ndarray))
-
-        kwargs['scope'] = 'static'
-
-        super().__init_finalize__(*args, **kwargs)
-
-    @property
-    def dimension(self):
-        return self.dimensions[0]
-
-    weights = Array.initvalue

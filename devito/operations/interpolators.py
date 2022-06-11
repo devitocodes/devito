@@ -37,8 +37,7 @@ class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
 
         return obj
 
-    @property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         return_value = self.callback()
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
