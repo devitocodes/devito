@@ -455,11 +455,9 @@ class SparseFunction(AbstractSparseFunction):
         if self.cubic:
             self._radius = 2
             self.interpolator = CubicInterpolator(self)
-            
         elif self.sinc:
             self._radius = 4
             self.interpolator = SincInterpolator(self)
-            
         else:
             self.interpolator = LinearInterpolator(self)
         # Set up sparse point coordinates
