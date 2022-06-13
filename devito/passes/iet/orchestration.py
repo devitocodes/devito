@@ -3,7 +3,6 @@ from collections import OrderedDict
 import cgen as c
 from sympy import Or
 
-from devito.data import FULL
 from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
                            AsyncCallable, derive_parameters)
@@ -59,11 +58,8 @@ class Orchestrator(object):
     def _make_withlock(self, iet, sync_ops):
         qid = QueueID()
 
-        preactions = []
-        for s in sync_ops:
-            imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
-                     for d in s.function.dimensions]
-            preactions.append(self.lang._map_update_host_async(s.function, imask, qid))
+        preactions = [self.lang._map_update_host_async(s.function, s.imask, qid)
+                      for s in sync_ops]
         if self.lang._map_wait is not None:
             preactions.append(self.lang._map_wait(qid))
         preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])
@@ -84,12 +80,8 @@ class Orchestrator(object):
         return iet, [efunc]
 
     def _make_fetchupdate(self, iet, sync_ops):
-        # Construct fetches
-        postactions = []
-        for s in sync_ops:
-            imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
-                     for d in s.dimensions]
-            postactions.append(self.lang._map_update_device(s.target, imask))
+        postactions = [self.lang._map_update_device(s.target, s.imask)
+                       for s in sync_ops]
 
         # Turn init IET into a Callable
         name = self.sregistry.make_name(prefix='init_device')
@@ -108,21 +100,17 @@ class Orchestrator(object):
     def _make_prefetchupdate(self, iet, sync_ops):
         qid = QueueID()
 
-        postactions = [BlankLine]
-        for s in sync_ops:
-            imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
-                     for d in s.dimensions]
-            postactions.append(self.lang._map_update_device_async(s.target, imask, qid))
+        postactions = [self.lang._map_update_device_async(s.target, s.imask, qid)
+                       for s in sync_ops]
         if self.lang._map_wait is not None:
             postactions.append(self.lang._map_wait(qid))
-
         postactions.append(BlankLine)
         postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
         # Turn `iet` into an AsyncCallable so that subsequent passes know
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(body=iet.body + tuple(postactions))
+        body = List(body=iet.body + (BlankLine,) + tuple(postactions))
         efunc = AsyncCallable(name, body)
 
         # The corresponding AsyncCall

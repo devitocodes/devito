@@ -4,6 +4,7 @@ Synchronization operations inside the IR.
 
 from collections import defaultdict
 
+from devito.data import FULL
 from devito.tools import Pickable, filter_ordered
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
@@ -42,7 +43,12 @@ class SyncOp(Pickable):
 
 
 class SyncCopyOut(SyncOp):
-    pass
+
+    @property
+    def imask(self):
+        ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
+               for d in self.function.dimensions]
+        return tuple(ret)
 
 
 class SyncCopyIn(SyncOp):
@@ -68,6 +74,12 @@ class SyncCopyIn(SyncOp):
     @property
     def dimensions(self):
         return self.function.dimensions
+
+    @property
+    def imask(self):
+        ret = [(self.tstore, self.size) if d.root is self.dim.root else FULL
+               for d in self.dimensions]
+        return tuple(ret)
 
     # Pickling support
     _pickle_args = SyncOp._pickle_args + ['dim', 'size', 'target', 'tstore']
