@@ -4,7 +4,7 @@ from sympy import And
 
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, SEQUENTIAL,
                        WaitLock, WithLock, FetchUpdate, PrefetchUpdate,
-                       WaitPrefetch, ReleaseLock, normalize_syncs)
+                       ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
 from devito.tools import flatten, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
@@ -219,7 +219,8 @@ class Streaming(Asynchronous):
         return actions_from_init(cluster, prefix, actions)
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
-        return actions_from_update_memcpy(cluster, clusters, prefix, actions)
+        return actions_from_update_memcpy(cluster, clusters, prefix, actions,
+                                          self.sregistry)
 
 
 # Utilities
@@ -279,7 +280,7 @@ def actions_from_init(cluster, prefix, actions):
     ))
 
 
-def actions_from_update_memcpy(cluster, clusters, prefix, actions):
+def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
     it = prefix[-1]
     d = it.dim
     direction = it.direction
@@ -316,6 +317,14 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         else:
             tstore = osubiters[(n - 1) % len(osubiters)]
 
+    # We need a lock to synchronize the copy-in
+    name = sregistry.make_name(prefix='lock')
+    ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
+    lock = Lock(name=name, dimensions=ld, target=function)
+
+    index = 0
+    handle = lock[index]
+
     # Turn `cluster` into a prefetch Cluster
     expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
 
@@ -324,17 +333,18 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
         GuardBoundNext(function.indices[d], direction),
     )}
 
-    syncs = {d: [PrefetchUpdate(
+    syncs = {d: [ReleaseLock(handle), PrefetchUpdate(
         d, size,
         function, fetch, ifetch, fcond,
         pfetch, pcond,
-        target, tstore
+        target, tstore,
+        handle
     )]}
 
     pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
-    # 1) attach a WaitPrefetch SyncOp to the first Cluster accessing `target`
+    # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
     # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
     # 3) drop the original Cluster performing a memcpy-based fetch
     n = clusters.index(cluster)
@@ -347,12 +357,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
             last = c
     assert first is not None
     assert last is not None
-    actions[first].syncs[d].append(WaitPrefetch(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    ))
+    actions[first].syncs[d].append(WaitLock(handle))
     actions[last].insert.append(pcluster)
     actions[cluster].drop = True
 

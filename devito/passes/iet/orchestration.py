@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import OrderedDict
 
 import cgen as c
 from sympy import Or
@@ -8,12 +8,12 @@ from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
                            AsyncCallable, derive_parameters)
 from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
-                               PrefetchUpdate, WaitPrefetch)
+                               PrefetchUpdate)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics import CondEq, CondNe, FieldFromComposite
-from devito.tools import as_mapper, filter_ordered, filter_sorted, flatten
-from devito.types import SharedData, QueueID
+from devito.symbolics import CondEq, CondNe
+from devito.tools import as_mapper
+from devito.types import QueueID
 
 __init__ = ['Orchestrator']
 
@@ -32,7 +32,7 @@ class Orchestrator(object):
     def __init__(self, sregistry):
         self.sregistry = sregistry
 
-    def _make_waitlock(self, iet, sync_ops, *args):
+    def _make_waitlock(self, iet, sync_ops):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
                              ",".join(s.target.name for s in sync_ops)),
@@ -42,9 +42,9 @@ class Orchestrator(object):
 
         iet = List(body=(waitloop,) + iet.body)
 
-        return iet
+        return iet, []
 
-    def _make_releaselock(self, iet, sync_ops, *args):
+    def _make_releaselock(self, iet, sync_ops):
         preactions = []
         preactions.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
         preactions.extend(DummyExpr(s.handle, 0) for s in sync_ops)
@@ -54,9 +54,9 @@ class Orchestrator(object):
             body=preactions + [iet]
         )
 
-        return iet
+        return iet, []
 
-    def _make_withlock(self, iet, sync_ops, pieces, root):
+    def _make_withlock(self, iet, sync_ops):
         qid = QueueID()
 
         preactions = []
@@ -76,15 +76,14 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
-        func = AsyncCallable(name, body)
-        pieces.funcs.append(func)
+        efunc = AsyncCallable(name, body)
 
         # The corresponding AsyncCall
-        iet = AsyncCall(name, func.parameters)
+        iet = AsyncCall(name, efunc.parameters)
 
-        return iet
+        return iet, [efunc]
 
-    def _make_fetchupdate(self, iet, sync_ops, pieces, *args):
+    def _make_fetchupdate(self, iet, sync_ops):
         # Construct fetches
         postactions = []
         for s in sync_ops:
@@ -97,12 +96,10 @@ class Orchestrator(object):
             postactions.append(self.lang._map_update_device(s.target, imask))
 
         # Turn init IET into a Callable
-        functions = filter_ordered(flatten([(s.target, s.function) for s in sync_ops]))
         name = self.sregistry.make_name(prefix='init_device')
         body = List(body=iet.body + tuple(postactions))
-        parameters = filter_sorted(functions + derive_parameters(body))
-        func = Callable(name, body, 'void', parameters, 'static')
-        pieces.funcs.append(func)
+        parameters = derive_parameters(body)
+        efunc = Callable(name, body, 'void', parameters, 'static')
 
         # Perform initial fetch by the main thread
         iet = List(
@@ -110,9 +107,9 @@ class Orchestrator(object):
             body=Call(name, parameters)
         )
 
-        return iet
+        return iet, [efunc]
 
-    def _make_prefetchupdate(self, iet, sync_ops, pieces, root):
+    def _make_prefetchupdate(self, iet, sync_ops):
         qid = QueueID()
 
         postactions = [BlankLine]
@@ -127,41 +124,19 @@ class Orchestrator(object):
         if self.lang._map_wait is not None:
             postactions.append(self.lang._map_wait(qid))
 
-        # Turn prefetch IET into a AsyncCallable
+        postactions.append(BlankLine)
+        postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+
+        # Turn `iet` into an AsyncCallable so that subsequent passes know
+        # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(body=iet.body + tuple(postactions))
-        tctx = make_thread_ctx(name, body, root, None, self.sregistry)
-        pieces.funcs.extend(tctx.funcs)
+        efunc = AsyncCallable(name, body)
 
-        # The IET degenerates to the threads activation logic
-        iet = tctx.activate
+        # The corresponding AsyncCall
+        iet = AsyncCall(name, efunc.parameters)
 
-        # Fire up the threads
-        pieces.init.append(tctx.init)
-
-        # Final wait before jumping back to Python land
-        pieces.finalize.append(tctx.finalize)
-
-        # Keep track of created objects
-        pieces.objs.add(sync_ops, tctx.sdata, tctx.threads)
-
-        return iet
-
-    def _make_waitprefetch(self, iet, sync_ops, pieces, *args):
-        ff = SharedData._field_flag
-
-        waits = []
-        objs = filter_ordered(pieces.objs.get(s) for s in sync_ops)
-        for sdata, threads in objs:
-            wait = BusyWait(CondNe(FieldFromComposite(ff, sdata[threads.index]), 1))
-            waits.append(wait)
-
-        iet = List(
-            header=c.Comment("Wait for the arrival of prefetched data"),
-            body=waits + [BlankLine, iet]
-        )
-
-        return iet
+        return iet, [efunc]
 
     @iet_pass
     def process(self, iet):
@@ -169,80 +144,25 @@ class Orchestrator(object):
         if not sync_spots:
             return iet, {}
 
-        def key(s):
-            # The SyncOps are to be processed in the following order
-            return [WaitLock,
-                    WithLock,
-                    ReleaseLock,
-                    FetchUpdate,
-                    PrefetchUpdate,
-                    WaitPrefetch].index(s)
+        callbacks = OrderedDict([
+            (WaitLock, self._make_waitlock),
+            (WithLock, self._make_withlock),
+            (FetchUpdate, self._make_fetchupdate),
+            (PrefetchUpdate, self._make_prefetchupdate),
+            (ReleaseLock, self._make_releaselock),
+        ])
 
-        callbacks = {
-            WaitLock: self._make_waitlock,
-            WithLock: self._make_withlock,
-            ReleaseLock: self._make_releaselock,
-            FetchUpdate: self._make_fetchupdate,
-            PrefetchUpdate: self._make_prefetchupdate
-        }
-        postponed_callbacks = {
-            WaitPrefetch: self._make_waitprefetch
-        }
-        all_callbacks = [callbacks, postponed_callbacks]
+        # The SyncOps are to be processed in a given order
+        key = lambda s: list(callbacks).index(s)
 
-        pieces = namedtuple('Pieces', 'init finalize funcs objs')([], [], [], Objs())
-
-        # The processing is a two-step procedure; first, we apply the `callbacks`;
-        # then, the `postponed_callbacks`, as these depend on objects produced by the
-        # `callbacks`
+        efuncs = []
         subs = {}
-        for cbks in all_callbacks:
-            for n in sync_spots:
-                mapper = as_mapper(n.sync_ops, lambda i: type(i))
-                for _type in sorted(mapper, key=key):
-                    try:
-                        subs[n] = cbks[_type](subs.get(n, n), mapper[_type], pieces, iet)
-                    except KeyError:
-                        pass
+        for n in sync_spots:
+            mapper = as_mapper(n.sync_ops, lambda i: type(i))
+            for t in sorted(mapper, key=key):
+                subs[n], v = callbacks[t](subs.get(n, n), mapper[t])
+                efuncs.extend(v)
 
         iet = Transformer(subs).visit(iet)
 
-        # Inject initialization code
-        body = iet.body._rebuild(body=tuple(pieces.init) + iet.body.body)
-        iet = iet._rebuild(body=body)
-
-        return iet, {
-            'efuncs': pieces.funcs,
-            'includes': ['pthread.h'],
-        }
-
-
-# Utils
-
-class Objs(object):
-
-    def __init__(self):
-        self.data = {}
-
-    def __repr__(self):
-        return self.data.__repr__()
-
-    @classmethod
-    def _askey(cls, sync_op):
-        if sync_op.is_SyncLock:
-            return sync_op.target
-        else:
-            return (sync_op.target, sync_op.function)
-
-    def add(self, sync_ops, sdata, threads):
-        for s in sync_ops:
-            key = self._askey(s)
-            self.data[key] = (sdata, threads)
-
-    def get(self, sync_op):
-        key = self._askey(sync_op)
-        return self.data[key]
-
-    @property
-    def threads(self):
-        return [v for _, v in self.data.values()]
+        return iet, {'efuncs': efuncs}

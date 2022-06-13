@@ -5,9 +5,10 @@ Synchronization operations inside the IR.
 from collections import defaultdict
 
 from devito.tools import Pickable, filter_ordered
+from devito.types import Lock
 
-__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate',
-           'PrefetchUpdate', 'WaitPrefetch', 'normalize_syncs']
+__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
+           'normalize_syncs']
 
 
 class SyncOp(Pickable):
@@ -65,7 +66,7 @@ class SyncData(SyncOp):
     is_SyncData = True
 
     def __init__(self, dim, size, function, fetch, ifetch, fcond,
-                 pfetch=None, pcond=None, target=None, tstore=None):
+                 pfetch=None, pcond=None, target=None, tstore=None, handle=None):
 
         # fetch -> the input Function fetch index, e.g. `time`
         # ifetch -> the input Function initialization index, e.g. `time_m`
@@ -85,6 +86,7 @@ class SyncData(SyncOp):
         self.pcond = pcond
         self.target = target
         self.tstore = tstore
+        self.handle = handle
 
     def __repr__(self):
         return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
@@ -95,7 +97,8 @@ class SyncData(SyncOp):
     @property
     def args(self):
         return (self.dim, self.size, self.function, self.fetch, self.ifetch,
-                self.fcond, self.pfetch, self.pcond, self.target, self.tstore)
+                self.fcond, self.pfetch, self.pcond, self.target, self.tstore,
+                self.handle)
 
     @property
     def dimensions(self):
@@ -103,7 +106,7 @@ class SyncData(SyncOp):
 
     # Pickling support
     _pickle_args = ['dim', 'size', 'function', 'fetch', 'ifetch', 'fcond']
-    _pickle_kwargs = ['pfetch', 'pcond', 'target', 'tstore']
+    _pickle_kwargs = ['pfetch', 'pcond', 'target', 'tstore', 'handle']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -125,10 +128,6 @@ class FetchUpdate(SyncData):
 
 class PrefetchUpdate(SyncData):
     is_Fetch = True
-
-
-class WaitPrefetch(SyncData):
-    pass
 
 
 def normalize_syncs(*args):

@@ -199,7 +199,7 @@ def test_lock():
 
 
 def test_p_thread_array():
-    a = PThreadArray(name='threads', npthreads=4, base_id=2)
+    a = PThreadArray(name='threads', npthreads=4)
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -207,7 +207,6 @@ def test_p_thread_array():
     assert a.name == new_a.name
     assert a.dimensions[0].name == new_a.dimensions[0].name
     assert a.size == new_a.size
-    assert a.base_id == new_a.base_id == 2
 
 
 def test_shared_data():

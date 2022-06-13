@@ -147,7 +147,8 @@ class Fusion(Queue):
             for k, v in i.items():
                 for s in v:
                     if s.is_WaitLock or \
-                       (self.fusetasks and isinstance(s, (WithLock, ReleaseLock))):
+                       isinstance(s, ReleaseLock) or \
+                       (self.fusetasks and s.is_WithLock):
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)

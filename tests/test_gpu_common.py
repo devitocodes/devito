@@ -140,7 +140,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 5
+        assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
@@ -149,10 +149,10 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
         body = body.body[2]
-        assert (str(body.body[1].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')
-        assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
+        assert (str(body.body[0].condition) ==
+                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')
+        assert str(body.body[1]) == 'sdata0[0].time = time;'
+        assert str(body.body[2]) == 'sdata0[0].flag = 2;'
 
         op.apply(time_M=nt-2)
 
@@ -176,13 +176,13 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 5
+        assert len(retrieve_iteration_tree(op)) == 3
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 20
-        assert str(exprs[13]) == 'int deviceid = sdata0->deviceid;'
+        assert str(exprs[0]) == 'const int deviceid = sdata0->deviceid;'
         assert str(exprs[14]) == 'const int time = sdata0->time;'
         assert str(exprs[15]) == 'lock0[0] = 1;'
         assert exprs[16].write is u
@@ -215,7 +215,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 7
+        assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
@@ -225,20 +225,18 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[1].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
-        assert str(body.body[1].body[0]) == 'wi0 = (wi0 + 1)%(npthreads0);'
-        assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
+        assert (str(body.body[0].condition) ==
+                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[1]) == 'sdata0[0].time = time;'
+        assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         body = sections[3].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock1[0], 2)'
         assert str(body.body[1]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[1].condition) ==
-                'Ne(FieldFromComposite(flag, sdata1[wi1], ()), 1)')  # Wait-thread
-        assert str(body.body[1].body[0]) == 'wi1 = (wi1 + 1)%(npthreads1);'
-        assert str(body.body[2]) == 'sdata1[wi1].time = time;'
-        assert str(body.body[3]) == 'sdata1[wi1].flag = 2;'
+        assert (str(body.body[0].condition) ==
+                'Ne(FieldFromComposite(flag, sdata1[0], ()), 1)')  # Wait-thread
+        assert str(body.body[1]) == 'sdata1[0].time = time;'
+        assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 19
@@ -274,7 +272,7 @@ class TestStreaming(object):
                                  {'fuse-tasks': True, 'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 5
+        assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
@@ -285,11 +283,10 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[3]
-        assert (str(body.body[1].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[wi0], ()), 1)')  # Wait-thread
-        assert str(body.body[1].body[0]) == 'wi0 = (wi0 + 1)%(npthreads0);'
-        assert str(body.body[2]) == 'sdata0[wi0].time = time;'
-        assert str(body.body[3]) == 'sdata0[wi0].flag = 2;'
+        assert (str(body.body[0].condition) ==
+                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[1]) == 'sdata0[0].time = time;'
+        assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         assert len(exprs) == 22
@@ -391,8 +388,8 @@ class TestStreaming(object):
             'while(lock0[t1] == 0);'
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 1),
-        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 1),
+        (('buffering', 'streaming', 'orchestrate'), 2),
+        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 2),
     ])
     def test_streaming_basic(self, opt, ntmps):
         nt = 10
@@ -418,8 +415,8 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 2, 6),
-        (('buffering', 'streaming', 'fuse', 'orchestrate'), 2, 3),
+        (('buffering', 'streaming', 'orchestrate'), 4, 6),
+        (('buffering', 'streaming', 'fuse', 'orchestrate'), 4, 3),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
@@ -522,7 +519,7 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 9)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 1),
+        (('buffering', 'streaming', 'orchestrate'), 2),
     ])
     def test_streaming_multi_input(self, opt, ntmps):
         nt = 100
@@ -552,7 +549,7 @@ class TestStreaming(object):
         assert np.all(grad.data == grad1.data)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 1),
+        (('buffering', 'streaming', 'orchestrate'), 2),
     ])
     def test_streaming_postponed_deletion(self, opt, ntmps):
         nt = 10
@@ -583,42 +580,6 @@ class TestStreaming(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
-    @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
-    def test_composite_streaming_tasking(self):
-        nt = 10
-        grid = Grid(shape=(10, 10, 10))
-
-        u = TimeFunction(name='u', grid=grid)
-        u1 = TimeFunction(name='u', grid=grid)
-        fsave = TimeFunction(name='fsave', grid=grid, save=nt)
-        usave = TimeFunction(name='usave', grid=grid, save=nt)
-        usave1 = TimeFunction(name='usave', grid=grid, save=nt)
-
-        for i in range(nt):
-            fsave.data[i, :] = i
-
-        eqns = [Eq(u.forward, u + fsave + 1),
-                Eq(usave, u)]
-
-        op0 = Operator(eqns, opt=('noop', {'gpu-fit': (fsave, usave)}))
-        op1 = Operator(eqns, opt=('tasking', 'streaming', 'orchestrate'))
-
-        # Check generated code
-        assert len(retrieve_iteration_tree(op0)) == 1
-        assert len(retrieve_iteration_tree(op1)) == 4
-        symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 1
-        threads = [i for i in symbols if isinstance(i, PThreadArray)]
-        assert len(threads) == 2
-        assert threads[0].size == 1
-        assert threads[1].size.size == 2
-
-        op0.apply(time_M=nt-1)
-        op1.apply(time_M=nt-1, u=u1, usave=usave1)
-
-        assert np.all(u.data == u1.data)
-        assert np.all(usave.data == usave1.data)
-
     def test_composite_buffering_tasking(self):
         nt = 10
         bundle0 = Bundle()
@@ -637,12 +598,12 @@ class TestStreaming(object):
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
-        assert len(retrieve_iteration_tree(op1)) == 5
+        assert len(retrieve_iteration_tree(op1)) == 3
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 1
-        assert threads[0].size.size == 1
+        assert threads[0].size == 1
 
         op0.apply(time_M=nt-1, dt=0.1)
         op1.apply(time_M=nt-1, dt=0.1, u=u1, usave=usave1)
@@ -670,8 +631,12 @@ class TestStreaming(object):
                 Eq(usave, u, subdomain=bundle0),
                 Eq(vsave, v, subdomain=bundle0)]
 
+        async_degree = 3
+
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': (usave, vsave)}))
-        op1 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
+        op1 = Operator(eqns,
+                       opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
+                            {'buf-async-degree': async_degree}))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
@@ -680,8 +645,8 @@ class TestStreaming(object):
         assert len([i for i in symbols if isinstance(i, Lock)]) == 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
-        assert threads[0].size.size == 1
-        assert threads[1].size.size == 1
+        assert threads[0].size.size == async_degree
+        assert threads[1].size.size == async_degree
         assert len(op1._func_table) == 4  # usave and vsave eqns are in two diff efuncs
 
         op0.apply(time_M=nt-1)
@@ -692,11 +657,46 @@ class TestStreaming(object):
         assert np.all(usave.data == usave1.data)
         assert np.all(vsave.data == vsave1.data)
 
+    def test_composite_full_0(self):
+        nt = 10
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u', grid=grid)
+        fsave = TimeFunction(name='fsave', grid=grid, save=nt)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        usave1 = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            fsave.data[i, :] = i
+
+        eqns = [Eq(u.forward, u + fsave + 1),
+                Eq(usave, u)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': (fsave, usave)}))
+        op1 = Operator(eqns, opt=('buffering', 'tasking', 'streaming', 'orchestrate'))
+
+        # Check generated code
+        assert len(retrieve_iteration_tree(op0)) == 1
+        assert len(retrieve_iteration_tree(op1)) == 3
+        symbols = FindSymbols().visit(op1)
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert len(threads) == 2
+        assert threads[0].size == 1
+        assert threads[1].size == 1
+
+        op0.apply(time_M=nt-1)
+        op1.apply(time_M=nt-1, u=u1, usave=usave1)
+
+        assert np.all(u.data == u1.data)
+        assert np.all(usave.data == usave1.data)
+
     @pytest.mark.parametrize('opt', [
         ('buffering', 'tasking', 'streaming', 'orchestrate'),
         ('buffering', 'tasking', 'streaming', 'orchestrate', {'linearize': True}),
     ])
-    def test_composite_full(self, opt):
+    def test_composite_full_1(self, opt):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -895,8 +895,8 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 1),
-        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 1),
+        (('buffering', 'streaming', 'orchestrate'), 2),
+        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 2),
     ])
     def test_streaming_w_shifting(self, opt, ntmps):
         nt = 50
@@ -972,9 +972,9 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(op1._func_table) == 6
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 2
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 4
         assert len(op2._func_table) == 4
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 2
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 4
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)

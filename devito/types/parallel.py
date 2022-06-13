@@ -177,7 +177,7 @@ class SharedData(ThreadArray):
         return self._symbolic_flag
 
     # Pickling support
-    _pickle_kwargs = ThreadArray._pickle_kwargs + ['cfields, ncfields']
+    _pickle_kwargs = ThreadArray._pickle_kwargs + ['cfields', 'ncfields']
     _pickle_kwargs.remove('fields')  # Unnecessary as reconstructed
 
 

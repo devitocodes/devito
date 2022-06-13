@@ -28,8 +28,9 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
 
     # Determine the max number of threads that can run this `iet` in parallel
     locks = [i for i in iet.parameters if isinstance(i, Lock)]
-    n = min([i.size for i in locks], default=1)
-    npthreads = sregistry.make_npthreads(n)
+    npthreads = min([i.size for i in locks], default=1)
+    if npthreads > 1:
+        npthreads = sregistry.make_npthreads(npthreads)
 
     # PthreadArray -- the symbol representing an array of pthreads, which will
     # execute the AsyncCallable asynchronously
@@ -43,8 +44,6 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     fields = iet.parameters
     defines = FindSymbols('defines').visit(root.body)
     ncfields, cfields = split(fields, lambda i: i in defines)
-    #TODO: DROPP??
-    cfields = sorted(cfields, key=lambda i: i.is_Function)  # Allow casting
 
     # SharedData -- that is the data structure that will be used by the
     # main thread to pass information down to the child thread(s)
@@ -87,7 +86,7 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     body = iet.body._rebuild(body=[wrap, Return(Null)], unpacks=unpacks)
     iet = ThreadCallable(iet.name, body, tparameter)
 
-    return iet, {}
+    return iet, {'includes': ['pthread.h']}
 
 
 @iet_pass
