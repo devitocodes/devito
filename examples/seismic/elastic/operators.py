@@ -3,7 +3,7 @@ from devito import div, grad, diag, solve
 from examples.seismic import PointSource, Receiver
 
 
-def src_rec(v, tau, model, geometry):
+def src_rec(v, tau, model, geometry, forward=True):
     """
     Source injection and receiver interpolation
     """
@@ -11,24 +11,51 @@ def src_rec(v, tau, model, geometry):
     # Source symbol with input wavelet
     src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
                       npoint=geometry.nsrc)
-    rec1 = Receiver(name='rec1', grid=model.grid, time_range=geometry.time_axis,
-                    npoint=geometry.nrec)
-    rec2 = Receiver(name='rec2', grid=model.grid, time_range=geometry.time_axis,
-                    npoint=geometry.nrec)
-
-    # The source injection term
-    src_xx = src.inject(field=tau[0, 0].forward, expr=src * s)
-    src_zz = src.inject(field=tau[-1, -1].forward, expr=src * s)
-    src_expr = src_xx + src_zz
+    rec_vx = Receiver(name='rec_vx', grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nrec)
+    rec_vz = Receiver(name='rec_vz', grid=model.grid, time_range=geometry.time_axis,
+                      npoint=geometry.nrec)
     if model.grid.dim == 3:
-        src_yy = src.inject(field=tau[1, 1].forward, expr=src * s)
-        src_expr += src_yy
+        rec_vy = Receiver(name='rec_vy', grid=model.grid, time_range=geometry.time_axis,
+                          npoint=geometry.nrec)
+    name = "rec_tau" if forward else "rec"
+    rec = Receiver(name="%s" % name, grid=model.grid, time_range=geometry.time_axis,
+                   npoint=geometry.nrec)
 
-    # Create interpolation expression for receivers
-    rec_term1 = rec1.interpolate(expr=tau[-1, -1])
-    rec_term2 = rec2.interpolate(expr=div(v))
+    if forward:
 
-    return src_expr + rec_term1 + rec_term2
+        # The source injection term
+        src_xx = src.inject(field=tau[0, 0].forward, expr=src * s)
+        src_zz = src.inject(field=tau[-1, -1].forward, expr=src * s)
+        src_expr = src_xx + src_zz
+        if model.grid.dim == 3:
+            src_yy = src.inject(field=tau[1, 1].forward, expr=src * s)
+            src_expr += src_yy
+        # Create interpolation expression for receivers
+        rec_term_vx = rec_vx.interpolate(expr=v[0])
+        rec_term_vz = rec_vz.interpolate(expr=v[-1])
+        expr = tau[0, 0] + tau[-1, -1]
+        rec_expr = rec_term_vx + rec_term_vz
+        if model.grid.dim == 3:
+            expr += tau[1, 1]
+            rec_term_vy = rec_vy.interpolate(expr=v[1])
+            rec_expr += rec_term_vy
+        rec_term_tau = rec.interpolate(expr=expr)
+        rec_expr += rec_term_tau
+
+    else:
+        # Construct expression to inject receiver values
+        rec_xx = rec.inject(field=tau[0, 0].backward, expr=rec*s)
+        rec_zz = rec.inject(field=tau[-1, -1].backward, expr=rec*s)
+        rec_expr = rec_xx + rec_zz
+        expr = tau[0, 0] + tau[-1, -1]
+        if model.grid.dim == 3:
+            rec_expr += rec.inject(field=tau[1, 1].backward, expr=rec*s)
+            expr += tau[1, 1]
+        # Create interpolation expression for the adjoint-source
+        src_expr = src.interpolate(expr=expr)
+
+    return src_expr, rec_expr
 
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
