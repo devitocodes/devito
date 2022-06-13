@@ -524,14 +524,18 @@ class CubicInterpolator(GenericInterpolator):
             mapper = {}
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
-                lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
-                               evaluate=False)
-                ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
-                               evaluate=False)
-                condition = sympy.And(lb, ub, evaluate=False)
-                mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                                 condition=condition, indirect=True)
-
+                # Only needs Conditional Dimensions if radius > variables.space_order
+                if all(list(map((lambda x: self.sfunction._radius <= x.space_order
+                       if hasattr(x, 'space_order') else False), variables))):
+                    mapper[d] = p
+                else:
+                    lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                                   evaluate=False)
+                    ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                                   evaluate=False)
+                    condition = sympy.And(lb, ub, evaluate=False)
+                    mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
+                                                     condition=condition, indirect=True)
             # Track Indexed substitutions
             idx_subs.append(mapper)
 
@@ -589,12 +593,12 @@ class CubicInterpolator(GenericInterpolator):
             # Checks if the data is 3D or 2D
             if len(dim_pos) == 3:
                 eqs = [sympy.Add(*v) for v in self._tricubic_equations(_expr,
-                                                                   idx_subs,
-                                                                   dim_pos=dim_pos)]
+                                                                       idx_subs,
+                                                                       dim_pos=dim_pos)]
             else:
                 eqs = [sympy.Add(*v) for v in self._bicubic_equations(_expr,
-                                                                  idx_subs,
-                                                                  dim_pos=dim_pos)]
+                                                                      idx_subs,
+                                                                      dim_pos=dim_pos)]
 
             # Creates Sympy equation using the values in eq as
             # the right side of the equation
@@ -775,13 +779,18 @@ class SincInterpolator(GenericInterpolator):
             mapper = {}
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
-                lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
-                               evaluate=False)
-                ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
-                               evaluate=False)
-                condition = sympy.And(lb, ub, evaluate=False)
-                mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                                 condition=condition, indirect=True)
+                # Only needs Conditional Dimensions if radius > variables.space_order
+                if all(list(map((lambda x: self.sfunction._radius <= x.space_order
+                       if hasattr(x, 'space_order') else False), variables))):
+                    mapper[d] = p
+                else:
+                    lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                                   evaluate=False)
+                    ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                                   evaluate=False)
+                    condition = sympy.And(lb, ub, evaluate=False)
+                    mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
+                                                     condition=condition, indirect=True)
             # Track Indexed substitutions
             idx_subs.append(mapper)
 
