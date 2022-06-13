@@ -175,7 +175,7 @@ jobs:
             docker system prune -a -f
 
   test-cpu-intel-image:
-    needs: deploy-docker-cpu-intel
+    needs: deploy-docker-intel
     runs-on: [self-hosted, gpu, docker]
 
     strategy:

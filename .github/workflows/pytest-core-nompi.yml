@@ -45,6 +45,7 @@ jobs:
           language: "openmp"
           sympy: "1.7"
           container: false
+          test_suite: "full"
 
         - name: pytest-ubuntu-py38-gcc6-omp
           python-version: '3.8'
@@ -53,6 +54,7 @@ jobs:
           language: "openmp"
           sympy: "1.8"
           container: false
+          test_suite: "full"
 
         - name: pytest-ubuntu-py36-gcc7-omp
           python-version: '3.6'
@@ -61,6 +63,7 @@ jobs:
           language: "openmp"
           sympy: "1.9"
           container: false
+          test_suite: "full"
 
         - name: pytest-ubuntu-py310-gcc10-noomp
           python-version: '3.10'
@@ -69,6 +72,7 @@ jobs:
           language: "C"
           sympy: "1.10"
           container: false
+          test_suite: "full"
 
         - name: pytest-ubuntu-py38-gcc8-omp
           python-version: '3.8'
@@ -77,6 +81,7 @@ jobs:
           language: "openmp"
           sympy: "1.7"
           container: false
+          test_suite: "full"
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
@@ -85,6 +90,7 @@ jobs:
           language: "openmp"
           sympy: "1.8"
           container: false
+          test_suite: "full"
 
         - name: pytest-osx-py37-clang-omp
           python-version: '3.7'
@@ -93,6 +99,7 @@ jobs:
           language: "C"
           sympy: "1.9"
           container: false
+          test_suite: "reduced"
 
         - name: pytest-docker-py37-gcc-omp
           python-version: '3.7'
@@ -103,6 +110,7 @@ jobs:
           container: true
           dockerfile: "docker/Dockerfile"
           image: "devito_img"
+          test_suite: "full"
 
         - name: pytest-docker-py38-icc-omp
           python-version: '3.8'
@@ -113,6 +121,7 @@ jobs:
           container: true
           dockerfile: "docker/Dockerfile.intel"
           image: "devito_intel_img"
+          test_suite: "reduced"
 
         - set: base
           test-set: 'not adjoint'
@@ -124,12 +133,15 @@ jobs:
         - name: pytest-osx-py37-clang-omp
           set: adjoint
 
+        - name: pytest-docker-py38-icc-omp
+          set: adjoint
+
     steps:
     - name: Checkout devito
       uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
+      if: matrix.container == false
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
@@ -155,9 +167,9 @@ jobs:
               sudo apt-get install -y ${{ matrix.arch }}
           fi
 
-    - name: Set tests (reduced number for OSX)
+    - name: Set tests (reduced number for OSX and Intel Dockerfile)
       run : |
-          if [ "${{ runner.os }}" == 'macOS' || "${{ matrix.arch }}" == 'icc' ]; then
+          if [ "${{ matrix.test_suite }}" == 'reduced' ]; then
               echo "::set-output name=TESTS::tests/test_operator.py"
           else
               echo "::set-output name=TESTS::tests/"
