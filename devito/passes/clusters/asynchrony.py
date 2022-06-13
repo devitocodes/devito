@@ -100,7 +100,7 @@ class Tasker(Asynchronous):
                         lock = locks[f]
                     except KeyError:
                         name = self.sregistry.make_name(prefix='lock')
-                        lock = locks[f] = Lock(name=name, dimensions=ld, target=f)
+                        lock = locks[f] = Lock(name=name, dimensions=ld)
 
                     for w in writes:
                         try:
@@ -114,7 +114,7 @@ class Tasker(Asynchronous):
                         if logical_index in protected[f]:
                             continue
 
-                        waits[c1].append(WaitLock(lock[index]))
+                        waits[c1].append(WaitLock(f, lock[index]))
                         protected[f].add(logical_index)
 
             # Taskify `c0`
@@ -129,7 +129,7 @@ class Tasker(Asynchronous):
                     indices = [0]
 
                 tasks[c0].extend(flatten(
-                    (ReleaseLock(lock[i]), WithLock(lock[i])) for i in indices
+                    (ReleaseLock(f, lock[i]), WithLock(f, lock[i])) for i in indices
                 ))
 
         processed = []
@@ -260,7 +260,7 @@ def actions_from_init(cluster, prefix, actions):
     size = d.symbolic_size
     assert is_integer(size)
 
-    actions[cluster].syncs[pd].append(FetchUpdate(d, size, function, target, 0))
+    actions[cluster].syncs[pd].append(FetchUpdate(function, None, d, size, target, 0))
 
 
 def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
@@ -296,7 +296,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
     # We need a lock to synchronize the copy-in
     name = sregistry.make_name(prefix='lock')
     ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
-    lock = Lock(name=name, dimensions=ld, target=function)
+    lock = Lock(name=name, dimensions=ld)
     handle = lock[0]
 
     # Turn `cluster` into a prefetch Cluster
@@ -307,8 +307,8 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
         GuardBoundNext(function.indices[d], direction),
     )}
 
-    syncs = {d: [ReleaseLock(handle),
-                 PrefetchUpdate(d, 1, function, target, tstore, handle)]}
+    syncs = {d: [ReleaseLock(function, handle),
+                 PrefetchUpdate(function, handle, d, 1, target, tstore)]}
 
     pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
@@ -326,7 +326,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
             last = c
     assert first is not None
     assert last is not None
-    actions[first].syncs[d].append(WaitLock(handle))
+    actions[first].syncs[d].append(WaitLock(function, handle))
     actions[last].insert.append(pcluster)
     actions[cluster].drop = True
 

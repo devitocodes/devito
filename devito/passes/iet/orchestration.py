@@ -35,7 +35,7 @@ class Orchestrator(object):
     def _make_waitlock(self, iet, sync_ops):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
-                             ",".join(s.target.name for s in sync_ops)),
+                             ",".join(s.function.name for s in sync_ops)),
             body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
             footer=c.Line()
         )
@@ -62,8 +62,8 @@ class Orchestrator(object):
         preactions = []
         for s in sync_ops:
             imask = [s.handle.indices[d] if d.root in s.lock.locked_dimensions else FULL
-                     for d in s.target.dimensions]
-            preactions.append(self.lang._map_update_host_async(s.target, imask, qid))
+                     for d in s.function.dimensions]
+            preactions.append(self.lang._map_update_host_async(s.function, imask, qid))
         if self.lang._map_wait is not None:
             preactions.append(self.lang._map_wait(qid))
         preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])

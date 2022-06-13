@@ -190,8 +190,7 @@ class Lock(Array):
 
     A Lock `lock(i)` is an integer array of size N used to synchronize the
     accesses to the N different entries of an AbstractFunction `f(i, ...)`,
-    namely `f(0, ...)`, `f(1, ...)`, ..., `f(N-1, ...)`. Such AbstractFunction
-    is called the "target" of the Lock.
+    namely `f(0, ...)`, `f(1, ...)`, ..., `f(N-1, ...)`.
 
     `lock(i)` has four special values that implement a special kind of
     spin-locking:
@@ -208,8 +207,6 @@ class Lock(Array):
     """
 
     def __init_finalize__(self, *args, **kwargs):
-        self._target = kwargs.pop('target', None)
-
         kwargs.setdefault('scope', 'stack')
 
         dimensions = as_tuple(kwargs.get('dimensions'))
@@ -232,10 +229,6 @@ class Lock(Array):
         return np.int32
 
     @property
-    def target(self):
-        return self._target
-
-    @property
     def _C_ctype(self):
         return c_volatile_int_p
 
@@ -246,9 +239,6 @@ class Lock(Array):
     @cached_property
     def locked_dimensions(self):
         return set().union(*[d._defines for d in self.dimensions])
-
-    # Pickling support
-    _pickle_kwargs = Array._pickle_kwargs + ['target']
 
 
 class DeviceSymbol(Scalar):

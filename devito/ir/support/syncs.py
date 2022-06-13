@@ -12,22 +12,16 @@ __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate
 
 class SyncOp(Pickable):
 
+    def __init__(self, function, handle):
+        self.function = function
+        self.handle = handle
+
     def __eq__(self, other):
         return (type(self) == type(other) and
                 all(i == j for i, j in zip(self.args, other.args)))
 
     def __hash__(self):
         return hash((type(self).__name__,) + self.args)
-
-    @property
-    def args(self):
-        return ()
-
-
-class SyncLock(SyncOp):
-
-    def __init__(self, handle):
-        self.handle = handle
 
     def __repr__(self):
         return "%s<%s>" % (self.__class__.__name__, self.handle)
@@ -42,24 +36,24 @@ class SyncLock(SyncOp):
     def lock(self):
         return self.handle.function
 
-    @property
-    def target(self):
-        return self.lock.target
-
     # Pickling support
-    _pickle_args = ['handle']
+    _pickle_args = ['function', 'handle']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class SyncData(SyncOp):
+class SyncCopyOut(SyncOp):
+    pass
 
-    def __init__(self, dim, size, function, target, tstore, handle=None):
+
+class SyncCopyIn(SyncOp):
+
+    def __init__(self, function, handle, dim, size, target, tstore):
+        super().__init__(function, handle)
+
         self.dim = dim
         self.size = size
-        self.function = function
         self.target = target
         self.tstore = tstore
-        self.handle = handle
 
     def __repr__(self):
         return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
@@ -76,28 +70,27 @@ class SyncData(SyncOp):
         return self.function.dimensions
 
     # Pickling support
-    _pickle_args = ['dim', 'size', 'function', 'target', 'tstore']
-    _pickle_kwargs = ['handle']
+    _pickle_args = SyncOp._pickle_args + ['dim', 'size', 'target', 'tstore']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class WaitLock(SyncLock):
+class WaitLock(SyncCopyOut):
     pass
 
 
-class WithLock(SyncLock):
+class WithLock(SyncCopyOut):
     pass
 
 
-class ReleaseLock(SyncLock):
+class ReleaseLock(SyncCopyOut):
     pass
 
 
-class FetchUpdate(SyncData):
+class FetchUpdate(SyncCopyIn):
     pass
 
 
-class PrefetchUpdate(SyncData):
+class PrefetchUpdate(SyncCopyIn):
     pass
 
 

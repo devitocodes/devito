@@ -184,18 +184,14 @@ def test_custom_dimension():
 
 
 def test_lock():
-    grid = Grid(shape=(3, 3, 3))
-    f = Function(name='f', grid=grid)
     ld = CustomDimension(name='ld', symbolic_size=2)
-    lock = Lock(name='lock', dimensions=ld, target=f)
+    lock = Lock(name='lock', dimensions=ld)
 
     pkl_lock = pickle.dumps(lock)
     new_lock = pickle.loads(pkl_lock)
 
     lock.name == new_lock.name
     new_lock.dimensions[0].symbolic_size == ld.symbolic_size
-    new_lock.target.name == f.name
-    new_lock.target.shape == f.shape
 
 
 def test_p_thread_array():
