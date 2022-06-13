@@ -4,11 +4,11 @@ import cgen as c
 from sympy import Or
 
 from devito.data import FULL
-from devito.ir.iet import (Call, Callable, Conditional, List, SyncSpot, FindNodes,
+from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
                            AsyncCallable, derive_parameters)
 from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
-                               FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete)
+                               PrefetchUpdate, WaitPrefetch)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe, FieldFromComposite
@@ -163,73 +163,6 @@ class Orchestrator(object):
 
         return iet
 
-    def _make_fetchprefetch(self, iet, sync_ops, pieces, root):
-        qid = QueueID()
-
-        fetches = []
-        prefetches = []
-        presents = []
-        for s in sync_ops:
-            f = s.function
-            dimensions = s.dimensions
-            fc = s.fetch
-            ifc = s.ifetch
-            pfc = s.pfetch
-            fcond = s.fcond
-            pcond = s.pcond
-
-            # Construct init IET
-            imask = [(ifc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            fetch = self.lang._map_to(f, imask)
-            fetches.append(Conditional(fcond, fetch))
-
-            # Construct present clauses
-            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            presents.append(self.lang._map_present(f, imask))
-
-            # Construct prefetch IET
-            imask = [(pfc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            prefetch = self.lang._map_to_wait(f, imask, qid)
-            prefetches.append(Conditional(pcond, prefetch))
-
-        # Turn init IET into a Callable
-        functions = filter_ordered(s.function for s in sync_ops)
-        name = self.sregistry.make_name(prefix='init_device')
-        body = List(body=fetches)
-        parameters = filter_sorted(functions + derive_parameters(body))
-        pieces.funcs.append(Callable(name, body, 'void', parameters, 'static'))
-
-        # Perform initial fetch by the main thread
-        pieces.init.append(List(
-            header=c.Comment("Initialize data stream"),
-            body=[Call(name, parameters), BlankLine]
-        ))
-
-        # Turn prefetch IET into a AsyncCallable
-        name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        func = AsyncCallable(name, prefetches)
-        pieces.funcs.append(func)
-
-        # Glue together all the IET pieces, including the activation logic
-        iet = List(body=presents + [iet, AsyncCall(name, func.parameters)])
-
-        return iet
-
-    def _make_delete(self, iet, sync_ops, *args):
-        # Construct deletion clauses
-        deletions = []
-        for s in sync_ops:
-            dimensions = s.dimensions
-            fc = s.fetch
-
-            imask = [(fc, s.size) if d.root is s.dim.root else FULL for d in dimensions]
-            deletions.append(self.lang._map_delete(s.function, imask))
-
-        # Glue together the new IET pieces
-        iet = List(header=c.Line(), body=[iet, BlankLine] + deletions)
-
-        return iet
-
     @iet_pass
     def process(self, iet):
         sync_spots = FindNodes(SyncSpot).visit(iet)
@@ -241,9 +174,7 @@ class Orchestrator(object):
             return [WaitLock,
                     WithLock,
                     ReleaseLock,
-                    Delete,
                     FetchUpdate,
-                    FetchPrefetch,
                     PrefetchUpdate,
                     WaitPrefetch].index(s)
 
@@ -251,9 +182,7 @@ class Orchestrator(object):
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
             ReleaseLock: self._make_releaselock,
-            Delete: self._make_delete,
             FetchUpdate: self._make_fetchupdate,
-            FetchPrefetch: self._make_fetchprefetch,
             PrefetchUpdate: self._make_prefetchupdate
         }
         postponed_callbacks = {

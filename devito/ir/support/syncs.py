@@ -6,8 +6,8 @@ from collections import defaultdict
 
 from devito.tools import Pickable, filter_ordered
 
-__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'FetchPrefetch',
-           'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'normalize_syncs']
+__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate',
+           'PrefetchUpdate', 'WaitPrefetch', 'normalize_syncs']
 
 
 class SyncOp(Pickable):
@@ -119,10 +119,6 @@ class ReleaseLock(SyncLock):
     pass
 
 
-class FetchPrefetch(SyncData):
-    is_Fetch = True
-
-
 class FetchUpdate(SyncData):
     is_Fetch = True
 
@@ -132,10 +128,6 @@ class PrefetchUpdate(SyncData):
 
 
 class WaitPrefetch(SyncData):
-    pass
-
-
-class Delete(SyncData):
     pass
 
 

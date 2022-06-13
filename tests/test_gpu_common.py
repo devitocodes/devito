@@ -391,7 +391,6 @@ class TestStreaming(object):
             'while(lock0[t1] == 0);'
 
     @pytest.mark.parametrize('opt,ntmps', [
-        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
         (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 1),
     ])
@@ -419,7 +418,6 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        pytest.param(('streaming', 'orchestrate'), 0, 3, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 2, 6),
         (('buffering', 'streaming', 'fuse', 'orchestrate'), 2, 3),
     ])
@@ -449,7 +447,6 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 72)
 
     @pytest.mark.parametrize('opt', [
-        pytest.param(('streaming', 'orchestrate'), marks=skipif('device-openmp')),
         ('buffering', 'streaming', 'orchestrate'),
     ])
     def test_streaming_conddim_forward(self, opt):
@@ -488,7 +485,6 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 6)
 
     @pytest.mark.parametrize('opt', [
-        pytest.param(('streaming', 'orchestrate'), marks=skipif('device-openmp')),
         ('buffering', 'streaming', 'orchestrate'),
     ])
     def test_streaming_conddim_backward(self, opt):
@@ -526,7 +522,6 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 9)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_multi_input(self, opt, ntmps):
@@ -557,7 +552,6 @@ class TestStreaming(object):
         assert np.all(grad.data == grad1.data)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        pytest.param(('streaming', 'orchestrate'), 0, marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
     ])
     def test_streaming_postponed_deletion(self, opt, ntmps):
@@ -588,21 +582,6 @@ class TestStreaming(object):
 
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
-
-    def test_streaming_with_host_loop(self):
-        grid = Grid(shape=(10, 10, 10))
-
-        f = Function(name='f', grid=grid)
-        u = TimeFunction(name='u', grid=grid, save=10)
-
-        eqns = [Eq(f, u),
-                Eq(u.forward, f + 1)]
-
-        op = Operator(eqns, opt=('streaming', 'orchestrate'))
-
-        assert len(op._func_table) == 3
-        assert 'init_device0' in op._func_table
-        assert 'prefetch_host_to_device0' in op._func_table
 
     @skipif('device-openmp')  # TODO: Still unsupported with OpenMP, but soon will be
     def test_composite_streaming_tasking(self):
@@ -916,10 +895,6 @@ class TestStreaming(object):
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        pytest.param(('streaming', 'orchestrate'), 0,
-                     marks=skipif('device-openmp')),
-        pytest.param(('streaming', 'orchestrate', {'linearize': True}), 0,
-                     marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), 1),
         (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 1),
     ])
@@ -1045,9 +1020,6 @@ class TestStreaming(object):
         assert np.all(u.data[1] == u1.data[1])
 
     @pytest.mark.parametrize('opt,opt_options,gpu_fit', [
-        (('streaming', 'orchestrate'), {}, True),
-        pytest.param(('streaming', 'orchestrate'), {}, False,
-                     marks=skipif('device-openmp')),
         (('buffering', 'streaming', 'orchestrate'), {}, False),
         (('buffering', 'streaming', 'orchestrate'), {'linearize': True}, False)
     ])

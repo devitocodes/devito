@@ -2,13 +2,11 @@ from collections import OrderedDict, defaultdict
 
 from sympy import And
 
-from devito.ir import (Forward, GuardBound, GuardBoundNext, Queue, Vector,
-                       SEQUENTIAL, WaitLock, WithLock, FetchUpdate, FetchPrefetch,
-                       PrefetchUpdate, WaitPrefetch, Delete, ReleaseLock,
-                       normalize_syncs)
+from devito.ir import (Forward, GuardBoundNext, Queue, Vector, SEQUENTIAL,
+                       WaitLock, WithLock, FetchUpdate, PrefetchUpdate,
+                       WaitPrefetch, ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, flatten, frozendict, is_integer,
-                          indices_to_sections, timed_pass)
+from devito.tools import flatten, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
@@ -195,7 +193,9 @@ class Streaming(Asynchronous):
 
             # Case 2B
             elif mapper:
-                self._actions_from_unstructured(clusters, prefix, actions)
+                # There use to be a handler for this case as well, but it was dropped
+                # because it created inefficient code and in practice never used
+                raise NotImplementedError
 
         # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
         processed = []
@@ -220,9 +220,6 @@ class Streaming(Asynchronous):
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
         return actions_from_update_memcpy(cluster, clusters, prefix, actions)
-
-    def _actions_from_unstructured(self, clusters, prefix, actions):
-        return actions_from_unstructured(clusters, self.key, prefix, actions)
 
 
 # Utilities
@@ -360,50 +357,3 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions):
     actions[cluster].drop = True
 
     return last, pcluster
-
-
-def actions_from_unstructured(clusters, key, prefix, actions):
-    it = prefix[-1]
-    d = it.dim
-    direction = it.direction
-
-    # Locate the streamable Functions
-    first_seen = {}
-    last_seen = {}
-    for c in clusters:
-        candidates = key(c)
-        if not candidates:
-            continue
-        for i in c.scope.accesses:
-            f = i.function
-            if f in candidates:
-                k = (f, i[d])
-                first_seen.setdefault(k, c)
-                last_seen[k] = c
-    if not first_seen:
-        return clusters
-
-    callbacks = [(frozendict(first_seen), FetchPrefetch),
-                 (frozendict(last_seen), Delete)]
-
-    # Create and map SyncOps to Clusters
-    for seen, callback in callbacks:
-        mapper = defaultdict(lambda: DefaultOrderedDict(list))
-        for (f, v), c in seen.items():
-            mapper[c][f].append(v)
-
-        for c, m in mapper.items():
-            for f, v in m.items():
-                for fetch, s in indices_to_sections(v):
-                    if direction is Forward:
-                        ifetch = fetch.subs(d, d.symbolic_min)
-                        pfetch = fetch + 1
-                    else:
-                        ifetch = fetch.subs(d, d.symbolic_max)
-                        pfetch = fetch - 1
-
-                    fcond = GuardBound(d.symbolic_min, d.symbolic_max)
-                    pcond = GuardBoundNext(f.indices[d], direction)
-
-                    syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
-                    actions[c].syncs[d].append(syncop)
