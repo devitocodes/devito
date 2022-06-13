@@ -54,11 +54,11 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v1
+      uses: actions/checkout@v3
 
     - name: Set up Python 3.7
       if: matrix.name != 'tutos-docker-gcc-py37'
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: 3.7
 

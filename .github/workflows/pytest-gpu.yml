@@ -76,7 +76,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v1
+      uses: actions/checkout@v3
 
     - name: Set environment
       run: |
