@@ -588,11 +588,11 @@ class CubicInterpolator(GenericInterpolator):
 
             # Checks if the data is 3D or 2D
             if len(dim_pos) == 3:
-                eqs = [np.sum(v) for v in self._tricubic_equations(_expr,
+                eqs = [sympy.Add(*v) for v in self._tricubic_equations(_expr,
                                                                    idx_subs,
                                                                    dim_pos=dim_pos)]
             else:
-                eqs = [np.sum(v) for v in self._bicubic_equations(_expr,
+                eqs = [sympy.Add(*v) for v in self._bicubic_equations(_expr,
                                                                   idx_subs,
                                                                   dim_pos=dim_pos)]
 
@@ -840,7 +840,7 @@ class SincInterpolator(GenericInterpolator):
             else:
                 result = self._sinc_equations3D(_expr, idx_subs, dim_pos=dim_pos)
 
-            eqs = [np.sum(v) for v in result]
+            eqs = [sympy.Add(*v) for v in result]
 
             summands.extend([Inc(rhs, v, implicit_dims=self.sfunction.dimensions)
                              for v in eqs])
