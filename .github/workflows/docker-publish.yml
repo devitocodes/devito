@@ -137,7 +137,7 @@ jobs:
           network: host
           tags: |
             devitocodes/devito:cpu-intel-latest
-            devitocodes/devito:cpu-${{ github.event.release.tag_name }}
+            devitocodes/devito:cpu-intel-${{ github.event.release.tag_name }}
 
   test-cpu-image:
     needs: deploy-docker-cpu

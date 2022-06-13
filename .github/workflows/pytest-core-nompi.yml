@@ -135,7 +135,7 @@ jobs:
           fi
       id: set-run
 
-    - name: Build docker intel image
+    - name: Build docker Intel image
       if: matrix.name == 'pytest-docker-py38-icc-omp'
       run: |
           docker build . --file docker/Dockerfile.intel --tag devito_intel_img
@@ -158,12 +158,21 @@ jobs:
 
     - name: Set tests (reduced number for OSX)
       run : |
-          if [ "${{ runner.os }}" == 'macOS' ]; then
+          if [ "${{ runner.os }}" == 'macOS' || "${{ matrix.arch }}" == 'icc']; then
               echo "::set-output name=TESTS::tests/test_operator.py"
           else
               echo "::set-output name=TESTS::tests/"
           fi
       id: set-tests
+
+    - name: Set Python prefix
+      run : |
+          if [ "${{ matrix.arch }}" == 'icc' ]; then
+              echo "::set-output name=PREFIX::python -m pytest"
+          else
+              echo "::set-output name=PREFIX::pytest"
+          fi
+      id: set-prefix
 
     - name: Install dependencies
       if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
@@ -174,8 +183,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
-        ${{ steps.set-intelrun.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ steps.set-run.outputs.RUN_CMD }} ${{ steps.set-prefix.outputs.PREFIX }} -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ steps.set-intelrun.outputs.RUN_CMD }} ${{ steps.set-prefix.outputs.PREFIX }} -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
       if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
