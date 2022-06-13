@@ -57,6 +57,7 @@ def src_rec(v, tau, model, geometry, forward=True):
 
     return src_expr, rec_expr
 
+
 def elastic_stencil(model, v, tau, forward=True):
 
     lam, mu, b, damp = model.lam, model.mu, model.b, model.damp
@@ -122,6 +123,7 @@ def elastic_stencil(model, v, tau, forward=True):
             return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy]
         return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy, u_vz, u_tauzz, u_tauxz, u_tauyz]
 
+
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     Construct method for the forward modelling operator in an elastic media.
@@ -154,6 +156,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                   name="ForwardElastic", **kwargs)
     # Substitute spacing terms to reduce flops
     return op
+
 
 def AdjointOperator(model, geometry, space_order=4, **kwargs):
     """
