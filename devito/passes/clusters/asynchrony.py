@@ -253,31 +253,14 @@ def actions_from_init(cluster, prefix, actions):
     except IndexError:
         pd = None
 
-    # Prepare the data to instantiate a FetchUpdate SyncOp
     e = cluster.exprs[0]
+    function = e.rhs.function
+    target = e.lhs.function
 
     size = d.symbolic_size
-
-    function = e.rhs.function
-    fetch = e.rhs.indices[d]
-    ifetch = fetch.subs(d, d.symbolic_min)
-    fcond = None
-
-    pfetch = None
-    pcond = None
-
-    target = e.lhs.function
-    tstore = 0
-
-    # Sanity checks
     assert is_integer(size)
 
-    actions[cluster].syncs[pd].append(FetchUpdate(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    ))
+    actions[cluster].syncs[pd].append(FetchUpdate(d, size, function, target, 0))
 
 
 def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
@@ -287,24 +270,17 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
 
     # Prepare the data to instantiate a PrefetchUpdate SyncOp
     e = cluster.exprs[0]
-
-    size = 1
-
     function = e.rhs.function
-    fetch = e.rhs.indices[d]
-    ifetch = fetch.subs(d, d.symbolic_min)
-    fcond = None
+    target = e.lhs.function
 
+    fetch = e.rhs.indices[d]
     if direction is Forward:
         pfetch = fetch + 1
     else:
         pfetch = fetch - 1
-    pcond = None
-
-    target = e.lhs.function
-    tstore0 = e.lhs.indices[d]
 
     # If fetching into e.g., `ub[sb1]`, we'll need to prefetch into e.g. `ub[sb0]`
+    tstore0 = e.lhs.indices[d]
     if is_integer(tstore0):
         tstore = tstore0
     else:
@@ -321,9 +297,7 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
     name = sregistry.make_name(prefix='lock')
     ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
     lock = Lock(name=name, dimensions=ld, target=function)
-
-    index = 0
-    handle = lock[index]
+    handle = lock[0]
 
     # Turn `cluster` into a prefetch Cluster
     expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
@@ -333,20 +307,15 @@ def actions_from_update_memcpy(cluster, clusters, prefix, actions, sregistry):
         GuardBoundNext(function.indices[d], direction),
     )}
 
-    syncs = {d: [ReleaseLock(handle), PrefetchUpdate(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore,
-        handle
-    )]}
+    syncs = {d: [ReleaseLock(handle),
+                 PrefetchUpdate(d, 1, function, target, tstore, handle)]}
 
     pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
     # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
     # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
-    # 3) drop the original Cluster performing a memcpy-based fetch
+    # 3) drop the original Cluster performing a memcpy-like fetch
     n = clusters.index(cluster)
     first = None
     last = None

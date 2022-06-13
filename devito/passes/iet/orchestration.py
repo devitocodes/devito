@@ -87,10 +87,6 @@ class Orchestrator(object):
         # Construct fetches
         postactions = []
         for s in sync_ops:
-            # The condition is already encoded in `iet` with a Conditional,
-            # which stems from the originating Cluster's guards
-            assert s.fcond is None
-
             imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
             postactions.append(self.lang._map_update_device(s.target, imask))
@@ -114,10 +110,6 @@ class Orchestrator(object):
 
         postactions = [BlankLine]
         for s in sync_ops:
-            # The condition is already encoded in `iet` with a Conditional,
-            # which stems from the originating Cluster's guards
-            assert s.pcond is None
-
             imask = [(s.tstore, s.size) if d.root is s.dim.root else FULL
                      for d in s.dimensions]
             postactions.append(self.lang._map_update_device_async(s.target, imask, qid))

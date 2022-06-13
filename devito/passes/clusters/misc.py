@@ -2,7 +2,8 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WithLock
+from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
+                               WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
@@ -139,16 +140,17 @@ class Fusion(Queue):
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
         if isinstance(c, Cluster):
-            sync_locks = (c.sync_locks,)
+            syncs = (c.syncs,)
         else:
-            sync_locks = c.sync_locks
-        for i in sync_locks:
+            syncs = c.syncs
+        for i in syncs:
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if s.is_WaitLock or \
-                       isinstance(s, ReleaseLock) or \
-                       (self.fusetasks and s.is_WithLock):
+                    if isinstance(s, (FetchUpdate, PrefetchUpdate)):
+                        continue
+                    elif (isinstance(s, (WaitLock, ReleaseLock)) or
+                          (self.fusetasks and isinstance(s, WithLock))):
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)
