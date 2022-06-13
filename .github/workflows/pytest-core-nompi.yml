@@ -44,6 +44,7 @@ jobs:
           arch: "gcc-5"
           language: "openmp"
           sympy: "1.7"
+          container: false
 
         - name: pytest-ubuntu-py38-gcc6-omp
           python-version: '3.8'
@@ -51,6 +52,7 @@ jobs:
           arch: "gcc-6"
           language: "openmp"
           sympy: "1.8"
+          container: false
 
         - name: pytest-ubuntu-py36-gcc7-omp
           python-version: '3.6'
@@ -58,6 +60,7 @@ jobs:
           arch: "gcc-7"
           language: "openmp"
           sympy: "1.9"
+          container: false
 
         - name: pytest-ubuntu-py310-gcc10-noomp
           python-version: '3.10'
@@ -65,6 +68,7 @@ jobs:
           arch: "gcc-10"
           language: "C"
           sympy: "1.10"
+          container: false
 
         - name: pytest-ubuntu-py38-gcc8-omp
           python-version: '3.8'
@@ -72,6 +76,7 @@ jobs:
           arch: "gcc-8"
           language: "openmp"
           sympy: "1.7"
+          container: false
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
@@ -79,6 +84,7 @@ jobs:
           arch: "gcc-9"
           language: "openmp"
           sympy: "1.8"
+          container: false
 
         - name: pytest-osx-py37-clang-omp
           python-version: '3.7'
@@ -86,6 +92,7 @@ jobs:
           arch: "osx"
           language: "C"
           sympy: "1.9"
+          container: false
 
         - name: pytest-docker-py37-gcc-omp
           python-version: '3.7'
@@ -93,6 +100,9 @@ jobs:
           arch: "gcc"
           language: "openmp"
           sympy: "1.10"
+          container: true
+          dockerfile: "docker/Dockerfile"
+          image: "devito_img"
 
         - name: pytest-docker-py38-icc-omp
           python-version: '3.8'
@@ -100,6 +110,9 @@ jobs:
           arch: "icc"
           language: "openmp"
           sympy: 1.8
+          container: true
+          dockerfile: "docker/Dockerfile.intel"
+          image: "devito_intel_img"
 
         - set: base
           test-set: 'not adjoint'
@@ -122,32 +135,18 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Build docker image
-      if: matrix.name == 'pytest-docker-py37-gcc-omp'
+      if: matrix.container == true
       run: |
-          docker build . --file docker/Dockerfile --tag devito_img
+          docker build . --file ${{ matrix.dockerfile }} --tag ${{ matrix.image }}
 
     - name: Set run prefix
       run: |
-          if [ "${{ matrix.name }}" == 'pytest-docker-py37-gcc-omp' ]; then
-              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+          if [ "${{ matrix.container }}" == true ]; then
+              echo "::set-output name=RUN_CMD::docker run --rm --name testrun ${{ matrix.image }}"
           else
               echo "::set-output name=RUN_CMD::"
           fi
       id: set-run
-
-    - name: Build docker Intel image
-      if: matrix.name == 'pytest-docker-py38-icc-omp'
-      run: |
-          docker build . --file docker/Dockerfile.intel --tag devito_intel_img
-
-    - name: Set run prefix
-      run: |
-          if [ "${{ matrix.name }}" == 'pytest-docker-py38-icc-omp' ]; then
-              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_intel_img"
-          else
-              echo "::set-output name=RUN_CMD::"
-          fi
-      id: set-intelrun
 
     - name: Install GCC ${{ matrix.arch }}
       if: runner.os == 'linux'
@@ -158,7 +157,7 @@ jobs:
 
     - name: Set tests (reduced number for OSX)
       run : |
-          if [ "${{ runner.os }}" == 'macOS' || "${{ matrix.arch }}" == 'icc']; then
+          if [ "${{ runner.os }}" == 'macOS' || "${{ matrix.arch }}" == 'icc' ]; then
               echo "::set-output name=TESTS::tests/test_operator.py"
           else
               echo "::set-output name=TESTS::tests/"
@@ -167,7 +166,7 @@ jobs:
 
     - name: Set Python prefix
       run : |
-          if [ "${{ matrix.arch }}" == 'icc' ]; then
+          if [ "${{ matrix.arch }}" == "icc" ]; then
               echo "::set-output name=PREFIX::python -m pytest"
           else
               echo "::set-output name=PREFIX::pytest"
@@ -175,7 +174,7 @@ jobs:
       id: set-prefix
 
     - name: Install dependencies
-      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
+      if: matrix.container == false
       run: |
         pip install --upgrade pip
         pip install -e .
@@ -184,10 +183,9 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ steps.set-run.outputs.RUN_CMD }} ${{ steps.set-prefix.outputs.PREFIX }} -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
-        ${{ steps.set-intelrun.outputs.RUN_CMD }} ${{ steps.set-prefix.outputs.PREFIX }} -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
-      if: matrix.name != 'pytest-docker-py37-gcc-omp' && matrix.name != 'pytest-docker-py38-icc-omp'
+      if: matrix.container == false
       uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
