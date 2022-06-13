@@ -3,6 +3,7 @@ from sympy import And
 
 from itertools import groupby
 
+from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
 from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
@@ -35,8 +36,12 @@ def stree_schedule(clusters):
     """
     stree = ScheduleTree()
 
-    prev = None
+    prev = Cluster(None)
     mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
+
+    def reuse_metadata(c0, c1, d):
+        return (c0.guards.get(d) == c1.guards.get(d) and
+                c0.syncs.get(d) == c1.syncs.get(d))
 
     def attach_metadata(cluster, d, tip):
         if d in cluster.guards:
@@ -46,16 +51,20 @@ def stree_schedule(clusters):
         return tip
 
     for c in clusters:
-        # Add in any Conditionals and Syncs outside of the outermost Iteration
-        tip = attach_metadata(c, None, stree)
-
-        if tip is stree:
-            pointers = list(mapper)
-        else:
-            pointers = []
-
         index = 0
-        for it0, it1 in zip(c.itintervals, pointers):
+
+        # Reuse or add in any Conditionals and Syncs outside of the outermost Iteration
+        if not reuse_metadata(c, prev, None):
+            tip = attach_metadata(c, None, stree)
+            maybe_reusable = []
+        else:
+            try:
+                tip = mapper[prev.itintervals[index]].top.parent
+            except IndexError:
+                tip = stree
+            maybe_reusable = prev.itintervals
+
+        for it0, it1 in zip(c.itintervals, maybe_reusable):
             if it0 != it1:
                 break
             index += 1
@@ -64,14 +73,15 @@ def stree_schedule(clusters):
 
             # The reused sub-trees might acquire new sub-iterators as well as
             # new properties
-            mapper[it0].top.ispace = IterationSpace.union(mapper[it0].top.ispace,
-                                                          c.ispace.project([d]))
-            mapper[it0].top.properties = normalize_properties(mapper[it0].top.properties,
-                                                              c.properties[it0.dim])
+            mapper[it0].top.ispace = IterationSpace.union(
+                mapper[it0].top.ispace, c.ispace.project([d])
+            )
+            mapper[it0].top.properties = normalize_properties(
+                mapper[it0].top.properties, c.properties[it0.dim]
+            )
 
-            # Different guards or syncops cannot be further nested
-            if c.guards.get(d) != prev.guards.get(d) or \
-               c.syncs.get(d) != prev.syncs.get(d):
+            # Different guards or SyncOps cannot further be nested
+            if not reuse_metadata(c, prev, d):
                 tip = mapper[it0].top
                 tip = attach_metadata(c, d, tip)
                 mapper[it0].bottom = tip
@@ -80,7 +90,7 @@ def stree_schedule(clusters):
                 tip = mapper[it0].bottom
 
         # Nested sub-trees, instead, will not be used anymore
-        for it in pointers[index:]:
+        for it in prev.itintervals[index:]:
             mapper.pop(it)
 
         # Add in Iterations, Conditionals, and Syncs

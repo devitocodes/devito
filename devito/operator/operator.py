@@ -9,10 +9,10 @@ import numpy as np
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
-from devito.logger import info, perf, warning, is_log_enabled_for
-from devito.ir.equations import LoweredEq, lower_exprs, generate_implicit_exprs
+from devito.logger import debug, info, perf, warning, is_log_enabled_for
+from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, EntryFunction, FindSymbols, MetaCall,
+from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -20,7 +20,7 @@ from devito.operator.registry import operator_selector
 from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, instrument
+from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
                           split, timed_pass, timed_region)
@@ -209,6 +209,8 @@ class Operator(Callable):
         op._cfunction = None
 
         # Potentially required for lazily allocated Functions
+        op._mode = kwargs['mode']
+        op._options = kwargs['options']
         op._allocator = kwargs['allocator']
         op._platform = kwargs['platform']
 
@@ -218,8 +220,8 @@ class Operator(Callable):
                                            for i in profiler._ext_calls]))
         op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
-        # Internal state. May be used to store information about previous runs,
-        # autotuning reports, etc
+        # Internal mutable state to store information about previous runs, autotuning
+        # reports, etc
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
@@ -239,7 +241,7 @@ class Operator(Callable):
 
     @classmethod
     def _initialize_state(cls, **kwargs):
-        return {'optimizations': kwargs.get('mode', configuration['opt'])}
+        return {}
 
     @classmethod
     def _specialize_dsl(cls, expressions, **kwargs):
@@ -265,7 +267,6 @@ class Operator(Callable):
         """
         Expression lowering:
 
-            * Form and gather any required implicit expressions;
             * Apply rewrite rules;
             * Evaluate derivatives;
             * Flatten vectorial equations;
@@ -273,9 +274,6 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
-        # Add in implicit expressions
-        expressions = generate_implicit_exprs(expressions)
-
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
@@ -312,7 +310,10 @@ class Operator(Callable):
             * Introduce guards for conditional Clusters;
             * Analyze Clusters to detect computational properties such
               as parallelism.
+            * Optimize Clusters for performance
         """
+        sregistry = kwargs['sregistry']
+
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
 
@@ -324,6 +325,9 @@ class Operator(Callable):
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
         profiler.record_ops_variation(init_ops, final_ops)
+
+        # Generate implicit Clusters from higher level abstractions
+        clusters = generate_implicit(clusters, sregistry=sregistry)
 
         return ClusterGroup(clusters)
 
@@ -489,7 +493,7 @@ class Operator(Callable):
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
-        args = kwargs['args'] = ArgumentsMap(args, grid, self._allocator, self._platform)
+        args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
         # Process Dimensions
         # A topological sorting is used so that derived Dimensions are processed after
@@ -503,6 +507,12 @@ class Operator(Callable):
         # Process Objects
         for o in self.objects:
             args.update(o._arg_values(grid=grid, **kwargs))
+
+        # In some "lower-level" Operators implementing a random piece of C, such as
+        # one or more calls to third-party library functions, there could still be
+        # at this point unprocessed arguments (e.g., scalars)
+        kwargs.pop('args')
+        args.update({k: v for k, v in kwargs.items() if k not in args})
 
         # Sanity check
         for p in self.parameters:
@@ -546,6 +556,7 @@ class Operator(Callable):
                 pass
         for d in self.dimensions:
             ret.update(d._arg_names)
+        ret.update(p.name for p in self.parameters)
         return frozenset(ret)
 
     def _autotune(self, args, setup):
@@ -561,7 +572,7 @@ class Operator(Callable):
                 raise ValueError("No value found for parameter %s" % p.name)
         return args
 
-    # JIT compilation
+    # Code generation and JIT compilation
 
     @cached_property
     def _soname(self):
@@ -602,6 +613,39 @@ class Operator(Callable):
             self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
 
         return self._cfunction
+
+    def cinterface(self, force=False):
+        """
+        Generate two files under the prescribed temporary directory:
+
+            * `X.c` (or `X.cpp`): the code generated for this Operator;
+            * `X.h`: an header file representing the interface of `X.c`.
+
+        Where `X=self.name`.
+
+        Parameters
+        ----------
+        force : bool, optional
+            Overwrite any existing files. Defaults to False.
+        """
+        dest = self._compiler.get_jit_dir()
+        name = dest.joinpath(self.name)
+
+        cfile = name.with_suffix(".%s" % self._compiler.src_ext)
+        hfile = name.with_suffix('.h')
+
+        # Generate the .c and .h code
+        ccode, hcode = CInterface().visit(self)
+
+        for f, code in [(cfile, ccode), (hfile, hcode)]:
+            if not force and f.is_file():
+                debug("`%s` was not saved in `%s` as it already exists" % (f.name, dest))
+            else:
+                with open(str(f), 'w') as ff:
+                    ff.write(str(code))
+                debug("`%s` successfully saved in `%s`" % (f.name, dest))
+
+        return ccode, hcode
 
     # Execution
 
@@ -801,8 +845,7 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-        perf("Performance[mode=%s] arguments: %s" % (self._state['optimizations'],
-                                                     perf_args))
+        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
 
@@ -850,12 +893,14 @@ class Operator(Callable):
 
 class ArgumentsMap(dict):
 
-    def __init__(self, args, grid, allocator, platform):
+    def __init__(self, args, grid, op):
         super().__init__(args)
 
         self.grid = grid
-        self.allocator = allocator
-        self.platform = platform
+
+        self.allocator = op._allocator
+        self.platform = op._platform
+        self.options = op._options
 
         # Compute total used memory
         self.memused = sum(v.nbytes for v in args.values() if isinstance(v, np.ndarray))

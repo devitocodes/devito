@@ -1,6 +1,8 @@
-from devito import Grid, TimeFunction, Function, Operator, Eq, solve
+from devito import (Grid, TimeFunction, Function, Operator, Eq, solve,
+                    DefaultDimension)
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import diff2sympy
+from devito.ir.equations import LoweredEq
 from devito.passes.equations.linearity import collect_derivatives
 from devito.tools import timed_region
 
@@ -181,3 +183,26 @@ class TestCollectDerivatives(object):
         leq = collect_derivatives.func([eq])[0]
 
         assert eq == leq
+
+
+class TestLowering(object):
+
+    """
+    Test that expression lowering works as expected.
+    """
+    def test_lower_func_as_ind(self):
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        h = DefaultDimension("h", default_value=10)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        oh = Function(name="ou", dimensions=(h,), shape=(10,), dtype=int)
+
+        eq = [Eq(u.forward, u._subs(x, x + oh))]
+        lowered = LoweredEq(Eq(u[t + 1, x + 2, y + 2], u[t, x + oh[h] + 2, y + 2]))
+
+        with timed_region('x'):
+            leq = Operator._lower_exprs(eq)
+
+        assert leq[0] == lowered

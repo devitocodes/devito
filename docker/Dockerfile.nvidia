@@ -45,8 +45,8 @@ RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu
         apt-utils curl wget \   
     curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
-#        nvhpc-22-3-cuda-multi \
-        nvhpc-22-3 \
+#        nvhpc-22-5-cuda-multi \
+        nvhpc-22-5 \
         liblapack-dev  \
         libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
@@ -90,21 +90,10 @@ ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 
-ADD ./requirements.txt /app/requirements.txt
-ADD ./requirements-optional.txt /app/requirements-optional.txt
-ADD ./requirements-nvidia.txt /app/requirements-nvidia.txt
-ADD ./requirements-mpi.txt /app/requirements-mpi.txt
-
-RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
-    apt-get autoclean && \
-    apt-get autoremove && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf ~/.cache/pip
+# Copy Devito
+ADD . /app/devito
+# Remove git files
+RUN rm -rf /app/devito/.git
 
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
@@ -125,7 +114,6 @@ ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 #ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
-ENV CFLAGS=-noswitcherror
 
 #MPI 3
 # Do Nothing
@@ -138,17 +126,16 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
-    fi;  \
-    /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
-    rm -rf ~/.cache/pip
-ENV CFLAGS=
+    fi;
 
-ADD ./devito /app/devito
-ADD ./tests /app/tests
-ADD ./scripts /app/scripts
-ADD ./examples /app/examples
-ADD ./benchmarks /app/benchmarks
-COPY setup.cfg /app/
+# Install pip dependencies and devito as a pip package
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir wheel && \
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,nvidia] && \
+    # Need extra CFLAGS for mpi4py
+    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir -r /app/devito/requirements-mpi.txt && \
+    rm -rf ~/.cache/pip
 
 ADD docker/run-jupyterlab.sh /jupyter
 ADD docker/run-tests.sh /tests
@@ -192,7 +179,7 @@ RUN mkdir -p /app && \
     
 # Change to the app user.
 USER app
-WORKDIR /app
+WORKDIR /app/devito
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

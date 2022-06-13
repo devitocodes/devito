@@ -51,7 +51,9 @@ def blocking(clusters, sregistry, options):
     else:
         analyzer = AnalyzeHeuristicBlocking(options)
     clusters = analyzer.process(clusters)
-    clusters = AnalyzeSkewing().process(clusters)
+
+    if options['skewing']:
+        clusters = AnalyzeSkewing().process(clusters)
 
     if options['blocklevels'] > 0:
         clusters = SynthesizeBlocking(sregistry, options).process(clusters)
@@ -196,22 +198,23 @@ class SynthesizeBlocking(Queue):
         self.sregistry = sregistry
 
         self.levels = options['blocklevels']
-
-        # A tool to unroll the explicit integer block shapes, should there be any
-        if options['par-tile']:
-            self.blk_size_gen = UnboundedMultiTuple(*options['par-tile'])
-        else:
-            self.blk_size_gen = None
+        self.par_tile = options['par-tile']
 
         super().__init__()
-
-    def process(self, clusters):
-        return self._process_fatd(clusters, 1)
 
     def _make_key_hook(self, cluster, level):
         return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
 
-    def callback(self, clusters, prefix):
+    def process(self, clusters):
+        # A tool to unroll the explicit integer block shapes, should there be any
+        if self.par_tile:
+            blk_size_gen = BlockSizeGenerator(*self.par_tile)
+        else:
+            blk_size_gen = None
+
+        return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
+
+    def callback(self, clusters, prefix, blk_size_gen=None):
         if not prefix:
             return clusters
 
@@ -223,12 +226,10 @@ class SynthesizeBlocking(Queue):
         # Create the block Dimensions (in total `self.levels` Dimensions)
         base = self.sregistry.make_name(prefix=d.name)
 
-        if self.blk_size_gen:
-            # If a new TILABLE nest, pull what would be the next par-tile entry
-            if not any(i.dim.is_Block for i in prefix):
-                self.blk_size_gen.iter()
-
-            step = sympify(self.blk_size_gen.next())
+        if blk_size_gen is not None:
+            # By passing a suitable key to `next` we ensure that we pull the
+            # next par-tile entry iff we're now blocking an unseen TILABLE nest
+            step = sympify(blk_size_gen.next(clusters))
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
             step = None
@@ -283,21 +284,18 @@ def decompose(ispace, d, block_dims):
             intervals.append(i)
 
     # Create the intervals relations
-    # 1: `bd > d`
+    # 1: `bbd > bd > d`
     relations = [tuple(block_dims)]
 
     # 2: Suitably replace `d` with all `bd`'s
     for r in ispace.relations:
-        try:
-            n = r.index(d)
-        except ValueError:
+        if d not in r:
             relations.append(r)
             continue
 
         for bd in block_dims:
             # Avoid e.g. `x > yb`
-            if any(i._depth > bd._depth for i in r[:n] if i.is_Block) or \
-               any(bd._depth < i._depth for i in r[n+1:] if i.is_Block):
+            if any(i._depth < bd._depth for i in r if i.is_Block):
                 continue
 
             relations.append(tuple(bd if i is d else i for i in r))
@@ -310,20 +308,29 @@ def decompose(ispace, d, block_dims):
         if not i.is_Block:
             continue
         for bd in block_dims:
-            if bd._depth < i._depth:
-                relations.append((bd, i))
+            if i._depth < bd._depth:
+                relations.append((i, bd))
 
     intervals = IntervalGroup(intervals, relations=relations)
 
     sub_iterators = dict(ispace.sub_iterators)
     sub_iterators.pop(d, None)
-    sub_iterators.update({bd: ispace.sub_iterators.get(d, []) for bd in block_dims})
+    sub_iterators.update({bd: () for bd in block_dims[:-1]})
+    sub_iterators.update({block_dims[-1]: ispace.sub_iterators[d]})
 
     directions = dict(ispace.directions)
     directions.pop(d)
     directions.update({bd: ispace.directions[d] for bd in block_dims})
 
     return IterationSpace(intervals, sub_iterators, directions)
+
+
+class BlockSizeGenerator(UnboundedMultiTuple):
+
+    def next(self, clusters):
+        if not any(i.dim.is_Block for i in flatten(c.itintervals for c in clusters)):
+            self.iter()
+        return super().next()
 
 
 class SynthesizeSkewing(Queue):
@@ -380,8 +387,7 @@ class SynthesizeSkewing(Queue):
                 return clusters
             skew_dim = skew_dims.pop()
 
-            # Since we are here, prefix is skewable and nested under a
-            # SEQUENTIAL loop.
+            # Since we are here, prefix is skewable and nested under a SEQUENTIAL loop
             intervals = []
             for i in c.ispace:
                 if i.dim is d and (not d.is_Block or d._depth == 1):
@@ -393,8 +399,7 @@ class SynthesizeSkewing(Queue):
                                     c.ispace.directions)
 
             exprs = xreplace_indices(c.exprs, {d: d - skew_dim})
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       properties=c.properties))
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
 

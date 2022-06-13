@@ -42,56 +42,56 @@ jobs:
           os: ubuntu-18.04
           arch: "gcc-5"
           language: "openmp"
-          sympy: 1.8
+          sympy: "1.7"
 
         - name: pytest-ubuntu-py38-gcc6-omp
           python-version: '3.8'
           os: ubuntu-18.04
           arch: "gcc-6"
           language: "openmp"
-          sympy: 1.7
+          sympy: "1.8"
 
         - name: pytest-ubuntu-py36-gcc7-omp
           python-version: '3.6'
           os: ubuntu-18.04
           arch: "gcc-7"
           language: "openmp"
-          sympy: 1.8
+          sympy: "1.9"
 
         - name: pytest-ubuntu-py310-gcc10-noomp
           python-version: '3.10'
           os: ubuntu-20.04
           arch: "gcc-10"
           language: "C"
-          sympy: 1.9
+          sympy: "1.10"
 
         - name: pytest-ubuntu-py38-gcc8-omp
           python-version: '3.8'
           os: ubuntu-18.04
           arch: "gcc-8"
           language: "openmp"
-          sympy: 1.9
+          sympy: "1.7"
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
           os: ubuntu-20.04
           arch: "gcc-9"
           language: "openmp"
-          sympy: 1.8
+          sympy: "1.8"
 
         - name: pytest-osx-py37-clang-omp
           python-version: '3.7'
           os: macos-latest
           arch: "osx"
           language: "C"
-          sympy: 1.8
+          sympy: "1.9"
 
         - name: pytest-docker-py37-gcc-omp
           python-version: '3.7'
           os: ubuntu-18.04
           arch: "gcc"
           language: "openmp"
-          sympy: 1.8
+          sympy: "1.10"
 
         - set: base
           test-set: 'not adjoint'

@@ -5,8 +5,10 @@ from sympy import simplify, diff, Float
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
 from devito.finite_differences import Derivative, Differentiable
-from devito.finite_differences.differentiable import Add, EvalDerivative
+from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
+                                                      IndexDerivative, Weights)
 from devito.symbolics import indexify, retrieve_indexed
+from devito.types import StencilDimension
 
 _PRECISION = 9
 
@@ -330,15 +332,15 @@ class TestFD(object):
 
     @pytest.mark.parametrize('so, expected', [
         (2, 'u(x)/h_x - 1.0*u(x - 1.0*h_x)/h_x'),
-        (4, '1.125*u(x)/h_x + 0.0416666667*u(x - 2.0*h_x)/h_x - '
-            '1.125*u(x - 1.0*h_x)/h_x - 0.0416666667*u(x + 1.0*h_x)/h_x'),
-        (6, '1.171875*u(x)/h_x - 0.0046875*u(x - 3.0*h_x)/h_x + '
-            '0.0651041667*u(x - 2.0*h_x)/h_x - 1.171875*u(x - 1.0*h_x)/h_x - '
-            '0.0651041667*u(x + 1.0*h_x)/h_x + 0.0046875*u(x + 2.0*h_x)/h_x'),
-        (8, '1.19628906*u(x)/h_x + 0.000697544643*u(x - 4.0*h_x)/h_x - '
-            '0.0095703125*u(x - 3.0*h_x)/h_x + 0.0797526042*u(x - 2.0*h_x)/h_x - '
-            '1.19628906*u(x - 1.0*h_x)/h_x - 0.0797526042*u(x + 1.0*h_x)/h_x + '
-            '0.0095703125*u(x + 2.0*h_x)/h_x - 0.000697544643*u(x + 3.0*h_x)/h_x')])
+        (4, '1.125*u(x)/h_x + 0.0416666667*u(x - 2*h_x)/h_x - '
+            '1.125*u(x - h_x)/h_x - 0.0416666667*u(x + h_x)/h_x'),
+        (6, '1.171875*u(x)/h_x - 0.0046875*u(x - 3*h_x)/h_x + '
+            '0.0651041667*u(x - 2*h_x)/h_x - 1.171875*u(x - h_x)/h_x - '
+            '0.0651041667*u(x + h_x)/h_x + 0.0046875*u(x + 2*h_x)/h_x'),
+        (8, '1.19628906*u(x)/h_x + 0.000697544643*u(x - 4*h_x)/h_x - '
+            '0.0095703125*u(x - 3*h_x)/h_x + 0.0797526042*u(x - 2*h_x)/h_x - '
+            '1.19628906*u(x - h_x)/h_x - 0.0797526042*u(x + h_x)/h_x + '
+            '0.0095703125*u(x + 2*h_x)/h_x - 0.000697544643*u(x + 3*h_x)/h_x')])
     def test_fd_new_x0(self, so, expected):
         grid = Grid((10,))
         x = grid.dimensions[0]
@@ -488,6 +490,185 @@ class TestFD(object):
             x0 = (None if shift is None else d + shift[i] * d.spacing if
                   type(shift) is tuple else d + shift * d.spacing)
             assert gi == getattr(f, 'd%s' % d.name)(x0=x0).evaluate
+
+
+class TestTwoStageEvaluation(object):
+
+    def test_exceptions(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+
+        with pytest.raises(TypeError):
+            # Missing 1 required positional argument: '_max'
+            StencilDimension('i', 3)
+        with pytest.raises(ValueError):
+            # Spacing must be an integer
+            StencilDimension('i', 3, 5, spacing=0.6)
+        i = StencilDimension('i', 0, 1)
+        assert i.symbolic_size == 2
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        with pytest.raises(ValueError):
+            # Expected Dimension with numeric size, got `1` instead
+            IndexSum(u, 1)
+        with pytest.raises(ValueError):
+            # Expected Dimension with numeric size, got `x` instead
+            IndexSum(u, x)
+        with pytest.raises(ValueError):
+            # Dimension `i` must appear in `expr`
+            IndexSum(u, i)
+
+    def test_stencil_dim_comparison(self):
+        i1 = StencilDimension('i', 0, 1)
+        i2 = StencilDimension('i', 0, 1)
+        i3 = StencilDimension('i', 0, 2)
+        assert i1 is i2  # Due to caching
+        assert i1 == i2  # Obv
+        assert i1 != i3
+
+    def test_index_sum_basic(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        # Build `u(x + h_x)`
+        term0 = u.subs(x, x + x.spacing)
+
+        # `u(x + h_x)` -> `u(x + i*h_x)`
+        term = term0.subs(x + x.spacing, x + i*x.spacing)
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(term, i)
+
+        # == u(x) + u(x + h_x)
+        assert idxsum.evaluate == u + term0
+
+    def test_index_sum_2d(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+        j = StencilDimension('j', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        # Build `u(x + h_x, y + y_h)`
+        term0 = u.xreplace({x: x + x.spacing, y: y + y.spacing})
+        term = term0.xreplace({x + x.spacing: x + i*x.spacing,
+                               y + y.spacing: y + j*y.spacing})
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(term, (i, j))
+
+        # == u(x, y) + u(x, y + h_y) + u(x + h_x, y) + u(x + h_x, y + h_y)
+        assert idxsum.evaluate == (u +
+                                   u.subs(x, x + x.spacing) +
+                                   u.subs(y, y + y.spacing) +
+                                   term0)
+
+    def test_index_sum_free_symbols(self):
+        grid = Grid((10,))
+
+        x, = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid)
+
+        idxsum = IndexSum(u.subs(x, x*i), i)
+
+        assert idxsum.free_symbols == {x}
+
+    def test_index_sum_nested(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+        j = StencilDimension('j', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        term0 = u.xreplace({x: x + x.spacing, y: y + y.spacing})
+        term = term0.xreplace({x + x.spacing: x + i*x.spacing,
+                               y + y.spacing: y + j*y.spacing})
+
+        idxsum = IndexSum(IndexSum(term, j), i)
+
+        # Expect same output as `test_index_sum_2d`
+        assert idxsum.evaluate == (u +
+                                   u.subs(x, x + x.spacing) +
+                                   u.subs(y, y + y.spacing) +
+                                   term0)
+
+    def test_dot_like(self):
+        grid = Grid((10, 10))
+
+        x, y = grid.dimensions
+        i = StencilDimension('i', 0, 1)
+
+        u = Function(name="u", grid=grid, space_order=2)
+        v = Function(name="v", grid=grid, space_order=2)
+
+        ui = u.subs(x, x + i*x.spacing)
+        vi = v.subs(y, y + i*y.spacing)
+
+        # Sum `term` over `i`
+        idxsum = IndexSum(ui*vi, i)
+
+        assert idxsum.evaluate == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
+
+    def test_index_derivative_like(self):
+        grid = Grid((10,))
+        x, = grid.dimensions
+
+        i = StencilDimension('i', 0, 2)
+
+        u = Function(name="u", grid=grid, space_order=2)
+
+        ui = u.subs(x, x + i*x.spacing)
+        w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
+
+        idxder = IndexDerivative(ui*w, w.dimension)
+
+        assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
+
+    def test_dx2(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term0 = f.dx2.evaluate
+        assert isinstance(term0, EvalDerivative)
+
+        term1 = f.dx2._evaluate(expand=False)
+        assert isinstance(term1, IndexDerivative)
+        term1 = term1.evaluate
+        assert isinstance(term1, Add)  # devito.fd.Add
+
+        # Check that the first partially evaluated then fully evaluated
+        # `term1` matches up the fully evaluated `term0`
+        assert Add(*term0.args) == term1
+
+    def test_dxdy(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term0 = f.dx.dy.evaluate
+        assert isinstance(term0, EvalDerivative)
+
+        term1 = f.dx.dy._evaluate(expand=False)
+        assert isinstance(term1, IndexDerivative)
+        term1 = term1.evaluate
+        assert isinstance(term1, Add)  # devito.fd.Add
+
+        # Through expansion and casting we also check that `term0`
+        # is indeed mathematically equivalent to `term1`
+        assert Add(*term0.expand().args) == term1.expand()
 
 
 def bypass_uneval(expr):

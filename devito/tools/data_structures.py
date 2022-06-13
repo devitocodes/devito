@@ -278,7 +278,7 @@ class PartialOrderTuple(tuple):
 class DAG(object):
 
     """
-    A trivial implementation of a directed acyclic graph (DAG).
+    An implementation of a directed acyclic graph (DAG).
 
     Notes
     -----

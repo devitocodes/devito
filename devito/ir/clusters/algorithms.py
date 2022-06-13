@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from functools import partial
 from itertools import groupby
 
@@ -5,14 +6,15 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
-from devito.ir.support import Any, Backward, Forward, IterationSpace
+from devito.ir.support import Any, Backward, Forward, IterationSpace, PARALLEL_IF_ATOMIC
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.queue import Queue, QueueStateful
-from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer,
-                          timed_pass)
-from devito.types import ModuloDimension
+from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
+                          is_integer, timed_pass)
+from devito.types import Eq, Symbol
+from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
 
@@ -35,6 +37,9 @@ def clusterize(exprs, options=None, **kwargs):
 
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters, options)
+
+    # Input normalization (e.g., SSA)
+    clusters = normalize(clusters, **kwargs)
 
     return ClusterGroup(clusters)
 
@@ -68,7 +73,7 @@ class Schedule(QueueStateful):
           scheduled to different loop nests.
 
         * If *all* dependences across two Clusters along a given Dimension are
-          backward carried depedences, then the IterationSpaces are _lifted_
+          backward carried dependences, then the IterationSpaces are _lifted_
           such that the two Clusters cannot be fused. This is to maximize
           the number of parallel Dimensions. Essentially, this is what low-level
           compilers call "loop fission" -- only that here it occurs at a much
@@ -84,7 +89,7 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
-        return self._process_fdta(clusters, 1)
+        return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
@@ -186,8 +191,15 @@ def guard(clusters):
             # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
             for cd in cds:
+                # `BOTTOM` parent implies a guard that lives outside of
+                # any iteration space, which corresponds to the placeholder None
+                if cd.parent is BOTTOM:
+                    d = None
+                else:
+                    d = cd.parent
+
                 # Pull `cd` from any expr
-                condition = guards.setdefault(cd.parent, [])
+                condition = guards.setdefault(d, [])
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])
@@ -226,7 +238,7 @@ class Stepper(Queue):
 
         d = prefix[-1].dim
 
-        subiters = flatten([c.ispace.sub_iterators.get(d, []) for c in clusters])
+        subiters = flatten([c.ispace.sub_iterators[d] for c in clusters])
         subiters = {i for i in subiters if i.is_Stepping}
         if not subiters:
             return clusters
@@ -276,7 +288,7 @@ class Stepper(Queue):
         def rule(size, e):
             try:
                 return e.function.shape_allocated[d] == size
-            except (AttributeError, KeyError):
+            except (AttributeError, KeyError, ValueError):
                 return False
 
         # Reconstruct the Clusters
@@ -307,3 +319,69 @@ class Stepper(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
+
+
+def normalize(clusters, **kwargs):
+    sregistry = kwargs['sregistry']
+
+    clusters = normalize_nested_indexeds(clusters, sregistry)
+    clusters = normalize_reductions(clusters, sregistry)
+
+    return clusters
+
+
+@cluster_pass(mode='all')
+def normalize_nested_indexeds(cluster, sregistry):
+    """
+    Recursively extract nested Indexeds in to temporaries.
+    """
+
+    def pull_indexeds(expr, subs, mapper, parent=None):
+        for i in retrieve_indexed(expr):
+            if i in mapper:
+                continue
+
+            for e in i.indices:
+                pull_indexeds(e, subs, mapper, parent=i)
+
+            if parent is not None:
+                # Nested Indexed, requires a temporary
+                k = i.xreplace(mapper)
+                v = Symbol(name=sregistry.make_name(), dtype=i.function.dtype)
+                subs[k] = v
+
+                # Update substitution status
+                mapper[i] = v
+
+    processed = []
+    for e in cluster.exprs:
+        subs = OrderedDict()
+        pull_indexeds(e, subs, {})
+
+        # Construct temporaries and apply substitution to `e`, in cascade
+        for k, v in subs.items():
+            processed.append(Eq(v, k))
+            e = e.xreplace({k: v})
+        processed.append(e)
+
+    return cluster.rebuild(processed)
+
+
+@cluster_pass(mode='all')
+def normalize_reductions(cluster, sregistry):
+    """
+    Extract the right-hand sides of reduction Eq's in to temporaries.
+    """
+    if not any(PARALLEL_IF_ATOMIC in v for v in cluster.properties.values()):
+        return cluster
+
+    processed = []
+    for e in cluster.exprs:
+        if e.is_Increment and e.lhs.function.is_AbstractFunction:
+            v = Symbol(name=sregistry.make_name(), dtype=e.dtype)
+            processed.extend([e.func(v, e.rhs, operation=None),
+                              e.func(e.lhs, v)])
+        else:
+            processed.append(e)
+
+    return cluster.rebuild(processed)

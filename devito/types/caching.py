@@ -4,8 +4,10 @@ import weakref
 import sympy
 from sympy.core import cache
 
+from devito.tools import safe_dict_copy
 
-__all__ = ['Cached', '_SymbolCache', 'CacheManager']
+
+__all__ = ['Cached', 'Uncached', '_SymbolCache', 'CacheManager']
 
 _SymbolCache = {}
 """The symbol cache."""
@@ -17,6 +19,17 @@ class AugmentedWeakRef(weakref.ref):
         obj = super().__new__(cls, obj)
         obj.nbytes = meta.get('nbytes', 0)
         return obj
+
+
+class Uncached(object):
+
+    """
+    Mixin class for unique, and therefore uncached, symbolic objects
+    (e.g., data carriers).
+    """
+
+    def __hash__(self):
+        return id(self)
 
 
 class Cached(object):
@@ -161,11 +174,7 @@ class CacheManager(object):
 
         # Take a copy of the dictionary so we can safely iterate over it
         # even if another thread is making changes
-
-        # mydict.copy() is safer than list(mydict) for getting an unchanging list
-        # See https://bugs.python.org/issue40327 for terrifying discussion
-        # on this issue.
-        cache_copied = _SymbolCache.copy()
+        cache_copied = safe_dict_copy(_SymbolCache)
 
         # Maybe trigger garbage collection
         if force is False:

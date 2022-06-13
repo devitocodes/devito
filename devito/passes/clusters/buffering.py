@@ -5,7 +5,8 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
-                       IterationSpace, PARALLEL, Queue, Vector, lower_exprs, vmax, vmin)
+                       IterationSpace, PARALLEL, Queue, SEQUENTIAL, Vector,
+                       lower_exprs, normalize_properties, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -17,7 +18,7 @@ __all__ = ['buffering']
 
 
 @timed_pass()
-def buffering(clusters, callback, sregistry, options):
+def buffering(clusters, callback, sregistry, options, **kwargs):
     """
     Replace written Functions with Arrays. This gives the compiler more control
     over storage layout, data movement (e.g. between host and device), etc.
@@ -48,6 +49,19 @@ def buffering(clusters, callback, sregistry, options):
           ModuloDimensions. This might help relieving the synchronization
           overhead when asynchronous operations are used (these are however
           implemented by other passes).
+    **kwargs
+        Additional compilation options.
+        Accepted: ['opt_noinit', 'opt_buffer'].
+        * 'opt_noinit': By default, a read buffer always triggers the generation
+        of an initializing Cluster (see example below). When the size of the
+        buffer is 1, the step-through Cluster may suffice, however. In such
+        a case, and with `opt-noinit=True`, the initalizing Cluster is omitted.
+        This creates an implicit contract between the caller and the buffering
+        pass, as the step-through Cluster cannot be further transformed or
+        the buffer might never be initialized with the content of the buffered
+        Function.
+        * 'opt_buffer': A callback that takes a buffering candidate as input
+        and returns a buffer, which would otherwise default to an Array.
 
     Examples
     --------
@@ -84,6 +98,12 @@ def buffering(clusters, callback, sregistry, options):
                 return None
     assert callable(callback)
 
+    options = {
+        'buf-async-degree': options['buf-async-degree'],
+        'buf-noinit': kwargs.get('opt_noinit', False),
+        'buf-callback': kwargs.get('opt_buffer'),
+    }
+
     return Buffering(callback, sregistry, options).process(clusters)
 
 
@@ -100,8 +120,6 @@ class Buffering(Queue):
         return self._process_fatd(clusters, 1, cache={})
 
     def callback(self, clusters, prefix, cache=None):
-        async_degree = self.options['buf-async-degree']
-
         # Locate all Function accesses within the provided `clusters`
         accessmap = AccessMapper(clusters)
 
@@ -119,7 +137,7 @@ class Buffering(Queue):
             if not all(any([i.dim in d._defines for i in prefix]) for d in dims):
                 continue
 
-            b = cache[f] = buffers.make(f, dims, accessv, async_degree, self.sregistry)
+            b = cache[f] = buffers.make(f, dims, accessv, self.options, self.sregistry)
 
         if not buffers:
             return clusters
@@ -133,8 +151,14 @@ class Buffering(Queue):
         # only if the buffered Function is read in at least one place or in the case
         # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
         # into the buffered Function
+        noinit = self.options['buf-noinit']
         processed = []
         for b in buffers:
+            if b.size == 1 and noinit:
+                # Special case: avoid initialization if not strictly necessary
+                # See docstring for more info about what this implies
+                continue
+
             if b.is_read or not b.has_uniform_subdims:
                 dims = b.function.dimensions
                 lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
@@ -175,7 +199,16 @@ class Buffering(Queue):
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace))
+                # Buffering creates a storage-related dependence along the
+                # contracted dimensions
+                properties = dict(c.properties)
+                for d in b.contraction_mapper:
+                    d = ispace[d].dim  # E.g., `time_sub -> time`
+                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
             # Substitute buffered Functions with the newly created buffers
             exprs = [uxreplace(e, subs) for e in c.exprs]
@@ -201,7 +234,16 @@ class Buffering(Queue):
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
 
-                processed.append(c.rebuild(exprs=expr, ispace=ispace))
+                # Buffering creates a storage-related dependence along the
+                # contracted dimensions
+                properties = dict(c.properties)
+                for d in b.contraction_mapper:
+                    d = ispace[d].dim  # E.g., `time_sub -> time`
+                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
         return processed
 
@@ -239,8 +281,8 @@ class Buffer(object):
         by ModuloDimensions.
     accessv : AccessValue
         All accesses involving `function`.
-    async_degree : int, optional
-        Enforce a size of `async_degree` along the contracted Dimensions.
+    options : dict, optional
+        The compilation options. See `buffering.__doc__`.
     sregistry : SymbolRegistry
         The symbol registry, to create unique names for buffers and Dimensions.
     bds : dict, optional
@@ -253,8 +295,12 @@ class Buffer(object):
         are created.
     """
 
-    def __init__(self, function, contracted_dims, accessv, async_degree, sregistry,
+    def __init__(self, function, contracted_dims, accessv, options, sregistry,
                  bds=None, mds=None):
+        # Parse compilation options
+        async_degree = options['buf-async-degree']
+        callback = options['buf-callback']
+
         self.function = function
         self.accessv = accessv
 
@@ -353,15 +399,25 @@ class Buffer(object):
                 self.itintervals_mapper.setdefault(i, (interval.relaxed, (), Forward))
 
         # Finally create the actual buffer
-        self.buffer = Array(name='%sb' % function.name,
-                            dimensions=dims,
-                            dtype=function.dtype,
-                            halo=function.halo,
-                            space='mapped')
+        kwargs = {
+            'name': sregistry.make_name(prefix='%sb' % function.name),
+            'dimensions': dims,
+            'dtype': function.dtype,
+            'halo': function.halo,
+            'space': 'mapped'
+        }
+        try:
+            self.buffer = callback(function, **kwargs)
+        except TypeError:
+            self.buffer = Array(**kwargs)
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name,
                                     ','.join(str(i) for i in self.contraction_mapper))
+
+    @property
+    def size(self):
+        return np.prod([v.symbolic_size for v in self.contraction_mapper.values()])
 
     @property
     def is_read(self):
@@ -403,9 +459,12 @@ class Buffer(object):
         intervals = []
         sub_iterators = {}
         directions = {}
-        for d in self.buffer.dimensions:
+        for d, h in zip(self.buffer.dimensions, self.buffer._size_halo):
             try:
                 interval, si, direction = self.itintervals_mapper[d]
+                # The initialization must comprise the halo region as well, since
+                # in principle this could be accessed through a stencil
+                interval = interval.translate(v0=-h.left, v1=h.right)
             except KeyError:
                 # E.g., the contraction Dimension `db0`
                 assert d in self.contraction_mapper.values()
@@ -438,7 +497,7 @@ class Buffer(object):
                 d = d.root
                 interval, si, direction = self.itintervals_mapper[d]
             intervals.append(interval)
-            sub_iterators[d] = si + as_tuple(self.sub_iterators.get(d))
+            sub_iterators[d] = si + as_tuple(self.sub_iterators[d])
             directions[d] = direction
 
         relations = (tuple(i.dim for i in intervals),)

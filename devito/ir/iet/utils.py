@@ -1,5 +1,5 @@
 from devito.ir.iet import IterationTree, FindSections, FindSymbols
-from devito.symbolics import Literal, Macro
+from devito.symbolics import Keyword, Macro
 from devito.tools import as_tuple, filter_ordered, split
 from devito.types import Array, Global, LocalObject
 
@@ -86,7 +86,7 @@ def derive_parameters(iet, drop_locals=False):
     parameters = [s for s in candidates if s.name not in defines]
 
     # Drop globally-visible objects
-    parameters = [p for p in parameters if not isinstance(p, (Global, Literal, Macro))]
+    parameters = [p for p in parameters if not isinstance(p, (Global, Keyword, Macro))]
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
@@ -109,7 +109,9 @@ def diff_parameters(iet, root, indirectly_provided=None):
     required = derive_parameters(iet)
     required = [i for i in required if i not in as_tuple(indirectly_provided)]
 
-    known = set(root.parameters) | set(i for i in required if i.is_Array)
+    known = set(root.parameters)
+    known.update({i for i in required if i.is_AbstractFunction and not i._mem_external})
+    known.update(set().union(*[i.bound_symbols for i in known]))
 
     parameters, dynamic_parameters = split(required, lambda i: i in known)
 

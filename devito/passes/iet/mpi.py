@@ -8,7 +8,7 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_mapper, filter_sorted, generator
+from devito.tools import as_mapper, generator
 
 __all__ = ['mpiize']
 
@@ -46,11 +46,11 @@ def _drop_halospots(iet):
                 mapper[hs].update(set(hs.functions))
                 break
 
-    # If all HaloSpot reads pertain to increments, then the HaloSpot is useless
+    # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         for f in hs.fmapper:
             scope = Scope([i.expr for i in expressions])
-            if all(i.is_increment for i in scope.reads.get(f, [])):
+            if all(i.is_reduction for i in scope.reads.get(f, [])):
                 mapper[hs].add(f)
 
     # Transform the IET introducing the "reduced" HaloSpots
@@ -79,8 +79,8 @@ def _hoist_halospots(iet):
                 not any(i & loc_dims for i in candidates))
 
     def rule1(dep, candidates, loc_dims):
-        # An increment isn't a stopper to hoisting
-        return dep.write.is_increment
+        # A reduction isn't a stopper to hoisting
+        return dep.write.is_reduction
 
     hoist_rules = [rule0, rule1]
 
@@ -299,7 +299,6 @@ def make_mpi(iet, **kwargs):
         mapper[hs] = heb.make(hs)
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
-    objs = filter_sorted(sync_heb.objs + user_heb.objs)
     iet = Transformer(mapper, nested=True).visit(iet)
 
     # Must drop the PARALLEL tag from the Iterations within which halo
@@ -316,7 +315,7 @@ def make_mpi(iet, **kwargs):
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs, 'args': objs}
+    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
 
 
 def mpiize(graph, sregistry=None, options=None):

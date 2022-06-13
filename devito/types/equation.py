@@ -8,7 +8,7 @@ from devito.finite_differences import default_rules
 from devito.tools import as_tuple
 from devito.types.lazy import Evaluable
 
-__all__ = ['Eq', 'Inc']
+__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
 
 
 class Eq(sympy.Eq, Evaluable):
@@ -58,7 +58,7 @@ class Eq(sympy.Eq, Evaluable):
     (e.g., ``a[i] = b[i]*c``).
     """
 
-    is_Increment = False
+    is_Reduction = False
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
@@ -70,22 +70,17 @@ class Eq(sympy.Eq, Evaluable):
 
         return obj
 
-    @property
-    def subdomain(self):
-        """The SubDomain in which the Eq is defined."""
-        return self._subdomain
-
-    @cached_property
-    def evaluate(self):
+    def _evaluate(self, **kwargs):
         """
         Evaluate the Equation or system of Equations.
 
         The RHS of the Equation is evaluated at the indices of the LHS if required.
         """
         try:
-            lhs, rhs = self.lhs.evaluate, self.rhs._eval_at(self.lhs).evaluate
+            lhs = self.lhs._evaluate(**kwargs)
+            rhs = self.rhs._eval_at(self.lhs)._evaluate(**kwargs)
         except AttributeError:
-            lhs, rhs = self._evaluate_args()
+            lhs, rhs = self._evaluate_args(**kwargs)
         eq = self.func(lhs, rhs, subdomain=self.subdomain,
                        coefficients=self.substitutions,
                        implicit_dims=self._implicit_dims)
@@ -118,6 +113,11 @@ class Eq(sympy.Eq, Evaluable):
                     for l in lhss]
         else:
             return [self]
+
+    @property
+    def subdomain(self):
+        """The SubDomain in which the Eq is defined."""
+        return self._subdomain
 
     @property
     def substitutions(self):
@@ -166,33 +166,30 @@ class Eq(sympy.Eq, Evaluable):
     __repr__ = __str__
 
 
-class Inc(Eq):
+class Reduction(Eq):
 
     """
-    An increment relation between two objects, the left-hand side and the
-    right-hand side.
+    An Eq in which the right-hand side represents a reduction operation, whose
+    result is stored in to the left-hand side.
+    """
 
-    Parameters
-    ----------
-    lhs : Function or SparseFunction
-        The left-hand side.
-    rhs : expr-like
-        The right-hand side.
-    subdomain : SubDomain, optional
-        To restrict the computation of the Eq to a particular sub-region in the
-        computational domain.
-    coefficients : Substitutions, optional
-        Can be used to replace symbolic finite difference weights with user
-        defined weights.
-    implicit_dims : Dimension or list of Dimension, optional
-        An ordered list of Dimensions that do not explicitly appear in either the
-        left-hand side or in the right-hand side, but that should be honored when
-        constructing an Operator.
+    is_Reduction = True
+
+    def __str__(self):
+        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+
+    __repr__ = __str__
+
+
+class Inc(Reduction):
+
+    """
+    An increment Reduction.
 
     Examples
     --------
     Inc may be used to express tensor contractions. Below, a summation along
-    the user-defined Dimension ``i``.
+    the user-defined Dimension `i`.
 
     >>> from devito import Grid, Dimension, Function, Inc
     >>> grid = Grid(shape=(4, 4))
@@ -209,9 +206,12 @@ class Inc(Eq):
     programming language (e.g., ``a[i] += c``).
     """
 
-    is_Increment = True
+    pass
 
-    def __str__(self):
-        return "Inc(%s, %s)" % (self.lhs, self.rhs)
 
-    __repr__ = __str__
+class ReduceMax(Reduction):
+    pass
+
+
+class ReduceMin(Reduction):
+    pass

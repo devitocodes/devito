@@ -1,3 +1,5 @@
+import numpy as np
+
 from conftest import assert_structure
 from devito import (Eq, Inc, Grid, Function, TimeFunction, SubDimension, SubDomain,
                     Operator, solve)
@@ -94,3 +96,32 @@ def test_fission_partial():
     op = Operator(eqns, opt='fission')
 
     assert_structure(op, ['t,x,yl', 't,x,yr', 't,x,y'], 't,x,yl,yr,x,y')
+
+
+def test_issue_1921():
+    space_order = 4
+    grid = Grid(shape=(8, 8), dtype=np.int32)
+
+    f = Function(name='f', grid=grid, space_order=space_order)
+    g = TimeFunction(name='g', grid=grid, space_order=space_order)
+    g1 = TimeFunction(name='g', grid=grid, space_order=space_order)
+
+    f.data[:] = np.arange(8*8).reshape((8, 8))
+
+    t, x, y = g.dimensions
+    ymin = y.symbolic_min
+
+    eqns = []
+    eqns.append(Eq(g.forward, f + g))
+    for i in range(space_order//2):
+        eqns.append(Eq(g[t+t.spacing, x, ymin-i], g[t+t.spacing, x, ymin+i]))
+
+    op0 = Operator(eqns)
+    op1 = Operator(eqns, opt='fission')
+
+    assert_structure(op1, ['t,x,y', 't,x'], 't,x,y,x')
+
+    op0.apply(time_m=1, time_M=5)
+    op1.apply(time_m=1, time_M=5, g=g1)
+
+    assert np.all(g.data == g1.data)

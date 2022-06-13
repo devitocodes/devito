@@ -2,7 +2,7 @@ import sympy as sp
 import numpy as np
 
 from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
-                    div, grad)
+                    div, grad, solve)
 from examples.seismic import PointSource, Receiver
 
 
@@ -40,9 +40,13 @@ def src_rec(p, model, geometry, **kwargs):
 
 def sls_1st_order(model, geometry, p, r=None, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation
-    from Blanch and Symes (1995) / Dutta and Schuster (2014).
+    Implementation of the 1st order viscoacoustic wave-equation based on SLS model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Blanch and Symes (1995)
+    3 - Dutta and Schuster (2014)
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
 
@@ -57,9 +61,8 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
     space_order = p.space_order
     save = kwargs.get('save', False)
     save_t = geometry.nt if save else None
-    s = model.grid.stepping_dim.spacing
     b = model.b
-    vp = model.vp
+    m = model.m
     damp = model.damp
     qp = model.qp
     f0 = geometry._f0
@@ -80,48 +83,54 @@ def sls_1st_order(model, geometry, p, r=None, **kwargs):
     # Density
     rho = 1. / b
 
-    # Bulk modulus
-    bm = rho * vp**2
-
-    # Attenuation Memory variable.
+    # Attenuation Memory variable
     r = r or TimeFunction(name="r", grid=model.grid, time_order=1,
                           space_order=space_order, save=save_t, staggered=NODE)
 
     if forward:
 
-        # Define PDE
-        pde_v = v - s * b * grad(p)
-        u_v = Eq(v.forward, damp * pde_v)
+        # Particle velocity
+        pde_v = v.dt + b * grad(p)
+        u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
 
-        pde_r = r - s * (1. / t_s) * r - s * (1. / t_s) * tt * rho * div(v.forward)
-        u_r = Eq(r.forward, damp * pde_r)
+        # Attenuation Memory variable
+        pde_r = r.dt + (1. / t_s) * (r + tt * rho * div(v.forward))
+        u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
 
-        pde_p = p - s * bm * (tt + 1.) * div(v.forward) - s * vp**2 * r.forward + \
-            s * vp**2 * q
-        u_p = Eq(p.forward, damp * pde_p)
+        # Pressure
+        pde_p = m * p.dt + rho * (tt + 1.) * div(v.forward) + r.forward - q
+        u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_v, u_r, u_p]
 
     else:
 
-        # Define PDE
-        pde_r = r - s * (1. / t_s) * r - s * p
-        u_r = Eq(r.backward, damp * pde_r)
+        # Attenuation Memory variable
+        pde_r = r.dt.T + (1. / t_s) * r + p
+        u_r = Eq(r.backward, damp * solve(pde_r, r.backward))
 
-        pde_v = v + s * grad(rho * (1. + tt) * p) + s * \
+        # Particle velocity
+        # Because v is a Vector, `.T` applies a standard matrix transpose
+        # so we need to do the derivative transpose by hand with `-*.dtl`
+        pde_v = -v.dtl - grad(rho * (1. + tt) * p) - \
             grad((1. / t_s) * rho * tt * r.backward)
-        u_v = Eq(v.backward, damp * pde_v)
+        u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
 
-        pde_p = p + s * vp**2 * div(b * v.backward)
-        u_p = Eq(p.backward, damp * pde_p)
+        # Pressure
+        pde_p = m * p.dt.T - div(b * v.backward)
+        u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
         return [u_r, u_v, u_p]
 
 
 def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     """
-    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
+    Implementation of the 2nd order viscoacoustic wave-equation based on SLS model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Bai (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/10.1190/geo2013-0030.1
 
     Parameters
@@ -135,9 +144,8 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     space_order = p.space_order
     save = kwargs.get('save', False)
     save_t = geometry.nt if save else None
-    s = model.grid.stepping_dim.spacing
     b = model.b
-    vp = model.vp
+    m = model.m
     damp = model.damp
     qp = model.qp
     f0 = geometry._f0
@@ -155,153 +163,46 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
     # Density
     rho = 1. / b
 
-    # Bulk modulus
-    bm = rho * vp**2
-
-    # Attenuation Memory variable.
+    # Attenuation Memory variable
     r = r or TimeFunction(name="r", grid=model.grid, time_order=2,
                           space_order=space_order, save=save_t, staggered=NODE)
 
     if forward:
+        # Attenuation Memory variable
+        pde_r = r.dt - (tt / t_s) * rho * div(b * grad(p, shift=.5), shift=-.5) + \
+            (1. / t_s) * r
+        u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
 
-        pde_r = r + s * (tt / t_s) * rho * div(b * grad(p, shift=.5), shift=-.5) - \
-            s * (1. / t_s) * r
-        u_r = Eq(r.forward, damp * pde_r)
-
-        pde_p = 2. * p - damp * p.backward + s**2 * bm * (1. + tt) * \
-            div(b * grad(p, shift=.5), shift=-.5) - s**2 * vp**2 * \
-            r.forward + s**2 * vp**2 * q
-        u_p = Eq(p.forward, damp * pde_p)
-
-        return [u_r, u_p]
-
-    else:
-
-        pde_r = r + s * (tt / t_s) * p - s * (1. / t_s) * r
-        u_r = Eq(r.backward, damp * pde_r)
-
-        pde_p = 2. * p - damp * p.forward + s**2 * vp**2 * \
-            div(b * grad((1. + tt) * rho * p, shift=.5), shift=-.5) - s**2 * vp**2 * \
-            div(b * grad(rho * r.backward, shift=.5), shift=-.5)
-        u_p = Eq(p.backward, damp * pde_p)
+        # Pressure
+        pde_p = m * p.dt2 - rho * (1. + tt) * div(b * grad(p, shift=.5), shift=-.5) + \
+            r.forward - q + (1 - damp) * p.dt
+        u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_r, u_p]
 
-
-def ren_1st_order(model, geometry, p, **kwargs):
-    """
-    Implementation of the 1st order viscoacoustic wave-equation from Ren et al. (2014).
-
-    https://academic.oup.com/gji/article/197/2/948/616510
-
-    Parameters
-    ----------
-    p : TimeFunction
-        Pressure field.
-    """
-    forward = kwargs.get('forward', True)
-    s = model.grid.stepping_dim.spacing
-    f0 = geometry._f0
-    vp = model.vp
-    b = model.b
-    qp = model.qp
-    damp = model.damp
-
-    # Particle velocity
-    v = kwargs.pop('v')
-
-    # Angular frequency
-    w0 = 2. * np.pi * f0
-
-    # Density
-    rho = 1. / b
-
-    eta = vp**2 / (w0 * qp)
-
-    # Bulk modulus
-    bm = rho * vp**2
-
-    if forward:
-
-        # Define PDE
-        pde_v = v - s * b * grad(p)
-        u_v = Eq(v.forward, damp * pde_v)
-
-        pde_p = p - s * bm * div(v.forward) + \
-            s * eta * rho * div(b * grad(p, shift=.5), shift=-.5)
-        u_p = Eq(p.forward, damp * pde_p)
-
-        return [u_v, u_p]
-
     else:
+        # Attenuation Memory variable
+        pde_r = r.dt.T + (tt / t_s) * p + (1. / t_s) * r
+        u_r = Eq(r.backward, damp * solve(pde_r, r.backward))
 
-        pde_v = v + s * grad(bm * p)
-        u_v = Eq(v.backward, pde_v * damp)
+        # Pressure
+        pde_p = m * p.dt2 - div(b * grad((1. + tt) * rho * p, shift=.5), shift=-.5) - \
+            div(b * grad(rho * r.backward, shift=.5), shift=-.5) + \
+            (1 - damp) * p.dt.T
+        u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
-        pde_p = p + s * div(b * grad(rho * eta * p, shift=.5), shift=-.5) + \
-            s * div(b * v.backward)
-        u_p = Eq(p.backward, pde_p * damp)
-
-        return [u_v, u_p]
-
-
-def ren_2nd_order(model, geometry, p, **kwargs):
-    """
-    Implementation of the 2nd order viscoacoustic wave-equation from Ren et al. (2014).
-
-    https://library.seg.org/doi/pdf/10.1190/1.2714334
-
-    Parameters
-    ----------
-    p : TimeFunction
-        Pressure field.
-    """
-    forward = kwargs.get('forward', True)
-
-    s = model.grid.stepping_dim.spacing
-    f0 = geometry._f0
-    vp = model.vp
-    b = model.b
-    qp = model.qp
-    damp = model.damp
-
-    # Angular frequency
-    w0 = 2. * np.pi * f0
-
-    # Density
-    rho = 1. / b
-
-    eta = vp**2 / (w0 * qp)
-
-    # Bulk modulus
-    bm = rho * vp**2
-
-    if forward:
-
-        pde_p = 2. * p - damp * p.backward + s**2 * bm * \
-            div(b * grad(p, shift=.5), shift=-.5) + s**2 * eta * rho * \
-            div(b * grad(p - p.backward, shift=.5) / s, shift=-.5)
-
-        u_p = Eq(p.forward, damp * pde_p)
-
-        return [u_p]
-
-    else:
-
-        pde_p = 2. * p - damp * p.forward + s**2 * \
-            div(b * grad(bm * p, shift=.5), shift=-.5) - s**2 * \
-            div(b * grad(((p.forward - p) / s) * rho * eta, shift=.5), shift=-.5)
-        u_p = Eq(p.backward, damp * pde_p)
-
-        return [u_p]
+        return [u_r, u_p]
 
 
-def deng_1st_order(model, geometry, p, **kwargs):
+def kv_1st_order(model, geometry, p, **kwargs):
     """
     Implementation of the 1st order viscoacoustic wave-equation
-    from Deng and McMechan (2007).
+    based on Kelvin-Voigt model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
 
-    https://library.seg.org/doi/pdf/10.1190/1.2714334
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
+
 
     Parameters
     ----------
@@ -309,9 +210,119 @@ def deng_1st_order(model, geometry, p, **kwargs):
         Pressure field.
     """
     forward = kwargs.get('forward', True)
-    s = model.grid.stepping_dim.spacing
     f0 = geometry._f0
-    vp = model.vp
+    m = model.m
+    b = model.b
+    qp = model.qp
+    damp = model.damp
+
+    # Particle velocity
+    v = kwargs.pop('v')
+
+    # Angular frequency
+    w0 = 2. * np.pi * f0
+
+    # Density
+    rho = 1. / b
+    tau = 1 / (w0 * qp)
+
+    if forward:
+        # Particle velocity
+        pde_v = v.dt + b * grad(p)
+        u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
+
+        # Pressure
+        pde_p = m * p.dt + rho * div(v.forward) - \
+            tau * rho * div(b * grad(p, shift=.5), shift=-.5)
+        u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
+
+        return [u_v, u_p]
+    else:
+        # Particle velocity
+        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # so we need to do the derivative transpose by hand with `-*.dtl`
+        pde_v = -v.dtl - grad(rho * p)
+        u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
+
+        # Pressure
+        pde_p = m * p.dt.T - div(b * grad(rho * tau * p, shift=.5), shift=-.5) - \
+            div(b * v.backward)
+        u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
+
+        return [u_v, u_p]
+
+
+def kv_2nd_order(model, geometry, p, **kwargs):
+    """
+    Implementation of the 2nd order viscoacoustic wave-equation
+    based on Kelvin-Voigt model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Ren et al. (2014).
+
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
+    https://library.seg.org/doi/pdf/10.1190/1.2714334
+
+
+    Parameters
+    ----------
+    p : TimeFunction
+        Pressure field.
+    """
+    forward = kwargs.get('forward', True)
+
+    s = model.grid.stepping_dim.spacing
+    t0 = p.indices[0] - s / 2
+    f0 = geometry._f0
+    m = model.m
+    b = model.b
+    qp = model.qp
+    damp = model.damp
+
+    # Angular frequency
+    w0 = 2. * np.pi * f0
+
+    # Density
+    rho = 1. / b
+    tau = 1 / (w0 * qp)
+
+    if forward:
+        # Pressure
+        pde_p = m * p.dt2 - rho * div(b * grad(p, shift=.5), shift=-.5) - \
+            tau * rho * div(b * grad(p.dt(x0=t0), shift=.5), shift=-.5) + \
+            (1 - damp) * p.dt
+
+        u_p = Eq(p.forward, solve(pde_p, p.forward))
+
+        return [u_p]
+
+    else:
+        # Pressure
+        pde_p = m * p.dt2 - div(b * grad(rho * p, shift=.5), shift=-.5) - \
+            div(b * grad(rho * tau * p.dt(x0=t0).T, shift=.5), shift=-.5) + \
+            (1 - damp) * p.dt.T
+        u_p = Eq(p.backward, solve(pde_p, p.backward))
+
+        return [u_p]
+
+
+def maxwell_1st_order(model, geometry, p, **kwargs):
+    """
+    Implementation of the 1st order viscoacoustic wave-equation
+    based on Maxwell model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-
+
+    Parameters
+    ----------
+    p : TimeFunction
+        Pressure field.
+    """
+    forward = kwargs.get('forward', True)
+    f0 = geometry._f0
+    m = model.m
     b = model.b
     qp = model.qp
     damp = model.damp
@@ -325,36 +336,38 @@ def deng_1st_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    # Bulk modulus
-    bm = rho * vp**2
-
     if forward:
-
-        # Define PDE
-        pde_v = v - s * b * grad(p)
-        u_v = Eq(v.forward, damp * pde_v)
-
-        pde_p = p - s * bm * div(v.forward) - s * (w0 / qp) * p
-        u_p = Eq(p.forward, damp * pde_p)
+        # Particle velocity
+        pde_v = v.dt + b * grad(p)
+        u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
+        # Pressure
+        pde_p = m * p.dt + rho * div(v.forward) + (w0 / qp) * p
+        u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_v, u_p]
 
     else:
-
-        pde_v = v + s * grad(bm * p)
-        u_v = Eq(v.backward, pde_v * damp)
-
-        pde_p = p + s * div(b * v.backward) - s * (w0 / qp) * p
-        u_p = Eq(p.backward, pde_p * damp)
+        # Particle velocity
+        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # so we need to do the derivative transpose by hand with `-*.dtl`
+        pde_v = -v.dtl - grad(rho * p)
+        u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
+        # Pressure
+        pde_p = m * p.dt.T - div(b * v.backward) + (w0 / qp) * p
+        u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
         return [u_v, u_p]
 
 
-def deng_2nd_order(model, geometry, p, **kwargs):
+def maxwell_2nd_order(model, geometry, p, **kwargs):
     """
-    Implementation of the 2nd order viscoacoustic wave-equation
-    from Deng and McMechan (2007).
+    Implementation of the 1st order viscoacoustic wave-equation
+    based on Maxwell model from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Deng and McMechan (2007).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
@@ -365,9 +378,10 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     forward = kwargs.get('forward', True)
 
     s = model.grid.stepping_dim.spacing
+    t0 = p.indices[0] - s / 2
     f0 = geometry._f0
-    vp = model.vp
     b = model.b
+    m = model.m
     qp = model.qp
     damp = model.damp
 
@@ -377,31 +391,32 @@ def deng_2nd_order(model, geometry, p, **kwargs):
     # Density
     rho = 1. / b
 
-    bm = rho * vp**2
-
     if forward:
-
-        pde_p = 2. * p - damp*p.backward + s**2 * bm * \
-            div(b * grad(p, shift=.5), shift=-.5) - s**2 * w0/qp * (p - p.backward)/s
-        u_p = Eq(p.forward, damp * pde_p)
+        # Pressure
+        pde_p = m * p.dt2 - rho * div(b * grad(p, shift=.5), shift=-.5) + \
+            m * w0 / qp * p.dt(x0=t0) + (1 - damp) * p.dt
+        u_p = Eq(p.forward, solve(pde_p, p.forward))
 
         return [u_p]
 
     else:
-
-        pde_p = 2. * p - damp * p.forward + s**2 * w0 / qp * (p.forward - p) / s + \
-            s * s * div(b * grad(bm * p, shift=.5), shift=-.5)
-        u_p = Eq(p.backward, damp * pde_p)
+        # Pressure
+        pde_p = m * p.dt2 + m * w0 / qp * p.dt(x0=t0).T + (1 - damp) * p.dt.T - \
+            div(b * grad(rho * p, shift=.5), shift=-.5)
+        u_p = Eq(p.backward, solve(pde_p, p.backward))
 
         return [u_p]
 
 
 def sls(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation
-    from Blanch and Symes (1995) / Dutta and Schuster (2014) and
-    Implementation of the 2nd order viscoacoustic wave-equation from Bai (2014).
+    Implementation of the viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Blanch and Symes (1995) / Dutta and Schuster (2014) and
+    3 - Bai (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.1822695
     https://library.seg.org/doi/pdf/10.1190/geo2013-0414.1
     https://library.seg.org/doi/10.1190/geo2013-0030.1
@@ -419,11 +434,14 @@ def sls(model, geometry, p, forward=True, **kwargs):
     return eqn
 
 
-def ren(model, geometry, p, forward=True, **kwargs):
+def kv(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st and 2nd order viscoacoustic wave-equation from
-    Ren et al. (2014).
+    Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Ren et al. (2014).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://academic.oup.com/gji/article/197/2/948/616510
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
@@ -434,17 +452,20 @@ def ren(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('ren', time_order)]
+    eq_stencil = stencils[('kv', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
 
 
-def deng_mcmechan(model, geometry, p, forward=True, **kwargs):
+def maxwell(model, geometry, p, forward=True, **kwargs):
     """
-    Implementation of the 1st order viscoacoustic wave-equation and 2nd order
-    viscoacoustic wave-equation from Deng and McMechan (2007).
+    Implementation of the 1st and 2nd order viscoacoustic wave-equation from:
+    1 - Jose M. Carcione (2015): Wave Fields in Real Media: Wave Propagation
+    in Anisotropic, Anelastic, Porous and Electromagnetic Media
+    2 - Deng and McMechan (2007).
 
+    https://www.elsevier.com/books/wave-fields-in-real-media/carcione/978-0-08-099999-9
     https://library.seg.org/doi/pdf/10.1190/1.2714334
 
     Parameters
@@ -454,7 +475,7 @@ def deng_mcmechan(model, geometry, p, forward=True, **kwargs):
     """
     time_order = p.time_order
 
-    eq_stencil = stencils[('deng_mcmechan', time_order)]
+    eq_stencil = stencils[('maxwell', time_order)]
     eqn = eq_stencil(model, geometry, p, forward=forward, **kwargs)
 
     return eqn
@@ -476,12 +497,12 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         Space discretization order.
     kernel : string, optional
         selects a viscoacoustic equation from the options below:
-        sls (Standard Linear Solid) :
+        SLS (Standard Linear Solid) :
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     save : int or Buffer
         Saving flag, True saves all time steps, False saves three buffered
@@ -509,7 +530,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
                     name='Forward', **kwargs)
 
 
-def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **kwargs):
+def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **kwargs):
     """
     Construct an adjoint modelling operator in a viscoacoustic medium.
 
@@ -527,8 +548,8 @@ def AdjointOperator(model, geometry, space_order=4, kernel='sls', time_order=2, 
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     if time_order == 1:
@@ -571,8 +592,8 @@ def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
         1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
         viscoacoustic equation
         2nd order - Bai et al. (2014) viscoacoustic equation
-        ren - Ren et al. (2014) viscoacoustic equation
-        deng_mcmechan - Deng and McMechan (2007) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
         Defaults to sls 2nd order.
     """
     # Gradient symbol and wavefield symbols
@@ -642,16 +663,14 @@ def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **k
     eq_kernel = kernels[kernel]
     eqn1 = eq_kernel(model, geometry, p, r=rp, **kwargs)
 
-    s = model.grid.stepping_dim.spacing
-
     if time_order == 1:
         dv = VectorTimeFunction(name="dv", grid=model.grid,
                                 time_order=time_order, space_order=space_order)
         kwargs.update({'v': dv})
 
-        q = -dm * (p.forward - p) / s
+        q = -dm * p.dt
     else:
-        q = -dm * (p.forward - 2 * p + p.backward) / (s**2)
+        q = -dm * p.dt2
 
     eqn2 = eq_kernel(model, geometry, P, r=rP, q=q, **kwargs)
 
@@ -666,8 +685,8 @@ def BornOperator(model, geometry, space_order=4, kernel='sls', time_order=2, **k
                     name='Born', **kwargs)
 
 
-kernels = {'sls': sls, 'ren': ren, 'deng_mcmechan': deng_mcmechan}
+kernels = {'sls': sls, 'kv': kv, 'maxwell': maxwell}
 stencils = {('sls', 1): sls_1st_order, ('sls', 2): sls_2nd_order,
-            ('deng_mcmechan', 1): deng_1st_order,
-            ('deng_mcmechan', 2): deng_2nd_order,
-            ('ren', 1): ren_1st_order, ('ren', 2): ren_2nd_order}
+            ('maxwell', 1): maxwell_1st_order,
+            ('maxwell', 2): maxwell_2nd_order,
+            ('kv', 1): kv_1st_order, ('kv', 2): kv_2nd_order}

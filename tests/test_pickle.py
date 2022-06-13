@@ -107,7 +107,7 @@ def test_array():
     d = Dimension(name='d')
 
     a = Array(name='a', dimensions=grid.dimensions, dtype=np.int32, halo=((1, 1), (2, 2)),
-              padding=((2, 2), (2, 2)), space='remote', scope='stack')
+              padding=((2, 2), (2, 2)), space='host', scope='stack')
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -117,7 +117,7 @@ def test_array():
     assert new_a.dimensions[1].name == 'y'
     assert new_a.halo == ((1, 1), (2, 2))
     assert new_a.padding == ((2, 2), (2, 2))
-    assert new_a.space == 'remote'
+    assert new_a.space == 'host'
     assert new_a.scope == 'stack'
 
     # Now with a pointer array

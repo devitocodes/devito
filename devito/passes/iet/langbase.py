@@ -47,48 +47,6 @@ class LangBB(object, metaclass=LangMeta):
     PointerCast = PointerCast
 
     @classmethod
-    def _map_data(cls, f):
-        if f.is_Array:
-            return f.symbolic_shape
-        else:
-            return tuple(f._C_get_field(FULL, d).size for d in f.dimensions)
-
-    @classmethod
-    def _make_symbolic_sections_from_imask(cls, f, imask):
-        datasize = cls._map_data(f)
-        if imask is None:
-            imask = [FULL]*len(datasize)
-
-        sections = []
-        for i, j in zip(imask, datasize):
-            if i is FULL:
-                start, size = 0, j
-            else:
-                try:
-                    start, size = i
-                except TypeError:
-                    start, size = i, 1
-            sections.append((start, size))
-
-        # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
-        if len(imask) < len(datasize):
-            try:
-                start, size = sections.pop(-1)
-            except IndexError:
-                start, size = (0, 1)
-            remainder_size = prod(datasize[len(imask):])
-            # The reason we may see a Wildcard is detailed in the `linearize_transfer`
-            # pass, take a look there for more info. Basically, a Wildcard here means
-            # that the symbol `start` is actually a temporary whose value already
-            # represents the unrolled size
-            if not isinstance(start, Wildcard):
-                start *= remainder_size
-            size *= remainder_size
-            sections.append((start, size))
-
-        return sections
-
-    @classmethod
     def _map_to(cls, f, imask=None, queueid=None):
         """
         Allocate and copy Function from host to device memory.
@@ -185,7 +143,7 @@ class LangTransformer(ABC):
     The constructs of the target language. To be specialized by a subclass.
     """
 
-    def __init__(self, key, sregistry, platform):
+    def __init__(self, key, sregistry, platform, compiler):
         """
         Parameters
         ----------
@@ -195,6 +153,8 @@ class LangTransformer(ABC):
             The symbol registry, to access the symbols appearing in an IET.
         platform : Platform
             The underlying platform.
+        compiler : Compiler
+            The underlying JIT compiler.
         """
         if key is not None:
             self.key = key
@@ -202,6 +162,7 @@ class LangTransformer(ABC):
             self.key = lambda i: False
         self.sregistry = sregistry
         self.platform = platform
+        self.compiler = compiler
 
     @iet_pass
     def make_parallel(self, iet):
@@ -218,7 +179,7 @@ class LangTransformer(ABC):
         return iet, {}
 
     @iet_pass
-    def initialize(self, iet):
+    def initialize(self, iet, options=None):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
@@ -249,7 +210,7 @@ class DeviceAwareMixin(object):
         return self.sregistry.deviceid
 
     @iet_pass
-    def initialize(self, iet):
+    def initialize(self, iet, options=None):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
@@ -284,6 +245,17 @@ class DeviceAwareMixin(object):
                 if isinstance(i, MPICommObject):
                     objcomm = i
                     break
+            if objcomm is None and options['mpi']:
+                # Time to inject `objcomm`. If it's not here, it simply means
+                # there's no halo exchanges in the Operator, but we now need it
+                # nonetheless to perform the rank-GPU assignment
+                for i in iet.parameters:
+                    try:
+                        objcomm = i.grid.distributor._obj_comm
+                        break
+                    except AttributeError:
+                        pass
+                assert objcomm is not None
 
             devicetype = as_list(self.lang[self.platform])
             deviceid = self.deviceid
@@ -326,7 +298,7 @@ class DeviceAwareMixin(object):
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
-            return iet, {'args': deviceid}
+            return iet, {}
 
         @_initialize.register(ThreadFunction)
         def _(iet):
@@ -356,3 +328,88 @@ class DeviceAwareMixin(object):
         buffers = [f for f in functions if f.is_Array and f._mem_mapped]
         hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
         return not (buffers and hostfuncs)
+
+
+def make_sections_from_imask(f, imask=None):
+    if imask is None:
+        imask = [FULL]*f.ndim
+
+    datashape = infer_transfer_datashape(f, imask)
+
+    sections = []
+    for i, j in zip(imask, datashape):
+        if i is FULL:
+            start, size = 0, j
+        else:
+            try:
+                start, size = i
+            except TypeError:
+                start, size = i, 1
+        sections.append((start, size))
+
+    # Unroll (or "flatten") the remaining Dimensions not captured by `imask`
+    if len(imask) < len(datashape):
+        try:
+            start, size = sections.pop(-1)
+        except IndexError:
+            start, size = (0, 1)
+        remainder_size = prod(datashape[len(imask):])
+        # The reason we may see a Wildcard is detailed in the `linearize_transfer`
+        # pass, take a look there for more info. Basically, a Wildcard here means
+        # that the symbol `start` is actually a temporary whose value already
+        # represents the unrolled size
+        if not isinstance(start, Wildcard):
+            start *= remainder_size
+        size *= remainder_size
+        sections.append((start, size))
+
+    return sections
+
+
+@singledispatch
+def infer_transfer_datashape(f, *args):
+    """
+    Return the best shape to efficiently transfer `f` between the host
+    and a device.
+
+    First of all, we observe that the minimum shape is not necessarily the
+    best shape, because data contiguity plays a role.
+
+    So even in the simplest case, we transfer *both* the DOMAIN and the
+    HALO region. Consider the following:
+
+      .. code-block:: C
+
+        for (int x = x_m; x <= x_M; x += 1)
+          for (int y = y_m; y <= y_M; y += 1)
+            usaveb0[0][x + 1][y + 1] = u[t1][x + 1][y + 1];
+
+    Here the minimum shape to transfer `usaveb0` would be
+    `(1, x_M - x_m + 1, y_M - y_m + 1) == (1, x_size, y_size)`, but
+    we would rather transfer the contiguous chunk that also includes the
+    HALO region, namely `(1, x_size + 2, y_size + 2)`.
+
+    Likewise, in the case of SubDomains/SubDimensions:
+
+      .. code-block:: C
+
+        for (int xi = x_m + xi_ltkn; xi <= x_M - xi_rtkn; xi += 1)
+          for (int yi = y_m + yi_ltkn; yi <= y_M - yi_rtkn; yi += 1)
+            usaveb0[0][xi + 1][yi + 1] = u[t1][xi + 1][yi + 1];
+
+    We will transfer `(1, x_size + 2, y_size + 2)`.
+
+    In the future, this behaviour may change, or be made more sophisticated.
+    Note that any departure from this simple heuristic will require non trivial
+    additions to the compilation toolchain. For example, take the SubDomain
+    example above. If we wanted to transfer the minimum shape, that is
+    `(1, x_M - x_m - xi_ltkn - xi_rtkn + 1, y_M - y_m - yi_ltkn - yi_rtkn + 1)`,
+    we would need to track both the iteration space of the computation and
+    the write-to offsets (e.g., `xi + 1` and `yi + 1` in `usaveb0[0][xi + 1][yi + 1]`)
+    because clearly we would need to transfer the right amount starting at the
+    right offset.
+
+    Finally, we use the single-dispatch paradigm so that this behaviour can
+    be customized via external plugins.
+    """
+    return f.symbolic_shape

@@ -1,7 +1,7 @@
 from functools import partial
 from hashlib import sha1
 from os import environ, path
-from distutils import version
+from packaging.version import Version
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
 import platform
 import warnings
@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
-                         check_cuda_runtime)
+                         check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -35,9 +35,9 @@ def sniff_compiler_version(cc):
         res = run([cc, "--version"], stdout=PIPE, stderr=DEVNULL)
         ver = res.stdout.decode("utf-8")
         if not ver:
-            return version.LooseVersion("unknown")
+            return Version("0")
     except UnicodeDecodeError:
-        return version.LooseVersion("unknown")
+        return Version("0")
     except FileNotFoundError:
         error("The `%s` compiler isn't available on this system" % cc)
         sys.exit(1)
@@ -48,6 +48,8 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("Apple LLVM"):
         compiler = "clang"
+    elif ver.startswith("Homebrew clang"):
+        compiler = "clang"
     elif ver.startswith("icc"):
         compiler = "icc"
     elif ver.startswith("pgcc"):
@@ -55,7 +57,7 @@ def sniff_compiler_version(cc):
     else:
         compiler = "unknown"
 
-    ver = version.LooseVersion("unknown")
+    ver = Version("0")
     if compiler in ["gcc", "icc"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
@@ -67,14 +69,14 @@ def sniff_compiler_version(cc):
                 ver = res.stdout.decode("utf-8")
                 ver = '.'.join(ver.strip().split('.')[:3])
                 if not ver:
-                    return version.LooseVersion("unknown")
-            ver = version.StrictVersion(ver)
+                    return Version("0")
+            ver = Version(ver)
         except UnicodeDecodeError:
             pass
 
     # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
     try:
-        ver = version.StrictVersion(float(ver))
+        ver = Version(float(ver))
     except TypeError:
         pass
 
@@ -175,9 +177,9 @@ class Compiler(GCCToolchain):
 
         if self.suffix is not None:
             try:
-                self.version = version.StrictVersion(str(float(self.suffix)))
+                self.version = Version(str(float(self.suffix)))
             except (TypeError, ValueError):
-                self.version = version.LooseVersion(self.suffix)
+                self.version = Version(self.suffix)
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
@@ -363,7 +365,7 @@ class GNUCompiler(Compiler):
 
         language = kwargs.pop('language', configuration['language'])
         try:
-            if self.version >= version.StrictVersion("4.9.0"):
+            if self.version >= Version("4.9.0"):
                 # Append the openmp flag regardless of the `language` value,
                 # since GCC4.9 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
@@ -410,9 +412,13 @@ class ClangCompiler(Compiler):
                 self.ldflags += ['-march=%s' % platform.march]
         elif platform is M1:
             # NOTE:
-            # -march=native unsupported
-            # openmp unusable
-            pass
+            # Apple M1 supports OpenMP through Apple's LLVM compiler.
+            # The compiler can be installed with Homebrew or can be built from scratch.
+            # Check if installed and set compiler flags accordingly
+            llvmm1 = get_m1_llvm_path(language)
+            if llvmm1 and language == 'openmp':
+                self.ldflags += ['-mcpu=apple-m1', '-fopenmp', '-L%s' % llvmm1['libs']]
+                self.cflags += ['-Xclang', '-I%s' % llvmm1['include']]
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
@@ -481,7 +487,13 @@ class PGICompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-        self.cflags += ['-std=c++11', '-acc:gpu', '-gpu=pinned', '-mp']
+
+        self.cflags += ['-std=c++11', '-mp']
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        if platform is NVIDIAX:
+            self.cflags += ['-acc:gpu', '-gpu=pinned']
+
         if not configuration['safe-math']:
             self.cflags.append('-fast')
         # Default PGI compile for a target is GPU and single threaded host.
@@ -512,7 +524,7 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
+        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC', '-lineinfo']
 
         self.src_ext = 'cu'
 
@@ -544,7 +556,7 @@ class IntelCompiler(Compiler):
             self.cflags += ["-qopt-zmm-usage=high"]
 
         try:
-            if self.version >= version.StrictVersion("15.0.0"):
+            if self.version >= Version("15.0.0"):
                 # Append the OpenMP flag regardless of configuration['language'],
                 # since icc15 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
@@ -612,7 +624,7 @@ class CustomCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
-            obj = super().__new__(cls, *args, **kwargs)
+            obj = super().__new__(cls)
             obj.__init__(*args, **kwargs)
             return obj
         elif platform is M1:

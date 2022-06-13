@@ -1,7 +1,7 @@
 import sympy as sp
 
 from devito import (Eq, Operator, VectorTimeFunction, TensorTimeFunction,
-                    div, grad, diag)
+                    div, grad, diag, solve)
 from examples.seismic.elastic import src_rec
 
 
@@ -24,7 +24,6 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     l, qp, mu, qs, b, damp = \
         model.lam, model.qp, model.mu, model.qs, model.b, model.damp
-    s = model.grid.stepping_dim.spacing
 
     f0 = geometry._f0
     t_s = (sp.sqrt(1.+1./qp**2)-1./qp)/f0
@@ -46,16 +45,21 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                            space_order=space_order, time_order=1)
 
     # Particle velocity
-    u_v = Eq(v.forward, damp * (v + s*b*div(tau)))
-    symm_grad = grad(v.forward) + grad(v.forward).T
-    # Stress equations:
-    u_t = Eq(tau.forward, damp * (s*r.forward + tau +
-                                  s * (l * t_ep / t_s * diag(div(v.forward)) +
-                                       mu * t_es / t_s * symm_grad)))
+    pde_v = v.dt - b * div(tau)
+    u_v = Eq(v.forward, model.damp * solve(pde_v, v.forward))
+    # Strain
+    e = grad(v.forward) + grad(v.forward).T
+
+    # Stress equations
+    pde_tau = tau.dt - r.forward - l * t_ep / t_s * diag(div(v.forward)) - \
+        mu * t_es / t_s * e
+    u_t = Eq(tau.forward, model.damp * solve(pde_tau, tau.forward))
 
     # Memory variable equations:
-    u_r = Eq(r.forward, damp * (r - s / t_s * (r + mu * (t_es/t_s-1) * symm_grad +
-                                               l * (t_ep/t_s-1) * diag(div(v.forward)))))
+    pde_r = r.dt + 1 / t_s * (r + l * (t_ep/t_s-1) * diag(div(v.forward)) +
+                              mu * (t_es / t_s - 1) * e)
+    u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
+    # Point source
     src_rec_expr = src_rec(v, tau, model, geometry)
 
     # Substitute spacing terms to reduce flops

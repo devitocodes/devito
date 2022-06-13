@@ -6,10 +6,11 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, Operator, dimensions, info, cos)
+                    Dimension, SubDimension, Eq, Inc, ReduceMax, Operator,
+                    configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
-from devito.passes.iet.languages.openmp import OmpRegion
+from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
 
@@ -192,13 +193,41 @@ def test_cache_blocking_structure_optrelax():
     assert iters[1].dim.is_Block
 
 
+@pytest.mark.parametrize('opt, expected', [('noop', ('ijk', 'ikl')),
+                         (('advanced', {'blockinner': True, 'blockrelax': True}),
+                         ('i0_blk0ijk', 'i0_blk0ikl'))])
+def test_cache_blocking_structure_optrelax_linalg(opt, expected):
+    mat_shape = (4, 4)
+
+    i, j, k, l = dimensions('i j k l')
+    A = Function(name='A', shape=mat_shape, dimensions=(i, j))
+    B = Function(name='B', shape=mat_shape, dimensions=(j, k))
+    C = Function(name='C', shape=mat_shape, dimensions=(j, k))
+    D = Function(name='D', shape=mat_shape, dimensions=(i, k))
+    E = Function(name='E', shape=mat_shape, dimensions=(k, l))
+    F = Function(name='F', shape=mat_shape, dimensions=(i, l))
+
+    eqs = [Inc(D, A*B + A*C), Inc(F, D*E)]
+
+    A.data[:] = 1
+    B.data[:] = 1
+    C.data[:] = 1
+    E.data[:] = 1
+
+    op0 = Operator(eqs, opt=opt)
+    op0.apply()
+    assert_structure(op0, expected)
+    assert np.linalg.norm(D.data) == 32.0
+    assert np.linalg.norm(F.data) == 128.0
+
+
 @pytest.mark.parametrize('par_tile,expected', [
     (True, ((16, 16, 16), (16, 16, 16))),
-    ((32, 4, 4), ((32, 4, 4), (32, 4, 4))),
-    (((16, 4), (16,)), ((16, 4, 4), (16, 16, 16))),
-    (((32, 4, 4), 1), ((32, 4, 4), (32, 4, 4))),
-    (((32, 4, 4), 1, 'tag0'), ((32, 4, 4), (32, 4, 4))),
-    ((((32, 4, 4), 1, 'tag0'), ((32, 4, 4), 2)), ((32, 4, 4), (32, 4, 4))),
+    ((32, 4, 4), ((4, 4, 32), (4, 4, 32))),
+    (((16, 4), (16,)), ((4, 4, 16), (16, 16, 16))),
+    (((32, 4, 4), 1), ((4, 4, 32), (4, 4, 32))),
+    (((32, 4, 4), 1, 'tag0'), ((4, 4, 32), (4, 4, 32))),
+    ((((32, 4, 8), 1, 'tag0'), ((32, 8, 4), 2)), ((8, 4, 32), (4, 8, 32))),
 ])
 def test_cache_blocking_structure_optpartile(par_tile, expected):
     grid = Grid(shape=(8, 8, 8))
@@ -377,7 +406,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
-    assert op2.parameters[6] is trees[0].root.step
+    assert op2.parameters[4] is trees[0].root.step
     # No blocking expected in `op3` because the blocking heuristics prevent it
     # when there would be only one TILABLE Dimension
     _, _ = assert_blocking(op3, {})
@@ -602,9 +631,9 @@ class TestNodeParallelism(object):
 
     @pytest.mark.parametrize('so', [0, 1, 2])
     @pytest.mark.parametrize('dim', [0, 1, 2])
-    def test_array_reduction(self, so, dim):
+    def test_array_sum_reduction(self, so, dim):
         """
-        Test generation of OpenMP reduction clauses involving Function's.
+        Test generation of OpenMP sum-reduction clauses involving Function's.
         """
         grid = Grid(shape=(3, 3, 3))
         d = grid.dimensions[dim]
@@ -622,8 +651,11 @@ class TestNodeParallelism(object):
             # `z` Iteration gets parallelized, nothing is collapsed, hence no
             # reduction is required
             assert "reduction" not in parallelized.pragmas[0].value
-        else:
+        elif Ompizer._support_array_reduction(configuration['compiler']):
             assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
+        else:
+            # E.g. old GCC's
+            assert "atomic update" in str(iterations[-1])
 
         try:
             op(time_M=1)
@@ -634,6 +666,33 @@ class TestNodeParallelism(object):
             return
 
         assert np.allclose(f.data, 18)
+
+    def test_array_max_reduction(self):
+        """
+        Test generation of OpenMP sum-reduction clauses involving Function's.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        i = Dimension(name='i')
+
+        f = Function(name='f', grid=grid)
+        n = Function(name='n', grid=grid, shape=(1,), dimensions=(i,))
+
+        f.data[:] = np.arange(0, 27).reshape((3, 3, 3))
+
+        eqn = ReduceMax(n[0], f)
+
+        if Ompizer._support_array_reduction(configuration['compiler']):
+            op = Operator(eqn, opt=('advanced', {'openmp': True}))
+
+            iterations = FindNodes(Iteration).visit(op)
+            assert "reduction(max:n[0])" in iterations[0].pragmas[0].value
+
+            op()
+            assert n.data[0] == 26
+        else:
+            # Unsupported min/max reductions with obsolete compilers
+            with pytest.raises(NotImplementedError):
+                Operator(eqn, opt=('advanced', {'openmp': True}))
 
     def test_incs_no_atomic(self):
         """
@@ -667,7 +726,7 @@ class TestNodeParallelism(object):
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],
-         2, [6, 0, 0]),
+         None, [6, 0, 0]),
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Eq(h1[0, y], y, implicit_dims=(t, x, y))'],  # 1695
          2, [0, 1, 2]),
@@ -727,9 +786,16 @@ class TestNodeParallelism(object):
         op = Operator(exprs, opt=('advanced', {'openmp': True}))
 
         iterations = FindNodes(Iteration).visit(op)
-        assert 'omp for collapse' in iterations[0].pragmas[0].value
-        if simd_level:
-            assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        try:
+            assert 'omp for collapse' in iterations[0].pragmas[0].value
+            if simd_level:
+                assert 'omp simd' in iterations[simd_level].pragmas[0].value
+        except:
+            # E.g. gcc-5 doesn't support array reductions, so the compiler will
+            # generate different legal code
+            assert not Ompizer._support_array_reduction(configuration['compiler'])
+            assert any('omp for collapse' in i.pragmas[0].value
+                       for i in iterations if i.pragmas)
 
         op.apply()
         assert (h1.data == expected).all()

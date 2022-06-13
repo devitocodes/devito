@@ -20,12 +20,12 @@ from devito.tools import Pickable, as_list, as_tuple, dtype_to_cstr, filter_orde
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
-from devito.types.misc import VolatileInt, c_volatile_int_p
+from devito.types.misc import Pointer, VolatileInt, c_volatile_int_p
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'WaitLock', 'WithLock', 'FetchUpdate',
            'FetchPrefetch', 'PrefetchUpdate', 'WaitPrefetch', 'Delete', 'PThreadArray',
-           'SharedData', 'NPThreads', 'DeviceRM', 'normalize_syncs']
+           'SharedData', 'NPThreads', 'DeviceRM', 'DevicePointer', 'normalize_syncs']
 
 
 class NThreadsBase(Scalar):
@@ -248,6 +248,7 @@ class SyncOp(sympy.Expr, Pickable):
 
     is_WaitLock = False
     is_WithLock = False
+    is_Fetch = False
 
     def __new__(cls, handle):
         obj = sympy.Expr.__new__(cls, handle)
@@ -340,15 +341,15 @@ class WithLock(SyncLock):
 
 
 class FetchPrefetch(SyncData):
-    pass
+    is_Fetch = True
 
 
 class FetchUpdate(SyncData):
-    pass
+    is_Fetch = True
 
 
 class PrefetchUpdate(SyncData):
-    pass
+    is_Fetch = True
 
 
 class WaitPrefetch(SyncData):
@@ -421,3 +422,22 @@ class DeviceRM(DeviceSymbol):
             return {self.name: int(bool(kwargs[self.name]))}
         except KeyError:
             return self._arg_defaults()
+
+
+class DevicePointer(Pointer):
+
+    def __init_finalize__(self, *args, mapped=None, **kwargs):
+        self._mapped = mapped
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def mapped(self):
+        return self._mapped
+
+    @property
+    def _C_typename(self):
+        return self.mapped._C_typename
+
+    # Pickling support
+    _pickle_kwargs = Symbol._pickle_kwargs + ['mapped']

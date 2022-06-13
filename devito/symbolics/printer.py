@@ -5,7 +5,8 @@ Utilities to turn SymPy objects into C strings.
 import numpy as np
 
 from mpmath.libmp import prec_to_dps, to_str
-from sympy.printing.precedence import precedence
+from sympy.logic.boolalg import BooleanFunction
+from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
 
@@ -25,6 +26,11 @@ class CodePrinter(C99CodePrinter):
     def __init__(self, dtype=np.float32, settings={}):
         self.dtype = dtype
         C99CodePrinter.__init__(self, settings)
+
+    def parenthesize(self, item, level, strict=False):
+        if isinstance(item, BooleanFunction):
+            return "(%s)" % self._print(item)
+        return super().parenthesize(item, level, strict=strict)
 
     def _print_Function(self, expr):
         # There exist no unknown Functions
@@ -122,7 +128,7 @@ class CodePrinter(C99CodePrinter):
 
     def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
-        return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
+        return "%s->%s(%s)" % (expr.pointer, expr.call, ', '.join(indices))
 
     def _print_FieldFromPointer(self, expr):
         return "%s->%s" % (expr.pointer, expr.field)
@@ -137,13 +143,28 @@ class CodePrinter(C99CodePrinter):
         return "%s%s" % (expr.base, ''.join('[%s]' % self._print(i) for i in expr.index))
 
     def _print_IntDiv(self, expr):
+        lhs = self._print(expr.lhs)
+        if not expr.lhs.is_Atom:
+            lhs = '(%s)' % (lhs)
+        rhs = self._print(expr.rhs)
+        PREC = precedence(expr)
+        return self.parenthesize("%s / %s" % (lhs, rhs), PREC)
+
+    def _print_InlineIf(self, expr):
+        cond = self._print(expr.cond)
+        true_expr = self._print(expr.true_expr)
+        false_expr = self._print(expr.false_expr)
+        PREC = precedence(expr)
+        return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
+
+    def _print_UnaryOp(self, expr):
         return expr.__str__()
 
-    _print_UnaryOp = _print_IntDiv
-    _print_DefFunction = _print_IntDiv
-    _print_InlineIf = _print_IntDiv
-    _print_MacroArgument = _print_IntDiv
-    _print_IndexedData = _print_IntDiv
+    _print_DefFunction = _print_UnaryOp
+    _print_MacroArgument = _print_UnaryOp
+    _print_IndexedData = _print_UnaryOp
+    _print_IndexSum = _print_UnaryOp
+    _print_Keyword = _print_UnaryOp
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
@@ -153,6 +174,11 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Basic(self, expr):
         return str(expr)
+
+
+# Always parenthesize IntDiv and InlineIf within expressions
+PRECEDENCE_VALUES['IntDiv'] = 1
+PRECEDENCE_VALUES['InlineIf'] = 1
 
 
 def ccode(expr, dtype=np.float32, **settings):

@@ -3,13 +3,14 @@
 # Default directory where IPython stores config files
 IPYTHONDIR=~/.ipython
 
+# Try to stop any cluster that may be active from previous (failed) runs
+ipcluster stop --profile=mpi || echo "No active profile_mpi"
+
+# Remove any existing configuration
+rm $IPYTHONDIR/profile_mpi/ipcluster_config.py
+
 # Create a new profile, called "mpi"
 ipython profile create --parallel --profile=mpi
-
-# Add the following line as per instructions from
-# https://ipyparallel.readthedocs.io/en/latest/process.html#using-ipcluster-in-mpiexec-mpirun-mode 
-# This is instructing `ipcluster` to use the MPI launchers
-echo "c.IPClusterEngines.engine_launcher_class = 'MPIEngineSetLauncher'" >> $IPYTHONDIR/profile_mpi/ipcluster_config.py
 
 ver=$(mpiexec --version)
 if [[ $ver == *"open-mpi"* ]]; then

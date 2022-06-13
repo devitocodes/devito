@@ -37,12 +37,12 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [
-    ('sls', 2, 684.385, 1e-2),
+    ('sls', 2, 685.718, 1e-2),
     ('sls', 1, 42.243, 1e-2),
-    ('ren', 2, 677.673, 1e-2),
-    ('ren', 1, 40.489, 1e-2),
-    ('deng_mcmechan', 2, 673.041, 1e-2),
-    ('deng_mcmechan', 1, 41.598, 1e-2),
+    ('kv', 2, 678.033, 1e-2),
+    ('kv', 1, 40.489, 1e-2),
+    ('maxwell', 2, 673.316, 1e-2),
+    ('maxwell', 1, 38.253, 1e-2),
 ])
 def test_viscoacoustic(kernel, time_order, normrec, atol):
     _, _, _, [rec, _, _] = run(kernel=kernel, time_order=time_order)
@@ -50,7 +50,7 @@ def test_viscoacoustic(kernel, time_order, normrec, atol):
 
 
 @pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
-@pytest.mark.parametrize('kernel', ['sls', 'ren', 'deng_mcmechan'])
+@pytest.mark.parametrize('kernel', ['sls', 'kv', 'maxwell'])
 @pytest.mark.parametrize('time_order', [1, 2])
 def test_viscoacoustic_stability(shape, kernel, time_order):
     spacing = tuple([20]*len(shape))
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     description = ("Example script for a set of viscoacoustic operators.")
     parser = seismic_args(description)
     parser.add_argument("-k", dest="kernel", default='sls',
-                        choices=['sls', 'ren', 'deng_mcmechan'],
+                        choices=['sls', 'kv', 'maxwell'],
                         help="Choice of finite-difference kernel")
     parser.add_argument("-to", "--time_order", default=2,
                         type=int, help="Time order of the equation")

@@ -4,8 +4,8 @@ from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
-                                    extract_increments, factorize, fission, fuse,
-                                    optimize_pows, optimize_msds)
+                                    factorize, fission, fuse, optimize_pows,
+                                    optimize_hyperplanes)
 from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
                                hoist_prodders, relax_incr_dimensions)
 from devito.tools import timed_pass
@@ -143,6 +143,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
@@ -150,9 +151,9 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Target.Parizer(sregistry, options, platform)
+            parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
             parizer.make_parallel(graph)
-            parizer.initialize(graph)
+            parizer.initialize(graph, options=options)
 
         # Symbol definitions
         cls._Target.DataManager(sregistry).process(graph)
@@ -176,9 +177,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Optimize MultiSubDomains
-        clusters = optimize_msds(clusters)
-
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 
@@ -191,7 +189,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
             clusters = blocking(clusters, sregistry, options)
 
         # Reduce flops
-        clusters = extract_increments(clusters, sregistry)
         clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters)
         clusters = optimize_pows(clusters)
@@ -213,10 +210,11 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
-        avoid_denormals(graph)
+        avoid_denormals(graph, platform=platform)
 
         # Distributed-memory parallelism
         mpiize(graph, sregistry=sregistry, options=options)
@@ -225,10 +223,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph)
 
         # Parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
-        parizer.initialize(graph)
+        parizer.initialize(graph, options=options)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -296,6 +294,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
             'cse': lambda i: cse(i, sregistry),
             'opt-pows': optimize_pows,
+            'opt-hyperplanes': optimize_hyperplanes,
             'topofuse': lambda i: fuse(i, toposort=True, options=options)
         }
 
@@ -303,9 +302,10 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     def _make_iet_passes_mapper(cls, **kwargs):
         options = kwargs['options']
         platform = kwargs['platform']
+        compiler = kwargs['compiler']
         sregistry = kwargs['sregistry']
 
-        parizer = cls._Target.Parizer(sregistry, options, platform)
+        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
 
         return {
             'denormals': avoid_denormals,
@@ -317,7 +317,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
                                  sregistry=sregistry),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
-            'init': parizer.initialize
+            'init': partial(parizer.initialize, options=options)
         }
 
     _known_passes = (
@@ -327,7 +327,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         'buffering',
         # Clusters
         'blocking', 'topofuse', 'fission', 'fuse', 'factorize', 'cire-sops',
-        'cse', 'lift', 'opt-pows',
+        'cse', 'lift', 'opt-pows', 'opt-hyperplanes',
         # IET
         'denormals', 'openmp', 'mpi', 'linearize', 'simd', 'prodders',
     )

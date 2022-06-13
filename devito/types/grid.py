@@ -7,6 +7,7 @@ from sympy import prod
 from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
+from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
@@ -14,7 +15,6 @@ from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
-from devito.types.equation import Eq
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -542,12 +542,32 @@ class MultiSubDimension(SubDimension):
     A special SubDimension for graceful lowering of MultiSubDomains.
     """
 
-    def __init_finalize__(self, name, parent):
+    def __init_finalize__(self, name, parent, msd):
+        # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
+        # This creates a circular pattern as the `msd` itself carries references to
+        # its MultiSubDimensions. This is currently necessary because during compilation
+        # we drop the MultiSubDomain early, but when the MultiSubDimensions are processed
+        # we still need it to create the implicit equations. Untangling this is
+        # definitely possible, but not straightforward
+        self.msd = msd
+
         lst, rst = self._symbolic_thickness(name)
         left = parent.symbolic_min + lst
         right = parent.symbolic_max - rst
 
         super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDimensions to ever hash the same, since
+        # a MultiSubDimension carries a reference to a MultiSubDomain, which is unique
+        return id(self)
+
+    @cached_property
+    def bound_symbols(self):
+        # Unlike a SubDimension, a MultiSubDimension does *not* bind its thickness,
+        # which is rather bound by an Operation (which can alter its value
+        # dynamically so as to implement a MultiSubDomain)
+        return self.parent.bound_symbols
 
 
 class MultiSubDomain(AbstractSubDomain):
@@ -555,6 +575,11 @@ class MultiSubDomain(AbstractSubDomain):
     """
     Abstract base class for types representing groups of SubDomains.
     """
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDomains to ever hash the same since
+        # they are by construction unique and different from each other
+        return id(self)
 
     @classmethod
     def _bounds_glb_to_loc(cls, dec, m, M):
@@ -566,7 +591,7 @@ class MultiSubDomain(AbstractSubDomain):
         # of an MPI-decomposed local subdomain to 0 iterations, meaning that after
         # domain decomposition and for the given thicknesses there are 0 iterations
         # left to execute. However, due to issue #1766, we only have one choice, or
-        # SubDomainSets might break on GPUs
+        # MultiSubDomains might break on GPUs
         NOITER = (dec.loc_abs_max, 1)
 
         bounds_m = np.zeros(m.shape, dtype=m.dtype)
@@ -600,19 +625,6 @@ class MultiSubDomain(AbstractSubDomain):
                 bounds_M[j] = dec.index_glb_to_loc(M[j], RIGHT)
 
         return bounds_m, bounds_M
-
-    def _create_implicit_exprs(self, grid):
-        """
-        Must be overridden by subclasses.
-        """
-        raise NotImplementedError
-
-    @property
-    def implicit_dimensions(self):
-        """
-        The Dimensions implicitly defined by the MultiSubDomain.
-        """
-        return ()
 
 
 class SubDomainSet(MultiSubDomain):
@@ -689,25 +701,26 @@ class SubDomainSet(MultiSubDomain):
           [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=int32)
     """
 
-    implicit_dimension = None
-    """The implicit dimension of the SubDomainSet."""
-
     def __init__(self, **kwargs):
         super().__init__()
-
-        if self.implicit_dimension is None:
-            self.implicit_dimension = Dimension(name='n')
 
         self._n_domains = kwargs.get('N', 1)
         self._global_bounds = kwargs.get('bounds', None)
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+        try:
+            self.implicit_dimension
+            warning("`implicit_dimension` is deprecated. You may safely remove it "
+                    "from the class definition")
+        except AttributeError:
+            pass
+
+    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
+        self._grid = grid
         self._dtype = grid.dtype
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si_%s' % (d.name, self.implicit_dimension.name), d)
-            for d in grid.dimensions
+            MultiSubDimension('%si' % d.name, d, self) for d in grid.dimensions
         )
 
         # Compute the SubDomainSet shapes
@@ -739,31 +752,35 @@ class SubDomainSet(MultiSubDomain):
             # equivalent.
             self._local_bounds = self._global_bounds
 
-    def _create_implicit_exprs(self, grid):
-        if not len(self._local_bounds) == 2*len(self.dimensions):
+        # Sanity check
+        if len(self._local_bounds) != 2*len(self.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
-        n_domains = self.n_domains
-        i_dim = self.implicit_dimension
-        dat = []
-        # Organise the data contained in 'bounds' into a form such that the
-        # associated implicit equations can easily be created.
+
+        # Associate the `_local_bounds` to suitable symbolic objects that the
+        # compiler can use to generate code
+        n = counter - npresets
+        assert n >= 0
+        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+        functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
             d = self.dimensions[index]
             if j % 2 == 0:
-                fname = d.min_name
+                fname = "%s_%s" % (self.name, d.min_name)
             else:
-                fname = d.max_name
-            func = Function(name=fname, shape=(n_domains, ), dimensions=(i_dim, ),
-                            grid=grid, dtype=np.int32)
+                fname = "%s_%s" % (self.name, d.max_name)
+            f = Function(name=fname, grid=self._grid, shape=(self._n_domains,),
+                         dimensions=(i_dim,), dtype=np.int32)
+
             # Check if shorthand notation has been provided:
             if isinstance(self._local_bounds[j], int):
-                bounds = np.full((n_domains,), self._local_bounds[j], dtype=np.int32)
-                func.data[:] = bounds
+                f.data[:] = np.full((self._n_domains,), self._local_bounds[j],
+                                    dtype=np.int32)
             else:
-                func.data[:] = self._local_bounds[j]
-            dat.append(Eq(d.thickness[j % 2][0], func[i_dim]))
-        return as_tuple(dat)
+                f.data[:] = self._local_bounds[j]
+
+            functions.append(f)
+        self._functions = as_tuple(functions)
 
     @property
     def n_domains(self):
@@ -772,10 +789,6 @@ class SubDomainSet(MultiSubDomain):
     @property
     def bounds(self):
         return self._local_bounds
-
-    @property
-    def implicit_dimensions(self):
-        return (self.implicit_dimension,)
 
 
 # Preset SubDomains
@@ -803,3 +816,7 @@ class Interior(SubDomain):
 
     def define(self, dimensions):
         return {d: ('middle', 1, 1) for d in dimensions}
+
+
+preset_subdomains = [Domain, Interior]
+npresets = len(preset_subdomains)

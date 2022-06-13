@@ -4,7 +4,7 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
-from sympy import Le, Gt, Mul, true
+from sympy import Ge, Gt, Le, Lt, Mul, true
 from sympy.core.operations import LatticeOp
 
 from devito.ir.support.space import Forward, IterationDirection
@@ -12,7 +12,7 @@ from devito.symbolics import CondEq, CondNe, FLOAT
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'transform_guard']
+           'BaseGuardBoundNext', 'GuardOverflow', 'transform_guard']
 
 
 class Guard(object):
@@ -27,7 +27,7 @@ class Guard(object):
 
     @property
     def negated(self):
-        return negations[self.__class__](*self._args_rebuild)
+        return negations[self.__class__](*self._args_rebuild, evaluate=False)
 
 
 # *** GuardFactor
@@ -175,6 +175,26 @@ class GuardBoundNextGt(BaseGuardBoundNext, Gt):
 GuardBoundNext = GuardBoundNextLe
 
 
+class BaseGuardOverflow(Guard):
+
+    """
+    A guard for buffer overflow.
+    """
+
+    pass
+
+
+class GuardOverflowGe(BaseGuardOverflow, Ge):
+    pass
+
+
+class GuardOverflowLt(BaseGuardOverflow, Lt):
+    pass
+
+
+GuardOverflow = GuardOverflowGe
+
+
 def transform_guard(expr, guard_type, callback):
     """
     Transform the components of a guard according to `callback`.
@@ -194,5 +214,7 @@ negations = {
     GuardBoundLe: GuardBoundGt,
     GuardBoundGt: GuardBoundLe,
     GuardBoundNextLe: GuardBoundNextGt,
-    GuardBoundNextGt: GuardBoundNextLe
+    GuardBoundNextGt: GuardBoundNextLe,
+    GuardOverflowGe: GuardOverflowLt,
+    GuardOverflowLt: GuardOverflowGe
 }

@@ -100,8 +100,6 @@ class IterationInstance(LabeledVector):
                 retval.append(dims.pop())
             elif isinstance(i, Dimension):
                 retval.append(i)
-            elif q_constant(i):
-                retval.append(fi)
             else:
                 retval.append(None)
         return DimensionTuple(*retval, getters=self.findices)
@@ -177,7 +175,7 @@ class TimedAccess(IterationInstance):
     on the values of the index functions and the access mode (read, write).
     """
 
-    _modes = ('R', 'W', 'RI', 'WI')
+    _modes = ('R', 'W', 'RR', 'WR')
 
     def __new__(cls, access, mode, timestamp, ispace=None):
         assert mode in cls._modes
@@ -231,23 +229,23 @@ class TimedAccess(IterationInstance):
 
     @property
     def is_read(self):
-        return self.mode in ['R', 'RI']
+        return self.mode in ['R', 'RR']
 
     @property
     def is_write(self):
-        return self.mode in ['W', 'WI']
+        return self.mode in ['W', 'WR']
 
     @property
-    def is_read_increment(self):
-        return self.mode == 'RI'
+    def is_read_reduction(self):
+        return self.mode == 'RR'
 
     @property
-    def is_write_increment(self):
-        return self.mode == 'WI'
+    def is_write_reduction(self):
+        return self.mode == 'WR'
 
     @property
-    def is_increment(self):
-        return self.is_read_increment or self.is_write_increment
+    def is_reduction(self):
+        return self.is_read_reduction or self.is_write_reduction
 
     @property
     def is_local(self):
@@ -262,10 +260,14 @@ class TimedAccess(IterationInstance):
         # space Dimensions
         positions = []
         for d in self.aindices:
-            for n, i in enumerate(self.intervals):
-                if i.dim._defines & d._defines:
-                    positions.append(n)
-                    break
+            try:
+                for n, i in enumerate(self.intervals):
+                    if i.dim._defines & d._defines:
+                        positions.append(n)
+                        break
+            except AttributeError:
+                # `d is None` due to e.g. constant access
+                continue
         return positions == sorted(positions)
 
     def __lt__(self, other):
@@ -494,12 +496,12 @@ class Dependence(object):
 
     @cached_property
     def is_iaw(self):
-        """Is it an increment-after-write dependence ?"""
-        return self.source.is_write and self.sink.is_increment
+        """Is it an reduction-after-write dependence ?"""
+        return self.source.is_write and self.sink.is_reduction
 
     @cached_property
-    def is_increment(self):
-        return self.source.is_increment or self.sink.is_increment
+    def is_reduction(self):
+        return self.source.is_reduction or self.sink.is_reduction
 
     @cached_property
     def is_regular(self):
@@ -549,6 +551,15 @@ class Dependence(object):
         return self.function.is_Symbol
 
     @memoized_meth
+    def is_const(self, dim):
+        """
+        True if a constant dependence, that is no Dimensions involved, False otherwise.
+        """
+        return (self.source.aindices[dim] is None and
+                self.sink.aindices[dim] is None and
+                self.distance_mapper[dim] == 0)
+
+    @memoized_meth
     def is_carried(self, dim=None):
         """Return True if definitely a dimension-carried dependence, False otherwise."""
         try:
@@ -566,7 +577,7 @@ class Dependence(object):
         Return True if ``dim`` may represent a reduction dimension for
         ``self``, False otherwise.
         """
-        return (self.is_increment and
+        return (self.is_reduction and
                 self.is_regular and
                 not (dim._defines & self._defined_findices))
 
@@ -623,9 +634,10 @@ class Dependence(object):
         cause the access of the same memory location, False otherwise.
         """
         for d in self.findices:
-            if (d._defines & set(as_tuple(dims)) and
-                    any(i.is_NonlinearDerived for i in d._defines)):
-                return True
+            if d._defines & set(as_tuple(dims)):
+                if any(i.is_NonlinearDerived for i in d._defines) or \
+                   self.is_const(d):
+                    return True
         return False
 
 
@@ -645,9 +657,9 @@ class DependenceGroup(set):
         return len(self) == 0
 
     @cached_property
-    def increment(self):
-        """Return the increment-induced dependences."""
-        return DependenceGroup(i for i in self if i.is_increment)
+    def reduction(self):
+        """Return the reduction-induced dependences."""
+        return DependenceGroup(i for i in self if i.is_reduction)
 
     def carried(self, dim=None):
         """Return the dimension-carried dependences."""
@@ -695,22 +707,22 @@ class Scope(object):
             # Reads
             for j in retrieve_terminals(e.rhs):
                 v = self.reads.setdefault(j.function, [])
-                mode = 'RI' if e.is_Increment and j.function is e.lhs.function else 'R'
+                mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace))
 
             # Write
             if q_terminal(e.lhs):
                 v = self.writes.setdefault(e.lhs.function, [])
-                mode = 'WI' if e.is_Increment else 'W'
+                mode = 'WR' if e.is_Reduction else 'W'
                 v.append(TimedAccess(e.lhs, mode, i, e.ispace))
 
-            # If an increment, we got one implicit read
-            if e.is_Increment:
+            # If a reduction, we got one implicit read
+            if e.is_Reduction:
                 v = self.reads.setdefault(e.lhs.function, [])
-                v.append(TimedAccess(e.lhs, 'RI', i, e.ispace))
+                v.append(TimedAccess(e.lhs, 'RR', i, e.ispace))
 
             # If writing to a scalar, we have an initialization
-            if not e.is_Increment and e.is_scalar:
+            if not e.is_Reduction and e.is_scalar:
                 self.initialized.add(e.lhs.function)
 
             # Look up ConditionalDimensions
@@ -722,10 +734,9 @@ class Scope(object):
         # The iteration symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
-            for i in d._defines_symbols:
-                for j in i.free_symbols:
-                    v = self.reads.setdefault(j.function, [])
-                    v.append(TimedAccess(j, 'R', -1))
+            for i in d.bound_symbols:
+                v = self.reads.setdefault(i.function, [])
+                v.append(TimedAccess(i, 'R', -1))
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)
@@ -803,8 +814,8 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
-                        # it's a read-for-increment
-                        is_flow = not r.is_read_increment
+                        # it's a read-for-reduction
+                        is_flow = not r.is_read_reduction
                     if is_flow:
                         yield dependence
 
@@ -830,8 +841,8 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
-                        # it's a read-for-increment
-                        is_anti = not r.is_read_increment
+                        # it's a read-for-reduction
+                        is_anti = not r.is_read_reduction
                     if is_anti:
                         yield dependence
 

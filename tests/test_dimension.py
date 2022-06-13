@@ -642,6 +642,19 @@ class TestConditionalDimension(object):
         exprs = FindNodes(Expression).visit(op)
         assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, 2) + 1
 
+    def test_issue_1753(self):
+        grid = Grid(shape=(3, 3, 3))
+        f = TimeFunction(name='f', grid=grid)
+        p = Function(name='p', grid=grid)
+        p.data[0, 1, 0] = 1
+        condition = Ge(p, 1)
+        z_cond = ConditionalDimension(name='z_cond', parent=grid.dimensions[-1],
+                                      condition=condition)
+        eq_p = Eq(f.forward, 1, implicit_dims=z_cond)
+        op = Operator([eq_p])
+        op.apply(time_M=1)
+        assert np.all(np.flatnonzero(f.data) == [3, 30])
+
     def test_subsampled_fd(self):
         """
         Test that the FD shortcuts are handled correctly with ConditionalDimensions
@@ -924,6 +937,27 @@ class TestConditionalDimension(object):
                 Eq(u.forward, u.dx.dx + 1., implicit_dims=[cond])]
 
         op = Operator(eqns, opt=('advanced-fsg', {'cire-mingain': 1}))
+
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 1
+        assert len(retrieve_iteration_tree(conds[0].then_body)) == 2
+
+    def test_grouping_v2(self):
+        """
+        Test that two equations sharing a strict subset of loops get scheduled
+        within the same (also shared) ConditionalDimension.
+        """
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+        cond = ConditionalDimension(name='cond', condition=time < 5)
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+
+        eqns = [Eq(u.forward, u + 1., implicit_dims=cond),
+                Eq(v.forward, v + 1., implicit_dims=cond, subdomain=grid.interior)]
+
+        op = Operator(eqns)
 
         conds = FindNodes(Conditional).visit(op)
         assert len(conds) == 1

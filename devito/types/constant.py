@@ -42,7 +42,6 @@ class Constant(DataSymbol, ArgProvider):
 
     is_Input = True
     is_Constant = True
-    is_Scalar = True
 
     def __init_finalize__(self, *args, **kwargs):
         self._value = kwargs.get('value', 0)

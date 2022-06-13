@@ -1,3 +1,4 @@
+from ctypes import byref, c_void_p
 import weakref
 
 import numpy as np
@@ -7,7 +8,8 @@ from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunc
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
                     DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
                     TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types import Scalar, Symbol, NThreadsBase, DeviceID, NPThreads, ThreadID
+from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, Scalar, Symbol,
+                          ThreadID)
 
 
 @pytest.fixture
@@ -157,6 +159,38 @@ class TestHashing(object):
         u2 = FunctionType(name='u', grid=grid0)
         assert u0 is not u2
         assert hash(u0) != hash(u2)
+
+    def test_bound_symbol(self):
+        grid = Grid(shape=(4, 4))
+
+        u0 = TimeFunction(name='u', grid=grid)
+        u1 = TimeFunction(name='u', grid=grid)
+
+        assert u0._C_symbol is not u1._C_symbol  # Obviously
+        assert hash(u0._C_symbol) != hash(u1._C_symbol)
+        assert u0._C_symbol != u1._C_symbol
+
+    def test_objects(self):
+        v0 = byref(c_void_p(3))
+        v1 = byref(c_void_p(4))
+
+        dtype = type('Bar', (c_void_p,), {})
+
+        foo0 = Object('foo', dtype, v0)
+        foo1 = Object('foo', dtype, v0)
+        foo2 = Object('foo', dtype, v1)
+
+        # Obviously:
+        assert foo0 is not foo1
+        assert foo0 is not foo2
+        assert foo1 is not foo2
+
+        # Carried value doesn't matter -- an Object is always unique
+        assert hash(foo0) != hash(foo1)
+
+        # And obviously:
+        assert hash(foo0) != hash(foo2)
+        assert hash(foo1) != hash(foo2)
 
 
 class TestCaching(object):
@@ -348,7 +382,7 @@ class TestCaching(object):
         assert dd0 is not dd1
 
     def test_constant_new(self):
-        """Test that new u[x, y] instances don't cache"""
+        """Test that new Constant instances don't cache."""
         u0 = Constant(name='u')
         u0.data = 6.
         u1 = Constant(name='u')

@@ -57,8 +57,8 @@ jobs:
         python examples/seismic/inversion/fwi.py
         python examples/seismic/self_adjoint/example_iso.py
         python examples/seismic/viscoacoustic/viscoacoustic_example.py
-        python examples/seismic/viscoacoustic/viscoacoustic_example.py -k ren
-        python examples/seismic/viscoacoustic/viscoacoustic_example.py -k deng_mcmechan
+        python examples/seismic/viscoacoustic/viscoacoustic_example.py -k kv
+        python examples/seismic/viscoacoustic/viscoacoustic_example.py -k maxwell
 
     - name: Seismic tti examples
       run: |
@@ -67,7 +67,7 @@ jobs:
         python examples/seismic/tti/tti_example.py -k staggered
         python examples/seismic/tti/tti_example.py -nd 2 --full -so 12
         python examples/seismic/tti/tti_example.py -nd 2 --full -so 4 --checkpointing
-  
+
     - name: Seismic elastic examples
       run: |
         python examples/seismic/elastic/elastic_example.py
