@@ -57,11 +57,74 @@ def src_rec(v, tau, model, geometry, forward=True):
 
     return src_expr, rec_expr
 
+def elastic_stencil(model, v, tau, forward=True):
+
+    lam, mu, b, damp = model.lam, model.mu, model.b, model.damp
+
+    rho = 1. / b
+
+    if forward:
+
+        # Particle velocity
+        eq_v = v.dt - b * div(tau)
+        # Stress
+        e = (grad(v.forward) + grad(v.forward).T)
+        eq_tau = tau.dt - lam * diag(div(v.forward)) - mu * e
+
+        u_v = Eq(v.forward, damp * solve(eq_v, v.forward))
+        u_t = Eq(tau.forward, damp * solve(eq_tau, tau.forward))
+
+        return [u_v, u_t]
+
+    else:
+
+        """
+        Implementation of the viscoacoustic wave-equation from:
+        1 - Feng and Schuster (2017): Elastic least-squares reverse time migration
+        https://doi.org/10.1190/geo2016-0254.1
+
+        """
+
+        lpmu = lam + 2. * mu
+
+        pde_vx = rho * v[0].dt.T - (lpmu * tau[0, 0]).dx - (lam * tau[1, 1]).dx - \
+            (mu * tau[0, 1]).dy
+        pde_vy = rho * v[1].dt.T - (lpmu * tau[1, 1]).dy - (lam * tau[0, 0]).dy - \
+            (mu * tau[0, 1]).dx
+        pde_tauxx = tau[0, 0].dt.T - v[0].backward.dx
+        pde_tauyy = tau[1, 1].dt.T - v[1].backward.dy
+        pde_tauxy = tau[0, 1].dt.T - v[0].backward.dy - v[1].backward.dx
+
+        if model.grid.dim == 3:
+            pde_vz = rho * v[2].dt.T - (lpmu * tau[2, 2]).dz - (lam * tau[0, 0]).dz - \
+                (lam * tau[1, 1]).dz - (mu * tau[0, 2]).dx - (mu * tau[1, 2]).dy
+            u_vz = Eq(v[2].backward, damp * solve(pde_vz, v[2].backward))
+
+            pde_tauzz = tau[2, 2].dt.T - v[2].backward.dz
+            u_tauzz = Eq(tau[2, 2].backward, damp * solve(pde_tauzz, tau[2, 2].backward))
+
+            pde_vx += -(lam * tau[2, 2]).dx - (mu * tau[0, 2]).dz
+            pde_vy += -(lam * tau[2, 2]).dy - (mu * tau[1, 2]).dz
+
+            pde_tauxz = tau[0, 2].dt.T - v[0].backward.dz - v[2].backward.dx
+            u_tauxz = Eq(tau[0, 2].backward, damp * solve(pde_tauxz, tau[0, 2].backward))
+
+            pde_tauyz = tau[1, 2].dt.T - v[1].backward.dz - v[2].backward.dy
+            u_tauyz = Eq(tau[1, 2].backward, damp * solve(pde_tauyz, tau[1, 2].backward))
+
+        u_vx = Eq(v[0].backward, damp * solve(pde_vx, v[0].backward))
+        u_vy = Eq(v[1].backward, damp * solve(pde_vy, v[1].backward))
+        u_tauxx = Eq(tau[0, 0].backward, damp * solve(pde_tauxx, tau[0, 0].backward))
+        u_tauyy = Eq(tau[1, 1].backward, damp * solve(pde_tauyy, tau[1, 1].backward))
+        u_tauxy = Eq(tau[0, 1].backward, damp * solve(pde_tauxy, tau[0, 1].backward))
+
+        if model.grid.dim == 2:
+            return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy]
+        return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy, u_vz, u_tauzz, u_tauxz, u_tauyz]
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
     Construct method for the forward modelling operator in an elastic media.
-
     Parameters
     ----------
     model : Model
@@ -83,19 +146,38 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                              save=geometry.nt if save else None,
                              space_order=space_order, time_order=1)
 
-    lam, mu, b = model.lam, model.mu, model.b
+    eqn = elastic_stencil(model, v, tau)
 
-    # Particle velocity
-    eq_v = v.dt - b * div(tau)
-    # Stress
-    e = (grad(v.forward) + grad(v.forward).T)
-    eq_tau = tau.dt - lam * diag(div(v.forward)) - mu * e
+    src_expr, rec_expr = src_rec(v, tau, model, geometry)
 
-    u_v = Eq(v.forward, model.damp * solve(eq_v, v.forward))
-    u_t = Eq(tau.forward, model.damp * solve(eq_tau, tau.forward))
-
-    srcrec = src_rec(v, tau, model, geometry)
-    op = Operator([u_v] + [u_t] + srcrec, subs=model.spacing_map, name="ForwardElastic",
-                  **kwargs)
+    op = Operator(eqn + src_expr + rec_expr, subs=model.spacing_map,
+                  name="ForwardElastic", **kwargs)
     # Substitute spacing terms to reduce flops
     return op
+
+def AdjointOperator(model, geometry, space_order=4, **kwargs):
+    """
+    Construct an adjoint modelling operator in a viscoacoustic medium.
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    """
+
+    u = VectorTimeFunction(name='u', grid=model.grid, space_order=space_order,
+                           time_order=1)
+    sig = TensorTimeFunction(name='sig', grid=model.grid, space_order=space_order,
+                             time_order=1)
+
+    eqn = elastic_stencil(model, u, sig, forward=False)
+
+    src_expr, rec_expr = src_rec(u, sig, model, geometry, forward=False)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn + src_expr + rec_expr, subs=model.spacing_map,
+                    name='AdjointElastic', **kwargs)
