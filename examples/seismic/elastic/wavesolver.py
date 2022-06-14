@@ -101,9 +101,9 @@ class ElasticWaveSolver(object):
         summary = self.op_fwd(save).apply(src=src, rec_tau=rec_tau, rec_vx=rec_vx,
                                           rec_vz=rec_vz, dt=kwargs.pop('dt', self.dt),
                                           **kwargs)
-        if self.model.grid.dim == 2:
-            return rec_tau, rec_vx, rec_vz, v, tau, summary
-        return rec_tau, rec_vx, rec_vz, rec_vy, v, tau, summary
+        if self.model.grid.dim == 3:
+            return rec_tau, rec_vx, rec_vz, v, tau, summary, rec_vy
+        return rec_tau, rec_vx, rec_vz, v, tau, summary
 
     def adjoint(self, rec, srca=None, u=None, sig=None, model=None, **kwargs):
         """
