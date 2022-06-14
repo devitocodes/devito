@@ -81,7 +81,7 @@ def autotune(operator, args, level, mode):
         if timesteps is None:
             return args, {}
     elif len(steppers) == 2:  # When time is blocked
-        t_squeezer = (at_args['time_M'] - 2 if at_args['time_M'] > 64 else at_args['time_M'] - 1)
+        t_squeezer = (at_args['time_M'] - 1 if at_args['time_M'] > 64 else at_args['time_M']-1)
         # t_squeezer = (at_args['time_M'] - 1)
         options['squeezer'] = t_squeezer
         stepper = steppers.pop()
@@ -104,7 +104,6 @@ def autotune(operator, args, level, mode):
         # Continue if `blockable` appear more than once under a tree
         if all(i in seen for i in blockable):
             continue
-        
 
         seen.update(blockable)
         # Tunable arguments
@@ -129,8 +128,15 @@ def autotune(operator, args, level, mode):
             run = [(k, v) for k, v in bs + nt if k in at_args]
             at_args.update(dict(run))
 
-            if run[0][0] == 'time0_blk0_size' and (run[0][1] < 63 or run[0][1] > 513):
+	    # Drop small tiles ! NOT blocks
+            # import pdb;pdb.set_trace()
+            if run[0][0] == 'time0_blk0_size' and run[0][1] < 63:
                 continue
+
+            # Only try the largest time blocks
+            # if run[0][0] == 'time0_blk0_size' and (run[0][1] < at_args['time_M'] - 1):
+            #    continue
+
 
             # Drop run if not at least one block per thread
             if not configuration['develop-mode'] and nblocks_per_thread.subs(at_args) < 1:
@@ -334,7 +340,8 @@ def generate_block_shapes(blockable, args, level):
             for v in options['blocksize-l1']:
                 # To be a valid blocksize, it must be smaller than and divide evenly
                 # the parent's block size
-                if all(v < i and i % v == 0 for _, i in bs):
+                # if all(v < i and i % v == 0 for _, i in bs):
+                if all(v <= i/4 for _, i in bs):
                     ret.append(bs + tuple((d.step, v) for d in level_1))
             ret.remove(bs)
 
@@ -383,7 +390,7 @@ def generate_nthreads(nthreads, args, level):
 options = {
     'squeezer': 4,
     'blocksize-l0': (8, 16, 24, 32, 64, 128, 256),
-    'blocksize-l1': (4, 8, 16, 32, 64),
+    'blocksize-l1': (4, 8, 16, 24, 32, 64),
 }
 """Autotuning options."""
 
