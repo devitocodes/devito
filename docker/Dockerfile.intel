@@ -23,31 +23,28 @@ FROM devitocodes/devito:cpu-dev
 USER root
 
 # Update toolkit packages first (existing sources in image)
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
     apt-utils \
     ncurses-term
 
-# download the key to system keyring
-RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-| gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+WORKDIR /app
+# Should change workdir cuz its downloaded in devito/
+RUN wget https://registrationcenter-download.intel.com/akdlm/irc_nas/18717/l_dpcpp-cpp-compiler_p_2022.1.0.137.sh
+RUN sh ./l_dpcpp-cpp-compiler_p_2022.1.0.137.sh -a --silent --eula accept
 
-# add signed entry to apt sources and configure the APT client to use Intel repository:
-RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
-
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0
-
-# Install Intel BaseKit and HPCKit
-RUN apt install intel-basekit -y
-RUN apt install intel-hpckit -y
+# Installed Location: /opt/intel/oneapi
+# Installation has successfully completed
 
 # Change to the app user.
 USER app
 WORKDIR /app/devito
+
+ARG ICC_HOME=/opt/intel/oneapi/compiler/latest/
+ARG MPICC_HOME=/opt/intel/oneapi/mpi/latest/
+ENV PATH $MPICC_HOME/bin:$MPICC_HOME/include:$ICC_HOME/linux/bin/intel64:$ICC_HOME/libfabric/bin:${PATH}
+ENV LD_LIBRARY_PATH $ICC_HOME/linux/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:$MPICC_HOME/lib:$MPICC_HOME/include:${LD_LIBRARY_PATH}
 
 ## Environment Variables for Intel Compilers
 # Set arch to Intel (icc)
@@ -55,5 +52,4 @@ ENV DEVITO_ARCH="intel"
 ENV DEVITO_LANGUAGE="openmp"
 
 EXPOSE 8888
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/jupyter"]
