@@ -228,7 +228,11 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         # Check if trying to replace the whole expression
         if self in subs:
-            return subs[self]
+            new = subs.pop(self)
+            try:
+                return new._xreplace(subs)
+            except AttributeError:
+                return new, True
         subs = self._ppsubs + (subs,)  # Postponed substitutions
         return self._new_from_self(subs=subs), True
 
