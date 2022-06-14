@@ -38,6 +38,7 @@ def test_elastic(dtype):
     _, _, _, [rec1, rec2, rec3, v, tau] = run(dtype=dtype)
     assert np.isclose(norm(rec1), 38.51268, atol=1e-3, rtol=0)
     assert np.isclose(norm(rec2), 10.86042, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec3), 7.634154, atol=1e-3, rtol=0)
 
 
 @pytest.mark.parametrize('shape', [(101,), (51, 51), (16, 16, 16)])
