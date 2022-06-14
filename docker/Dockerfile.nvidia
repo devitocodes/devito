@@ -39,11 +39,12 @@ FROM python:3.9-slim-bullseye
 ENV DEBIAN_FRONTEND noninteractive 
   
 # nodesource: nvdashboard requires nodejs>=10  
-RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
-    apt-get update -y && \
+RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
+RUN apt-get update -y && \
     apt-get install -y -q \
-        apt-utils curl wget \   
-    curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+        apt-utils curl wget
+
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
 #        nvhpc-22-5-cuda-multi \
         nvhpc-22-5 \
