@@ -848,7 +848,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
                                                            increment=increment,
                                                            self_subs=subs)
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+    def inject(self, field, expr, offset=0, u_t=None, p_t=None, increment=True):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -864,6 +864,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             Time index at which the interpolation is performed.
         p_t : expr-like, optional
             Time index at which the result of the interpolation is stored.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).            
         """
         # Apply optional time symbol substitutions to field and expr
         if u_t is not None:
@@ -871,7 +873,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             expr = expr.subs({self.time_dim: p_t})
 
-        return super(SparseTimeFunction, self).inject(field, expr, offset=offset)
+        return super(SparseTimeFunction, self).inject(field, expr, offset=offset, increment=increment)
 
     # Pickling support
     _pickle_kwargs = AbstractSparseTimeFunction._pickle_kwargs +\

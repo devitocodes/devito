@@ -1,4 +1,4 @@
-from math import sin, floor
+from math import sin, floor, prod
 
 import numpy as np
 import pytest
@@ -51,6 +51,18 @@ def time_points(grid, ranges, npoints, name='points', nt=10):
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
+
+
+def time_grid_points(grid, name='points', nt=10):
+    """Create a SparseTimeFunction field with coordinates 
+       filled in by all grid points"""
+    npoints = prod(grid.shape) 
+    a = SparseTimeFunction(name=name, grid=grid, npoint=npoints, nt=nt)
+    dims = tuple([np.linspace(0., 1., d) for d in grid.shape]) 
+    for i in range(len(grid.shape)):
+        a.coordinates.data[:,i] = np.meshgrid(*dims)[i].flatten()
+    
+    return a
 
 
 def a(shape=(11, 11)):
@@ -416,6 +428,31 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     indices[1] = slice(1, -1, 1)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
+
+@pytest.mark.parametrize('shape, result, increment',  [
+    ((10, 10), 1., False),
+    ((10, 10), 5., True),
+    ((10, 10, 10), 1., False),
+    ((10, 10, 10), 5., True)        
+])
+def test_inject_time_increment(shape, result, increment):
+    """Test the increment option in the SparseTimeFunction's 
+       injection method. The increment=False option is 
+       expected to work only at points located on the grid, 
+       where no interpolation needed.
+    """
+    a = unit_box_time(shape=shape)
+    a.data[:] = 0.    
+    p = time_grid_points(a.grid, name='points', nt=10)
+    
+    expr = p.inject(a, Float(1.), increment=increment)
+    
+    Operator(expr)(a=a)    
+
+    assert np.allclose(a.data, result*np.ones(a.grid.shape), rtol=1.e-5)
+    
+
+    
 
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
