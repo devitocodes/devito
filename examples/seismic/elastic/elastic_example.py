@@ -47,6 +47,8 @@ def test_elastic_stability(shape):
     _, _, _, [rec1, rec2, rec3, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0,
                                               nbl=0)
     assert np.isfinite(norm(rec1))
+    assert np.isfinite(norm(rec2))
+    assert np.isfinite(norm(rec3))
 
 
 if __name__ == "__main__":
