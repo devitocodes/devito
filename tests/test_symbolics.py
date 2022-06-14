@@ -105,7 +105,7 @@ def test_indexed():
     ub = Array(name='ub', dtype=u.dtype, dimensions=u.dimensions)
 
     assert ub.free_symbols == {x, y}
-    assert ub.indexed.free_symbols == {ub.indexed, x.symbolic_size, y.symbolic_size}
+    assert ub.indexed.free_symbols == {ub.indexed}
 
 
 def test_call_from_pointer():
