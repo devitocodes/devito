@@ -428,9 +428,20 @@ def check_cuda_runtime():
 
     if cuda.cudaDriverGetVersion(ctypes.byref(driver_version)) == 0 and \
        cuda.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0:
+        # paraphrasing nvidia docs:
+        # 1. upgrading to CUDA 11.1 is now possible on older drivers from
+        #    within the same major release family
+        # 2. version returned as (1000 major + 10 minor), eg CUDA 9.2 -> 9020
         driver_version = driver_version.value
         runtime_version = runtime_version.value
-        if driver_version < runtime_version:
+        if runtime_version < 11010:
+            cuda_incompat = driver_version < runtime_version
+        else:
+            driver_version_major = int(driver_version/1000)
+            runtime_version_major = int(runtime_version/1000)
+            cuda_incompat = driver_version_major < runtime_version_major
+
+        if cuda_incompat:
             warning("The NVidia driver (v%d) on this system may not be compatible "
                     "with the CUDA runtime (v%d)" % (driver_version, runtime_version))
     else:
