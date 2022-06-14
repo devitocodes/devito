@@ -119,9 +119,10 @@ def elastic_stencil(model, v, tau, forward=True):
         u_tauyy = Eq(tau[1, 1].backward, damp * solve(pde_tauyy, tau[1, 1].backward))
         u_tauxy = Eq(tau[0, 1].backward, damp * solve(pde_tauxy, tau[0, 1].backward))
 
-        if model.grid.dim == 2:
-            return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy]
-        return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy, u_vz, u_tauzz, u_tauxz, u_tauyz]
+        if model.grid.dim == 3:
+            return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy, u_vz, u_tauzz, u_tauxz, u_tauyz]
+        return [u_vx, u_vy, u_tauxx, u_tauyy, u_tauxy]
+
 
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
