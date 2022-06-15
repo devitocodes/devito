@@ -7,6 +7,7 @@ from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
+SSAValueNames: Dict[SSAValue, str] = {}
 
 class CGeneration:
 
@@ -61,6 +62,7 @@ class CGeneration:
         i = 0
         self.print("int Kernel(", end='', indent=False)
         for arg in arglist:
+            name = callable_op.parameters.data[0].data
             SSAValueNames[arg] = callable_op.parameters.data[i].data
             i = i + 1
         i = 0
@@ -69,10 +71,8 @@ class CGeneration:
         # need separate loop because only header parameters have types
         for op_type in callable_op.types.data:
             self.print(op_type.data, end=' ', indent=False)
-            self.print(callable_op.header_parameters.data[i].data,
-                       end='',
-                       indent=False)
-            if i < (num_params - 1):
+            self.print(callable_op.header_parameters.data[i].data, end='', indent=False)
+            if i < (num_params-1):
                 self.print(",", end='', indent=False)
             i = i + 1
         self.print("){")
@@ -86,7 +86,7 @@ class CGeneration:
 
     def printIteration(self, iteration_op: Iteration):
         ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = str(iteration_op.arg_name.data)
+        iterator = "i_" + str(len(self.iterator_names))
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
             iteration_op.regions[0].blocks[0].args[0]] = iterator
@@ -96,54 +96,6 @@ class CGeneration:
         self.print(f"for (int {iterator} = {lower_bound}; ", end='')
         self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
         self.print(f"{iterator} += {increment}) ", indent=False)
-        self.print("{")
-        self.indent()
-        self.printOperation(iteration_op.body.ops)
-        self.dedent()
-        self.print("}")
-        pass
-
-    def printIterationWithSubIndices(self,
-                                     iteration_op: IterationWithSubIndices):
-        uindices_names = iteration_op.uindices_names
-        uindices_symbmins_divisors = iteration_op.uindices_symbmins_divisors
-        uindices_symbmins_dividends = iteration_op.uindices_symbmins_dividends
-        ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = str(iteration_op.arg_name.data)
-        SSAValueNames[ssa_val] = iterator
-        self.iterator_names[
-            iteration_op.regions[0].blocks[0].args[0]] = iterator
-        lower_bound = iteration_op.limits.data[0].data
-        upper_bound = iteration_op.limits.data[1].data
-        increment = iteration_op.limits.data[2].data
-        self.print(f"for (int {iterator} = {lower_bound}, ", end='')
-
-        # initialise subindices
-        i = 0
-        for u in uindices_names.data:
-            self.print(
-                f"{u.data} = ({uindices_symbmins_dividends.data[i].data})%"
-                f"({uindices_symbmins_divisors.data[i].data})",
-                end='')
-            if i < (len(uindices_names.data) - 1):
-                self.print(",", end='')
-            else:
-                self.print(";", end=' ')
-            i += 1
-        self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
-        self.print(f"{iterator} += {increment}, ", end='')
-
-        # also increment subindices
-        i = 0
-        for u in uindices_names.data:
-            self.print(
-                f"{u.data} = ({uindices_symbmins_dividends.data[i].data})"
-                f"%({uindices_symbmins_divisors.data[i].data})",
-                end='')
-            if i < (len(uindices_names.data) - 1):
-                self.print(",", end='')
-            i += 1
-        self.print(")", end='')
         self.print("{")
         self.indent()
         self.printOperation(iteration_op.body.ops)
@@ -166,8 +118,7 @@ class CGeneration:
         if (isinstance(operation, List)):
             for op in operation:
                 if isinstance(op, Constant) or isinstance(
-                        op, Addi) or isinstance(op, Idx) or isinstance(
-                            op, Modi):
+                        op, Addi) or isinstance(op, Idx) or isinstance(op, Modi):
                     continue
                 self.printOperation(op)
             return
@@ -194,28 +145,8 @@ class CGeneration:
             self.print(")", end="", indent=False)
             return
 
-        if (isinstance(operation, Powi)):
-            self.print("(", end="", indent=False)
-            self.printResult(operation.base)
-            self.print(")", end="", indent=False)
-            self.print(" ^ ", end='', indent=False)
-            self.print("(", end="", indent=False)
-            self.printResult(operation.exponent)
-            self.print(")", end="", indent=False)
-            return
-
-        if (isinstance(operation, Muli)):
-            self.printResult(operation.input1)
-            self.print(" * ", end='', indent=False)
-            self.printResult(operation.input2)
-            return
-
         if (isinstance(operation, Callable)):
             self.printCallable(operation)
-            return
-
-        if (isinstance(operation, IterationWithSubIndices)):
-            self.printIterationWithSubIndices(operation)
             return
 
         if (isinstance(operation, Iteration)):
@@ -231,12 +162,7 @@ class CGeneration:
             return
 
         if (isinstance(operation, Initialise)):
-            type = operation.results[0].typ.name
-            # rename float accordingly if required
-            if type == "f32":
-                type = "float"
-            if type == "f64":
-                type = "double"
+            type = operation.results[0].typ.width.name
             self.print(type, indent=True, end=" ")
 
             assignee = operation.id.data
@@ -246,7 +172,7 @@ class CGeneration:
 
             self.print(" = ", indent=False, end="")
             self.printResult(operation.rhs)
-            self.print(";", indent=False)
+            self.print("", indent=False)
             return
 
         if (isinstance(operation, Idx)):
