@@ -10,6 +10,29 @@ on:
 jobs:
   deploy-docker-cpu:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [
+          gcc,
+          icc
+        ]
+        include:
+        - name: gcc
+          dockerfile: ./docker/Dockerfile
+          im-name: 'cpu-dev'
+          tags: |
+            devitocodes/devito:cpu-latest
+            devitocodes/devito:cpu-${{ github.event.release.tag_name }}
+            devitocodes/devito:latest
+
+        - name: icc
+          dockerfile: ./docker/Dockerfile.intel
+          im-name: 'cpu-intel-dev'
+          release-tags: |
+            devitocodes/devito:cpu-intel-latest
+            devitocodes/devito:cpu-intel-${{ github.event.release.tag_name }}
+
 
     steps:
       - name: Checkout devito
@@ -30,26 +53,28 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: CPU image
+      - name:  ${{ matrix.name }} image
         if: github.event_name == 'push'
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
-          tags: devitocodes/devito:cpu-dev
+          tags: devitocodes/devito:${{ matrix.im-name }}
 
       - name: CPU image release
         if: github.event_name == 'release'
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
-          tags: |
-            devitocodes/devito:cpu-latest
-            devitocodes/devito:cpu-${{ github.event.release.tag_name }}
-            devitocodes/devito:latest
+          tags: ${{ matrix.release-tags }}
+
+      - name: Run simple test
+        run: |
+          docker pull 'devitocodes/devito:${{ matrix.im-name }}'
+          docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
 
   deploy-docker-gpu:
     runs-on: [self-hosted, gpu, docker]
@@ -95,65 +120,6 @@ jobs:
             devitocodes/devito:gpu-latest
             devitocodes/devito:gpu-${{ github.event.release.tag_name }}
 
-  deploy-docker-intel:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout devito
-        uses: actions/checkout@v2
-
-      - name: Check event name
-        run: echo ${{ github.event_name }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1.0.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.1.2
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: CPU Intel image
-        if: github.event_name == 'push'
-        uses: docker/build-push-action@v2.4.0
-        with:
-          context: .
-          file: ./docker/Dockerfile.intel
-          push: true
-          network: host
-          tags: devitocodes/devito:cpu-intel-dev
-
-      - name: CPU intel image release
-        if: github.event_name == 'release'
-        uses: docker/build-push-action@v2.4.0
-        with:
-          context: .
-          file: ./docker/Dockerfile.intel
-          push: true
-          network: host
-          tags: |
-            devitocodes/devito:cpu-intel-latest
-            devitocodes/devito:cpu-intel-${{ github.event.release.tag_name }}
-
-  test-cpu-image:
-    needs: deploy-docker-cpu
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        im-name: [cpu-dev]
-
-    steps:
-        - name: Run simple test
-          run: |
-             docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_operator.py
-
   test-gpu-image:
     needs: deploy-docker-gpu
     runs-on: [self-hosted, gpu, docker]
@@ -168,27 +134,6 @@ jobs:
           run: |
              docker pull 'devitocodes/devito:${{ matrix.im-name }}'
              docker run --gpus all --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' pytest tests/test_gpu_openacc.py
-
-        # NOTE: Suitable for the time being but will need to modify when we switch runners
-        - name: Clean
-          run: |
-            docker system prune -a -f
-
-  test-cpu-intel-image:
-    needs: deploy-docker-intel
-    runs-on: [self-hosted, gpu, docker]
-
-    strategy:
-      fail-fast: false
-      matrix:
-        #im-name: [gpu-dev, gpu-latest]
-        im-name: [cpu-intel-dev]
-
-    steps:
-        - name: Run simple test
-          run: |
-             docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run --rm --name testrun 'devitocodes/devito:${{ matrix.im-name }}' python -m pytest tests/test_operator.py
 
         # NOTE: Suitable for the time being but will need to modify when we switch runners
         - name: Clean

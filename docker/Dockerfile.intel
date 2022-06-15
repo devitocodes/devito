@@ -11,7 +11,7 @@
 #   docker run --rm -it devito/intel:1.0 /bin/bash
 #
 # RUN a few tests:
-#   docker run --rm --name testrun 'devito/intel:1.0' python -m pytest -m "not parallel" tests/test_operator.py
+#   docker run --rm --name testrun 'devito/intel:1.0' pytest -m "not parallel" tests/test_operator.py
 #
 ##############################################################
 # Inherited from: https://github.com/intel/oneapi-containers/blob/master/images/docker/hpckit/Dockerfile.ubuntu-18.04
@@ -23,7 +23,6 @@ FROM devitocodes/devito:cpu-dev
 USER root
 
 # Update toolkit packages first (existing sources in image)
-
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
     apt-utils \
@@ -36,15 +35,14 @@ RUN sh ./l_dpcpp-cpp-compiler_p_2022.1.0.137.sh -a --silent --eula accept
 
 # Installed Location: /opt/intel/oneapi
 # Installation has successfully completed
-
-# Change to the app user.
-USER app
-WORKDIR /app/devito
-
 ARG ICC_HOME=/opt/intel/oneapi/compiler/latest/
 ARG MPICC_HOME=/opt/intel/oneapi/mpi/latest/
 ENV PATH $MPICC_HOME/bin:$MPICC_HOME/include:$ICC_HOME/linux/bin/intel64:$ICC_HOME/libfabric/bin:${PATH}
 ENV LD_LIBRARY_PATH $ICC_HOME/linux/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:$MPICC_HOME/lib:$MPICC_HOME/include:${LD_LIBRARY_PATH}
+
+# Change to the app user.
+USER app
+WORKDIR /app/devito
 
 ## Environment Variables for Intel Compilers
 # Set arch to Intel (icc)
