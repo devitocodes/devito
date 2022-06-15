@@ -2,7 +2,7 @@ from devito.tools import memoized_meth
 from devito import VectorTimeFunction, TensorTimeFunction
 from examples.seismic import PointSource
 
-from examples.seismic.elastic.operators import ForwardOperator
+from examples.seismic.elastic.operators import ForwardOperator, AdjointOperator
 
 
 class ElasticWaveSolver(object):
@@ -38,6 +38,12 @@ class ElasticWaveSolver(object):
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
+                               space_order=self.space_order, **self._kwargs)
+
+    @memoized_meth
+    def op_adj(self):
+        """Cached operator for adjoint runs"""
+        return AdjointOperator(self.model, save=None, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec_tau=None, rec_vx=None, rec_vz=None, rec_vy=None,
