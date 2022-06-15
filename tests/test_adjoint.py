@@ -88,7 +88,7 @@ class TestAdjoint(object):
         ('layers-elastic', (20, 25), None, 4, 1, elastic_setup),
         ('layers-elastic', (20, 25), None, 8, 1, elastic_setup),
         ('layers-elastic', (20, 25), None, 12, 1, elastic_setup),
-        # 3D elastic tests with varying time and space orders
+        # 3D elastic tests with varying space orders
         ('layers-elastic', (20, 25, 20), None, 2, 1, elastic_setup),
         ('layers-elastic', (20, 25, 20), None, 4, 1, elastic_setup),
         ('layers-elastic', (20, 25, 20), None, 8, 1, elastic_setup),
