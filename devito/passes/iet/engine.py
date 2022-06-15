@@ -28,9 +28,6 @@ class Graph(object):
         # Internal "known" functions
         self.efuncs = OrderedDict([('root', iet)])
 
-        # Foreign functions
-        self.ffuncs = []
-
         self.includes = []
         self.headers = []
 
@@ -40,9 +37,7 @@ class Graph(object):
 
     @property
     def funcs(self):
-        retval = [MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root']
-        retval.extend([MetaCall(i, False) for i in self.ffuncs])
-        return tuple(retval)
+        return tuple(MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root')
 
     def _create_call_graph(self):
         dag = DAG(nodes=['root'])
@@ -78,7 +73,6 @@ class Graph(object):
             # Track all objects introduced by `func`
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
-            self.ffuncs.extend(as_tuple(metadata.get('ffuncs', [])))
             self.efuncs.update(OrderedDict([(i.name, i)
                                             for i in metadata.get('efuncs', [])]))
 
@@ -151,11 +145,6 @@ class Graph(object):
         # Uniqueness
         self.includes = filter_ordered(self.includes)
         self.headers = filter_ordered(self.headers, key=str)
-        self.ffuncs = filter_ordered(self.ffuncs)
-
-        # Apply `func` to the external functions
-        for i in range(len(self.ffuncs)):
-            self.ffuncs[i], _ = func(self.ffuncs[i], **kwargs)
 
     def visit(self, func, **kwargs):
         """
