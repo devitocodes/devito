@@ -4,7 +4,7 @@ import scipy.sparse
 
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator)
+                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
@@ -181,14 +181,14 @@ class TestStreaming(object):
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 20
+        b = 14 if configuration['language'] == 'openacc' else 13  # No `qid` w/ OMP
         assert str(exprs[0]) == 'const int deviceid = sdata0->deviceid;'
-        assert str(exprs[14]) == 'const int time = sdata0->time;'
-        assert str(exprs[15]) == 'lock0[0] = 1;'
-        assert exprs[16].write is u
-        assert exprs[17].write is v
-        assert str(exprs[18]) == 'lock0[0] = 2;'
-        assert str(exprs[19]) == 'sdata0->flag = 1;'
+        assert str(exprs[b]) == 'const int time = sdata0->time;'
+        assert str(exprs[b+1]) == 'lock0[0] = 1;'
+        assert exprs[b+2].write is u
+        assert exprs[b+3].write is v
+        assert str(exprs[b+4]) == 'lock0[0] = 2;'
+        assert str(exprs[b+5]) == 'sdata0->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -239,12 +239,12 @@ class TestStreaming(object):
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 4
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 19
-        assert str(exprs[15]) == 'lock0[0] = 1;'
-        assert exprs[16].write is u
+        b = 15 if configuration['language'] == 'openacc' else 14  # No `qid` w/ OMP
+        assert str(exprs[b]) == 'lock0[0] = 1;'
+        assert exprs[b+1].write is u
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
-        assert str(exprs[15]) == 'lock1[0] = 1;'
-        assert exprs[16].write is v
+        assert str(exprs[b]) == 'lock1[0] = 1;'
+        assert exprs[b+1].write is v
 
         op.apply(time_M=nt-2)
 
@@ -289,11 +289,11 @@ class TestStreaming(object):
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 22
-        assert str(exprs[15]) == 'lock0[0] = 1;'
-        assert str(exprs[16]) == 'lock1[0] = 1;'
-        assert exprs[17].write is u
-        assert exprs[18].write is v
+        b = 15 if configuration['language'] == 'openacc' else 14  # No `qid` w/ OMP
+        assert str(exprs[b]) == 'lock0[0] = 1;'
+        assert str(exprs[b+1]) == 'lock1[0] = 1;'
+        assert exprs[b+2].write is u
+        assert exprs[b+3].write is v
 
         op.apply(time_M=nt-2)
 
@@ -354,10 +354,10 @@ class TestStreaming(object):
             'sdata0[wi0].flag = 2;'
         assert len(op1._func_table) == 2
         exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
-        assert len(exprs) == 26
+        b = 18 if configuration['language'] == 'openacc' else 17  # No `qid` w/ OMP
         for i in range(3):
-            assert 'lock0[t' in str(exprs[18 + i])
-        assert exprs[21].write is usave
+            assert 'lock0[t' in str(exprs[b + i])
+        assert exprs[b+3].write is usave
 
         op0.apply(time_M=nt-2)
         op1.apply(time_M=nt-2, u=u1, usave=usave1)
