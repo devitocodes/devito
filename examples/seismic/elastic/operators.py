@@ -80,7 +80,7 @@ def elastic_stencil(model, v, tau, forward=True):
     else:
 
         """
-        Implementation of the viscoacoustic wave-equation from:
+        Implementation of the elastic wave-equation from:
         1 - Feng and Schuster (2017): Elastic least-squares reverse time migration
         https://doi.org/10.1190/geo2016-0254.1
 
