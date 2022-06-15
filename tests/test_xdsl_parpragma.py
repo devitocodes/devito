@@ -12,22 +12,22 @@ def test_example():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
-            "kernel", ["u"],
+            "kernel", ["u"],["u"],["struct dataobj*"],
             Block.from_callable([iet.i32], lambda u: [
                 Iteration
-                .get(["affine", "sequential"], ("time_m", "time_M", "1"),
+                .get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
                      Block.from_callable([
                          iet.i32, iet.i32, iet.i32
                      ], lambda time, t0, t1: [
                          Iteration.
                          get(["affine", "parallel", "skewable"],
-                             ("x_m", "x_M", "1"),
+                             ("x_m", "x_M", "1"),"x_loop",
                              Block.from_callable([iet.i32], lambda x: [
                                  Iteration.get(
                                      [
                                          "affine",
                                          "parallel", "skewable", "vector-dim"
-                                     ], ("y_m", "y_M", "1"),
+                                     ], ("y_m", "y_M", "1"),"y_loop",
                                      Block.from_callable([iet.i32], lambda y: [
                                          cst1 := Constant.get(1),
                                          x1 := Addi.get(x, cst1),
