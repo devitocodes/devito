@@ -1,3 +1,4 @@
+
 import pytest
 import numpy as np
 
@@ -53,8 +54,8 @@ op0 = Operator(eq0, opt=('advanced'))
 # op0.apply(time_M=tn, dt=dt, **{'x0_blk0_size': 32, 'y0_blk0_size': 16})
 # op0.apply(time_M=tn, dt=dt, **{'x0_blk0_size': 64, 'y0_blk0_size': 32})
 op0.apply(time_M=tn-1, dt=dt)
-# norm_u = norm(u)
-#u.data[:] = init_value
+norm_u = norm(u)
+u.data[:] = init_value
 #
 op1 = Operator(eq0, opt=('advanced', {'skewing': True,
                          'blocklevels': args.blevels}))
@@ -68,11 +69,13 @@ op1 = Operator(eq0, opt=('advanced', {'skewing': True,
 
 #op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 4, 'y0_blk0_size': 64, 'y0_blk1_size': 4})  # Medium problem 512^3 - 512 gcc
 
-# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 64, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
+op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
 # op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 512, 'x0_blk0_size': 2112, 'x0_blk1_size': 24, 'y0_blk0_size': 2112, 'y0_blk1_size': 24})  # Medium problem 512^3 - 256
-op1.apply(time_M=tn-1, dt=dt)
-# print(norm_u)
-# print(norm(u))
+# op1.apply(time_M=tn-1, dt=dt)
+
+print(norm_u)
+
+print(norm(u))
 # assert np.isclose(norm(u), norm_u, atol=1e-4, rtol=0)
 
 # iters = FindNodes(Iteration).visit(op1)
