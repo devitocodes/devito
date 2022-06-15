@@ -2,9 +2,11 @@ from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           ThreadCallable, derive_parameters)
+                           ThreadCallable, Uxreplace, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types.args import ArgProvider
+from devito.types.basic import CompositeObject
+from devito.types.dense import AliasFunction
 
 __all__ = ['Graph', 'iet_pass', 'Jitting']
 
@@ -25,7 +27,6 @@ class Graph(object):
     """
 
     def __init__(self, iet):
-        # Internal "known" functions
         self.efuncs = OrderedDict([('root', iet)])
 
         self.includes = []
@@ -39,42 +40,21 @@ class Graph(object):
     def funcs(self):
         return tuple(MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root')
 
-    def _create_call_graph(self):
-        dag = DAG(nodes=['root'])
-        queue = ['root']
-        while queue:
-            caller = queue.pop(0)
-            callees = FindNodes(Call).visit(self.efuncs[caller])
-            for callee in filter_ordered([i.name for i in callees]):
-                if callee in self.efuncs:  # Exclude foreign Calls, e.g., MPI calls
-                    try:
-                        dag.add_node(callee)
-                        queue.append(callee)
-                    except KeyError:
-                        # `callee` already in `dag`
-                        pass
-                    dag.add_edge(callee, caller)
-
-        # Sanity check
-        assert dag.size == len(self.efuncs)
-
-        return dag
-
     def apply(self, func, **kwargs):
         """
         Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
-        dag = self._create_call_graph()
+        dag = create_call_graph('root', self.efuncs)
 
         # Apply `func`
         for i in dag.topological_sort():
             efunc, metadata = func(self.efuncs[i], **kwargs)
 
-            # Track all objects introduced by `func`
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
-            self.efuncs.update(OrderedDict([(i.name, i)
-                                            for i in metadata.get('efuncs', [])]))
+
+            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []))
+            self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
 
             # Update compiler if necessary
             try:
@@ -153,7 +133,7 @@ class Graph(object):
         from nodes to info. Unlike `apply`, `visit` does not change the state
         of the Graph.
         """
-        dag = self._create_call_graph()
+        dag = create_call_graph('root', self.efuncs)
         toposort = dag.topological_sort()
 
         mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
@@ -191,3 +171,142 @@ def iet_visit(func):
 
 
 Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')
+
+
+def create_call_graph(root, efuncs):
+    """
+    Create a Call graph -- a Direct Acyclic Graph with edges from callees
+    to callers.
+    """
+    dag = DAG(nodes=['root'])
+    queue = ['root']
+
+    while queue:
+        caller = queue.pop(0)
+        callees = FindNodes(Call).visit(efuncs[caller])
+
+        for callee in filter_ordered([i.name for i in callees]):
+            if callee in efuncs:  # Exclude foreign Calls, e.g., MPI calls
+                try:
+                    dag.add_node(callee)
+                    queue.append(callee)
+                except KeyError:
+                    # `callee` already in `dag`
+                    pass
+                dag.add_edge(callee, caller)
+
+    # Sanity check
+    assert dag.size == len(efuncs)
+
+    return dag
+
+
+def reuse_efuncs(root, efuncs):
+    """
+    Generalise `efuncs` so that syntactically identical Callables may be dropped,
+    thus maximizing code reuse.
+
+    For example, given two Callables
+
+        foo0(u(x)) : u(x)**2
+        foo1(v(x)) : v(x)**2
+
+    Reduce them to one single Callable
+
+        foo0(a(x)) : a(x)**2
+
+    The call sites in `root` are transformed accordingly.
+    """
+    #TODO: DROP, should fallback to [] seamlessly
+    if not efuncs:
+        return root, []
+
+    # Topological sorting ensures that nested Calls are abstract first.
+    # For example, given `[foo0(u(x)): bar0(u), foo1(u(x)): bar1(u)]`,
+    # assuming that `bar0` and `bar1` are compatible, we first process the
+    # `bar`'s to obtain `[foo0(u(x)): bar0(u), foo1(u(x)): bar0(u)]`,
+    # and finally `foo0(u(x)): bar0(u)`
+    efuncs = {i.name: i for i in efuncs}
+    efuncs['root'] = root
+    dag = create_call_graph(root.name, efuncs)
+
+    mapper = {}
+    for i in dag.topological_sort():
+        if i == 'root':
+            continue
+
+        efunc = efuncs[i]
+        afunc = abstract_efunc(efunc)
+
+        key = afunc._signature()
+
+        try:
+            # If we manage to succesfully map `efunc` to a previously abstracted
+            # `afunc`, we need to update the call sites to use the new Call name
+            afunc, mapped = mapper[key]
+            mapped.append(efunc)
+
+            for n in dag.downstream(i):
+                subs = {c: c._rebuild(name=afunc.name)
+                        for c in FindNodes(Call).visit(efuncs[n])
+                        if c.name == efuncs[i].name}
+                efuncs[n] = Transformer(subs).visit(efuncs[n])
+
+        except KeyError:
+            afunc = afunc._rebuild(name=efunc.name)
+            mapper[key] = (afunc, [efunc])
+
+    root = efuncs.pop('root')
+    processed = [afunc if len(efuncs) > 1 else efuncs.pop()
+                 for afunc, efuncs in mapper.values()]
+
+    return root, processed
+
+
+def abstract_efunc(efunc):
+    """
+    Abstract `efunc` applying a set of rules:
+
+        * The `efunc` names becomes "foo".
+        * Any concrete AbstractFunction gets replaced with a "more abstract" object:
+            - DiscreteFunctions become AliasFunctions with name "f0", "f1", ...
+            - Arrays remain Arrays but are renamed as "a0", "a1", ...
+        * Objects remain Objects but are renamed as "o0", "o1", ...
+    """
+    parameters = []
+    mapper = {}
+    for i in efunc.parameters:
+        if i.is_DiscreteFunction:
+            n = len([i for i in mapper if i.is_DiscreteFunction])
+
+            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            kwargs.pop('initializer')
+            kwargs['name'] = "f%d" % n
+            v = AliasFunction(**kwargs)
+
+            mapper.update({
+                i: v,
+                i.indexed: v.indexed,
+                i._C_symbol: v._C_symbol,
+            })
+
+        elif isinstance(i, CompositeObject):
+            n = len([i for i in mapper if isinstance(i, CompositeObject)])
+
+            args = [getattr(i, k, None) for k in i._pickle_args]
+            args[0] = "o%d" % n
+            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            v = i.func(*args, **kwargs)
+
+            mapper[i] = v
+
+        else:
+            v = i
+
+        parameters.append(v)
+
+    body = Uxreplace(mapper).visit(efunc.body)
+
+    efunc = efunc._rebuild(name='foo', parameters=parameters, body=body)
+
+    return efunc
