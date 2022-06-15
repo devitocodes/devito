@@ -55,12 +55,14 @@ class ElasticWaveSolver(object):
         ----------
         src : SparseTimeFunction or array_like, optional
             Time series data for the injected source term.
-        rec1 : SparseTimeFunction or array_like, optional
-            The interpolated receiver data of the pressure (tzz).
-        rec2 : SparseTimeFunction or array_like, optional
-            The interpolated receiver data of the particle velocities.
-        rec3 : SparseTimeFunction or array_like, optional
-            The interpolated receiver data of the particle velocities.
+        rec_tau : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the sum of the tensor component.
+        rec_vx : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the x component of particle velocities.
+        rec_vy : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the y compenent of particle velocities.
+        rec_vz : SparseTimeFunction or array_like, optional
+            The interpolated receiver data of the z compenent of particle velocities.
         v : VectorTimeFunction, optional
             The computed particle velocity.
         tau : TensorTimeFunction, optional
@@ -77,7 +79,7 @@ class ElasticWaveSolver(object):
             Whether or not to save the entire (unrolled) wavefield.
         Returns
         -------
-        Rec1(tzz), Rec2(div(v)), particle velocities v, stress tensor tau and
+        rec_tau, rec_vx, rec_vy, rec_vz, particle velocities v, stress tensor tau and
         performance summary.
         """
         # Source term is read-only, so re-use the default
