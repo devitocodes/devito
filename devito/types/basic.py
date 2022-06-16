@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, Structure, byref
+from ctypes import POINTER, byref
 from functools import reduce
 from operator import mul
 
@@ -16,7 +16,7 @@ from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
-from devito.types.utils import DimensionTuple
+from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject', 'IndexedData', 'DeviceMap']
@@ -1310,16 +1310,8 @@ class CompositeObject(Object):
     Object with composite type (e.g., a C struct) defined in Python.
     """
 
-    _dtype_cache = {}
-
-    @classmethod
-    def _generate_unique_dtype(cls, pname, pfields):
-        dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
-        key = (pname, tuple(pfields))
-        return cls._dtype_cache.setdefault(key, dtype)
-
     def __init__(self, name, pname, pfields, value=None):
-        dtype = CompositeObject._generate_unique_dtype(pname, pfields)
+        dtype = CtypesFactory.generate(pname, pfields)
         value = self.__value_setup__(dtype, value)
         super(CompositeObject, self).__init__(name, dtype, value)
 

@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure
+from ctypes import POINTER
 from math import ceil
 
 import numpy as np
@@ -8,6 +8,7 @@ from cgen import Struct, Value
 from devito.parameters import configuration
 from devito.tools import as_tuple, ctypes_to_cstr, dtype_to_ctype
 from devito.types.basic import AbstractFunction, IndexedData
+from devito.types.utils import CtypesFactory
 
 __all__ = ['Array', 'ArrayObject', 'PointerArray']
 
@@ -246,15 +247,15 @@ class ArrayObject(ArrayBasic):
         fields = tuple(kwargs.pop('fields', ()))
 
         self._fields = fields
-        self._pname = "t%s" % name
+        self._pname = kwargs.pop('pname', 't%s' % name)
 
         super().__init_finalize__(*args, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
-        return POINTER(type("t%s" % kwargs['name'],
-                            (Structure,),
-                            {'_fields_': cls.__pfields_setup__(**kwargs)}))
+        pname = kwargs.get('pname', 't%s' % kwargs['name'])
+        pfields = cls.__pfields_setup__(**kwargs)
+        return CtypesFactory.generate(pname, pfields)
 
     @classmethod
     def __pfields_setup__(cls, **kwargs):
@@ -305,7 +306,7 @@ class ArrayObject(ArrayBasic):
         return True
 
     # Pickling support
-    _pickle_kwargs = ArrayBasic._pickle_kwargs + ['dimensions', 'fields']
+    _pickle_kwargs = ArrayBasic._pickle_kwargs + ['dimensions', 'fields', 'pname']
     _pickle_kwargs.remove('dtype')
 
 

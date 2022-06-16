@@ -1,3 +1,5 @@
+from ctypes import POINTER, Structure
+
 from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
 
@@ -31,3 +33,14 @@ class IgnoreDimSort(tuple):
     """A tuple subclass used to wrap the implicit_dims to indicate
     that the topological sort of other dimensions should not occur."""
     pass
+
+
+class CtypesFactory(object):
+
+    cache = {}
+
+    @classmethod
+    def generate(cls, pname, pfields):
+        dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
+        key = (pname, tuple(pfields))
+        return cls.cache.setdefault(key, dtype)
