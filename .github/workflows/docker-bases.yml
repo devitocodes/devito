@@ -10,7 +10,7 @@ on:
 jobs:
   deploy-docker-nvidia:
     if: inputs.image != 'clang' 
-    runs-on: ubuntu-latest
+    runs-on:  [self-hosted, gpu, docker]
 
     steps:
       - name: Checkout devito
@@ -42,7 +42,7 @@ jobs:
 
 
   deploy-docker-clang:
-      runs-on: ubuntu-latest
+      runs-on:  [self-hosted, gpu, docker]
       needs: deploy-docker-nvidia
 
       steps:

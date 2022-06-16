@@ -1,35 +1,5 @@
 ##############################################################
-# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and Devito
-#
-# BUILD: 
-#   docker build --network=host --file docker/Dockerfile.nvidia --tag devito:nvidia .
-#
-# LEGACY:
-#   (1) Option MPI 3.0:
-#   docker build --network=host --build-arg MPI_VER=3 --file docker/Dockerfile.nvidia --tag devito:nvidia .
-#
-#   (2) Option MPI 4.0:
-#   Enabling and using MPI 4.0.5 works on R450 drivers, but is showing compatibility 
-#   issues during testing on older R418 drivers.
-# 
-#   docker build --network=host --build-arg MPI_VER=4 --file docker/Dockerfile.nvidia --tag devito:nvidia .
-#
-# SQUASH:
-#   If you want a smaller image or to collapse/combine the smaller layers, try squashing your docker image
-#
-#   pip install docker-squash
-#   docker tag devito:nvidia devito:nvidia-pre
-#   docker-squash  -t devito:nvidia-pre devito:nvidia
-#
-# RUN: 
-#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
-#   docker run --gpus all --rm -it devito:nvidia python examples/seismic/acoustic/acoustic_example.py
-#
-#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
-#
-# to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
-#   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito:nvidia python examples/seismic/acoustic/acoustic_example.py
-#
+# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
 #FROM python:3.9 
 FROM python:3.9-slim-bullseye 
@@ -117,6 +87,14 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;
+
+# Make devito env vars file
+RUN tee /app/setup-devito-env.sh <<-EOT \
+    #!/usr/bin/env bash \
+    export DEVITO_ARCH="nvc" \
+    export DEVITO_PLATFORM="nvidiaX" \
+    export DEVITO_LANGUAGE="openacc" \
+    EOT
 
 EXPOSE 8888
 CMD ["/bin/bash"]

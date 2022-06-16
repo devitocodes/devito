@@ -1,26 +1,5 @@
 ##############################################################
-# This Dockerfile contains the Devito codes.
-#
-# BUILD:
-#   docker build --network=host --file docker/Dockerfile --tag devito .
-#
-# LEGACY:
-#   (1) Option MPI 3.0:
-#   docker build --network=host --build-arg MPI_VER=3 --file docker/Dockerfile --tag devito .
-#
-#   (2) Option MPI 4.0:
-#   Enabling and using MPI 4.0.5 works on R450 drivers, but is showing compatibility
-#   issues during testing on older R418 drivers.
-#
-#   docker build --network=host --build-arg MPI_VER=4 --file docker/Dockerfile --tag devito .
-#
-# RUN:
-#   docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito
-#   docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito
-#
-# to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
-#   docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito python examples/seismic/acoustic/acoustic_example.py
-#
+# This Dockerfile contains the Devito codes and can be buld using different base images.
 ##############################################################
 
 ARG base=python:3.9-slim-bullseye
@@ -79,15 +58,9 @@ USER app
 WORKDIR /app/devito
 
 # Env vars from ARGS
-ARG arch="gcc"
-ARG language="openmp"
-ARG logging="DEBUG"
-ARG platform="CPU64"
-
-ENV DEVITO_ARCH=$arch
-ENV DEVITO_LANGUAGE=$language
-ENV DEVITO_LOGGING=$logging
-ENV DEVITO_PLATFORM=$platform
+ENV DEVITO_ARCH="gcc"
+ENV DEVITO_LANGUAGE="openmp"
+ENV DEVITO_LOGGING="INFO"
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

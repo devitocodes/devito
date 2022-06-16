@@ -58,10 +58,13 @@ jobs:
       matrix:
         include:
           - base: "devito:nvidia"
-            args: 'language="openacc" arch="nvc" platform="nvidiaX"'
+            tag: 'devitocodes/devito:nvidia-nvc'
+
+          - base: "devito:nvidia"
+            tag: 'devitocodes/devito:gpu'
 
           - base: "devito:nvidia-clang"
-            args: 'language="openmp" arch="clang" platform="nvidiaX"'
+            tag: 'devitocodes/devito:nvidia-clang'
 
     steps:
       - name: Checkout devito
@@ -90,8 +93,8 @@ jobs:
           file: ./docker/Dockerfile.nvidia
           push: true
           network: host
-          tags: devitocodes/devito:gpu-dev
-          build-args: base=${{ matrix.base }} ${{ matrix.args }} 
+          tags: ${{ matrix.tag }}-dev 
+          build-args: base=${{ matrix.base }}
 
       - name: GPU image release
         if: github.event_name == 'release'
@@ -101,9 +104,10 @@ jobs:
           file: ./docker/Dockerfile.nvidia
           push: true
           network: host
+          build-args: base=${{ matrix.base }}
           tags: |
-            devitocodes/devito:gpu-latest
-            devitocodes/devito:gpu-${{ github.event.release.tag_name }}
+            ${{ matrix.tag }}-latest
+            ${{ matrix.tag }}-${{ github.event.release.tag_name }}
 
   test-cpu-image:
     needs: deploy-docker-cpu
@@ -127,7 +131,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        im-name: [gpu-dev]
+        im-name: [nvidia-nvc-dev, nvidia-clang-dev]
 
     steps:
         - name: Run simple test

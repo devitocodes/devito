@@ -1,15 +1,6 @@
 
 ##############################################################
-# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and Devito
-# It also sets up Devito with GPU offloading via OpenMP
-#
-# BUILD:
-#   docker build --network=host -t devito:nvidia-clang -f docker/Dockerfile.nvidia.clang .
-#
-# RUN
-#   docker run --gpus all --rm -it devito:nvidia-clang
-# python examples/seismic/acoustic/acoustic_example.py
-#
+# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and LLVM-15 for openmp offloading for Devito
 ##############################################################
 FROM devito:nvidia
 
@@ -43,6 +34,14 @@ WORKDIR /
 RUN rm -rf llvm-project
 ENV PATH /llvm/bin:${PATH}
 ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
+
+# Make devito env vars file
+RUN tee /app/setup-devito-env.sh <<-EOT \
+    #!/usr/bin/env bash \
+    export DEVITO_ARCH="clang" \
+    export DEVITO_PLATFORM="nvidiaX" \
+    export DEVITO_LANGUAGE="openmp" \
+    EOT
 
 EXPOSE 8888
 CMD ["/bin/bash"]
