@@ -406,6 +406,10 @@ class CubicInterpolator(GenericInterpolator):
     def grid(self):
         return self.sfunction.grid
 
+    @property
+    def r(self):
+        return self.sfunction._radius
+
     def _cubic_equation(self, expr, position, dim_pos, idx_subs, idx2d, idx3d=None):
         """
         Generate the basic cubic equation.
@@ -525,13 +529,13 @@ class CubicInterpolator(GenericInterpolator):
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
                 # Only needs Conditional Dimensions if radius > variables.space_order
-                if all(list(map((lambda x: self.sfunction._radius <= x.space_order
+                if all(list(map((lambda x: self.r <= x.space_order
                        if hasattr(x, 'space_order') else False), variables))):
                     mapper[d] = p
                 else:
-                    lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                    lb = sympy.And(p >= d.symbolic_min - self.r,
                                    evaluate=False)
-                    ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                    ub = sympy.And(p <= d.symbolic_max + self.r,
                                    evaluate=False)
                     condition = sympy.And(lb, ub, evaluate=False)
                     mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
@@ -675,11 +679,14 @@ class SincInterpolator(GenericInterpolator):
 
     def __init__(self, sfunction):
         self.sfunction = sfunction
-        self.r = 4
 
     @property
     def grid(self):
         return self.sfunction.grid
+    
+    @property
+    def r(self):
+        return self.sfunction._radius
 
     def _sinc_equation(self, expr, position, dim_pos, idx_subs, idx2d, idx3d=None):
         """
@@ -780,13 +787,13 @@ class SincInterpolator(GenericInterpolator):
             for j, d in zip(idx, self.grid.dimensions):
                 p = points[j]
                 # Only needs Conditional Dimensions if radius > variables.space_order
-                if all(list(map((lambda x: self.sfunction._radius <= x.space_order
+                if all(list(map((lambda x: self.r <= x.space_order
                        if hasattr(x, 'space_order') else False), variables))):
                     mapper[d] = p
                 else:
-                    lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                    lb = sympy.And(p >= d.symbolic_min - self.r,
                                    evaluate=False)
-                    ub = sympy.And(p <= d.symbolic_max + self.sfunction._radius,
+                    ub = sympy.And(p <= d.symbolic_max + self.r,
                                    evaluate=False)
                     condition = sympy.And(lb, ub, evaluate=False)
                     mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
