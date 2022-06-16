@@ -1,11 +1,11 @@
-from collections import OrderedDict, namedtuple
+from collections import Counter, OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            ThreadCallable, Uxreplace, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.types import CompositeObject, Lock
 from devito.types.args import ArgProvider
-from devito.types.basic import CompositeObject
 from devito.types.dense import AliasFunction
 
 __all__ = ['Graph', 'iet_pass', 'Jitting']
@@ -217,10 +217,6 @@ def reuse_efuncs(root, efuncs):
 
     The call sites in `root` are transformed accordingly.
     """
-    #TODO: DROP, should fallback to [] seamlessly
-    if not efuncs:
-        return root, []
-
     # Topological sorting ensures that nested Calls are abstract first.
     # For example, given `[foo0(u(x)): bar0(u), foo1(u(x)): bar1(u)]`,
     # assuming that `bar0` and `bar1` are compatible, we first process the
@@ -275,13 +271,14 @@ def abstract_efunc(efunc):
     """
     parameters = []
     mapper = {}
+    counter = Counter()
     for i in efunc.parameters:
         if i.is_DiscreteFunction:
-            n = len([i for i in mapper if i.is_DiscreteFunction])
+            base = 'f'
 
             kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
             kwargs.pop('initializer')
-            kwargs['name'] = "f%d" % n
+            kwargs['name'] = '%s%d' % (base, counter[base])
             v = AliasFunction(**kwargs)
 
             mapper.update({
@@ -290,18 +287,39 @@ def abstract_efunc(efunc):
                 i._C_symbol: v._C_symbol,
             })
 
+        elif i.is_Array:
+            # Use special names for special objects
+            if isinstance(i, Lock):
+                base = 'lock'
+            else:
+                base = 'a'
+
+            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            kwargs['name'] = '%s%d' % (base, counter[base])
+            v = type(i).__base__(**kwargs)
+
+            mapper.update({
+                i: v,
+                i.indexed: v.indexed,
+                i._C_symbol: v._C_symbol,
+            })
+
         elif isinstance(i, CompositeObject):
-            n = len([i for i in mapper if isinstance(i, CompositeObject)])
+            base = 'o'
 
             args = [getattr(i, k, None) for k in i._pickle_args]
-            args[0] = "o%d" % n
+            args[0] = '%s%d' % (base, counter[base])
             kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
             v = i.func(*args, **kwargs)
 
             mapper[i] = v
 
         else:
+            base = i.name
+
             v = i
+
+        counter[base] += 1
 
         parameters.append(v)
 

@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import cgen as c
 import numpy as np
 
@@ -26,6 +28,8 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     if not isinstance(iet, AsyncCallable):
         return iet, {}
 
+    n = len(track)
+
     # Determine the max number of threads that can run this `iet` in parallel
     locks = [i for i in iet.parameters if isinstance(i, Lock)]
     npthreads = min([i.size for i in locks], default=1)
@@ -34,8 +38,8 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
 
     # PthreadArray -- the symbol representing an array of pthreads, which will
     # execute the AsyncCallable asynchronously
-    name = sregistry.make_name(prefix='threads')
-    threads = track[iet.name].threads = PThreadArray(name=name, npthreads=npthreads)
+    threads = track[iet.name].threads = PThreadArray(name='threads',
+                                                     npthreads=npthreads)
 
     # The `cfields` are the constant fields, that is the fields whose value
     # definitely never changes across different executions of `ìet`; the
@@ -47,10 +51,11 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
 
     # SharedData -- that is the data structure that will be used by the
     # main thread to pass information down to the child thread(s)
-    name = sregistry.make_name(prefix='sdata')
-    sdata = track[iet.name].sdata = SharedData(
-        name=name, npthreads=threads.size, cfields=cfields, ncfields=ncfields
-    )
+    sdata = track[iet.name].sdata = SharedData(name='sdata',
+                                               npthreads=threads.size,
+                                               cfields=cfields,
+                                               ncfields=ncfields,
+                                               pname='tsdata%d' % n)
     sbase = sdata.symbolic_base
 
     # Prepend the SharedData fields available upon thread activation
@@ -95,41 +100,57 @@ def lower_async_calls(iet, track=None, sregistry=None):
     if isinstance(iet, ThreadCallable):
         return iet, {}
 
-    # Number of allocated asynchronous queues so far
-    nqueues = 1  # The default queue
-
-    initialization = []
-    efuncs = []
-    finalization = []
-
-    mapper = {}
+    # Create efuncs to initialize the SharedData objects
+    efuncs = OrderedDict()
     for n in FindNodes(AsyncCall).visit(iet):
+        if n.name in efuncs:
+            continue
+
         assert n.name in track
         b = track[n.name]
 
-        # Callable to initialize `sdata`
         sdata = b.sdata
         sbase = sdata.symbolic_base
-        name = 'init_%s' % sdata.dtype._type_.__name__
+        name = sregistry.make_name(prefix='init_%s' % sdata.name)
         body = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
                 for i in sdata.cfields]
         body.extend([BlankLine, DummyExpr(FieldFromPointer(sdata._field_flag, sbase), 1)])
         parameters = sdata.cfields + (sdata,)
-        efuncs.append(Callable(name, body, 'void', parameters, 'static'))
+        efuncs[n.name] = Callable(name, body, 'void', parameters, 'static')
+
+    # Transform AsyncCalls
+    nqueues = 1  # Number of allocated asynchronous queues so far
+    initialization = []
+    finalization = []
+    mapper = {}
+    for n in FindNodes(AsyncCall).visit(iet):
+        # Create `sdata` and `threads` objects for `n`
+        b = track[n.name]
+        name = sregistry.make_name(prefix='sdata')
+        sdata = SharedData(name=name,
+                           npthreads=b.sdata.size,
+                           cfields=b.sdata.cfields,
+                           ncfields=b.sdata.ncfields,
+                           pname=b.sdata.pname)
+        name = sregistry.make_name(prefix='threads')
+        threads = PThreadArray(name=name, npthreads=b.threads.size)
 
         # Call to `sdata` initialization Callable
-        threads = b.threads
+        sbase = sdata.symbolic_base
         d = threads.index
         arguments = []
-        for a in sdata.cfields:
-            if isinstance(a, QueueID):
+        for a in n.arguments:
+            if a in sdata.ncfields:
+                continue
+            elif isinstance(a, QueueID):
                 # Different pthreads use different queues
                 arguments.append(nqueues + d)
             else:
                 arguments.append(a)
         # Each pthread has its own SharedData copy
         arguments.append(sbase + d)
-        call0 = Call(name, arguments)
+        assert len(efuncs[n.name].parameters) == len(arguments)
+        call0 = Call(efuncs[n.name].name, arguments)
 
         # Create pthreads
         tbase = threads.symbolic_base
@@ -191,4 +212,4 @@ def lower_async_calls(iet, track=None, sregistry=None):
         assert not initialization
         assert not finalization
 
-    return iet, {'efuncs': efuncs}
+    return iet, {'efuncs': tuple(efuncs.values())}

@@ -1653,6 +1653,11 @@ class AliasFunction(DiscreteFunction):
     __indices_setup__ = Function.__indices_setup__
     __shape_setup__ = Function.__shape_setup__
 
+    def __init_finalize__(self, *args, **kwargs):
+        self.save = kwargs.pop('save', None)
+
+        super().__init_finalize__(*args, **kwargs)
+
     @property
     def data(self):
         # Any attempt at allocating data by the user should fail miserably

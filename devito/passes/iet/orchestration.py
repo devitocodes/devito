@@ -72,7 +72,8 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='copy_device_to_host')
         body = List(body=tuple(preactions) + iet.body + tuple(postactions))
-        efunc = AsyncCallable(name, body)
+        parameters = derive_parameters(body)
+        efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall
         iet = AsyncCall(name, efunc.parameters)
@@ -111,7 +112,8 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix='prefetch_host_to_device')
         body = List(body=iet.body + (BlankLine,) + tuple(postactions))
-        efunc = AsyncCallable(name, body)
+        parameters = derive_parameters(body)
+        efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall
         iet = AsyncCall(name, efunc.parameters)
