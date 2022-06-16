@@ -23,13 +23,15 @@
 #
 ##############################################################
 
-FROM python:3.7
+ARG base=python:3.9-slim-bullseye
+FROM $base
 
-RUN apt-get update && apt-get install -y -q \
-    mpich \
-    libmpich-dev \
-    libgl1-mesa-glx
+# Install for basic base not containing it.
+RUN if [ "$base" == "python:3.9-slim-bullseye" ]; then \
+      apt-get update && apt-get install -y -q mpich libmpich-dev libgl1-mesa-glx; \
+    fi
 
+##################  Install devito ############################################
 # Copy Devito
 ADD . /app/devito
 # Remove git files
@@ -40,7 +42,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi] && \
+    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,nvidia] && \
     rm -rf ~/.cache/pip
 
 ADD docker/run-jupyter.sh /jupyter
@@ -76,8 +78,16 @@ RUN mkdir -p /app && \
 USER app
 WORKDIR /app/devito
 
-ENV DEVITO_ARCH="gcc"
-ENV DEVITO_LANGUAGE="openmp"
+# Env vars from ARGS
+ARG arch="gcc"
+ARG language="openmp"
+ARG logging="DEBUG"
+ARG platform="CPU64"
+
+ENV DEVITO_ARCH=$arch
+ENV DEVITO_LANGUAGE=$language
+ENV DEVITO_LOGGING=$logging
+ENV DEVITO_PLATFORM=$platform
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

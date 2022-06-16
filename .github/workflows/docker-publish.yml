@@ -53,6 +53,15 @@ jobs:
 
   deploy-docker-gpu:
     runs-on: [self-hosted, gpu, docker]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - base: "devito:nvidia"
+            args: 'language="openacc" arch="nvc" platform="nvidiaX"'
+
+          - base: "devito:nvidia-clang"
+            args: 'language="openmp" arch="clang" platform="nvidiaX"'
 
     steps:
       - name: Checkout devito
@@ -82,6 +91,7 @@ jobs:
           push: true
           network: host
           tags: devitocodes/devito:gpu-dev
+          build-args: base=${{ matrix.base }} ${{ matrix.args }} 
 
       - name: GPU image release
         if: github.event_name == 'release'
