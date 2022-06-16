@@ -36,12 +36,10 @@ ENV PATH /llvm/bin:${PATH}
 ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
 
 # Make devito env vars file
-RUN tee /app/setup-devito-env.sh <<-EOT \
-    #!/usr/bin/env bash \
-    export DEVITO_ARCH="clang" \
-    export DEVITO_PLATFORM="nvidiaX" \
-    export DEVITO_LANGUAGE="openmp" \
-    EOT
+RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
+    echo 'export DEVITO_ARCH="clang"' >> /app/setup-devito-env.sh && \
+    echo 'export DEVITO_PLATFORM="nvidiaX"' >> /app/setup-devito-env.sh && \
+    echo 'export DEVITO_LANGUAGE="openmp"' >> /app/setup-devito-env.sh
 
 EXPOSE 8888
 CMD ["/bin/bash"]

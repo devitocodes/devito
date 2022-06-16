@@ -2,12 +2,14 @@
 # This Dockerfile contains the Devito codes and can be buld using different base images.
 ##############################################################
 
-ARG base=python:3.9-slim-bullseye
+ARG base=python:3.7
 FROM $base
 
-# Install for basic base not containing it.
-RUN if [ "$base" == "python:3.9-slim-bullseye" ]; then \
-      apt-get update && apt-get install -y -q mpich libmpich-dev libgl1-mesa-glx; \
+ARG base
+
+# Install for basic base not containing it
+RUN if [ "$base" = "python:3.7" ]; then \
+      apt-get update && apt-get install -y mpich libmpich-dev libgl1-mesa-glx; \
     fi
 
 ##################  Install devito ############################################
@@ -21,7 +23,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,nvidia] && \
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi] && \
     rm -rf ~/.cache/pip
 
 ADD docker/run-jupyter.sh /jupyter
@@ -39,6 +41,9 @@ RUN chmod +x \
 # Set the home directory to our app user's home.
 ENV HOME=/app
 ENV APP_HOME=/app
+
+# Reset any existin CFLAG
+ENV CFLAGS=
 
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.

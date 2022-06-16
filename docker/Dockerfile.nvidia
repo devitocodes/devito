@@ -89,12 +89,16 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
     fi;
 
 # Make devito env vars file
-RUN tee /app/setup-devito-env.sh <<-EOT \
-    #!/usr/bin/env bash \
-    export DEVITO_ARCH="nvc" \
-    export DEVITO_PLATFORM="nvidiaX" \
-    export DEVITO_LANGUAGE="openacc" \
-    EOT
+RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
+    echo 'export DEVITO_ARCH="nvc"' >> /app/setup-devito-env.sh && \
+    echo 'export DEVITO_PLATFORM="nvidiaX"' >> /app/setup-devito-env.sh && \
+    echo 'export DEVITO_LANGUAGE="openacc"' >> /app/setup-devito-env.sh
+
+# Install python nvidia dependencies
+RUN /venv/bin/pip install --no-cache-dir --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt
+
+ENV CFLAGS=-noswitcherror 
 
 EXPOSE 8888
 CMD ["/bin/bash"]
