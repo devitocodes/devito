@@ -247,7 +247,12 @@ class Data(np.ndarray):
                 else:
                     pass
                 it.iternext()
-            return retval
+            reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
+                             if type(i) is not np.int64])
+            if reshape and 0 not in reshape and reshape != retval.shape:
+                return retval.reshape(reshape)
+            else:
+                return retval
         elif loc_idx is NONLOCAL:
             # Caller expects a scalar. However, `glb_idx` doesn't belong to
             # self's data partition, so None is returned
