@@ -2,7 +2,8 @@ from collections import Counter, OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           ThreadCallable, Uxreplace, derive_parameters)
+                           EntryFunction, ThreadCallable, Uxreplace,
+                           derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import CompositeObject, Lock
 from devito.types.args import ArgProvider
@@ -27,24 +28,24 @@ class Graph(object):
     """
 
     def __init__(self, iet):
-        self.efuncs = OrderedDict([('root', iet)])
+        self.efuncs = OrderedDict([(iet.name, iet)])
 
         self.includes = []
         self.headers = []
 
     @property
     def root(self):
-        return self.efuncs['root']
+        return self.efuncs[list(self.efuncs).pop(0)]
 
     @property
     def funcs(self):
-        return tuple(MetaCall(v, True) for k, v in self.efuncs.items() if k != 'root')
+        return tuple(MetaCall(v, True) for v in self.efuncs.values())[1:]
 
     def apply(self, func, **kwargs):
         """
         Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
-        dag = create_call_graph('root', self.efuncs)
+        dag = create_call_graph(self.root.name, self.efuncs)
 
         # Apply `func`
         for i in dag.topological_sort():
@@ -53,10 +54,7 @@ class Graph(object):
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
 
-            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []))
-            self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
-
-            # Update compiler if necessary
+            # Update jit-compiler if necessary
             try:
                 jitting = metadata['jitting']
                 self.includes.extend(jitting.includes)
@@ -70,57 +68,16 @@ class Graph(object):
 
             if efunc is self.efuncs[i]:
                 continue
+
+            # Minimize code size by abstracting semantically identical efuncs
+            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []))
+
             self.efuncs[i] = efunc
+            self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
 
-            if isinstance(efunc, ThreadCallable):
-                continue
-
-            # The parameters/arguments lists may have changed since a pass may have:
-            # 1) introduced a new symbol
-            new_args = derive_parameters(efunc)
-            new_args = [a for a in new_args if not a._mem_internal_eager]
-
-            # 2) defined a symbol for which no definition was available yet (e.g.
-            # via a malloc, or a Dereference)
-            defines = FindSymbols('defines').visit(efunc.body)
-            drop_args = [a for a in efunc.parameters if a in defines]
-
-            if not (new_args or drop_args):
-                continue
-
-            def _filter(v, ef=None):
-                processed = list(v)
-                for a in new_args:
-                    if a in processed:
-                        # A child efunc trying to add a symbol alredy added by a
-                        # sibling efunc
-                        continue
-
-                    if ef is self.root and not isinstance(a, ArgProvider):
-                        # Temporaries (e.g., Arrays) *cannot* be args in `root`.
-                        # So if we end up here, `a` keeps being undefined
-                        # inside it, and we rely on a later pass to define it
-                        continue
-
-                    processed.append(a)
-
-                processed = [a for a in processed if a not in drop_args]
-
-                return processed
-
-            # Update to use the new signature
-            parameters = _filter(efunc.parameters, efunc)
-            self.efuncs[i] = efunc._rebuild(parameters=parameters)
-
-            # Update all call sites to use the new signature
-            for n in dag.downstream(i):
-                efunc = self.efuncs[n]
-
-                mapper = {c: c._rebuild(arguments=_filter(c.arguments))
-                          for c in FindNodes(Call).visit(efunc)
-                          if c.name == self.efuncs[i].name}
-                efunc = Transformer(mapper).visit(efunc)
-                self.efuncs[n] = efunc
+            # Update the parameters / arguments lists since `func` may have
+            # introduced or removed objects
+            self.efuncs = update_args(efunc, self.efuncs, dag)
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -133,7 +90,7 @@ class Graph(object):
         from nodes to info. Unlike `apply`, `visit` does not change the state
         of the Graph.
         """
-        dag = create_call_graph('root', self.efuncs)
+        dag = create_call_graph(self.root.name, self.efuncs)
         toposort = dag.topological_sort()
 
         mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
@@ -178,8 +135,8 @@ def create_call_graph(root, efuncs):
     Create a Call graph -- a Direct Acyclic Graph with edges from callees
     to callers.
     """
-    dag = DAG(nodes=['root'])
-    queue = ['root']
+    dag = DAG(nodes=[root])
+    queue = [root]
 
     while queue:
         caller = queue.pop(0)
@@ -223,12 +180,12 @@ def reuse_efuncs(root, efuncs):
     # `bar`'s to obtain `[foo0(u(x)): bar0(u), foo1(u(x)): bar0(u)]`,
     # and finally `foo0(u(x)): bar0(u)`
     efuncs = {i.name: i for i in efuncs}
-    efuncs['root'] = root
+    efuncs[root.name] = root
     dag = create_call_graph(root.name, efuncs)
 
     mapper = {}
     for i in dag.topological_sort():
-        if i == 'root':
+        if i == root.name:
             continue
 
         efunc = efuncs[i]
@@ -252,7 +209,7 @@ def reuse_efuncs(root, efuncs):
             afunc = afunc._rebuild(name=efunc.name)
             mapper[key] = (afunc, [efunc])
 
-    root = efuncs.pop('root')
+    root = efuncs.pop(root.name)
     processed = [afunc if len(efuncs) > 1 else efuncs.pop()
                  for afunc, efuncs in mapper.values()]
 
@@ -328,3 +285,86 @@ def abstract_efunc(efunc):
     efunc = efunc._rebuild(name='foo', parameters=parameters, body=body)
 
     return efunc
+
+
+def update_args(root, efuncs, dag):
+    """
+    Re-derive the parameters of `root` and apply the changes in cascade through
+    the `efuncs`.
+
+    For example, given the Callable `root`:
+
+        root(x, y) : x + z
+
+    The re-derivation detects that the formal parameter `y` is now unused
+    within `root.body`, while a free symbol `z` appears in an expression. Thus,
+    `root` is reconstructed as:
+
+        root(x, z) : x + z
+
+    Now assume among `efuncs` there's a Callable `foo` that calls `root`:
+
+        foo(...) : z = 5; root(x, y)
+
+    Then `foo` will be reconstructed as:
+
+        foo(...) : z = 5; root(x, z)
+
+    If instead `foo` were as below:
+
+        foo(...) : root(x, y)
+
+    That is, no definition for `z` available, then it would be reconstructed as:
+
+        foo(..., z) : root(x, z)
+    """
+    if isinstance(root, ThreadCallable):
+        return efuncs
+
+    # The parameters/arguments lists may have changed since a pass may have:
+    # 1) introduced a new symbol
+    new_args = derive_parameters(root)
+    new_args = [a for a in new_args if not a._mem_internal_eager]
+
+    # 2) defined a symbol for which no definition was available yet (e.g.
+    # via a malloc, or a Dereference)
+    defines = FindSymbols('defines').visit(root.body)
+    drop_args = [a for a in root.parameters if a in defines]
+
+    if not (new_args or drop_args):
+        return efuncs
+
+    def _filter(v, efunc=None):
+        processed = list(v)
+        for a in new_args:
+            if a in processed:
+                # A child efunc trying to add a symbol alredy added by a
+                # sibling efunc
+                continue
+
+            if isinstance(efunc, EntryFunction) and not isinstance(a, ArgProvider):
+                # Temporaries (e.g., Arrays) *cannot* be arguments of an
+                # EntryFunction. So if we end up here, `a` remains for
+                # now undefined inside `efunc`
+                continue
+
+            processed.append(a)
+
+        processed = [a for a in processed if a not in drop_args]
+
+        return processed
+
+    efuncs = OrderedDict(efuncs)
+
+    # Update to use the new signature
+    parameters = _filter(root.parameters, root)
+    efuncs[root.name] = root._rebuild(parameters=parameters)
+
+    # Update all call sites to use the new signature
+    for n in dag.downstream(root.name):
+        mapper = {c: c._rebuild(arguments=_filter(c.arguments))
+                  for c in FindNodes(Call).visit(efuncs[n])
+                  if c.name == root.name}
+        efuncs[n] = Transformer(mapper).visit(efuncs[n])
+
+    return efuncs
