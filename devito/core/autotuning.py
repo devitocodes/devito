@@ -129,7 +129,6 @@ def autotune(operator, args, level, mode):
             at_args.update(dict(run))
 
 	    # Drop small tiles ! NOT blocks
-            # import pdb;pdb.set_trace()
             if run[0][0] == 'time0_blk0_size' and run[0][1] < 63:
                 continue
 

@@ -239,7 +239,6 @@ class AnisotropicWaveSolver(object):
         u.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
         v.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
 
-        import pdb;pdb.set_trace()
         import matplotlib.pyplot as plt
         from examples.cfd import plot_field
         from examples.seismic import plot_image
@@ -259,12 +258,11 @@ class AnisotropicWaveSolver(object):
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd_tb(save)
         # op = self.op_fwd(save)
-        # summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 8})
+        # summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **{'time0_blk0_size': 4, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 64, 'y0_blk1_size': 16})
         summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt))
 
         print(norm(u))
         print(norm(v))
-        import pdb;pdb.set_trace()
         import matplotlib.pyplot as plt
         from examples.cfd import plot_field
         from examples.seismic import plot_image

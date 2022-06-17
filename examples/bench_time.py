@@ -55,6 +55,9 @@ op0 = Operator(eq0, opt=('advanced'))
 # op0.apply(time_M=tn, dt=dt, **{'x0_blk0_size': 64, 'y0_blk0_size': 32})
 op0.apply(time_M=tn-1, dt=dt)
 norm_u = norm(u)
+print(norm_u)
+
+
 u.data[:] = init_value
 #
 op1 = Operator(eq0, opt=('advanced', {'skewing': True,
@@ -69,9 +72,9 @@ op1 = Operator(eq0, opt=('advanced', {'skewing': True,
 
 #op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 4, 'y0_blk0_size': 64, 'y0_blk1_size': 4})  # Medium problem 512^3 - 512 gcc
 
-op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
+# op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
 # op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 512, 'x0_blk0_size': 2112, 'x0_blk1_size': 24, 'y0_blk0_size': 2112, 'y0_blk1_size': 24})  # Medium problem 512^3 - 256
-# op1.apply(time_M=tn-1, dt=dt)
+op1.apply(time_M=tn-1, dt=dt)
 
 print(norm_u)
 
