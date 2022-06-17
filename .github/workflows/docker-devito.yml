@@ -1,4 +1,4 @@
-name: Publish docker image
+name: Publish devito docker images from compiler bases
 
 on:
   release:
@@ -8,7 +8,7 @@ on:
       - master         # Push events on master branch
 
 jobs:
-  deploy-docker:
+  deploy-devito:
     runs-on: ubuntu-latest
 
     strategy:
@@ -17,12 +17,18 @@ jobs:
         include:
           - base: "devito:nvidia"
             tag: 'nvidia-nvc'
+            flag: '--gpus all'
+            test: 'tests/test_gpu_opeacc.py'
 
           - base: "devito:nvidia-clang"
             tag: 'nvidia-clang'
+            flag: '--gpus all'
+            test: 'tests/test_gpu_openmp.py'
 
           - base: "python:3.7"
             tag: "cpu"
+            flag: ''
+            test: 'tests/test_operator.py'
 
     steps:
       - name: Checkout devito
@@ -43,8 +49,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      -
-        name: Docker meta
+      - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
         with:
@@ -70,31 +75,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: base=${{ matrix.base }}
 
-  test-image:
-    needs: deploy-docker
-    runs-on: ${{ matrix.runner }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tag: "devito:nvidia-nvc-dev"
-            flag: '--gpus all'
-            runner: [self-hosted, gpu, docker]
-            test: 'tests/test_gpu_opeacc.py'
-
-          - tag: 'nvidia-clang-dev'
-            runner: [self-hosted, gpu, docker]
-            flag: '--gpus all'
-            test: 'tests/test_gpu_openmp.py'
-
-          - tag: "cpu-dev"
-            runner:  ubuntu-latest
-            flag: '--gpus all'
-            test: 'tests/test_operator.py'
-  
-    steps:
         - name: Run simple test
           run: |
              docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}' pytest ${{ matrix.test }}
+             docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}

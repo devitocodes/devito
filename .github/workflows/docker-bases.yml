@@ -1,4 +1,4 @@
-name: Build base docker images
+name: Build base compilers docker images
 
 # Runs once a week for now.
 on:
@@ -8,8 +8,7 @@ on:
     - cron: "0 13 * * 1"
 
 jobs:
-  deploy-docker-nvidia:
-    if: inputs.image != 'clang' 
+  deploy-base-nvidia:
     runs-on:  [self-hosted, gpu, docker]
 
     steps:
@@ -41,7 +40,7 @@ jobs:
           tags: devitocodes/devito:nvidia
 
 
-  deploy-docker-clang:
+  deploy-base-nvidia-clang:
       runs-on:  [self-hosted, gpu, docker]
       needs: deploy-docker-nvidia
 
