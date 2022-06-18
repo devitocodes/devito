@@ -243,10 +243,10 @@ class AnisotropicWaveSolver(object):
         from examples.cfd import plot_field
         from examples.seismic import plot_image
 
-        plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
-        plt.show()
-        plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
-        plt.show()
+        #plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
+        #plt.show()
+        #plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
+        #plt.show()
 
         print(norm(u))
         print(norm(v))
@@ -258,19 +258,20 @@ class AnisotropicWaveSolver(object):
         # Execute operator and return wavefield and receiver data
         op = self.op_fwd_tb(save)
         # op = self.op_fwd(save)
-        # summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **{'time0_blk0_size': 4, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 64, 'y0_blk1_size': 16})
-        summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt))
+        import pdb;pdb.set_trace()
+        # summary = op.apply(time_M=self.geometry.nt, u=u, v=v, dt=kwargs.pop('dt', self.dt), **{'time0_blk0_size': 27, 'x0_blk0_size': 32, 'x0_blk1_size': 4, 'y0_blk0_size': 32, 'y0_blk1_size': 4})
+        summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **kwargs)
 
         print(norm(u))
         print(norm(v))
-        import matplotlib.pyplot as plt
-        from examples.cfd import plot_field
-        from examples.seismic import plot_image
+        #import matplotlib.pyplot as plt
+        #from examples.cfd import plot_field
+        #from examples.seismic import plot_image
 
         plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
         plt.show()
-        plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
-        plt.show()
+        #plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
+        #plt.show()
 
         return u, v, summary
 

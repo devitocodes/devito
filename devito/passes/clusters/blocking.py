@@ -622,10 +622,10 @@ class RelaxSkewed(Queue):
                         intervals.append(Interval(sd2, i.lower, i.upper))
                         mapper.update({i.dim: sd2})
                     elif i.dim._depth > 2:
-                        res = evalrel(min, [sd2.symbolic_rmax + i.upper, i.dim.symbolic_max])
+                        res = i.upper + evalrel(min, [sd2.symbolic_rmax, i.dim.symbolic_max])
                         rmax = i.dim.symbolic_rmax.xreplace({i.dim.symbolic_rmax: res})
                         sd3 = i.dim.func(parent=sd2, rmax=rmax)
-                        intervals.append(Interval(sd3, i.lower, i.upper))
+                        intervals.append(Interval(sd3, i.lower, 0))
                         mapper.update({i.dim: sd3})
                         sd2 = sd3
                     else:

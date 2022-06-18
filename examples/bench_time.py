@@ -74,7 +74,7 @@ op1 = Operator(eq0, opt=('advanced', {'skewing': True,
 
 # op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 64, 'x0_blk0_size': 32, 'x0_blk1_size': 8, 'y0_blk0_size': 32, 'y0_blk1_size': 8})  # Medium problem 512^3 - 256
 # op1.apply(time_M=tn, dt=dt, **{'time0_blk0_size': 512, 'x0_blk0_size': 2112, 'x0_blk1_size': 24, 'y0_blk0_size': 2112, 'y0_blk1_size': 24})  # Medium problem 512^3 - 256
-op1.apply(time_M=tn-1, dt=dt)
+op1.apply(time_M=tn, dt=dt)
 
 print(norm_u)
 

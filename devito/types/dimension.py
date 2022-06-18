@@ -1181,8 +1181,8 @@ class BlockDimension(AbstractIncrDimension):
             if value > args[self.root.max_name] - args[self.root.min_name] + 1:
                 # Avoid OOB
                 raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
+                                      "iteration range %d and it will cause an OOB access"
+                                      % (name, value, (args[self.root.max_name] - args[self.root.min_name] + 1)))
 
 
 class CustomDimension(BasicDimension):
