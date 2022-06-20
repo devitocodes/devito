@@ -388,7 +388,7 @@ class SeismicModel(GenericModel):
                                  " %s without or %s with padding" % (self.shape,
                                                                      param.shape))
         else:
-            param.data[:] = value
+            param.data = value
 
     @property
     def m(self):
