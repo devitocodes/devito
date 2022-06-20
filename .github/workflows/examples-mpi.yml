@@ -32,7 +32,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v2.3.2
+      uses: actions/checkout@v3
 
     - name: Set environment
       run: |
@@ -43,14 +43,16 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -e .
+        pip install -e .[extras,mpi]
 
     - name: Test mpi notebooks
       run : |
-        # Currently not tested due to issue #859
-        # ipcluster start --profile=mpi -n 4 --daemon
-        # py.test --nbval examples/mpi
-        # ipcluster stop --profile=mpi
+        ./scripts/create_ipyparallel_mpi_profile.sh
+        ipcluster start --profile=mpi --engines=mpi -n 4 --daemonize
+        # A few seconds to ensure workers are ready
+        sleep 20
+        py.test --nbval examples/mpi
+        ipcluster stop --profile=mpi
 
     - name: Test seismic examples
       run: |

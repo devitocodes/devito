@@ -31,7 +31,7 @@ from benchmarks.user.advisor.advisor_logging import (check, log, progress,
 def run_with_advisor(path, output, name, exec_args):
     path = Path(path)
     check(path.is_file(), '%s not found' % path)
-    check(path.suffix == '.py', '%s not a regular Python file' % path)
+    check(path.suffix == '.py', '%s not a Python file' % path)
 
     # Create a directory to store the profiling report
     if name is None:
@@ -49,15 +49,20 @@ def run_with_advisor(path, output, name, exec_args):
         output = Path(output).joinpath(name)
         output.mkdir(parents=True, exist_ok=True)
 
-    # Intel Advisor must be available through either Intel Parallel Studio
-    # or Intel oneAPI (currently tested versions include IPS 2020 Update 2 and
+    # Intel Advisor and Intel compilers must be available through either Intel Parallel
+    # Studio or Intel oneAPI (currently tested versions include IPS 2020 Update 2 and
     # oneAPI 2021 beta08)
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:
         check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
 
-    # If Advisor is available, so is the Intel compiler
+    try:
+        ret = check_output(['icc', '--version']).decode("utf-8")
+    except FileNotFoundError:
+        check(False, "Error: Couldn't detect Intel Compiler (icc).")
+
+    # All good, Intel compiler and advisor are available
     os.environ['DEVITO_ARCH'] = 'intel'
 
     # Tell Devito to instrument the generated code for Advisor
@@ -68,12 +73,13 @@ def run_with_advisor(path, output, name, exec_args):
     if devito_logging is None:
         os.environ['DEVITO_LOGGING'] = 'WARNING'
 
-    with progress('Set up multi-threading environment'):
-        # Roofline analyses only make sense with threading enabled
+    with progress('Setting up multi-threading environment'):
+        # Roofline analyses are recommended with threading enabled
         os.environ['DEVITO_LANGUAGE'] = 'openmp'
 
-        # We must be able to do thread pinning, otherwise any results would be
-        # meaningless. Currently, we only support doing that via numactl
+        # Thread pinning is strongly recommended for reliable results.
+        # This script is using numactl for this purpose. Users may want to set their
+        # own pinning: https://hpc-wiki.info/hpc/Binding/Pinning
         try:
             ret = check_output(['numactl', '--show']).decode("utf-8")
             ret = dict(i.split(':') for i in ret.split('\n') if i)
@@ -94,6 +100,9 @@ def run_with_advisor(path, output, name, exec_args):
         #     `stackoverflow.com/questions/17053671/python-how-do-you-stop-numpy-from-multithreading`  # noqa
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
+    # To build a roofline with Advisor, we need to run two analyses back to
+    # back, `survey` and `tripcounts`.
+
     numactl_cmd = [
         'numactl',
         '--cpunodebind=0'
@@ -109,11 +118,11 @@ def run_with_advisor(path, output, name, exec_args):
         '-run-pass-thru=--no-altstack',  # Avoids `https://software.intel.com/en-us/vtune-amplifier-help-error-message-stack-size-is-too-small`  # noqa
         '-run-pass-thru=-timestamp=sys',  # Avoids 'VTune Amplifier may detect which timer source to use incorrectly on Intel® Xeon® processor E5-XXXX processors (200287361)' # noqa
         '-strategy ldconfig:notrace:notrace',  # Avoids `https://software.intel.com/en-us/forums/intel-vtune-amplifier-xe/topic/779309`  # noqa
-        '-start-paused',  # The generated code will enable/disable Advisor on a loop basis
+        '-start-paused',  # The generated code will enable/disable Advisor on a loop basis according to the decorated pragmas  # noqa
     ]
     advisor_flops = [
         '--collect=tripcounts',
-        '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
+        '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline model `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
         '--flop',
         '--stacks',
         '--collect=map',
@@ -121,9 +130,8 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     py_cmd = [sys.executable, str(path)] + exec_args.split()
 
-    # To build a roofline with Advisor, we need to run two analyses back to
-    # back, `survey` and `tripcounts`. These are preceded by a "pure" python
-    # run to warmup the jit cache
+    # Before collecting the `survey` and `tripcounts` a "pure" python run to warmup the
+    # jit cache is preceded
 
     log('Starting Intel Advisor\'s `roofline` analysis for `%s`' % name)
     dt = datetime.datetime.now()

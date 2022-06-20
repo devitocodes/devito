@@ -16,9 +16,16 @@
 # 
 #   docker build --network=host --build-arg MPI_VER=4 --file docker/Dockerfile.nvidia --tag devito:nvidia .
 #
+# SQUASH:
+#   If you want a smaller image or to collapse/combine the smaller layers, try squashing your docker image
+#
+#   pip install docker-squash
+#   docker tag devito:nvidia devito:nvidia-pre
+#   docker-squash  -t devito:nvidia-pre devito:nvidia
+#
 # RUN: 
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
-#   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia python examples/seismic/acoustic/acoustic_example.py
+#   docker run --gpus all --rm -it devito:nvidia python examples/seismic/acoustic/acoustic_example.py
 #
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
 #
@@ -26,31 +33,36 @@
 #   docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito:nvidia python examples/seismic/acoustic/acoustic_example.py
 #
 ##############################################################
-FROM python:3.8
+#FROM python:3.9 
+FROM python:3.9-slim-bullseye 
  
 ENV DEBIAN_FRONTEND noninteractive 
   
 # nodesource: nvdashboard requires nodejs>=10  
-RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
-    apt-get update -y && \
+RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
+RUN apt-get update -y && \
     apt-get install -y -q \
-        apt-utils curl\   
-        vim && \
-    curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+        apt-utils curl wget
+
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
-        nodejs \
+#        nvhpc-22-5-cuda-multi \
+        nvhpc-22-5 \
         liblapack-dev  \
         libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
+# Devito Jupyter Notebooks and Ux experience
+        nodejs \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
-        ffmpeg \
-        nvhpc-22-2 nvhpc-22-2-cuda-multi && \
+        ffmpeg vim && \
     wget -q -P /app/nvcomp_exts/ \
         http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
+    apt-get autoclean && \
+    apt-get autoremove && \
     rm -rf /app/nvcomp_exts/nvcomp* && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* 
 
 ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
 ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI

@@ -1,6 +1,6 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from subprocess import PIPE, Popen, DEVNULL
+from subprocess import PIPE, Popen, DEVNULL, run
 
 from cached_property import cached_property
 import cpuinfo
@@ -9,12 +9,13 @@ import numpy as np
 import psutil
 import re
 import os
+import sys
 
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
-           'get_cuda_path', 'check_cuda_runtime',
+           'get_cuda_path', 'check_cuda_runtime', 'get_m1_llvm_path',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -373,6 +374,38 @@ def get_cuda_path():
             if os.path.exists(cuda_home):
                 return cuda_home
 
+    return None
+
+
+@memoized_func
+def get_m1_llvm_path(language):
+    # Check if Apple's llvm is installed (installable via Homebrew), which supports
+    # OpenMP.
+    # Check that we are on apple system
+    if sys.platform != 'darwin':
+        raise ValueError('Apple LLVM is only available on Mac OS X.')
+    # *** First check if LLVM is installed
+    ver = run(["clang", "--version"], stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8")
+    # *** Second check if this clang version targets arm64 (M1)
+    if "arm64-apple" in ver:
+        # *** Third extract install path. clang version command contains the line:
+        # InstalledDir: /path/to/llvm/bin
+        # which points to the llvm root directory we need for libraries and includes
+        prefix = [v.split(': ')[-1] for v in ver.split('\n')
+                  if "InstalledDir" in v][0][:-4]
+        # ** Fourth check if the libraries are installed
+        if os.path.exists(os.path.join(prefix, 'lib', 'libomp.dylib')):
+            libs = os.path.join(prefix, "lib")
+            include = os.path.join(prefix, "include")
+            return {'libs': libs, 'include': include}
+        elif language == "openmp":
+            warning("Apple's arm64 clang found but openmp libraries not found."
+                    "Install Apple LLVM for OpenMP support, i.e. `brew install llvm`")
+        else:
+            pass
+    else:
+        if language == "openmp":
+            warning("Apple's x86 clang found, OpenMP is not supported.")
     return None
 
 

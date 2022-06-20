@@ -13,26 +13,26 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Check event name
         run: echo ${{ github.event_name }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1.0.2
+        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.1.2
+        uses: docker/setup-buildx-action@v2
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: CPU image
         if: github.event_name == 'push'
-        uses: docker/build-push-action@v2.4.0
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile
@@ -41,7 +41,7 @@ jobs:
 
       - name: CPU image release
         if: github.event_name == 'release'
-        uses: docker/build-push-action@v2.4.0
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile
@@ -56,26 +56,26 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Check event name
         run: echo ${{ github.event_name }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1.0.2
+        uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1.1.2
+        uses: docker/setup-buildx-action@v2
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: GPU image
         if: github.event_name == 'push'
-        uses: docker/build-push-action@v2.4.0
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile.nvidia
@@ -85,7 +85,7 @@ jobs:
 
       - name: GPU image release
         if: github.event_name == 'release'
-        uses: docker/build-push-action@v2.4.0
+        uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile.nvidia
@@ -95,7 +95,6 @@ jobs:
             devitocodes/devito:gpu-latest
             devitocodes/devito:gpu-${{ github.event.release.tag_name }}
 
-  # Comment out 'cpu-latest' until next release
   test-cpu-image:
     needs: deploy-docker-cpu
     runs-on: ubuntu-latest
@@ -103,7 +102,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #im-name: [cpu-dev, cpu-latest]
         im-name: [cpu-dev]
 
     steps:
@@ -119,7 +117,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        #im-name: [gpu-dev, gpu-latest]
         im-name: [gpu-dev]
 
     steps:

@@ -22,16 +22,17 @@ class memoized_func(object):
         self.func = func
         self.cache = {}
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kw):
         if not isinstance(args, Hashable):
             # Uncacheable, a list, for instance.
             # Better to not cache than blow up.
-            return self.func(*args)
-        if args in self.cache:
-            return self.cache[args]
+            return self.func(*args, **kw)
+        key = (self.func, args, frozenset(kw.items()))
+        if key in self.cache:
+            return self.cache[key]
         else:
-            value = self.func(*args)
-            self.cache[args] = value
+            value = self.func(*args, **kw)
+            self.cache[key] = value
             return value
 
     def __repr__(self):

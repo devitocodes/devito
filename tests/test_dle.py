@@ -193,6 +193,34 @@ def test_cache_blocking_structure_optrelax():
     assert iters[1].dim.is_Block
 
 
+@pytest.mark.parametrize('opt, expected', [('noop', ('ijk', 'ikl')),
+                         (('advanced', {'blockinner': True, 'blockrelax': True}),
+                         ('i0_blk0ijk', 'i0_blk0ikl'))])
+def test_cache_blocking_structure_optrelax_linalg(opt, expected):
+    mat_shape = (4, 4)
+
+    i, j, k, l = dimensions('i j k l')
+    A = Function(name='A', shape=mat_shape, dimensions=(i, j))
+    B = Function(name='B', shape=mat_shape, dimensions=(j, k))
+    C = Function(name='C', shape=mat_shape, dimensions=(j, k))
+    D = Function(name='D', shape=mat_shape, dimensions=(i, k))
+    E = Function(name='E', shape=mat_shape, dimensions=(k, l))
+    F = Function(name='F', shape=mat_shape, dimensions=(i, l))
+
+    eqs = [Inc(D, A*B + A*C), Inc(F, D*E)]
+
+    A.data[:] = 1
+    B.data[:] = 1
+    C.data[:] = 1
+    E.data[:] = 1
+
+    op0 = Operator(eqs, opt=opt)
+    op0.apply()
+    assert_structure(op0, expected)
+    assert np.linalg.norm(D.data) == 32.0
+    assert np.linalg.norm(F.data) == 128.0
+
+
 @pytest.mark.parametrize('par_tile,expected', [
     (True, ((16, 16, 16), (16, 16, 16))),
     ((32, 4, 4), ((4, 4, 32), (4, 4, 32))),
