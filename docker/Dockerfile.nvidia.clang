@@ -10,11 +10,11 @@ ENV DEVITO_LANGUAGE="openmp"
 ENV DEVITO_PLATFORM="nvidiaX"
 ENV DEVITO_LOGGING="DEBUG"
 ENV OMPI_CC="clang"
+ENV CFLAGS=
 
 ## INSTALL CLANG PREREQUISITES
 RUN apt-get -y update && \
-    apt-get install -y -q libelf-dev libffi-dev \
-    gcc-multilib gcc-multilib cmake
+    apt-get install -y -q libelf-dev libffi-dev cmake git
 
 ## INSTALL CLANG 13
 WORKDIR /
@@ -40,6 +40,9 @@ RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
     echo 'export DEVITO_ARCH="clang"' >> /app/setup-devito-env.sh && \
     echo 'export DEVITO_PLATFORM="nvidiaX"' >> /app/setup-devito-env.sh && \
     echo 'export DEVITO_LANGUAGE="openmp"' >> /app/setup-devito-env.sh
+
+RUN rm -rf /var/lib/apt/lists/* \
+	&& apt-get clean
 
 EXPOSE 8888
 CMD ["/bin/bash"]

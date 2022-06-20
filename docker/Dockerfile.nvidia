@@ -18,7 +18,7 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
 # Install latest available nvhpc
-RUN ver=$(apt-cache show nvhpc | grep Source | awk '{print $2}') && apt-get install -y -q $(ver)
+RUN ver=$(apt-cache show nvhpc | grep Source | awk '{print $2}') && apt-get install -y -q ${ver}
 
 RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
@@ -95,10 +95,15 @@ RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
     echo 'export DEVITO_LANGUAGE="openacc"' >> /app/setup-devito-env.sh
 
 # Install python nvidia dependencies
-RUN /venv/bin/pip install --no-cache-dir --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
+    rm -rf ~/.cache/pip
 
 ENV CFLAGS=-noswitcherror 
+
+RUN rm -rf /var/lib/apt/lists/* \
+	&& apt-get clean
 
 EXPOSE 8888
 CMD ["/bin/bash"]
