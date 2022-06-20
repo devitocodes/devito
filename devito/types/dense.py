@@ -1651,12 +1651,23 @@ class AliasFunction(DiscreteFunction):
     """
 
     __indices_setup__ = Function.__indices_setup__
-    __shape_setup__ = Function.__shape_setup__
 
     def __init_finalize__(self, *args, **kwargs):
         self.save = kwargs.pop('save', None)
 
         super().__init_finalize__(*args, **kwargs)
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        # We don't care about the actual shape, nobody will ever query it, and
+        # bypassing the `__shape_setup__` makes it easier to use AliasFunction
+        # to map various DiscreteFunction subclasses
+        return None
+
+    def __distributor_setup__(self, **kwargs):
+        # Same rational as `__shape_setup__`  -- we don't care about the
+        # underlying distributor
+        return None
 
     @property
     def data(self):
