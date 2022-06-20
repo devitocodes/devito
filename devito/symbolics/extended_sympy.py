@@ -367,8 +367,7 @@ class Cast(UnaryOp):
     def _hashable_content(self):
         return super()._hashable_content() + (self._stars,)
 
-    def func(self, *args, **kwargs):
-        return super().func(*args, stars=self.stars, **kwargs)
+    func = Pickable._rebuild
 
     @property
     def stars(self):
