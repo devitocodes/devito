@@ -100,6 +100,9 @@ class Array(ArrayBasic):
 
     is_Array = True
 
+    __rkwargs__ = (AbstractFunction.__rkwargs__ +
+                   ('dimensions', 'liveness', 'space', 'scope'))
+
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
         return AbstractFunction.__new__(cls, *args, **kwargs)
@@ -211,10 +214,6 @@ class Array(ArrayBasic):
     def _make_pointer(self, dim):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
-    # Pickling support
-    _pickle_kwargs = (AbstractFunction._pickle_kwargs +
-                      ['dimensions', 'liveness', 'space', 'scope'])
-
 
 class ArrayObject(ArrayBasic):
 
@@ -241,6 +240,10 @@ class ArrayObject(ArrayBasic):
     """
 
     is_ObjectArray = True
+
+    # Pickling support
+    __rkwargs__ = list(ArrayBasic.__rkwargs__) + ['dimensions', 'fields', 'pname']
+    __rkwargs__.remove('dtype')
 
     def __init_finalize__(self, *args, **kwargs):
         name = kwargs['name']
@@ -305,10 +308,6 @@ class ArrayObject(ArrayBasic):
     def _mem_stack(self):
         return True
 
-    # Pickling support
-    _pickle_kwargs = ArrayBasic._pickle_kwargs + ['dimensions', 'fields', 'pname']
-    _pickle_kwargs.remove('dtype')
-
 
 class PointerArray(ArrayBasic):
 
@@ -331,6 +330,8 @@ class PointerArray(ArrayBasic):
     """
 
     is_PointerArray = True
+
+    __rkwargs__ = ('name', 'dimensions', 'array')
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -358,6 +359,3 @@ class PointerArray(ArrayBasic):
     @property
     def array(self):
         return self._array
-
-    # Pickling support
-    _pickle_kwargs = ['name', 'dimensions', 'array']

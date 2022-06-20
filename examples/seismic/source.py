@@ -102,6 +102,9 @@ class PointSource(SparseTimeFunction):
         Represents the number of points in this source.
     """
 
+    __rkwargs__ = list(SparseTimeFunction.__rkwargs__) + ['time_range']
+    __rkwargs__.remove('nt')  # `nt` is inferred from `time_range`
+
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
         kwargs['nt'] = kwargs['time_range'].num
@@ -169,10 +172,6 @@ class PointSource(SparseTimeFunction):
         return PointSource(name=self.name, grid=self.grid, data=new_traces,
                            time_range=new_time_range, coordinates=self.coordinates.data)
 
-    # Pickling support
-    _pickle_kwargs = SparseTimeFunction._pickle_kwargs + ['time_range']
-    _pickle_kwargs.remove('nt')  # `nt` is inferred from `time_range`
-
 
 Receiver = PointSource
 Shot = PointSource
@@ -199,6 +198,8 @@ class WaveletSource(PointSource):
     t0 : float, optional
         Firing time (defaults to 1 / f0)
     """
+
+    __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 'f0']
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -240,9 +241,6 @@ class WaveletSource(PointSource):
         plt.ylabel('Amplitude')
         plt.tick_params()
         plt.show()
-
-    # Pickling support
-    _pickle_kwargs = PointSource._pickle_kwargs + ['f0', 'a', 'f0']
 
 
 class RickerSource(WaveletSource):

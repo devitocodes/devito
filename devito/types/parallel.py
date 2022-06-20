@@ -68,6 +68,8 @@ class NPThreads(NThreadsBase):
 
     name = 'npthreads'
 
+    __rkwargs__ = NThreadsBase.__rkwargs__ + ('size',)
+
     def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls, **kwargs)
 
@@ -91,11 +93,11 @@ class NPThreads(NThreadsBase):
         else:
             return self._arg_defaults()
 
-    # Pickling support
-    _pickle_kwargs = NThreadsBase._pickle_kwargs + ['size']
-
 
 class ThreadID(CustomDimension):
+
+    __rargs__ = ('nthreads',)
+    __rkwargs__ = ()
 
     def __new__(cls, nthreads):
         return CustomDimension.__new__(cls, name='tid', symbolic_size=nthreads)
@@ -103,9 +105,6 @@ class ThreadID(CustomDimension):
     @property
     def nthreads(self):
         return self.symbolic_size
-
-    _pickle_args = []
-    _pickle_kwargs = ['nthreads']
 
 
 class ThreadArray(ArrayObject):
@@ -157,6 +156,9 @@ class SharedData(ThreadArray):
 
     _symbolic_flag = VolatileInt(name=_field_flag)
 
+    __rkwargs__ = list(ThreadArray.__rkwargs__) + ['cfields', 'ncfields']
+    __rkwargs__.remove('fields')
+
     def __init_finalize__(self, *args, **kwargs):
         self.cfields = tuple(kwargs.pop('cfields', ()))
         self.ncfields = tuple(kwargs.pop('ncfields', ()))
@@ -175,10 +177,6 @@ class SharedData(ThreadArray):
     @cached_property
     def symbolic_flag(self):
         return self._symbolic_flag
-
-    # Pickling support
-    _pickle_kwargs = ThreadArray._pickle_kwargs + ['cfields', 'ncfields']
-    _pickle_kwargs.remove('fields')  # Unnecessary as reconstructed
 
 
 class Lock(Array):
@@ -291,6 +289,8 @@ class QueueID(Symbol):
 
 class DevicePointer(Pointer):
 
+    __rkwargs__ = Pointer.__rkwargs__ + ('mapped',)
+
     def __init_finalize__(self, *args, mapped=None, **kwargs):
         self._mapped = mapped
 
@@ -303,6 +303,3 @@ class DevicePointer(Pointer):
     @property
     def _C_typename(self):
         return self.mapped._C_typename
-
-    # Pickling support
-    _pickle_kwargs = Symbol._pickle_kwargs + ['mapped']

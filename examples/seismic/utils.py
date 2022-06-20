@@ -57,6 +57,9 @@ class AcquisitionGeometry(Pickable):
     necessary information
     """
 
+    __rargs__ = ('grid', 'rec_positions', 'src_positions', 't0', 'tn')
+    __rkwargs__ = ('f0', 'src_type')
+
     def __init__(self, model, rec_positions, src_positions, t0, tn, **kwargs):
         """
         In practice would be __init__(segyfile) and all below parameters
@@ -175,9 +178,6 @@ class AcquisitionGeometry(Pickable):
                                           time_range=self.time_axis, npoint=self.nsrc,
                                           coordinates=self.src_positions,
                                           t0=self._t0w, a=self._a)
-
-    _pickle_args = ['grid', 'rec_positions', 'src_positions', 't0', 'tn']
-    _pickle_kwargs = ['f0', 'src_type']
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}

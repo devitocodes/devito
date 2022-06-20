@@ -10,6 +10,8 @@ __all__ = ['Timer', 'Pointer', 'VolatileInt', 'c_volatile_int',
 
 class Timer(CompositeObject):
 
+    __rargs__ = ('name', 'sections')
+
     def __init__(self, name, sections):
         super().__init__(name, 'profiler', [(i, c_double) for i in sections])
 
@@ -34,9 +36,6 @@ class Timer(CompositeObject):
             setattr(values[self.name]._obj, i, 0.0)
 
         return values
-
-    # Pickling support
-    _pickle_args = ['name', 'sections']
 
 
 class VolatileInt(Symbol):
@@ -75,6 +74,9 @@ class FIndexed(Indexed, Pickable):
     `uX[x*ny + y]`, where `X` is a string provided by the caller.
     """
 
+    __rargs__ = ('indexed', 'pname')
+    __rkwargs__ = ('strides',)
+
     def __new__(cls, indexed, pname, strides=None):
         plabel = Symbol(name=pname, dtype=indexed.dtype)
         base = IndexedData(plabel, shape=indexed.shape, function=indexed.function)
@@ -107,8 +109,6 @@ class FIndexed(Indexed, Pickable):
                 set().union(*[i.free_symbols for i in self.strides]))
 
     # Pickling support
-    _pickle_args = ['indexed', 'pname']
-    _pickle_kwargs = ['strides']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

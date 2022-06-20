@@ -233,7 +233,7 @@ def abstract_efunc(efunc):
         if i.is_DiscreteFunction:
             base = 'f'
 
-            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
             kwargs.pop('initializer')
             kwargs['name'] = '%s%d' % (base, counter[base])
             v = AliasFunction(**kwargs)
@@ -251,7 +251,7 @@ def abstract_efunc(efunc):
             else:
                 base = 'a'
 
-            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
             kwargs['name'] = '%s%d' % (base, counter[base])
             v = type(i).__base__(**kwargs)
 
@@ -264,9 +264,9 @@ def abstract_efunc(efunc):
         elif isinstance(i, CompositeObject):
             base = 'o'
 
-            args = [getattr(i, k, None) for k in i._pickle_args]
+            args = [getattr(i, k, None) for k in i.__rargs__]
             args[0] = '%s%d' % (base, counter[base])
-            kwargs = {k: getattr(i, k, None) for k in i._pickle_kwargs}
+            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
             v = i.func(*args, **kwargs)
 
             mapper[i] = v

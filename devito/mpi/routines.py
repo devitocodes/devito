@@ -978,6 +978,8 @@ class MPIMsg(CompositeObject):
         (_C_field_rsend, c_mpirequest_p),
     ]
 
+    __rargs__ = ('name', 'target', 'halos')
+
     def __init__(self, name, target, halos):
         self._target = target
         self._halos = halos
@@ -1055,9 +1057,6 @@ class MPIMsg(CompositeObject):
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
 
-    # Pickling support
-    _pickle_args = ['name', 'target', 'halos']
-
 
 class MPIMsgEnriched(MPIMsg):
 
@@ -1108,6 +1107,8 @@ class MPIMsgEnriched(MPIMsg):
 
 
 class MPIRegion(CompositeObject):
+
+    __rargs__ = ('prefix', 'key', 'arguments', 'owned')
 
     def __init__(self, prefix, key, arguments, owned):
         self._prefix = prefix
@@ -1171,6 +1172,3 @@ class MPIRegion(CompositeObject):
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values
-
-    # Pickling support
-    _pickle_args = ['prefix', 'key', 'arguments', 'owned']

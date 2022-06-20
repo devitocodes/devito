@@ -232,6 +232,9 @@ class ClusterizedEq(IREq, Pickable):
     These two properties make a ClusterizedEq suitable for use in a Cluster.
     """
 
+    __rargs__ = ('lhs', 'rhs')
+    __rkwargs__ = IREq._state
+
     def __new__(cls, *args, **kwargs):
         if len(args) == 1:
             # origin: ClusterizedEq(expr, **kwargs)
@@ -264,8 +267,6 @@ class ClusterizedEq(IREq, Pickable):
         return super(ClusterizedEq, self).func(*args, **kwargs)
 
     # Pickling support
-    _pickle_args = ['lhs', 'rhs']
-    _pickle_kwargs = IREq._state
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -278,6 +279,9 @@ class DummyEq(ClusterizedEq):
     A special ClusterizedEq with a void iteration space.
     """
 
+    __rargs__ = ('lhs', 'rhs')
+    __rkwargs__ = ()
+
     def __new__(cls, *args, **kwargs):
         if len(args) == 1:
             input_expr = args[0]
@@ -288,7 +292,3 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
-
-    # Pickling support
-    _pickle_args = ['lhs', 'rhs']
-    _pickle_kwargs = []

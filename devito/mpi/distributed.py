@@ -471,6 +471,8 @@ class MPICommObject(Object):
 
     name = 'comm'
 
+    __rargs__ = ()
+
     # See https://github.com/mpi4py/mpi4py/blob/master/demo/wrap-ctypes/helloworld.py
     if MPI._sizeof(MPI.Comm) == sizeof(c_int):
         dtype = type('MPI_Comm', (c_int,), {})
@@ -494,11 +496,10 @@ class MPICommObject(Object):
         else:
             return self._arg_defaults()
 
-    # Pickling support
-    _pickle_args = []
-
 
 class MPINeighborhood(CompositeObject):
+
+    __rargs__ = ('neighborhood',)
 
     def __init__(self, neighborhood):
         self._neighborhood = neighborhood
@@ -547,9 +548,6 @@ class MPINeighborhood(CompositeObject):
             return grid.distributor._obj_neighborhood._arg_defaults()
         else:
             return self._arg_defaults()
-
-    # Pickling support
-    _pickle_args = ['neighborhood']
 
 
 def compute_dims(nprocs, ndim):

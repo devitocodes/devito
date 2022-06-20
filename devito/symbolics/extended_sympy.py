@@ -144,6 +144,9 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     Symbolic representation of the C notation ``pointer->call(params)``.
     """
 
+    __rargs__ = ('call', 'pointer')
+    __rkwargs__ = ('params',)
+
     def __new__(cls, call, pointer, params=None, **kwargs):
         if isinstance(pointer, str):
             pointer = Symbol(pointer)
@@ -201,8 +204,6 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         return super().free_symbols - self.bound_symbols
 
     # Pickling support
-    _pickle_args = ['call', 'pointer']
-    _pickle_kwargs = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -211,6 +212,8 @@ class FieldFromPointer(CallFromPointer, Pickable):
     """
     Symbolic representation of the C notation ``pointer->field``.
     """
+
+    __rkwargs__ = ()
 
     def __new__(cls, field, pointer, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, pointer)
@@ -222,9 +225,6 @@ class FieldFromPointer(CallFromPointer, Pickable):
     def field(self):
         return self.call
 
-    # Our __new__ cannot accept the params argument
-    _pickle_kwargs = []
-
     __repr__ = __str__
 
 
@@ -234,6 +234,8 @@ class FieldFromComposite(CallFromPointer, Pickable):
     Symbolic representation of the C notation ``composite.field``,
     where ``composite`` is a struct/union/...
     """
+
+    __rkwargs__ = ()
 
     def __new__(cls, field, composite, *args, **kwargs):
         return CallFromPointer.__new__(cls, field, composite)
@@ -249,9 +251,6 @@ class FieldFromComposite(CallFromPointer, Pickable):
     def composite(self):
         return self.pointer
 
-    # Our __new__ cannot accept the params argument
-    _pickle_kwargs = []
-
     __repr__ = __str__
 
 
@@ -260,6 +259,8 @@ class ListInitializer(sympy.Expr, Pickable):
     """
     Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
     """
+
+    __rargs__ = ('params',)
 
     def __new__(cls, params):
         args = []
@@ -282,7 +283,6 @@ class ListInitializer(sympy.Expr, Pickable):
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['params']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -293,6 +293,8 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
     """
 
     _op = ''
+
+    __rargs__ = ('base',)
 
     def __new__(cls, base, **kwargs):
         try:
@@ -326,7 +328,6 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['base']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -356,6 +357,8 @@ class Cast(UnaryOp):
 
     _base_typ = ''
 
+    __rkwargs__ = ('stars',)
+
     def __new__(cls, base, stars=None, **kwargs):
         obj = super().__new__(cls, base)
         obj._stars = stars
@@ -379,9 +382,6 @@ class Cast(UnaryOp):
     def _op(self):
         return '(%s)' % self.typ
 
-    # Pickling support
-    _pickle_kwargs = ['stars']
-
 
 class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
@@ -391,6 +391,8 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     Unlike a sympy.Indexed, an IndexedPointer accepts, as base, objects that
     are not necessarily a Symbol or an IndexedBase, such as a FieldFromPointer.
     """
+
+    __rargs__ = ('base', 'index')
 
     def __new__(cls, base, index, **kwargs):
         try:
@@ -422,7 +424,6 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['base', 'index']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -438,6 +439,8 @@ class ReservedWord(sympy.Atom, Pickable):
     symbols associated. Hence, a ReservedWord is an "atomic" object in
     a SymPy sense.
     """
+
+    __rargs__ = ('value',)
 
     def __new__(cls, value, **kwargs):
         if not isinstance(value, str):
@@ -456,7 +459,6 @@ class ReservedWord(sympy.Atom, Pickable):
         return (self.value,)
 
     # Pickling support
-    _pickle_args = ['value']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -491,6 +493,9 @@ class DefFunction(Function, Pickable):
 
         https://github.com/sympy/sympy/issues/4297
     """
+
+    __rargs__ = ('name',)
+    __rkwargs__ = ('arguments',)
 
     def __new__(cls, name, arguments=None, **kwargs):
         _arguments = []
@@ -529,8 +534,6 @@ class DefFunction(Function, Pickable):
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['name']
-    _pickle_kwargs = ['arguments']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -539,6 +542,8 @@ class InlineIf(sympy.Expr, Pickable):
     """
     Symbolic representation of the C notation ``(C) ? a : b``.
     """
+
+    __rargs__ = ('cond', 'true_expr', 'false_expr')
 
     def __new__(cls, cond, true_expr, false_expr):
         if not isinstance(cond, sympy.core.relational.Relational):
@@ -571,7 +576,6 @@ class InlineIf(sympy.Expr, Pickable):
     __repr__ = __str__
 
     # Pickling support
-    _pickle_args = ['cond', 'true_expr', 'false_expr']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
