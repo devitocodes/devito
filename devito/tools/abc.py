@@ -102,7 +102,7 @@ class Reconstructable(object):
     The keyword arguments to reconstruct the object.
     """
 
-    def func(self, *args, **kwargs):
+    def _rebuild(self, *args, **kwargs):
         """
         Reconstruct `self` via `self.__class__(*args, **kwargs)` using
         `self`'s `__rargs__` and `__rkwargs__` if and where `*args` and
@@ -124,15 +124,22 @@ class Reconstructable(object):
 
         Then:
 
-            * `a.func() -> x(3, 5, 4)` (i.e., copy of `a`).
-            * `a.func(4) -> x(4, 5, 4)`
-            * `a.func(4, 7) -> x(4, 7, 4)`
-            * `a.func(c=5) -> x(3, 5, 5)`
-            * `a.func(1, c=7) -> x(1, 5, 7)`
+            * `a._rebuild() -> x(3, 5, 4)` (i.e., copy of `a`).
+            * `a._rebuild(4) -> x(4, 5, 4)`
+            * `a._rebuild(4, 7) -> x(4, 7, 4)`
+            * `a._rebuild(c=5) -> x(3, 5, 5)`
+            * `a._rebuild(1, c=7) -> x(1, 5, 7)`
         """
         args += tuple(getattr(self, i) for i in self.__rargs__[len(args):])
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
-        return self.__class__(*args, **kwargs)
+
+        # Should we use a constum reconstructor?
+        try:
+            cls = self._rcls
+        except AttributeError:
+            cls = self.__class__
+
+        return cls(*args, **kwargs)
 
 
 class Pickable(Reconstructable):
@@ -161,38 +168,51 @@ class Pickable(Reconstructable):
         """
         The positional arguments that need to be passed to __new__ upon unpickling.
         """
-        # NOTE: try-except for backward compatibility
+        # NOTE: Backward compatibility
         try:
             return self._pickle_args
         except AttributeError:
-            return self.__rargs__
+            pass
+
+        return self.__rargs__
 
     @property
     def _pickle_rkwargs(self):
         """
         The keyword arguments that need to be passed to __new__ upon unpickling.
         """
-        # NOTE: try-except for backward compatibility
+        # NOTE: Backward compatibility
         try:
             return self._pickle_kwargs
         except AttributeError:
-            return self.__rkwargs__
+            pass
+
+        return self.__rkwargs__
 
     @staticmethod
     def _pickle_wrapper(cls, args, kwargs):
         return cls.__new__(cls, *args, **kwargs)
 
     @property
-    def _pickle_reconstruct(self):
+    def _pickle_reconstructor(self):
         """
         Return the callable that should be used to reconstruct ``self`` upon
         unpickling. If None, default to whatever Python's pickle uses.
         """
-        return None
+        # NOTE: Backward compatibility
+        try:
+            return self._pickle_reconstruct
+        except AttributeError:
+            pass
+
+        try:
+            return self._rcls
+        except AttributeError:
+            return None
 
     def __reduce_ex__(self, proto):
         ret = object.__reduce_ex__(self, proto)
-        reconstructor = self._pickle_reconstruct
+        reconstructor = self._pickle_reconstructor
         if reconstructor is None:
             return ret
         else:

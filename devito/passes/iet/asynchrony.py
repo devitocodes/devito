@@ -127,13 +127,9 @@ def lower_async_calls(iet, track=None, sregistry=None):
         # Create `sdata` and `threads` objects for `n`
         b = track[n.name]
         name = sregistry.make_name(prefix='sdata')
-        sdata = SharedData(name=name,
-                           npthreads=b.sdata.size,
-                           cfields=b.sdata.cfields,
-                           ncfields=b.sdata.ncfields,
-                           pname=b.sdata.pname)
+        sdata = b.sdata._rebuild(name=name)
         name = sregistry.make_name(prefix='threads')
-        threads = PThreadArray(name=name, npthreads=b.threads.size)
+        threads = b.threads._rebuild(name=name)
 
         # Call to `sdata` initialization Callable
         sbase = sdata.symbolic_base

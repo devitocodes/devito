@@ -101,7 +101,7 @@ class Array(ArrayBasic):
     is_Array = True
 
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
-                   ('dimensions', 'liveness', 'space', 'scope'))
+                   ('dimensions', 'liveness', 'space', 'scope', 'initvalue'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})

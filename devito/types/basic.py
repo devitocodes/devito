@@ -1187,8 +1187,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
+    # Reconstruction support
     @property
-    def _pickle_reconstruct(self):
+    def _rcls(self):
         return self.__class__.__base__
 
 
@@ -1398,7 +1399,7 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         obj.function = function
         return obj
 
-    func = Pickable.func
+    func = Pickable._rebuild
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
