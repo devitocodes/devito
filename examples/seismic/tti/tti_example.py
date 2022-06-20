@@ -37,15 +37,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # Define receiver geometry (spread across `x, y`` just below surface)
     rec, u, v, summary = solver.forward(save=save, autotune=autotune)
 
-    if preset == 'constant-tti':
-        # With  a new m as Constant
-        v0 = Constant(name="v", value=2.0, dtype=np.float32)
-        solver.model.update('vp', v0.value)
-        solver.forward(save=save)
-        # With a new vp as a scalar value
-        solver.model.update('vp', 2.0)
-        solver.forward(save=save)
-
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
@@ -83,15 +74,15 @@ if __name__ == "__main__":
                         help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
-    # if user defines constant and noazimuth arguments at the same time raise exception
-    if args.constant and args.azi:
-        parser.error('argument --noazimuth: not allowed with argument --constant')
-
     preset = 'layers-tti'
     if args.constant:
-        preset = 'constant-tti'
-    elif args.azi:
-        preset = 'layers-tti-noazimuth'
+        if args.azi:
+            preset = 'constant-tti-noazimuth'
+        else:
+            preset = 'constant-tti'
+    else:
+        if args.azi:
+            preset = 'layers-tti-noazimuth'
 
     # Preset parameters
     ndim = args.ndim
