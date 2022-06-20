@@ -90,7 +90,7 @@ def demo_model(preset, **kwargs):
                             dtype=dtype, origin=origin, shape=shape,
                             spacing=spacing, **kwargs)
 
-    elif preset.lower() in ['constant-tti']:
+    elif preset.lower() in ['constant-tti', 'constant-tti-noazimuth']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5 km/s.
         v = np.empty(shape, dtype=dtype)
@@ -99,7 +99,7 @@ def demo_model(preset, **kwargs):
         delta = .2*np.ones(shape, dtype=dtype)
         theta = .7*np.ones(shape, dtype=dtype)
         phi = None
-        if len(shape) > 2:
+        if len(shape) > 2 and preset.lower() not in ['constant-tti-noazimuth']:
             phi = .35*np.ones(shape, dtype=dtype)
 
         return SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
