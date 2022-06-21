@@ -247,9 +247,11 @@ class Data(np.ndarray):
                 else:
                     pass
                 it.iternext()
+            # Check if dimensions of the view should now be reduced to
+            # be consistent with those of an equivalent NumPy serial view
             reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
                              if type(i) is not np.int64])
-            if reshape and 0 not in reshape and reshape != retval.shape:
+            if reshape and (0 not in reshape) and (reshape != retval.shape):
                 return retval.reshape(reshape)
             else:
                 return retval
