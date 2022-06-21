@@ -411,11 +411,13 @@ class Operator(Callable):
     @cached_property
     def dimensions(self):
         ret = set().union(*[d._defines for d in self._dimensions])
+
         # During compilation other Dimensions may have been produced
         dimensions = FindSymbols('dimensions').visit(self)
         ret.update(d for d in dimensions if d.is_PerfKnob)
 
         ret = tuple(sorted(ret, key=attrgetter('name')))
+
         return ret
 
     @cached_property

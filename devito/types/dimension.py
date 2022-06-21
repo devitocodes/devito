@@ -1021,7 +1021,6 @@ class AbstractIncrDimension(DerivedDimension):
     """
 
     is_Incr = True
-    is_PerfKnob = True
 
     def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)

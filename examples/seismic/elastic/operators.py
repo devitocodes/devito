@@ -72,3 +72,51 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                   **kwargs)
     # Substitute spacing terms to reduce flops
     return op
+
+
+def ForwardOperator_tb(model, geometry, space_order=4, save=False, **kwargs):
+    """
+    Construct method for the forward modelling operator in an elastic media.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    save : int or Buffer
+        Saving flag, True saves all time steps, False saves three buffered
+        indices (last three time steps). Defaults to False.
+    """
+
+    v = VectorTimeFunction(name='v', grid=model.grid,
+                           save=geometry.nt if save else None,
+                           space_order=space_order, time_order=1)
+    tau = TensorTimeFunction(name='tau', grid=model.grid,
+                             save=geometry.nt if save else None,
+                             space_order=space_order, time_order=1)
+
+    lam, mu, b = model.lam, model.mu, model.b
+
+    # Particle velocity
+    eq_v = v.dt - b * div(tau)
+    # Stress
+    e = (grad(v.forward) + grad(v.forward).T)
+    eq_tau = tau.dt - lam * diag(div(v.forward)) - mu * e
+
+    u_v = Eq(v.forward, model.damp * solve(eq_v, v.forward))
+    u_t = Eq(tau.forward, model.damp * solve(eq_tau, tau.forward))
+
+    # srcrec = src_rec(v, tau, model, geometry)
+
+    kwargs['opt'] = ('advanced', {'skewing': True, 'blocklevels': 2})
+    # kwargs['opt'] = ('advanced')
+
+    op = Operator([u_v] + [u_t], subs=model.spacing_map, name="ForwardElastic_TB",
+                  **kwargs)
+
+    # Substitute spacing terms to reduce flops
+    return op
