@@ -10,8 +10,17 @@ on:
 jobs:
   deploy-base-nvidia:
     runs-on:  [self-hosted, gpu, docker]
+    strategy:
+      fail-fast: false
+      matrix:
+        inculde:
+          - tag: ''
+            build-arg: ''
 
-    steps:
+          - tag: '21-11'
+            build-arg: 'ver=nvhpc-21-11'
+    
+   steps:
       - name: Checkout devito
         uses: actions/checkout@v3
 
@@ -31,13 +40,13 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: NVIDIA image
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v3
         with:
           context: .
           file: ./docker/Dockerfile.nvidia
           push: true
-          tags: devitocodes/devito:nvidia
+          build-arg: ${{ matrix.build-arg }}
+          tags: devitocodes/devito:nvidia-${{ matrix.tag }}
 
 
   deploy-base-nvidia-clang:
@@ -64,7 +73,6 @@ jobs:
             password: ${{ secrets.DOCKER_PASSWORD }}
 
         - name: Clang image
-          if: github.event_name == 'push'
           uses: docker/build-push-action@v3
           with:
             context: .

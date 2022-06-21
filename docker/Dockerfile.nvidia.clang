@@ -2,13 +2,9 @@
 ##############################################################
 # This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) and LLVM-15 for openmp offloading for Devito
 ##############################################################
-FROM devito:nvidia
+FROM devitocodes/devito:nvidia-21-11
 
 ## Environment Variables for OpenMP Builds
-ENV DEVITO_ARCH="clang"
-ENV DEVITO_LANGUAGE="openmp"
-ENV DEVITO_PLATFORM="nvidiaX"
-ENV DEVITO_LOGGING="DEBUG"
 ENV OMPI_CC="clang"
 ENV CFLAGS=
 
@@ -16,9 +12,12 @@ ENV CFLAGS=
 RUN apt-get -y update && \
     apt-get install -y -q libelf-dev libffi-dev cmake git
 
-## INSTALL CLANG 13
+# Downgrade nvidia hpc sdk to a supported version
+RUN apt-get remove nvhpc-* &&  apt-get install -y -q nvhpc-21-11
+
+## INSTALL CLANG latest
 WORKDIR /
-RUN git clone --depth 1 https://github.com/llvm/llvm-project.git
+RUN git clone -b llvmorg-14.0.5 --depth 1 https://github.com/llvm/llvm-project.git
 WORKDIR /llvm-project
 RUN mkdir build
 WORKDIR /llvm-project/build

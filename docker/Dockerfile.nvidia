@@ -1,7 +1,6 @@
 ##############################################################
 # This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
-#FROM python:3.9 
 FROM python:3.9-slim-bullseye 
  
 ENV DEBIAN_FRONTEND noninteractive 
@@ -18,7 +17,8 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
 # Install latest available nvhpc
-RUN ver=$(apt-cache show nvhpc | grep Source | awk '{print $2}') && apt-get install -y -q ${ver}
+ARG ver=$(apt-cache show nvhpc | grep Source | awk '{print $2}')
+RUN apt-get install -y -q ${ver}
 
 RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
@@ -28,9 +28,14 @@ RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nv
     rm -rf /app/nvcomp_exts/nvcomp* && \
     rm -rf /var/lib/apt/lists/*
 
-ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
-#MPI_VER options 3,4,HPCX
+# Set base path based on version
+ARG YEAR=$(echo ${ver} | cut -d '-' -f 2)
+ARG CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/ | grep '\.' | sort | tail -1)
+
+ENV HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}
+ENV HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/${CUDA_V}/extras/CUPTI
+
+# MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
 
 # nvidia-container-runtime
@@ -75,8 +80,7 @@ ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 
-#MPI 3
-# Do Nothing
+# MPI 3
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
@@ -88,7 +92,9 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;
 
-# Make devito env vars file
+# Make devito env vars file and extras
+ADD docker/nvdashboard.json /app/nvdashboard.json
+
 RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
     echo 'export DEVITO_ARCH="nvc"' >> /app/setup-devito-env.sh && \
     echo 'export DEVITO_PLATFORM="nvidiaX"' >> /app/setup-devito-env.sh && \
@@ -96,8 +102,12 @@ RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
 
 # Install python nvidia dependencies
 RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
+    # Install jupyter and setup nvidia configs.
+    /venv/bin/pip install --no-cache-dir jupyter && \
+    /venv/bin/jupyter serverextension enable dask_labextension && \
+    # /venv/bin/jupyter lab workspaces import /app/nvdashboard.json & \
     rm -rf ~/.cache/pip
 
 ENV CFLAGS=-noswitcherror 

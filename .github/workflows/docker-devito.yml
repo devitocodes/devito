@@ -73,7 +73,7 @@ jobs:
           file: ./docker/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: base=${{ matrix.base }}
+          build-args: base=devitocodes/${{ matrix.base }}
 
         - name: Run simple test
           run: |
