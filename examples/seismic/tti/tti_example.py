@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Constant, Function, smooth, norm, info
+from devito import Function, smooth, norm, info
 
 from examples.seismic import demo_model, setup_geometry, seismic_args
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -64,6 +64,29 @@ def test_tti_stability(shape, kernel):
     assert np.isfinite(norm(rec))
 
 
+@pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
+def test_model_updt(shape):
+
+    # Layered model (tti)
+    tti_model = demo_model('layers-tti', shape=shape, spacing=[20. for _ in shape],
+                           space_order=4, nbl=10)
+    tpl1_set = set(tti_model.physical_parameters)
+
+    # Layered model (isotropic)
+    iso_model = demo_model('layers-isotropic', shape=shape, spacing=[20. for _ in shape],
+                           space_order=4, nbl=10)
+    tpl2_set = set(iso_model.physical_parameters)
+
+    # Physical parameters in either set but not in the intersection.
+    diff_phys_par = tuple(tpl1_set ^ tpl2_set)
+
+    # Convert iso model in tti model
+    slices = tuple(slice(tti_model.nbl, -tti_model.nbl) for _ in range(tti_model.dim))
+    for i in diff_phys_par:
+        iso_model.update(i, getattr(tti_model, i).data[slices])
+        assert np.array_equal(getattr(iso_model, i).data, getattr(tti_model, i).data)
+
+
 if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
     parser = seismic_args(description)
@@ -74,7 +97,6 @@ if __name__ == "__main__":
                         help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
-    preset = 'layers-tti'
     if args.constant:
         if args.azi:
             preset = 'constant-tti-noazimuth'
@@ -83,6 +105,8 @@ if __name__ == "__main__":
     else:
         if args.azi:
             preset = 'layers-tti-noazimuth'
+        else:
+            preset = 'layers-tti'
 
     # Preset parameters
     ndim = args.ndim
