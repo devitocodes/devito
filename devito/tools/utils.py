@@ -38,7 +38,7 @@ def as_tuple(item, type=None, length=None):
     # Empty list if we get passed None
     if item is None:
         t = ()
-    elif isinstance(item, (str, sympy.Function)):
+    elif isinstance(item, (str, sympy.Function, sympy.IndexedBase)):
         t = (item,)
     elif isinstance(item, tuple):
         # this makes tuple subclasses pass through
