@@ -6,7 +6,7 @@ from cached_property import cached_property
 
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
-from devito.tools import powerset, flatten, prod
+from devito.tools import as_tuple, powerset, flatten, prod
 from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
                           Evaluable, Symbol, SubFunction)
 
@@ -168,7 +168,8 @@ class LinearInterpolator(GenericInterpolator):
         A = A.subs(reference_cell)
         return A.inv().T * p
 
-    def _interpolation_indices(self, variables, offset=0, field_offset=0):
+    def _interpolation_indices(self, variables, offset=0, field_offset=0,
+                               implicit_dims=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -192,21 +193,22 @@ class LinearInterpolator(GenericInterpolator):
             idx_subs.append(mapper)
 
         # Temporaries for the position
-        temps = [Eq(v, k, implicit_dims=self.sfunction.dimensions)
+        temps = [Eq(v, k, implicit_dims=implicit_dims)
                  for k, v in self.sfunction._position_map.items()]
         # Temporaries for the indirection dimensions
         temps.extend([Eq(v, k.subs(self.sfunction._position_map),
-                         implicit_dims=self.sfunction.dimensions)
+                         implicit_dims=implicit_dims)
                       for k, v in points.items()])
         # Temporaries for the coefficients
         temps.extend([Eq(p, c.subs(self.sfunction._position_map),
-                         implicit_dims=self.sfunction.dimensions)
+                         implicit_dims=implicit_dims)
                       for p, c in zip(self.sfunction._point_symbols,
                                       self.sfunction._coordinate_bases(field_offset))])
 
         return idx_subs, temps
 
-    def interpolate(self, expr, offset=0, increment=False, self_subs={}):
+    def interpolate(self, expr, offset=0, increment=False, self_subs={},
+                    implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -218,7 +220,13 @@ class LinearInterpolator(GenericInterpolator):
             Additional offset from the boundary.
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
+        implicit_dims : Dimension or list of Dimension, optional
+            An ordered list of Dimensions that do not explicitly appear in the
+            interpolation expression, but that should be honored when constructing
+            the operator.
         """
+        implicit_dims = as_tuple(implicit_dims) + self.sfunction.dimensions
+
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses
             try:
@@ -233,8 +241,9 @@ class LinearInterpolator(GenericInterpolator):
             # TODO: handle each variable staggereing spearately
             field_offset = variables[0].origin
             # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                          field_offset=field_offset)
+            idx_subs, temps = self._interpolation_indices(
+                variables, offset, field_offset=field_offset, implicit_dims=implicit_dims
+            )
 
             # Substitute coordinate base symbols into the interpolation coefficients
             args = [_expr.xreplace(v_sub) * b.xreplace(v_sub)
@@ -242,9 +251,8 @@ class LinearInterpolator(GenericInterpolator):
 
             # Accumulate point-wise contributions into a temporary
             rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
-            summands = [Eq(rhs, 0., implicit_dims=self.sfunction.dimensions)]
-            summands.extend([Inc(rhs, i, implicit_dims=self.sfunction.dimensions)
-                            for i in args])
+            summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
+            summands.extend([Inc(rhs, i, implicit_dims=implicit_dims) for i in args])
 
             # Write/Incr `self`
             lhs = self.sfunction.subs(self_subs)
@@ -254,7 +262,7 @@ class LinearInterpolator(GenericInterpolator):
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
-    def inject(self, field, expr, offset=0):
+    def inject(self, field, expr, offset=0, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -266,7 +274,13 @@ class LinearInterpolator(GenericInterpolator):
             Injected expression.
         offset : int, optional
             Additional offset from the boundary.
+        implicit_dims : Dimension or list of Dimension, optional
+            An ordered list of Dimensions that do not explicitly appear in the
+            injection expression, but that should be honored when constructing
+            the operator.
         """
+        implicit_dims = as_tuple(implicit_dims) + self.sfunction.dimensions
+
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses
             try:
@@ -280,12 +294,13 @@ class LinearInterpolator(GenericInterpolator):
             # Need to get origin of the field in case it is staggered
             field_offset = field.origin
             # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interpolation_indices(variables, offset,
-                                                          field_offset=field_offset)
+            idx_subs, temps = self._interpolation_indices(
+                variables, offset, field_offset=field_offset, implicit_dims=implicit_dims
+            )
 
             # Substitute coordinate base symbols into the interpolation coefficients
             eqns = [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
-                        implicit_dims=self.sfunction.dimensions)
+                        implicit_dims=implicit_dims)
                     for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
             return temps + eqns
