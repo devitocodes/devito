@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Function, smooth, norm, info
+from devito import Function, smooth, norm, info, Constant
 
 from examples.seismic import demo_model, setup_geometry, seismic_args
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -36,6 +36,24 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     save = full_run and not checkpointing
     # Define receiver geometry (spread across `x, y`` just below surface)
     rec, u, v, summary = solver.forward(save=save, autotune=autotune)
+
+    if preset in ['constant-tti', 'constant-tti-noazimuth']:
+        # With new physical parameters as scalars (slightly higher from original values)
+        vp = 2.
+        epsilon = .35
+        delta = .25
+        theta = .75
+        phi = None
+        if len(shape) > 2 and preset not in ['constant-tti-noazimuth']:
+            phi = .4
+        solver.forward(save=save, vp=vp, epsilon=epsilon, delta=delta,
+                       theta=theta, phi=phi)
+        # With new physical parameters as Constants
+        d = {'vp': vp, 'epsilon': epsilon, 'delta': delta, 'theta': theta, 'phi': phi}
+        for k, v in d.items():
+            v = Constant(name=k, value=v, dtype=np.float32)
+        solver.forward(save=save, vp=vp, epsilon=epsilon, delta=delta,
+                       theta=theta, phi=phi)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
