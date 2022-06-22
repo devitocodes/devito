@@ -366,6 +366,11 @@ class Data(np.ndarray):
 
     def _process_args(self, idx, val):
         """If comm_type is parallel we need to first retrieve local unflipped data."""
+        if len(as_tuple(idx)) < len(val.shape):
+            idx_processed = as_list(idx)
+            for _ in range(len(val.shape)-len(as_tuple(idx))):
+                idx_processed.append(slice(None, None, 1))
+            idx = as_tuple(idx_processed)
         if any(isinstance(i, slice) and i.step is not None and i.step < 0
                for i in as_tuple(idx)):
             processed = []
