@@ -10,25 +10,27 @@ on:
 jobs:
   deploy-devito:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: "1"
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - base: "devito:nvidia"
+          - base: "devito:nvidia-nvc"
             tag: 'nvidia-nvc'
             flag: '--gpus all'
-            test: 'tests/test_gpu_opeacc.py'
+            test: 'tests/test_gpu_openacc.py'
 
           - base: "devito:nvidia-clang"
             tag: 'nvidia-clang'
             flag: '--gpus all'
-            test: 'tests/test_gpu_openmp.py'
+            test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
 
-          - base: "python:3.7"
+          - base: "devito:cpu-base"
             tag: "cpu"
             flag: ''
-            test: 'tests/test_operator.py'
+            test: 'tests/test_operator.py tests/test_gpu_common.py'
 
     steps:
       - name: Checkout devito
@@ -75,7 +77,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: base=devitocodes/${{ matrix.base }}
 
-        - name: Run simple test
-          run: |
-             docker pull 'devitocodes/devito:${{ matrix.im-name }}'
-             docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}
+      - name: Run simple test
+        run: |
+         docker pull 'devitocodes/devito:${{ matrix.im-name }}'
+         docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}

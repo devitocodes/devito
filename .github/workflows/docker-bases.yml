@@ -1,26 +1,42 @@
 name: Build base compilers docker images
 
-# Runs once a week for now.
 on:
+  push:
+    paths:
+      - 'docker/Dockerfile.nvidia'
+      - 'docker/Dockerfile.cpu'
   workflow_dispatch:
     # Allow to run by hand
   schedule:
+    # Run once a week
     - cron: "0 13 * * 1"
 
 jobs:
-  deploy-base-nvidia:
-    runs-on:  [self-hosted, gpu, docker]
+  deploy-docker-bases:
+    runs-on: ["self-hosted", "gpu", "openmp", "clang"]
+    env:
+      DOCKER_BUILDKIT: "1"
+
     strategy:
       fail-fast: false
       matrix:
-        inculde:
-          - tag: ''
-            build-arg: ''
+        include:
+          - tag: 'devitocodes/devito:nvidia-nvc'
+            arch: 'arch=nvc'
+            version: ''
+            dockerfile: './docker/Dockerfile.nvidia'
 
-          - tag: '21-11'
-            build-arg: 'ver=nvhpc-21-11'
-    
-   steps:
+          - tag: 'devitocodes/devito:nvidia-clang'
+            arch: 'arch=clang'
+            version: 'ver=nvhpc-21-11'
+            dockerfile: './docker/Dockerfile.nvidia'
+
+          - tag: 'devitocodes/devito:cpu-base'
+            arch: ''
+            version: ''
+            dockerfile: './docker/Dockerfile.cpu'
+
+    steps:
       - name: Checkout devito
         uses: actions/checkout@v3
 
@@ -39,43 +55,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: NVIDIA image
+      - name: Docker image
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/Dockerfile.nvidia
+          file: ${{ matrix.dockerfile }}
           push: true
-          build-arg: ${{ matrix.build-arg }}
-          tags: devitocodes/devito:nvidia-${{ matrix.tag }}
-
-
-  deploy-base-nvidia-clang:
-      runs-on:  [self-hosted, gpu, docker]
-      needs: deploy-docker-nvidia
-
-      steps:
-        - name: Checkout devito
-          uses: actions/checkout@v3
-
-        - name: Check event name
-          run: echo ${{ github.event_name }}
-
-        - name: Set up QEMU
-          uses: docker/setup-qemu-action@v2
-
-        - name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v2
-
-        - name: Login to DockerHub
-          uses: docker/login-action@v2
-          with:
-            username: ${{ secrets.DOCKER_USERNAME }}
-            password: ${{ secrets.DOCKER_PASSWORD }}
-
-        - name: Clang image
-          uses: docker/build-push-action@v3
-          with:
-            context: .
-            file: ./docker/Dockerfile.nvidia.clang
-            push: true
-            tags: devitocodes/devito:nvidia-clang
+          build-args: |
+            ${{ matrix.arch }}
+            ${{ matrix.version }}
+          tags: ${{ matrix.tag }}

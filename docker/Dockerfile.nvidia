@@ -1,10 +1,16 @@
 ##############################################################
 # This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
-FROM python:3.9-slim-bullseye 
- 
-ENV DEBIAN_FRONTEND noninteractive 
-  
+ARG ver
+ARG arch="nvc"
+
+########################################################################
+# Build base image with apt setup and common env
+########################################################################
+FROM python:3.9-slim-bullseye as sdk-base
+
+ENV DEBIAN_FRONTEND noninteractive
+
 # nodesource: nvdashboard requires nodejs>=10  
 RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
 RUN apt-get update -y && apt-get install -y -q apt-utils curl wget vim
@@ -16,10 +22,7 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
         nodejs ffmpeg \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
-# Install latest available nvhpc
-ARG ver=$(apt-cache show nvhpc | grep Source | awk '{print $2}')
-RUN apt-get install -y -q ${ver}
-
+# Compression
 RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
     tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
     apt-get update -y && \
@@ -28,12 +31,8 @@ RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nv
     rm -rf /app/nvcomp_exts/nvcomp* && \
     rm -rf /var/lib/apt/lists/*
 
-# Set base path based on version
-ARG YEAR=$(echo ${ver} | cut -d '-' -f 2)
-ARG CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/ | grep '\.' | sort | tail -1)
-
-ENV HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}
-ENV HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/${CUDA_V}/extras/CUPTI
+ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
+ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
 
 # MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
@@ -41,24 +40,6 @@ ARG MPI_VER=HPCX
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
-
-# required for nvidia-docker v1
-RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_CUPTI/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
-
-# Compression
-ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
-ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
-    
-# Compiler, CUDA, and Library paths
-ENV CUDA_HOME $HPCSDK_HOME/cuda
-ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
-ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
-ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
@@ -78,6 +59,29 @@ ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 #For virtual environments and cloud
 #ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
+# Install nvhpc
+ARG ver=$(apt-cache show ${ver} | grep Source | awk '{print $2}')
+RUN apt-get install -y -q ${ver}
+
+# Set base path based on version
+ARG YEAR=$(echo ${ver} | cut -d '-' -f 2)
+ARG CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/ | grep '\.' | sort | tail -1)
+ENV HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}
+ENV HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/${CUDA_V}/extras/CUPTI
+
+# required for nvidia-docker v1
+RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/cuda/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_CUPTI/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
+    
+# Compiler, CUDA, and Library paths
+ENV CUDA_HOME $HPCSDK_HOME/cuda
+ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
+ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
+ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 
 # MPI 3
@@ -92,25 +96,70 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;
 
-# Make devito env vars file and extras
-ADD docker/nvdashboard.json /app/nvdashboard.json
-
-RUN echo '#!/usr/bin/env bash' > /app/setup-devito-env.sh && \
-    echo 'export DEVITO_ARCH="nvc"' >> /app/setup-devito-env.sh && \
-    echo 'export DEVITO_PLATFORM="nvidiaX"' >> /app/setup-devito-env.sh && \
-    echo 'export DEVITO_LANGUAGE="openacc"' >> /app/setup-devito-env.sh
-
 # Install python nvidia dependencies
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
+    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && \
     # Install jupyter and setup nvidia configs.
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
     # /venv/bin/jupyter lab workspaces import /app/nvdashboard.json & \
     rm -rf ~/.cache/pip
 
-ENV CFLAGS=-noswitcherror 
+########################################################################
+# NVC config
+########################################################################
+FROM sdk-base as nvc
+
+# Make devito env vars file and extras
+ADD docker/nvdashboard.json /app/nvdashboard.json
+
+ENV DEVITO_ARCH="nvc"
+ENV DEVITO_PLATFORM="nvidiaX"
+ENV DEVITO_LANGUAGE="openacc"
+
+########################################################################
+# Build clang 14
+########################################################################
+# Thid will only trigger if arch is clang since the final stage depends on it
+FROM sdk-base as clang
+
+## Install clang requirements
+RUN apt-get -y update && apt-get install -y -q libelf-dev libffi-dev cmake git
+
+## Install clang 14 (latest stable release)
+WORKDIR /
+RUN git clone -b llvmorg-14.0.5 --depth 1 https://github.com/llvm/llvm-project.git
+WORKDIR /llvm-project
+RUN mkdir build
+WORKDIR /llvm-project/build
+RUN cmake ../llvm/ -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
+    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=all \
+    -DLLVM_ENABLE_PROJECTS="clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
+    -DCMAKE_INSTALL_PREFIX=/llvm
+RUN make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') ))
+RUN make install
+WORKDIR /
+RUN rm -rf llvm-project
+ENV PATH /llvm/bin:${PATH}
+ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
+
+# Recompile mpi4py with clang
+ENV OMPI_CC="clang"
+RUN /venv/bin/pip install --force-reinstall -no-cache-dir mpi4py
+
+# Devito env vars
+ENV DEVITO_ARCH="clang"
+ENV DEVITO_PLATFORM="nvidiaX"
+ENV DEVITO_LANGUAGE="openmp"
+
+########################################################################
+# Final image
+########################################################################
+FROM ${arch} as final
 
 RUN rm -rf /var/lib/apt/lists/* \
 	&& apt-get clean

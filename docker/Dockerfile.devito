@@ -3,24 +3,16 @@
 ##############################################################
 
 # Base image with compilers
-ARG base=python:3.7
+ARG base=devitocodes/devito:base-cpu
 FROM $base
 
 # Define base in new FROM base
 ARG base
 
-# Install for basic base not containing it
-RUN if [ "$base" = "python:3.7" ]; then \
-      apt-get update && apt-get install -y mpich libmpich-dev libgl1-mesa-glx; \
-    fi
-
 ## Create App user
 # Set the home directory to our app user's home.
 ENV HOME=/app
 ENV APP_HOME=/app
-
-# Reset any existin CFLAG
-ENV CFLAGS=
 
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
@@ -31,7 +23,7 @@ RUN mkdir -p /app && \
 
 ##################  Install devito ############################################
 # Copy Devito
-ADD --chown=app:app  . /app/devito
+ADD --chown=app:app . /app/devito
 # Remove git files
 RUN rm -rf /app/devito/.git
 
@@ -55,7 +47,7 @@ RUN chmod +x \
     /docker-entrypoint.sh
 
 # This is painfully slow need a better way to do this
-RUN chown -R app:app /venv/bin
+RUN chown -R app:app /venv
 
 # Safety cleanup
 RUN rm -rf /var/lib/apt/lists/* && apt-get clean
@@ -63,11 +55,6 @@ RUN rm -rf /var/lib/apt/lists/* && apt-get clean
 # Change to the app user.
 USER app
 WORKDIR /app/devito
-
-# Env vars defaults
-ENV DEVITO_ARCH="gcc"
-ENV DEVITO_LANGUAGE="openmp"
-ENV DEVITO_LOGGING="INFO"
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]

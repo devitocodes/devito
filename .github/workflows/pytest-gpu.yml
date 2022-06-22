@@ -49,68 +49,46 @@ jobs:
         include:
         - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_gpu_openmp.py"
-          env_file: "devito-ci-nvidia-openmp.env"
-          test_drive_cmd: "nvidia-smi"
-          arch: "clang"
-          platform: "nvidiaX"
-          language: "openmp"
+          base: "devitocodes/devito:nvidia-clang"
           tags: ["self-hosted", "gpu", "openmp", "clang"]
 
         - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_gpu_openacc.py"
-          env_file: "devito-ci-nvidia-openacc.env"
-          test_drive_cmd: "nvidia-smi"
-          arch: "nvc"
-          platform: "nvidiaX"
-          language: "openacc"
+          base: "devitocodes/devito:nvidia-nvc"
           tags: ["self-hosted", "gpu", "openacc"]
 
         - name: pytest-gpu-omp-amd
           test_file: "tests/test_gpu_openmp.py"
-          env_file: "devito-ci-amd-openmp.env"
-          test_drive_cmd: "rocm-smi"
-          arch: "aomp"
-          platform: "amdgpuX"
-          language: "openmp"
           tags: ["self-hosted", "gpu", "openmp", "aomp"]
+          base: "devitocodes/devito:amd-aomp"
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v3
 
-    - name: Set environment
+    - name: Build docker image
       run: |
-        source $HOME/${{ matrix.env_file }}
-        echo "PATH=$PATH" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-    - name: Install dependencies
-      run: |
-        pip3 install --upgrade pip
-        pip3 install -e .[extras]
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
 
     - name: Test with pytest
       run: |
-        ${{ matrix.test_drive_cmd }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
+        docker run --gpus all --rm --name testrun devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
 
     - name: Test examples
       run: |
-        pytest examples/seismic/acoustic/acoustic_example.py
-        pytest examples/seismic/elastic/elastic_example.py
-        pytest examples/seismic/tti/tti_example.py
-        pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/acoustic/acoustic_example.py
+        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/elastic/elastic_example.py
+        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/tti/tti_example.py
+        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
-      if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
+        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
