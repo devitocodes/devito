@@ -28,8 +28,7 @@ RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nv
     apt-get update -y && \
     apt-get autoclean && \
     apt-get autoremove && \
-    rm -rf /app/nvcomp_exts/nvcomp* && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /app/nvcomp_exts/nvcomp*
 
 ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
 ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
@@ -59,15 +58,19 @@ ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
 #For virtual environments and cloud
 #ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
 
-# Install nvhpc
-ARG ver=$(apt-cache show ${ver} | grep Source | awk '{print $2}')
+# Install nvhpc. `nvhpc` is the alias for the latest avaialble version
+ARG ver=nvhpc
 RUN apt-get install -y -q ${ver}
 
+# Make simlink for path setup since ENV doesn't accept shell commands.
+RUN export NVARCH=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/ | grep -v '\.') && \
+    export CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/ | grep '\.') && \
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH} /opt/nvhpc && \
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI
+
 # Set base path based on version
-ARG YEAR=$(echo ${ver} | cut -d '-' -f 2)
-ARG CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/ | grep '\.' | sort | tail -1)
-ENV HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}
-ENV HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/${YEAR}/cuda/${CUDA_V}/extras/CUPTI
+ENV HPCSDK_HOME=/opt/nvhpc
+ENV HPCSDK_CUPTI=/opt/CUPTI
 
 # required for nvidia-docker v1
 RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
@@ -149,7 +152,7 @@ ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
 
 # Recompile mpi4py with clang
 ENV OMPI_CC="clang"
-RUN /venv/bin/pip install --force-reinstall -no-cache-dir mpi4py
+RUN /venv/bin/pip install --force-reinstall --no-cache-dir mpi4py
 
 # Devito env vars
 ENV DEVITO_ARCH="clang"

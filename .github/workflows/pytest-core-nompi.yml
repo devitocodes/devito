@@ -116,7 +116,7 @@ jobs:
     - name: Build docker image
       if: matrix.name == 'pytest-docker-py37-gcc-omp'
       run: |
-          docker build . --file docker/Dockerfile --tag devito_img
+          docker build . --file docker/Dockerfile.devito --tag devito_img
 
     - name: Set run prefix
       run: |

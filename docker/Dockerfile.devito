@@ -3,7 +3,7 @@
 ##############################################################
 
 # Base image with compilers
-ARG base=devitocodes/devito:base-cpu
+ARG base=devitocodes/devito:cpu-base
 FROM $base
 
 # Define base in new FROM base
@@ -19,7 +19,8 @@ ENV APP_HOME=/app
 # Chown all the files to the app user.
 RUN mkdir -p /app && \
     groupadd -r app && \
-    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app
+    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    chown -R app:app $APP_HOME
 
 ##################  Install devito ############################################
 # Copy Devito

@@ -2,9 +2,8 @@ name: Build base compilers docker images
 
 on:
   push:
-    paths:
-      - 'docker/Dockerfile.nvidia'
-      - 'docker/Dockerfile.cpu'
+    branches:
+      - docker-with-bases
   workflow_dispatch:
     # Allow to run by hand
   schedule:
@@ -13,7 +12,8 @@ on:
 
 jobs:
   deploy-docker-bases:
-    runs-on: ["self-hosted", "gpu", "openmp", "clang"]
+    name: ${{ matrix.tag }}
+    runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
 
@@ -25,16 +25,26 @@ jobs:
             arch: 'arch=nvc'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
+            runner: ["self-hosted", "gpu", "openacc"]
 
           - tag: 'devitocodes/devito:nvidia-clang'
             arch: 'arch=clang'
             version: 'ver=nvhpc-21-11'
             dockerfile: './docker/Dockerfile.nvidia'
+            runner: ["self-hosted", "gpu", "openmp", "clang"]
 
+          # That one is tiny run on default
           - tag: 'devitocodes/devito:cpu-base'
             arch: ''
             version: ''
             dockerfile: './docker/Dockerfile.cpu'
+            runner: ubuntu-latest 
+
+          - tag: 'devitocodes/devito:amd'
+            arch: ''
+            version: ''
+            dockerfile: './docker/Dockerfile.amd'
+            runner: ["self-hosted", "gpu", "openmp", "aomp"]
 
     steps:
       - name: Checkout devito

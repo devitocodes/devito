@@ -1,0 +1,48 @@
+##############################################################
+# This Dockerfile contains AMD compilers
+##############################################################
+FROM rocm/dev-ubuntu-20.04
+
+ENV DEBIAN_FRONTEND noninteractive
+
+ARG rocm=/opt/rocm
+
+# Some utils needed
+RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex
+
+# roc-aware mpi. Taken from:
+# https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
+# UCX
+RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
+    git clone --branch v1.10.0 https://github.com/openucx/ucx.git ucx && \
+    cd ucx && ./autogen.sh && \
+    mkdir build && cd build && \
+    ../contrib/configure-opt --prefix=/opt/ucx/ --with-rocm=${with_rocm} --without-knem --without-cuda --without-java && \
+    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make install && \
+    rm -rf /deps/ucx
+
+# OpenMPI
+RUN mkdir -p /opt/openmpi && cd /deps && \
+    git clone --branch v4.1.0 https://github.com/open-mpi/ompi.git openmpi && \
+    cd openmpi && ./autogen.pl && \
+    mkdir build &&  cd build && \
+    ../configure --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
+    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make install && \
+    rm -rf /deps/openmpi
+
+# Set path
+ENV PATH=${PATH}:${rocm}/bin:/opt/openmpi/bin
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib
+
+# Devito env
+ENV DEVITO_ARCH="aomp"
+ENV DEVITO_PLATFORM="amdgpuX"
+ENV DEVITO_LANGUAGE="openmp"
+
+RUN rm -rf /var/lib/apt/lists/* \
+	&& apt-get clean
+
+EXPOSE 8888
+CMD ["/bin/bash"]

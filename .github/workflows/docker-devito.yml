@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy-devito:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
 
@@ -20,17 +20,27 @@ jobs:
           - base: "devito:nvidia-nvc"
             tag: 'nvidia-nvc'
             flag: '--gpus all'
-            test: 'tests/test_gpu_openacc.py'
+            test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "gpu", "docker"]
 
           - base: "devito:nvidia-clang"
             tag: 'nvidia-clang'
             flag: '--gpus all'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "gpu", "docker"]
+
+          # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
+          - base: "devito:amd"
+            tag: 'amd'
+            flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video'
+            test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "gpu", "docker", "aomp"]
 
           - base: "devito:cpu-base"
             tag: "cpu"
             flag: ''
             test: 'tests/test_operator.py tests/test_gpu_common.py'
+            runner: ubuntu-latest
 
     steps:
       - name: Checkout devito
@@ -72,12 +82,11 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./docker/Dockerfile
+          file: ./docker/Dockerfile.devito
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           build-args: base=devitocodes/${{ matrix.base }}
 
-      - name: Run simple test
+      - name: Run tests
         run: |
-         docker pull 'devitocodes/devito:${{ matrix.im-name }}'
          docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}

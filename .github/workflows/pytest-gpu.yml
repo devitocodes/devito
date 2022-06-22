@@ -50,17 +50,20 @@ jobs:
         - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_gpu_openmp.py"
           base: "devitocodes/devito:nvidia-clang"
-          tags: ["self-hosted", "gpu", "openmp", "clang"]
+          tags: ["self-hosted", "gpu", "docker",]
+          flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_gpu_openacc.py"
           base: "devitocodes/devito:nvidia-nvc"
-          tags: ["self-hosted", "gpu", "openacc"]
+          tags: ["self-hosted", "gpu", "docker"]
+          flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-omp-amd
           test_file: "tests/test_gpu_openmp.py"
-          tags: ["self-hosted", "gpu", "openmp", "aomp"]
-          base: "devitocodes/devito:amd-aomp"
+          tags: ["self-hosted", "gpu", "docker", "aomp"]
+          base: "devitocodes/devito:amd"
+          flags: "'--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video' --rm --name testrun"
 
     steps:
     - name: Checkout devito
@@ -76,19 +79,19 @@ jobs:
 
     - name: Test examples
       run: |
-        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/acoustic/acoustic_example.py
-        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/elastic/elastic_example.py
-        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/tti/tti_example.py
-        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run --gpus all --rm --name testrun devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
       run: |
-        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run --gpus all --rm --name testrun --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
