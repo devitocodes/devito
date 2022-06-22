@@ -1049,11 +1049,13 @@ def parse_kwargs(**kwargs):
         if compiler not in configuration._accepted['compiler']:
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
-                                                         language=kwargs['language'])
+                                                         language=kwargs['language'],
+                                                         mpi=configuration['mpi'])
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
-                                                   language=kwargs['language'])
+                                                   language=kwargs['language'],
+                                                   mpi=configuration['mpi'])
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 
