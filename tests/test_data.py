@@ -1273,7 +1273,7 @@ class TestDataDistributed(object):
             assert(np.all(c.data[-2:-1] == [3., 3., 5., 8., 7.]))
             assert(np.all(c.data[-1] == [4., 4., 6., 9., 8.]))
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[4, 7])
     @pytest.mark.parametrize('gslice', [
         (slice(None, None, -1), slice(None, None, -1), 0),
         (slice(None, None, -1), slice(None, None, -1), slice(0, 1, 1)),
