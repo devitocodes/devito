@@ -3,7 +3,7 @@
 ##############################################################
 
 # Base image with compilers
-ARG base=devitocodes/devito:cpu-base
+ARG base=devitocodes/bases:cpu-gcc
 
 FROM $base as builder
 

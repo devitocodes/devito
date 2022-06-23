@@ -21,30 +21,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - tag: 'devitocodes/devito:nvidia-nvc'
+          - tag: 'devitocodes/bases:nvidia-nvc'
             arch: 'arch=nvc'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "gpu", "openacc"]
 
-          - tag: 'devitocodes/devito:nvidia-clang'
+          - tag: 'devitocodes/bases:nvidia-clang'
             arch: 'arch=clang'
             version: 'ver=nvhpc-21-11'
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "gpu", "openmp", "clang"]
 
           # That one is tiny run on default
-          - tag: 'devitocodes/devito:cpu-base'
+          - tag: 'devitocodes/bases:cpu-gcc'
             arch: ''
             version: ''
             dockerfile: './docker/Dockerfile.cpu'
             runner: ubuntu-latest 
 
-          - tag: 'devitocodes/devito:amd'
+          - tag: 'devitocodes/bases:amd'
             arch: ''
             version: ''
             dockerfile: './docker/Dockerfile.amd'
-            runner: ["self-hosted", "gpu", "openmp", "aomp"]
+            runner: ["self-hosted", "gpu", "docker", "aomp"]
 
     steps:
       - name: Checkout devito

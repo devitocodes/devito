@@ -49,20 +49,20 @@ jobs:
         include:
         - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_gpu_openmp.py"
-          base: "devitocodes/devito:nvidia-clang"
+          base: "devitocodes/bases:nvidia-clang"
           tags: ["self-hosted", "gpu", "docker",]
           flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_gpu_openacc.py"
-          base: "devitocodes/devito:nvidia-nvc"
+          base: "devitocodes/bases:nvidia-nvc"
           tags: ["self-hosted", "gpu", "docker"]
           flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-omp-amd
           test_file: "tests/test_gpu_openmp.py"
           tags: ["self-hosted", "gpu", "docker", "aomp"]
-          base: "devitocodes/devito:amd"
+          base: "devitocodes/bases:amd"
           flags: "'--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video' --rm --name testrun"
 
     steps:

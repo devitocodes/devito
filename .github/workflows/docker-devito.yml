@@ -17,26 +17,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - base: "devito:nvidia-nvc"
+          - base: "bases:nvidia-nvc"
             tag: 'nvidia-nvc'
             flag: '--gpus all'
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "gpu", "docker"]
 
-          - base: "devito:nvidia-clang"
+          - base: "bases:nvidia-clang"
             tag: 'nvidia-clang'
             flag: '--gpus all'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
             runner: ["self-hosted", "gpu", "docker"]
 
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
-          - base: "devito:amd"
+          - base: "bases:amd"
             tag: 'amd'
             flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
             runner: ["self-hosted", "gpu", "docker", "aomp"]
 
-          - base: "devito:cpu-base"
+          - base: "bases:cpu-gcc"
             tag: "cpu"
             flag: ''
             test: 'tests/test_operator.py tests/test_gpu_common.py'
@@ -73,7 +73,7 @@ jobs:
             type=semver,event=tag,value=${{ matrix.tag }}-latest
             type=raw,value=latest,enable=${{ matrix.base == "python:3.7"}}
             # Legacy "gpu" tag
-            type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == "devito:nvidia"}}
+            type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == "bases:nvidia-nvc"}}
             type=semver,event=tag,value=gpu-{{version}}
             type=semver,event=tag,value=gpu-latest
 
