@@ -4,27 +4,12 @@
 
 # Base image with compilers
 ARG base=devitocodes/devito:cpu-base
-FROM $base
 
-# Define base in new FROM base
-ARG base
-
-## Create App user
-# Set the home directory to our app user's home.
-ENV HOME=/app
-ENV APP_HOME=/app
-
-# Create the home directory for the new app user.
-# Create an app user so our program doesn't run as root.
-# Chown all the files to the app user.
-RUN mkdir -p /app && \
-    groupadd -r app && \
-    useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
-    chown -R app:app $APP_HOME
+FROM $base as builder
 
 ##################  Install devito ############################################
 # Copy Devito
-ADD --chown=app:app . /app/devito
+ADD . /app/devito
 # Remove git files
 RUN rm -rf /app/devito/.git
 
@@ -36,22 +21,33 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi] && \
     rm -rf ~/.cache/pip
 
+# Safety cleanup
+RUN rm -rf /var/lib/apt/lists/* && apt-get clean
+
+FROM builder as user
+# COPY is much faster than RUN chown by order of magnitude so we have a final step that
+# just copies the built image into the user.
+
+## Create App user
+# Set the home directory to our app user's home.
+ENV HOME=/app
+ENV APP_HOME=/app
+
+# Create the home directory for the new app user.
+# Create an app user so our program doesn't run as root.
+# Chown all the files to the app user.
+RUN groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app
+COPY --from=builder --chown=app:app /app /app
+
 ADD --chown=app:app docker/run-jupyter.sh /jupyter
 ADD --chown=app:app docker/run-tests.sh /tests
 ADD --chown=app:app docker/run-print-defaults.sh /print-defaults
 ADD --chown=app:app docker/entrypoint.sh /docker-entrypoint.sh
 
-RUN chmod +x \
-    /print-defaults \
-    /jupyter \
-    /tests \
-    /docker-entrypoint.sh
+RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh
 
-# This is painfully slow need a better way to do this
-RUN chown -R app:app /venv
-
-# Safety cleanup
-RUN rm -rf /var/lib/apt/lists/* && apt-get clean
+# Venv
+COPY --from=builder --chown=app:app /venv /venv
 
 # Change to the app user.
 USER app
