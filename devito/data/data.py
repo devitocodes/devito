@@ -89,6 +89,13 @@ class Data(np.ndarray):
         warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
         return np.array(self).__reduce__()
 
+    def reshape_data(self, shape):
+        # FIXME: Need to generalise and think of a better name
+        decomposition = tuple([d for d in self._decomposition if d.size > 1])
+        retval = self.reshape(shape)
+        retval._decomposition = decomposition
+        return retval
+
     def __array_finalize__(self, obj):
         # `self` is the newly created object
         # `obj` is the object from which `self` was created
@@ -208,7 +215,8 @@ class Data(np.ndarray):
             if not is_gather:
                 retval = Data(local_val.shape, local_val.dtype.type,
                               decomposition=local_val._decomposition,
-                              modulo=(False,)*len(local_val.shape))
+                              modulo=(False,)*len(local_val.shape),
+                              distributor=local_val._distributor)
             elif rank == gather_rank:
                 retval = np.zeros(it.shape)
             else:
@@ -252,7 +260,7 @@ class Data(np.ndarray):
             reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
                              if type(i) is not np.int64])
             if reshape and (0 not in reshape) and (reshape != retval.shape):
-                return retval.reshape(reshape)
+                return retval.reshape_data(reshape)
             else:
                 return retval
         elif loc_idx is NONLOCAL:
