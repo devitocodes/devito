@@ -74,6 +74,21 @@ class CodeSymbol(object):
         return
 
     @abc.abstractproperty
+    def _C_typetype(self):
+        """
+        The base type of _C_typename, should it be a pointer data type.
+
+        Examples
+        --------
+        If `self._C_typename = struct obj *`, then `self._C_typetype = struct obj`.
+
+        Returns
+        -------
+        str
+        """
+        return
+
+    @abc.abstractproperty
     def _C_typedata(self):
         """
         The type of the data values in the generated code.

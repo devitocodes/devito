@@ -4,9 +4,9 @@ from devito.ir.iet.nodes import Call, Callable
 from devito.ir.iet.utils import derive_parameters
 from devito.tools import as_tuple
 
-__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'EntryFunction',
-           'AsyncCallable', 'AsyncCall', 'ThreadCallable', 'DeviceFunction',
-           'DeviceCall']
+__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
+           'EntryFunction', 'AsyncCallable', 'AsyncCall', 'ThreadCallable',
+           'DeviceFunction', 'DeviceCall']
 
 
 # ElementalFunction machinery
@@ -87,6 +87,17 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     """
     return ElementalFunction(name, iet, retval, derive_parameters(iet), prefix,
                              dynamic_parameters)
+
+
+# Callable machinery
+
+
+def make_callable(name, iet, retval='void', prefix='static'):
+    """
+    Utility function to create a Callable from an IET.
+    """
+    parameters = derive_parameters(iet)
+    return Callable(name, iet, retval, parameters=parameters, prefix=prefix)
 
 
 # EntryFunction machinery

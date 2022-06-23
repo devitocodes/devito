@@ -80,10 +80,6 @@ class PrintAST(Visitor):
         body = ' %s' % str(o) if self.verbose else ''
         return self.indent + '<C.%s%s>' % (o.__class__.__name__, body)
 
-    def visit_Element(self, o):
-        body = ' %s' % str(o.element) if self.verbose else ''
-        return self.indent + '<Element%s>' % body
-
     def visit_Callable(self, o):
         self._depth += 1
         body = self._visit(o.children)
@@ -275,7 +271,7 @@ class CGen(Visitor):
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
-            if f.is_DiscreteFunction:
+            if f.is_DiscreteFunction or f.is_Array:
                 if isinstance(o.obj, IndexedData):
                     v = f._C_field_data
                 elif isinstance(o.obj, DeviceMap):
@@ -333,32 +329,30 @@ class CGen(Visitor):
             footer = [c.Comment("End %s" % o.name)]
         return c.Module(header + body + footer)
 
-    def visit_Element(self, o):
-        return o.element
+    def visit_Return(self, o):
+        v = 'return'
+        if o.value is not None:
+            v += ' %s' % o.value
+        return c.Statement(v)
 
     def visit_Definition(self, o):
         f = o.function
 
-        if f.is_AbstractFunction:
-            if f.is_PointerArray:
-                v = "*"
-            else:
-                v = ""
-            if o.shape is None:
-                v = "%s*%s" % (v, f._C_name)
-            else:
-                v = "%s%s%s" % (v, f._C_name, o.shape)
-            if o.qualifier is not None:
-                v = "%s %s" % (v, o.qualifier)
-        elif f.is_LocalObject:
-            v = f._C_name
-        else:
-            assert False
+        v = ""
+
+        if o.qualifier is not None:
+            v = o.qualifier
 
         if o.constructor_args:
             v = MultilineCall(v, o.constructor_args, True)
 
-        v = c.Value(f._C_typedata, v)
+        if f.is_PointerArray:
+            v = c.Value(f._C_typedata, "**%s" % f._C_name)
+        elif f._mem_stack:
+            assert o.shape is not None
+            v = c.Value(f._C_typedata, "%s%s" % (f._C_name, o.shape))
+        else:
+            v = c.Value(f._C_typename, f._C_name)
 
         if o.initvalue is not None:
             v = c.Initializer(v, o.initvalue)
@@ -507,7 +501,8 @@ class CGen(Visitor):
             else:
                 xfilter = lambda i: not isinstance(i, public_types)
 
-        typedecls = [i._C_typedecl for i in o.parameters
+        candidates = o.parameters + tuple(o._dspace.parts)
+        typedecls = [i._C_typedecl for i in candidates
                      if xfilter(i) and i._C_typedecl is not None]
         for i in o._func_table.values():
             if not i.local:

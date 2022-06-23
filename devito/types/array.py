@@ -1,4 +1,4 @@
-from ctypes import POINTER
+from ctypes import POINTER, Structure, c_void_p, c_ulong
 from math import ceil
 
 import numpy as np
@@ -105,7 +105,12 @@ class Array(ArrayBasic):
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        return AbstractFunction.__new__(cls, *args, **kwargs)
+        scope = kwargs.get('scope', 'heap')
+
+        if cls is Array and scope == 'heap':
+            return AbstractFunction.__new__(ArrayHeap, *args, **kwargs)
+        else:
+            return AbstractFunction.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, *args, **kwargs):
         super(Array, self).__init_finalize__(*args, **kwargs)
@@ -213,6 +218,30 @@ class Array(ArrayBasic):
 
     def _make_pointer(self, dim):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
+
+
+class ArrayHeap(Array):
+
+    _C_structname = 'array'
+    _C_typename = 'struct %s *' % _C_structname
+    _C_field_data = 'data'
+    _C_field_nbytes = 'nbytes'
+    _C_field_dmap = 'dmap'
+
+    _C_typedecl = Struct(_C_structname, [
+        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+        Value(ctypes_to_cstr(c_ulong), _C_field_nbytes),
+        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_dmap)
+    ])
+
+    _C_ctype = POINTER(type(_C_structname, (Structure,),
+                            {'_fields_': [(_C_field_data, c_void_p),
+                                          (_C_field_nbytes, c_ulong),
+                                          (_C_field_dmap, c_void_p)]}))
+
+    @property
+    def _C_typetype(self):
+        return ctypes_to_cstr(self._C_ctype._type_)
 
 
 class ArrayObject(ArrayBasic):

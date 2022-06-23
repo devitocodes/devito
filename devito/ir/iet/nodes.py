@@ -19,7 +19,7 @@ from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, f
 from devito.types.basic import AbstractFunction, AbstractSymbol
 from devito.types import Indexed, LocalObject, Symbol
 
-__all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
+__all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
            'AugmentedExpression', 'Increment', 'Return', 'While',
@@ -119,6 +119,9 @@ class Node(Signer):
     def __str__(self):
         return str(self.ccode)
 
+    def __repr__(self):
+        return self.__class__.__name__
+
     @property
     def functions(self):
         """All AbstractFunction objects used by this node."""
@@ -205,22 +208,6 @@ class Block(List):
         self.header = as_tuple(header)
         self.body = as_tuple(body)
         self.footer = as_tuple(footer)
-
-
-class Element(Node):
-
-    """
-    A generic node. Can be a comment, a statement, ... or anything that cannot
-    be expressed through an IET type.
-    """
-
-    def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
-                                    c.Pragma, c.Line, c.Assign, c.POD))
-        self.element = element
-
-    def __repr__(self):
-        return "Element::\n\t%s" % (self.element)
 
 
 class Call(ExprStmt, Node):
@@ -1322,12 +1309,17 @@ class CBlankLine(List):
         return ""
 
 
+class Return(Node):
+
+    def __init__(self, value=None):
+        self.value = value
+
+
 def DummyExpr(*args, init=False):
     return Expression(DummyEq(*args), init=init)
 
 
 BlankLine = CBlankLine()
-Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 
 # Nodes required for distributed-memory halo exchange
