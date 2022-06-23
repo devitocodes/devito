@@ -20,7 +20,7 @@ class TestGPUInfo(object):
 
     def test_get_gpu_info(self):
         info = get_gpu_info()
-        known = ['nvidia', 'tesla', 'geforce', 'unspecified']
+        known = ['nvidia', 'tesla', 'geforce', 'quadro', 'unspecified']
         try:
             assert info['architecture'].lower() in known
         except KeyError:

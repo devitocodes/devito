@@ -129,7 +129,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+              echo "::set-output name=RUN_CMD::docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"
           else
               echo "::set-output name=RUN_CMD::"
           fi
@@ -161,8 +161,8 @@ jobs:
         ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov
+      if: "!contains(matrix.name, 'docker')"
       uses: codecov/codecov-action@v2
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
-        files: ./coverage/coverage.xml, coverage.xml

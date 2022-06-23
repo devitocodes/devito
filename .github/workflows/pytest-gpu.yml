@@ -75,7 +75,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        docker run --gpus all --rm --name testrun devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
+        docker run --gpus all --rm --name testrun -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
 
     - name: Test examples
       run: |
@@ -92,9 +92,3 @@ jobs:
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        name: ${{ matrix.name }}

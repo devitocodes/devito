@@ -4,4 +4,8 @@ find /app -type f -name '*.pyc' -delete
 
 export PATH=/venv/bin:$PATH
 
-exec "$@"
+if [[ -z "${DEPLOY_ENV}" ]]; then
+    exec "$@" && ./codecov -t -t ${CODECOV_TOKEN}
+else
+    exec "$@"
+fi

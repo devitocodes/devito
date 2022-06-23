@@ -43,15 +43,17 @@ ADD --chown=app:app docker/run-jupyter.sh /jupyter
 ADD --chown=app:app docker/run-tests.sh /tests
 ADD --chown=app:app docker/run-print-defaults.sh /print-defaults
 ADD --chown=app:app docker/entrypoint.sh /docker-entrypoint.sh
-
 RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh
 
 # Venv
 COPY --from=builder --chown=app:app /venv /venv
 
+# Install codecov
+WORKDIR /app/devito
+RUN curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && chown app:app codecov
+
 # Change to the app user.
 USER app
-WORKDIR /app/devito
 
 EXPOSE 8888
 ENTRYPOINT ["/docker-entrypoint.sh"]
