@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND noninteractive
 ARG rocm=/opt/rocm
 
 # Some utils needed
-RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex
+RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv
 
 # roc-aware mpi. Taken from:
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh

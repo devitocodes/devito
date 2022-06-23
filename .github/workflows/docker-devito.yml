@@ -37,9 +37,15 @@ jobs:
             runner: ["self-hosted", "gpu", "docker", "aomp"]
 
           - base: "bases:cpu-gcc"
-            tag: "cpu"
+            tag: "gcc"
             flag: ''
-            test: 'tests/test_operator.py tests/test_gpu_common.py'
+            test: 'tests/test_operator.py'
+            runner: ubuntu-latest
+
+          - base: "bases:cpu-icc"
+            tag: "icc"
+            flag: ''
+            test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
     steps:
@@ -76,6 +82,10 @@ jobs:
             type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == "bases:nvidia-nvc"}}
             type=semver,event=tag,value=gpu-{{version}}
             type=semver,event=tag,value=gpu-latest
+            # Legacy "cpu" tag
+            type=ref,event=pr,value=cpu-dev,enable=${{ matrix.base == "bases:cpu-gcc"}}
+            type=semver,event=tag,value=cpu-{{version}}
+            type=semver,event=tag,value=cpu-latest
 
       - name: Build and push image
         if: github.event_name == 'push'
