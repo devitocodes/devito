@@ -167,7 +167,11 @@ class Data(np.ndarray):
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            if len(args) > 1 and isinstance(args[1], Data) \
+            # NOTE: Consolidate with that appearing in __getitem__
+            is_gather = True if (kwargs and isinstance(kwargs['gather_rank'], int)) else False
+            if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
+                comm_type = gather
+            elif len(args) > 1 and isinstance(args[1], Data) \
                     and args[1]._is_mpi_distributed:
                 comm_type = index_by_index
             elif data._is_mpi_distributed:
@@ -197,7 +201,44 @@ class Data(np.ndarray):
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
         loc_idx = self._index_glb_to_loc(glb_idx)
         is_gather = True if isinstance(gather_rank, int) else False
-        if comm_type is index_by_index or is_gather:
+        if is_gather and comm_type == gather:
+            comm = self._distributor.comm
+            size = comm.Get_size()
+            rank = comm.Get_rank()
+
+            sendbuf = np.array(self[:].flatten())
+            sendcounts = np.array(comm.gather(len(sendbuf), gather_rank))
+
+            if rank == gather_rank:
+                recvbuf = np.zeros(sum(sendcounts), dtype=self.dtype.type)
+            else:
+                recvbuf = None
+            comm.Gatherv(sendbuf=sendbuf, recvbuf=(recvbuf, sendcounts), root=gather_rank)
+
+            # Reshape the gathered data to produce the output
+            # NOTE: Make cleverer so that new array doesn't need to be allocated
+            if rank == gather_rank:
+                if len(self.shape) > len(self._distributor.glb_shape):
+                    glb_shape = list(self._distributor.glb_shape)
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        glb_shape.insert(i, self.shape[i])
+                retval = np.zeros(glb_shape, dtype=self.dtype.type)
+                start, stop, step = 0, 0, 1
+                for i, s in enumerate(sendcounts):
+                    if i > 0:
+                        start += sendcounts[i-1]
+                    stop += sendcounts[i]
+                    data_slice = recvbuf[slice(start, stop, step)]
+                    shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
+                    idx = [slice(r.start, r.stop, r.step) for r in self._distributor.all_ranges[i]]
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        shape.insert(i, glb_shape[i])
+                        idx.insert(i, slice(0, glb_shape[i]+1, 1))
+                    retval[tuple(idx)] = data_slice.reshape(tuple(shape))
+                return retval
+            else:
+                return None
+        elif comm_type is index_by_index or is_gather:
             # Retrieve the pertinent local data prior to mpi send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
@@ -545,4 +586,5 @@ class Data(np.ndarray):
 class CommType(Tag):
     pass
 index_by_index = CommType('index_by_index')  # noqa
-serial = CommType('serial')
+serial = CommType('serial')  # noqa
+gather = CommType('gather')  # noqa
