@@ -22,7 +22,8 @@ RUN python3 -m venv /venv && \
     rm -rf ~/.cache/pip
 
 # Safety cleanup
-RUN rm -rf /var/lib/apt/lists/* && apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 FROM $base as user
 # COPY is much faster than RUN chown by order of magnitude so we have a final step that

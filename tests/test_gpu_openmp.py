@@ -23,7 +23,6 @@ class TestCodeGeneration(object):
         assert str(op.body.init[0].body[0]) ==\
             'if (deviceid != -1)\n{\n  omp_set_default_device(deviceid);\n}'
 
-    @skipif('device-aomp')
     @pytest.mark.parallel(mode=1)
     def test_init_omp_env_w_mpi(self):
         grid = Grid(shape=(3, 3, 3))
@@ -345,7 +344,6 @@ class TestOperator(object):
 
 class TestMPI(object):
 
-    @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
     def test_mpi_nocomms(self):
         grid = Grid(shape=(3, 3, 3))
@@ -362,7 +360,6 @@ class TestMPI(object):
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
-    @skipif('device-aomp')
     @pytest.mark.parallel(mode=[2, 4])
     def test_iso_ac(self):
         TestOperator().iso_acoustic(opt='advanced')

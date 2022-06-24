@@ -1,6 +1,6 @@
 # [Devito] docker image library
 
-In order to facilitate the dissemination, usage, and development of Devito, we provide a series of docker images. These images support numerous architectures and compilers and are tagged accordingly. In the following, we describe the available images and the workflow to build it yourself. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/devito/tags). 
+In order to facilitate the dissemination, usage, and development of Devito, we provide a series of docker images. These images support numerous architectures and compilers and are tagged accordingly. In the following, we describe the available images and the workflow to build it yourself. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/). 
 
 ## [Devito] images
 
@@ -8,20 +8,30 @@ Devito provides three main images that are targeting different architectures and
 
 ### [Devito] on CPU
 
-`devito:cpu-*` is the base image that will provide a working [Devito] environment for any CPU architecture. This image comes with [Devito] and `gcc` preinstalled as well as utilities such as `jupyter` for usability and exploration of the package.
+We provide two CPU images:
+- `devito:gcc-*` with the standard GNU gcc compiler.
+- `devito:icc-*` with the intel C compiler for intel architectures.
+
+these base images provide a working [Devito] environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled as well as utilities such as `jupyter` for usability and exploration of the package.
 
 To run this image locally, you will need `docker` to be installed. Once available, the following commands will get you started:
 
 ```bash
-docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito
-docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito
+docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:gcc-latest
+docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm devitocodes/devito:gcc-latest
 ```
 
 or to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
 
 ```bash
-docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) [Devito] python examples/seismic/acoustic/acoustic_example.py
+docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devitocodes/devito:gcc-latest python examples/seismic/acoustic/acoustic_example.py
 ```
+
+**Notes**:
+In addition, the following legacy tags are available:
+
+- `devito:cpu-*` that corresponds to `devito:gcc-*`
+
 
 ### [Devito] on GPU
 
@@ -33,20 +43,20 @@ Second, we provide three types of images to run [Devito] on GPUs. These two imag
 
 #### NVIDIA
 
-To run the NVIDIA GPU version, you will need [nvidia-docker] installed and specify the gpu to be used at runtime. See for examples a few runtime commands for the NVIDIA images.
+To run the NVIDIA GPU version, you will need [nvidia-docker] installed and specify the gpu to be used at runtime. See for examples a few runtime commands for the NVIDIA `nvc` images.
 
 
 ```bash
-docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
-docker run --gpus all --rm -it devito:nvidia python examples/seismic/acoustic/acoustic_example.py
+docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:nvidia-nvc-latest
+docker run --gpus all --rm -it devitocodes/devito:nvidia-nvc-latest python examples/seismic/acoustic/acoustic_example.py
 
-docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devito:nvidia 
+docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm  devitocodes/devito:nvidia-nvc-latest
 ```
 
 or to run in user context on a cluster with shared filesystem, you can add the correct user config as docker options e.g.:
 
 ```bash
-docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devito:nvidia python examples/seismic/acoustic/acoustic_example.py
+docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devitocodes/devito:nvidia-nvc-latest python examples/seismic/acoustic/acoustic_example.py
 ```
 
 
@@ -75,20 +85,21 @@ docker build --network=host --file docker/Dockerfile.devito --tag devito .
 And to build the GPU image with `openacc` offloading and the `nvc` compiler, simply run:
 
 ```bash
-docker build base=devitocodes/base:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
+docker build --build-arg base=devitocodes/base:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
 ```
 
 or if you wish to use the `llvm-15` (clang) compiler with `openmp` offlaoding:
 
 ```bash
-docker build base=devitocodes/base:nvidia-clang --network=host --file docker/Dockerfile --tag [Devito] .
+docker build --build-arg base=devitocodes/base:nvidia-clang --network=host --file docker/Dockerfile --tag devito .
 ```
 
 and finally for amd architectures:
 
 
 ```bash
-docker build base=devitocodes/base:amd --network=host --file docker/Dockerfile --tag [Devito] .
+docker build --build-arg base=devitocodes/base:amd --network=host --file docker/Dockerfile --tag devito .
 ```
+
 
 [Devito]:https://github.com/devitocodes/devito

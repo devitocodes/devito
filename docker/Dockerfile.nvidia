@@ -22,17 +22,6 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
         nodejs ffmpeg \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
-# Compression
-RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
-    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
-    apt-get update -y && \
-    apt-get autoclean && \
-    apt-get autoremove && \
-    rm -rf /app/nvcomp_exts/nvcomp*
-
-ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
-ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
-
 # MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
 
@@ -164,8 +153,8 @@ ENV DEVITO_LANGUAGE="openmp"
 ########################################################################
 FROM ${arch} as final
 
-RUN rm -rf /var/lib/apt/lists/* \
-	&& apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
 CMD ["/bin/bash"]
