@@ -2,10 +2,14 @@ name: Build base compilers docker images
 
 on:
   push:
-    branches:
-      - docker-with-bases
+    paths:
+      - './docker/Dockerfile.nvidia'
+      - './docker/Dockerfile.cpu'
+      - './docker/Dockerfile.amd'
   workflow_dispatch:
-    # Allow to run by hand
+    inputs:
+      tags:
+        description: 'Build compiler bases'
   schedule:
     # Run once a week
     - cron: "0 13 * * 1"

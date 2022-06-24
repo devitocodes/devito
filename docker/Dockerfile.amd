@@ -1,18 +1,33 @@
 ##############################################################
 # This Dockerfile contains AMD compilers
 ##############################################################
-FROM rocm/dev-ubuntu-20.04
+ARG ROCM_VERSION=5.1.3
+
+FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete
 
 ENV DEBIAN_FRONTEND noninteractive
+ARG ROCM_VERSION
+ENV rocm=/opt/rocm
 
-ARG rocm=/opt/rocm
+# Set path
+ENV PATH=${PATH}:${rocm}/bin
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${rocm}/lib:${rocm}/lib64
 
 # Some utils needed
-RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv
+RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev live-tools
+
+# Install AOMP
+RUN apt-get install -y amdgpu-dkms && \
+    rm ${rocm}/bin/aompcc && \
+    wget https://github.com/ROCm-Developer-Tools/aomp/releases/download/rel_15.0-2/aomp_Ubuntu2004_15.0-2_amd64.deb && \
+    dpkg -i aomp_Ubuntu2004_15.0-2_amd64.deb && \
+    echo 'SUBSYSTEM=="kfd", KERNEL=="kfd", TAG+="uaccess", GROUP="video"' > /etc/udev/rules.d/70-kfd.rules
+
+ENV AOMP=/usr/lib/aomp
 
 # roc-aware mpi. Taken from:
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
-# UCX
+# UCX. Clang does not support some of the flags such as '-dynamic-list-data' so build UCX with gcc
 RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
     git clone --branch v1.10.0 https://github.com/openucx/ucx.git ucx && \
     cd ucx && ./autogen.sh && \
@@ -23,17 +38,20 @@ RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
     rm -rf /deps/ucx
 
 # OpenMPI
+# Following https://github.com/ROCm-Developer-Tools/aomp/blob/aomp-dev/bin/build_supp.sh, clang should be used not aompcc
+# Build openmpi with amdclang so that mpicc links to the correct compiler
 RUN mkdir -p /opt/openmpi && cd /deps && \
-    git clone --branch v4.1.0 https://github.com/open-mpi/ompi.git openmpi && \
+    git clone --branch v4.1.1 https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
-    ../configure --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
+    ../configure OMPI_CC=aompcc OMPI_CXX=$AOMP/bin/clang++ OMPI_F90=$AOMP/bin/flang CXX=$AOMP/bin/clang++ CC=$AOMP/bin/clang FC=$AOMP/bin/flang --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
     make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
     make install && \
     rm -rf /deps/openmpi
 
-# Set path
-ENV PATH=${PATH}:${rocm}/bin:/opt/openmpi/bin
+# Set openmpi path
+ENV OMPI_CC=$AOMP/bin/clang
+ENV PATH=${PATH}:/opt/openmpi/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib
 
 # Devito env
@@ -41,8 +59,9 @@ ENV DEVITO_ARCH="aomp"
 ENV DEVITO_PLATFORM="amdgpuX"
 ENV DEVITO_LANGUAGE="openmp"
 
-RUN rm -rf /var/lib/apt/lists/* \
-	&& apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/* && rm aomp_Ubuntu2004_15.0-2_amd64.deb
 
 EXPOSE 8888
 CMD ["/bin/bash"]
+

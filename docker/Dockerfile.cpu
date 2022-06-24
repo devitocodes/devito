@@ -49,7 +49,8 @@ ENV MPICC="mpiicc"
 ##############################################################
 FROM ${arch} as final
 
-RUN rm -rf /var/lib/apt/lists/* && apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
 CMD ["/bin/bash"]

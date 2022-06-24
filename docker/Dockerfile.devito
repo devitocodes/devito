@@ -22,7 +22,8 @@ RUN python3 -m venv /venv && \
     rm -rf ~/.cache/pip
 
 # Safety cleanup
-RUN rm -rf /var/lib/apt/lists/* && apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 FROM $base as user
 # COPY is much faster than RUN chown by order of magnitude so we have a final step that
@@ -36,7 +37,9 @@ ENV APP_HOME=/app
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
 # Chown all the files to the app user.
-RUN mkdir -p /app && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && chown -R app:app $APP_HOME
+RUN mkdir -p /app && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
+    usermod -a -G video app && chown -R app:app $APP_HOME
+
 COPY --from=builder --chown=app:app /app /app
 
 ADD --chown=app:app docker/run-jupyter.sh /jupyter

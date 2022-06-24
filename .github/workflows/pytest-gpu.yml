@@ -50,18 +50,18 @@ jobs:
         - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_gpu_openmp.py"
           base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "gpu", "docker",]
+          tags: ["self-hosted", "gpu", "openmp", "docker",]
           flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
-          tags: ["self-hosted", "gpu", "docker"]
+          tags: ["self-hosted", "gpu", "openacc", "docker"]
           flags: '--gpus all --rm --name testrun'
 
         - name: pytest-gpu-omp-amd
           test_file: "tests/test_gpu_openmp.py"
-          tags: ["self-hosted", "gpu", "docker", "aomp"]
+          tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           base: "devitocodes/bases:amd"
           flags: "'--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video' --rm --name testrun"
 
@@ -71,11 +71,11 @@ jobs:
 
     - name: Build docker image
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
+          docker build . --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
 
     - name: Test with pytest
       run: |
-        docker run --gpus all --rm --name testrun -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
+        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
 
     - name: Test examples
       run: |

@@ -22,17 +22,6 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
         nodejs ffmpeg \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
-# Compression
-RUN wget -q -P /app/nvcomp_exts/ http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
-    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
-    apt-get update -y && \
-    apt-get autoclean && \
-    apt-get autoremove && \
-    rm -rf /app/nvcomp_exts/nvcomp*
-
-ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
-ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
-
 # MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
 
@@ -103,11 +92,9 @@ RUN if [ "x$MPI_VER" = "x4" ]; then \
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
-    CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && \
     # Install jupyter and setup nvidia configs.
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
-    # /venv/bin/jupyter lab workspaces import /app/nvdashboard.json & \
     rm -rf ~/.cache/pip
 
 ########################################################################
@@ -117,6 +104,10 @@ FROM sdk-base as nvc
 
 # Make devito env vars file and extras
 ADD docker/nvdashboard.json /app/nvdashboard.json
+
+# mpi4py
+RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+    # /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -129,11 +120,11 @@ ENV DEVITO_LANGUAGE="openacc"
 FROM sdk-base as clang
 
 ## Install clang requirements
-RUN apt-get -y update && apt-get install -y -q libelf-dev libffi-dev cmake git
+RUN apt-get -y update && apt-get install -y -q libelf-dev libffi-dev cmake git gcc-multilib g++-multilib
 
 ## Install clang 14 (latest stable release)
 WORKDIR /
-RUN git clone -b llvmorg-14.0.5 --depth 1 https://github.com/llvm/llvm-project.git
+RUN git -c advice.detachedHead=false clone -b llvmorg-13.0.0 --depth 1 https://github.com/llvm/llvm-project.git
 WORKDIR /llvm-project
 RUN mkdir build
 WORKDIR /llvm-project/build
@@ -152,7 +143,7 @@ ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
 
 # Recompile mpi4py with clang
 ENV OMPI_CC="clang"
-RUN /venv/bin/pip install --force-reinstall --no-cache-dir mpi4py
+RUN /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
 
 # Devito env vars
 ENV DEVITO_ARCH="clang"
@@ -164,8 +155,8 @@ ENV DEVITO_LANGUAGE="openmp"
 ########################################################################
 FROM ${arch} as final
 
-RUN rm -rf /var/lib/apt/lists/* \
-	&& apt-get clean
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
 CMD ["/bin/bash"]
