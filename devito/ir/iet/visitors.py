@@ -964,6 +964,23 @@ class Uxreplace(Transformer):
     def visit_Expression(self, o):
         return o._rebuild(expr=uxreplace(o.expr, self.mapper))
 
+    def visit_Definition(self, o):
+        try:
+            return o._rebuild(function=self.mapper[o.function])
+        except KeyError:
+            return o
+
+    def visit_Return(self, o):
+        try:
+            return o._rebuild(value=self.mapper[o.value])
+        except KeyError:
+            return o
+
+    def visit_Callable(self, o):
+        body = self._visit(o.body)
+        parameters = [self.mapper.get(i, i) for i in o.parameters]
+        return o._rebuild(body=body, parameters=parameters)
+
     def visit_Call(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         return o._rebuild(arguments=arguments)
