@@ -63,7 +63,7 @@ jobs:
           test_file: "tests/test_gpu_openmp.py"
           tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           base: "devitocodes/bases:amd"
-          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --security-opt seccomp=unconfined --rm --name testrun"
+          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --security-opt seccomp=unconfined --rm --name testrun"
 
     steps:
     - name: Checkout devito

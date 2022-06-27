@@ -37,8 +37,7 @@ ENV APP_HOME=/app
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
 # Chown all the files to the app user.
-RUN mkdir -p /app && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && \
-    usermod -a -G video app && chown -R app:app $APP_HOME
+RUN mkdir -p /app && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && chown -R app:app $APP_HOME
 
 COPY --from=builder --chown=app:app /app /app
 

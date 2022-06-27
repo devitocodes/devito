@@ -7,17 +7,22 @@ FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}
 
 ENV DEBIAN_FRONTEND noninteractive
 ARG ROCM_VERSION
-ENV rocm=/opt/rocm-${ROCM_VERSION}
-
+ENV rocm=/opt/rocm
 # Set path
 ENV PATH=${PATH}:${rocm}/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${rocm}/lib:${rocm}/lib64
-# Re-link aompcc to amdclang (default isn't proper but a 0.0git)
-RUN ln -sf ${rocm}/bin/amdclang ${rocm}/bin/aompcc
 
 # Some utils needed
 RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev
 
+# Install AOMP
+RUN apt-get install amdgpu-dkms && \
+    rm ${rocm}/bin/aompcc && \
+    wget https://github.com/ROCm-Developer-Tools/aomp/releases/download/rel_15.0-2/aomp_Ubuntu2004_15.0-2_amd64.deb && \
+    dpkg -i aomp_Ubuntu2004_15.0-2_amd64.deb && \
+    echo 'SUBSYSTEM=="kfd", KERNEL=="kfd", TAG+="uaccess", GROUP="video"' > /etc/udev/rules.d/70-kfd.rules
+
+ENV AOMP=/usr/lib/aomp
 # roc-aware mpi. Taken from:
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
 # UCX. Clang does not support some of the flags such as '-dynamic-list-data' so build UCX with gcc
@@ -36,7 +41,7 @@ RUN mkdir -p /opt/openmpi && cd /deps && \
     git clone --branch v4.1.0 https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
-    ../configure CC=amdclang CXX=amdclang++ FC=amdflang --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
+    ../configure  OMPI_CC=$AOMP/bin/clang OMPI_CXX=$AOMP/bin/clang++ OMPI_F90=$AOMP/bin/flang CXX=$AOMP/bin/clang++ CC=$AOMP/bin/clang FC=$AOMP/bin/flang --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
     make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
     make install && \
     rm -rf /deps/openmpi

@@ -114,7 +114,9 @@ ENV DEVITO_PLATFORM="nvidiaX"
 ENV DEVITO_LANGUAGE="openacc"
 
 ########################################################################
-# Build clang 14
+# Build clang 14. This is followign the wiki:
+# https://en.wikibooks.org/wiki/LLVM_Compiler/Installation.
+# According to the wiki, clang should be built first with gcc then rebuilt with itself for openmp.
 ########################################################################
 # Thid will only trigger if arch is clang since the final stage depends on it
 FROM sdk-base as clang
@@ -122,24 +124,45 @@ FROM sdk-base as clang
 ## Install clang requirements
 RUN apt-get -y update && apt-get install -y -q libelf-dev libffi-dev cmake git gcc-multilib g++-multilib
 
-## Install clang 14 (latest stable release)
-WORKDIR /
+########################################################################
+# Build clang 14 with gcc
+########################################################################
 RUN git -c advice.detachedHead=false clone -b llvmorg-13.0.0 --depth 1 https://github.com/llvm/llvm-project.git
-WORKDIR /llvm-project
-RUN mkdir build
-WORKDIR /llvm-project/build
-RUN cmake ../llvm/ -DCMAKE_BUILD_TYPE=Release \
+
+RUN mkdir -p /llvm-project/build
+RUN cd /llvm-project/build && \
+    cmake ../llvm/ -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;libcxx;libcxxabi;lld;openmp" \
+    -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
-    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=all \
-    -DLLVM_ENABLE_PROJECTS="clang" \
-    -DLLVM_ENABLE_RUNTIMES="openmp" \
-    -DCMAKE_INSTALL_PREFIX=/llvm
-RUN make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') ))
-RUN make install
-WORKDIR /
-RUN rm -rf llvm-project
+    -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
+    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=35,37,50,52,60,61,70,75,86 \
+    -DCMAKE_INSTALL_PREFIX=/llvm && \
+    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make install
+
+# Set path
 ENV PATH /llvm/bin:${PATH}
 ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
+
+########################################################################
+# Rebuilwith clang
+########################################################################
+RUN mkdir -p /llvm-project/rebuild
+
+RUN cd /llvm-project/build && \
+    cmake ../llvm/ -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;libcxx;libcxxabi;lld;openmp" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=/llvm/bin/clang \
+	-DCMAKE_CXX_COMPILER=/llvm/bin/clang++ \
+    -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
+    -DLIBOMPTARGET_NVPTX_ENABLE_BCLIB=true \
+    -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
+    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=35,37,50,52,60,61,70,75,86 \
+    -DCMAKE_INSTALL_PREFIX=/llvm  && \
+    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make install
+
+RUN rm -rf llvm-project
 
 # Recompile mpi4py with clang
 ENV OMPI_CC="clang"
