@@ -10,7 +10,7 @@ from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import Byref, CondNe
+from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, prod
 from devito.types import Symbol, Wildcard
 
@@ -333,6 +333,19 @@ class DeviceAwareMixin(object):
         return not (buffers and hostfuncs)
 
 
+class Sections(tuple):
+
+    def __new__(cls, function, *args):
+        obj = super().__new__(cls, args)
+        obj.function = function
+
+        return obj
+
+    @property
+    def nbytes(self):
+        return prod(s for _, s in self)*SizeOf(self.function.indexed._C_typedata)
+
+
 def make_sections_from_imask(f, imask=None):
     if imask is None:
         imask = [FULL]*f.ndim
@@ -366,7 +379,7 @@ def make_sections_from_imask(f, imask=None):
         size *= remainder_size
         sections.append((start, size))
 
-    return sections
+    return Sections(f, *sections)
 
 
 @singledispatch
