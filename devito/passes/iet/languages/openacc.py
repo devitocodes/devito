@@ -13,7 +13,7 @@ from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import DefFunction, Macro, cast_mapper
+from devito.symbolics import Macro, cast_mapper
 from devito.tools import filter_ordered
 from devito.types import DevicePointer, Symbol
 
@@ -81,8 +81,8 @@ class AccBB(PragmaLangBB):
         # Runtime library
         'init': lambda args:
             Call('acc_init', args),
-        'num-devices': lambda args:
-            DefFunction('acc_get_num_devices', args),
+        'num-devices': lambda args, retobj:
+            Call('acc_get_num_devices', args, retobj=retobj),
         'set-device': lambda args:
             Call('acc_set_device_num', args),
         # Pragmas
