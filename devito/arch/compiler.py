@@ -456,6 +456,14 @@ class AOMPCompiler(Compiler):
         else:
             self.cflags += ['-march=native']
 
+        # For mpi, mpicc is compiled against amdclang not aompcc, so need the flags back.
+        if kwargs.get('mpi'):
+            self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
+            self.ldflags += ['-fopenmp',
+                             '-fopenmp-targets=amdgcn-amd-amdhsa',
+                             '-Xopenmp-target=amdgcn-amd-amdhsa']
+            self.ldflags += ['-march=%s' % platform.march]
+
     def __lookup_cmds__(self):
         self.CC = 'aompcc'
         self.CXX = 'aompcc'

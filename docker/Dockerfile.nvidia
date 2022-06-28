@@ -127,13 +127,14 @@ RUN apt-get -y update && apt-get install -y -q libelf-dev libffi-dev cmake git g
 ########################################################################
 # Build clang 14 with gcc
 ########################################################################
-RUN git -c advice.detachedHead=false clone -b llvmorg-13.0.0 --depth 1 https://github.com/llvm/llvm-project.git
+RUN git -c advice.detachedHead=false clone -b llvmorg-14.0.0 --depth 1 https://github.com/llvm/llvm-project.git
 
 RUN mkdir -p /llvm-project/build
 RUN cd /llvm-project/build && \
-    cmake ../llvm/ -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;libcxx;libcxxabi;lld;openmp" \
-    -DCMAKE_BUILD_TYPE=Release \
+    cmake ../llvm/ -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
+    -DLLVM_ENABLE_PROJECTS="clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
     -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=35,37,50,52,60,61,70,75,86 \
     -DCMAKE_INSTALL_PREFIX=/llvm && \
@@ -149,13 +150,13 @@ ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
 ########################################################################
 RUN mkdir -p /llvm-project/rebuild
 
-RUN cd /llvm-project/build && \
-    cmake ../llvm/ -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;libcxx;libcxxabi;lld;openmp" \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_COMPILER=/llvm/bin/clang \
-	-DCMAKE_CXX_COMPILER=/llvm/bin/clang++ \
+RUN cd /llvm-project/rebuild && \
+    cmake ../llvm/ -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_TARGETS_TO_BUILD="X86;NVPTX" \
-    -DLIBOMPTARGET_NVPTX_ENABLE_BCLIB=true \
+    -DLLVM_ENABLE_PROJECTS="clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
+    -DCMAKE_C_COMPILER=/llvm/bin/clang \
+    -DCMAKE_CXX_COMPILER=/llvm/bin/clang++ \
     -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
     -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=35,37,50,52,60,61,70,75,86 \
     -DCMAKE_INSTALL_PREFIX=/llvm  && \
