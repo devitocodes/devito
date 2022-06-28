@@ -7,7 +7,8 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import LinearInterpolator, PrecomputedInterpolator
+from devito.operations import (LinearInterpolator, PrecomputedInterpolator,
+                               CubicInterpolator, SincInterpolator)
 from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
                               retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
@@ -449,7 +450,16 @@ class SparseFunction(AbstractSparseFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
-        self.interpolator = LinearInterpolator(self)
+        self._cubic = kwargs.get('cubic', False)
+        self._sinc = kwargs.get('sinc', False)
+        if self._cubic:
+            self._radius = 2
+            self.interpolator = CubicInterpolator(self)
+        elif self._sinc:
+            self._radius = 4
+            self.interpolator = SincInterpolator(self)
+        else:
+            self.interpolator = LinearInterpolator(self)
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         if isinstance(coordinates, Function):
@@ -495,6 +505,21 @@ class SparseFunction(AbstractSparseFunction):
                      for d in self.grid.dimensions)
 
     @cached_property
+    def _relative_position_map(self):
+        """
+        Symbols map for the position of the sparse points relative to the indices
+        of the vector wich contain and acess the data
+        """
+        symbols = self._point_symbols
+        eqs = tuple([((c - o) / i.spacing) for c, o, i in
+                    zip(self._coordinate_symbols,
+                        self.grid.origin_symbols,
+                        self.grid.dimensions[:self.grid.dim])])
+
+        return OrderedDict([(eq, p) for p, eq in
+                            zip(symbols, eqs)])
+
+    @cached_property
     def _position_map(self):
         """
         Symbols map for the position of the sparse points relative to the grid
@@ -519,7 +544,8 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
-        return tuple(product(range(2), repeat=self.grid.dim))
+        r = self._radius
+        return tuple(product(range(-r + 1, r+1), repeat=self.grid.dim))
 
     @cached_property
     def _coordinate_symbols(self):
