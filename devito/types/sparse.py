@@ -450,12 +450,12 @@ class SparseFunction(AbstractSparseFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
-        self.cubic = kwargs.get('cubic', False)
-        self.sinc = kwargs.get('sinc', False)
-        if self.cubic:
+        self._cubic = kwargs.get('cubic', False)
+        self._sinc = kwargs.get('sinc', False)
+        if self._cubic:
             self._radius = 2
             self.interpolator = CubicInterpolator(self)
-        elif self.sinc:
+        elif self._sinc:
             self._radius = 4
             self.interpolator = SincInterpolator(self)
         else:
