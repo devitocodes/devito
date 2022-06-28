@@ -113,16 +113,37 @@ class DataManager(object):
         """
         storage.map(expr.write, site, expr, expr._rebuild(init=True))
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
+    def _alloc_host_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
-        Allocate an Array in the high bandwidth memory.
+        Allocate a host Array in the host high bandwidth memory.
         """
         decl = Definition(obj)
 
-        # Allocating an Array on the high bandwidth memory requires multiple
-        # statements, hence we implement it as a generic Callable to minimize
-        # code size, since different arrays will ultimately be able to reuse
-        # such abstract Callable
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        alloc = self.lang['host-alloc'](memptr, alignment, nbytes)
+
+        free = self.lang['host-free'](obj._C_symbol)
+
+        storage.update(obj, site, allocs=(decl, alloc), frees=free)
+
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, *args):
+        """
+        Allocate a local Array in the host high bandwidth memory.
+        """
+        self._alloc_host_array_on_high_bw_mem(site, obj, storage, *args)
+
+    def _alloc_mapped_array_on_high_bw_mem(self, site, obj, storage, *args):
+        """
+        Allocate a mapped Array in the host high bandwidth memory.
+        """
+        decl = Definition(obj)
+
+        # Allocating a mapped Array on the high bandwidth memory requires
+        # multiple statements, hence we implement it as a generic Callable
+        # to minimize code size, since different arrays will ultimately be
+        # able to reuse the same abstract Callable
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
@@ -271,7 +292,12 @@ class DataManager(object):
                 self._alloc_object_on_low_lat_mem(iet, i, storage)
             elif i.is_Array:
                 if i._mem_heap:
-                    self._alloc_array_on_high_bw_mem(iet, i, storage)
+                    if i._mem_host:
+                        self._alloc_host_array_on_high_bw_mem(iet, i, storage)
+                    elif i._mem_local:
+                        self._alloc_local_array_on_high_bw_mem(iet, i, storage)
+                    else:
+                        self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
             elif i.is_ObjectArray:
@@ -340,24 +366,20 @@ class DeviceAwareDataManager(DataManager):
         super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped or obj._mem_host:
-            super()._alloc_array_on_high_bw_mem(site, obj, storage)
-        else:
-            # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
-            # on the device as it never needs to be accessed on the host
-            assert obj._mem_local
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate a local Array in the device high bandwidth memory.
+        """
+        deviceid = DefFunction(self.lang['device-get'].name)
+        doalloc = self.lang['device-alloc']
+        dofree = self.lang['device-free']
 
-            deviceid = DefFunction(self.lang['device-get'].name)
-            doalloc = self.lang['device-alloc']
-            dofree = self.lang['device-free']
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        init = doalloc(nbytes, deviceid, retobj=obj)
 
-            nbytes = SizeOf(obj._C_typedata)*obj.size
-            init = doalloc(nbytes, deviceid, retobj=obj)
+        free = dofree(obj._C_name, deviceid)
 
-            free = dofree(obj._C_name, deviceid)
-
-            storage.update(obj, site, allocs=init, frees=free)
+        storage.update(obj, site, allocs=init, frees=free)
 
     def _map_array_on_high_bw_mem(self, site, obj, storage):
         """

@@ -402,7 +402,7 @@ class TestStreaming(object):
         op = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 3
+        assert len(op._func_table) == 5
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         op.apply(time_M=nt-2)
@@ -411,8 +411,8 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 7, 3),
-        (('buffering', 'streaming', 'fuse', 'orchestrate'), 4, 3),
+        (('buffering', 'streaming', 'orchestrate'), 9, 5),
+        (('buffering', 'streaming', 'fuse', 'orchestrate'), 6, 5),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
@@ -536,7 +536,7 @@ class TestStreaming(object):
         op1 = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 3
+        assert len(op1._func_table) == 5
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-2, dt=0.1)
@@ -567,7 +567,7 @@ class TestStreaming(object):
         op1 = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 3
+        assert len(op1._func_table) == 5
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-1)
@@ -647,7 +647,7 @@ class TestStreaming(object):
         # It is true that the usave and vsave eqns are separated in two different
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
-        assert len(op1._func_table) == 2
+        assert len(op1._func_table) == 4
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
@@ -808,7 +808,8 @@ class TestStreaming(object):
         # Check generated code
         # The `usave` and `vsave` eqns are in separate tasks, but the tasks
         # are identical, so they get mapped to the same efuncs (init + copy)
-        assert len(op._func_table) == 2
+        # There also are two extra functions to allocate and free arrays
+        assert len(op._func_table) == 4
 
         op.apply(time_M=nt-1)
 
@@ -864,7 +865,7 @@ class TestStreaming(object):
 
         # We just check the generated code here
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
-        assert len(op._func_table) == 2
+        assert len(op._func_table) == 4
 
     def test_save_w_subdims(self):
         nt = 10
@@ -921,7 +922,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 3
+        assert len(op._func_table) == 5
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
@@ -973,10 +974,10 @@ class TestStreaming(object):
         op2 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op1._func_table) == 6
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 4
-        assert len(op2._func_table) == 4
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 4
+        assert len(op1._func_table) == 8
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 6
+        assert len(op2._func_table) == 6
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 6
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)

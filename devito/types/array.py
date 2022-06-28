@@ -10,7 +10,7 @@ from devito.tools import as_tuple, ctypes_to_cstr, dtype_to_ctype
 from devito.types.basic import AbstractFunction, IndexedData
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Array', 'ArrayObject', 'PointerArray']
+__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'IndexedArray']
 
 
 class ArrayBasic(AbstractFunction):
@@ -105,10 +105,10 @@ class Array(ArrayBasic):
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        scope = kwargs.get('scope', 'heap')
+        space = kwargs.get('space', 'local')
 
-        if cls is Array and scope == 'heap':
-            return AbstractFunction.__new__(ArrayHeap, *args, **kwargs)
+        if cls is Array and space == 'mapped':
+            return AbstractFunction.__new__(ArrayMapped, *args, **kwargs)
         else:
             return AbstractFunction.__new__(cls, *args, **kwargs)
 
@@ -220,7 +220,7 @@ class Array(ArrayBasic):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
 
-class ArrayHeap(Array):
+class ArrayMapped(Array):
 
     _C_structname = 'array'
     _C_typename = 'struct %s *' % _C_structname

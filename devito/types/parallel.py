@@ -302,4 +302,4 @@ class DevicePointer(Pointer):
 
     @property
     def _C_typename(self):
-        return self.mapped._C_typename
+        return self.mapped.indexed._C_typename

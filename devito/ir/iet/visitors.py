@@ -271,7 +271,8 @@ class CGen(Visitor):
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
-            if f.is_DiscreteFunction or f.is_Array:
+            if f.is_DiscreteFunction or \
+               (f.is_Array and f._mem_mapped):
                 if isinstance(o.obj, IndexedData):
                     v = f._C_field_data
                 elif isinstance(o.obj, DeviceMap):
