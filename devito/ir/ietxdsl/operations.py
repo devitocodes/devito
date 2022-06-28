@@ -1,6 +1,3 @@
-from sympy import Mod
-from typing import Tuple
-
 from xdsl.dialects.builtin import *
 
 from xdsl.irdl import *
@@ -67,6 +64,7 @@ class Addi(Operation):
                          result_types=[IntegerType.build(32)])
         return res
 
+
 @irdl_op_definition
 class Modi(Operation):
     name: str = "iet.modi"
@@ -83,6 +81,7 @@ class Modi(Operation):
         res = Modi.build(operands=[lhs, rhs],
                          result_types=[IntegerType.build(32)])
         return res
+
 
 @irdl_op_definition
 class Muli(Operation):
@@ -152,11 +151,13 @@ class Idx(Operation):
         return Idx.build(operands=[array, index],
                          result_types=[IntegerType.build(32)])
 
+
 @irdl_op_definition
 class Assign(Operation):
     name: str = "iet.assign"
     lhs = OperandDef(IntegerType)
     rhs = OperandDef(IntegerType)
+
 
 @irdl_op_definition
 class PointerCast(Operation):
@@ -165,8 +166,11 @@ class PointerCast(Operation):
 
     @staticmethod
     def get(statement):
-        return PointerCast.build(operands=[],attributes= {"statement" : StringAttr.from_str(statement)},
-                               result_types=[])
+        return PointerCast.build(
+            operands=[],
+            attributes={"statement": StringAttr.from_str(statement)},
+            result_types=[])
+
 
 @irdl_op_definition
 class Statement(Operation):
@@ -175,8 +179,11 @@ class Statement(Operation):
 
     @staticmethod
     def get(statement):
-        return Statement.build(operands=[], attributes= {"statement" : StringAttr.from_str(statement)},
-                               result_types=[])
+        return Statement.build(
+            operands=[],
+            attributes={"statement": StringAttr.from_str(statement)},
+            result_types=[])
+
 
 @irdl_op_definition
 class StructDecl(Operation):
@@ -187,12 +194,22 @@ class StructDecl(Operation):
     padbytes = AttributeDef(AnyAttr())
 
     @staticmethod
-    def get(name: str, fields: List[str], declname: str, padbytes: int=0):
+    def get(name: str, fields: List[str], declname: str, padbytes: int = 0):
         padb = IntegerAttr.from_int_and_width(padbytes, 32)
-        return StructDecl.build(operands=[], attributes= {"id" : StringAttr.from_str(name),
-                                "fields": ArrayAttr.from_list([StringAttr.from_str(f) for f in fields]),
-                                "declname" : StringAttr.from_str(declname), "padbytes": padb},
-                                result_types=[])
+        return StructDecl.build(
+            operands=[],
+            attributes={
+                "id":
+                StringAttr.from_str(name),
+                "fields":
+                ArrayAttr.from_list([StringAttr.from_str(f) for f in fields]),
+                "declname":
+                StringAttr.from_str(declname),
+                "padbytes":
+                padb
+            },
+            result_types=[])
+
 
 @irdl_op_definition
 class Initialise(Operation):
@@ -203,9 +220,11 @@ class Initialise(Operation):
 
     @staticmethod
     def get(lhs, rhs, id):
-        res = Initialise.build(attributes= {"id" : StringAttr.from_str(id)},operands=[lhs],
-                         result_types=[IntegerType.build(32)])
+        res = Initialise.build(attributes={"id": StringAttr.from_str(id)},
+                               operands=[lhs],
+                               result_types=[IntegerType.build(32)])
         return res
+
 
 @irdl_op_definition
 class PointerCast(Operation):
@@ -284,17 +303,21 @@ class Callable(Operation):
     body = RegionDef()
 
     @staticmethod
-    def get(name: str, params: List[str], header_params: List[str], types: List[str], body: Block):
+    def get(name: str, params: List[str], header_params: List[str],
+            types: List[str], body: Block):
         return Callable.build(attributes={
             "callable_name":
             StringAttr.from_str(name),
             "parameters":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in params]),
             "header_parameters":
-                ArrayAttr.from_list([StringAttr.from_str(p) for p in header_params]),
+            ArrayAttr.from_list(
+                [StringAttr.from_str(p) for p in header_params]),
             "types":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in types])
-        }, regions=[Region.from_block_list([body])])
+        },
+            regions=[Region.from_block_list([body])])
+
 
 @irdl_op_definition
 class Iteration(Operation):
@@ -306,7 +329,10 @@ class Iteration(Operation):
     pragmas = AttributeDef(ArrayAttr)
 
     @staticmethod
-    def get(properties: List[str], limits: Tuple[str, str, str], arg: str, body: Block,
+    def get(properties: List[str],
+            limits: Tuple[str, str, str],
+            arg: str,
+            body: Block,
             pragmas: List[str] = []):
         return Iteration.build(attributes={
             "limits":
@@ -319,5 +345,7 @@ class Iteration(Operation):
             ArrayAttr.from_list([StringAttr.from_str(p) for p in properties]),
             "pragmas":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
-            "arg_name": arg
-        }, regions=[Region.from_block_list([body])])
+            "arg_name":
+            arg
+        },
+            regions=[Region.from_block_list([body])])

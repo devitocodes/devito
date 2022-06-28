@@ -1,13 +1,10 @@
 import io
-from typing import Dict
 from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
-    Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
-    Idx, Initialise, List, Constant, Powi, Muli
-
-
-SSAValueNames: Dict[SSAValue, str] = {}
+    Modi, StructDecl, Statement, Iteration, Assign, PointerCast, Idx, Initialise, \
+    List, Constant, Dict
 
 SSAValueNames: Dict[SSAValue, str] = {}
+
 
 class CGeneration:
 
@@ -62,7 +59,6 @@ class CGeneration:
         i = 0
         self.print("int Kernel(", end='', indent=False)
         for arg in arglist:
-            name = callable_op.parameters.data[0].data
             SSAValueNames[arg] = callable_op.parameters.data[i].data
             i = i + 1
         i = 0
@@ -71,8 +67,10 @@ class CGeneration:
         # need separate loop because only header parameters have types
         for op_type in callable_op.types.data:
             self.print(op_type.data, end=' ', indent=False)
-            self.print(callable_op.header_parameters.data[i].data, end='', indent=False)
-            if i < (num_params-1):
+            self.print(callable_op.header_parameters.data[i].data,
+                       end='',
+                       indent=False)
+            if i < (num_params - 1):
                 self.print(",", end='', indent=False)
             i = i + 1
         self.print("){")
@@ -118,7 +116,8 @@ class CGeneration:
         if (isinstance(operation, List)):
             for op in operation:
                 if isinstance(op, Constant) or isinstance(
-                        op, Addi) or isinstance(op, Idx) or isinstance(op, Modi):
+                        op, Addi) or isinstance(op, Idx) or isinstance(
+                            op, Modi):
                     continue
                 self.printOperation(op)
             return
