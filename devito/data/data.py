@@ -217,10 +217,27 @@ class Data(np.ndarray):
 
             # Reshape the gathered data to produce the output
             # NOTE: Make cleverer so that new array doesn't need to be allocated
-            retval = np.zeros(self._distributor.glb_shape, dtype=self.dtype.type)
-            for s in sendcounts:
-                
-            return retval
+            if rank == gather_rank:
+                if len(self.shape) > len(self._distributor.glb_shape):
+                    glb_shape = list(self._distributor.glb_shape)
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        glb_shape.insert(i, self.shape[i])
+                retval = np.zeros(glb_shape, dtype=self.dtype.type)
+                start, stop, step = 0, 0, 1
+                for i, s in enumerate(sendcounts):
+                    if i > 0:
+                        start += sendcounts[i-1]
+                    stop += sendcounts[i]
+                    data_slice = recvbuf[slice(start, stop, step)]
+                    shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
+                    idx = [slice(r.start, r.stop, r.step) for r in self._distributor.all_ranges[i]]
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        shape.insert(i, glb_shape[i])
+                        idx.insert(i, slice(0, glb_shape[i]+1, 1))
+                    retval[tuple(idx)] = data_slice.reshape(tuple(shape))
+                return retval
+            else:
+                return None
         elif comm_type is index_by_index or is_gather:
             # Retrieve the pertinent local data prior to mpi send/receive operations
             data_idx = loc_data_idx(loc_idx)
