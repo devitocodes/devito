@@ -16,8 +16,8 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractSymbol
-from devito.types import Indexed, LocalObject, Symbol
+from devito.types.basic import AbstractFunction, AbstractObject, AbstractSymbol
+from devito.types import Indexed, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
@@ -274,7 +274,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = []
         for i in self.arguments:
-            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, LocalObject)):
+            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, AbstractObject)):
                 retval.append(i.function)
             elif isinstance(i, Call):
                 retval.extend(i.functions)
@@ -286,7 +286,7 @@ class Call(ExprStmt, Node):
                 for s in v:
                     try:
                         # `try-except` necessary for e.g. Macro
-                        if isinstance(s.function, (AbstractFunction, LocalObject)):
+                        if isinstance(s.function, (AbstractFunction, AbstractObject)):
                             retval.append(s.function)
                     except AttributeError:
                         continue
@@ -302,7 +302,7 @@ class Call(ExprStmt, Node):
         for i in self.arguments:
             if isinstance(i, AbstractFunction):
                 continue
-            elif isinstance(i, (Indexed, IndexedBase, LocalObject, Symbol)):
+            elif isinstance(i, (Indexed, IndexedBase, AbstractObject, Symbol)):
                 retval.append(i)
             elif isinstance(i, Call):
                 retval.extend(i.expr_symbols)
