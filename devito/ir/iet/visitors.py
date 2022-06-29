@@ -240,10 +240,11 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
+        i = f.indexed
 
         if f.is_PointerArray:
             # lvalue
-            lvalue = c.Value(f._C_typedata, '**%s' % f.name)
+            lvalue = c.Value(i._C_typedata, '**%s' % f.name)
 
             # rvalue
             if isinstance(o.obj, ArrayObject):
@@ -252,7 +253,7 @@ class CGen(Visitor):
                 v = f._C_name
             else:
                 assert False
-            rvalue = '(%s**) %s' % (f._C_typedata, v)
+            rvalue = '(%s**) %s' % (i._C_typedata, v)
 
         else:
             # lvalue
@@ -263,10 +264,10 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(i._C_typedata, '(*restrict %s)%s' % (v, shape))
             else:
                 rshape = '*'
-                lvalue = c.Value(f._C_typedata, '*%s' % v)
+                lvalue = c.Value(i._C_typedata, '*%s' % v)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
@@ -280,32 +281,33 @@ class CGen(Visitor):
                 else:
                     assert False
 
-                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, f._C_name, v)
+                rvalue = '(%s %s) %s->%s' % (i._C_typedata, rshape, f._C_name, v)
             else:
                 if isinstance(o.obj, Pointer):
                     v = o.obj.name
                 else:
                     v = f._C_name
 
-                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, v)
+                rvalue = '(%s %s) %s' % (i._C_typedata, rshape, v)
 
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
+            i = a1.indexed
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-                rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name,
+                rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
                                                 a1.dim.name)
                 lvalue = c.AlignedAttribute(
                     a0._data_alignment,
-                    c.Value(a0._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
+                    c.Value(i._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
                 )
             else:
-                rvalue = '(%s *) %s[%s]' % (a1._C_typedata, a1.name, a1.dim.name)
+                rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
                 lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(a0._C_typedata, '*restrict %s' % a0.name)
+                    a0._data_alignment, c.Value(i._C_typedata, '*restrict %s' % a0.name)
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)

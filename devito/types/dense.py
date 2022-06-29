@@ -665,7 +665,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self._initializer
 
     _C_structname = 'dataobj'
-    _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
     _C_field_size = 'size'
     _C_field_nopad_size = 'npsize'

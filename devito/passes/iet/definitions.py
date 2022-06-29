@@ -147,11 +147,11 @@ class DataManager(object):
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(obj._C_typetype)
+        nbytes = SizeOf(obj._C_typedata)
         alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
-        nbytes_arg = SizeOf(obj._C_typedata)*obj.size
+        nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
         ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp1), '**')

@@ -105,9 +105,6 @@ class Dimension(ArgProvider):
     is_Incr = False
     is_Block = False
 
-    _C_typename = 'const %s' % dtype_to_cstr(np.int32)
-    _C_typedata = _C_typename
-
     __rargs__ = ('name',)
     __rkwargs__ = ('spacing',)
 
@@ -197,10 +194,6 @@ class Dimension(ArgProvider):
     def _maybe_distributed(self):
         """Could it be a distributed Dimension?"""
         return True
-
-    @property
-    def _C_name(self):
-        return self.name
 
     @cached_property
     def _defines(self):
@@ -322,7 +315,7 @@ class BasicDimension(Dimension, Symbol):
     def __new__(cls, *args, **kwargs):
         return Symbol.__new__(cls, *args, **kwargs)
 
-    def __init_finalize__(self, name, spacing=None):
+    def __init_finalize__(self, name, spacing=None, **kwargs):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
 
 
@@ -351,7 +344,7 @@ class DefaultDimension(Dimension, DataSymbol):
     def __new__(cls, *args, **kwargs):
         return DataSymbol.__new__(cls, *args, **kwargs)
 
-    def __init_finalize__(self, name, spacing=None, default_value=None):
+    def __init_finalize__(self, name, spacing=None, default_value=None, **kwargs):
         self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
         self._default_value = default_value or 0
 
@@ -518,7 +511,7 @@ class SubDimension(DerivedDimension):
                  ('symbolic_min', 'symbolic_max', 'thickness', 'local'))
     __rkwargs__ = ()
 
-    def __init_finalize__(self, name, parent, left, right, thickness, local):
+    def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
         self._thickness = Thickness(*thickness)
@@ -757,7 +750,7 @@ class ConditionalDimension(DerivedDimension):
     __rkwargs__ = DerivedDimension.__rkwargs__ + ('factor', 'condition', 'indirect')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False):
+                          indirect=False, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -850,8 +843,8 @@ class ModuloDimension(DerivedDimension):
 
     __rkwargs__ = ('offset', 'modulo', 'incr', 'origin')
 
-    def __init_finalize__(self, name, parent,
-                          offset=None, modulo=None, incr=None, origin=None):
+    def __init_finalize__(self, name, parent, offset=None, modulo=None, incr=None,
+                          origin=None, **kwargs):
         super().__init_finalize__(name, parent)
 
         # Sanity check
@@ -982,7 +975,7 @@ class AbstractIncrDimension(DerivedDimension):
     __rargs__ = ('name', 'parent', 'symbolic_min', 'symbolic_max')
     __rkwargs__ = ('step', 'size')
 
-    def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
+    def __init_finalize__(self, name, parent, _min, _max, step=None, size=None, **kwargs):
         super().__init_finalize__(name, parent)
         self._min = _min
         self._max = _max
@@ -1157,7 +1150,7 @@ class CustomDimension(BasicDimension):
     __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent')
 
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
-                          symbolic_size=None, parent=None):
+                          symbolic_size=None, parent=None, **kwargs):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
@@ -1292,7 +1285,7 @@ class StencilDimension(BasicDimension):
         The space between two stencil points.
     """
 
-    def __init_finalize__(self, name, _min, _max, spacing=None):
+    def __init_finalize__(self, name, _min, _max, spacing=None, **kwargs):
         self._spacing = sympy.sympify(spacing) or sympy.S.One
 
         if not is_integer(_min):

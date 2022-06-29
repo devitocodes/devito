@@ -4,8 +4,8 @@ from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
-__all__ = ['Timer', 'Pointer', 'VolatileInt', 'c_volatile_int',
-           'c_volatile_int_p', 'FIndexed', 'Wildcard', 'Global', 'Hyperplane']
+__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard',
+           'Global', 'Hyperplane']
 
 
 class Timer(CompositeObject):
@@ -39,16 +39,7 @@ class Timer(CompositeObject):
 
 
 class VolatileInt(Symbol):
-
-    @property
-    def _C_typedata(self):
-        return 'volatile int'
-
-    _C_typename = _C_typedata
-
-    @property
-    def _C_ctype(self):
-        return c_volatile_int
+    is_volatile = True
 
 
 class Wildcard(Symbol):
@@ -134,16 +125,4 @@ class Hyperplane(tuple):
 
 class Pointer(Symbol):
 
-    @property
-    def _C_typename(self):
-        return '%s*' % super()._C_typename
-
-
-# ctypes subtypes
-
-class c_volatile_int(c_int):
-    pass
-
-
-class c_volatile_int_p(c_void_p):
-    pass
+    _C_ctype = c_void_p

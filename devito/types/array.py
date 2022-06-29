@@ -31,10 +31,6 @@ class ArrayBasic(AbstractFunction):
             return super()._C_name
 
     @property
-    def _C_ctype(self):
-        return POINTER(dtype_to_ctype(self.dtype))
-
-    @property
     def _C_aliases(self):
         return (self, self.indexed)
 
@@ -165,10 +161,6 @@ class Array(ArrayBasic):
         return kwargs.get('dtype', np.float32)
 
     @property
-    def _C_typename(self):
-        return ctypes_to_cstr(self._C_ctype)
-
-    @property
     def liveness(self):
         return self._liveness
 
@@ -179,6 +171,10 @@ class Array(ArrayBasic):
     @property
     def scope(self):
         return self._scope
+
+    @property
+    def _C_ctype(self):
+        return POINTER(dtype_to_ctype(self.dtype))
 
     @property
     def _mem_internal_eager(self):
@@ -223,7 +219,6 @@ class Array(ArrayBasic):
 class ArrayMapped(Array):
 
     _C_structname = 'array'
-    _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
     _C_field_nbytes = 'nbytes'
     _C_field_dmap = 'dmap'
@@ -238,10 +233,6 @@ class ArrayMapped(Array):
                             {'_fields_': [(_C_field_data, c_void_p),
                                           (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p)]}))
-
-    @property
-    def _C_typetype(self):
-        return ctypes_to_cstr(self._C_ctype._type_)
 
 
 class ArrayObject(ArrayBasic):
@@ -270,7 +261,6 @@ class ArrayObject(ArrayBasic):
 
     is_ObjectArray = True
 
-    # Pickling support
     __rkwargs__ = list(ArrayBasic.__rkwargs__) + ['dimensions', 'fields', 'pname']
     __rkwargs__.remove('dtype')
 
@@ -293,22 +283,17 @@ class ArrayObject(ArrayBasic):
     def __pfields_setup__(cls, **kwargs):
         return [(i._C_name, i._C_ctype) for i in kwargs.get('fields', [])]
 
-    @cached_property
-    def _C_typename(self):
-        return ctypes_to_cstr(self.dtype)
-
-    @cached_property
-    def _C_typedata(self):
-        if self._is_composite_dtype:
-            return ctypes_to_cstr(self.dtype._type_)
-        else:
-            return self._C_typename
+    @property
+    def _C_ctype(self):
+        return self.dtype
 
     @cached_property
     def _C_typedecl(self):
-        if self._is_composite_dtype:
-            return Struct(self.pname,
-                          [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
+        if len(self.fields) > 0:
+            types = [(i._rebuild(is_const=False) if i.is_Symbol else i)._C_typename
+                     for i in self.fields]
+            fields = [Value(i, j._C_name) for i, j in zip(types, self.fields)]
+            return Struct(self.pname, fields)
         else:
             return None
 
@@ -377,8 +362,8 @@ class PointerArray(ArrayBasic):
         return kwargs['array'].dtype
 
     @property
-    def _C_typename(self):
-        return ctypes_to_cstr(POINTER(self._C_ctype))
+    def _C_ctype(self):
+        return POINTER(POINTER(dtype_to_ctype(self.dtype)))
 
     @property
     def dim(self):

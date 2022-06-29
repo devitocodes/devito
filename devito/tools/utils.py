@@ -198,7 +198,12 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
-    return np.ctypeslib.as_ctypes_type(dtype)
+    if issubclass(dtype, ctypes._SimpleCData):
+        # Bypass np.ctypeslib's normalization rules such as
+        # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
+        return dtype
+    else:
+        return np.ctypeslib.as_ctypes_type(dtype)
 
 
 def dtype_to_mpitype(dtype):
@@ -211,24 +216,22 @@ def dtype_to_mpitype(dtype):
             np.float64: 'MPI_DOUBLE'}[dtype]
 
 
-def ctypes_to_cstr(ctype, toarray=None):
+def ctypes_to_cstr(ctype, toarray=None, qualifiers=None):
     """Translate ctypes types into C strings."""
     if issubclass(ctype, ctypes.Structure):
-        return 'struct %s' % ctype.__name__
+        retval = 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
-        return 'union %s' % ctype.__name__
+        retval = 'union %s' % ctype.__name__
     elif issubclass(ctype, ctypes._Pointer):
         if toarray:
-            return ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+            retval = ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
         else:
-            return '%s *' % ctypes_to_cstr(ctype._type_)
+            retval = '%s *' % ctypes_to_cstr(ctype._type_)
     elif issubclass(ctype, ctypes.Array):
-        return '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
+        retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
-        if ctype.__name__.startswith('c_volatile_'):
-            name = 'volatile %s' % ctype.__name__[11:]
-        else:
-            name = ctype.__name__[2:]
+        name = ctype.__name__[2:]
+
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
@@ -257,11 +260,15 @@ def ctypes_to_cstr(ctype, toarray=None):
             retval = '%s %s' % (prefix, retval)
         if suffix:
             retval = '%s %s' % (retval, suffix)
-
-        return retval
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
-        return ctype.__name__
+        retval = ctype.__name__
+
+    # Add qualifiers, if any
+    if qualifiers:
+        retval = '%s %s' % (' '.join(qualifiers), retval)
+
+    return retval
 
 
 def ctypes_pointer(name):
