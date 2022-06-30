@@ -3,7 +3,7 @@ from sympy import Indexed, Integer, Symbol, Add, Eq, Mod
 from cgen import Generable
 
 from devito.ir.ietxdsl import MLContext, Builtin, IET, Constant, Addi, Modi, Idx, \
-    Assign, Block, Iteration, Initialise, Statement, PointerCast
+    Assign, Block, Iteration, IterationWithSubIndices, Statement, PointerCast
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -111,15 +111,29 @@ def myVisit(node, block=None, ctx={}):
         index = node.index
         b = Block.from_arg_types([iet.i32])
         ctx = {**ctx, index: b.args[0]}
-        for uindex in list(node.uindices):
-            if isinstance(uindex, ModuloDimension):
-                r = []
-                add_to_block(uindex.symbolic_min,
-                             {Symbol(s): a
-                              for s, a in ctx.items()}, r)
-                init = Initialise.get(r[-1].results[0], [iet.i32], uindex.name)
-                b.add_ops(r)
-                b.add_ops([init])
+        # check if there are subindices
+        hasSubIndices = False
+        if len(node.uindices) > 0:
+            uindices_names = []
+            uindices_symbmins = []
+            for uindex in list(node.uindices):
+                # currently only want to deal with a very specific subindex!
+                if isinstance(uindex, ModuloDimension):
+                    hasSubIndices = True
+                    uindices_names.append(uindex.name)
+                    uindices_symbmins.append(uindex.symbolic_min)
+            if hasSubIndices:
+                myVisit(node.children[0][0], b, ctx)
+                if len(node.pragmas) > 0:
+                    for p in node.pragmas:
+                        prag = Statement.get(p)
+                        block.add_ops([prag])
+                iteration = IterationWithSubIndices.get(
+                    node.properties, node.limits, uindices_names,
+                    uindices_symbmins, node.index, b)
+                block.add_ops([iteration])
+                return
+
         myVisit(node.children[0][0], b, ctx)
         if len(node.pragmas) > 0:
             for p in node.pragmas:
