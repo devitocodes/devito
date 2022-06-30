@@ -1,7 +1,7 @@
 import io
 from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
-    Modi, StructDecl, Statement, Iteration, Assign, PointerCast, Idx, Initialise, \
-    List, Constant, Dict
+    Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
+    Idx, Initialise, List, Constant, Dict
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -101,6 +101,53 @@ class CGeneration:
         self.print("}")
         pass
 
+    def printIterationWithSubIndices(self,
+                                     iteration_op: IterationWithSubIndices):
+        uindices_names = iteration_op.uindices_names
+        uindices_symbmins = iteration_op.uindices_symbmins
+        ssa_val = iteration_op.body.blocks[0].args[0]
+        iterator = "i_" + str(len(self.iterator_names))
+        SSAValueNames[ssa_val] = iterator
+        self.iterator_names[
+            iteration_op.regions[0].blocks[0].args[0]] = iterator
+        lower_bound = iteration_op.limits.data[0].data
+        upper_bound = iteration_op.limits.data[1].data
+        increment = iteration_op.limits.data[2].data
+        self.print(f"for (int {iterator} = {lower_bound}, ", end='')
+
+        # initialise subindices
+        i = 0
+        for u in uindices_names.data:
+            self.print(
+                f"{u.data} = ({uindices_symbmins.data[i].args[0]})%"
+                f"({uindices_symbmins.data[i].args[1]})",
+                end='')
+            if i < (len(uindices_names.data) - 1):
+                self.print(",", end='')
+            else:
+                self.print(";", end=' ')
+            i += 1
+        self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
+        self.print(f"{iterator} += {increment}, ", end='')
+
+        # also increment subindices
+        i = 0
+        for u in uindices_names.data:
+            self.print(
+                f"{u.data} = ({uindices_symbmins.data[i].args[0]})"
+                f"%({uindices_symbmins.data[i].args[1]})",
+                end='')
+            if i < (len(uindices_names.data) - 1):
+                self.print(",", end='')
+            i += 1
+        self.print(")", end='')
+        self.print("{")
+        self.indent()
+        self.printOperation(iteration_op.body.ops)
+        self.dedent()
+        self.print("}")
+        pass
+
     def printResult(self, result):
         if isinstance(result, BlockArgument):
             name = SSAValueNames[result]
@@ -146,6 +193,10 @@ class CGeneration:
 
         if (isinstance(operation, Callable)):
             self.printCallable(operation)
+            return
+
+        if (isinstance(operation, IterationWithSubIndices)):
+            self.printIterationWithSubIndices(operation)
             return
 
         if (isinstance(operation, Iteration)):

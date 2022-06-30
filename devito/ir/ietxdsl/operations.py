@@ -1,3 +1,4 @@
+from sympy import Mod
 from xdsl.dialects.builtin import *
 
 
@@ -11,6 +12,7 @@ class IET:
         self.ctx.register_op(Addi)
         self.ctx.register_op(Modi)
         self.ctx.register_op(Iteration)
+        self.ctx.register_op(IterationWithSubIndices)
         self.ctx.register_op(Callable)
         self.ctx.register_op(Idx)
         self.ctx.register_op(Assign)
@@ -221,3 +223,46 @@ class Iteration(Operation):
             arg
         },
             regions=[Region.from_block_list([body])])
+
+
+@irdl_op_definition
+class IterationWithSubIndices(Operation):
+    name: str = "iet.iteration_with_subindices"
+    arg_name = AttributeDef(StringAttr)
+    body = RegionDef()
+    limits = AttributeDef(ArrayAttr)
+    uindices_names = AttributeDef(ArrayAttr)
+    uindices_symbmins = AttributeDef(ArrayAttr)
+    properties = AttributeDef(ArrayAttr)
+    pragmas = AttributeDef(ArrayAttr)
+
+    @staticmethod
+    def get(properties: List[str],
+            limits: Tuple[str, str, str],
+            uindices_names: Tuple[str, ...],
+            uindices_symbmins: Tuple[Mod, ...],
+            arg: str,
+            body: Block,
+            pragmas: List[str] = []):
+        return IterationWithSubIndices.build(attributes={
+            "limits":
+            ArrayAttr.from_list([
+                StringAttr.from_str(limits[0]),
+                StringAttr.from_str(limits[1]),
+                StringAttr.from_str(limits[2])
+            ]),
+            "uindices_names":
+            ArrayAttr.from_list(
+                [StringAttr.from_str(u) for u in uindices_names]),
+            "uindices_symbmins":
+            ArrayAttr.from_list([u for u in uindices_symbmins]),
+            "properties":
+            ArrayAttr.from_list([StringAttr.from_str(p) for p in properties]),
+            "pragmas":
+            ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
+            "arg_name":
+            arg
+        },
+            regions=[
+            Region.from_block_list([body])
+        ])
