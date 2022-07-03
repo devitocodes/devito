@@ -33,8 +33,8 @@ iet = IET(ctx)
 
 # Those parameters without associated types aren't printed in the Kernel header
 op_params = list(op.parameters)
-op_param_names = [opi.name for opi in op_params]
-op_header_params = [opi.name for opi in op_params]
+op_param_names = [opi._C_name for opi in op_params]
+op_header_params = [opi._C_name for opi in op_params]
 op_types = [opi._C_typename for opi in op_params]
 
 # we still need to add the extra time indices even though they aren't passed in
@@ -59,7 +59,6 @@ full_loop = op.body.body[1].args.get('body')[0]
 
 comment_result = ietxdsl_functions.myVisit(kernel_comments, block=b, ctx=d)
 uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
-import pdb;pdb.set_trace()
 main_result = ietxdsl_functions.myVisit(full_loop, block=b, ctx=d)
 
 call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
