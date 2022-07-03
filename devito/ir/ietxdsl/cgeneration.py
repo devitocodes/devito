@@ -106,6 +106,7 @@ class CGeneration:
         uindices_names = iteration_op.uindices_names
         uindices_symbmins = iteration_op.uindices_symbmins
         ssa_val = iteration_op.body.blocks[0].args[0]
+        iterator = "i_" + str(len(self.iterator_names))
         iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
