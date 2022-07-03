@@ -14,7 +14,7 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
-from devito.tools import as_list, as_tuple, dtype_to_cstr, is_integer
+from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension

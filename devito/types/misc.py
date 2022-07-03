@@ -1,4 +1,4 @@
-from ctypes import c_int, c_double, c_void_p
+from ctypes import c_double, c_void_p
 
 from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData

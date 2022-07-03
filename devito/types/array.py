@@ -3,10 +3,9 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
-from cgen import Struct, Value
 
 from devito.parameters import configuration
-from devito.tools import as_tuple, ctypes_to_cstr, dtype_to_ctype
+from devito.tools import as_tuple, dtype_to_ctype
 from devito.types.basic import AbstractFunction, IndexedData
 from devito.types.utils import CtypesFactory
 
@@ -223,12 +222,6 @@ class ArrayMapped(Array):
     _C_field_nbytes = 'nbytes'
     _C_field_dmap = 'dmap'
 
-    _C_typedecl = Struct(_C_structname, [
-        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-        Value(ctypes_to_cstr(c_ulong), _C_field_nbytes),
-        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_dmap)
-    ])
-
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
                                           (_C_field_nbytes, c_ulong),
@@ -286,20 +279,6 @@ class ArrayObject(ArrayBasic):
     @property
     def _C_ctype(self):
         return self.dtype
-
-    @cached_property
-    def _C_typedecl(self):
-        if len(self.fields) > 0:
-            types = [(i._rebuild(is_const=False) if i.is_Symbol else i)._C_typename
-                     for i in self.fields]
-            fields = [Value(i, j._C_name) for i, j in zip(types, self.fields)]
-            return Struct(self.pname, fields)
-        else:
-            return None
-
-    @property
-    def _is_composite_dtype(self):
-        return len(self.fields) > 0
 
     @property
     def fields(self):

@@ -8,10 +8,9 @@ import numpy as np
 import sympy
 from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
-from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, ctypes_to_cgen,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
@@ -147,7 +146,7 @@ class CodeSymbol(object):
             None if the type of the object can be expressed with a basic type,
             such as float or int, otherwise a cgen.Struct representing a C struct.
         """
-        return
+        return ctypes_to_cgen(self._C_ctype, fields=getattr(self, 'fields', None))
 
     @property
     def _C_symbol(self):
@@ -1357,10 +1356,6 @@ class CompositeObject(Object):
     @property
     def fields(self):
         return [i for i, _ in self.pfields]
-
-    @cached_property
-    def _C_typedecl(self):
-        return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
 
 
 class LocalObject(AbstractObject):
