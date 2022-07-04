@@ -79,6 +79,23 @@ class Modi(Operation):
                          result_types=[IntegerType.build(32)])
         return res
 
+# Change this to Float!
+@irdl_op_definition
+class Powi(Operation):
+    name: str = "iet.powi"
+    base = OperandDef(IntegerType) #Float32Type
+    exponent = OperandDef(IntegerType)
+    output = ResultDef(IntegerType)
+
+    def verify_(self) -> None:
+        if self.base.typ != self.exponent.typ or self.exponent.typ != self.output.typ:
+            raise Exception("expect all input and output types to be equal")
+
+    @staticmethod
+    def get(base, exponent):
+        res = Powi.build(operands=[base, exponent],
+                         result_types=[IntegerType.build(32)])
+        return res
 
 @irdl_op_definition
 class Idx(Operation):

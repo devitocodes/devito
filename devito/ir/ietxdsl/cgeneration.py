@@ -1,7 +1,7 @@
 import io
 from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
     Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
-    Idx, Initialise, List, Constant, Dict
+    Idx, Initialise, List, Constant, Dict, Powi
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -84,7 +84,7 @@ class CGeneration:
 
     def printIteration(self, iteration_op: Iteration):
         ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = "i_" + str(len(self.iterator_names))
+        iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
             iteration_op.regions[0].blocks[0].args[0]] = iterator
@@ -106,7 +106,7 @@ class CGeneration:
         uindices_names = iteration_op.uindices_names
         uindices_symbmins = iteration_op.uindices_symbmins
         ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = "i_" + str(len(self.iterator_names))
+        iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
             iteration_op.regions[0].blocks[0].args[0]] = iterator
@@ -188,6 +188,16 @@ class CGeneration:
             self.print(" % ", end='', indent=False)
             self.print("(", end="", indent=False)
             self.printResult(operation.input2)
+            self.print(")", end="", indent=False)
+            return
+
+        if (isinstance(operation, Powi)):
+            self.print("(", end="", indent=False)
+            self.printResult(operation.base)
+            self.print(")", end="", indent=False)
+            self.print(" ^ ", end='', indent=False)
+            self.print("(", end="", indent=False)
+            self.printResult(operation.exponent)
             self.print(")", end="", indent=False)
             return
 
