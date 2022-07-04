@@ -2,8 +2,9 @@
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow
 from cgen import Generable
 
-from devito.ir.ietxdsl import MLContext, Builtin, IET, Constant, Addi, Modi, Idx, \
-    Assign, Block, Iteration, IterationWithSubIndices, Statement, PointerCast, Powi, Initialise
+from devito.ir.ietxdsl import (MLContext, Builtin, IET, Constant, Addi, Modi, Idx,
+                               Assign, Block, Iteration, IterationWithSubIndices,
+                               Statement, PointerCast, Powi, Initialise)
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -11,6 +12,7 @@ from devito.types.basic import IndexedData
 ctx = MLContext()
 Builtin(ctx)
 iet = IET(ctx)
+
 
 def createStatement(initial_string, val):
     ret_str = initial_string
@@ -21,7 +23,6 @@ def createStatement(initial_string, val):
         ret_str = ret_str + " " + val
 
     return ret_str
-
 
 
 def add_to_block(expr, arg_by_expr, result):
