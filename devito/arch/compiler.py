@@ -488,11 +488,17 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags += ['-std=c++11', '-mp']
+        self.cflags += ['-std=c++11']
 
+        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
+
         if platform is NVIDIAX:
-            self.cflags += ['-acc:gpu', '-gpu=pinned']
+            self.cflags.append('-gpu=pinned')
+            if language == 'openacc':
+                self.cflags.extend(['-mp', '-acc:gpu'])
+            elif language == 'openmp':
+                self.cflags.extend(['-mp=gpu'])
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
