@@ -1,9 +1,9 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
-from sympy import Indexed, Integer, Symbol, Add, Eq, Mod
+from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow
 from cgen import Generable
 
 from devito.ir.ietxdsl import MLContext, Builtin, IET, Constant, Addi, Modi, Idx, \
-    Assign, Block, Iteration, IterationWithSubIndices, Statement, PointerCast
+    Assign, Block, Iteration, IterationWithSubIndices, Statement, PointerCast, Powi, Initialise
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -11,6 +11,17 @@ from devito.types.basic import IndexedData
 ctx = MLContext()
 Builtin(ctx)
 iet = IET(ctx)
+
+def createStatement(initial_string, val):
+    ret_str = initial_string
+    if isinstance(val, tuple):
+        for t in val:
+            ret_str = ret_str + " " + t
+    else:
+        ret_str = ret_str + " " + val
+
+    return ret_str
+
 
 
 def add_to_block(expr, arg_by_expr, result):
@@ -57,6 +68,14 @@ def add_to_block(expr, arg_by_expr, result):
         result.append(sum)
         return
 
+    if isinstance(expr, Pow):
+        base = arg_by_expr[expr.args[0]]
+        exponent = arg_by_expr[expr.args[1]]
+        pow = Powi.get(base, exponent)
+        arg_by_expr[expr] = pow
+        result.append(pow)
+        return
+
     if isinstance(expr, Indexed):
         add_to_block(expr.args[0], arg_by_expr, result)
         prev = arg_by_expr[expr.args[0]]
@@ -94,9 +113,17 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.Expression):
         expr = node.expr
+        b = Block.from_arg_types([iet.i32])
         r = []
-        add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)
-        block.add_ops(r)
+        if node.init:
+            expr_name = expr.args[0]
+            add_to_block(expr_name, {Symbol(s): a for s, a in ctx.items()}, r)
+            init = Initialise.get(expr_name, [iet.i32], expr.args[1])
+            b.add_ops([init])
+            block.add_ops(r)
+        else:
+            add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)
+            block.add_ops(r)
         return
 
     if isinstance(node, nodes.ExpressionBundle):
