@@ -79,11 +79,13 @@ class Modi(Operation):
                          result_types=[IntegerType.build(32)])
         return res
 
+
 # Change this to Float!
 @irdl_op_definition
 class Powi(Operation):
     name: str = "iet.powi"
-    base = OperandDef(IntegerType) #Float32Type
+    #  This should be changed to Float/Float32Type
+    base = OperandDef(IntegerType)
     exponent = OperandDef(IntegerType)
     output = ResultDef(IntegerType)
 
@@ -96,6 +98,7 @@ class Powi(Operation):
         res = Powi.build(operands=[base, exponent],
                          result_types=[IntegerType.build(32)])
         return res
+
 
 @irdl_op_definition
 class Idx(Operation):
@@ -206,8 +209,7 @@ class Callable(Operation):
                 [StringAttr.from_str(p) for p in header_params]),
             "types":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in types])
-        },
-            regions=[Region.from_block_list([body])])
+        }, regions=[Region.from_block_list([body])])
 
 
 @irdl_op_definition
@@ -238,8 +240,7 @@ class Iteration(Operation):
             ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
             "arg_name":
             arg
-        },
-            regions=[Region.from_block_list([body])])
+        }, regions=[Region.from_block_list([body])])
 
 
 @irdl_op_definition
@@ -279,7 +280,4 @@ class IterationWithSubIndices(Operation):
             ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
             "arg_name":
             arg
-        },
-            regions=[
-            Region.from_block_list([body])
-        ])
+        }, regions=[Region.from_block_list([body])])

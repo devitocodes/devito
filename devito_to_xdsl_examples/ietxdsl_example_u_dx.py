@@ -6,8 +6,9 @@ from devito.tools import flatten
 
 from devito.ir import PointerCast, FindNodes
 
-from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration, Statement,
-                               StructDecl, ietxdsl_functions, Callable)
+from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration,
+                               Statement, StructDecl, ietxdsl_functions,
+                               Callable)
 
 from devito.ir.ietxdsl.ietxdsl_functions import createStatement
 
@@ -36,10 +37,9 @@ tmp = op.body.body[1].args.get('body')[0]
 tmp2 = tmp._args['body'][0].write
 
 # then add in anything that comes before the main loop:
-for i in range(0,(body_size-1)):
+for i in range(0, (body_size - 1)):
     val = op.body.body[1].args.get('body')[0]._args['body'][0].write
     op_param_names.append(str(val))
-
 
 # we also need to pass in the extra variables
 num_extra_expressions = len(op.body.body[1].args.get('body'))
