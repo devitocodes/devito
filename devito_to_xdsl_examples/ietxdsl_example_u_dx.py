@@ -33,9 +33,6 @@ op_types = [opi._C_typename for opi in op_params]
 body = op.body.body[1].args.get('body')
 body_size = len(body)
 
-tmp = op.body.body[1].args.get('body')[0]
-tmp2 = tmp._args['body'][0].write
-
 # then add in anything that comes before the main loop:
 for i in range(0, (body_size - 1)):
     val = op.body.body[1].args.get('body')[0]._args['body'][0].write
@@ -57,14 +54,17 @@ includes = op._includes
 struct_decs = [
     i._C_typedecl for i in op.parameters if i._C_typedecl is not None
 ]
+
 kernel_comments = op.body.body[0]
 uvec_cast = FindNodes(PointerCast).visit(op)[0]
-# TODO: loop over this
-full_loop = op.body.body[1].args.get('body')[0]
 
 comment_result = ietxdsl_functions.myVisit(kernel_comments, block=b, ctx=d)
 uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
-main_result = ietxdsl_functions.myVisit(full_loop, block=b, ctx=d)
+
+for i in range(0,(body_size-1)):
+    section = op.body.body[1].args.get('body')[1]
+    section_result = ietxdsl_functions.myVisit(section, block=b, ctx=d)
+
 
 call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
                         b)
