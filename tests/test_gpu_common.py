@@ -172,7 +172,7 @@ class TestStreaming(object):
                 Eq(u.forward, tmp, subdomain=bundle0),
                 Eq(v.forward, tmp, subdomain=bundle0)]
 
-        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate'))
+        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 5
@@ -212,7 +212,7 @@ class TestStreaming(object):
                 Eq(u.forward, tmp0, subdomain=bundle0),
                 Eq(v.forward, tmp1, subdomain=bundle0)]
 
-        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate'))
+        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 7
@@ -270,7 +270,8 @@ class TestStreaming(object):
                 Eq(u.forward, tmp0, subdomain=bundle0),
                 Eq(v.forward, tmp1, subdomain=bundle0)]
 
-        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'fuse-tasks': True}))
+        op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate',
+                                 {'fuse-tasks': True, 'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 5
@@ -342,7 +343,7 @@ class TestStreaming(object):
                    subdomain=bundle0)]
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
-        op1 = Operator(eqns, opt=('tasking', 'orchestrate'))
+        op1 = Operator(eqns, opt=('tasking', 'orchestrate', {'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op1)) == 4
