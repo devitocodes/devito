@@ -232,7 +232,7 @@ class CGeneration:
 
             self.print(" = ", indent=False, end="")
             self.printResult(operation.rhs)
-            self.print("", indent=False)
+            self.print(";", indent=False)
             return
 
         if (isinstance(operation, Idx)):

@@ -44,7 +44,9 @@ num_extra_expressions = len(op.body.body[1].args.get('body'))
 # we still need to add the extra time indices even though they aren't passed in
 devito_iterations = flatten(retrieve_iteration_tree(op.body))
 timing_indices = [i.uindices for i in devito_iterations if i.dim.is_Time]
-op_param_names.append(str(t) for t in timing_indices)
+for tup in timing_indices:
+    for t in tup:
+        op_param_names.append((str(t)))
 
 b = Block.from_arg_types([iet.i32] * len(op_param_names))
 d = {name: register for name, register in zip(op_param_names, b.args)}
@@ -61,8 +63,8 @@ uvec_cast = FindNodes(PointerCast).visit(op)[0]
 comment_result = ietxdsl_functions.myVisit(kernel_comments, block=b, ctx=d)
 uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
 
-for i in range(0,(body_size-1)):
-    section = op.body.body[1].args.get('body')[1]
+for i in range(0,body_size):
+    section = op.body.body[1].args.get('body')[i]
     section_result = ietxdsl_functions.myVisit(section, block=b, ctx=d)
 
 
