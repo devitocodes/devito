@@ -118,10 +118,9 @@ def myVisit(node, block=None, ctx={}):
         r = []
         if node.init:
             expr_name = expr.args[0]
-            add_to_block(expr_name, {Symbol(s): a for s, a in ctx.items()}, r)
-            init = Initialise.get(expr_name, [iet.i32], expr.args[1])
-            b.add_ops([init])
-            block.add_ops(r)
+            add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
+            init = Initialise.get(r[-1].results[0], [iet.i32], str(expr_name))
+            block.add_ops([init])
         else:
             add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)
             block.add_ops(r)

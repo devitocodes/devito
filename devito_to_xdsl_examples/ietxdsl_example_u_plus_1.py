@@ -32,7 +32,9 @@ op_types = [opi._C_typename for opi in op_params]
 
 devito_iterations = flatten(retrieve_iteration_tree(op.body))
 timing_indices = [i.uindices for i in devito_iterations if i.dim.is_Time]
-op_param_names.append(str(t) for t in timing_indices)
+for tup in timing_indices:
+    for t in tup:
+        op_param_names.append((str(t)))
 
 b = Block.from_arg_types([iet.i32] * len(op_param_names))
 d = {name: register for name, register in zip(op_param_names, b.args)}
