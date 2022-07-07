@@ -323,6 +323,13 @@ class DeviceOmpOperatorMixin(object):
     def _normalize_kwargs(cls, **kwargs):
         oo = kwargs['options']
 
+        # Enforce linearization to mitigate LLVM issue:
+        # https://github.com/llvm/llvm-project/issues/56389
+        # Most OpenMP-offloading compilers are based on LLVM, and despite
+        # not all of them reuse necessarily the same parloop runtime, some
+        # do, or might do in the future
+        oo.setdefault('linearize', True)
+
         oo.pop('openmp', None)  # It may or may not have been provided
         kwargs = super()._normalize_kwargs(**kwargs)
         oo['openmp'] = True

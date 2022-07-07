@@ -48,22 +48,22 @@ jobs:
         ]
         include:
         - name: pytest-gpu-omp-nvidia
-          test_file: "tests/test_gpu_openmp.py"
+          test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "gpu", "openmp", "docker",]
-          flags: '--gpus all --rm --name testrun'
+          tags: ["self-hosted", "gpu", "docker",]
+          flags: '--gpus all --rm --name testrun-clang-nvidia'
 
         - name: pytest-gpu-acc-nvidia
-          test_file: "tests/test_gpu_openacc.py"
+          test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
-          tags: ["self-hosted", "gpu", "openacc", "docker"]
-          flags: '--gpus all --rm --name testrun'
+          tags: ["self-hosted", "gpu", "docker"]
+          flags: '--gpus all --rm --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
           test_file: "tests/test_gpu_openmp.py"
           tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           base: "devitocodes/bases:amd"
-          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --security-opt seccomp=unconfined --rm --name testrun"
+          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --security-opt seccomp=unconfined --rm --name testrun-amd"
 
     steps:
     - name: Checkout devito
@@ -75,7 +75,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py ${{ matrix.test_file }}
+        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
 
     - name: Test examples
       run: |
@@ -86,6 +86,7 @@ jobs:
         docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
+      if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
