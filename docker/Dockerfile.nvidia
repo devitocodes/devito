@@ -1,5 +1,5 @@
 ##############################################################
-# This Dockerfile contains NVIDIA HPC SDK (nvc, cuda, OpenMPI) for Devito
+# This Dockerfile contains the NVidia HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
 ARG ver
 ARG arch="nvc"
@@ -19,6 +19,7 @@ RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y -q \
         liblapack-dev libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
+        # Devito Jupyter Notebooks and Ux experience
         nodejs ffmpeg \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
@@ -76,7 +77,7 @@ ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs
 ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 
-# MPI 3
+# MPI
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
@@ -114,9 +115,8 @@ ENV DEVITO_PLATFORM="nvidiaX"
 ENV DEVITO_LANGUAGE="openacc"
 
 ########################################################################
-# Build clang 14. This is followign the wiki:
+# Build latest stable clang. This is followign the wiki:
 # https://en.wikibooks.org/wiki/LLVM_Compiler/Installation.
-# According to the wiki, clang should be built first with gcc then rebuilt with itself for openmp.
 ########################################################################
 # Thid will only trigger if arch is clang since the final stage depends on it
 FROM sdk-base as clang

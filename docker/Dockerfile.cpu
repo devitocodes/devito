@@ -10,12 +10,14 @@ FROM python:3.7 as base
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y mpich libmpich-dev libgl1-mesa-glx
+RUN apt-get update && apt-get install -y libgl1-mesa-glx
 
 ##############################################################
 # GCC standard image
 ##############################################################
 FROM base as gcc
+
+RUN apt-get install -y mpich libmpich-dev 
 # Env vars defaults
 ENV DEVITO_ARCH="gcc"
 ENV DEVITO_LANGUAGE="openmp"
@@ -25,7 +27,8 @@ ENV DEVITO_LANGUAGE="openmp"
 ##############################################################
 FROM base as icc
 
- # download the key to system keyring
+ # Download the key to system keyring
+ # https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
 

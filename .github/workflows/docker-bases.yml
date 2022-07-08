@@ -33,6 +33,9 @@ jobs:
 
           - tag: 'devitocodes/bases:nvidia-clang'
             arch: 'arch=clang'
+            # clang is only compatible with cuda<11.5. The latest nvidia sdk with cuda 11.5 is 21.11 (last of 2021)
+            # We cannot use newer ones such as 22-1 because the package manager automatically installs the latest 2022
+            # that re-install the latest (11.7) version on top of it.
             version: 'ver=nvhpc-21-11'
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "gpu", "openmp", "clang"]

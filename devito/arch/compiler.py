@@ -452,17 +452,17 @@ class AOMPCompiler(Compiler):
             self.cflags.remove('-std=c99')
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
-            self.cflags += ['-mcpu=native']
+            self.cflags.append('-mcpu=native')
         else:
-            self.cflags += ['-march=native']
+            self.cflags.append('-march=native')
 
-        # For mpi, mpicc is compiled against amdclang not aompcc, so need the flags back.
+        # For MPI, mpicc is compiled against amdclang not aompcc, so need the flags back.
         if kwargs.get('mpi'):
-            self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
-            self.ldflags += ['-fopenmp',
-                             '-fopenmp-targets=amdgcn-amd-amdhsa',
-                             '-Xopenmp-target=amdgcn-amd-amdhsa']
-            self.ldflags += ['-march=%s' % platform.march]
+            self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
+            self.ldflags.extend(['-fopenmp',
+                                 '-fopenmp-targets=amdgcn-amd-amdhsa',
+                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
+            self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
         self.CC = 'aompcc'
@@ -496,7 +496,7 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags += ['-std=c++11']
+        self.cflags.append('-std=c++11')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])

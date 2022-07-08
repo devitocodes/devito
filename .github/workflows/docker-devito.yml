@@ -11,6 +11,7 @@ jobs:
   deploy-devito:
     runs-on: ${{ matrix.runner }}
     env:
+      # Use buildkit https://docs.docker.com/develop/develop-images/build_enhancements/ for better build
       DOCKER_BUILDKIT: "1"
 
     strategy:
@@ -33,7 +34,7 @@ jobs:
           - base: "bases:amd"
             tag: 'amd'
             flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video'
-            test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
+            test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "gpu", "docker", "aomp"]
 
           - base: "bases:cpu-gcc"
@@ -73,6 +74,10 @@ jobs:
         with:
           images: |
             ${{ matrix.image }}
+          # Create all the tags to be pushed
+          # event is the trigger even (pr for pull request, tag for release)
+          # value is the tag
+          # enable is a "if" filter
           tags: |
             type=ref,event=pr,value=${{ matrix.tag }}-dev
             type=semver,event=tag,value=${{ matrix.tag }}-{{version}}

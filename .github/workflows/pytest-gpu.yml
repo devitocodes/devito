@@ -50,19 +50,26 @@ jobs:
         - name: pytest-gpu-omp-nvidia
           test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "gpu", "docker",]
+          tags: ["self-hosted", "gpu", "docker"]
+          test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-clang-nvidia'
 
         - name: pytest-gpu-acc-nvidia
           test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
           tags: ["self-hosted", "gpu", "docker"]
+          test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
+          # We only test the openmp generation due to issue with the offloading discussed in
+          # https://github.com/ROCm-Developer-Tools/aomp/issues/397
           test_file: "tests/test_gpu_openmp.py"
           tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           base: "devitocodes/bases:amd"
+          test_drive_cmd: "rocm-smi"
+          # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
+          # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
           flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --security-opt seccomp=unconfined --rm --name testrun-amd"
 
     steps:

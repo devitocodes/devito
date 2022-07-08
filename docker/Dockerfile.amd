@@ -14,7 +14,7 @@ ENV AOMP=/opt/rocm-${ROCM_VERSION}/llvm
 # Some utils needed
 RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev vim
 
-# roc-aware mpi. Taken from:
+# ROCm-aware MPI. Taken from:
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
 # UCX. Clang does not support some of the flags such as '-dynamic-list-data' so build UCX with gcc
 RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
@@ -27,7 +27,7 @@ RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
     rm -rf /deps/ucx
 
 # OpenMPI
-# Build openmpi with amdclang so that mpicc links to the correct compiler
+# Build OpenMPI with `amdclang` so that `mpicc` links to the correct compiler
 RUN mkdir -p /opt/openmpi && cd /deps && \
     git clone --branch v4.1.0 https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
@@ -37,7 +37,7 @@ RUN mkdir -p /opt/openmpi && cd /deps && \
     make install && \
     rm -rf /deps/openmpi
 
-# Set openmpi path
+# Set OpenMPI path
 ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
 ENV OMPI_CC=$AOMP/bin/clang
