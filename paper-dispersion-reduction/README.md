@@ -31,13 +31,3 @@
 1.6) Install with "conda install" or "pip install" important libreries like: jupyter-notebook, Matplotlib, SEGYIO.
 
 Observation: More datails about install can be found in: https://www.devitoproject.org/devito/download.html
-
-2) To use the FWI code following the instructions below:
-
-2.1) Download the directory "paper-dispersion-reduction" in a desired local.
-
-2.2) Considering the Linux S0, execute the step 1.4).
-
-2.3) Using the know command "python name_file.py" execute the file of interest.
-
-2.4) To acess the notebook execute the comand "jupyter notebook" and navegate into brownser.
