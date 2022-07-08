@@ -83,7 +83,7 @@ jobs:
         - name: pytest-osx-py37-clang-omp
           python-version: '3.7'
           os: macos-latest
-          arch: "osx"
+          arch: "clang"
           language: "C"
           sympy: "1.9"
 
@@ -124,7 +124,7 @@ jobs:
     - name: Build docker image
       if: contains(matrix.name, 'docker')
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg arch=${{ matrix.arch }}
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
 
     - name: Set run prefix
       run: |
@@ -158,6 +158,7 @@ jobs:
 
     - name: Test with pytest
       run: |
+        ${{ steps.set-run.outputs.RUN_CMD }} ${{ matrix.arch }} --version
         ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
 
     - name: Upload coverage to Codecov

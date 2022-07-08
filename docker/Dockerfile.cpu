@@ -1,5 +1,5 @@
 ##############################################################
-# This Dockerfile contains the Devito codes and can be buld using different base images.
+# This Dockerfile contains the Devito codes and can be built using different base images.
 ##############################################################
 
 ARG arch=gcc
@@ -10,7 +10,7 @@ FROM python:3.7 as base
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y libgl1-mesa-glx
+RUN apt-get update && apt-get install -y vim wget git
 
 ##############################################################
 # GCC standard image

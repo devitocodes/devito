@@ -48,23 +48,23 @@ jobs:
         ]
         include:
         - name: pytest-gpu-omp-nvidia
-          test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "gpu", "docker"]
+          tags: ["self-hosted", "gpu", "docker", "openmp", "kimogila"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-clang-nvidia'
 
         - name: pytest-gpu-acc-nvidia
-          test_file: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
-          tags: ["self-hosted", "gpu", "docker"]
+          tags: ["self-hosted", "gpu",  "docker", "v1004"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
-          # We only test the openmp generation due to issue with the offloading discussed in
+          # We only test the OpenMP generation due to issue with the offloading discussed in
           # https://github.com/ROCm-Developer-Tools/aomp/issues/397
-          test_file: "tests/test_gpu_openmp.py"
+          test_files: "tests/test_gpu_openmp.py"
           tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
@@ -78,11 +78,14 @@ jobs:
 
     - name: Build docker image
       run: |
+          # For now prune system to make sure we get the proper latest base
+          docker system prune -a -f
           docker build . --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
 
     - name: Test with pytest
       run: |
-        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
+        docker run ${{ matrix.flags }} devito_img ${{ matrix.test_drive_cmd }}
+        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
       run: |

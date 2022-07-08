@@ -15,16 +15,22 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
 RUN apt-get update -y && apt-get install -y -q apt-utils curl wget vim
 
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+# Install nvhpc. `nvhpc` is the alias for the latest avaialble version
+ARG ver=nvhpc
+RUN apt-get install -y -q ${ver}
+
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y -q \
         liblapack-dev libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         # Devito Jupyter Notebooks and Ux experience
-        nodejs ffmpeg \
+        nodejs ffmpeg gcc-offload-nvptx \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
 # MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
+ENV MPIVER=${MPI_VER}
+
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
@@ -35,6 +41,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_MCA_rmaps_base_oversubscribe=1
 ENV OMPI_MCA_btl_base_warn_component_unused=0
+ENV OMPI_MCA_hwloc_base_binding_policy=""
 ENV UCX_MEMTYPE_CACHE=no
 ENV UCX_NET_DEVICES=all
 ENV UCX_SHM_DEVICES=all
@@ -44,13 +51,9 @@ ENV NCCL_UCX_RNDV_SCHEME=get_zcopy
 ENV NCCL_PLUGIN_P2P=ucx
 ENV MELLANOX_MOUNT_DRIVER=1
 
-ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
-#For virtual environments and cloud
-#ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
-
-# Install nvhpc. `nvhpc` is the alias for the latest avaialble version
-ARG ver=nvhpc
-RUN apt-get install -y -q ${ver}
+ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
+# For Baremetal, these flags are also available
+#ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 # Make simlink for path setup since ENV doesn't accept shell commands.
 RUN export NVARCH=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/ | grep -v '\.') && \
@@ -118,7 +121,7 @@ ENV DEVITO_LANGUAGE="openacc"
 # Build latest stable clang. This is followign the wiki:
 # https://en.wikibooks.org/wiki/LLVM_Compiler/Installation.
 ########################################################################
-# Thid will only trigger if arch is clang since the final stage depends on it
+# This will only trigger if arch is clang since the final stage depends on it
 FROM sdk-base as clang
 
 ## Install clang requirements
@@ -136,7 +139,7 @@ RUN cd /llvm-project/build && \
     -DLLVM_ENABLE_PROJECTS="clang" \
     -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
-    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=35,37,50,52,60,61,70,75,86 \
+    -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=all \
     -DCMAKE_INSTALL_PREFIX=/llvm && \
     make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
     make install

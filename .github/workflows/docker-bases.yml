@@ -3,9 +3,9 @@ name: Build base compilers docker images
 on:
   push:
     paths:
-      - './docker/Dockerfile.nvidia'
-      - './docker/Dockerfile.cpu'
-      - './docker/Dockerfile.amd'
+      - '/docker/Dockerfile.nvidia'
+      - '/docker/Dockerfile.cpu'
+      - '/docker/Dockerfile.amd'
   workflow_dispatch:
     inputs:
       tags:
@@ -29,24 +29,25 @@ jobs:
             arch: 'arch=nvc'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "openacc"]
+            runner: ["self-hosted", "gpu", "docker", "openmp"]
 
           - tag: 'devitocodes/bases:nvidia-clang'
             arch: 'arch=clang'
-            # clang is only compatible with cuda<11.5. The latest nvidia sdk with cuda 11.5 is 21.11 (last of 2021)
+            # clang is only officialy supporting cuda<11.5. The latest nvidia sdk with cuda 11.5 is 21.11 (last of 2021)
             # We cannot use newer ones such as 22-1 because the package manager automatically installs the latest 2022
             # that re-install the latest (11.7) version on top of it.
+            # For more info check https://llvm.org/docs/CompileCudaWithLLVM.html and the Prerequisites 
             version: 'ver=nvhpc-21-11'
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "openmp", "clang"]
+            runner: ["self-hosted", "gpu", "openacc"]
 
           - tag: 'devitocodes/bases:amd'
             arch: ''
             version: ''
             dockerfile: './docker/Dockerfile.amd'
-            runner: ["self-hosted", "gpu", "docker", "aomp"]
+            runner: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
           
-          # These ones are tiny run on default
+          # These ones are tiny runs on default
           - tag: 'devitocodes/bases:cpu-gcc'
             arch: 'arch=gcc'
             version: ''

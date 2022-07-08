@@ -18,32 +18,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - base: "bases:nvidia-nvc"
+          - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
             flag: '--gpus all'
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "gpu", "docker"]
 
-          - base: "bases:nvidia-clang"
+          - base: 'bases:nvidia-clang'
             tag: 'nvidia-clang'
             flag: '--gpus all'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
             runner: ["self-hosted", "gpu", "docker"]
 
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
-          - base: "bases:amd"
+          - base: 'bases:amd'
             tag: 'amd'
             flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video'
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "gpu", "docker", "aomp"]
 
-          - base: "bases:cpu-gcc"
+          - base: 'bases:cpu-gcc'
             tag: "gcc"
             flag: ''
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
-          - base: "bases:cpu-icc"
+          - base: 'bases:cpu-icc'
             tag: "icc"
             flag: ''
             test: 'tests/test_operator.py'
@@ -72,25 +72,31 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
+          flavor: |
+            latest=false
           images: |
-            ${{ matrix.image }}
-          # Create all the tags to be pushed
-          # event is the trigger even (pr for pull request, tag for release)
-          # value is the tag
-          # enable is a "if" filter
+            devitocodes/devito
+          # Creates all the tags to be pushed.
+          # `event`` is the trigger even (pr for pull request, tag for release)
+          # `value/pattern` is the actual tag
+          # `enable` is a "if" filter fir that tag
+          # `type` is the type of tag
           tags: |
             type=ref,event=pr,value=${{ matrix.tag }}-dev
-            type=semver,event=tag,value=${{ matrix.tag }}-{{version}}
-            type=semver,event=tag,value=${{ matrix.tag }}-latest
-            type=raw,value=latest,enable=${{ matrix.base == "python:3.7"}}
+            type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{raw}},value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }}
+            type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             # Legacy "gpu" tag
-            type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == "bases:nvidia-nvc"}}
-            type=semver,event=tag,value=gpu-{{version}}
-            type=semver,event=tag,value=gpu-latest
+            type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' }}
             # Legacy "cpu" tag
-            type=ref,event=pr,value=cpu-dev,enable=${{ matrix.base == "bases:cpu-gcc"}}
-            type=semver,event=tag,value=cpu-{{version}}
-            type=semver,event=tag,value=cpu-latest
+            type=ref,event=pr,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
+            type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' }}
+
+      - name: Check tags
+        run: echo ${{ steps.meta.outputs.tags }}
 
       - name: Build and push image
         if: github.event_name == 'push'
