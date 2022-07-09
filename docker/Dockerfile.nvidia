@@ -21,7 +21,11 @@
 #
 #   pip install docker-squash
 #   docker tag devito:nvidia devito:nvidia-pre
-#   docker-squash  -t devito:nvidia-pre devito:nvidia
+#   docker-squash  -t devito:nvidia devito:nvidia-pre
+#
+# EXPORT:
+#   docker save devito:nvidia | gzip > devito_nvidia.tar.gz
+#   docker load < devito_nvidia.tar.gz
 #
 # RUN: 
 #   docker run --gpus all --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devito:nvidia
@@ -37,36 +41,45 @@
 FROM python:3.9-slim-bullseye 
  
 ENV DEBIAN_FRONTEND noninteractive 
-  
+ 
+ARG HPCSDK=22-5
+ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
+ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.7/extras/CUPTI
+#MPI_VER options 3,4,HPCX
+ARG MPI_VER=HPCX
+ 
 # nodesource: nvdashboard requires nodejs>=10  
 RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
     apt-get update -y && \
     apt-get install -y -q \
-        apt-utils curl wget \   
-    curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+        apt-utils curl wget && \   
+    curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y -q \
-#        nvhpc-22-5-cuda-multi \
-        nvhpc-22-5 \
-        liblapack-dev  \
-        libblas-dev \
+#        nvhpc-$HPCSDK-cuda-multi \
+        nvhpc-$HPCSDK \
+        liblapack-dev libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
+        gcc-offload-nvptx \
 # Devito Jupyter Notebooks and Ux experience
         nodejs \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super \
         ffmpeg vim && \
     wget -q -P /app/nvcomp_exts/ \
-        http://developer.download.nvidia.com/compute/nvcomp/2.2/local_installers/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz && \
-    tar -xvf /app/nvcomp_exts/nvcomp_exts_x86_64_ubuntu18.04-2.2.tar.gz -C /app/nvcomp_exts && \
+        https://developer.download.nvidia.com/compute/nvcomp/2.3.2/local_installers/nvcomp_install_CUDA_11.x.tgz && \
+    tar -xvf /app/nvcomp_exts/nvcomp_install_CUDA_11.x.tgz -C /app/nvcomp_exts && \
+# Cleanup HPC SDK install to reduce size
+    rm -rf $HPCSDK_HOME/examples/* && \
+    rm -rf $HPCSDK_HOME/profilers/* && \ 
+    rm -rf $HPCSDK_HOME/../../modulefiles && \
+    rm -rf $HPCSDK_HOME/../../REDIST && \
+    rm -rf $HPCSDK_HOME/../../examples && \
+    rm -rf $HPCSDK_HOME/../../profilers && \
+# Cleanup image to reduce size
     apt-get update -y && \
     apt-get autoclean && \
     apt-get autoremove && \
     rm -rf /app/nvcomp_exts/nvcomp* && \
     rm -rf /var/lib/apt/lists/* 
-
-ARG HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
-ARG HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
-#MPI_VER options 3,4,HPCX
-ARG MPI_VER=HPCX 
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
@@ -81,7 +94,7 @@ RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
 
 # Compression
-ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts/ubuntu18.04/11.6
+ENV NVCOMP_EXTS_ROOT /app/nvcomp_exts
 ENV bitcomp_DIR $NVCOMP_EXTS_ROOT/lib/
     
 # Compiler, CUDA, and Library paths
@@ -92,14 +105,19 @@ ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/c
 
 # Copy Devito
 ADD . /app/devito
-# Remove git files
+# Cleanup git files
 RUN rm -rf /app/devito/.git
+
+# add entrypoint file to container for customization
+ADD docker/entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh 
 
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 ENV OMPI_MCA_rmaps_base_oversubscribe=1
 ENV OMPI_MCA_btl_base_warn_component_unused=0
+ENV OMPI_MCA_hwloc_base_binding_policy=""
 ENV UCX_MEMTYPE_CACHE=no
 ENV UCX_NET_DEVICES=all
 ENV UCX_SHM_DEVICES=all
@@ -109,23 +127,30 @@ ENV NCCL_UCX_RNDV_SCHEME=get_zcopy
 ENV NCCL_PLUGIN_P2P=ucx
 ENV MELLANOX_MOUNT_DRIVER=1
 
-ENV UCX_TLS=rc_x,sm,shm,cuda_copy,gdr_copy,cuda_ipc
-#For virtual environments and cloud
-#ENV UCX_TLS=sm,shm,cuda_copy,cuda_ipc
+ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
+# For Baremetal, these flags are also available
+#ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 
-#MPI 3
-# Do Nothing
+# MPI 3
+#    Do Nothing
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
                $HPCSDK_HOME/comm_libs/mpi ; \
     fi;  \
-    if [ "x$MPI_VER" = "HPCX" ]; then \
+    if [ "x$MPI_VER" = "xHPCX" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
+    fi;
+
+# Update entrypoint.sh with hpcx setup 
+RUN \
+    if [ "x$MPI_VER" = "xHPCX" ]; then \
+        sed -i "s|#<->|source $HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh\n#<->|g" /docker-entrypoint.sh && \
+        sed -i 's|#<->|hpcx_load\n#<->|g' /docker-entrypoint.sh ; \
     fi;
 
 # Install pip dependencies and devito as a pip package
@@ -137,15 +162,7 @@ RUN python3 -m venv /venv && \
     CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir -r /app/devito/requirements-mpi.txt && \
     rm -rf ~/.cache/pip
 
-ADD docker/run-jupyterlab.sh /jupyter
-ADD docker/run-tests.sh /tests
-ADD docker/run-print-defaults.sh /print-defaults
-ADD docker/entrypoint.sh /docker-entrypoint.sh
-ADD docker/nvdashboard.json /app/nvdashboard.json
-
-RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh && \
-    /venv/bin/jupyter serverextension enable dask_labextension 
-#    /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
+RUN /venv/bin/jupyter serverextension enable dask_labextension 
 
 ## Environment Variables for OpenACC Builds
 # Reference: https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications
@@ -159,6 +176,13 @@ ENV DEVITO_PLATFORM=nvidiaX
 # Enable logging, Options: [unset, PERF, DEBUG]
 ENV DEVITO_LOGGING=DEBUG 
 #ENV PGI_ACC_TIME=1 
+
+# add remaining files to the container
+ADD docker/run-jupyterlab.sh /jupyter
+ADD docker/run-tests.sh /tests
+ADD docker/run-print-defaults.sh /print-defaults
+ADD docker/nvdashboard.json /app/nvdashboard.json
+RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh 
 
 ## Create App user 
 # Set the home directory to our app user's home.

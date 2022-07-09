@@ -4,4 +4,6 @@ find /app -type f -name '*.pyc' -delete
 
 export PATH=/venv/bin:$PATH
 
+#<-> Add dockerfile build customizations here
+
 exec "$@"
