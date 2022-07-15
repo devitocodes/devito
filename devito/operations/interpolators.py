@@ -297,6 +297,7 @@ class PolynomialInterpolator(GenericInterpolator):
 
         return eqns
 
+
 class LinearInterpolator(PolynomialInterpolator):
 
     """
