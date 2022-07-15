@@ -1,10 +1,11 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
-from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow
+from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul
 from cgen import Generable
 
 from devito.ir.ietxdsl import (MLContext, Builtin, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
-                               Statement, PointerCast, Powi, Initialise)
+                               Statement, PointerCast, Powi, Initialise, Float,
+                               Muli)
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -12,6 +13,7 @@ from devito.types.basic import IndexedData
 ctx = MLContext()
 Builtin(ctx)
 iet = IET(ctx)
+Float = Float(ctx)
 
 
 def createStatement(initial_string, val):
@@ -57,6 +59,14 @@ def add_to_block(expr, arg_by_expr, result):
         lhs = arg_by_expr[expr.args[0]]
         rhs = arg_by_expr[expr.args[1]]
         sum = Addi.get(lhs, rhs)
+        arg_by_expr[expr] = sum
+        result.append(sum)
+        return
+
+    if isinstance(expr, Mul):
+        lhs = arg_by_expr[expr.args[0]]
+        rhs = arg_by_expr[expr.args[1]]
+        sum = Muli.get(lhs, rhs)
         arg_by_expr[expr] = sum
         result.append(sum)
         return
@@ -119,7 +129,7 @@ def myVisit(node, block=None, ctx={}):
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
-            init = Initialise.get(r[-1].results[0], [iet.i32], str(expr_name))
+            init = Initialise.get(r[-1].results[0], [iet.f32], str(expr_name))
             block.add_ops([init])
         else:
             add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)

@@ -63,10 +63,9 @@ uvec_cast = FindNodes(PointerCast).visit(op)[0]
 comment_result = ietxdsl_functions.myVisit(kernel_comments, block=b, ctx=d)
 uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
 
-for i in range(0,body_size):
+for i in range(0, body_size):
     section = op.body.body[1].args.get('body')[i]
     section_result = ietxdsl_functions.myVisit(section, block=b, ctx=d)
-
 
 call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
                         b)
