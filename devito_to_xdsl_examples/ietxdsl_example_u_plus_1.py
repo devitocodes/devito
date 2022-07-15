@@ -6,8 +6,9 @@ from devito.tools import flatten
 
 from devito.ir import PointerCast, FindNodes
 
-from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration, Statement,
-                               StructDecl, ietxdsl_functions, Callable)
+from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration,
+                               Statement, StructDecl, ietxdsl_functions,
+                               Callable)
 
 from devito.ir.ietxdsl.ietxdsl_functions import createStatement
 

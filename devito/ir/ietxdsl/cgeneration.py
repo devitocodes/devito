@@ -1,7 +1,8 @@
 import io
 from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
     Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
-    Idx, Initialise, List, Constant, Dict, Powi
+    Idx, Initialise, List, Constant, Dict, Powi, Muli
+
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -199,6 +200,12 @@ class CGeneration:
             self.print("(", end="", indent=False)
             self.printResult(operation.exponent)
             self.print(")", end="", indent=False)
+            return
+
+        if (isinstance(operation, Muli)):
+            self.printResult(operation.input1)
+            self.print(" * ", end='', indent=False)
+            self.printResult(operation.input2)
             return
 
         if (isinstance(operation, Callable)):

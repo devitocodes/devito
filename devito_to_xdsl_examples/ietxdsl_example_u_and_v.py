@@ -14,10 +14,11 @@ from devito.ir.ietxdsl.ietxdsl_functions import createStatement
 
 # Define a simple Devito Operator
 grid = Grid(shape=(3, 3))
-u = TimeFunction(name='u', grid=grid)
-eq = Eq(u.forward, u.dx)
-op = Operator([eq])
-op.apply(time_M=5)
+u = TimeFunction(name='u', grid=grid, time_order=2)
+v = TimeFunction(name='v', grid=grid, time_order=2)
+eq0 = Eq(u.forward, u.dt2)
+eq1 = Eq(v.forward, u.dt2)
+op = Operator([eq0, eq1])
 
 ctx = MLContext()
 Builtin(ctx)
@@ -58,10 +59,13 @@ struct_decs = [
 ]
 
 kernel_comments = op.body.body[0]
-uvec_cast = FindNodes(PointerCast).visit(op)[0]
-
 comment_result = ietxdsl_functions.myVisit(kernel_comments, block=b, ctx=d)
-uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
+
+num_pointer_casts = len(FindNodes(PointerCast).visit(op))
+
+for i in range(0, num_pointer_casts):
+    uvec_cast = FindNodes(PointerCast).visit(op)[i]
+    uvec_result = ietxdsl_functions.myVisit(uvec_cast, block=b, ctx=d)
 
 for i in range(0, body_size):
     section = op.body.body[1].args.get('body')[i]
