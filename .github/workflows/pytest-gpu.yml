@@ -48,72 +48,58 @@ jobs:
         ]
         include:
         - name: pytest-gpu-omp-nvidia
-          test_file: "tests/test_gpu_openmp.py"
-          env_file: "devito-ci-nvidia-openmp.env"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
+          base: "devitocodes/bases:nvidia-clang"
+          tags: ["self-hosted", "gpu", "docker", "openmp", "kimogila"]
           test_drive_cmd: "nvidia-smi"
-          arch: "clang"
-          platform: "nvidiaX"
-          language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp", "clang"]
+          flags: '--gpus all --rm --name testrun-clang-nvidia'
 
         - name: pytest-gpu-acc-nvidia
-          test_file: "tests/test_gpu_openacc.py"
-          env_file: "devito-ci-nvidia-openacc.env"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
+          base: "devitocodes/bases:nvidia-nvc"
+          tags: ["self-hosted", "gpu",  "docker", "v1004"]
           test_drive_cmd: "nvidia-smi"
-          arch: "nvc"
-          platform: "nvidiaX"
-          language: "openacc"
-          tags: ["self-hosted", "gpu", "openacc"]
+          flags: '--gpus all --rm --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
-          test_file: "tests/test_gpu_openmp.py"
-          env_file: "devito-ci-amd-openmp.env"
+          # We only test the OpenMP generation due to issue with the offloading discussed in
+          # https://github.com/ROCm-Developer-Tools/aomp/issues/397
+          test_files: "tests/test_gpu_openmp.py"
+          tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
+          base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
-          arch: "aomp"
-          platform: "amdgpuX"
-          language: "openmp"
-          tags: ["self-hosted", "gpu", "openmp", "aomp"]
+          # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
+          # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
+          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --security-opt seccomp=unconfined --rm --name testrun-amd"
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v3
 
-    - name: Set environment
+    - name: Build docker image
       run: |
-        source $HOME/${{ matrix.env_file }}
-        echo "PATH=$PATH" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-    - name: Install dependencies
-      run: |
-        pip3 install --upgrade pip
-        pip3 install -e .[extras]
+          # For now prune system to make sure we get the proper latest base
+          docker system prune -a -f
+          docker build . --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
 
     - name: Test with pytest
       run: |
-        ${{ matrix.test_drive_cmd }}
-        pytest --cov --cov-config=.coveragerc --cov-report=xml tests/test_adjoint.py tests/test_gpu_common.py
-        pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_file }}
+        docker run ${{ matrix.flags }} devito_img ${{ matrix.test_drive_cmd }}
+        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
       run: |
-        pytest examples/seismic/acoustic/acoustic_example.py
-        pytest examples/seismic/elastic/elastic_example.py
-        pytest examples/seismic/tti/tti_example.py
-        pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
       if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        DEVITO_MPI=1 mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v2
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        name: ${{ matrix.name }}
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py

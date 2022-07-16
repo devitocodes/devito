@@ -8,6 +8,7 @@
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
 [![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
+[![Docker](https://img.shields.io/docker/v/devitocodes/devito?color=blueviolet&label=docker&sort=semver)](https://hub.docker.com/r/devitocodes/devito)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
 optimized stencil computation (e.g., finite differences, image processing,
