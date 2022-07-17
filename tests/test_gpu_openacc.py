@@ -6,7 +6,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operat
 from conftest import skipif, opts_device_tiling
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import FindNodes, Section, retrieve_iteration_tree
+from devito.ir.iet import retrieve_iteration_tree
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -84,54 +84,6 @@ class TestCodeGeneration(object):
 
         assert tree[1].pragmas[0].value ==\
             'acc parallel loop collapse(3) present(u)'
-
-    def test_streaming_postponed_deletion(self):
-        grid = Grid(shape=(10, 10, 10))
-
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
-        usave = TimeFunction(name='usave', grid=grid, save=10)
-
-        eqns = [Eq(u.forward, u + usave),
-                Eq(v.forward, v + u.forward.dx + usave)]
-
-        op = Operator(eqns, platform='nvidiaX', language='openacc',
-                      opt=('streaming', 'orchestrate'))
-
-        sections = FindNodes(Section).visit(op)
-        assert len(sections) == 2
-        assert str(sections[1].body[0].body[0].body[-1]) ==\
-            ('#pragma acc exit data delete(usave[time:1][0:usave_vec->size[1]]'
-             '[0:usave_vec->size[2]][0:usave_vec->size[3]])')
-
-    def test_streaming_with_host_loop(self):
-        grid = Grid(shape=(10, 10, 10))
-
-        f = Function(name='f', grid=grid)
-        u = TimeFunction(name='u', grid=grid, save=10)
-
-        eqns = [Eq(f, u),
-                Eq(u.forward, f + 1)]
-
-        op = Operator(eqns, platform='nvidiaX', language='openacc',
-                      opt=('streaming', 'orchestrate'))
-
-        # Check generated code
-        assert len(op._func_table) == 3
-        assert 'init_device0' in op._func_table
-        assert 'init_tsdata0' in op._func_table
-        assert 'prefetch_host_to_device0' in op._func_table
-        sections = FindNodes(Section).visit(op)
-        assert len(sections) == 2
-        s = sections[0].body[0].body[0]
-        assert str(s.body[3].body[-1]) == ('#pragma acc exit data delete'
-                                           '(u[time:1][0:u_vec->size[1]][0:u_vec'
-                                           '->size[2]][0:u_vec->size[3]])')
-        assert str(s.body[2]) == ('#pragma acc data present(u[time:1][0:u_vec->'
-                                  'size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        trees = retrieve_iteration_tree(op)
-        assert len(trees) == 3
-        assert 'present(f)' in str(trees[0][1].pragmas[0])
 
     @pytest.mark.parametrize('par_tile', [True, (32, 4), (32, 4, 4), (32, 4, 4, 8)])
     def test_tile_insteadof_collapse(self, par_tile):
