@@ -458,7 +458,7 @@ def test_model_update(shape):
     model.update('qp', qp)
     assert np.array_equal(va_model.qp.data, model.qp.data)
 
-	# Make a set of physical parameters from each model
+    # Make a set of physical parameters from each model
     tpl1_set = set(va_model.physical_parameters)
     tpl2_set = set(model.physical_parameters)
 
@@ -468,7 +468,7 @@ def test_model_update(shape):
     # Turn acoustic model (it is just lacking 'b') into a visco-acoustic model
     slices = tuple(slice(model.nbl, -model.nbl) for _ in range(model.dim))
     for i in diff_phys_par:
-    	# Test 4. Create a new physical parameter in the acoustic model from function
+        # Test 4. Create a new physical parameter in the acoustic model from function
         model.update(i, getattr(va_model, i).data[slices])
         assert np.array_equal(getattr(model, i).data, getattr(va_model, i).data)
 
