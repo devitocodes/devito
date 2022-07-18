@@ -83,15 +83,18 @@ jobs:
           # `type` is the type of tag
           tags: |
             type=ref,event=pr,value=${{ matrix.tag }}-dev
+            type=ref,event=branch,value=${{ matrix.tag }}-dev
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{raw}},value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }}
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             # Legacy "gpu" tag
             type=ref,event=pr,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
+            type=ref,event=branch,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
             type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' }}
             # Legacy "cpu" tag
             type=ref,event=pr,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
+            type=ref,event=branch,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' }}
             type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' }}
 
