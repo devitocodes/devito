@@ -178,6 +178,10 @@ class LocalObject(AbstractObject):
         return self._liveness
 
     @property
+    def free_symbols(self):
+        return super().free_symbols | set(self.cargs)
+
+    @property
     def _mem_internal_eager(self):
         return self._liveness == 'eager'
 
