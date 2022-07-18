@@ -22,7 +22,7 @@ def test_tti(shape, so, rot):
     origin = [0. for _ in shape]
     spacing = [20. for _ in shape]
     vp = 1.5 * np.ones(shape)
-    rot_val = .01*np.ones(shape) if rot else np.zeros(shape)
+    rot_val = .01 if rot else 0.
 
     # Create acoustic solver from preset
     acoustic = acoustic_setup(origin=origin, shape=shape, spacing=spacing,
@@ -62,8 +62,8 @@ def test_tti(shape, so, rot):
     vtti.data[0:to+1, :] = u1.data[indlast[:to+1], :]
 
     model = SeismicModel(space_order=so, vp=vp, origin=origin, shape=shape,
-                         spacing=spacing, nbl=0, epsilon=np.zeros(shape),
-                         delta=np.zeros(shape), theta=rot_val, phi=rot_val, bcs="damp")
+                         spacing=spacing, nbl=0, epsilon=0.,
+                         delta=0., theta=rot_val, phi=rot_val, bcs="damp")
 
     solver_tti.forward(u=utti, v=vtti, model=model, time_M=10, src=src, dt=dt)
 
