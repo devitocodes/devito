@@ -164,11 +164,11 @@ class LocalObject(AbstractObject):
     """
 
     __rargs__ = ('name',)
-    __rkwargs__ = ('constructor_args', 'liveness')
+    __rkwargs__ = ('cargs', 'liveness')
 
-    def __init__(self, name, constructor_args=None, **kwargs):
+    def __init__(self, name, cargs=None, **kwargs):
         self.name = name
-        self.constructor_args = as_tuple(constructor_args)
+        self.cargs = as_tuple(cargs)
 
         self._liveness = kwargs.get('liveness', 'lazy')
         assert self._liveness in ['eager', 'lazy']

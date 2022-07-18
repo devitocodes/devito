@@ -354,8 +354,8 @@ class CGen(Visitor):
         if f._mem_stack:
             v = c.Value(f._C_typedata, v)
         else:
-            if o.constructor_args:
-                v = MultilineCall(v, o.constructor_args, True)
+            if o.cargs:
+                v = MultilineCall(v, o.cargs, True)
 
             # Aesthetics: `float * a` -> `float *a`
             try:

@@ -857,12 +857,12 @@ class Definition(ExprStmt, Node):
     is_Definition = True
 
     def __init__(self, function, shape=None, qualifier=None, initvalue=None,
-                 constructor_args=None):
+                 cargs=None):
         self.function = function
         self.shape = shape
         self.qualifier = qualifier
         self.initvalue = initvalue
-        self.constructor_args = as_tuple(constructor_args)
+        self.cargs = as_tuple(cargs)
 
     def __repr__(self):
         return "<Def(%s)>" % self.function
