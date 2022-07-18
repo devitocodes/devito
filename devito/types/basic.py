@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, _Pointer, byref
+from ctypes import POINTER, _Pointer
 from functools import reduce
 from operator import mul
 
@@ -15,10 +15,9 @@ from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, ctypes_to_cgen,
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
-from devito.types.utils import CtypesFactory, DimensionTuple
+from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
-           'CompositeObject', 'IndexedData', 'DeviceMap']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap']
 
 
 Size = namedtuple('Size', 'left right')
@@ -1216,181 +1215,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def _rcls(self):
         return self.__class__.__base__
-
-
-class AbstractObject(Basic, sympy.Basic, Pickable):
-
-    """
-    Base class for objects with derived type.
-
-    The hierarchy is structured as follows
-
-                         AbstractObject
-                                |
-                 ---------------------------------
-                 |                               |
-              Object                       LocalObject
-                 |
-          CompositeObject
-
-    Warnings
-    --------
-    AbstractObjects are created and managed directly by Devito.
-    """
-
-    is_AbstractObject = True
-
-    __rargs__ = ('name', 'dtype')
-
-    def __new__(cls, *args, **kwargs):
-        with sympy_mutex:
-            obj = sympy.Basic.__new__(cls)
-        obj.__init__(*args, **kwargs)
-        return obj
-
-    def __init__(self, name, dtype):
-        self.name = name
-        self._dtype = dtype
-
-    def __repr__(self):
-        return self.name
-
-    __str__ = __repr__
-
-    def _hashable_content(self):
-        return (self.name, self.dtype)
-
-    @property
-    def dtype(self):
-        return self._dtype
-
-    @property
-    def free_symbols(self):
-        return {self}
-
-    @property
-    def _C_name(self):
-        return self.name
-
-    @property
-    def _C_ctype(self):
-        return self.dtype
-
-    @property
-    def function(self):
-        return self
-
-    # Pickling support
-    __reduce_ex__ = Pickable.__reduce_ex__
-
-
-class Object(AbstractObject, ArgProvider, Uncached):
-
-    """
-    Object with derived type defined in Python.
-    """
-
-    is_Object = True
-
-    def __init__(self, name, dtype, value=None):
-        super(Object, self).__init__(name, dtype)
-        self.value = value
-
-    __hash__ = Uncached.__hash__
-
-    @property
-    def _mem_external(self):
-        return True
-
-    @property
-    def _arg_names(self):
-        return (self.name,)
-
-    def _arg_defaults(self):
-        if callable(self.value):
-            return {self.name: self.value()}
-        else:
-            return {self.name: self.value}
-
-    def _arg_values(self, **kwargs):
-        """
-        Produce runtime values for this Object after evaluating user input.
-
-        Parameters
-        ----------
-        **kwargs
-            Dictionary of user-provided argument overrides.
-        """
-        if self.name in kwargs:
-            obj = kwargs.pop(self.name)
-            return {self.name: obj._arg_defaults()[obj.name]}
-        else:
-            return self._arg_defaults()
-
-
-class CompositeObject(Object):
-
-    """
-    Object with composite type (e.g., a C struct) defined in Python.
-    """
-
-    __rargs__ = ('name', 'pname', 'pfields')
-
-    def __init__(self, name, pname, pfields, value=None):
-        dtype = CtypesFactory.generate(pname, pfields)
-        value = self.__value_setup__(dtype, value)
-        super(CompositeObject, self).__init__(name, dtype, value)
-
-    def __value_setup__(self, dtype, value):
-        return value or byref(dtype._type_())
-
-    @property
-    def pfields(self):
-        return tuple(self.dtype._type_._fields_)
-
-    @property
-    def pname(self):
-        return self.dtype._type_.__name__
-
-    @property
-    def fields(self):
-        return [i for i, _ in self.pfields]
-
-
-class LocalObject(AbstractObject):
-
-    """
-    Object with derived type defined inside an Operator.
-    """
-
-    is_LocalObject = True
-
-    dtype = None
-    """
-    LocalObjects encode their dtype as a class attribute.
-    """
-
-    __rargs__ = ('name',)
-    __rkwargs__ = ('constructor_args', 'liveness')
-
-    def __init__(self, name, constructor_args=None, **kwargs):
-        self.name = name
-        self.constructor_args = as_tuple(constructor_args)
-
-        self._liveness = kwargs.get('liveness', 'lazy')
-        assert self._liveness in ['eager', 'lazy']
-
-    @property
-    def liveness(self):
-        return self._liveness
-
-    @property
-    def _mem_internal_eager(self):
-        return self._liveness == 'eager'
-
-    @property
-    def _mem_internal_lazy(self):
-        return self._liveness == 'lazy'
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

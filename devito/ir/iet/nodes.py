@@ -16,7 +16,8 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractObject, AbstractSymbol
+from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types.object import AbstractObject
 from devito.types import Indexed, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
