@@ -5,9 +5,10 @@ from sympy import And
 import pytest
 
 from conftest import assert_blocking, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction, SparseFunction,  # noqa
-                    Eq, Operator, Constant, Dimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer)
+from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
+                    SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
+                    Dimension, SubDimension, switchconfig, SubDomain, Lt, Le,
+                    Gt, Ge, Ne, Buffer, sin)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1177,6 +1178,41 @@ class TestConditionalDimension(object):
 
         iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
         assert all(i.is_Affine for i in iterations)
+
+    def test_sparse_time_function(self):
+        nt = 20
+
+        shape = (21, 21, 21)
+        origin = (0., 0., 0.)
+        spacing = (1., 1., 1.)
+        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing)])
+        grid = Grid(shape=shape, extent=extent, origin=origin)
+        time = grid.time_dim
+        x, y, z = grid.dimensions
+
+        p = TimeFunction(name="p", grid=grid, time_order=2, space_order=4, save=nt)
+
+        # Place source in the middle of the grid
+        src_coords = np.empty((1, len(shape)), dtype=np.float32)
+        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape)]
+        src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt)
+        src.data[:] = 1.
+        src.coordinates.data[:] = src_coords[:]
+
+        cd = ConditionalDimension(name="cd", parent=time,
+                                  condition=And(Ge(time, 1), Le(time, 10)))
+
+        src_term = src.inject(field=p.forward, expr=src*time, implicit_dims=cd)
+
+        op = Operator(src_term)
+
+        op.apply(time_m=1, time_M=nt-2, dt=1.0)
+
+        assert np.all(p.data[0] == 0)
+        # Note the endpoint of the range is 12 because we inject at p.forward
+        assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
+        assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
+        assert all(np.all(p.data[i] == 0) for i in range(12, 20))
 
 
 class TestMashup(object):

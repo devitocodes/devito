@@ -70,7 +70,7 @@ jobs:
     - name: Build docker image
       if: matrix.name == 'tutos-docker-gcc-py37'
       run: |
-          docker build . --file docker/Dockerfile --tag devito_img
+          docker build . --file docker/Dockerfile.devito --tag devito_img
 
     - name: Set run prefix
       run: |

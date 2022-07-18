@@ -4,28 +4,24 @@ services:
   devito:
     build:
       context: .
-      dockerfile: docker/Dockerfile
-    environment:
-      DEVITO_ARCH: gcc
-      DEVITO_LANGUAGE: openmp
+      dockerfile: docker/Dockerfile.devito
     volumes:
-      - ./devito:/app/devito
-      - ./tests:/app/tests
-      - ./examples:/app/examples
+      - ./devito:/app/devito/devito
+      - ./tests:/app/devito/tests
+      - ./examples:/app/devito/examples
     ports:
       - 8888:8888
 
   devito.nvidia:
     build:
       context: .
-      dockerfile: docker/Dockerfile.nvidia
-    environment:
-      DEVITO_ARCH: nvc
-      DEVITO_LANGUAGE: openacc
+      dockerfile: docker/Dockerfile.devito
+      args:
+        base: devitocodes/devio:nvidia-base
     volumes:
-      - ./devito:/app/devito
-      - ./tests:/app/tests
-      - ./examples:/app/examples
+      - ./devito:/app/devito/devito
+      - ./tests:/app/devito/tests
+      - ./examples:/app/devito/examples
     ports:
       - 8888:8888
     runtime: nvidia

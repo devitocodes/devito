@@ -9,7 +9,7 @@ from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering
                                     cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_prodders,
-                               is_on_device, linearize, relax_incr_dimensions)
+                               is_on_device, linearize, pthreadify, relax_incr_dimensions)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -263,8 +263,8 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': Tasker(runs_on_host).process,
-            'streaming': Streaming(reads_if_on_host).process,
+            'tasking': Tasker(runs_on_host, sregistry).process,
+            'streaming': Streaming(reads_if_on_host, sregistry).process,
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
@@ -289,6 +289,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         return {
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
+            'pthreadify': partial(pthreadify, sregistry=sregistry),
             'mpi': partial(mpiize, sregistry=sregistry, options=options),
             'linearize': partial(linearize, mode=options['linearize'],
                                  sregistry=sregistry),
@@ -305,7 +306,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         'blocking', 'tasking', 'streaming', 'factorize', 'fission', 'fuse', 'lift',
         'cire-sops', 'cse', 'opt-pows', 'topofuse',
         # IET
-        'orchestrate', 'parallel', 'mpi', 'linearize', 'prodders'
+        'orchestrate', 'pthreadify', 'parallel', 'mpi', 'linearize', 'prodders'
     )
     _known_passes_disabled = ('denormals', 'simd')
     assert not (set(_known_passes) & set(_known_passes_disabled))
@@ -322,6 +323,13 @@ class DeviceOmpOperatorMixin(object):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         oo = kwargs['options']
+
+        # Enforce linearization to mitigate LLVM issue:
+        # https://github.com/llvm/llvm-project/issues/56389
+        # Most OpenMP-offloading compilers are based on LLVM, and despite
+        # not all of them reuse necessarily the same parloop runtime, some
+        # do, or might do in the future
+        oo.setdefault('linearize', True)
 
         oo.pop('openmp', None)  # It may or may not have been provided
         kwargs = super()._normalize_kwargs(**kwargs)

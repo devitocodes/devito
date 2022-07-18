@@ -491,6 +491,24 @@ class TestFD(object):
                   type(shift) is tuple else d + shift * d.spacing)
             assert gi == getattr(f, 'd%s' % d.name)(x0=x0).evaluate
 
+    def test_substitution(self):
+        grid = Grid((11, 11))
+        f = Function(name="f", grid=grid, space_order=4)
+        expr = f.dx + f + 1
+        assert simplify(expr.subs(f.dx, 1) - (f + 2)) == 0
+        assert simplify(expr.subs(f, -1) - f.dx) == 0
+        assert simplify(expr.subs({f.dx: 1, f: -1}) - 1) == 0
+
+        expr2 = expr.subs({'x0': 2})
+        # Expression should now be the same but with a different x0
+        assert simplify(expr2 - (f.dx(x0=2) + f + 1)) == 0
+        # Different x0, should no replace
+        assert simplify(expr2.subs(f.dx, 1) - expr2) == 0
+
+        # x0 and f.dx
+        expr3 = expr.subs({f.dx: f.dx2, 'x0': 2})
+        assert simplify(expr3 - (f.dx2(x0=2) + f + 1)) == 0
+
 
 class TestTwoStageEvaluation(object):
 

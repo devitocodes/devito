@@ -15,7 +15,7 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
            'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
-           'FLOOR', 'MAX', 'MIN', 'SizeOf', 'rfunc', 'cast_mapper']
+           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -629,12 +629,14 @@ class DOUBLEP(CastStar):
     base = DOUBLE
 
 
-# Some other utility functions
+# Some other utility objects
 
 CEIL = Function('ceil')
 FLOOR = Function('floor')
 MAX = Function('MAX')
 MIN = Function('MIN')
+
+Null = Macro('NULL')
 
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
 SizeOf = lambda *args: DefFunction('sizeof', tuple(args))

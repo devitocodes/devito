@@ -1,10 +1,35 @@
-from devito.ir.iet import IterationTree, FindSections, FindSymbols
+from devito.ir.iet import FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
-from devito.tools import as_tuple, filter_ordered, split
+from devito.tools import filter_ordered
 from devito.types import Array, Global, LocalObject
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',
-           'diff_parameters']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters']
+
+
+class IterationTree(tuple):
+
+    """
+    Represent a sequence of nested Iterations.
+    """
+
+    @property
+    def root(self):
+        return self[0] if self else None
+
+    @property
+    def inner(self):
+        return self[-1] if self else None
+
+    @property
+    def dimensions(self):
+        return [i.dim for i in self]
+
+    def __repr__(self):
+        return "IterationTree%s" % super(IterationTree, self).__repr__()
+
+    def __getitem__(self, key):
+        ret = super(IterationTree, self).__getitem__(key)
+        return IterationTree(ret) if isinstance(key, slice) else ret
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -93,26 +118,3 @@ def derive_parameters(iet, drop_locals=False):
         parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
 
     return parameters
-
-
-def diff_parameters(iet, root, indirectly_provided=None):
-    """
-    Derive the parameters of a sub-IET, `iet`, within a Callable, `root`, and
-    split them into two groups:
-
-        * the "read-only" parameters, and
-        * the "dynamic" parameters, whose value changes at some point in `root`.
-
-    The `indirectly_provided` are the parameters that are provided indirectly to
-    `iet`, for example via a composite type (e.g., a C struct).
-    """
-    required = derive_parameters(iet)
-    required = [i for i in required if i not in as_tuple(indirectly_provided)]
-
-    known = set(root.parameters)
-    known.update({i for i in required if i.is_AbstractFunction and not i._mem_external})
-    known.update(set().union(*[i.bound_symbols for i in known]))
-
-    parameters, dynamic_parameters = split(required, lambda i: i in known)
-
-    return required, parameters, dynamic_parameters

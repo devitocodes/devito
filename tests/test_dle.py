@@ -4,7 +4,7 @@ from operator import mul
 import numpy as np
 import pytest
 
-from conftest import assert_structure, assert_blocking, _R
+from conftest import assert_structure, assert_blocking, _R, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
                     Dimension, SubDimension, Eq, Inc, ReduceMax, Operator,
                     configuration, dimensions, info, cos)
@@ -629,6 +629,7 @@ class TestNodeParallelism(object):
         assert not iterations[3].is_Affine
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
+    @skipif('arch-icc')
     @pytest.mark.parametrize('so', [0, 1, 2])
     @pytest.mark.parametrize('dim', [0, 1, 2])
     def test_array_sum_reduction(self, so, dim):

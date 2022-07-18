@@ -135,16 +135,16 @@ class AccBB(PragmaLangBB):
     DeviceIteration = DeviceAccIteration
 
     @classmethod
-    def _map_to_wait(cls, f, imask=None, queueid=None):
-        return PragmaTransfer(cls.mapper['map-enter-to-wait'], f, imask, queueid)
+    def _map_to_wait(cls, f, imask=None, qid=None):
+        return PragmaTransfer(cls.mapper['map-enter-to-wait'], f, imask, qid)
 
     @classmethod
     def _map_present(cls, f, imask=None):
         return PragmaTransfer(cls.mapper['map-present'], f, imask)
 
     @classmethod
-    def _map_wait(cls, queueid=None):
-        return Pragma(cls.mapper['map-wait'], queueid)
+    def _map_wait(cls, qid=None):
+        return Pragma(cls.mapper['map-wait'], qid)
 
     @classmethod
     def _map_delete(cls, f, imask=None, devicerm=None):
@@ -154,12 +154,12 @@ class AccBB(PragmaLangBB):
             return PragmaTransfer(cls.mapper['map-exit-delete'], f, imask)
 
     @classmethod
-    def _map_update_host_async(cls, f, imask=None, queueid=None):
-        return PragmaTransfer(cls.mapper['map-update-host-async'], f, imask, queueid)
+    def _map_update_host_async(cls, f, imask=None, qid=None):
+        return PragmaTransfer(cls.mapper['map-update-host-async'], f, imask, qid)
 
     @classmethod
-    def _map_update_device_async(cls, f, imask=None, queueid=None):
-        return PragmaTransfer(cls.mapper['map-update-device-async'], f, imask, queueid)
+    def _map_update_device_async(cls, f, imask=None, qid=None):
+        return PragmaTransfer(cls.mapper['map-update-device-async'], f, imask, qid)
 
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):

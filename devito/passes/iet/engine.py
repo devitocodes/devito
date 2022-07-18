@@ -2,7 +2,7 @@ from collections import OrderedDict, namedtuple
 from functools import partial, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           ThreadFunction, derive_parameters)
+                           ThreadCallable, derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types.args import ArgProvider
 
@@ -98,7 +98,7 @@ class Graph(object):
                 continue
             self.efuncs[i] = efunc
 
-            if isinstance(efunc, ThreadFunction):
+            if isinstance(efunc, ThreadCallable):
                 continue
 
             # The parameters/arguments lists may have changed since a pass may have:

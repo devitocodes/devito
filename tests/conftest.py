@@ -11,7 +11,7 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
                     SparseTimeFunction, cos)  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Device, sniff_mpi_distro
-from devito.arch.compiler import compiler_registry
+from devito.arch.compiler import compiler_registry, IntelCompiler
 from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
 from devito.tools import as_tuple
 
@@ -27,7 +27,7 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp'})
+                     'device-aomp', 'arch-icc'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -61,6 +61,10 @@ def skipif(items, whole_module=False):
             skipit = ("must run on device, but currently on `%s`" %
                       configuration['platform'].name)
             break
+        if i == 'arch-icc' and configuration['compiler'].__class__ == IntelCompiler:
+            skipit = "Intel compiler not supported"
+            break
+
     if skipit is False:
         return pytest.mark.skipif(False, reason='')
     else:

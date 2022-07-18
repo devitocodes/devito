@@ -4,10 +4,9 @@ from abc import ABC
 import cgen as c
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyExpr, Call, Conditional, Expression,
-                       List, Prodder, ParallelIteration, ParallelBlock,
-                       PointerCast, EntryFunction, ThreadFunction, FindNodes,
-                       FindSymbols)
+from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
+                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
+                       AsyncCallable, FindNodes, FindSymbols)
 from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.misc import is_on_device
@@ -47,14 +46,14 @@ class LangBB(object, metaclass=LangMeta):
     PointerCast = PointerCast
 
     @classmethod
-    def _map_to(cls, f, imask=None, queueid=None):
+    def _map_to(cls, f, imask=None, qid=None):
         """
         Allocate and copy Function from host to device memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_to_wait(cls, f, imask=None, queueid=None):
+    def _map_to_wait(cls, f, imask=None, qid=None):
         """
         Allocate and copy Function from host to device memory and explicitly wait.
         """
@@ -75,7 +74,7 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_wait(cls, queueid=None):
+    def _map_wait(cls, qid=None):
         """
         Explicitly wait on event.
         """
@@ -89,28 +88,28 @@ class LangBB(object, metaclass=LangMeta):
         raise NotImplementedError
 
     @classmethod
-    def _map_update_host(cls, f, imask=None, queueid=None):
+    def _map_update_host(cls, f, imask=None, qid=None):
         """
         Copy Function from device to host memory (alternative to _map_update).
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_host_async(cls, f, imask=None, queueid=None):
+    def _map_update_host_async(cls, f, imask=None, qid=None):
         """
         Asynchronously copy Function from device to host memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_device(cls, f, imask=None, queueid=None):
+    def _map_update_device(cls, f, imask=None, qid=None):
         """
         Copy Function from host to device memory.
         """
         raise NotImplementedError
 
     @classmethod
-    def _map_update_device_async(cls, f, imask=None, queueid=None):
+    def _map_update_device_async(cls, f, imask=None, qid=None):
         """
         Asynchronously copy Function from host to device memory and explicitly wait.
         """
@@ -300,7 +299,7 @@ class DeviceAwareMixin(object):
 
             return iet, {}
 
-        @_initialize.register(ThreadFunction)
+        @_initialize.register(AsyncCallable)
         def _(iet):
             devicetype = as_list(self.lang[self.platform])
             deviceid = self.deviceid
@@ -309,8 +308,7 @@ class DeviceAwareMixin(object):
                 CondNe(deviceid, -1),
                 self.lang['set-device']([deviceid] + devicetype)
             )
-            body = iet.body._rebuild(body=(init, BlankLine) + iet.body.body)
-            iet = iet._rebuild(body=body)
+            iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
             return iet, {}
 
