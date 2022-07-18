@@ -182,6 +182,28 @@ class LocalObject(AbstractObject):
         return super().free_symbols | set(self.cargs)
 
     @property
+    def _C_init(self):
+        """
+        A symbolic initializer for the LocalObject, injected in the generated code.
+
+        Notes
+        -----
+        To be overridden by subclasses, ignored otherwise.
+        """
+        return None
+
+    @property
+    def _C_free(self):
+        """
+        A symbolic destructor for the LocalObject, injected in the generated code.
+
+        Notes
+        -----
+        To be overridden by subclasses, ignored otherwise.
+        """
+        return None
+
+    @property
     def _mem_internal_eager(self):
         return self._liveness == 'eager'
 
