@@ -341,21 +341,23 @@ class CGen(Visitor):
     def visit_Definition(self, o):
         f = o.function
 
-        v = ""
+        if o.shape is not None:
+            v = o.shape
+        else:
+            v = ""
 
         if o.qualifier is not None:
-            v = o.qualifier
+            v = "%s %s" % (v, o.qualifier)
 
-        if o.constructor_args:
-            v = MultilineCall(v, o.constructor_args, True)
+        v = "%s%s" % (f._C_name, v)
 
-        if f.is_PointerArray:
-            v = c.Value(f._C_typedata, "**%s" % f._C_name)
-        elif f._mem_stack:
-            assert o.shape is not None
-            v = c.Value(f._C_typedata, "%s%s" % (f._C_name, o.shape))
+        if f._mem_stack:
+            v = c.Value(f._C_typedata, v)
         else:
-            v = c.Value(f._C_typename, f._C_name)
+            if o.constructor_args:
+                v = MultilineCall(v, o.constructor_args, True)
+
+            v = c.Value(f._C_typename, v)
 
         if o.initvalue is not None:
             v = c.Initializer(v, o.initvalue)

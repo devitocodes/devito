@@ -226,7 +226,12 @@ def ctypes_to_cstr(ctype, toarray=None, qualifiers=None):
         if toarray:
             retval = ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
         else:
-            retval = '%s *' % ctypes_to_cstr(ctype._type_)
+            retval = ctypes_to_cstr(ctype._type_)
+            if issubclass(ctype._type_, ctypes._Pointer):
+                # Look-ahead to avoid extra ugly spaces
+                retval = '%s*' % retval
+            else:
+                retval = '%s *' % retval
     elif issubclass(ctype, ctypes.Array):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):

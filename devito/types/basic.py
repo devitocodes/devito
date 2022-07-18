@@ -82,10 +82,9 @@ class CodeSymbol(object):
         -------
         str
         """
-        if issubclass(self._C_ctype, _Pointer):
-            _type = self._C_ctype._type_
-        else:
-            _type = self._C_ctype
+        _type = self._C_ctype
+        while issubclass(_type, _Pointer):
+            _type = _type._type_
 
         return ctypes_to_cstr(_type, qualifiers=self._C_typequals)
 
