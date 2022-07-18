@@ -250,7 +250,7 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
             else:
                 transform.append(slice(None, None, None))
         else:
-            transform.append(0)
+            transform.append(slice(0, 1, None))
     transform = as_tuple(transform)
 
     global_size = dat_len_cum[coords[-1]]
@@ -389,7 +389,7 @@ def flip_idx(idx, decomposition):
                 stop = i.stop
             processed.append(slice(start, stop, i.step))
         else:
-            processed.append(i)
+            processed.append(slice(i, i+1, 1))
     return as_tuple(processed)
 
 
