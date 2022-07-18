@@ -1,6 +1,4 @@
 from abc import ABC, abstractmethod
-# Polly interpolator é a que contem as duas interpolações
-# Backup cubic e sinc são as originais
 import sympy
 import numpy as np
 from cached_property import cached_property
