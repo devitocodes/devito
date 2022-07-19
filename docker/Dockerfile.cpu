@@ -33,7 +33,7 @@ RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRO
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
 
 # Install wanted components only (icc and mpiicc)
-RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi
+RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel
 
 # Set en vars by hand since we can't use entrypoint for intermediate image
 ENV ICC_HOME=/opt/intel/oneapi/compiler/latest/
