@@ -8,8 +8,8 @@ from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
                        ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
                        AsyncCallable, FindNodes, FindSymbols)
 from devito.mpi.distributed import MPICommObject
+from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.misc import is_on_device
 from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, prod
 from devito.types import Symbol, Wildcard

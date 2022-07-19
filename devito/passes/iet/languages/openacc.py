@@ -5,6 +5,7 @@ from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Call, DeviceCall, DummyExpr, DPtr, EntryFunction, List,
                        Block, ParallelIteration, ParallelTree, Pragma,
                        FindNodes, FindSymbols, Uxreplace, Transformer)
+from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
@@ -12,7 +13,6 @@ from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLan
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
-from devito.passes.iet.misc import is_on_device
 from devito.symbolics import Macro, cast_mapper
 from devito.tools import filter_ordered
 from devito.types import DevicePointer, Symbol

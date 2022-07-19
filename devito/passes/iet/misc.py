@@ -2,13 +2,11 @@ import cgen
 
 from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
-from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX, evalrel
-from devito.tools import is_integer, split
-from devito.types.dense import AliasFunction, TimeFunction
+from devito.tools import split
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
 
 
 @iet_pass
@@ -127,27 +125,3 @@ def relax_incr_dimensions(iet, **kwargs):
         headers = []
 
     return iet, {'headers': headers}
-
-
-def is_on_device(obj, gpu_fit):
-    """
-    True if the given object is allocated in the device memory, False otherwise.
-
-    Parameters
-    ----------
-    obj : Indexed or Function
-        The target object.
-    gpu_fit : list of Function
-        The Function's which are known to definitely fit in the device memory. This
-        information is given directly by the user through the compiler option
-        `gpu-fit` and is propagated down here through the various stages of lowering.
-    """
-    functions = (obj.function,)
-    fsave = [f for f in functions
-             if isinstance(f, (AliasFunction, TimeFunction)) and is_integer(f.save)]
-
-    if 'all-fallback' in gpu_fit and fsave:
-        warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
-        return True
-
-    return all(f in gpu_fit for f in fsave)
