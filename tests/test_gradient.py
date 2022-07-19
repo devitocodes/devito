@@ -14,7 +14,7 @@ from examples.seismic.viscoacoustic import viscoacoustic_setup
 
 class TestGradient(object):
 
-    @skipif('arch-icc')
+    @skipif('cpu64-icc')
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('opt', [('advanced', {'openmp': True}),
                                      ('noop', {'openmp': True})])
@@ -58,7 +58,7 @@ class TestGradient(object):
 
         assert np.allclose(gradient.data, gradient2.data, atol=0, rtol=0)
 
-    @skipif('arch-icc')
+    @skipif('cpu64-icc')
     @pytest.mark.parametrize('tn', [750.])
     @pytest.mark.parametrize('spacing', [(10, 10)])
     @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-4),
@@ -146,7 +146,7 @@ class TestGradient(object):
         assert(np.allclose(grad_u.data, grad_v.data, rtol=tolerance, atol=tolerance))
         assert(np.allclose(grad_u.data, grad_uv.data, rtol=tolerance, atol=tolerance))
 
-    @skipif('arch-icc')
+    @skipif('cpu64-icc')
     @pytest.mark.parametrize('kernel, shape, ckp, setup_func, time_order', [
         ('OT2', (50, 60), True, iso_setup, 2),
         ('OT2', (50, 60), False, iso_setup, 2),
@@ -238,7 +238,7 @@ class TestGradient(object):
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
-    @skipif('arch-icc')
+    @skipif('cpu64-icc')
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
         ('OT2', (70, 80), (15., 15.), iso_setup, 2),
         ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),

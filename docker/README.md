@@ -88,7 +88,7 @@ And to build the GPU image with `openacc` offloading and the `nvc` compiler, sim
 docker build --build-arg base=devitocodes/base:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
 ```
 
-or if you wish to use the `clang` compiler with `openmp` offlaoding:
+or if you wish to use the `clang` compiler with `openmp` offloading:
 
 ```bash
 docker build --build-arg base=devitocodes/base:nvidia-clang --network=host --file docker/Dockerfile --tag devito .

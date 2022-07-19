@@ -629,7 +629,7 @@ class TestNodeParallelism(object):
         assert not iterations[3].is_Affine
         assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
 
-    @skipif('arch-icc')
+    @skipif('cpu64-icc')
     @pytest.mark.parametrize('so', [0, 1, 2])
     @pytest.mark.parametrize('dim', [0, 1, 2])
     def test_array_sum_reduction(self, so, dim):

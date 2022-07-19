@@ -10,8 +10,8 @@ from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # no
                     Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
                     SparseTimeFunction, cos)  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Device, sniff_mpi_distro
-from devito.arch.compiler import compiler_registry, IntelCompiler
+from devito.arch import Cpu64, Device, sniff_mpi_distro
+from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
 from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
 from devito.tools import as_tuple
 
@@ -27,7 +27,7 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'arch-icc'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-nvc'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -61,8 +61,17 @@ def skipif(items, whole_module=False):
             skipit = ("must run on device, but currently on `%s`" %
                       configuration['platform'].name)
             break
-        if i == 'arch-icc' and configuration['compiler'].__class__ == IntelCompiler:
-            skipit = "Intel compiler not supported"
+        # Skip if it won't run with nvc on CPU backend
+        if i == 'cpu64-nvc' and \
+           isinstance(configuration['compiler'], NvidiaCompiler) and \
+           isinstance(configuration['platform'], Cpu64):
+            skipit = "`nvc+cpu64` won't work with this test"
+            break
+        # Skip if it won't run with IntelCompiler
+        if i == 'cpu64-icc' and \
+           isinstance(configuration['compiler'], IntelCompiler) and \
+           isinstance(configuration['platform'], Cpu64):
+            skipit = "`icc+cpu64` won't work with this test"
             break
 
     if skipit is False:
