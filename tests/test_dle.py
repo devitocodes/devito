@@ -120,12 +120,12 @@ def test_cache_blocking_structure_subdims():
     assert xl.local
 
     # Local SubDimension -> no blocking expected
-    op = Operator(Eq(f[t+1, xl, y, z], f[t, xl, y, z] + 1))
+    op = Operator(Eq(f[t+1, xl, y, z], f[t, xl, y, z] + f[t, xl, y + 1, z] + 1))
 
     assert_blocking(op, {})
 
     # Non-local SubDimension -> blocking expected
-    op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior))
+    op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior))
 
     bns, _ = assert_blocking(op, {'i0x0_blk0'})
 
@@ -542,7 +542,7 @@ class TestNodeParallelism(object):
     @pytest.mark.parametrize('eqns,expected,blocking', [
         ('[Eq(f, 2*f)]', [2, 0, 0], False),
         ('[Eq(u, 2*u)]', [0, 2, 0, 0], False),
-        ('[Eq(u, 2*u)]', [0, 3, 0, 0, 0, 0, 0], True),
+        ('[Eq(u, 2*u + f)]', [0, 3, 0, 0, 0, 0, 0], True),
         ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 0], False)
     ])
     def test_collapsing(self, eqns, expected, blocking):
@@ -828,9 +828,10 @@ class TestNestedParallelism(object):
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
 
+        f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1),
+        op = Operator(Eq(u.forward, u + f + 1),
                       opt=('blocking', 'openmp', {'par-nested': 0,
                                                   'par-collapse-ncores': 10000,
                                                   'par-dynamic-work': 0}))
@@ -859,9 +860,10 @@ class TestNestedParallelism(object):
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
 
+        f = Function(name='f', grid=grid)
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1),
+        op = Operator(Eq(u.forward, u + f + 1),
                       opt=('blocking', 'openmp', {'par-nested': 0,
                                                   'par-collapse-ncores': 1,
                                                   'par-collapse-work': 0,
@@ -971,7 +973,7 @@ class TestNestedParallelism(object):
         assert xl.local
 
         # Non-local SubDimension -> nested blocking can works as expected
-        op = Operator(Eq(f.forward, f + 1, subdomain=grid.interior),
+        op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior),
                       opt=('blocking', 'openmp',
                            {'par-nested': 0, 'blocklevels': blocklevels,
                             'par-collapse-ncores': 2,
@@ -1010,7 +1012,6 @@ class TestNestedParallelism(object):
                                                 'num_threads(nthreads_nested)')
 
     @pytest.mark.parametrize('exprs,collapsed,scheduling', [
-        (['Eq(u.forward, u + 2)'], '2', 'static'),
         (['Eq(u.forward, u.dx)'], '2', 'static'),
         (['Eq(u.forward, u.dy)'], '2', 'static'),
         (['Eq(u.forward, u.dx.dx)'], '2', 'dynamic'),

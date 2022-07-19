@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from conftest import assert_blocking, skipif
-from devito import Grid, TimeFunction, Eq, Operator, configuration, switchconfig
+from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, switchconfig
 from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
 
@@ -20,7 +20,7 @@ def test_at_is_actually_working(shape, expected):
     grid = Grid(shape=shape)
     f = TimeFunction(name='f', grid=grid)
 
-    eqn = Eq(f.forward, f + 1)
+    eqn = Eq(f.forward, f.dx + 1)
     op = Operator(eqn, opt=('blocking', {'openmp': False, 'blockinner': True}))
 
     # Run with whatever `configuration` says (by default, basic+preemptive)
@@ -50,9 +50,10 @@ def test_at_is_actually_working(shape, expected):
 def test_mode_runtime_forward():
     """Test autotuning in runtime mode."""
     grid = Grid(shape=(96, 96, 96))
+    g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), openmp=False)
+    op = Operator(Eq(f.forward, f + g + 1.), openmp=False)
     summary = op.apply(time=100, autotune=('basic', 'runtime'))
 
     # AT is expected to have attempted 6 block shapes
@@ -68,9 +69,10 @@ def test_mode_runtime_forward():
 def test_mode_runtime_backward():
     """Test autotuning in runtime mode."""
     grid = Grid(shape=(96, 96, 96))
+    g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.backward, f + 1.), openmp=False)
+    op = Operator(Eq(f.backward, f + g + 1.), openmp=False)
     summary = op.apply(time=101, autotune=('basic', 'runtime'))
 
     # AT is expected to have attempted 6 block shapes
@@ -86,9 +88,10 @@ def test_mode_runtime_backward():
 def test_mode_destructive():
     """Test autotuning in destructive mode."""
     grid = Grid(shape=(96, 96, 96))
+    g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid, time_order=0)
 
-    op = Operator(Eq(f, f + 1.), openmp=False)
+    op = Operator(Eq(f, f + g + 1.), openmp=False)
     op.apply(time=100, autotune=('basic', 'destructive'))
 
     # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
@@ -101,7 +104,7 @@ def test_blocking_only():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), openmp=False)
+    op = Operator(Eq(f.forward, f.dx + 1.), openmp=False)
     op.apply(time=0, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
@@ -114,7 +117,7 @@ def test_mixed_blocking_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), openmp=True)
+    op = Operator(Eq(f.forward, f.dx + 1.), openmp=True)
     op.apply(time=100, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
@@ -130,8 +133,8 @@ def test_mixed_blocking_w_skewing(openmp, expected):
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), opt=('blocking', {'skewing': True,
-                                                           'openmp': openmp}))
+    op = Operator(Eq(f.forward, f.dx + 1.), opt=('blocking', {'skewing': True,
+                                                              'openmp': openmp}))
     op.apply(time=0, autotune=True)
     assert op._state['autotuning'][0]['runs'] == 6
     assert op._state['autotuning'][0]['tpr'] == options['squeezer'] + 1
@@ -156,7 +159,7 @@ def test_discarding_runs():
     grid = Grid(shape=(64, 64, 64))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.),
+    op = Operator(Eq(f.forward, f.dx + 1.),
                   opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
     op.apply(time=100, nthreads=4, autotune='aggressive')
 
@@ -234,7 +237,7 @@ def test_multiple_blocking():
     u = TimeFunction(name='u', grid=grid, space_order=2)
     v = TimeFunction(name='v', grid=grid)
 
-    op = Operator([Eq(u.forward, u + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
+    op = Operator([Eq(u.forward, u.dx + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
                   opt=('blocking', {'openmp': False}))
 
     # First of all, make sure there are indeed two different loop nests
@@ -254,7 +257,7 @@ def test_multiple_blocking():
 
     # With OpenMP, we tune over one more argument (`nthreads`), though the AT
     # will only attempt one value
-    op = Operator([Eq(u.forward, u + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
+    op = Operator([Eq(u.forward, u.dx + 1), Eq(v.forward, u.forward.dx2 + v + 1)],
                   opt=('blocking', {'openmp': True}))
     op.apply(time_M=0, autotune='basic')
     assert op._state['autotuning'][0]['runs'] == 12
@@ -269,7 +272,7 @@ def test_hierarchical_blocking(opt_options):
     u = TimeFunction(name='u', grid=grid, space_order=2)
 
     opt = ('blocking', {**opt_options, 'openmp': False, 'blocklevels': 2})
-    op = Operator(Eq(u.forward, u + 1), opt=opt)
+    op = Operator(Eq(u.forward, u.dx + 1), opt=opt)
 
     # 'basic' mode
     op.apply(time_M=0, autotune='basic')
@@ -295,7 +298,7 @@ def test_multiple_threads(opt_options):
 
     v = TimeFunction(name='v', grid=grid)
     opt = ('blocking', {**opt_options, 'openmp': True})
-    op = Operator(Eq(v.forward, v + 1), opt=opt)
+    op = Operator(Eq(v.forward, v.dx + 1), opt=opt)
 
     op.apply(time_M=0, autotune='max')
     assert op._state['autotuning'][0]['runs'] == 60  # Would be 30 with `aggressive`
@@ -308,7 +311,7 @@ def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + 1.), openmp=True)
+    op = Operator(Eq(f.forward, f.dx + 1.), openmp=True)
     op.apply(time=10, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
@@ -327,13 +330,13 @@ def test_few_timesteps():
     v = TimeFunction(name='v', grid=grid, save=save)
 
     # Try forward propagation first
-    op = Operator(Eq(v.forward, v + 1))
+    op = Operator(Eq(v.forward, v.dx + 1))
     op.apply(autotune=True)
     assert op._state['autotuning'][0]['runs'] == 2
     assert op._state['autotuning'][0]['tpr'] == 2  # Induced by `save`
 
     # Now try backward propagation
-    op = Operator(Eq(v.backward, v + 1))
+    op = Operator(Eq(v.backward, v.dx + 1))
     op.apply(autotune=True)
     assert op._state['autotuning'][0]['runs'] == 2
     assert op._state['autotuning'][0]['tpr'] == 2  # Induced by `save`
