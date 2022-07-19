@@ -38,14 +38,16 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-
 # Set en vars by hand since we can't use entrypoint for intermediate image
 ENV ICC_HOME=/opt/intel/oneapi/compiler/latest/
 ENV MPICC_HOME=/opt/intel/oneapi/mpi/latest/
-ENV PATH $MPICC_HOME/bin:$MPICC_HOME/include:$ICC_HOME/linux/bin/intel64:$ICC_HOME/libfabric/bin:${PATH}
-ENV LD_LIBRARY_PATH $ICC_HOME/linux/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:$MPICC_HOME/lib:$MPICC_HOME/include:${LD_LIBRARY_PATH}
+ENV PATH $MPICC_HOME/libfabric/bin:$MPICC_HOME/bin:$ICC_HOME/linux/lib/oclfpga/bin:$ICC_HOME/linux/bin/intel64:$ICC_HOME/linux/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}
+ENV LD_LIBRARY_PATH $MPICC_HOME/libfabric/lib:$MPICC_HOME/lib/release:$MPICC_HOME/lib:$ICC_HOME/linux/lib:$ICC_HOME/linux/lib/x64:$ICC_HOME/linux/lib/oclfpga/host/linux64/lib:$ICC_HOME/linux/compiler/lib/intel64_lin:${LD_LIBRARY_PATH}
+ENV FI_PROVIDER_PATH $MPICC_HOME/libfabric/lib/prov:/usr/lib64/libfabric:${LD_LIBRARY_PATH}
+ENV I_MPI_ROOT $MPICC_HOME
 
 # Devito config
 ENV DEVITO_ARCH="icc"
 ENV DEVITO_LANGUAGE="openmp"
 # C compiler for mpi4py
-ENV MPICC="mpiicc"
+ENV MPICC=$MPICC_HOME/bin/mpiicc
 
 ##############################################################
 # Published image
