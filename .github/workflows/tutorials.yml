@@ -60,7 +60,7 @@ jobs:
       if: matrix.name != 'tutos-docker-gcc-py37'
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.8
 
     - uses: maxim-lobanov/setup-xcode@v1
       if: runner.os == 'macOS'
