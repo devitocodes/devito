@@ -300,10 +300,11 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         f_offsets = []
         f_indices = []
-        for d in f.dimensions:
+        for d, h in zip(f.dimensions, f._size_nodomain.left):
             offset = Symbol(name='o%s' % d.root, is_const=True)
             f_offsets.append(offset)
-            f_indices.append(offset + (d.root if d not in hse.loc_indices else 0))
+            offset_nohalo = offset - h
+            f_indices.append(offset_nohalo + (d.root if d not in hse.loc_indices else 0))
 
         if swap is False:
             eq = Eq(buf[dims], f[f_indices])
