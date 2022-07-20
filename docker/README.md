@@ -101,4 +101,22 @@ docker build --build-arg base=devitocodes/base:amd --network=host --file docker/
 ```
 
 
+## Build/Debug a base image (Useful for development only)
+
+This section is mostly useful for contributing to or debugging the docker images.
+Devito images are built on top of base layers that provide the necessary software stack (compilers, utilities etc.).
+
+To locally build the base image yourself, all you need is to run the standard build command using the provided Dockerfile.
+
+```bash
+# To locally build the base CPU image for gcc, simply run: 
+docker build . --file docker/Dockerfile.cpu --tag devito-gcc --build-arg arch=gcc
+# To locally build the Devito image using the previously used base, run: 
+docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devito-gcc:latest
+# To run tests using the newly built image, run: 
+docker run --rm --name testrun devito_img pytest -k "not adjoint" -m "not parallel" tests/
+# To test for example seismic tutorials using the newly built image, run: 
+docker run --rm --name testrun devito_img py.test --nbval -k 'not dask' examples/seismic/tutorials/14*
+```
+
 [Devito]:https://github.com/devitocodes/devito
