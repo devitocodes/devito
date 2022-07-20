@@ -12,6 +12,9 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install for basic base not containing it
 RUN apt-get update && apt-get install -y vim wget git
 
+# Install OpenGL library, necessary for the installation of GemPy
+RUN apt-get install -y libgl1-mesa-glx
+
 ##############################################################
 # GCC standard image
 ##############################################################
