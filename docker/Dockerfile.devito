@@ -13,6 +13,8 @@ ADD . /app/devito
 # Remove git files
 RUN rm -rf /app/devito/.git
 
+RUN apt-get update && apt-get install -y libgl1-mesa-glx xvfb
+
 # Install pip dependencies and devito as a pip package
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
