@@ -4,8 +4,7 @@ import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
                     MatrixSparseTimeFunction, sin)
-from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes
-from devito.operator import SymbolRegistry
+from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, linearize
 from devito.types import Array
 
