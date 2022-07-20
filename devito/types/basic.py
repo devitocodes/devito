@@ -1430,7 +1430,7 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
     @cached_property
     def free_symbols(self):
         ret = {self}
-        for i in self.shape:
+        for i in self.indices:
             try:
                 ret.update(i.free_symbols)
             except AttributeError:
