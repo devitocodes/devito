@@ -151,9 +151,6 @@ class Operator(Callable):
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
 
-        # Create a symbol registry
-        kwargs['sregistry'] = SymbolRegistry()
-
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -229,6 +226,9 @@ class Operator(Callable):
         """
         Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
         """
+        # Create a symbol registry
+        kwargs['sregistry'] = SymbolRegistry()
+
         expressions = as_tuple(expressions)
 
         # Input check

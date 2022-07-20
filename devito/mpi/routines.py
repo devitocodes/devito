@@ -318,6 +318,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in dims])
         eqns.append(eq)
 
+        # Compile `eqns` into an IET via recursive compilation
         irs, _ = self._lower(eqns, **self._kwargs)
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
