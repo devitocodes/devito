@@ -539,7 +539,14 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
+        self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
+
+        # Disable `warning #1650-D: result of call is not used`
+        # See `https://gist.github.com/gavinb/f2320f9eaa0e0a7efca6877a34047a9d` about
+        # disabling specific warnings with nvcc
+        self.cflags.extend(['-Xcudafe', '--display_error_number', '--diag-suppress', '1650'])
+        # Same as above but for the host compiler
+        self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
 
         self.src_ext = 'cu'
 
