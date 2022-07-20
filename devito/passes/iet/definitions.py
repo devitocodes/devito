@@ -155,32 +155,39 @@ class DataManager(object):
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
+        allocs = [self.lang['host-alloc'](memptr, alignment, nbytes)]
 
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
         ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp1), '**')
-        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes_param)
+        allocs.append(self.lang['host-alloc'](memptr, alignment, nbytes_param))
 
         ffp0 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
         init = DummyExpr(ffp0, nbytes_param)
 
-        free0 = self.lang['host-free'](ffp1)
+        frees = [self.lang['host-free'](ffp1),
+                 self.lang['host-free'](obj._C_symbol)]
 
-        free1 = self.lang['host-free'](obj._C_symbol)
+        # Not all backends require explicit allocation/deallocation of the
+        # `dmap` field
+        alloc, free = self._make_dmap_allocfree(obj, nbytes_param)
+
+        # Chain together all allocs and frees
+        allocs = as_tuple(allocs) + as_tuple(alloc)
+        frees = as_tuple(free) + as_tuple(frees)
 
         ret = Return(obj._C_symbol)
 
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, alloc0, alloc1, init, ret)
+        body = (decl,) + allocs + (init, ret)
         efunc0 = make_callable(name, body, retval=obj._C_typename)
         assert len(efunc0.parameters) == 1  # `nbytes_param`
         alloc = Call(name, nbytes_arg, retobj=obj)
 
         name = self.sregistry.make_name(prefix='free')
-        efunc1 = make_callable(name, (free0, free1))
+        efunc1 = make_callable(name, frees)
         assert len(efunc1.parameters) == 1  # `obj`
         free = Call(name, obj)
 
@@ -230,6 +237,12 @@ class DataManager(object):
                            pallocs=(obj.dim, alloc1), pfrees=(obj.dim, free1))
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
+
+    def _make_dmap_allocfree(self, obj, nbytes_param):
+        """
+        Construct IETs to allocate and free the `dmap` field of a mapped Array.
+        """
+        return None, None
 
     def _inject_definitions(self, iet, storage):
         efuncs = []
