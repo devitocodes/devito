@@ -79,7 +79,7 @@ class FIndexed(Indexed, Pickable):
 
     def __new__(cls, indexed, pname, strides=None):
         plabel = Symbol(name=pname, dtype=indexed.dtype)
-        base = IndexedData(plabel, shape=indexed.shape, function=indexed.function)
+        base = IndexedData(plabel, None, function=indexed.function)
         obj = super().__new__(cls, base, *indexed.indices)
 
         obj.indexed = indexed
