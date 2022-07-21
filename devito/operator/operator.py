@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from operator import attrgetter
 from math import ceil
 
@@ -170,29 +170,14 @@ class Operator(Callable):
 
     @classmethod
     def _build(cls, expressions, **kwargs):
-        expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
-        # Python-level (i.e., compile time) and C-level (i.e., run time) performance
+        # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
-        # Lower input expressions
-        expressions = cls._lower_exprs(expressions, **kwargs)
-
-        # Group expressions based on iteration spaces and data dependences
-        clusters = cls._lower_clusters(expressions, profiler, **kwargs)
-
-        # Lower Clusters to a ScheduleTree
-        stree = cls._lower_stree(clusters, **kwargs)
-
-        # Lower ScheduleTree to an Iteration/Expression Tree
-        iet, byproduct = cls._lower_iet(stree, profiler, **kwargs)
+        # Lower the input expressions into an IET
+        irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
 
         # Make it an actual Operator
-        op = Callable.__new__(cls, **iet.args)
+        op = Callable.__new__(cls, **irs.iet.args)
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
@@ -225,10 +210,10 @@ class Operator(Callable):
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
-        op._input = filter_sorted(flatten(e.reads + e.writes for e in expressions))
-        op._output = filter_sorted(flatten(e.writes for e in expressions))
-        op._dimensions = set().union(*[e.dimensions for e in expressions])
-        op._dtype, op._dspace = clusters.meta
+        op._input = filter_sorted(flatten(e.reads + e.writes for e in irs.expressions))
+        op._output = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
 
         return op
@@ -238,6 +223,39 @@ class Operator(Callable):
         pass
 
     # Compilation -- Expression level
+
+    @classmethod
+    def _lower(cls, expressions, **kwargs):
+        """
+        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
+        """
+        expressions = as_tuple(expressions)
+
+        # Input check
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
+
+        # Enable recursive lowering
+        # This may be used by a compilation pass that constructs a new
+        # expression for which a partial or complete lowering is desired
+        kwargs['lower'] = cls._lower
+
+        # [Eq] -> [LoweredEq]
+        expressions = cls._lower_exprs(expressions, **kwargs)
+
+        # [LoweredEq] -> [Clusters]
+        clusters = cls._lower_clusters(expressions, **kwargs)
+
+        # [Clusters] -> ScheduleTree
+        stree = cls._lower_stree(clusters, **kwargs)
+
+        # ScheduleTree -> unbounded IET
+        uiet = cls._lower_uiet(stree, **kwargs)
+
+        # unbounded IET -> IET
+        iet, byproduct = cls._lower_iet(uiet, **kwargs)
+
+        return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
     def _initialize_state(cls, **kwargs):
@@ -302,7 +320,7 @@ class Operator(Callable):
 
     @classmethod
     @timed_pass(name='lowering.Clusters')
-    def _lower_clusters(cls, expressions, profiler, **kwargs):
+    def _lower_clusters(cls, expressions, profiler=None, **kwargs):
         """
         Clusters lowering:
 
@@ -324,7 +342,10 @@ class Operator(Callable):
 
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
-        profiler.record_ops_variation(init_ops, final_ops)
+        try:
+            profiler.record_ops_variation(init_ops, final_ops)
+        except AttributeError:
+            pass
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters, sregistry=sregistry)
@@ -351,7 +372,7 @@ class Operator(Callable):
             * Derive sections for performance profiling
         """
         # Build a ScheduleTree from a sequence of Clusters
-        stree = stree_build(clusters)
+        stree = stree_build(clusters, **kwargs)
 
         stree = cls._specialize_stree(stree)
 
@@ -367,12 +388,30 @@ class Operator(Callable):
         return graph
 
     @classmethod
+    @timed_pass(name='lowering.uIET')
+    def _lower_uiet(cls, stree, profiler=None, **kwargs):
+        """
+        Turn a ScheduleTree into an unbounded Iteration/Expression tree, that is
+        in essence a "floating" IET where one or more variables may be unbounded
+        (i.e., no definition placed yet).
+        """
+        # Build an unbounded IET from a ScheduleTree
+        uiet = iet_build(stree)
+
+        # Analyze the IET Sections for C-level profiling
+        try:
+            profiler.analyze(uiet)
+        except AttributeError:
+            pass
+
+        return uiet
+
+    @classmethod
     @timed_pass(name='lowering.IET')
-    def _lower_iet(cls, stree, profiler, **kwargs):
+    def _lower_iet(cls, uiet, profiler=None, **kwargs):
         """
         Iteration/Expression tree lowering:
 
-            * Turn a ScheduleTree into an Iteration/Expression tree;
             * Introduce distributed-memory, shared-memory, and SIMD parallelism;
             * Introduce optimizations for data locality;
             * Finalize (e.g., symbol definitions, array casts)
@@ -380,16 +419,10 @@ class Operator(Callable):
         name = kwargs.get("name", "Kernel")
         sregistry = kwargs['sregistry']
 
-        # Build an IET from a ScheduleTree
-        iet = iet_build(stree)
-
-        # Analyze the IET Sections for C-level profiling
-        profiler.analyze(iet)
-
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
-        parameters = derive_parameters(iet, True)
-        iet = EntryFunction(name, iet, 'int', parameters, ())
+        parameters = derive_parameters(uiet, True)
+        iet = EntryFunction(name, uiet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
         graph = Graph(iet)
@@ -891,6 +924,9 @@ class Operator(Callable):
 # Misc helpers
 
 
+IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
+
+
 class ArgumentsMap(dict):
 
     def __init__(self, args, grid, op):
@@ -1013,11 +1049,13 @@ def parse_kwargs(**kwargs):
         if compiler not in configuration._accepted['compiler']:
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
-                                                         language=kwargs['language'])
+                                                         language=kwargs['language'],
+                                                         mpi=configuration['mpi'])
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
-                                                   language=kwargs['language'])
+                                                   language=kwargs['language'],
+                                                   mpi=configuration['mpi'])
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 

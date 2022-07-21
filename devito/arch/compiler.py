@@ -538,7 +538,7 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC', '-lineinfo']
+        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
 
         self.src_ext = 'cu'
 

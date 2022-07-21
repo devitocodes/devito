@@ -131,8 +131,8 @@ class OmpBB(PragmaLangBB):
         'init': None,
         'thread-num': lambda retobj=None:
             Call('omp_get_thread_num', retobj=retobj),
-        'num-devices': lambda args:
-            DefFunction('omp_get_num_devices', args),
+        'num-devices': lambda args, retobj:
+            Call('omp_get_num_devices', args, retobj=retobj),
         'set-device': lambda args:
             Call('omp_set_default_device', args),
         # Pragmas

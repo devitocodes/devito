@@ -671,15 +671,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     _C_field_halo_size = 'hsize'
     _C_field_halo_ofs = 'hofs'
     _C_field_owned_ofs = 'oofs'
+    _C_field_dmap = 'dmap'
 
-    _C_typedecl = Struct(_C_structname,
-                         [Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
-                          Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
-                          Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs)])
+    _C_typedecl = Struct(_C_structname, [
+        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
+        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
+        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs),
+        Value(ctypes_to_cstr(c_void_p), _C_field_dmap)
+    ])
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_void_p),
@@ -688,7 +691,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           (_C_field_domain_size, POINTER(c_ulong)),
                                           (_C_field_halo_size, POINTER(c_int)),
                                           (_C_field_halo_ofs, POINTER(c_int)),
-                                          (_C_field_owned_ofs, POINTER(c_int))]}))
+                                          (_C_field_owned_ofs, POINTER(c_int)),
+                                          (_C_field_dmap, c_void_p)]}))
 
     def _C_make_dataobj(self, data):
         """
@@ -705,6 +709,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
         dataobj._obj.oofs = (c_int*(self.ndim*2))(*flatten(self._offset_owned))
+
+        # Fields used only within C-land
+        dataobj._obj.dmap = c_void_p(0)
 
         # stash a reference to the array on _obj, so we don't let it get freed
         # while we hold onto _obj
@@ -1645,10 +1652,6 @@ class AliasFunction(DiscreteFunction):
 
     __indices_setup__ = Function.__indices_setup__
     __shape_setup__ = Function.__shape_setup__
-
-    @property
-    def _mem_mapped(self):
-        return False
 
     @property
     def data(self):

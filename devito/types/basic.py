@@ -18,7 +18,8 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject', 'CompositeObject']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
+           'CompositeObject', 'IndexedData', 'DeviceMap']
 
 
 Size = namedtuple('Size', 'left right')
@@ -181,7 +182,7 @@ class CodeSymbol(object):
             * the host DRAM if platform=GPU
             * the device DRAM if platform=CPU
         """
-        return not self._mem_local
+        return False
 
     @property
     def _mem_host(self):
@@ -1018,6 +1019,19 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         """The wrapped IndexedData object."""
         return IndexedData(self.name, shape=self.shape, function=self.function)
 
+    @cached_property
+    def dmap(self):
+        """
+        A symbolic pointer to the device data map. If there's no such a map,
+        return None.
+        """
+        if self._mem_mapped:
+            return DeviceMap('d_%s' % self.name, shape=self.shape, function=self.function)
+        elif self._mem_local:
+            return self.indexed
+        else:
+            return None
+
     @property
     def size(self):
         """
@@ -1054,6 +1068,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @cached_property
     def _C_symbol(self):
         return BoundSymbol(name=self._C_name, dtype=self.dtype, function=self.function)
+
+    @property
+    def _mem_mapped(self):
+        return not self._mem_local
 
     def _make_pointer(self):
         """Generate a symbolic pointer to self."""
@@ -1371,7 +1389,7 @@ class LocalObject(AbstractObject):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(sympy.IndexedBase, Basic, Pickable):
+class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     """
     Wrapper class that inserts a pointer to the symbolic data object.
@@ -1387,14 +1405,13 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
         return obj
 
     def func(self, *args):
-        obj = super(IndexedData, self).func(*args)
+        obj = super().func(*args)
         obj.function = self.function
         return obj
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
-        indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
-        return Indexed(*indexed.args)
+        return Indexed(self, *as_tuple(indices))
 
     def _hashable_content(self):
         return super()._hashable_content() + (self.function,)
@@ -1440,6 +1457,14 @@ class IndexedData(sympy.IndexedBase, Basic, Pickable):
     # Pickling support
     _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class IndexedData(IndexedBase):
+    pass
+
+
+class DeviceMap(IndexedBase):
+    pass
 
 
 class BoundSymbol(AbstractSymbol):

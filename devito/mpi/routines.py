@@ -12,12 +12,11 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
                            AugmentedExpression, Iteration, List, Prodder, Return,
                            make_efunc, FindNodes, Transformer)
-from devito.ir.support import AFFINE, PARALLEL
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
 from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten, generator
-from devito.types import Array, Dimension, Symbol, LocalObject, CompositeObject
+from devito.types import Array, Dimension, Eq, Symbol, LocalObject, CompositeObject
 from devito.types.dense import AliasFunction
 
 __all__ = ['HaloExchangeBuilder', 'mpi_registry']
@@ -29,12 +28,14 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, mode, sregistry, **generators):
-        obj = object.__new__(mpi_registry[mode])
+    def __new__(cls, mpimode, generators=None, lower=None, **kwargs):
+        obj = object.__new__(mpi_registry[mpimode])
 
-        obj._sregistry = sregistry
+        obj._lower = lower
+        obj._kwargs = kwargs
 
         # Unique name generators
+        generators = generators or {}
         obj._gen_msgkey = generators.get('msg', generator())
         obj._gen_commkey = generators.get('comm', generator())
         obj._gen_compkey = generators.get('comp', generator())
@@ -49,7 +50,7 @@ class HaloExchangeBuilder(object):
 
     @property
     def sregistry(self):
-        return self._sregistry
+        return self._kwargs['sregistry']
 
     @property
     def efuncs(self):
@@ -280,7 +281,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                            grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
-            key = "".join(str(d) for d in f.dimensions)
+            key = str(len(self._cache_dims))
             sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
             gather = self._make_copy(df, hse, key)
             scatter = self._make_copy(df, hse, key, swap=True)
@@ -298,48 +299,42 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         return haloupdate, halowait
 
     def _make_copy(self, f, hse, key, swap=False):
-        buf_dims = []
-        buf_indices = []
-        for d in f.dimensions:
-            if d not in hse.loc_indices:
-                buf_dims.append(Dimension(name='buf_%s' % d.root))
-                buf_indices.append(d.root)
-        buf = Array(name=self.sregistry.make_name(prefix='buf'),
-                    dimensions=buf_dims, dtype=f.dtype, padding=0)
+        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        buf = Array(name='buf%s' % key, dimensions=dims, dtype=f.dtype, padding=0)
 
         f_offsets = []
         f_indices = []
         for d in f.dimensions:
-            offset = Symbol(name='o%s' % d.root)
+            offset = Symbol(name='o%s' % d.root, is_const=True)
             f_offsets.append(offset)
             f_indices.append(offset + (d.root if d not in hse.loc_indices else 0))
 
         if swap is False:
-            eq = DummyEq(buf[buf_indices], f[f_indices])
+            eq = Eq(buf[dims], f[f_indices])
             name = 'gather%s' % key
         else:
-            eq = DummyEq(f[f_indices], buf[buf_indices])
+            eq = Eq(f[f_indices], buf[dims])
             name = 'scatter%s' % key
 
-        iet = Expression(eq)
-        for i, d in reversed(list(zip(buf_indices, buf_dims))):
-            # The -1 below is because an Iteration, by default, generates <=
-            iet = Iteration(iet, i, d.symbolic_size - 1, properties=(PARALLEL, AFFINE))
+        eqns = []
+        eqns.extend([Eq(d.symbolic_min, 0) for d in dims])
+        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in dims])
+        eqns.append(eq)
+
+        irs, _ = self._lower(eqns, **self._kwargs)
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
-        return CopyBuffer(name, iet, parameters)
+
+        return CopyBuffer(name, irs.uiet, parameters)
 
     def _make_sendrecv(self, f, hse, key, **kwargs):
         comm = f.grid.distributor._obj_comm
 
-        buf_dims = [Dimension(name='buf_%s' % d.root) for d in f.dimensions
-                    if d not in hse.loc_indices]
-        bufg = Array(name=self.sregistry.make_name(prefix='bufg'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0,
-                     liveness='eager')
-        bufs = Array(name=self.sregistry.make_name(prefix='bufs'),
-                     dimensions=buf_dims, dtype=f.dtype, padding=0,
-                     liveness='eager')
+        dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        bufg = Array(name='bufg%s' % key, dimensions=dims, dtype=f.dtype,
+                     padding=0, liveness='eager')
+        bufs = Array(name='bufs%s' % key, dimensions=dims, dtype=f.dtype,
+                     padding=0, liveness='eager')
 
         ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
         ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
@@ -532,7 +527,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
                            grid=f.grid, shape=f.shape_global, dimensions=f.dimensions)
 
         if f.dimensions not in self._cache_dims:
-            key = "".join(str(d) for d in f.dimensions)
+            key = str(len(self._cache_dims))
             sendrecv = self._make_sendrecv(df, hse, key, msg=msg)
             gather = self._make_copy(df, hse, key)
             wait = self._make_wait(df, hse, key, msg=msg)
@@ -588,13 +583,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return Call(name, [f] + ofsg + [fromrank, torank, comm, msg])
 
     def _make_haloupdate(self, f, hse, key, msg=None):
-        iet = super(OverlapHaloExchangeBuilder, self)._make_haloupdate(f, hse, key,
-                                                                       msg=msg)
+        iet = super()._make_haloupdate(f, hse, key, msg=msg)
         iet = iet._rebuild(parameters=iet.parameters + (msg,))
         return iet
 
     def _call_haloupdate(self, name, f, hse, msg):
-        call = super(OverlapHaloExchangeBuilder, self)._call_haloupdate(name, f, hse)
+        call = super()._call_haloupdate(name, f, hse)
         call = call._rebuild(arguments=call.arguments + (msg,))
         return call
 

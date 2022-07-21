@@ -587,6 +587,12 @@ class PragmaDeviceAwareDataManager(DeviceAwareDataManager):
 class PragmaLangBB(LangBB):
 
     @classmethod
+    def _get_num_devices(cls, platform):
+        devicetype = as_tuple(cls.mapper[platform])
+        ngpus = Symbol(name='ngpus')
+        return ngpus, cls.mapper['num-devices'](devicetype, ngpus)
+
+    @classmethod
     def _map_to(cls, f, imask=None, qid=None):
         return PragmaTransfer(cls.mapper['map-enter-to'], f, imask)
 

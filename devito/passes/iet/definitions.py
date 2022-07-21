@@ -16,7 +16,7 @@ from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitialize
                               SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM
-from devito.types.basic import AbstractFunction
+from devito.types.dense import AliasFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -252,17 +252,16 @@ class DataManager(object):
         # Candidates
         indexeds = FindSymbols('indexeds|indexedbases').visit(iet)
 
-        # A cast is needed only if the underlying data object isn't already
+        # Create Function -> n-dimensional array casts
+        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
+        # NOTE: a cast is needed only if the underlying data object isn't already
         # defined inside the kernel, which happens, for example, when:
         # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
-        needs_cast = lambda f: f.indexed not in defines
-
-        # Create Function -> n-dimensional array casts
-        # E.g. `float (*u)[.] = (float (*)[.]) u_vec->data`
-        functions = sorted({i.function for i in indexeds}, key=lambda i: i.name)
-        casts = [self.lang.PointerCast(f) for f in functions if needs_cast(f)]
+        bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
+        casts = [self.lang.PointerCast(i.function, obj=i) for i in bases
+                 if i not in defines]
 
         # Incorporate the newly created casts
         if casts:
@@ -370,9 +369,9 @@ class DeviceAwareDataManager(DataManager):
         """
 
         def needs_transfer(f):
-            return (isinstance(f, AbstractFunction) and
-                    is_on_device(f, self.gpu_fit) and
-                    f._mem_mapped)
+            return (f._mem_mapped and
+                    not isinstance(f, AliasFunction) and
+                    is_on_device(f, self.gpu_fit))
 
         writes = set()
         reads = set()

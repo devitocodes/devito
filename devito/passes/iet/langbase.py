@@ -46,6 +46,13 @@ class LangBB(object, metaclass=LangMeta):
     PointerCast = PointerCast
 
     @classmethod
+    def _get_num_devices(cls):
+        """
+        Get the number of accessible devices.
+        """
+        raise NotImplementedError
+
+    @classmethod
     def _map_to(cls, f, imask=None, qid=None):
         """
         Allocate and copy Function from host to device memory.
@@ -270,9 +277,7 @@ class DeviceAwareMixin(object):
                 rank_decl = DummyExpr(rank, 0)
                 rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
 
-                ngpus = Symbol(name='ngpus')
-                call = self.lang['num-devices'](devicetype)
-                ngpus_init = DummyExpr(ngpus, call)
+                ngpus, call_ngpus = self.lang._get_num_devices(self.platform)
 
                 osdd_then = self.lang['set-device']([deviceid] + devicetype)
                 osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)
@@ -280,7 +285,7 @@ class DeviceAwareMixin(object):
                 body = lang_init + [Conditional(
                     CondNe(deviceid, -1),
                     osdd_then,
-                    List(body=[rank_decl, rank_init, ngpus_init, osdd_else]),
+                    List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
                 )]
 
                 header = c.Comment('Begin of %s+MPI setup' % self.lang['name'])
