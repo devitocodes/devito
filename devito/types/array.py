@@ -5,7 +5,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.parameters import configuration
-from devito.tools import as_tuple, dtype_to_ctype
+from devito.tools import as_tuple, c_restrict_void_p, dtype_to_ctype
 from devito.types.basic import AbstractFunction, IndexedData
 from devito.types.utils import CtypesFactory
 
@@ -223,7 +223,7 @@ class ArrayMapped(Array):
     _C_field_dmap = 'dmap'
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [(_C_field_data, c_void_p),
+                            {'_fields_': [(_C_field_data, c_restrict_void_p),
                                           (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p)]}))
 
