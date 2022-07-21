@@ -73,6 +73,9 @@ class IREq(sympy.Eq, Pickable):
         kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
         return self.func(*args, **kwargs)
 
+    # Pickling support
+    __reduce_ex__ = Pickable.__reduce_ex__
+
 
 class Operation(Tag):
 
@@ -97,9 +100,6 @@ class Operation(Tag):
         # now, since they would remain unexploited inside the compiler
 
         return None
-
-    # Pickling support
-    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 OpInc = Operation('+')
