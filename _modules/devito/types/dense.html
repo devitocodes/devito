@@ -744,15 +744,18 @@
     <span class="n">_C_field_halo_size</span> <span class="o">=</span> <span class="s1">&#39;hsize&#39;</span>
     <span class="n">_C_field_halo_ofs</span> <span class="o">=</span> <span class="s1">&#39;hofs&#39;</span>
     <span class="n">_C_field_owned_ofs</span> <span class="o">=</span> <span class="s1">&#39;oofs&#39;</span>
+    <span class="n">_C_field_dmap</span> <span class="o">=</span> <span class="s1">&#39;dmap&#39;</span>
 
-    <span class="n">_C_typedecl</span> <span class="o">=</span> <span class="n">Struct</span><span class="p">(</span><span class="n">_C_structname</span><span class="p">,</span>
-                         <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">restrict&#39;</span> <span class="o">%</span> <span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">c_void_p</span><span class="p">),</span> <span class="n">_C_field_data</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_size</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_nopad_size</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_domain_size</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_size</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_ofs</span><span class="p">),</span>
-                          <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_owned_ofs</span><span class="p">)])</span>
+    <span class="n">_C_typedecl</span> <span class="o">=</span> <span class="n">Struct</span><span class="p">(</span><span class="n">_C_structname</span><span class="p">,</span> <span class="p">[</span>
+        <span class="n">Value</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">restrict&#39;</span> <span class="o">%</span> <span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">c_void_p</span><span class="p">),</span> <span class="n">_C_field_data</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_size</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_nopad_size</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span> <span class="n">_C_field_domain_size</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_size</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_halo_ofs</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span> <span class="n">_C_field_owned_ofs</span><span class="p">),</span>
+        <span class="n">Value</span><span class="p">(</span><span class="n">ctypes_to_cstr</span><span class="p">(</span><span class="n">c_void_p</span><span class="p">),</span> <span class="n">_C_field_dmap</span><span class="p">)</span>
+    <span class="p">])</span>
 
     <span class="n">_C_ctype</span> <span class="o">=</span> <span class="n">POINTER</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">_C_structname</span><span class="p">,</span> <span class="p">(</span><span class="n">Structure</span><span class="p">,),</span>
                             <span class="p">{</span><span class="s1">&#39;_fields_&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="n">_C_field_data</span><span class="p">,</span> <span class="n">c_void_p</span><span class="p">),</span>
@@ -761,7 +764,8 @@
                                           <span class="p">(</span><span class="n">_C_field_domain_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_ulong</span><span class="p">)),</span>
                                           <span class="p">(</span><span class="n">_C_field_halo_size</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
                                           <span class="p">(</span><span class="n">_C_field_halo_ofs</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
-                                          <span class="p">(</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">))]}))</span>
+                                          <span class="p">(</span><span class="n">_C_field_owned_ofs</span><span class="p">,</span> <span class="n">POINTER</span><span class="p">(</span><span class="n">c_int</span><span class="p">)),</span>
+                                          <span class="p">(</span><span class="n">_C_field_dmap</span><span class="p">,</span> <span class="n">c_void_p</span><span class="p">)]}))</span>
 
     <span class="k">def</span> <span class="nf">_C_make_dataobj</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -778,6 +782,9 @@
         <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">hsize</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size_halo</span><span class="p">))</span>
         <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">hofs</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_halo</span><span class="p">))</span>
         <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">oofs</span> <span class="o">=</span> <span class="p">(</span><span class="n">c_int</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="o">*</span><span class="mi">2</span><span class="p">))(</span><span class="o">*</span><span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_offset_owned</span><span class="p">))</span>
+
+        <span class="c1"># Fields used only within C-land</span>
+        <span class="n">dataobj</span><span class="o">.</span><span class="n">_obj</span><span class="o">.</span><span class="n">dmap</span> <span class="o">=</span> <span class="n">c_void_p</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
 
         <span class="c1"># stash a reference to the array on _obj, so we don&#39;t let it get freed</span>
         <span class="c1"># while we hold onto _obj</span>
@@ -1718,10 +1725,6 @@
 
     <span class="n">__indices_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span>
     <span class="n">__shape_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__shape_setup__</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_mem_mapped</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
