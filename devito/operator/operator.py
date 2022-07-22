@@ -14,10 +14,10 @@ from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
+from devito.ir.support import SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
-from devito.operator.symbols import SymbolRegistry
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph, generate_implicit, instrument
@@ -151,9 +151,6 @@ class Operator(Callable):
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
 
-        # Create a symbol registry
-        kwargs['sregistry'] = SymbolRegistry()
-
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             op = cls._build(expressions, **kwargs)
@@ -229,6 +226,9 @@ class Operator(Callable):
         """
         Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
         """
+        # Create a symbol registry
+        kwargs['sregistry'] = SymbolRegistry()
+
         expressions = as_tuple(expressions)
 
         # Input check

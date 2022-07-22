@@ -974,6 +974,18 @@ class Uxreplace(Transformer):
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
 
+    def visit_PragmaTransfer(self, o):
+        function = uxreplace(o.function, self.mapper)
+        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        return o._rebuild(function=function, arguments=arguments)
+
+    def visit_HaloSpot(self, o):
+        hs = o.halo_scheme
+        fmapper = {self.mapper.get(k, k): v for k, v in hs.fmapper.items()}
+        halo_scheme = hs.build(fmapper, hs.honored)
+        body = self._visit(o.body)
+        return o._rebuild(halo_scheme=halo_scheme, body=body)
+
     visit_ThreadedProdder = visit_Call
 
 

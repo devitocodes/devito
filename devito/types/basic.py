@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, Structure, byref
+from ctypes import POINTER, byref
 from functools import reduce
 from operator import mul
 
@@ -16,7 +16,7 @@ from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
-from devito.types.utils import DimensionTuple
+from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
            'CompositeObject', 'IndexedData', 'DeviceMap']
@@ -322,6 +322,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
+    __rkwargs__ = ('name', 'dtype', 'is_const')
+
     @classmethod
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
@@ -438,8 +440,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         return self
 
     # Pickling support
-    _pickle_args = []
-    _pickle_kwargs = ['name', 'dtype', 'is_const']
     __reduce_ex__ = Pickable.__reduce_ex__
 
     def __getnewargs_ex__(self):
@@ -787,6 +787,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_real = True
     is_imaginary = False
     is_commutative = True
+
+    __rkwargs__ = ('name', 'dtype', 'halo', 'padding')
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
@@ -1183,11 +1185,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self.indexed[index]
 
     # Pickling support
-    _pickle_kwargs = ['name', 'dtype', 'halo', 'padding']
     __reduce_ex__ = Pickable.__reduce_ex__
 
+    # Reconstruction support
     @property
-    def _pickle_reconstruct(self):
+    def _rcls(self):
         return self.__class__.__base__
 
 
@@ -1212,6 +1214,8 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     """
 
     is_AbstractObject = True
+
+    __rargs__ = ('name', 'dtype')
 
     def __new__(cls, *args, **kwargs):
         with sympy_mutex:
@@ -1256,7 +1260,6 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return self
 
     # Pickling support
-    _pickle_args = ['name', 'dtype']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -1310,16 +1313,10 @@ class CompositeObject(Object):
     Object with composite type (e.g., a C struct) defined in Python.
     """
 
-    _dtype_cache = {}
-
-    @classmethod
-    def _generate_unique_dtype(cls, pname, pfields):
-        dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
-        key = (pname, tuple(pfields))
-        return cls._dtype_cache.setdefault(key, dtype)
+    __rargs__ = ('name', 'pname', 'pfields')
 
     def __init__(self, name, pname, pfields, value=None):
-        dtype = CompositeObject._generate_unique_dtype(pname, pfields)
+        dtype = CtypesFactory.generate(pname, pfields)
         value = self.__value_setup__(dtype, value)
         super(CompositeObject, self).__init__(name, dtype, value)
 
@@ -1342,10 +1339,6 @@ class CompositeObject(Object):
     def _C_typedecl(self):
         return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
 
-    # Pickling support
-    _pickle_args = ['name', 'pname', 'pfields']
-    _pickle_kwargs = []
-
 
 class LocalObject(AbstractObject):
 
@@ -1359,6 +1352,9 @@ class LocalObject(AbstractObject):
     """
     LocalObjects encode their dtype as a class attribute.
     """
+
+    __rargs__ = ('name',)
+    __rkwargs__ = ('constructor_args', 'liveness')
 
     def __init__(self, name, constructor_args=None, **kwargs):
         self.name = name
@@ -1379,10 +1375,6 @@ class LocalObject(AbstractObject):
     def _mem_internal_lazy(self):
         return self._liveness == 'lazy'
 
-    # Pickling support
-    _pickle_args = ['name']
-    _pickle_kwargs = ['constructor_args', 'liveness']
-
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
 # - To keep track of `function`
@@ -1395,7 +1387,10 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     Wrapper class that inserts a pointer to the symbolic data object.
     """
 
-    def __new__(cls, label, shape=None, function=None):
+    __rargs__ = ('label', 'shape')
+    __rkwargs__ = ('function',)
+
+    def __new__(cls, label, shape, function=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
             label = Symbol(name=label, dtype=None)
@@ -1404,10 +1399,7 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         obj.function = function
         return obj
 
-    def func(self, *args):
-        obj = super().func(*args)
-        obj.function = self.function
-        return obj
+    func = Pickable._rebuild
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
@@ -1455,7 +1447,6 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         return ret
 
     # Pickling support
-    _pickle_kwargs = ['label', 'shape', 'function']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

@@ -102,6 +102,13 @@ def test_indexed():
     assert u.free_symbols == {x, y}
     assert u.indexed.free_symbols == {u.indexed}
 
+    # Test reconstruction
+    assert u.indexed.func() == u.indexed
+    ru = u.indexed.func(*u.indexed.args)
+    assert ru is not u.indexed
+    assert ru == u.indexed
+    assert ru.function is u
+
     ub = Array(name='ub', dtype=u.dtype, dimensions=u.dimensions)
 
     assert ub.free_symbols == {x, y}

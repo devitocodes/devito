@@ -181,14 +181,14 @@ class TestStreaming(object):
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
-        b = 14 if configuration['language'] == 'openacc' else 13  # No `qid` w/ OMP
-        assert str(exprs[0]) == 'const int deviceid = sdata0->deviceid;'
-        assert str(exprs[b]) == 'const int time = sdata0->time;'
-        assert str(exprs[b+1]) == 'lock0[0] = 1;'
-        assert exprs[b+2].write is u
-        assert exprs[b+3].write is v
-        assert str(exprs[b+4]) == 'lock0[0] = 2;'
-        assert str(exprs[b+5]) == 'sdata0->flag = 1;'
+        b = 13 if configuration['language'] == 'openacc' else 12  # No `qid` w/ OMP
+        assert str(exprs[b]) == 'const int deviceid = sdata->deviceid;'
+        assert str(exprs[b+1]) == 'const int time = sdata->time;'
+        assert str(exprs[b+2]) == 'lock0[0] = 1;'
+        assert exprs[b+3].write is u
+        assert exprs[b+4].write is v
+        assert str(exprs[b+5]) == 'lock0[0] = 2;'
+        assert str(exprs[b+6]) == 'sdata->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -216,7 +216,7 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1 + 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
@@ -237,14 +237,10 @@ class TestStreaming(object):
                 'Ne(FieldFromComposite(flag, sdata1[0], ()), 1)')  # Wait-thread
         assert str(body.body[1]) == 'sdata1[0].time = time;'
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
-        assert len(op._func_table) == 4
+        assert len(op._func_table) == 2
         exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
         b = 15 if configuration['language'] == 'openacc' else 14  # No `qid` w/ OMP
         assert str(exprs[b]) == 'lock0[0] = 1;'
-        assert exprs[b+1].write is u
-        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host1'].root)
-        assert str(exprs[b]) == 'lock1[0] = 1;'
-        assert exprs[b+1].write is v
 
         op.apply(time_M=nt-2)
 
@@ -415,7 +411,7 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 4, 6),
+        (('buffering', 'streaming', 'orchestrate'), 7, 3),
         (('buffering', 'streaming', 'fuse', 'orchestrate'), 4, 3),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
@@ -642,12 +638,16 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op0)) == 2
         assert len(retrieve_iteration_tree(op1)) == 7
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree
         assert threads[1].size.size == async_degree
-        assert len(op1._func_table) == 4  # usave and vsave eqns are in two diff efuncs
+
+        # It is true that the usave and vsave eqns are separated in two different
+        # loop nests, but they eventually get mapped to the same pair of efuncs,
+        # since devito attempts to maximize code reuse
+        assert len(op1._func_table) == 2
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
@@ -806,7 +806,9 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate'))
 
         # Check generated code
-        assert len(op._func_table) == 4  # usave and vsave eqns are in separate tasks
+        # The `usave` and `vsave` eqns are in separate tasks, but the tasks
+        # are identical, so they get mapped to the same efuncs (init + copy)
+        assert len(op._func_table) == 2
 
         op.apply(time_M=nt-1)
 

@@ -1251,6 +1251,52 @@ class TestCodeGeneration(object):
         assert calls[1].name == 'halowait0'
         assert_blocking(op, {'x0_blk0'})
 
+    @pytest.mark.parallel(mode=[
+        (1, 'basic'),
+        (1, 'diag'),
+        (1, 'overlap'),
+        (1, 'overlap2'),
+        (1, 'diag2'),
+        (1, 'full'),
+    ])
+    def test_min_code_size(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        g = TimeFunction(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(f.forward, f.dx2 + 1.),
+                Eq(g.forward, g.dx2 + 1.)]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        calls = FindNodes(Call).visit(op)
+
+        if configuration['mpi'] in ('basic', 'diag'):
+            assert len(op._func_table) == 4  # gather, scatter, sendrecv, haloupdate
+            assert len(calls) == 2
+            assert calls[0].name == 'haloupdate0'
+            assert calls[1].name == 'haloupdate0'
+        elif configuration['mpi'] in ('overlap'):
+            assert len(op._func_table) == 8
+            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert 'haloupdate1' not in op._func_table
+        elif configuration['mpi'] in ('overlap2'):
+            assert len(op._func_table) == 6
+            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert 'haloupdate1' not in op._func_table
+        elif configuration['mpi'] in ('diag2'):
+            assert len(op._func_table) == 4
+            assert len(calls) == 4
+            assert calls[0].name == 'haloupdate0'
+            assert calls[1].name == 'haloupdate0'
+        elif configuration['mpi'] in ('full'):
+            assert len(op._func_table) == 7
+            assert len(calls) == 6
+            assert 'haloupdate1' not in op._func_table
+
 
 class TestOperatorAdvanced(object):
 

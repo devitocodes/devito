@@ -7,7 +7,7 @@ IPYTHONDIR=~/.ipython
 ipcluster stop --profile=mpi || echo "No active profile_mpi"
 
 # Remove any existing configuration
-rm $IPYTHONDIR/profile_mpi/ipcluster_config.py
+rm -rf $IPYTHONDIR/profile_mpi/
 
 # Create a new profile, called "mpi"
 ipython profile create --parallel --profile=mpi

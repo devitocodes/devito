@@ -201,9 +201,8 @@ class Derivative(sympy.Derivative, Differentiable):
         _kwargs.update(**kwargs)
         return Derivative(expr, *self.dims, **_kwargs)
 
-    @property
-    def func(self):
-        return lambda *a, **kw: self._new_from_self(expr=a[0], **kw)
+    def func(self, expr, *args, **kwargs):
+        return self._new_from_self(expr=expr, **kwargs)
 
     def subs(self, *args, **kwargs):
         """

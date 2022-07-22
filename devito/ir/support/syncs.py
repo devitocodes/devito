@@ -13,6 +13,8 @@ __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate
 
 class SyncOp(Pickable):
 
+    __rargs__ = ('function', 'handle')
+
     def __init__(self, function, handle):
         self.function = function
         self.handle = handle
@@ -38,7 +40,6 @@ class SyncOp(Pickable):
         return self.handle.function
 
     # Pickling support
-    _pickle_args = ['function', 'handle']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
@@ -52,6 +53,8 @@ class SyncCopyOut(SyncOp):
 
 
 class SyncCopyIn(SyncOp):
+
+    __rargs__ = SyncOp.__rargs__ + ('dim', 'size', 'target', 'tstore')
 
     def __init__(self, function, handle, dim, size, target, tstore):
         super().__init__(function, handle)
@@ -82,7 +85,6 @@ class SyncCopyIn(SyncOp):
         return tuple(ret)
 
     # Pickling support
-    _pickle_args = SyncOp._pickle_args + ['dim', 'size', 'target', 'tstore']
     __reduce_ex__ = Pickable.__reduce_ex__
 
 

@@ -12,9 +12,10 @@ from devito.types import Eq, Inc, ReduceMax, ReduceMin
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax']
 
 
-class IREq(sympy.Eq):
+class IREq(sympy.Eq, Pickable):
 
-    _state = ('ispace', 'conditionals', 'implicit_dims', 'operation')
+    __rargs__ = ('lhs', 'rhs')
+    __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
 
     @property
     def is_Scalar(self):
@@ -48,7 +49,7 @@ class IREq(sympy.Eq):
 
     @property
     def state(self):
-        return {i: getattr(self, i) for i in self._state}
+        return {i: getattr(self, i) for i in self.__rkwargs__}
 
     @property
     def operation(self):
@@ -71,6 +72,9 @@ class IREq(sympy.Eq):
         kwargs = dict(self.state)
         kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
         return self.func(*args, **kwargs)
+
+    # Pickling support
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class Operation(Tag):
@@ -112,24 +116,25 @@ class LoweredEq(IREq):
 
     A SymPy equation enriched with metadata such as an IterationSpace.
 
-    When created as ``LoweredEq(devito.Eq)``, the iteration space is automatically
-    derived from analysis of ``expr``.
+    When created as `LoweredEq(devito.Eq)`, the iteration space is automatically
+    derived from analysis of `expr`.
 
-    When created as ``LoweredEq(devito.LoweredEq, **kwargs)``, the keyword
-    arguments can be anything that appears in ``LoweredEq._state`` (e.g., ispace).
+    When created as `LoweredEq(devito.LoweredEq, **kwargs)`, the keyword
+    arguments can be anything that appears in `LoweredEq.__rkwargs__`
+    (e.g., ispace).
 
-    When created as ``LoweredEq(lhs, rhs, **kwargs)``, *all* keywords in
-    ``LoweredEq._state`` must appear in ``kwargs``.
+    When created as `LoweredEq(lhs, rhs, **kwargs)`, *all* keywords in
+    `LoweredEq.__rkwargs__` must appear in `kwargs`.
     """
 
-    _state = IREq._state + ('reads', 'writes')
+    __rkwargs__ = IREq.__rkwargs__ + ('reads', 'writes')
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
             # origin: LoweredEq(devito.LoweredEq, **kwargs)
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
-            for i in cls._state:
+            for i in cls.__rkwargs__:
                 setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
             return expr
         elif len(args) == 1 and isinstance(args[0], Eq):
@@ -137,7 +142,7 @@ class LoweredEq(IREq):
             input_expr = expr = args[0]
         elif len(args) == 2:
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
-            for i in cls._state:
+            for i in cls.__rkwargs__:
                 setattr(expr, '_%s' % i, kwargs.pop(i))
             return expr
         else:
@@ -208,10 +213,10 @@ class LoweredEq(IREq):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
 
     def func(self, *args):
-        return super(LoweredEq, self).func(*args, **self.state, evaluate=False)
+        return self._rebuild(*args, evaluate=False)
 
 
-class ClusterizedEq(IREq, Pickable):
+class ClusterizedEq(IREq):
 
     """
     ClusterizedEq(devito.IREq, **kwargs)
@@ -238,7 +243,7 @@ class ClusterizedEq(IREq, Pickable):
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
             if isinstance(input_expr, IREq):
-                for i in cls._state:
+                for i in cls.__rkwargs__:
                     try:
                         v = kwargs[i]
                     except KeyError:
@@ -252,21 +257,14 @@ class ClusterizedEq(IREq, Pickable):
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
-            for i in cls._state:
+            for i in cls.__rkwargs__:
                 setattr(expr, '_%s' % i, kwargs.pop(i))
         else:
             raise ValueError("Cannot construct ClusterizedEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
         return expr
 
-    def func(self, *args, **kwargs):
-        kwargs = {k: kwargs.get(k, v) for k, v in self.state.items()}
-        return super(ClusterizedEq, self).func(*args, **kwargs)
-
-    # Pickling support
-    _pickle_args = ['lhs', 'rhs']
-    _pickle_kwargs = IREq._state
-    __reduce_ex__ = Pickable.__reduce_ex__
+    func = IREq._rebuild
 
 
 class DummyEq(ClusterizedEq):
@@ -288,7 +286,3 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
-
-    # Pickling support
-    _pickle_args = ['lhs', 'rhs']
-    _pickle_kwargs = []

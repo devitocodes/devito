@@ -59,6 +59,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('grid', 'staggered', 'initializer')
+
     def __init_finalize__(self, *args, **kwargs):
         # A `Distributor` to handle domain decomposition (only relevant for MPI)
         self._distributor = self.__distributor_setup__(**kwargs)
@@ -889,10 +891,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         key = alias or self
         return {key.name: self._C_make_dataobj(args[key.name])}
 
-    # Pickling support
-    _pickle_kwargs = AbstractFunction._pickle_kwargs +\
-        ['grid', 'staggered', 'initializer']
-
 
 class Function(DiscreteFunction):
 
@@ -992,6 +990,9 @@ class Function(DiscreteFunction):
     """
 
     is_Function = True
+
+    __rkwargs__ = (DiscreteFunction.__rkwargs__ +
+                   ('space_order', 'shape_global', 'dimensions'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry
@@ -1198,10 +1199,6 @@ class Function(DiscreteFunction):
         tot = self.sum(p, dims)
         return tot / len(tot.args)
 
-    # Pickling support
-    _pickle_kwargs = DiscreteFunction._pickle_kwargs +\
-        ['space_order', 'shape_global', 'dimensions']
-
 
 class TimeFunction(Function):
 
@@ -1320,6 +1317,8 @@ class TimeFunction(Function):
 
     _time_position = 0
     """Position of time index among the function indices."""
+
+    __rkwargs__ = Function.__rkwargs__ + ('time_order', 'save', 'time_dim')
 
     def __init_finalize__(self, *args, **kwargs):
         self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
@@ -1443,9 +1442,6 @@ class TimeFunction(Function):
                                   "value `%s`, found `%d` instead"
                                   % (self._time_size, self.name, key_time_size))
 
-    # Pickling support
-    _pickle_kwargs = Function._pickle_kwargs + ['time_order', 'save', 'time_dim']
-
 
 class SubFunction(Function):
 
@@ -1455,6 +1451,8 @@ class SubFunction(Function):
     A SubFunction hands control of argument binding and halo exchange to its
     parent DiscreteFunction.
     """
+
+    __rkwargs__ = Function.__rkwargs__ + ('parent',)
 
     def __init_finalize__(self, *args, **kwargs):
         super(SubFunction, self).__init_finalize__(*args, **kwargs)
@@ -1477,8 +1475,6 @@ class SubFunction(Function):
     @property
     def parent(self):
         return self._parent
-
-    _pickle_kwargs = Function._pickle_kwargs + ['parent']
 
 
 class TempFunction(DiscreteFunction):
@@ -1513,6 +1509,8 @@ class TempFunction(DiscreteFunction):
     """
 
     is_TempFunction = True
+
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('dimensions', 'pointer_dim')
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -1635,9 +1633,6 @@ class TempFunction(DiscreteFunction):
         else:
             raise InvalidArgument("TempFunction `%s` lacks override" % self.name)
 
-    # Pickling support
-    _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['dimensions', 'pointer_dim']
-
 
 class AliasFunction(DiscreteFunction):
 
@@ -1651,7 +1646,23 @@ class AliasFunction(DiscreteFunction):
     """
 
     __indices_setup__ = Function.__indices_setup__
-    __shape_setup__ = Function.__shape_setup__
+
+    def __init_finalize__(self, *args, **kwargs):
+        self.save = kwargs.pop('save', None)
+
+        super().__init_finalize__(*args, **kwargs)
+
+    @classmethod
+    def __shape_setup__(cls, **kwargs):
+        # We don't care about the actual shape, nobody will ever query it, and
+        # bypassing the `__shape_setup__` makes it easier to use AliasFunction
+        # to map various DiscreteFunction subclasses
+        return None
+
+    def __distributor_setup__(self, **kwargs):
+        # Same rational as `__shape_setup__`  -- we don't care about the
+        # underlying distributor
+        return None
 
     @property
     def data(self):

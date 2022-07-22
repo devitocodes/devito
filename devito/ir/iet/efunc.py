@@ -104,7 +104,6 @@ class AsyncCallable(Callable):
     """
 
     def __init__(self, name, body, parameters=None, prefix='static'):
-        parameters = parameters or derive_parameters(body)
         super().__init__(name, body, 'void', parameters=parameters, prefix=prefix)
 
 

@@ -39,6 +39,8 @@ class AbstractSparseFunction(DiscreteFunction):
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint', 'space_order')
+
     def __init_finalize__(self, *args, **kwargs):
         super(AbstractSparseFunction, self).__init_finalize__(*args, **kwargs)
         self._npoint = kwargs['npoint']
@@ -283,9 +285,6 @@ class AbstractSparseFunction(DiscreteFunction):
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
 
-    # Pickling support
-    _pickle_kwargs = DiscreteFunction._pickle_kwargs + ['npoint', 'space_order']
-
 
 class AbstractSparseTimeFunction(AbstractSparseFunction):
 
@@ -295,6 +294,8 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     _time_position = 0
     """Position of time index among the function indices."""
+
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('nt', 'time_order')
 
     def __init_finalize__(self, *args, **kwargs):
         self._time_dim = self.indices[self._time_position]
@@ -351,9 +352,6 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     @property
     def _time_size(self):
         return self.shape_allocated[self._time_position]
-
-    # Pickling support
-    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['nt', 'time_order']
 
 
 class SparseFunction(AbstractSparseFunction):
@@ -446,6 +444,8 @@ class SparseFunction(AbstractSparseFunction):
     """The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ('coordinates',)
+
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates_data',)
 
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
@@ -732,9 +732,6 @@ class SparseFunction(AbstractSparseFunction):
         # in `_dist_scatter` is here received; a sparse point that is received in
         # `_dist_scatter` is here sent.
 
-    # Pickling support
-    _pickle_kwargs = AbstractSparseFunction._pickle_kwargs + ['coordinates_data']
-
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
@@ -817,6 +814,9 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
     is_SparseTimeFunction = True
 
+    __rkwargs__ = (AbstractSparseTimeFunction.__rkwargs__ +
+                   SparseFunction.__rkwargs__)
+
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
@@ -876,10 +876,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             expr = expr.subs({self.time_dim: p_t})
 
         return super().inject(field, expr, offset=offset, implicit_dims=implicit_dims)
-
-    # Pickling support
-    _pickle_kwargs = AbstractSparseTimeFunction._pickle_kwargs +\
-        SparseFunction._pickle_kwargs
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
@@ -1168,6 +1164,11 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
     _time_position = 0
     """Position of time index among the function indices."""
+
+    # We use DiscreteFunction instead of AbstractSparseTimeFunction
+    # because we want to get rid of 'npoint'
+    __rkwargs__ = (DiscreteFunction.__rkwargs__ +
+                   ('dimensions', 'r', 'matrix', 'nt', 'grid'))
 
     def __init_finalize__(self, *args, **kwargs):
         # The crucial argument to DugSparseTimeFunction is a sparse
@@ -2007,8 +2008,3 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
     def _dist_gather(self, data):
         pass
-
-    # We use DiscreteFunction instead of AbstractSparseTimeFunction
-    # because we want to get rid of 'npoint'
-    _pickle_kwargs = DiscreteFunction._pickle_kwargs + (
-        ['dimensions', 'r', 'matrix', 'nt', 'grid'])
