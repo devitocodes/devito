@@ -132,6 +132,8 @@
 <span class="sd">    The type of the underlying data object.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="s1">&#39;initializer&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># A `Distributor` to handle domain decomposition (only relevant for MPI)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__distributor_setup__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -962,10 +964,6 @@
         <span class="n">key</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_dataobj</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">])}</span>
 
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">AbstractFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;grid&#39;</span><span class="p">,</span> <span class="s1">&#39;staggered&#39;</span><span class="p">,</span> <span class="s1">&#39;initializer&#39;</span><span class="p">]</span>
-
 
 <div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
@@ -1065,6 +1063,9 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span>
+                   <span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="s1">&#39;shape_global&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_cache_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># Attach additional metadata to self&#39;s cache entry</span>
@@ -1269,11 +1270,7 @@
 <span class="sd">            ``self``&#39;s spatial dimensions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">dims</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">tot</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">tot</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="s1">&#39;shape_global&#39;</span><span class="p">,</span> <span class="s1">&#39;dimensions&#39;</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="n">tot</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">tot</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div></div>
 
 
 <div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../../timefunction.html#devito.types.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -1393,6 +1390,8 @@
 
     <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
+
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="s1">&#39;time_dim&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_dim&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">])</span>
@@ -1514,10 +1513,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_buffering</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span> <span class="o">!=</span> <span class="n">key_time_size</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected `time_size=</span><span class="si">%d</span><span class="s2">` for runtime &quot;</span>
                                   <span class="s2">&quot;value `</span><span class="si">%s</span><span class="s2">`, found `</span><span class="si">%d</span><span class="s2">` instead&quot;</span>
-                                  <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">key_time_size</span><span class="p">))</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;time_order&#39;</span><span class="p">,</span> <span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="s1">&#39;time_dim&#39;</span><span class="p">]</span></div>
+                                  <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">key_time_size</span><span class="p">))</span></div>
 
 
 <span class="k">class</span> <span class="nc">SubFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -1528,6 +1524,8 @@
 <span class="sd">    A SubFunction hands control of argument binding and halo exchange to its</span>
 <span class="sd">    parent DiscreteFunction.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;parent&#39;</span><span class="p">,)</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">SubFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -1550,8 +1548,6 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">parent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
-
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">TempFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
@@ -1586,6 +1582,8 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_TempFunction</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;pointer_dim&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -1708,9 +1706,6 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;TempFunction `</span><span class="si">%s</span><span class="s2">` lacks override&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="s1">&#39;pointer_dim&#39;</span><span class="p">]</span>
-
 
 <span class="k">class</span> <span class="nc">AliasFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
@@ -1724,7 +1719,23 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">__indices_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span>
-    <span class="n">__shape_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__shape_setup__</span>
+
+    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># We don&#39;t care about the actual shape, nobody will ever query it, and</span>
+        <span class="c1"># bypassing the `__shape_setup__` makes it easier to use AliasFunction</span>
+        <span class="c1"># to map various DiscreteFunction subclasses</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__distributor_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Same rational as `__shape_setup__`  -- we don&#39;t care about the</span>
+        <span class="c1"># underlying distributor</span>
+        <span class="k">return</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

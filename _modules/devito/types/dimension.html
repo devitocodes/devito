@@ -181,6 +181,9 @@
     <span class="n">_C_typename</span> <span class="o">=</span> <span class="s1">&#39;const </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">dtype_to_cstr</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">)</span>
     <span class="n">_C_typedata</span> <span class="o">=</span> <span class="n">_C_typename</span>
 
+    <span class="n">__rargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,)</span>
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,)</span>
+
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Equivalent to ``BasicDimension(*args, **kwargs)``.</span>
@@ -381,8 +384,6 @@
                   <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
     <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">]</span>
     <span class="n">__reduce_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__reduce_ex__</span>
     <span class="n">__getnewargs_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__getnewargs_ex__</span></div>
 
@@ -496,6 +497,9 @@
 
     <span class="n">is_Derived</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="n">__rargs__</span> <span class="o">=</span> <span class="n">Dimension</span><span class="o">.</span><span class="n">__rargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;parent&#39;</span><span class="p">,)</span>
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">()</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">):</span>
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span> <span class="o">=</span> <span class="n">parent</span>
@@ -526,10 +530,6 @@
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;A DerivedDimension performs no runtime checks.&quot;&quot;&quot;</span>
         <span class="k">return</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="n">Dimension</span><span class="o">.</span><span class="n">_pickle_args</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;parent&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span>
 
 
 <span class="c1"># ***</span>
@@ -586,6 +586,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Sub</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">__rargs__</span> <span class="o">=</span> <span class="p">(</span><span class="n">DerivedDimension</span><span class="o">.</span><span class="n">__rargs__</span> <span class="o">+</span>
+                 <span class="p">(</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">))</span>
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">local</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
@@ -744,12 +748,7 @@
             <span class="n">ltkn</span> <span class="o">=</span> <span class="n">requested_ltkn</span>
             <span class="n">rtkn</span> <span class="o">=</span> <span class="n">requested_rtkn</span>
 
-        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">,</span> <span class="p">(</span><span class="n">ltkn</span><span class="p">,</span> <span class="n">rtkn</span><span class="p">))}</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_args</span> <span class="o">+</span>\
-        <span class="p">[</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;thickness&#39;</span><span class="p">,</span> <span class="s1">&#39;local&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[]</span></div>
+        <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">,</span> <span class="p">(</span><span class="n">ltkn</span><span class="p">,</span> <span class="n">rtkn</span><span class="p">))}</span></div>
 
 
 <div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -828,6 +827,8 @@
     <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Conditional</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">,</span> <span class="s1">&#39;indirect&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">condition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                           <span class="n">indirect</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="c1"># `parent=None` degenerates to a ConditionalDimension outside of</span>
@@ -870,10 +871,7 @@
             <span class="n">retval</span> <span class="o">|=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="o">.</span><span class="n">free_symbols</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="k">pass</span>
-        <span class="k">return</span> <span class="n">retval</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DerivedDimension</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;factor&#39;</span><span class="p">,</span> <span class="s1">&#39;condition&#39;</span><span class="p">,</span> <span class="s1">&#39;indirect&#39;</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="n">retval</span></div>
 
 
 <span class="c1"># ***</span>
@@ -922,6 +920,8 @@
     <span class="n">is_NonlinearDerived</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Modulo</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;offset&#39;</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="s1">&#39;incr&#39;</span><span class="p">,</span> <span class="s1">&#39;origin&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                           <span class="n">offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modulo</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">incr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1018,10 +1018,7 @@
                 <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="o">-</span> <span class="n">other</span><span class="o">.</span><span class="n">origin</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
             <span class="k">pass</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__sub__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;offset&#39;</span><span class="p">,</span> <span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="s1">&#39;incr&#39;</span><span class="p">,</span> <span class="s1">&#39;origin&#39;</span><span class="p">]</span></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__sub__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></div>
 
 
 <span class="k">class</span> <span class="nc">AbstractIncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
@@ -1054,6 +1051,9 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Incr</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">__rargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">)</span>
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">_min</span><span class="p">,</span> <span class="n">_max</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">)</span>
@@ -1124,10 +1124,6 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_incr</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
             <span class="n">ret</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbolic_incr</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">]</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
@@ -1231,6 +1227,8 @@
 
     <span class="n">is_Custom</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_size&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">symbolic_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">symbolic_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                           <span class="n">symbolic_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_symbolic_min</span> <span class="o">=</span> <span class="n">symbolic_min</span>
@@ -1316,10 +1314,7 @@
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;A CustomDimension performs no runtime checks.&quot;&quot;&quot;</span>
-        <span class="k">return</span>
-
-    <span class="c1"># Pickling support</span>
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;symbolic_min&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_max&#39;</span><span class="p">,</span> <span class="s1">&#39;symbolic_size&#39;</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">]</span></div>
+        <span class="k">return</span></div>
 
 
 <span class="k">class</span> <span class="nc">DynamicDimensionMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>

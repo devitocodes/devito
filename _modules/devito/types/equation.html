@@ -133,6 +133,9 @@
 
     <span class="n">is_Reduction</span> <span class="o">=</span> <span class="kc">False</span>
 
+    <span class="n">__rargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;lhs&#39;</span><span class="p">,</span> <span class="s1">&#39;rhs&#39;</span><span class="p">)</span>
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;subdomain&#39;</span><span class="p">,</span> <span class="s1">&#39;coefficients&#39;</span><span class="p">,</span> <span class="s1">&#39;implicit_dims&#39;</span><span class="p">)</span>
+
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">subdomain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coefficients</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;evaluate&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
@@ -196,6 +199,8 @@
     <span class="k">def</span> <span class="nf">substitutions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_substitutions</span>
 
+    <span class="n">coefficients</span> <span class="o">=</span> <span class="n">substitutions</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">implicit_dims</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span>
@@ -221,14 +226,7 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Failed to retrieve symbolic functions&#39;</span><span class="p">)</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span>\
-            <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span>
-                           <span class="n">subdomain</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;subdomain&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subdomain</span><span class="p">),</span>
-                           <span class="n">coefficients</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;coefficients&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_substitutions</span><span class="p">),</span>
-                           <span class="n">implicit_dims</span><span class="o">=</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;implicit_dims&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_implicit_dims</span><span class="p">),</span>
-                           <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">func</span> <span class="o">=</span> <span class="n">Evaluable</span><span class="o">.</span><span class="n">_rebuild</span>
 
 <div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">))</span></div>

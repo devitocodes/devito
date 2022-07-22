@@ -116,6 +116,8 @@
     <span class="n">is_Input</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Constant</span> <span class="o">=</span> <span class="kc">True</span>
 
+    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">DataSymbol</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,)</span>
+
     <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
 
@@ -182,9 +184,7 @@
                 <span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Data type </span><span class="si">%s</span><span class="s2"> of runtime value `</span><span class="si">%s</span><span class="s2">` does not match the &quot;</span>
                         <span class="s2">&quot;Constant data type </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span>
-
-    <span class="n">_pickle_kwargs</span> <span class="o">=</span> <span class="n">DataSymbol</span><span class="o">.</span><span class="n">_pickle_kwargs</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span></div>
+            <span class="k">pass</span></div>
 </pre></div>
 
            </div>

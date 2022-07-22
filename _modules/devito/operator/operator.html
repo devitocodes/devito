@@ -87,10 +87,10 @@
 <span class="kn">from</span> <span class="nn">devito.ir.clusters</span> <span class="kn">import</span> <span class="n">ClusterGroup</span><span class="p">,</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Callable</span><span class="p">,</span> <span class="n">CInterface</span><span class="p">,</span> <span class="n">EntryFunction</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">MetaCall</span><span class="p">,</span>
                            <span class="n">derive_parameters</span><span class="p">,</span> <span class="n">iet_build</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.ir.support</span> <span class="kn">import</span> <span class="n">SymbolRegistry</span>
 <span class="kn">from</span> <span class="nn">devito.ir.stree</span> <span class="kn">import</span> <span class="n">stree_build</span>
 <span class="kn">from</span> <span class="nn">devito.operator.profiling</span> <span class="kn">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.operator.registry</span> <span class="kn">import</span> <span class="n">operator_selector</span>
-<span class="kn">from</span> <span class="nn">devito.operator.symbols</span> <span class="kn">import</span> <span class="n">SymbolRegistry</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.passes</span> <span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">generate_implicit</span><span class="p">,</span> <span class="n">instrument</span>
@@ -224,9 +224,6 @@
         <span class="c1"># Normalize input arguments for the selected Operator</span>
         <span class="n">kwargs</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># Create a symbol registry</span>
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sregistry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SymbolRegistry</span><span class="p">()</span>
-
         <span class="c1"># Lower to a JIT-compilable object</span>
         <span class="k">with</span> <span class="n">timed_region</span><span class="p">(</span><span class="s1">&#39;op-compile&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
             <span class="n">op</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_build</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -302,6 +299,9 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Perform the lowering Expressions -&gt; Clusters -&gt; ScheduleTree -&gt; IET.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Create a symbol registry</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sregistry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SymbolRegistry</span><span class="p">()</span>
+
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
         <span class="c1"># Input check</span>

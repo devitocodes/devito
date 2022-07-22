@@ -126,27 +126,38 @@ constructing an Operator.</p></li>
 <p class="rubric">Notes</p>
 <p>An Eq can be thought of as an assignment in an imperative programming language
 (e.g., <code class="docutils literal notranslate"><span class="pre">a[i]</span> <span class="pre">=</span> <span class="pre">b[i]*c</span></code>).</p>
-<dl class="py property">
+<dl class="py method">
 <dt class="sig sig-object py" id="devito.types.equation.Eq.func">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">func</span></span><a class="headerlink" href="#devito.types.equation.Eq.func" title="Permalink to this definition"></a></dt>
-<dd><p>The top-level function in an expression.</p>
-<p>The following should hold for all objects:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&gt;&gt;</span> <span class="n">x</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-</pre></div>
-</div>
+<span class="sig-name descname"><span class="pre">func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.equation.Eq.func" title="Permalink to this definition"></a></dt>
+<dd><p>Reconstruct <cite>self</cite> via <cite>self.__class__(*args, **kwargs)</cite> using
+<cite>self</cite>’s <cite>__rargs__</cite> and <cite>__rkwargs__</cite> if and where <cite>*args</cite> and
+<cite>**kwargs</cite> lack entries.</p>
 <p class="rubric">Examples</p>
-<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="kn">import</span> <span class="n">x</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">x</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span>
-<span class="go">&lt;class &#39;sympy.core.mul.Mul&#39;&gt;</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">args</span>
-<span class="go">(2, x)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-<span class="go">2*x</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">==</span> <span class="n">a</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
-<span class="go">True</span>
-</pre></div>
-</div>
+<p>Given</p>
+<blockquote>
+<div><dl>
+<dt>class Foo(object):</dt><dd><p>__rargs__ = (‘a’, ‘b’)
+__rkwargs__ = (‘c’,)
+def __init__(self, a, b, c=4):</p>
+<blockquote>
+<div><p>self.a = a
+self.b = b
+self.c = c</p>
+</div></blockquote>
+</dd>
+</dl>
+<p>a = foo(3, 5)`</p>
+</div></blockquote>
+<p>Then:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>a._rebuild() -&gt; x(3, 5, 4)</cite> (i.e., copy of <cite>a</cite>).</p></li>
+<li><p><cite>a._rebuild(4) -&gt; x(4, 5, 4)</cite></p></li>
+<li><p><cite>a._rebuild(4, 7) -&gt; x(4, 7, 4)</cite></p></li>
+<li><p><cite>a._rebuild(c=5) -&gt; x(3, 5, 5)</cite></p></li>
+<li><p><cite>a._rebuild(1, c=7) -&gt; x(1, 5, 7)</cite></p></li>
+</ul>
+</div></blockquote>
 </dd></dl>
 
 <dl class="py property">
