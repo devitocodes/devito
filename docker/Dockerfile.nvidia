@@ -2,12 +2,13 @@
 # This Dockerfile contains the NVidia HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
 ARG ver
+ARG pyversion=python:3.9
 ARG arch="nvc"
 
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-FROM python:3.9-slim-bullseye as sdk-base
+FROM ${pyversion}-slim-bullseye as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
