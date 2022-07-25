@@ -587,7 +587,13 @@ class PragmaDeviceAwareDataManager(DeviceAwareDataManager):
 class PragmaLangBB(LangBB):
 
     @classmethod
-    def _map_to(cls, f, imask=None, queueid=None):
+    def _get_num_devices(cls, platform):
+        devicetype = as_tuple(cls.mapper[platform])
+        ngpus = Symbol(name='ngpus')
+        return ngpus, cls.mapper['num-devices'](devicetype, ngpus)
+
+    @classmethod
+    def _map_to(cls, f, imask=None, qid=None):
         return PragmaTransfer(cls.mapper['map-enter-to'], f, imask)
 
     _map_to_wait = _map_to
@@ -608,13 +614,13 @@ class PragmaLangBB(LangBB):
         return PragmaTransfer(cls.mapper['map-update'], f, imask)
 
     @classmethod
-    def _map_update_host(cls, f, imask=None, queueid=None):
+    def _map_update_host(cls, f, imask=None, qid=None):
         return PragmaTransfer(cls.mapper['map-update-host'], f, imask)
 
     _map_update_host_async = _map_update_host
 
     @classmethod
-    def _map_update_device(cls, f, imask=None, queueid=None):
+    def _map_update_device(cls, f, imask=None, qid=None):
         return PragmaTransfer(cls.mapper['map-update-device'], f, imask)
 
     _map_update_device_async = _map_update_device

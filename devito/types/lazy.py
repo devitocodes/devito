@@ -1,9 +1,11 @@
 from cached_property import cached_property
 
+from devito.tools import Reconstructable
+
 __all__ = ['Evaluable']
 
 
-class Evaluable(object):
+class Evaluable(Reconstructable):
 
     """
     A mixin class for types inherited from SymPy that may carry nested
@@ -36,10 +38,6 @@ class Evaluable(object):
     @property
     def args(self):
         return ()
-
-    @property
-    def func(self):
-        return self.__class__
 
     def _evaluate_args(self, **kwargs):
         return [Evaluable._evaluate_maybe_nested(i, **kwargs) for i in self.args]

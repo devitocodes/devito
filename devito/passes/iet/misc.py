@@ -6,6 +6,7 @@ from devito.logger import warning
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX, evalrel
 from devito.tools import is_integer, split
+from devito.types.dense import AliasFunction, TimeFunction
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions', 'is_on_device']
 
@@ -142,7 +143,9 @@ def is_on_device(obj, gpu_fit):
         `gpu-fit` and is propagated down here through the various stages of lowering.
     """
     functions = (obj.function,)
-    fsave = [f for f in functions if f.is_TimeFunction and is_integer(f.save)]
+    fsave = [f for f in functions
+             if isinstance(f, (AliasFunction, TimeFunction)) and is_integer(f.save)]
+
     if 'all-fallback' in gpu_fit and fsave:
         warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
         return True

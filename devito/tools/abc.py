@@ -2,7 +2,7 @@ import abc
 from hashlib import sha1
 
 
-__all__ = ['Tag', 'Signer', 'Pickable', 'Singleton', 'Stamp']
+__all__ = ['Tag', 'Signer', 'Reconstructable', 'Pickable', 'Singleton', 'Stamp']
 
 
 class Tag(abc.ABC):
@@ -90,7 +90,59 @@ class Signer(object):
         return Signer._sign(self._signature_items())
 
 
-class Pickable(object):
+class Reconstructable(object):
+
+    __rargs__ = ()
+    """
+    The positional arguments to reconstruct the object.
+    """
+
+    __rkwargs__ = ()
+    """
+    The keyword arguments to reconstruct the object.
+    """
+
+    def _rebuild(self, *args, **kwargs):
+        """
+        Reconstruct `self` via `self.__class__(*args, **kwargs)` using
+        `self`'s `__rargs__` and `__rkwargs__` if and where `*args` and
+        `**kwargs` lack entries.
+
+        Examples
+        --------
+        Given
+
+            class Foo(object):
+                __rargs__ = ('a', 'b')
+                __rkwargs__ = ('c',)
+                def __init__(self, a, b, c=4):
+                    self.a = a
+                    self.b = b
+                    self.c = c
+
+            a = foo(3, 5)`
+
+        Then:
+
+            * `a._rebuild() -> x(3, 5, 4)` (i.e., copy of `a`).
+            * `a._rebuild(4) -> x(4, 5, 4)`
+            * `a._rebuild(4, 7) -> x(4, 7, 4)`
+            * `a._rebuild(c=5) -> x(3, 5, 5)`
+            * `a._rebuild(1, c=7) -> x(1, 5, 7)`
+        """
+        args += tuple(getattr(self, i) for i in self.__rargs__[len(args):])
+        kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
+
+        # Should we use a constum reconstructor?
+        try:
+            cls = self._rcls
+        except AttributeError:
+            cls = self.__class__
+
+        return cls(*args, **kwargs)
+
+
+class Pickable(Reconstructable):
 
     """
     A base class for types that require pickling. There are several complications
@@ -111,27 +163,56 @@ class Pickable(object):
     ``__reduce_ex__ = Pickable.__reduce_ex__`` depending on the MRO.
     """
 
-    _pickle_args = []
-    """The positional arguments that need to be passed to __new__ upon unpickling."""
+    @property
+    def _pickle_rargs(self):
+        """
+        The positional arguments that need to be passed to __new__ upon unpickling.
+        """
+        # NOTE: Backward compatibility
+        try:
+            return self._pickle_args
+        except AttributeError:
+            pass
 
-    _pickle_kwargs = []
-    """The keyword arguments that need to be passed to __new__ upon unpickling."""
+        return self.__rargs__
+
+    @property
+    def _pickle_rkwargs(self):
+        """
+        The keyword arguments that need to be passed to __new__ upon unpickling.
+        """
+        # NOTE: Backward compatibility
+        try:
+            return self._pickle_kwargs
+        except AttributeError:
+            pass
+
+        return self.__rkwargs__
 
     @staticmethod
     def _pickle_wrapper(cls, args, kwargs):
         return cls.__new__(cls, *args, **kwargs)
 
     @property
-    def _pickle_reconstruct(self):
+    def _pickle_reconstructor(self):
         """
         Return the callable that should be used to reconstruct ``self`` upon
         unpickling. If None, default to whatever Python's pickle uses.
         """
-        return None
+        # NOTE: Backward compatibility
+        try:
+            return self._pickle_reconstruct
+        except AttributeError:
+            pass
+
+        try:
+            return self._rcls
+        except AttributeError:
+            return None
 
     def __reduce_ex__(self, proto):
         ret = object.__reduce_ex__(self, proto)
-        reconstructor = self._pickle_reconstruct
+        reconstructor = self._pickle_reconstructor
         if reconstructor is None:
             return ret
         else:
@@ -146,8 +227,8 @@ class Pickable(object):
             )
 
     def __getnewargs_ex__(self):
-        return (tuple(getattr(self, i) for i in self._pickle_args),
-                {i: getattr(self, i) for i in self._pickle_kwargs})
+        return (tuple(getattr(self, i) for i in self._pickle_rargs),
+                {i: getattr(self, i) for i in self._pickle_rkwargs})
 
 
 class Singleton(type):

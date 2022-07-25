@@ -280,19 +280,16 @@ def _mark_overlappable(iet):
 
 
 @iet_pass
-def make_mpi(iet, **kwargs):
+def make_mpi(iet, mpimode=None, **kwargs):
     """
     Inject MPI Callables and Calls implementing halo exchanges for
     distributed-memory parallelism.
     """
-    mode = kwargs.pop('mode')
-    sregistry = kwargs.pop('sregistry')
-
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
 
-    sync_heb = HaloExchangeBuilder('basic', sregistry, **generators)
-    user_heb = HaloExchangeBuilder(mode, sregistry, **generators)
+    sync_heb = HaloExchangeBuilder('basic', generators, **kwargs)
+    user_heb = HaloExchangeBuilder(mpimode, generators, **kwargs)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         heb = user_heb if isinstance(hs, OverlappableHaloSpot) else sync_heb
@@ -318,7 +315,7 @@ def make_mpi(iet, **kwargs):
     return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
 
 
-def mpiize(graph, sregistry=None, options=None):
+def mpiize(graph, **kwargs):
     """
     Perform two IET passes:
 
@@ -330,14 +327,11 @@ def mpiize(graph, sregistry=None, options=None):
     The latter resorts to creating MPI Callables and replacing HaloSpots with Calls
     to MPI Callables.
     """
-    assert sregistry
-    assert options
+    options = kwargs['options']
 
-    optcomms = options['optcomms']
-    mode = options['mpi']
-
-    if optcomms:
+    if options['optcomms']:
         optimize_halospots(graph)
 
-    if mode:
-        make_mpi(graph, mode=mode, sregistry=sregistry)
+    mpimode = options['mpi']
+    if mpimode:
+        make_mpi(graph, mpimode=mpimode, **kwargs)

@@ -3,7 +3,7 @@ from functools import singledispatch
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, DummyExpr, Dereference, List, PointerCast,
+from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
                        Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import DefFunction, MacroArgument, ccode
@@ -23,12 +23,12 @@ def linearize(graph, **kwargs):
     of the underlying Function objects is honored.
     """
     # Simple data structure to avoid generation of duplicated code
-    track = DefaultOrderedDict(lambda: Bunch(stmts0=[], stmts1=[], onhold=True, cbk=None))
+    track = DefaultOrderedDict(lambda: Bunch(stmts0=[], stmts1=[], held=set(), cbk=None))
 
     linearization(graph, track=track, **kwargs)
 
     # Sanity check
-    assert all(not v.onhold for v in track.values())
+    assert all(not v.held for v in track.values())
 
 
 @iet_pass
@@ -125,16 +125,21 @@ def linearize_accesses(iet, key, track, sregistry):
     # All Functions that can actually be linearized in `iet`
     defines = FindSymbols('defines-aliases').visit(iet)
 
+    # All Callables for which `iet` may produce a linearization
+    calls = {i.name for i in FindNodes(Call).visit(iet)}
+
     # Place the linearization expressions or delegate to ancestor efunc
     stmts0 = []
     stmts1 = []
     for f, v in track.items():
-        if not (f in candidates or v.onhold):
-            continue
-        elif f in defines:
-            stmts0.extend(v.stmts0)
-            stmts1.extend(v.stmts1)
-            v.onhold = False
+        release = calls & v.held
+        v.held.difference_update(release)
+        if f in candidates or release:
+            if f in defines:
+                stmts0.extend(v.stmts0)
+                stmts1.extend(v.stmts1)
+            else:
+                v.held.add(iet.name)
     if stmts0:
         assert len(stmts1) > 0
         stmts0 = filter_ordered(stmts0) + [BlankLine]
@@ -198,12 +203,12 @@ def linearize_pointers(iet, key):
     mapper = {}
 
     # Linearize casts, e.g. `float *u = (float*) u_vec->data`
-    mapper.update({n: n._rebuild(flat=n.function.name)
+    mapper.update({n: n._rebuild(flat=True)
                    for n in FindNodes(PointerCast).visit(iet)
                    if n.function in candidates})
 
     # Linearize array dereferences, e.g. `float *r1 = (float*) pr1[tid]`
-    mapper.update({n: n._rebuild(flat=n.pointee.name)
+    mapper.update({n: n._rebuild(flat=True)
                    for n in FindNodes(Dereference).visit(iet)
                    if n.pointer.is_PointerArray and n.pointee in candidates})
 

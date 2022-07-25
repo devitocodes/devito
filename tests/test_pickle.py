@@ -184,22 +184,18 @@ def test_custom_dimension():
 
 
 def test_lock():
-    grid = Grid(shape=(3, 3, 3))
-    f = Function(name='f', grid=grid)
     ld = CustomDimension(name='ld', symbolic_size=2)
-    lock = Lock(name='lock', dimensions=ld, target=f)
+    lock = Lock(name='lock', dimensions=ld)
 
     pkl_lock = pickle.dumps(lock)
     new_lock = pickle.loads(pkl_lock)
 
     lock.name == new_lock.name
     new_lock.dimensions[0].symbolic_size == ld.symbolic_size
-    new_lock.target.name == f.name
-    new_lock.target.shape == f.shape
 
 
 def test_p_thread_array():
-    a = PThreadArray(name='threads', npthreads=4, base_id=2)
+    a = PThreadArray(name='threads', npthreads=4)
 
     pkl_a = pickle.dumps(a)
     new_a = pickle.loads(pkl_a)
@@ -207,14 +203,13 @@ def test_p_thread_array():
     assert a.name == new_a.name
     assert a.dimensions[0].name == new_a.dimensions[0].name
     assert a.size == new_a.size
-    assert a.base_id == new_a.base_id == 2
 
 
 def test_shared_data():
     s = Scalar(name='s')
     a = Scalar(name='a')
 
-    sdata = SharedData(name='sdata', npthreads=2, fields=[s], dynamic_fields=[a])
+    sdata = SharedData(name='sdata', npthreads=2, cfields=[s], ncfields=[a])
 
     pkl_sdata = pickle.dumps(sdata)
     new_sdata = pickle.loads(pkl_sdata)
@@ -223,7 +218,8 @@ def test_shared_data():
     assert sdata.size == new_sdata.size
     assert sdata.fields == new_sdata.fields
     assert sdata.pfields == new_sdata.pfields
-    assert sdata.dynamic_fields == new_sdata.dynamic_fields
+    assert sdata.cfields == new_sdata.cfields
+    assert sdata.ncfields == new_sdata.ncfields
 
     ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
 

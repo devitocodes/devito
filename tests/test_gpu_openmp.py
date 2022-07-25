@@ -54,14 +54,14 @@ class TestCodeGeneration(object):
         assert trees[0][1].pragmas[0].value ==\
             'omp target teams distribute parallel for collapse(3)'
         assert op.body.maps[0].pragmas[0].value ==\
-            ('omp target enter data map(to: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+            ('omp target enter data map(to: u[0:u_vec->size[0]*'
+             'u_vec->size[1]*u_vec->size[2]*u_vec->size[3]])')
         assert op.body.unmaps[0].pragmas[0].value ==\
-            ('omp target update from(u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
+            ('omp target update from(u[0:u_vec->size[0]*'
+             'u_vec->size[1]*u_vec->size[2]*u_vec->size[3]])')
         assert op.body.unmaps[1].pragmas[0].value ==\
-            ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
+            ('omp target exit data map(release: u[0:u_vec->size[0]*'
+             'u_vec->size[1]*u_vec->size[2]*u_vec->size[3]]) if(devicerm)')
 
         # Currently, advanced-fsg mode == advanced mode
         op1 = Operator(Eq(u.forward, u + 1), language='openmp', opt='advanced-fsg')
@@ -125,16 +125,16 @@ class TestCodeGeneration(object):
             'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
             assert op.body.maps[i].pragmas[0].value ==\
-                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]*'
+                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]])' %
                  {'n': f.name})
             assert op.body.unmaps[2*i + 0].pragmas[0].value ==\
-                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
+                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]*'
+                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]])' %
                  {'n': f.name})
             assert op.body.unmaps[2*i + 1].pragmas[0].value ==\
-                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
+                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]*'
+                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]]) '
                  'if(devicerm)' % {'n': f.name})
 
     def test_multiple_loops(self):

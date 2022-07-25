@@ -60,6 +60,9 @@ class Eq(sympy.Eq, Evaluable):
 
     is_Reduction = False
 
+    __rargs__ = ('lhs', 'rhs')
+    __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
+
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
         kwargs['evaluate'] = False
@@ -123,6 +126,8 @@ class Eq(sympy.Eq, Evaluable):
     def substitutions(self):
         return self._substitutions
 
+    coefficients = substitutions
+
     @property
     def implicit_dims(self):
         return self._implicit_dims
@@ -148,14 +153,7 @@ class Eq(sympy.Eq, Evaluable):
         else:
             TypeError('Failed to retrieve symbolic functions')
 
-    @property
-    def func(self):
-        return lambda *args, **kwargs:\
-            self.__class__(*args,
-                           subdomain=kwargs.pop('subdomain', self._subdomain),
-                           coefficients=kwargs.pop('coefficients', self._substitutions),
-                           implicit_dims=kwargs.pop('implicit_dims', self._implicit_dims),
-                           **kwargs)
+    func = Evaluable._rebuild
 
     def xreplace(self, rules):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules))

@@ -1,24 +1,24 @@
 from collections import OrderedDict, defaultdict
 
-import numpy as np
 from sympy import And
 
-from devito.ir import Forward, GuardBound, GuardBoundNext, Queue, Vector, SEQUENTIAL
+from devito.ir import (Forward, GuardBoundNext, Queue, Vector, SEQUENTIAL,
+                       WaitLock, WithLock, FetchUpdate, PrefetchUpdate,
+                       ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
-from devito.tools import (DefaultOrderedDict, frozendict, is_integer,
-                          indices_to_sections, timed_pass)
-from devito.types import (CustomDimension, Lock, WaitLock, WithLock, FetchUpdate,
-                          FetchPrefetch, PrefetchUpdate, WaitPrefetch, Delete,
-                          normalize_syncs)
+from devito.tools import flatten, is_integer, timed_pass
+from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
 
 
 class Asynchronous(Queue):
 
-    def __init__(self, key):
+    def __init__(self, key, sregistry):
         assert callable(key)
         self.key = key
+        self.sregistry = sregistry
+
         super().__init__()
 
 
@@ -95,10 +95,12 @@ class Tasker(Asynchronous):
                         # Would degenerate to a scalar, but we rather use a lock
                         # of size 1 for simplicity
                         ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
-                    lock = locks.setdefault(f, Lock(
-                        name='lock%d' % len(locks), dimensions=ld, target=f,
-                        initvalue=np.full(ld.symbolic_size, 2, dtype=np.int32)
-                    ))
+
+                    try:
+                        lock = locks[f]
+                    except KeyError:
+                        name = self.sregistry.make_name(prefix='lock')
+                        lock = locks[f] = Lock(name=name, dimensions=ld)
 
                     for w in writes:
                         try:
@@ -112,7 +114,7 @@ class Tasker(Asynchronous):
                         if logical_index in protected[f]:
                             continue
 
-                        waits[c1].append(WaitLock(lock[index]))
+                        waits[c1].append(WaitLock(f, lock[index]))
                         protected[f].add(logical_index)
 
             # Taskify `c0`
@@ -126,7 +128,9 @@ class Tasker(Asynchronous):
                     assert lock.size == 1
                     indices = [0]
 
-                tasks[c0].extend(WithLock(lock[i]) for i in indices)
+                tasks[c0].extend(flatten(
+                    (ReleaseLock(f, lock[i]), WithLock(f, lock[i])) for i in indices
+                ))
 
         processed = []
         for c in clusters:
@@ -189,7 +193,9 @@ class Streaming(Asynchronous):
 
             # Case 2B
             elif mapper:
-                self._actions_from_unstructured(clusters, prefix, actions)
+                # There use to be a handler for this case as well, but it was dropped
+                # because it created inefficient code and in practice never used
+                raise NotImplementedError
 
         # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
         processed = []
@@ -210,13 +216,90 @@ class Streaming(Asynchronous):
         return processed
 
     def _actions_from_init(self, cluster, prefix, actions):
-        return actions_from_init(cluster, prefix, actions)
+        it = prefix[-1]
+        d = it.dim
+        try:
+            pd = prefix[-2].dim
+        except IndexError:
+            pd = None
+
+        e = cluster.exprs[0]
+        function = e.rhs.function
+        target = e.lhs.function
+
+        size = d.symbolic_size
+        assert is_integer(size)
+
+        actions[cluster].syncs[pd].append(FetchUpdate(function, None, d, size, target, 0))
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
-        return actions_from_update_memcpy(cluster, clusters, prefix, actions)
+        it = prefix[-1]
+        d = it.dim
+        direction = it.direction
 
-    def _actions_from_unstructured(self, clusters, prefix, actions):
-        return actions_from_unstructured(clusters, self.key, prefix, actions)
+        # Prepare the data to instantiate a PrefetchUpdate SyncOp
+        e = cluster.exprs[0]
+        function = e.rhs.function
+        target = e.lhs.function
+
+        fetch = e.rhs.indices[d]
+        if direction is Forward:
+            pfetch = fetch + 1
+        else:
+            pfetch = fetch - 1
+
+        # If fetching into e.g., `ub[sb1]`, we'll need to prefetch into e.g. `ub[sb0]`
+        tstore0 = e.lhs.indices[d]
+        if is_integer(tstore0):
+            tstore = tstore0
+        else:
+            assert tstore0.is_Modulo
+            subiters = [i for i in cluster.sub_iterators[d] if i.parent is tstore0.parent]
+            osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
+            n = osubiters.index(tstore0)
+            if direction is Forward:
+                tstore = osubiters[(n + 1) % len(osubiters)]
+            else:
+                tstore = osubiters[(n - 1) % len(osubiters)]
+
+        # We need a lock to synchronize the copy-in
+        name = self.sregistry.make_name(prefix='lock')
+        ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
+        lock = Lock(name=name, dimensions=ld)
+        handle = lock[0]
+
+        # Turn `cluster` into a prefetch Cluster
+        expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
+
+        guards = {d: And(
+            cluster.guards.get(d, True),
+            GuardBoundNext(function.indices[d], direction),
+        )}
+
+        syncs = {d: [ReleaseLock(function, handle),
+                     PrefetchUpdate(function, handle, d, 1, target, tstore)]}
+
+        pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
+
+        # Since we're turning `e` into a prefetch, we need to:
+        # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
+        # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
+        # 3) drop the original Cluster performing a memcpy-like fetch
+        n = clusters.index(cluster)
+        first = None
+        last = None
+        for c in clusters[n+1:]:
+            if target in c.scope.reads:
+                if first is None:
+                    first = c
+                last = c
+        assert first is not None
+        assert last is not None
+        actions[first].syncs[d].append(WaitLock(function, handle))
+        actions[last].insert.append(pcluster)
+        actions[cluster].drop = True
+
+        return last, pcluster
 
 
 # Utilities
@@ -239,165 +322,3 @@ def is_memcpy(cluster):
             cluster.exprs[0].lhs.function.is_Array and
             cluster.exprs[0].lhs.function._mem_mapped and
             cluster.exprs[0].rhs.is_Indexed)
-
-
-def actions_from_init(cluster, prefix, actions):
-    it = prefix[-1]
-    d = it.dim
-    try:
-        pd = prefix[-2].dim
-    except IndexError:
-        pd = None
-
-    # Prepare the data to instantiate a FetchUpdate SyncOp
-    e = cluster.exprs[0]
-
-    size = d.symbolic_size
-
-    function = e.rhs.function
-    fetch = e.rhs.indices[d]
-    ifetch = fetch.subs(d, d.symbolic_min)
-    fcond = None
-
-    pfetch = None
-    pcond = None
-
-    target = e.lhs.function
-    tstore = 0
-
-    # Sanity checks
-    assert is_integer(size)
-
-    actions[cluster].syncs[pd].append(FetchUpdate(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    ))
-
-
-def actions_from_update_memcpy(cluster, clusters, prefix, actions):
-    it = prefix[-1]
-    d = it.dim
-    direction = it.direction
-
-    # Prepare the data to instantiate a PrefetchUpdate SyncOp
-    e = cluster.exprs[0]
-
-    size = 1
-
-    function = e.rhs.function
-    fetch = e.rhs.indices[d]
-    ifetch = fetch.subs(d, d.symbolic_min)
-    fcond = None
-
-    if direction is Forward:
-        pfetch = fetch + 1
-    else:
-        pfetch = fetch - 1
-    pcond = None
-
-    target = e.lhs.function
-    tstore0 = e.lhs.indices[d]
-
-    # If fetching into e.g., `ub[sb1]`, we'll need to prefetch into e.g. `ub[sb0]`
-    if is_integer(tstore0):
-        tstore = tstore0
-    else:
-        assert tstore0.is_Modulo
-        subiters = [md for md in cluster.sub_iterators[d] if md.parent is tstore0.parent]
-        osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
-        n = osubiters.index(tstore0)
-        if direction is Forward:
-            tstore = osubiters[(n + 1) % len(osubiters)]
-        else:
-            tstore = osubiters[(n - 1) % len(osubiters)]
-
-    # Turn `cluster` into a prefetch Cluster
-    expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
-
-    guards = {d: And(
-        cluster.guards.get(d, True),
-        GuardBoundNext(function.indices[d], direction),
-    )}
-
-    syncs = {d: [PrefetchUpdate(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    )]}
-
-    pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
-
-    # Since we're turning `e` into a prefetch, we need to:
-    # 1) attach a WaitPrefetch SyncOp to the first Cluster accessing `target`
-    # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
-    # 3) drop the original Cluster performing a memcpy-based fetch
-    n = clusters.index(cluster)
-    first = None
-    last = None
-    for c in clusters[n+1:]:
-        if target in c.scope.reads:
-            if first is None:
-                first = c
-            last = c
-    assert first is not None
-    assert last is not None
-    actions[first].syncs[d].append(WaitPrefetch(
-        d, size,
-        function, fetch, ifetch, fcond,
-        pfetch, pcond,
-        target, tstore
-    ))
-    actions[last].insert.append(pcluster)
-    actions[cluster].drop = True
-
-    return last, pcluster
-
-
-def actions_from_unstructured(clusters, key, prefix, actions):
-    it = prefix[-1]
-    d = it.dim
-    direction = it.direction
-
-    # Locate the streamable Functions
-    first_seen = {}
-    last_seen = {}
-    for c in clusters:
-        candidates = key(c)
-        if not candidates:
-            continue
-        for i in c.scope.accesses:
-            f = i.function
-            if f in candidates:
-                k = (f, i[d])
-                first_seen.setdefault(k, c)
-                last_seen[k] = c
-    if not first_seen:
-        return clusters
-
-    callbacks = [(frozendict(first_seen), FetchPrefetch),
-                 (frozendict(last_seen), Delete)]
-
-    # Create and map SyncOps to Clusters
-    for seen, callback in callbacks:
-        mapper = defaultdict(lambda: DefaultOrderedDict(list))
-        for (f, v), c in seen.items():
-            mapper[c][f].append(v)
-
-        for c, m in mapper.items():
-            for f, v in m.items():
-                for fetch, s in indices_to_sections(v):
-                    if direction is Forward:
-                        ifetch = fetch.subs(d, d.symbolic_min)
-                        pfetch = fetch + 1
-                    else:
-                        ifetch = fetch.subs(d, d.symbolic_max)
-                        pfetch = fetch - 1
-
-                    fcond = GuardBound(d.symbolic_min, d.symbolic_max)
-                    pcond = GuardBoundNext(f.indices[d], direction)
-
-                    syncop = callback(d, s, f, fetch, ifetch, fcond, pfetch, pcond)
-                    actions[c].syncs[d].append(syncop)

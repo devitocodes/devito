@@ -6,7 +6,7 @@ from functools import singledispatch
 from math import floor
 
 from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
-                       SEQUENTIAL)
+                       FetchUpdate, PrefetchUpdate, SEQUENTIAL)
 from devito.tools import as_tuple, timed_pass
 from devito.types import Eq
 from devito.types.grid import MultiSubDimension, SubDomainSet
@@ -59,13 +59,13 @@ class LowerMultiSubDimensions(Queue):
 
     def _hook_syncs(self, cluster, level):
         """
-        The *Prefetch SyncOps may require their own suitably adjusted
+        The *fetchUpdate SyncOps may require their own suitably adjusted
         thickness assigments. This method pulls such SyncOps.
         """
         syncs = []
         for i in cluster.ispace[:level]:
             for s in cluster.syncs.get(i.dim, ()):
-                if s.is_Fetch:
+                if isinstance(s, (FetchUpdate, PrefetchUpdate)):
                     syncs.append(s)
         return tuple(syncs)
 

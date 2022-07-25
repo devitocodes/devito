@@ -452,9 +452,17 @@ class AOMPCompiler(Compiler):
             self.cflags.remove('-std=c99')
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
-            self.cflags += ['-mcpu=native']
+            self.cflags.append('-mcpu=native')
         else:
-            self.cflags += ['-march=native']
+            self.cflags.append('-march=native')
+
+        # For MPI, mpicc is compiled against amdclang not aompcc, so need the flags back.
+        if kwargs.get('mpi'):
+            self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
+            self.ldflags.extend(['-fopenmp',
+                                 '-fopenmp-targets=amdgcn-amd-amdhsa',
+                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
+            self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
         self.CC = 'aompcc'
@@ -488,11 +496,17 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags += ['-std=c++11', '-mp']
+        self.cflags.append('-std=c++11')
 
+        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
+
         if platform is NVIDIAX:
-            self.cflags += ['-acc:gpu', '-gpu=pinned']
+            self.cflags.append('-gpu=pinned')
+            if language == 'openacc':
+                self.cflags.extend(['-mp', '-acc:gpu'])
+            elif language == 'openmp':
+                self.cflags.extend(['-mp=gpu'])
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
@@ -524,7 +538,7 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC', '-lineinfo']
+        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
 
         self.src_ext = 'cu'
 
@@ -546,25 +560,30 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ["-xhost"]
+        self.cflags.append("-xhost")
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
+        if configuration['safe-math']:
+            self.cflags.append("-fp-model=strict")
+        else:
+            self.cflags.append('-fast')
+
         if platform is SKX:
             # Systematically use 512-bit vectors on skylake
-            self.cflags += ["-qopt-zmm-usage=high"]
+            self.cflags.append("-qopt-zmm-usage=high")
 
         try:
             if self.version >= Version("15.0.0"):
                 # Append the OpenMP flag regardless of configuration['language'],
                 # since icc15 and later versions implement OpenMP 4.0, hence
                 # they support `#pragma omp simd`
-                self.ldflags += ['-qopenmp']
+                self.ldflags.append('-qopenmp')
         except (TypeError, ValueError):
             if language == 'openmp':
                 # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
-                self.ldflags += ['-fopenmp']
+                self.ldflags.append('-fopenmp')
 
         # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):

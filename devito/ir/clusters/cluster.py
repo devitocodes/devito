@@ -6,10 +6,10 @@ from cached_property import cached_property
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward,
                                Interval, IntervalGroup, IterationSpace, DataSpace, Scope,
-                               detect_accesses, detect_io, normalize_properties)
+                               detect_accesses, detect_io, normalize_properties,
+                               normalize_syncs)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
-from devito.types import normalize_syncs
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -135,11 +135,6 @@ class Cluster(object):
     @property
     def syncs(self):
         return self._syncs
-
-    @cached_property
-    def sync_locks(self):
-        return frozendict({k: tuple(i for i in v if i.is_SyncLock)
-                           for k, v in self.syncs.items()})
 
     @cached_property
     def free_symbols(self):
@@ -393,9 +388,9 @@ class ClusterGroup(tuple):
         return tuple(i.guards for i in self)
 
     @cached_property
-    def sync_locks(self):
-        """The synchronization locks of each Cluster in self."""
-        return tuple(i.sync_locks for i in self)
+    def syncs(self):
+        """The synchronization operations of each Cluster in self."""
+        return tuple(i.syncs for i in self)
 
     @cached_property
     def dspace(self):

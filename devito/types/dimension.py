@@ -108,6 +108,9 @@ class Dimension(ArgProvider):
     _C_typename = 'const %s' % dtype_to_cstr(np.int32)
     _C_typedata = _C_typename
 
+    __rargs__ = ('name',)
+    __rkwargs__ = ('spacing',)
+
     def __new__(cls, *args, **kwargs):
         """
         Equivalent to ``BasicDimension(*args, **kwargs)``.
@@ -308,8 +311,6 @@ class Dimension(ArgProvider):
                   self.max_name, args[self.max_name], self.name)
 
     # Pickling support
-    _pickle_args = ['name']
-    _pickle_kwargs = ['spacing']
     __reduce_ex__ = Pickable.__reduce_ex__
     __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
@@ -423,6 +424,9 @@ class DerivedDimension(BasicDimension):
 
     is_Derived = True
 
+    __rargs__ = Dimension.__rargs__ + ('parent',)
+    __rkwargs__ = ()
+
     def __init_finalize__(self, name, parent):
         assert isinstance(parent, Dimension)
         self._parent = parent
@@ -453,10 +457,6 @@ class DerivedDimension(BasicDimension):
     def _arg_check(self, *args):
         """A DerivedDimension performs no runtime checks."""
         return
-
-    # Pickling support
-    _pickle_args = Dimension._pickle_args + ['parent']
-    _pickle_kwargs = []
 
 
 # ***
@@ -513,6 +513,10 @@ class SubDimension(DerivedDimension):
     """
 
     is_Sub = True
+
+    __rargs__ = (DerivedDimension.__rargs__ +
+                 ('symbolic_min', 'symbolic_max', 'thickness', 'local'))
+    __rkwargs__ = ()
 
     def __init_finalize__(self, name, parent, left, right, thickness, local):
         super().__init_finalize__(name, parent)
@@ -673,11 +677,6 @@ class SubDimension(DerivedDimension):
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
-    # Pickling support
-    _pickle_args = DerivedDimension._pickle_args +\
-        ['symbolic_min', 'symbolic_max', 'thickness', 'local']
-    _pickle_kwargs = []
-
 
 class ConditionalDimension(DerivedDimension):
 
@@ -755,6 +754,8 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
+    __rkwargs__ = DerivedDimension.__rkwargs__ + ('factor', 'condition', 'indirect')
+
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
                           indirect=False):
         # `parent=None` degenerates to a ConditionalDimension outside of
@@ -798,9 +799,6 @@ class ConditionalDimension(DerivedDimension):
         except AttributeError:
             pass
         return retval
-
-    # Pickling support
-    _pickle_kwargs = DerivedDimension._pickle_kwargs + ['factor', 'condition', 'indirect']
 
 
 # ***
@@ -849,6 +847,8 @@ class ModuloDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Modulo = True
     is_SubIterator = True
+
+    __rkwargs__ = ('offset', 'modulo', 'incr', 'origin')
 
     def __init_finalize__(self, name, parent,
                           offset=None, modulo=None, incr=None, origin=None):
@@ -947,9 +947,6 @@ class ModuloDimension(DerivedDimension):
             pass
         return super().__sub__(other)
 
-    # Pickling support
-    _pickle_kwargs = ['offset', 'modulo', 'incr', 'origin']
-
 
 class AbstractIncrDimension(DerivedDimension):
 
@@ -981,6 +978,9 @@ class AbstractIncrDimension(DerivedDimension):
     """
 
     is_Incr = True
+
+    __rargs__ = ('name', 'parent', 'symbolic_min', 'symbolic_max')
+    __rkwargs__ = ('step', 'size')
 
     def __init_finalize__(self, name, parent, _min, _max, step=None, size=None):
         super().__init_finalize__(name, parent)
@@ -1051,10 +1051,6 @@ class AbstractIncrDimension(DerivedDimension):
         if self.symbolic_incr.is_Symbol:
             ret.add(self.symbolic_incr)
         return frozenset(ret)
-
-    # Pickling support
-    _pickle_args = ['name', 'parent', 'symbolic_min', 'symbolic_max']
-    _pickle_kwargs = ['step', 'size']
 
 
 class IncrDimension(AbstractIncrDimension):
@@ -1158,6 +1154,8 @@ class CustomDimension(BasicDimension):
 
     is_Custom = True
 
+    __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent')
+
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
                           symbolic_size=None, parent=None):
         self._symbolic_min = symbolic_min
@@ -1244,9 +1242,6 @@ class CustomDimension(BasicDimension):
     def _arg_check(self, *args):
         """A CustomDimension performs no runtime checks."""
         return
-
-    # Pickling support
-    _pickle_kwargs = ['symbolic_min', 'symbolic_max', 'symbolic_size', 'parent']
 
 
 class DynamicDimensionMixin(object):

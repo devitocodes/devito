@@ -43,6 +43,8 @@ class Constant(DataSymbol, ArgProvider):
     is_Input = True
     is_Constant = True
 
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('value',)
+
     def __init_finalize__(self, *args, **kwargs):
         self._value = kwargs.get('value', 0)
 
@@ -110,5 +112,3 @@ class Constant(DataSymbol, ArgProvider):
                         "Constant data type %s" % (key.dtype, self.name, self.dtype))
         except AttributeError:
             pass
-
-    _pickle_kwargs = DataSymbol._pickle_kwargs + ['value']
