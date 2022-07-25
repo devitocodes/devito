@@ -102,7 +102,7 @@ RUN python3 -m venv /venv && \
     rm -rf ~/.cache/pip
 
 ########################################################################
-# NVC config
+# NVC for GPUs via OpenACC config
 ########################################################################
 FROM sdk-base as nvc
 
@@ -111,14 +111,40 @@ ADD docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
 RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
-    # /venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="nvidiaX"
 ENV DEVITO_LANGUAGE="openacc"
 
 ########################################################################
-# Build latest stable clang. This is followign the wiki:
+# NVC for GPUs via CUDA config
+########################################################################
+FROM sdk-base as nvcc
+
+# Make devito env vars file and extras
+ADD docker/nvdashboard.json /app/nvdashboard.json
+
+# mpi4py
+RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+
+ENV DEVITO_ARCH="cuda"
+ENV DEVITO_PLATFORM="nvidiaX"
+ENV DEVITO_LANGUAGE="cuda"
+
+########################################################################
+# NVC for CPUs config
+########################################################################
+FROM sdk-base as nvc-host
+
+# mpi4py
+RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+
+ENV DEVITO_ARCH="nvc"
+ENV DEVITO_PLATFORM="cpu64"
+ENV DEVITO_LANGUAGE="openmp"
+
+########################################################################
+# Build latest stable clang. This is following the wiki:
 # https://en.wikibooks.org/wiki/LLVM_Compiler/Installation.
 ########################################################################
 # This will only trigger if arch is clang since the final stage depends on it

@@ -31,6 +31,12 @@ jobs:
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "gpu", "docker", "openmp"]
 
+          - tag: 'devitocodes/bases:nvidia-nvcc'
+            arch: 'arch=nvcc'
+            version: ''
+            dockerfile: './docker/Dockerfile.nvidia'
+            runner: ["self-hosted", "gpu", "docker", "openmp"]
+
           - tag: 'devitocodes/bases:nvidia-clang'
             arch: 'arch=clang'
             # clang is only officialy supporting cuda<11.5. The latest nvidia sdk with cuda 11.5 is 21.11 (last of 2021)
@@ -59,6 +65,12 @@ jobs:
             version: ''
             dockerfile: './docker/Dockerfile.cpu'
             runner: ubuntu-latest 
+
+          - tag: 'devitocodes/bases:cpu-nvc'
+            arch: 'arch=nvc-host'
+            version: ''
+            dockerfile: './docker/Dockerfile.nvidia'
+            runner: ["self-hosted", "gpu", "docker", "openmp"]
 
     steps:
       - name: Checkout devito
