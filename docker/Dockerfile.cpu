@@ -2,10 +2,11 @@
 # This Dockerfile contains the Devito codes and can be built using different base images.
 ##############################################################
 
+ARG pyversion=python:3.7
 ARG arch=gcc
 
 # Base image 
-FROM python:3.7 as base
+FROM ${pyversion} as base
 
 ENV DEBIAN_FRONTEND noninteractive
 
