@@ -1498,6 +1498,10 @@ class BoundSymbol(AbstractSymbol):
     def _hashable_content(self):
         return super()._hashable_content() + (self.function,)
 
+    @property
+    def _C_ctype(self):
+        return self.function._C_ctype
+
 
 class Indexed(sympy.Indexed):
 
