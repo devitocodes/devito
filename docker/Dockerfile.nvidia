@@ -57,7 +57,7 @@ ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
 #ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 # Make simlink for path setup since ENV doesn't accept shell commands.
-RUN export NVARCH=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/ | grep -v '\.') && \
+RUN export NVARCH=$(ls -1 opt/nvidia/hpc_sdk/Linux_x86_64/ | grep '\.' | head -n 1) && \
     export CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/ | grep '\.') && \
     ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH} /opt/nvhpc && \
     ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI
