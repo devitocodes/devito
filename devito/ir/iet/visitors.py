@@ -357,7 +357,12 @@ class CGen(Visitor):
             if o.constructor_args:
                 v = MultilineCall(v, o.constructor_args, True)
 
-            v = c.Value(f._C_typename, v)
+            # Aesthetics: `float * a` -> `float *a`
+            try:
+                t, stars = f._C_typename.split()
+                v = c.Value(t, '%s%s' % (stars, v))
+            except ValueError:
+                v = c.Value(f._C_typename, v)
 
         if o.initvalue is not None:
             v = c.Initializer(v, o.initvalue)

@@ -99,6 +99,8 @@ class ThreadID(CustomDimension):
     __rargs__ = ('nthreads',)
     __rkwargs__ = ()
 
+    is_const = True
+
     def __new__(cls, nthreads):
         return CustomDimension.__new__(cls, name='tid', symbolic_size=nthreads)
 
