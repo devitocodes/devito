@@ -22,13 +22,13 @@ jobs:
             tag: 'nvidia-nvc'
             flag: '--gpus all'
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "gpu", "docker"]
+            runner: ["self-hosted", "gpu", "docker", "v1004"]
 
           - base: 'bases:nvidia-clang'
             tag: 'nvidia-clang'
             flag: '--gpus all'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "gpu", "docker"]
+            runner: ["self-hosted", "gpu", "docker", "kimogila"]
 
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
