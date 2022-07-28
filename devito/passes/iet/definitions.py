@@ -17,7 +17,7 @@ from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
-from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
+from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM, Symbol
 from devito.types.dense import AliasFunction
 
@@ -253,11 +253,14 @@ class DataManager(object):
                 mapper[k] = v
                 continue
 
+            assert k.is_Callable
+            cbody = k.body
+
             # objects
-            objs = flatten(v.objs)
+            objs = as_list(cbody.objs) + flatten(v.objs)
 
             # allocs/pallocs
-            allocs = flatten(v.allocs)
+            allocs = as_list(cbody.allocs) + flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
@@ -269,12 +272,17 @@ class DataManager(object):
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
                 frees.append(Block(header=header, body=[init] + body))
-            frees.extend(flatten(v.frees))
+            frees.extend(as_list(cbody.frees) + flatten(v.frees))
+
+            # maps/unmaps
+            maps = as_list(cbody.maps) + flatten(v.maps)
+            unmaps = as_list(cbody.unmaps) + flatten(v.unmaps)
 
             # efuncs
             efuncs.extend(v.efuncs)
 
-            mapper[k.body] = k.body._rebuild(allocs=allocs, objs=objs, frees=frees)
+            mapper[cbody] = cbody._rebuild(allocs=allocs, maps=maps, objs=objs,
+                                           unmaps=unmaps, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
@@ -436,17 +444,6 @@ class DeviceAwareDataManager(DataManager):
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
-    def _dump_transfers(self, iet, storage):
-        mapper = {}
-        for k, v in storage.items():
-            if v.maps or v.unmaps:
-                mapper[iet.body] = iet.body._rebuild(maps=flatten(v.maps),
-                                                     unmaps=flatten(v.unmaps))
-
-        processed = Transformer(mapper, nested=True).visit(iet)
-
-        return processed
-
     @iet_visit
     def derive_transfers(self, iet):
         """
@@ -509,9 +506,9 @@ class DeviceAwareDataManager(DataManager):
                 else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
-            iet = self._dump_transfers(iet, storage)
+            iet, efuncs = self._inject_definitions(iet, storage)
 
-            return iet, {}
+            return iet, {'efuncs': efuncs}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
 
