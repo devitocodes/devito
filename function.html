@@ -256,7 +256,14 @@ get back. If you only need to look at the values, use
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Function.dtype">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.Function.dtype" title="Permalink to this definition"></a></dt>
-<dd><p>The data type of the object.</p>
+<dd><p>The data type of the object in the generated code, represented as a
+Python class:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><cite>numpy.dtype</cite>: basic data types. For example, <cite>np.float64 -&gt; double</cite>.</p></li>
+<li><p><cite>ctypes</cite>: composite objects (e.g., structs), foreign types.</p></li>
+</ul>
+</div></blockquote>
 </dd></dl>
 
 <dl class="py property">
