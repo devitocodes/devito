@@ -46,15 +46,14 @@ class Constant(DataSymbol, ArgProvider):
     __rkwargs__ = DataSymbol.__rkwargs__ + ('value',)
 
     def __init_finalize__(self, *args, **kwargs):
-        self._value = kwargs.get('value', 0)
+        self._value = kwargs.pop('value', 0)
+
+        kwargs.setdefault('is_const', True)
+        super().__init_finalize__(*args, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
-
-    @property
-    def is_const(self):
-        return True
 
     @property
     def value(self):

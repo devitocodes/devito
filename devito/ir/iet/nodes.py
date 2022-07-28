@@ -16,10 +16,10 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractSymbol
-from devito.types import Indexed, LocalObject, Symbol
+from devito.types.basic import AbstractFunction, AbstractObject, AbstractSymbol
+from devito.types import Indexed, Symbol
 
-__all__ = ['Node', 'Block', 'Expression', 'Element', 'Callable', 'Call',
+__all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
            'AugmentedExpression', 'Increment', 'Return', 'While',
@@ -119,6 +119,9 @@ class Node(Signer):
     def __str__(self):
         return str(self.ccode)
 
+    def __repr__(self):
+        return self.__class__.__name__
+
     @property
     def functions(self):
         """All AbstractFunction objects used by this node."""
@@ -207,22 +210,6 @@ class Block(List):
         self.footer = as_tuple(footer)
 
 
-class Element(Node):
-
-    """
-    A generic node. Can be a comment, a statement, ... or anything that cannot
-    be expressed through an IET type.
-    """
-
-    def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
-                                    c.Pragma, c.Line, c.Assign, c.POD))
-        self.element = element
-
-    def __repr__(self):
-        return "Element::\n\t%s" % (self.element)
-
-
 class Call(ExprStmt, Node):
 
     """
@@ -287,7 +274,7 @@ class Call(ExprStmt, Node):
     def functions(self):
         retval = []
         for i in self.arguments:
-            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, LocalObject)):
+            if isinstance(i, (AbstractFunction, Indexed, IndexedBase, AbstractObject)):
                 retval.append(i.function)
             elif isinstance(i, Call):
                 retval.extend(i.functions)
@@ -299,7 +286,7 @@ class Call(ExprStmt, Node):
                 for s in v:
                     try:
                         # `try-except` necessary for e.g. Macro
-                        if isinstance(s.function, (AbstractFunction, LocalObject)):
+                        if isinstance(s.function, (AbstractFunction, AbstractObject)):
                             retval.append(s.function)
                     except AttributeError:
                         continue
@@ -315,7 +302,7 @@ class Call(ExprStmt, Node):
         for i in self.arguments:
             if isinstance(i, AbstractFunction):
                 continue
-            elif isinstance(i, (Indexed, IndexedBase, LocalObject, Symbol)):
+            elif isinstance(i, (Indexed, IndexedBase, AbstractObject, Symbol)):
                 retval.append(i)
             elif isinstance(i, Call):
                 retval.extend(i.expr_symbols)
@@ -1322,12 +1309,17 @@ class CBlankLine(List):
         return ""
 
 
+class Return(Node):
+
+    def __init__(self, value=None):
+        self.value = value
+
+
 def DummyExpr(*args, init=False):
     return Expression(DummyEq(*args), init=init)
 
 
 BlankLine = CBlankLine()
-Return = lambda i='': Element(c.Statement('return%s' % ((' %s' % i) if i else i)))
 
 
 # Nodes required for distributed-memory halo exchange
