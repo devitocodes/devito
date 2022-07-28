@@ -1455,6 +1455,23 @@ class TestDataGather(object):
         else:
             assert ans.shape == (0, )*len(grid.shape)
 
+    @pytest.mark.parallel(mode=[4, 6])
+    def test_gather_time_function(self):
+        """ Test gathering of TimeFunction objects. """
+        grid = Grid(shape=(11, 11))
+        f = TimeFunction(name='f', grid=grid, save=11)
+        op = Operator([Eq(f.forward, f+1)])
+        op.apply(time_m=0, time_M=9)
+        gather_data = f.data_gather(rank=0)
+        tdata = np.zeros((11, 11, 11))
+        for i in range(11):
+            tdata[i, :] = np.float32(i)
+        myrank = grid._distributor.comm.Get_rank()
+        if myrank == 0:
+            assert np.all(gather_data == tdata)
+        else:
+            assert gather_data.shape == ()
+
 
 def test_scalar_arg_substitution():
     """
