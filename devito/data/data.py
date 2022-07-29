@@ -168,7 +168,8 @@ class Data(np.ndarray):
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
             # NOTE: Consolidate with that appearing in __getitem__
-            is_gather = True if (kwargs and isinstance(kwargs['gather_rank'], int)) else False
+            is_gather = True if (kwargs and isinstance(kwargs['gather_rank'], int)) \
+                else False
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
             elif len(args) > 1 and isinstance(args[1], Data) \
@@ -203,7 +204,6 @@ class Data(np.ndarray):
         is_gather = True if isinstance(gather_rank, int) else False
         if is_gather and comm_type == gather:
             comm = self._distributor.comm
-            size = comm.Get_size()
             rank = comm.Get_rank()
 
             sendbuf = np.array(self[:].flatten())
@@ -222,6 +222,8 @@ class Data(np.ndarray):
                     glb_shape = list(self._distributor.glb_shape)
                     for i in range(len(self.shape) - len(self._distributor.glb_shape)):
                         glb_shape.insert(i, self.shape[i])
+                else:
+                    glb_shape = self._distributor.glb_shape
                 retval = np.zeros(glb_shape, dtype=self.dtype.type)
                 start, stop, step = 0, 0, 1
                 for i, s in enumerate(sendcounts):
@@ -230,7 +232,8 @@ class Data(np.ndarray):
                     stop += sendcounts[i]
                     data_slice = recvbuf[slice(start, stop, step)]
                     shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
-                    idx = [slice(r.start, r.stop, r.step) for r in self._distributor.all_ranges[i]]
+                    idx = [slice(r.start, r.stop, r.step)
+                           for r in self._distributor.all_ranges[i]]
                     for i in range(len(self.shape) - len(self._distributor.glb_shape)):
                         shape.insert(i, glb_shape[i])
                         idx.insert(i, slice(0, glb_shape[i]+1, 1))
@@ -261,7 +264,7 @@ class Data(np.ndarray):
             elif rank == gather_rank:
                 retval = np.zeros(it.shape)
             else:
-                retval = np.empty((0, )*len(it.shape))
+                retval = None
             # Iterate over each element of data
             while not it.finished:
                 index = it.multi_index
@@ -298,8 +301,11 @@ class Data(np.ndarray):
                 it.iternext()
             # Check if dimensions of the view should now be reduced to
             # be consistent with those of an equivalent NumPy serial view
-            reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
-                             if type(i) is not np.int64])
+            if not is_gather:
+                reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
+                                if type(i) is not np.int64])
+            else:
+                reshape = ()
             if reshape and (0 not in reshape) and (reshape != retval.shape):
                 return retval.reshape_data(reshape)
             else:
@@ -415,7 +421,7 @@ class Data(np.ndarray):
 
     def _process_args(self, idx, val):
         """If comm_type is parallel we need to first retrieve local unflipped data."""
-        if len(as_tuple(idx)) < len(val.shape):
+        if (len(as_tuple(idx)) < len(val.shape)) and (len(val.shape) <= len(self.shape)):
             idx_processed = as_list(idx)
             for _ in range(len(val.shape)-len(as_tuple(idx))):
                 idx_processed.append(slice(None, None, 1))

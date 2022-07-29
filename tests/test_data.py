@@ -1385,7 +1385,7 @@ class TestDataGather(object):
         if myrank == rank:
             assert np.all(ans == res)
         else:
-            assert ans.shape == (0, )*len(grid.shape)
+            assert ans is None
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('start, stop, step', [
@@ -1419,7 +1419,7 @@ class TestDataGather(object):
         if myrank == 0:
             assert np.all(ans == res)
         else:
-            assert ans.shape == (0, )*len(grid.shape)
+            assert ans is None
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('start, stop, step', [
@@ -1453,7 +1453,7 @@ class TestDataGather(object):
         if myrank == 0:
             assert np.all(ans == res)
         else:
-            assert ans.shape == (0, )*len(grid.shape)
+            assert ans is None
 
     @pytest.mark.parallel(mode=[4, 6])
     def test_gather_time_function(self):
@@ -1462,15 +1462,15 @@ class TestDataGather(object):
         f = TimeFunction(name='f', grid=grid, save=11)
         op = Operator([Eq(f.forward, f+1)])
         op.apply(time_m=0, time_M=9)
-        gather_data = f.data_gather(rank=0)
+        ans = f.data_gather(rank=0)
         tdata = np.zeros((11, 11, 11))
         for i in range(11):
             tdata[i, :] = np.float32(i)
         myrank = grid._distributor.comm.Get_rank()
         if myrank == 0:
-            assert np.all(gather_data == tdata)
+            assert np.all(ans == tdata)
         else:
-            assert gather_data.shape == ()
+            assert ans is None
 
 
 def test_scalar_arg_substitution():
