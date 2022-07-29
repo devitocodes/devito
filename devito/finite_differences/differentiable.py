@@ -5,7 +5,7 @@ from functools import singledispatch
 import numpy as np
 import sympy
 from sympy.core.add import _addsort
-from sympy.core.mul import _mulsort
+from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
@@ -410,7 +410,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         # A Mul, being a DifferentiableOp, may not trigger evaluation upon
         # construction (e.g., when an EvalDerivative is present among its
         # arguments), so here we apply a small set of basic simplifications
-        # to avoid generating functional, but also ugly, code
+        # to avoid generating functional, but ugly, code
 
         # (a*b)*c -> a*b*c (flattening)
         nested, others = split(args, lambda e: isinstance(e, Mul))
@@ -423,13 +423,29 @@ class Mul(DifferentiableOp, sympy.Mul):
         # a*1 -> a
         args = [i for i in args if i != 1]
 
+        # a*-1 -> a
         # a*-1*-1 -> a
+        # a*-1*-1*-1 -> a*-1
         nminus = len([i for i in args if i == sympy.S.NegativeOne])
-        if nminus % 2 == 0:
-            args = [i for i in args if i != sympy.S.NegativeOne]
+        args = [i for i in args if i != sympy.S.NegativeOne]
+        if nminus % 2 == 1:
+            args.append(sympy.S.NegativeOne)
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)
+
+        # `sympy.Mul.flatten(coeff, Add)` flattens out nested Adds within Add,
+        # which would destroy `EvalDerivative`s if present. So here we perform
+        # a similar thing, but cautiously construct an evaluated Add, which
+        # will preserve the integrity of `EvalDerivative`s, if any.
+        try:
+            a, b = args
+            if not a.is_zero and a.is_Rational:
+                r, b = b.as_coeff_Mul()
+                if r is sympy.S.One and type(b) is Add:
+                    return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
+        except ValueError:
+            pass
 
         return super().__new__(cls, *args, **kwargs)
 

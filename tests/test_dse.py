@@ -2496,7 +2496,7 @@ class TestAliases(object):
 
     def test_hoisting_pow_one(self):
         """
-        MFE for issues #1614.
+        MFE for issue #1614.
         """
         grid = Grid(shape=(10, 10))
 
@@ -2526,6 +2526,31 @@ class TestAliases(object):
                 Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
         else:
             Operator(eq, opt=('cire-sops', 'opt-hyperplanes'))
+
+    def test_premature_evalderiv_lowering(self):
+        """
+        MFE for issue #1978.
+        """
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        # Not really a custom derivative, but the enforced pre-evaluation makes
+        # it behaves as if it were one
+        mock_custom_deriv = u.dx.dy.evaluate
+
+        # This symbolic operation -- creating an Add between an arbitray object
+        # and an EvalDerivative -- caused the EvalDerivative to be prematurely
+        # simplified being flatten into an Add
+        expr0 = u.dt - mock_custom_deriv
+        expr = -expr0
+
+        eq = Eq(u.forward, expr)
+
+        op = Operator(eq)
+
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
+        assert op._profiler._sections['section0'].sops == 16
 
 
 class TestIsoAcoustic(object):
