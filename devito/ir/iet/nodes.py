@@ -16,7 +16,8 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractObject, AbstractSymbol
+from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types.object import AbstractObject
 from devito.types import Indexed, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
@@ -856,12 +857,12 @@ class Definition(ExprStmt, Node):
     is_Definition = True
 
     def __init__(self, function, shape=None, qualifier=None, initvalue=None,
-                 constructor_args=None):
+                 cargs=None):
         self.function = function
         self.shape = shape
         self.qualifier = qualifier
         self.initvalue = initvalue
-        self.constructor_args = as_tuple(constructor_args)
+        self.cargs = as_tuple(cargs)
 
     def __repr__(self):
         return "<Def(%s)>" % self.function

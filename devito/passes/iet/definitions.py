@@ -89,9 +89,16 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        decl = Definition(obj, constructor_args=obj.constructor_args)
+        decl = Definition(obj, cargs=obj.cargs)
 
-        storage.update(obj, site, objs=decl)
+        if obj._C_init:
+            definition = (decl, obj._C_init)
+        else:
+            definition = (decl)
+
+        frees = obj._C_free
+
+        storage.update(obj, site, objs=definition, frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
