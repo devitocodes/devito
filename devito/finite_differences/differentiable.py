@@ -423,7 +423,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         # a*1 -> a
         args = [i for i in args if i != 1]
 
-        # a*-1 -> a
+        # a*-1 -> a*-1
         # a*-1*-1 -> a
         # a*-1*-1*-1 -> a*-1
         nminus = len([i for i in args if i == sympy.S.NegativeOne])
@@ -437,10 +437,10 @@ class Mul(DifferentiableOp, sympy.Mul):
         # `sympy.Mul.flatten(coeff, Add)` flattens out nested Adds within Add,
         # which would destroy `EvalDerivative`s if present. So here we perform
         # a similar thing, but cautiously construct an evaluated Add, which
-        # will preserve the integrity of `EvalDerivative`s, if any.
+        # will preserve the integrity of `EvalDerivative`s, if any
         try:
             a, b = args
-            if not a.is_zero and a.is_Rational:
+            if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
                     return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
