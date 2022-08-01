@@ -51,9 +51,8 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         # With new physical parameters as Constants
         d = {'vp': vp, 'epsilon': epsilon, 'delta': delta, 'theta': theta, 'phi': phi}
         for k, v in d.items():
-            v = Constant(name=k, value=v, dtype=np.float32)
-        solver.forward(save=save, vp=vp, epsilon=epsilon, delta=delta,
-                       theta=theta, phi=phi)
+            d[k] = Constant(name=k, value=v, dtype=np.float32)
+        solver.forward(save=save, **d)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
