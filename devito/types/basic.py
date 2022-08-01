@@ -1047,7 +1047,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @cached_property
     def indexed(self):
         """The wrapped IndexedData object."""
-        return IndexedData(self.name, shape=self.shape, function=self.function)
+        return IndexedData(self.name, shape=self._shape, function=self.function)
 
     @cached_property
     def dmap(self):
@@ -1056,7 +1056,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return None.
         """
         if self._mem_mapped:
-            return DeviceMap('d_%s' % self.name, shape=self.shape, function=self.function)
+            return DeviceMap('d_%s' % self.name, shape=self._shape,
+                             function=self.function)
         elif self._mem_local:
             return self.indexed
         else:
