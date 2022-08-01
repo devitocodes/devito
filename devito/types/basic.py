@@ -1033,6 +1033,16 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
                     for i, j, k in zip(domain, halo, padding))
         return DimensionTuple(*ret, getters=self.dimensions)
 
+    @property
+    def symbolic_size(self):
+        return np.prod(self.symbolic_shape)
+
+    @property
+    def symbolic_nbytes(self):
+        # TODO: one day we'll have to fix the types/ vs extended_sympy/ thing
+        from devito.symbolics import SizeOf  # noqa
+        return self.symbolic_size*SizeOf(self.indexed._C_typedata)
+
     @cached_property
     def bound_symbols(self):
         return ({self._C_symbol, self.indexed} |
