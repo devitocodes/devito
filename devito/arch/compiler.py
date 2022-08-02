@@ -1,6 +1,6 @@
 from functools import partial
 from hashlib import sha1
-from os import environ, path
+from os import environ, path, makedirs
 from packaging.version import Version
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
 import platform
@@ -235,6 +235,7 @@ class Compiler(GCCToolchain):
             debug("%s: `%s` was not saved in `%s` as it already exists"
                   % (self, sofile.name, self.get_jit_dir()))
         else:
+            makedirs(self.get_jit_dir(), exist_ok=True)
             with open(str(sofile), 'wb') as f:
                 f.write(binary)
             debug("%s: `%s` successfully saved in `%s`"
