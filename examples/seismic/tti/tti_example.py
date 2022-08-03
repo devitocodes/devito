@@ -50,8 +50,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                        theta=theta, phi=phi)
         # With new physical parameters as Constants
         d = {'vp': vp, 'epsilon': epsilon, 'delta': delta, 'theta': theta, 'phi': phi}
-        for k, v in d.items():
-            d[k] = Constant(name=k, value=v, dtype=np.float32)
+        d = {k: Constant(name=k, value=v, dtype=np.float32) for k, v in d.items()}
         solver.forward(save=save, **d)
 
     if not full_run:
