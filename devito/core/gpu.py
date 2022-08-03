@@ -60,6 +60,12 @@ class DeviceOperatorMixin(object):
     Assuming all functions fit into the gpu memory.
     """
 
+    MAPIFY_REDUCE = False
+    """
+    Vector-expand all scalar reductions to turn them into explicit map-reductions,
+    which may be easier to parallelize for certain backends.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         o = {}
@@ -104,6 +110,7 @@ class DeviceOperatorMixin(object):
         # Misc
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
+        o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
