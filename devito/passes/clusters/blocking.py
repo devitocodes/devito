@@ -98,8 +98,8 @@ class AnayzeBlockingBase(Queue):
         # A necessary but not sufficient condition for the existance of data
         # reuse in the Cluster is that there must be at least three Indexeds --
         # the LHS, the RHS, and another Indexed shifted w.r.t. the RHS, e.g.
-        # `a(x), b(x), b(x+1)`. Obv not sufficient because `a(x), b(x), c(x)`
-        # has zero data reuse across x-iterations
+        # `a(x), b(x), b(x+1)`. Obv not sufficient because, e.g., `a(x), b(x),
+        # c(x)` would have no data reuse across x-iterations
         if len(cluster.scope.indexeds) >= 3:
             return True
 
