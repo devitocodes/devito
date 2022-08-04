@@ -69,7 +69,7 @@ class TestCodeGeneration(object):
 
         u = TimeFunction(name='u', grid=grid)
 
-        op = Operator(Eq(u.forward, u + 1),
+        op = Operator(Eq(u.forward, u.dx + 1),
                       platform='nvidiaX', language='openacc', opt=opt)
 
         trees = retrieve_iteration_tree(op)
@@ -78,9 +78,9 @@ class TestCodeGeneration(object):
         assert len(tree) == 7
         assert all(i.dim.is_Block for i in tree[1:7])
 
-        assert op.parameters[3] is tree[1].step
-        assert op.parameters[6] is tree[2].step
-        assert op.parameters[9] is tree[3].step
+        assert op.parameters[4] is tree[1].step
+        assert op.parameters[7] is tree[2].step
+        assert op.parameters[10] is tree[3].step
 
         assert tree[1].pragmas[0].value ==\
             'acc parallel loop collapse(3) present(u)'
