@@ -753,6 +753,7 @@ def ForwardOperator_tb(model, geometry, space_order=4,
                      save=geometry.nt if save else None,
                      time_order=time_order, space_order=space_order)
 
+
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
     stencils = FD_kernel(model, u, v, space_order)

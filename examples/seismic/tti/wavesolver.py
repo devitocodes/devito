@@ -209,9 +209,9 @@ class AnisotropicWaveSolver(object):
             time_order = 2
             stagg_u = stagg_v = None
         # Source term is read-only, so re-use the default
-        # src = src or self.geometry.src
+        src = src or self.geometry.src
         # Create a new receiver object to store the result
-        # rec = rec or self.geometry.rec
+        rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
         if u is None:
@@ -239,14 +239,15 @@ class AnisotropicWaveSolver(object):
         u.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
         v.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
 
+        # DEVITO_AUTOTUNING=aggressive DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python examples/seismic/tti/tti_bench.py -d 100 100 100 --tn 80
         import matplotlib.pyplot as plt
         from examples.cfd import plot_field
         from examples.seismic import plot_image
 
-        #plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
-        #plt.show()
-        #plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
-        #plt.show()
+        # plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
+        # plt.show()
+        # plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
+        # plt.show()
 
         print(norm(u))
         print(norm(v))
@@ -255,23 +256,34 @@ class AnisotropicWaveSolver(object):
         kwargs.update(model.physical_params(**kwargs))
         if self.model.dim < 3:
             kwargs.pop('phi', None)
-        # Execute operator and return wavefield and receiver data
-        op = self.op_fwd_tb(save)
-        # op = self.op_fwd(save)
 
-        # summary = op.apply(time_M=self.geometry.nt, u=u, v=v, dt=kwargs.pop('dt', self.dt), **{'time0_blk0_size': 27, 'x0_blk0_size': 32, 'x0_blk1_size': 4, 'y0_blk0_size': 32, 'y0_blk1_size': 4})
-        summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **kwargs)
+        # Artificial short source injection
+        op0 = self.op_fwd(save)
+        summary = op0.apply(time_M=self.geometry.nt-1, u=u, v=v,
+                            dt=kwargs.pop('dt', self.dt), **kwargs)
 
         print(norm(u))
         print(norm(v))
-        #import matplotlib.pyplot as plt
-        #from examples.cfd import plot_field
-        #from examples.seismic import plot_image
 
+
+        u.data[:, :, :, :] = 0
+        v.data[:, :, :, :] = 0
+        
+        u.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
+        v.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
+
+        # import pdb;pdb.set_trace()
+        op = self.op_fwd_tb(save)
+        summary = op.apply(time_M=self.geometry.nt-1, u=u, v=v, dt=kwargs.pop('dt', self.dt), **kwargs)
+
+
+        print(norm(u))
+        print(norm(v))
+        
         plot_image(u.data[0, :, :, int(nz/2)], cmap="viridis")
         plt.show()
-        #plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
-        #plt.show()
+        # plot_image(v.data[0, :, :, int(nz/2)], cmap="viridis")
+        # plt.show()
 
         return u, v, summary
 
