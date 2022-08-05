@@ -4,8 +4,7 @@ from cgen import Generable
 
 from devito.ir.ietxdsl import (MLContext, Builtin, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
-                               Statement, PointerCast, Powi, Initialise, Float,
-                               Muli)
+                               Statement, PointerCast, Powi, Initialise, Muli)
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -13,7 +12,6 @@ from devito.types.basic import IndexedData
 ctx = MLContext()
 Builtin(ctx)
 iet = IET(ctx)
-Float = Float(ctx)
 
 
 def createStatement(initial_string, val):

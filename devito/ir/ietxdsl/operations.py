@@ -1,6 +1,9 @@
 from sympy import Mod
+from typing import Tuple
+
 from xdsl.dialects.builtin import *
 from xdsl.dialects.float import *
+
 
 
 @dataclass
@@ -150,7 +153,7 @@ class PointerCast(Operation):
     def get(statement):
         return PointerCast.build(
             operands=[],
-            attributes={"statement": StringAttr.from_str(statement)},
+            attributes={"statement": StringAttr.from_str(str(statement))},
             result_types=[])
 
 
@@ -163,7 +166,7 @@ class Statement(Operation):
     def get(statement):
         return Statement.build(
             operands=[],
-            attributes={"statement": StringAttr.from_str(statement)},
+            attributes={"statement": StringAttr.from_str(str(statement))},
             result_types=[])
 
 
@@ -184,9 +187,9 @@ class StructDecl(Operation):
                 "id":
                 StringAttr.from_str(name),
                 "fields":
-                ArrayAttr.from_list([StringAttr.from_str(f) for f in fields]),
+                ArrayAttr.from_list([StringAttr.from_str(str(f)) for f in fields]),
                 "declname":
-                StringAttr.from_str(declname),
+                StringAttr.from_str(str(declname)),
                 "padbytes":
                 padb
             },
@@ -271,7 +274,8 @@ class IterationWithSubIndices(Operation):
     body = RegionDef()
     limits = AttributeDef(ArrayAttr)
     uindices_names = AttributeDef(ArrayAttr)
-    uindices_symbmins = AttributeDef(ArrayAttr)
+    uindices_symbmins_dividends = AttributeDef(ArrayAttr)
+    uindices_symbmins_divisors = AttributeDef(ArrayAttr)
     properties = AttributeDef(ArrayAttr)
     pragmas = AttributeDef(ArrayAttr)
 
@@ -286,19 +290,21 @@ class IterationWithSubIndices(Operation):
         return IterationWithSubIndices.build(attributes={
             "limits":
             ArrayAttr.from_list([
-                StringAttr.from_str(limits[0]),
-                StringAttr.from_str(limits[1]),
-                StringAttr.from_str(limits[2])
+                StringAttr.from_str(str(limits[0])),
+                StringAttr.from_str(str(limits[1])),
+                StringAttr.from_str(str(limits[2]))
             ]),
             "uindices_names":
             ArrayAttr.from_list(
                 [StringAttr.from_str(u) for u in uindices_names]),
-            "uindices_symbmins":
-            ArrayAttr.from_list([u for u in uindices_symbmins]),
+            "uindices_symbmins_dividends": # TODO make a "ModAttr"??
+            ArrayAttr.from_list([StringAttr.from_str(str(u.args[0])) for u in uindices_symbmins]),
+            "uindices_symbmins_divisors": # TODO make a "ModAttr"??
+                ArrayAttr.from_list([StringAttr.from_str(str(u.args[1])) for u in uindices_symbmins]),
             "properties":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in properties]),
+            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in properties]),
             "pragmas":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
+            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in pragmas]),
             "arg_name":
             arg
         }, regions=[Region.from_block_list([body])])

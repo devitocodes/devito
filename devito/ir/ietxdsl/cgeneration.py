@@ -1,7 +1,8 @@
 import io
+from typing import Dict
 from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
     Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
-    Idx, Initialise, List, Constant, Dict, Powi, Muli
+    Idx, Initialise, List, Constant, Powi, Muli
 
 
 SSAValueNames: Dict[SSAValue, str] = {}
@@ -105,7 +106,8 @@ class CGeneration:
     def printIterationWithSubIndices(self,
                                      iteration_op: IterationWithSubIndices):
         uindices_names = iteration_op.uindices_names
-        uindices_symbmins = iteration_op.uindices_symbmins
+        uindices_symbmins_divisors = iteration_op.uindices_symbmins_divisors
+        uindices_symbmins_dividends = iteration_op.uindices_symbmins_dividends
         ssa_val = iteration_op.body.blocks[0].args[0]
         iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
@@ -120,8 +122,8 @@ class CGeneration:
         i = 0
         for u in uindices_names.data:
             self.print(
-                f"{u.data} = ({uindices_symbmins.data[i].args[0]})%"
-                f"({uindices_symbmins.data[i].args[1]})",
+                f"{u.data} = ({uindices_symbmins_dividends.data[i].data})%"
+                f"({uindices_symbmins_divisors.data[i].data})",
                 end='')
             if i < (len(uindices_names.data) - 1):
                 self.print(",", end='')
@@ -135,8 +137,8 @@ class CGeneration:
         i = 0
         for u in uindices_names.data:
             self.print(
-                f"{u.data} = ({uindices_symbmins.data[i].args[0]})"
-                f"%({uindices_symbmins.data[i].args[1]})",
+                f"{u.data} = ({uindices_symbmins_dividends.data[i].data})"
+                f"%({uindices_symbmins_divisors.data[i].data})",
                 end='')
             if i < (len(uindices_names.data) - 1):
                 self.print(",", end='')
