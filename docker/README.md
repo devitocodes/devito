@@ -12,7 +12,7 @@ We provide two CPU images:
 - `devito:gcc-*` with the standard GNU gcc compiler.
 - `devito:icc-*` with the Intel C compiler for Intel architectures.
 
-These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled as well as utilities such as `jupyter` for usability and exploration of the package.
+These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
 
 To run this image locally, you will first of all need to install `docker`. Then, the following commands will get you started:
 
@@ -21,7 +21,7 @@ docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:gc
 docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm devitocodes/devito:gcc-latest
 ```
 
-or to run in user context on a cluster with a shared filesystem, you can add the correct user config as `docker` options, e.g.:
+Alternatively, to run in user context on a cluster with a shared filesystem, you can add the correct user config as `docker` options, e.g.:
 
 ```bash
 docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devitocodes/devito:gcc-latest python examples/seismic/acoustic/acoustic_example.py
@@ -39,7 +39,7 @@ Second, we provide three images to run [Devito] on GPUs, tagged `devito:nvidia-n
 
 - `devito:nvidia-nvc-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `nvc` compiler for `openacc` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
 - `devito:nvidia-clang-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `clang` compiler for `openmp` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
-- `devito:amd-*` is intended to be used on AMD GPUs. It comes with the configuration to use the `aoompcc` compiler for `openmp` offloading. This image also comes with ROCm-aware MPI for multi-GPU deployment. Additionally, this image can be used on AMD CPUs as well since the ROCm compilers are preinstalled. You will need to modify `DEVITO_PLATFORM` to `amd` at runtime to reflect this architecture.
+- `devito:amd-*` is intended to be used on AMD GPUs. It comes with the configuration to use the `aoompcc` compiler for `openmp` offloading. This image also comes with ROCm-aware MPI for multi-GPU deployment. This image can also be used on AMD CPUs since the ROCm compilers are preinstalled. To reflect this architecture, you will need to modify `DEVITO_PLATFORM` to `amd` at runtime.
 
 #### NVidia
 
@@ -62,7 +62,7 @@ docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devi
 
 #### AMD
 
-Unlike NVidia, AMD does not require an additional docker setup and runs with the standard docker. You will, however, need to pass some flags so that the image is linked to the GPU devices. You can find a short walkthrough in these [AMD notes](https://developer.amd.com/wp-content/resources/ROCm%20Learning%20Centre/chapter5/Chapter5.3_%20KerasMultiGPU_ROCm.pdf) for their tensorflow GPU docker image.
+Unlike NVidia, AMD does not require an additional docker setup and runs with the standard docker. You will, however, need to pass some flags so that the image is linked to the GPU devices. You can find a short walkthrough in these [AMD notes](https://developer.amd.com/wp-content/resources/ROCm%20Learning%20Centre/chapter5/Chapter5.3_%20KerasMultiGPU_ROCm.pdf) for their TensorFlow GPU docker image.
 
 
 **Notes**:
@@ -115,7 +115,7 @@ docker build . --file docker/Dockerfile.cpu --tag devito-gcc --build-arg arch=gc
 docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devito-gcc:latest
 # To run tests using the newly built image, run: 
 docker run --rm --name testrun devito_img pytest -k "not adjoint" -m "not parallel" tests/
-# To test for example seismic tutorials using the newly built image, run: 
+# To test for example, seismic tutorials using the newly built image, run: 
 docker run --rm --name testrun devito_img py.test --nbval -k 'not dask' examples/seismic/tutorials/
 ```
 
