@@ -14,7 +14,7 @@
 
 **Install Instructions:**
 
-0) The Devito Package version that we used in our code is: 4.6+225.
+0) The Devito Package version that we used in our code is: 4.7.1+23
 
 1) Install Devito Package in Linux OS following the instructions below:
 
