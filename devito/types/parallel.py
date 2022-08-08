@@ -14,11 +14,11 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
-from devito.tools import as_list, as_tuple, dtype_to_cstr, is_integer
+from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
-from devito.types.misc import Pointer, VolatileInt, c_volatile_int_p
+from devito.types.misc import Pointer, VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
@@ -99,6 +99,8 @@ class ThreadID(CustomDimension):
     __rargs__ = ('nthreads',)
     __rkwargs__ = ()
 
+    is_const = True
+
     def __new__(cls, nthreads):
         return CustomDimension.__new__(cls, name='tid', symbolic_size=nthreads)
 
@@ -154,7 +156,7 @@ class SharedData(ThreadArray):
     # Mandatory, or "static", fields
     _field_flag = 'flag'
 
-    _symbolic_flag = VolatileInt(name=_field_flag)
+    symbolic_flag = VolatileInt(name=_field_flag)
 
     __rkwargs__ = list(ThreadArray.__rkwargs__) + ['cfields', 'ncfields']
     __rkwargs__.remove('fields')
@@ -163,7 +165,7 @@ class SharedData(ThreadArray):
         self.cfields = tuple(kwargs.pop('cfields', ()))
         self.ncfields = tuple(kwargs.pop('ncfields', ()))
 
-        kwargs['fields'] = self.cfields + self.ncfields
+        kwargs['fields'] = self.cfields + self.ncfields + (self.symbolic_flag,)
 
         super().__init_finalize__(*args, **kwargs)
 
@@ -171,12 +173,8 @@ class SharedData(ThreadArray):
     def __pfields_setup__(cls, **kwargs):
         fields = as_list(kwargs.get('cfields'))
         fields.extend(as_list(kwargs.get('ncfields')))
-        fields.append(cls._symbolic_flag)
+        fields.append(cls.symbolic_flag)
         return [(i._C_name, i._C_ctype) for i in fields]
-
-    @cached_property
-    def symbolic_flag(self):
-        return self._symbolic_flag
 
 
 class Lock(Array):
@@ -204,6 +202,8 @@ class Lock(Array):
     we don't need it here.
     """
 
+    is_volatile = True
+
     def __init_finalize__(self, *args, **kwargs):
         kwargs.setdefault('scope', 'stack')
 
@@ -226,14 +226,6 @@ class Lock(Array):
     def __dtype_setup__(cls, **kwargs):
         return np.int32
 
-    @property
-    def _C_ctype(self):
-        return c_volatile_int_p
-
-    @property
-    def _C_typedata(self):
-        return 'volatile %s' % dtype_to_cstr(self.dtype)
-
     @cached_property
     def locked_dimensions(self):
         return set().union(*[d._defines for d in self.dimensions])
@@ -245,8 +237,8 @@ class DeviceSymbol(Scalar):
     is_PerfKnob = True
 
     def __new__(cls, *args, **kwargs):
-        kwargs['name'] = cls.name
-        kwargs['is_const'] = True
+        kwargs.setdefault('name', cls.name)
+        kwargs.setdefault('is_const', True)
         return super().__new__(cls, **kwargs)
 
     @classmethod
@@ -283,7 +275,7 @@ class QueueID(Symbol):
 
     def __new__(cls, *args, **kwargs):
         kwargs.setdefault('name', 'qid')
-        kwargs['is_const'] = True
+        kwargs.setdefault('is_const', True)
         return super().__new__(cls, *args, **kwargs)
 
 
@@ -301,5 +293,5 @@ class DevicePointer(Pointer):
         return self._mapped
 
     @property
-    def _C_typename(self):
-        return self.mapped._C_typename
+    def _C_ctype(self):
+        return self.mapped.indexed._C_ctype

@@ -80,10 +80,6 @@ class PrintAST(Visitor):
         body = ' %s' % str(o) if self.verbose else ''
         return self.indent + '<C.%s%s>' % (o.__class__.__name__, body)
 
-    def visit_Element(self, o):
-        body = ' %s' % str(o.element) if self.verbose else ''
-        return self.indent + '<Element%s>' % body
-
     def visit_Callable(self, o):
         self._depth += 1
         body = self._visit(o.children)
@@ -244,10 +240,11 @@ class CGen(Visitor):
 
     def visit_PointerCast(self, o):
         f = o.function
+        i = f.indexed
 
         if f.is_PointerArray:
             # lvalue
-            lvalue = c.Value(f._C_typedata, '**%s' % f.name)
+            lvalue = c.Value(i._C_typedata, '**%s' % f.name)
 
             # rvalue
             if isinstance(o.obj, ArrayObject):
@@ -256,7 +253,7 @@ class CGen(Visitor):
                 v = f._C_name
             else:
                 assert False
-            rvalue = '(%s**) %s' % (f._C_typedata, v)
+            rvalue = '(%s**) %s' % (i._C_typedata, v)
 
         else:
             # lvalue
@@ -267,15 +264,16 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(f._C_typedata, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(i._C_typedata, '(*restrict %s)%s' % (v, shape))
             else:
                 rshape = '*'
-                lvalue = c.Value(f._C_typedata, '*%s' % v)
+                lvalue = c.Value(i._C_typedata, '*%s' % v)
             if o.alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
-            if f.is_DiscreteFunction:
+            if f.is_DiscreteFunction or \
+               (f.is_Array and f._mem_mapped):
                 if isinstance(o.obj, IndexedData):
                     v = f._C_field_data
                 elif isinstance(o.obj, DeviceMap):
@@ -283,32 +281,33 @@ class CGen(Visitor):
                 else:
                     assert False
 
-                rvalue = '(%s %s) %s->%s' % (f._C_typedata, rshape, f._C_name, v)
+                rvalue = '(%s %s) %s->%s' % (i._C_typedata, rshape, f._C_name, v)
             else:
                 if isinstance(o.obj, Pointer):
                     v = o.obj.name
                 else:
                     v = f._C_name
 
-                rvalue = '(%s %s) %s' % (f._C_typedata, rshape, v)
+                rvalue = '(%s %s) %s' % (i._C_typedata, rshape, v)
 
         return c.Initializer(lvalue, rvalue)
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
+            i = a1.indexed
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-                rvalue = '(%s (*)%s) %s[%s]' % (a1._C_typedata, shape, a1.name,
+                rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
                                                 a1.dim.name)
                 lvalue = c.AlignedAttribute(
                     a0._data_alignment,
-                    c.Value(a0._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
+                    c.Value(i._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
                 )
             else:
-                rvalue = '(%s *) %s[%s]' % (a1._C_typedata, a1.name, a1.dim.name)
+                rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
                 lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(a0._C_typedata, '*restrict %s' % a0.name)
+                    a0._data_alignment, c.Value(i._C_typedata, '*restrict %s' % a0.name)
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
@@ -333,32 +332,37 @@ class CGen(Visitor):
             footer = [c.Comment("End %s" % o.name)]
         return c.Module(header + body + footer)
 
-    def visit_Element(self, o):
-        return o.element
+    def visit_Return(self, o):
+        v = 'return'
+        if o.value is not None:
+            v += ' %s' % o.value
+        return c.Statement(v)
 
     def visit_Definition(self, o):
         f = o.function
 
-        if f.is_AbstractFunction:
-            if f.is_PointerArray:
-                v = "*"
-            else:
-                v = ""
-            if o.shape is None:
-                v = "%s*%s" % (v, f._C_name)
-            else:
-                v = "%s%s%s" % (v, f._C_name, o.shape)
-            if o.qualifier is not None:
-                v = "%s %s" % (v, o.qualifier)
-        elif f.is_LocalObject:
-            v = f._C_name
+        if o.shape is not None:
+            v = o.shape
         else:
-            assert False
+            v = ""
 
-        if o.constructor_args:
-            v = MultilineCall(v, o.constructor_args, True)
+        if o.qualifier is not None:
+            v = "%s %s" % (v, o.qualifier)
 
-        v = c.Value(f._C_typedata, v)
+        v = "%s%s" % (f._C_name, v)
+
+        if f._mem_stack:
+            v = c.Value(f._C_typedata, v)
+        else:
+            if o.cargs:
+                v = MultilineCall(v, o.cargs, True)
+
+            # Aesthetics: `float * a` -> `float *a`
+            try:
+                t, stars = f._C_typename.split()
+                v = c.Value(t, '%s%s' % (stars, v))
+            except ValueError:
+                v = c.Value(f._C_typename, v)
 
         if o.initvalue is not None:
             v = c.Initializer(v, o.initvalue)
@@ -507,7 +511,8 @@ class CGen(Visitor):
             else:
                 xfilter = lambda i: not isinstance(i, public_types)
 
-        typedecls = [i._C_typedecl for i in o.parameters
+        candidates = o.parameters + tuple(o._dspace.parts)
+        typedecls = [i._C_typedecl for i in candidates
                      if xfilter(i) and i._C_typedecl is not None]
         for i in o._func_table.values():
             if not i.local:
@@ -963,6 +968,23 @@ class Uxreplace(Transformer):
 
     def visit_Expression(self, o):
         return o._rebuild(expr=uxreplace(o.expr, self.mapper))
+
+    def visit_Definition(self, o):
+        try:
+            return o._rebuild(function=self.mapper[o.function])
+        except KeyError:
+            return o
+
+    def visit_Return(self, o):
+        try:
+            return o._rebuild(value=self.mapper[o.value])
+        except KeyError:
+            return o
+
+    def visit_Callable(self, o):
+        body = self._visit(o.body)
+        parameters = [self.mapper.get(i, i) for i in o.parameters]
+        return o._rebuild(body=body, parameters=parameters)
 
     def visit_Call(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]

@@ -204,8 +204,11 @@ class Cluster(object):
         # Fallback to legacy is_dense checks
         return (not any(e.conditionals for e in self.exprs) and
                 not any(f.is_SparseFunction for f in self.functions) and
-                not self.is_scalar and
                 all(a.is_regular for a in self.scope.accesses))
+
+    @property
+    def is_sparse(self):
+        return not self.is_dense
 
     @cached_property
     def dtype(self):

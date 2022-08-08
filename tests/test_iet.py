@@ -9,6 +9,7 @@ from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # no
 from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
                            Lambda, ElementalFunction, CGen, FindSymbols,
                            filter_iterations, make_efunc, retrieve_iteration_tree)
+from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro
 from devito.tools import as_tuple
 from devito.types import Array, LocalObject, Symbol
@@ -234,6 +235,38 @@ void parallel_for(const int first, const int last, FuncType&& func, const int nt
   {
     x.join();
   });
+}"""
+
+
+def test_make_cuda_stream():
+
+    class CudaStream(LocalObject):
+
+        dtype = type('cudaStream_t', (c_void_p,), {})
+
+        @property
+        def _C_init(self):
+            return Call('cudaStreamCreate', Byref(self))
+
+        @property
+        def _C_free(self):
+            return Call('cudaStreamDestroy', self)
+
+    stream = CudaStream('stream')
+
+    iet = Call('foo', stream)
+    iet = ElementalFunction('foo', iet, 'void')
+    iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+
+    assert str(iet) == """\
+static inline void foo()
+{
+  cudaStream_t stream;
+  cudaStreamCreate(&(stream));
+
+  foo(stream);
+
+  cudaStreamDestroy(stream);
 }"""
 
 

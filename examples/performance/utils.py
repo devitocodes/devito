@@ -20,8 +20,4 @@ def print_kernel(op):
     Print the core part of an Operator used in this notebook.
     This is less verbose than printing the whole Operator.
     """
-    if op._func_table:
-        for i in op._func_table.values():
-            print(i.root)
-    else:
-        print(op.body.body[-1])
+    print(op.body.body[-1])

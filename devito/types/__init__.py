@@ -3,6 +3,7 @@ from .utils import *  # noqa
 # Need only from within Devito
 from .basic import *  # noqa
 from .array import *  # noqa
+from .object import *  # noqa
 from .lazy import *  # noqa
 from .misc import *  # noqa
 

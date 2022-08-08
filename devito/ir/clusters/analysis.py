@@ -7,7 +7,7 @@ __all__ = ['analyze']
 
 
 @timed_pass()
-def analyze(clusters, options):
+def analyze(clusters):
     state = QueueStateful.State()
 
     # Collect properties

@@ -15,7 +15,8 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
            'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
-           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper']
+           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper',
+           'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):

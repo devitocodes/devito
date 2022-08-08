@@ -1,5 +1,5 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_void_p, c_int, c_ulong, cast, byref
+from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
 from functools import wraps, reduce
 from math import ceil
 from operator import mul
@@ -8,7 +8,6 @@ import numpy as np
 import sympy
 from psutil import virtual_memory
 from cached_property import cached_property
-from cgen import Struct, Value
 
 from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
@@ -19,9 +18,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.tools import (ReducerMap, as_tuple, flatten, is_integer,
-                          ctypes_to_cstr, memoized_meth, dtype_to_ctype,
-                          humanbytes)
+from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
+                          memoized_meth, dtype_to_ctype, humanbytes)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
@@ -665,7 +663,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self._initializer
 
     _C_structname = 'dataobj'
-    _C_typename = 'struct %s *' % _C_structname
     _C_field_data = 'data'
     _C_field_size = 'size'
     _C_field_nopad_size = 'npsize'
@@ -675,19 +672,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     _C_field_owned_ofs = 'oofs'
     _C_field_dmap = 'dmap'
 
-    _C_typedecl = Struct(_C_structname, [
-        Value('%srestrict' % ctypes_to_cstr(c_void_p), _C_field_data),
-        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_size),
-        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_nopad_size),
-        Value(ctypes_to_cstr(POINTER(c_ulong)), _C_field_domain_size),
-        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_size),
-        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_halo_ofs),
-        Value(ctypes_to_cstr(POINTER(c_int)), _C_field_owned_ofs),
-        Value(ctypes_to_cstr(c_void_p), _C_field_dmap)
-    ])
-
     _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [(_C_field_data, c_void_p),
+                            {'_fields_': [(_C_field_data, c_restrict_void_p),
                                           (_C_field_size, POINTER(c_ulong)),
                                           (_C_field_nopad_size, POINTER(c_ulong)),
                                           (_C_field_domain_size, POINTER(c_ulong)),
@@ -702,7 +688,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         an Operator.
         """
         dataobj = byref(self._C_ctype._type_())
-        dataobj._obj.data = data.ctypes.data_as(c_void_p)
+        dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
         dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
