@@ -3,25 +3,35 @@ Collection of passes for the declaration, allocation, transfer and deallocation
 of symbols and data.
 """
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from functools import singledispatch
 from operator import itemgetter
 
-from devito.ir import (Block, Definition, DeviceCall, DeviceFunction, EntryFunction,
-                       FindSymbols, MapExprStmts, Transformer)
+import numpy as np
+
+from devito.ir import (Block, Call, Definition, DeviceCall, DeviceFunction,
+                       DummyExpr, Return, EntryFunction, FindSymbols, MapExprStmts,
+                       Transformer, make_callable)
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.misc import is_on_device
-from devito.symbolics import (Byref, DefFunction, IndexedPointer, ListInitializer,
-                              SizeOf, VOID, Keyword, ccode)
+from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
+                              ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM
+from devito.types import DeviceRM, Symbol
 from devito.types.dense import AliasFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
-MetaSite = namedtuple('Definition', 'allocs objs frees pallocs pfrees maps unmaps')
+class MetaSite(object):
+
+    _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
+              'maps', 'unmaps', 'efuncs')
+
+    def __init__(self):
+        for i in self._items:
+            setattr(self, i, [])
 
 
 class Storage(OrderedDict):
@@ -38,7 +48,7 @@ class Storage(OrderedDict):
         try:
             metasite = self[site]
         except KeyError:
-            metasite = self.setdefault(site, MetaSite([], [], [], [], [], [], []))
+            metasite = self.setdefault(site, MetaSite())
 
         for k, v in kwargs.items():
             getattr(metasite, k).append(v)
@@ -79,9 +89,16 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        decl = Definition(obj, constructor_args=obj.constructor_args)
+        decl = Definition(obj, cargs=obj.cargs)
 
-        storage.update(obj, site, objs=decl)
+        if obj._C_init:
+            definition = (decl, obj._C_init)
+        else:
+            definition = (decl)
+
+        frees = obj._C_free
+
+        storage.update(obj, site, objs=definition, frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -103,9 +120,9 @@ class DataManager(object):
         """
         storage.map(expr.write, site, expr, expr._rebuild(init=True))
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage, *args):
+    def _alloc_host_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
-        Allocate an Array in the high bandwidth memory.
+        Allocate a host Array in the host high bandwidth memory.
         """
         decl = Definition(obj)
 
@@ -117,6 +134,57 @@ class DataManager(object):
         free = self.lang['host-free'](obj._C_symbol)
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
+
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, *args):
+        """
+        Allocate a local Array in the host high bandwidth memory.
+        """
+        self._alloc_host_array_on_high_bw_mem(site, obj, storage, *args)
+
+    def _alloc_mapped_array_on_high_bw_mem(self, site, obj, storage, *args):
+        """
+        Allocate a mapped Array in the host high bandwidth memory.
+        """
+        decl = Definition(obj)
+
+        # Allocating a mapped Array on the high bandwidth memory requires
+        # multiple statements, hence we implement it as a generic Callable
+        # to minimize code size, since different arrays will ultimately be
+        # able to reuse the same abstract Callable
+
+        memptr = VOID(Byref(obj._C_symbol), '**')
+        alignment = obj._data_alignment
+        nbytes = SizeOf(obj._C_typedata)
+        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
+
+        nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
+        nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
+
+        ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
+        memptr = VOID(Byref(ffp1), '**')
+        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes_param)
+
+        ffp0 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+        init = DummyExpr(ffp0, nbytes_param)
+
+        free0 = self.lang['host-free'](ffp1)
+
+        free1 = self.lang['host-free'](obj._C_symbol)
+
+        ret = Return(obj._C_symbol)
+
+        name = self.sregistry.make_name(prefix='alloc')
+        body = (decl, alloc0, alloc1, init, ret)
+        efunc0 = make_callable(name, body, retval=obj._C_typename)
+        assert len(efunc0.parameters) == 1  # `nbytes_param`
+        alloc = Call(name, nbytes_arg, retobj=obj)
+
+        name = self.sregistry.make_name(prefix='free')
+        efunc1 = make_callable(name, (free0, free1))
+        assert len(efunc1.parameters) == 1  # `obj`
+        free = Call(name, obj)
+
+        storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -164,6 +232,7 @@ class DataManager(object):
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
     def _inject_definitions(self, iet, storage):
+        efuncs = []
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -189,11 +258,14 @@ class DataManager(object):
                 frees.append(Block(header=header, body=[init] + body))
             frees.extend(flatten(v.frees))
 
+            # efuncs
+            efuncs.extend(v.efuncs)
+
             mapper[k.body] = k.body._rebuild(allocs=allocs, objs=objs, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
-        return processed
+        return processed, flatten(efuncs)
 
     @iet_pass
     def place_definitions(self, iet, **kwargs):
@@ -213,7 +285,7 @@ class DataManager(object):
             if k.is_Expression and k.is_initializable:
                 self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
 
-        iet = self._inject_definitions(iet, storage)
+        iet, _ = self._inject_definitions(iet, storage)
 
         # Process all other definitions, essentially all temporary objects
         # created by the compiler up to this point (Array, LocalObject, etc.)
@@ -227,7 +299,12 @@ class DataManager(object):
                 self._alloc_object_on_low_lat_mem(iet, i, storage)
             elif i.is_Array:
                 if i._mem_heap:
-                    self._alloc_array_on_high_bw_mem(iet, i, storage)
+                    if i._mem_host:
+                        self._alloc_host_array_on_high_bw_mem(iet, i, storage)
+                    elif i._mem_local:
+                        self._alloc_local_array_on_high_bw_mem(iet, i, storage)
+                    else:
+                        self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
             elif i.is_ObjectArray:
@@ -235,9 +312,9 @@ class DataManager(object):
             elif i.is_PointerArray:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
-        iet = self._inject_definitions(iet, storage)
+        iet, efuncs = self._inject_definitions(iet, storage)
 
-        return iet, {}
+        return iet, {'efuncs': efuncs}
 
     @iet_pass
     def place_casts(self, iet, **kwargs):
@@ -296,24 +373,20 @@ class DeviceAwareDataManager(DataManager):
         super().__init__(sregistry)
         self.gpu_fit = options['gpu-fit']
 
-    def _alloc_array_on_high_bw_mem(self, site, obj, storage):
-        if obj._mem_mapped or obj._mem_host:
-            super()._alloc_array_on_high_bw_mem(site, obj, storage)
-        else:
-            # E.g., use `acc_malloc` or `omp_target_alloc` -- the Array only resides
-            # on the device as it never needs to be accessed on the host
-            assert obj._mem_local
+    def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
+        """
+        Allocate a local Array in the device high bandwidth memory.
+        """
+        deviceid = DefFunction(self.lang['device-get'].name)
+        doalloc = self.lang['device-alloc']
+        dofree = self.lang['device-free']
 
-            deviceid = DefFunction(self.lang['device-get'].name)
-            doalloc = self.lang['device-alloc']
-            dofree = self.lang['device-free']
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        init = doalloc(nbytes, deviceid, retobj=obj)
 
-            nbytes = SizeOf(obj._C_typedata)*obj.size
-            init = doalloc(nbytes, deviceid, retobj=obj)
+        free = dofree(obj._C_name, deviceid)
 
-            free = dofree(obj._C_name, deviceid)
-
-            storage.update(obj, site, allocs=init, frees=free)
+        storage.update(obj, site, allocs=init, frees=free)
 
     def _map_array_on_high_bw_mem(self, site, obj, storage):
         """

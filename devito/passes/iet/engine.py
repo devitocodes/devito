@@ -226,10 +226,9 @@ def abstract_efunc(efunc):
             - Arrays remain Arrays but are renamed as "a0", "a1", ...
         * Objects remain Objects but are renamed as "o0", "o1", ...
     """
-    parameters = []
     mapper = {}
     counter = Counter()
-    for i in efunc.parameters:
+    for i in FindSymbols().visit(efunc):
         if i.is_DiscreteFunction:
             base = 'f'
 
@@ -278,11 +277,8 @@ def abstract_efunc(efunc):
 
         counter[base] += 1
 
-        parameters.append(v)
-
-    body = Uxreplace(mapper).visit(efunc.body)
-
-    efunc = efunc._rebuild(name='foo', parameters=parameters, body=body)
+    efunc = Uxreplace(mapper).visit(efunc)
+    efunc = efunc._rebuild(name='foo')
 
     return efunc
 

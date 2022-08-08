@@ -21,6 +21,7 @@ thereof.
 - [About Devito](#about-devito)
 - [Installation](#installation)
 - [Resources](#resources)
+- [FAQs](https://github.com/devitocodes/devito/FAQ.md)
 - [Performance](#performance)
 - [Get in touch](#get-in-touch)
 - [Interactive jupyter notebooks](#interactive-jupyter-notebooks)

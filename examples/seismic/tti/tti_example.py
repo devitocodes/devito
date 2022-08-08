@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Constant, Function, smooth, norm, info
+from devito import Function, smooth, norm, info, Constant
 
 from examples.seismic import demo_model, setup_geometry, seismic_args
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -37,12 +37,21 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # Define receiver geometry (spread across `x, y`` just below surface)
     rec, u, v, summary = solver.forward(save=save, autotune=autotune)
 
-    if preset == 'constant':
-        # With  a new m as Constant
-        v0 = Constant(name="v", value=2.0, dtype=np.float32)
-        solver.forward(save=save, vp=v0)
-        # With a new vp as a scalar value
-        solver.forward(save=save, vp=2.0)
+    if preset in ['constant-tti', 'constant-tti-noazimuth']:
+        # With new physical parameters as scalars (slightly higher from original values)
+        vp = 2.
+        epsilon = .35
+        delta = .25
+        theta = .75
+        phi = None
+        if len(shape) > 2 and preset not in ['constant-tti-noazimuth']:
+            phi = .4
+        solver.forward(save=save, vp=vp, epsilon=epsilon, delta=delta,
+                       theta=theta, phi=phi)
+        # With new physical parameters as Constants
+        d = {'vp': vp, 'epsilon': epsilon, 'delta': delta, 'theta': theta, 'phi': phi}
+        d = {k: Constant(name=k, value=v, dtype=np.float32) for k, v in d.items()}
+        solver.forward(save=save, **d)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
@@ -81,8 +90,16 @@ if __name__ == "__main__":
                         help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
-    # Switch to TTI kernel if input is acoustic kernel
-    preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
+    if args.constant:
+        if args.azi:
+            preset = 'constant-tti-noazimuth'
+        else:
+            preset = 'constant-tti'
+    else:
+        if args.azi:
+            preset = 'layers-tti-noazimuth'
+        else:
+            preset = 'layers-tti'
 
     # Preset parameters
     ndim = args.ndim

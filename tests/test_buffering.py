@@ -211,7 +211,7 @@ def test_two_homogeneous_buffers():
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 2
     assert len(retrieve_iteration_tree(op2)) == 2
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
 
     op0.apply(time_M=nt-2)
@@ -242,7 +242,7 @@ def test_two_heterogeneous_buffers():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
 
     op0.apply(time_M=nt-2)
@@ -658,7 +658,7 @@ def test_everything():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 2
+    assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 2
 
     op0.apply(time_m=15, time_M=35, save_shift=0)
     op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)

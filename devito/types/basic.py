@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, byref
+from ctypes import POINTER, _Pointer
 from functools import reduce
 from operator import mul
 
@@ -8,18 +8,16 @@ import numpy as np
 import sympy
 from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
-from cgen import Struct, Value
 
 from devito.data import default_allocator
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_cstr,
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, ctypes_to_cgen,
                           dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
-from devito.types.utils import CtypesFactory, DimensionTuple
+from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'Object', 'LocalObject',
-           'CompositeObject', 'IndexedData', 'DeviceMap']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap']
 
 
 Size = namedtuple('Size', 'left right')
@@ -51,6 +49,18 @@ class CodeSymbol(object):
     def __init__(self, *args, **kwargs):
         return
 
+    @property
+    @abc.abstractmethod
+    def dtype(self):
+        """
+        The data type of the object in the generated code, represented as a
+        Python class:
+
+            * `numpy.dtype`: basic data types. For example, `np.float64 -> double`.
+            * `ctypes`: composite objects (e.g., structs), foreign types.
+        """
+        return
+
     @abc.abstractproperty
     def _C_name(self):
         """
@@ -62,8 +72,8 @@ class CodeSymbol(object):
         """
         return
 
-    @abc.abstractproperty
-    def _C_typename(self):
+    @property
+    def _C_typedata(self):
         """
         The type of the object in the generated code.
 
@@ -71,30 +81,57 @@ class CodeSymbol(object):
         -------
         str
         """
-        return
+        _type = self._C_ctype
+        while issubclass(_type, _Pointer):
+            _type = _type._type_
 
-    @abc.abstractproperty
-    def _C_typedata(self):
+        return ctypes_to_cstr(_type, qualifiers=self._C_typequals)
+
+    @property
+    def _C_typename(self):
         """
-        The type of the data values in the generated code.
+        The type used to carry around the object in the generated code.
+
+        If an object is expected to be passed by value, this will coincide
+        with `_C_typedata`.
+
+        Instead, if an object is passed via a one-dimensional pointer, then
+        `self._C_typename` will add a `*` to whatever type is returned by
+        `self._C_typedata`.
+
+        This can be customized at will by subclasses.
+
+        By default, `self._C_typename = self._C_typedata`.
 
         Returns
         -------
         str
         """
-        return
+        return ctypes_to_cstr(self._C_ctype, qualifiers=self._C_typequals)
 
     @abc.abstractproperty
     def _C_ctype(self):
         """
-        The type of the object as a ctypes object, necessary for jumping
-        from Python-land to generated-code-land.
+        The `_C_typename` of the object as a `ctypes` class, necessary for
+        jumping from Python-land to C-land.
 
         Returns
         -------
         ctypes type
         """
         return
+
+    @cached_property
+    def _C_typequals(self):
+        """
+        The type qualifiers of the object in the generated code.
+        """
+        known_qualifiers = ('is_const', 'is_volatile')
+        qualifiers = []
+        for i in known_qualifiers:
+            if getattr(self, i, False):
+                qualifiers.append(i.split('_')[1])
+        return as_tuple(qualifiers)
 
     @property
     def _C_typedecl(self):
@@ -107,7 +144,7 @@ class CodeSymbol(object):
             None if the type of the object can be expressed with a basic type,
             such as float or int, otherwise a cgen.Struct representing a C struct.
         """
-        return
+        return ctypes_to_cgen(self._C_ctype, fields=getattr(self, 'fields', None))
 
     @property
     def _C_symbol(self):
@@ -365,7 +402,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     @property
     def dtype(self):
-        """The data type of the object."""
         return self._dtype
 
     @property
@@ -413,13 +449,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     @property
     def _C_name(self):
         return self.name
-
-    @property
-    def _C_typename(self):
-        return '%s%s' % ('const ' if self.is_const else '',
-                         dtype_to_cstr(self.dtype))
-
-    _C_typedata = _C_typename
 
     @property
     def _C_ctype(self):
@@ -989,7 +1018,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
 
     @property
     def dtype(self):
-        """The data type of the object."""
         return self._dtype
 
     @property
@@ -1062,10 +1090,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     @property
     def _C_name(self):
         return "%s_vec" % self.name
-
-    @property
-    def _C_typedata(self):
-        return dtype_to_cstr(self.dtype)
 
     @cached_property
     def _C_symbol(self):
@@ -1193,189 +1217,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self.__class__.__base__
 
 
-class AbstractObject(Basic, sympy.Basic, Pickable):
-
-    """
-    Base class for objects with derived type.
-
-    The hierarchy is structured as follows
-
-                         AbstractObject
-                                |
-                 ---------------------------------
-                 |                               |
-              Object                       LocalObject
-                 |
-          CompositeObject
-
-    Warnings
-    --------
-    AbstractObjects are created and managed directly by Devito.
-    """
-
-    is_AbstractObject = True
-
-    __rargs__ = ('name', 'dtype')
-
-    def __new__(cls, *args, **kwargs):
-        with sympy_mutex:
-            obj = sympy.Basic.__new__(cls)
-        obj.__init__(*args, **kwargs)
-        return obj
-
-    def __init__(self, name, dtype):
-        self.name = name
-        self.dtype = dtype
-
-    def __repr__(self):
-        return self.name
-
-    __str__ = __repr__
-
-    def _hashable_content(self):
-        return (self.name, self.dtype)
-
-    @property
-    def free_symbols(self):
-        return {self}
-
-    @property
-    def _C_name(self):
-        return self.name
-
-    @property
-    def _C_typename(self):
-        return ctypes_to_cstr(self.dtype)
-
-    @property
-    def _C_typedata(self):
-        return self._C_typename
-
-    @property
-    def _C_ctype(self):
-        return self.dtype
-
-    @property
-    def function(self):
-        return self
-
-    # Pickling support
-    __reduce_ex__ = Pickable.__reduce_ex__
-
-
-class Object(AbstractObject, ArgProvider, Uncached):
-
-    """
-    Object with derived type defined in Python.
-    """
-
-    is_Object = True
-
-    def __init__(self, name, dtype, value=None):
-        super(Object, self).__init__(name, dtype)
-        self.value = value
-
-    __hash__ = Uncached.__hash__
-
-    @property
-    def _mem_external(self):
-        return True
-
-    @property
-    def _arg_names(self):
-        return (self.name,)
-
-    def _arg_defaults(self):
-        if callable(self.value):
-            return {self.name: self.value()}
-        else:
-            return {self.name: self.value}
-
-    def _arg_values(self, **kwargs):
-        """
-        Produce runtime values for this Object after evaluating user input.
-
-        Parameters
-        ----------
-        **kwargs
-            Dictionary of user-provided argument overrides.
-        """
-        if self.name in kwargs:
-            obj = kwargs.pop(self.name)
-            return {self.name: obj._arg_defaults()[obj.name]}
-        else:
-            return self._arg_defaults()
-
-
-class CompositeObject(Object):
-
-    """
-    Object with composite type (e.g., a C struct) defined in Python.
-    """
-
-    __rargs__ = ('name', 'pname', 'pfields')
-
-    def __init__(self, name, pname, pfields, value=None):
-        dtype = CtypesFactory.generate(pname, pfields)
-        value = self.__value_setup__(dtype, value)
-        super(CompositeObject, self).__init__(name, dtype, value)
-
-    def __value_setup__(self, dtype, value):
-        return value or byref(dtype._type_())
-
-    @property
-    def pfields(self):
-        return tuple(self.dtype._type_._fields_)
-
-    @property
-    def pname(self):
-        return self.dtype._type_.__name__
-
-    @property
-    def fields(self):
-        return [i for i, _ in self.pfields]
-
-    @cached_property
-    def _C_typedecl(self):
-        return Struct(self.pname, [Value(ctypes_to_cstr(j), i) for i, j in self.pfields])
-
-
-class LocalObject(AbstractObject):
-
-    """
-    Object with derived type defined inside an Operator.
-    """
-
-    is_LocalObject = True
-
-    dtype = None
-    """
-    LocalObjects encode their dtype as a class attribute.
-    """
-
-    __rargs__ = ('name',)
-    __rkwargs__ = ('constructor_args', 'liveness')
-
-    def __init__(self, name, constructor_args=None, **kwargs):
-        self.name = name
-        self.constructor_args = as_tuple(constructor_args)
-
-        self._liveness = kwargs.get('liveness', 'lazy')
-        assert self._liveness in ['eager', 'lazy']
-
-    @property
-    def liveness(self):
-        return self._liveness
-
-    @property
-    def _mem_internal_eager(self):
-        return self._liveness == 'eager'
-
-    @property
-    def _mem_internal_lazy(self):
-        return self._liveness == 'lazy'
-
-
 # Extended SymPy hierarchy follows, for essentially two reasons:
 # - To keep track of `function`
 # - To override SymPy caching behaviour
@@ -1413,16 +1254,12 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         return self.name
 
     @cached_property
-    def _C_typename(self):
-        return ctypes_to_cstr(self._C_ctype)
-
-    @cached_property
-    def _C_typedata(self):
-        return dtype_to_cstr(self.dtype)
-
-    @cached_property
     def _C_ctype(self):
-        return POINTER(dtype_to_ctype(self.dtype))
+        try:
+            return POINTER(dtype_to_ctype(self.dtype))
+        except TypeError:
+            # `dtype` is a ctypes-derived type!
+            return self.dtype
 
     @property
     def base(self):
@@ -1484,6 +1321,10 @@ class BoundSymbol(AbstractSymbol):
 
     def _hashable_content(self):
         return super()._hashable_content() + (self.function,)
+
+    @property
+    def _C_ctype(self):
+        return self.function._C_ctype
 
 
 class Indexed(sympy.Indexed):

@@ -76,6 +76,12 @@ class Cpu64OperatorMixin(object):
     than this threshold.
     """
 
+    MAPIFY_REDUCE = False
+    """
+    Vector-expand all scalar reductions to turn them into explicit map-reductions,
+    which may be easier to parallelize for certain backends.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         o = {}
@@ -119,6 +125,7 @@ class Cpu64OperatorMixin(object):
         # Misc
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
+        o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)

@@ -1,5 +1,5 @@
 from devito.symbolics import uxreplace
-from devito.types import Symbol
+from devito.types import Symbol, Wildcard
 
 __all__ = ['makeit_ssa']
 
@@ -11,7 +11,8 @@ def makeit_ssa(exprs):
     # Identify recurring LHSs
     seen = {}
     for i, e in enumerate(exprs):
-        seen.setdefault(e.lhs, []).append(i)
+        if not isinstance(e.lhs, Wildcard):
+            seen.setdefault(e.lhs, []).append(i)
     # Optimization: don't waste time reconstructing stuff if already in SSA form
     if all(len(i) == 1 for i in seen.values()):
         return exprs

@@ -331,7 +331,7 @@ class TestFD(object):
         assert u.dxl(side=centered).evaluate == u.dx.evaluate
 
     @pytest.mark.parametrize('so, expected', [
-        (2, 'u(x)/h_x - 1.0*u(x - 1.0*h_x)/h_x'),
+        (2, 'u(x)/h_x - u(x - 1.0*h_x)/h_x'),
         (4, '1.125*u(x)/h_x + 0.0416666667*u(x - 2*h_x)/h_x - '
             '1.125*u(x - h_x)/h_x - 0.0416666667*u(x + h_x)/h_x'),
         (6, '1.171875*u(x)/h_x - 0.0046875*u(x - 3*h_x)/h_x + '
@@ -365,8 +365,8 @@ class TestFD(object):
         x = grid.dimensions[0]
         u = Function(name="u", grid=grid, space_order=2)
 
-        dplus = "-1.0*u(x)/h_x + u(x + 1.0*h_x)/h_x"
-        dminus = "u(x)/h_x - 1.0*u(x - 1.0*h_x)/h_x"
+        dplus = "-u(x)/h_x + u(x + 1.0*h_x)/h_x"
+        dminus = "u(x)/h_x - u(x - 1.0*h_x)/h_x"
         assert str(u.dx(x0=x + .5 * x.spacing).evaluate) == dplus
         assert str(u.dx(x0=x - .5 * x.spacing).evaluate) == dminus
         assert str(u.dx(x0=x + .5 * x.spacing, fd_order=1).evaluate) == dplus

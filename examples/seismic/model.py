@@ -1,5 +1,6 @@
 import numpy as np
 from sympy import finite_diff_weights as fd_w
+import pytest
 
 from devito import (Grid, SubDomain, Function, Constant, warning,
                     SubDimension, Eq, Inc, Operator, div, sin, Abs)
@@ -375,9 +376,9 @@ class SeismicModel(GenericModel):
             param = getattr(self, name)
         except AttributeError:
             # No physical parameter with tha name, create it
-            setattr(self, name, self._gen_phys_param(name, value, self.space_order))
+            setattr(self, name, self._gen_phys_param(value, name, self.space_order))
             return
-        # Update the square slowness according to new value
+        # Update the physical parameter according to new value
         if isinstance(value, np.ndarray):
             if value.shape == param.shape:
                 param.data[:] = value[:]
@@ -421,6 +422,55 @@ class SeismicModel(GenericModel):
         for i in physical_parameters:
             gaussian_smooth(model_parameters[i], sigma=sigma)
         return
+
+
+@pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
+def test_model_update(shape):
+
+    # Set physical properties as numpy arrays
+    vp = np.full(shape, 2.5, dtype=np.float32)  # vp constant of 2.5 km/s
+    qp = 3.516*((vp[:]*1000.)**2.2)*10**(-6)  # Li's empirical formula
+    b = 1 / (0.31*(vp[:]*1000.)**0.25)  # Gardner's relation
+
+    # Define a simple visco-acoustic model from the physical parameters above
+    va_model = SeismicModel(space_order=4, vp=vp, qp=qp, b=b, nbl=10,
+                            origin=tuple([0. for _ in shape]), shape=shape,
+                            spacing=[20. for _ in shape],)
+
+    # Define a simple acoustic model with vp=1.5 km/s
+    model = SeismicModel(space_order=4, vp=np.full_like(vp, 1.5), nbl=10,
+                         origin=tuple([0. for _ in shape]), shape=shape,
+                         spacing=[20. for _ in shape],)
+
+    # Define a velocity Function
+    vp_fcn = Function(name='vp0', grid=model.grid, space_order=4)
+    vp_fcn.data[:] = 2.5
+
+    # Test 1. Update vp of acoustic model from array
+    model.update('vp', vp)
+    assert np.array_equal(va_model.vp.data, model.vp.data)
+
+    # Test 2. Update vp of acoustic model from Function
+    model.update('vp', vp_fcn.data)
+    assert np.array_equal(va_model.vp.data, model.vp.data)
+
+    # Test 3. Create a new physical parameter in the acoustic model from array
+    model.update('qp', qp)
+    assert np.array_equal(va_model.qp.data, model.qp.data)
+
+    # Make a set of physical parameters from each model
+    tpl1_set = set(va_model.physical_parameters)
+    tpl2_set = set(model.physical_parameters)
+
+    # Physical parameters in either set but not in the intersection.
+    diff_phys_par = tuple(tpl1_set ^ tpl2_set)
+
+    # Turn acoustic model (it is just lacking 'b') into a visco-acoustic model
+    slices = tuple(slice(model.nbl, -model.nbl) for _ in range(model.dim))
+    for i in diff_phys_par:
+        # Test 4. Create a new physical parameter in the acoustic model from function
+        model.update(i, getattr(va_model, i).data[slices])
+        assert np.array_equal(getattr(model, i).data, getattr(va_model, i).data)
 
 
 # For backward compatibility

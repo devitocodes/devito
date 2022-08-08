@@ -3,7 +3,7 @@ from collections import defaultdict
 from sympy import Add, Mul, S, collect
 
 from devito.ir import cluster_pass
-from devito.symbolics import estimate_cost, retrieve_symbols
+from devito.symbolics import BasicWrapperMixin, estimate_cost, retrieve_symbols
 from devito.tools import ReducerMap
 
 __all__ = ['factorize']
@@ -115,7 +115,7 @@ def collect_nested(expr):
             return expr, {'funcs': expr}
         elif expr.is_Pow:
             return expr, {'pows': expr}
-        elif expr.is_Symbol or expr.is_Indexed or expr.is_Atom:
+        elif expr.is_Symbol or expr.is_Indexed or isinstance(expr, BasicWrapperMixin):
             return expr, {}
         elif expr.is_Add:
             args, candidates = zip(*[run(arg) for arg in expr.args])
