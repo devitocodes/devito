@@ -231,7 +231,7 @@ class CGeneration:
             return
 
         if (isinstance(operation, Initialise)):
-            type = operation.results[0].typ.width.name
+            type = operation.results[0].typ.name
             self.print(type, indent=True, end=" ")
 
             assignee = operation.id.data

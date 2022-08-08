@@ -2,8 +2,9 @@ from sympy import Mod
 from typing import Tuple
 
 from xdsl.dialects.builtin import *
-from xdsl.dialects.float import *
 
+from xdsl.irdl import *
+from xdsl.ir import *
 
 
 @dataclass
@@ -26,7 +27,7 @@ class IET:
         self.ctx.register_op(Statement)
         self.ctx.register_op(StructDecl)
         self.i32 = IntegerType.from_width(32)
-        self.f32 = FloatType.from_width(32)
+        self.f32 = Float32Type()
 
 
 @irdl_op_definition
@@ -111,7 +112,7 @@ class Powi(Operation):
     #  This should be changed to Float/Float32Type
     base = OperandDef(IntegerType)
     exponent = OperandDef(IntegerType)
-    output = ResultDef(FloatType)
+    output = ResultDef(Float32Type)
 
     def verify_(self) -> None:
         if self.base.typ != self.exponent.typ or self.exponent.typ != self.output.typ:
@@ -120,7 +121,7 @@ class Powi(Operation):
     @staticmethod
     def get(base, exponent):
         res = Powi.build(operands=[base, exponent],
-                         result_types=[FloatType.from_width(32)])
+                         result_types=[Float32Type()])
         return res
 
 
@@ -200,14 +201,14 @@ class StructDecl(Operation):
 class Initialise(Operation):
     name: str = "iet.initialise"
     id = AttributeDef(StringAttr)
-    rhs = OperandDef(FloatType)
-    lhs = ResultDef(FloatType)
+    rhs = OperandDef(Float32Type)
+    lhs = ResultDef(Float32Type)
 
     @staticmethod
     def get(lhs, rhs, id):
         res = Initialise.build(attributes={"id": StringAttr.from_str(id)},
                                operands=[lhs],
-                               result_types=[FloatType.from_width(32)])
+                               result_types=[Float32Type()])
         return res
 
 
