@@ -58,7 +58,7 @@ def assemble_system(Mvalue,neq,numbercoef,hvalue,point_list):
         vec2 = np.array([4,4])
 
         if(dcont==0): bsis[dcont,0] = 1.0
-        
+                
         list_eq_type.append(0)
         
         for m1 in range(0,naxes):
@@ -100,7 +100,7 @@ def assemble_system(Mvalue,neq,numbercoef,hvalue,point_list):
         contl1 = contl1 + 1
 
         for i in range(1,contd):
-            
+                        
             list_eq_type.append(1)
             
             contc1 = mvalue
@@ -290,11 +290,11 @@ def sol_system(Asismod,bsismod,loc_strategy,exttrap):
     csissol = []
     vtype   = []
         
-    if(nlin==ncol):
+    if(nlin==ncol):        
 
         try: 
 
-            csis1 = la.solve(Asismod,bsismod)            
+            csis1 = solve(Asismod,bsismod)
             vtype.append(0)
             
         except:
@@ -330,11 +330,11 @@ def sol_system(Asismod,bsismod,loc_strategy,exttrap):
     
         else:
         
-            #csissol  = [csis1,csis2,csis3]
-            #sisttype = ['np.linalg.solve','lu_solve','la.lstsq']
+            csissol  = [csis1,csis2,csis3]
+            sisttype = ['np.linalg.solve','lu_solve','la.lstsq']
             
-            csissol  = [csis1,csis2]
-            sisttype = ['np.linalg.solve','lu_solve']
+            #csissol  = [csis2]
+            #sisttype = ['np.linalg.solve','lu_solve']
             
     else:
 
@@ -371,37 +371,16 @@ def sol_system(Asismod,bsismod,loc_strategy,exttrap):
 #==============================================================================
 
 #==============================================================================
-# Remove Linhas de Zeros
-#==============================================================================
-def remove_zeros(Asis,bsis,neqsys):
-#==============================================================================
-    zero_list = []
-        
-    for i in range(0,neqsys):
-            
-        locsum = Asis[i,:].sum()
-            
-        if(locsum==0):
-                
-            zero_list.append(i)
-         
-    Asis = np.delete(Asis,zero_list,0)
-    bsis = np.delete(bsis,zero_list,0)
-    
-    return Asis, bsis
-#==============================================================================
-
-#==============================================================================
 # Sistema de Minimização
 #==============================================================================
 def calccoef(mvalue,exttrap,hvalue):
 #==============================================================================
 
 #==============================================================================
-    allow_print = 1
+    allow_print = 0
     order       = 2*mvalue
     exttrapmax  = int(0.5*(mvalue**2+mvalue))
-    pre_cond    = 1
+    pre_cond    = 0
     
     if(exttrap>exttrapmax):
         
@@ -498,6 +477,8 @@ def calccoef(mvalue,exttrap,hvalue):
     else:
 
         neq = int(mvalue + (mvalue**2-1)/4)
+    
+    numbercoef    = len(list_pair)
 #==============================================================================
     
 #==============================================================================
@@ -514,180 +495,96 @@ def calccoef(mvalue,exttrap,hvalue):
         if(pre_cond==0): Asisloc,bsisloc, list_eq_type = assemble_system(m1,neqnew,numbercoefsym,hvalue,point_list)
         if(pre_cond==1): Asisloc,bsisloc, list_eq_type = assemble_system_precond(m1,neqnew,numbercoefsym,hvalue,point_list)
         
+        eq_type       = np.array(list_eq_type)
+        sum_eq_type   = eq_type.shape[0]-eq_type.sum()
         R, ind_col    = Matrix(Asisloc).rref()
         ncolloc       = Asisloc.shape[1]
         nlist_ind_col = len(list(ind_col))
 
-        if(neqnew>neq and nlist_ind_col==ncolloc):
-            
+        if(sum_eq_type==numbercoefsym):
+
             mnew = m1
             
             break
-        
-    subs_sys = 0
-    
-    if(subs_sys==0):
-    
-        mvaluesys = mvalue
-        neqsys    = neq  
-
-    else:
-        
-        mvaluesys = mnew
-        neqsys    = neqnew
 #==============================================================================
 
-#==============================================================================
-    numbercoef    = len(list_pair)
-    if(pre_cond==0): Asis,bsis,list_eq_type = assemble_system(mvaluesys,neqsys,numbercoefsym,hvalue,point_list)
-    if(pre_cond==1): Asis,bsis,list_eq_type = assemble_system_precond(mvaluesys,neqsys,numbercoefsym,hvalue,point_list)
-#==============================================================================
-
-#============================================================================== 
+#==============================================================================       
     real_extra   = len(list_diag) + len(list_others)
     cross_points = mvalue
 
     print('')
-    print('====================================================================================================')
+    print('==================================================================')
     print('Cross Points  : %d'%cross_points)
     print('Extra Points: : %d'%real_extra)
-    print('====================================================================================================')
+    print('==================================================================')
     print('')
 #==============================================================================
 
-#==============================================================================       
-    loc_strategy = 2
-       
+#==============================================================================
+    loc_strategy = 0
+    
+    if(pre_cond==0): Asis,bsis,list_eq_type = assemble_system(mvalue,neq,numbercoefsym,hvalue,point_list)      
+    if(pre_cond==1): Asis,bsis,list_eq_type = assemble_system_precond(mvalue,neq,numbercoefsym,hvalue,point_list)
+    
+    if(real_extra==0):
+        
+        loc_strategy = 0
+        Ateste       = np.zeros((numbercoefsym,numbercoefsym))
+        bteste       = np.zeros((numbercoefsym,1))
+        contcol      = 0
+    
+        for m0 in range(0,Asis.shape[0]):
+        
+            if(contcol==numbercoefsym):
+            
+                break
+        
+            if(eq_type[m0]==0):
+            
+                Ateste[contcol,:] = Asis[m0,:]
+                bteste[contcol,0] = bsis[m0,0]   
+                contcol           = contcol + 1
+        
+        Asis = Ateste
+        bsis = bteste
+    
     if(loc_strategy==0):
-        
-        Ateste, bteste = remove_zeros(Asis,bsis,neqsys)
-        if(pre_cond==0): csis = sol_system(Ateste,bteste,loc_strategy,exttrap)
-        if(pre_cond==1): csis = (1/hvalue**2)*sol_system(Ateste,bteste,loc_strategy,exttrap)
-        
-        print(Asis)
-        print('')
-        print(Ateste)
-        
+   
+        if(pre_cond==0): csis = sol_system(Asis,bsis,loc_strategy,exttrap)
+        if(pre_cond==1): csis = (1/hvalue**2)*sol_system(Asis,bsis,loc_strategy,exttrap)
+       
+        if(allow_print==1):
+
+            print(Asis)
+            print('')
+            print(bsis)
+            print('')
+            print(csis)     
+    
     if(loc_strategy==1):
-        
-        Ateste  = np.zeros((Asis.shape[1],Asis.shape[1]))
-        bteste  = np.zeros((Asis.shape[1],1))
-        contcol = 0
-    
-        for m1 in range(0,Asis.shape[0]):
-           
-            if(contcol==Asis.shape[1]):
-            
-                break
-        
-            if(list_eq_type[m1]==0):
-            
-                Ateste[contcol,:] = Asis[m1,:]
-                bteste[contcol,0] = bsis[m1,0]
-                contcol           = contcol + 1
-      
-        for m1 in range(0,Asis.shape[0]):
-            
-           if(contcol==Asis.shape[1]):
-            
-               break
-        
-           if(list_eq_type[m1]==1):
-            
-               Ateste[contcol,:] = Asis[m1,:]
-               bteste[contcol,0] = bsis[m1,0]
-               contcol           = contcol + 1
-        
-        print(Asis)
-        print('')
-        print(Ateste)
-        
-        if(pre_cond==0):  csis = sol_system(Ateste,bteste,loc_strategy,exttrap)
-        if(pre_cond==1):  csis = (1/hvalue**2)*sol_system(Ateste,bteste,loc_strategy,exttrap)        
-    
-    if(loc_strategy==2):
-    
-        Ateste  = np.zeros((mvaluesys,Asis.shape[1]))
-        bteste  = np.zeros((mvaluesys,1))
-        contcol = 0
-    
-        for m1 in range(0,Asis.shape[0]):
-            
-            if(contcol==mvaluesys):
-            
-                break
-        
-            if(list_eq_type[m1]==0):
 
-                Ateste[contcol,:] = Asis[m1,:]
-                bteste[contcol,0] = bsis[m1,0]
-                contcol           = contcol + 1
+        mvaluesys = mnew
+        neqsys    = neqnew
         
-        print(Asis)
-        print('')
-        print(Ateste)
-        
-        if(pre_cond==0):  csis = sol_system(Ateste,bteste,loc_strategy,exttrap)
-        if(pre_cond==1):  csis = (1/hvalue**2)*sol_system(Ateste,bteste,loc_strategy,exttrap)
-        
-        
-    if(loc_strategy==4):
-        
-        #mnumber = int(mvalue+neqsys-mvaluesys) 
-        mnumber = Asis.shape[1]
-        
-        Ateste  = np.zeros((mnumber,Asis.shape[1]))
-        bteste  = np.zeros((mnumber,1))
-        contcol = 0
-    
-        for m1 in range(0,Asis.shape[0]):
-           
-            if(contcol==mvalue):
+        if(pre_cond==0): 
             
-                break
-        
-            if(list_eq_type[m1]==0):
+            Ateste,bteste,list_eq_type = assemble_system(mvaluesys,neqsys,numbercoefsym,hvalue,point_list)
+            csis = sol_system(Ateste,bteste,loc_strategy,exttrap)
+       
+        if(pre_cond==1): 
             
-                Ateste[contcol,:] = Asis[m1,:]
-                bteste[contcol,0] = bsis[m1,0]
-                contcol           = contcol + 1
-      
-        for m1 in range(0,Asis.shape[0]):
-            
-           if(contcol==mnumber):
-            
-               break
+            Ateste,bteste,list_eq_type = assemble_system_precond(mvaluesys,neqsys,numbercoefsym,hvalue,point_list)
+            csis = (1/hvalue**2)*sol_system(Ateste,bteste,loc_strategy,exttrap)
         
-           if(list_eq_type[m1]==1):
-            
-               Ateste[contcol,:] = Asis[m1,:]
-               bteste[contcol,0] = bsis[m1,0]
-               contcol           = contcol + 1
-        
-        
-        Ateste, bteste = remove_zeros(Ateste,bteste,Ateste.shape[0])
-        
-        print(Asis)
-        print('')
-        print(Ateste)
-        
-        if(pre_cond==0):  csis = sol_system(Ateste,bteste,loc_strategy,exttrap)
-        if(pre_cond==1):  csis = (1/hvalue**2)*sol_system(Ateste,bteste,loc_strategy,exttrap) 
-#==============================================================================
+        if(allow_print==1):
 
-#==============================================================================
-# Prints de Arrays
-#==============================================================================    
-    if(allow_print==1):
-        
-        # print('')
-        # print(Asis)
-        
-        # print('')
-        # print(bsis)
-        
-        print('')
-        print(csis)
+            print(Asis)
+            print('')
+            print(Ateste)
+            print('')
+            print(bteste)
+            print('')
+            print(csis)
 #==============================================================================
 
 #==============================================================================

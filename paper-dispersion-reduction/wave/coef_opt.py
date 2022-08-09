@@ -40,13 +40,18 @@ import coef_otm_versao14        as     cotm14
 # # Liu-Sen 2009 Coefficients
 #==============================================================================
 sys.path.insert(0, './coef_opt/coef_liu_sen')
-import coef_otm_versao32        as     cotm32
+import coef_otm_versao22        as     cotm22
 #==============================================================================
 # Wang, Liu and Sen - Cross/Rombus Stencils - 2016
 #==============================================================================
 sys.path.insert(0, './coef_opt/coef_wang_liu_sen')
-import coef_otm_versao71        as     cotm71
-import coef_otm_versao72        as     cotm72
+import coef_otm_versao31        as     cotm31
+import coef_otm_versao32        as     cotm32
+#==============================================================================
+# Square Rhombus Adpt Coefs
+#==============================================================================
+sys.path.insert(0, './coef_opt/square_rhombus_adpt_weights')
+import square_rhombus_adpt_weights      as coefsquarerhoadpt
 #==============================================================================
 
 #==============================================================================
@@ -62,6 +67,7 @@ class coefopt1:
         self.t0, self.tn = teste.t0, teste.tn
         self.x0, self.y0 = teste.x0, teste.y0
         self.CFL = teste.CFL
+        self.exttrap = teste.exttrap
 #==============================================================================
 
 #==============================================================================
@@ -77,7 +83,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-# T1 - Yang Liu 2012 Coefficients - FD coefficients calculated by LS
+# T11 - Yang Liu 2012 Coefficients - FD coefficients calculated by LS
 #==============================================================================
             if(wtype==1):
 
@@ -143,7 +149,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-# T2 Type - Coef Yang Liu - A globally optimal FD scheme based on space-domain 
+# T12 Type - Coef Yang Liu - A globally optimal FD scheme based on space-domain 
 # dispersion relation
 #==============================================================================
             if(wtype==2):
@@ -210,7 +216,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-# T3 Type - Coef Yang Liu - A nearly globally optimal FD scheme based on 1D
+# T13 Type - Coef Yang Liu - A nearly globally optimal FD scheme based on 1D
 # time-space-domain dispersion relation
 #==============================================================================
             if(wtype==3):
@@ -277,7 +283,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-# T4 Type - Coef Yang Liu - A nearly globally optimal FD scheme based on 2D
+# T14 Type - Coef Yang Liu - A nearly globally optimal FD scheme based on 2D
 # time-space-domain dispersion relation
 #==============================================================================
             if(wtype==4):
@@ -346,42 +352,22 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-        if(wauthor==2):            
-#==============================================================================
-            
-#==============================================================================
-# T5 Type - Coef Li, Liu, Sen and Ren - A time-space-domain mesh-free finite
-# difference based on least squares
-#==============================================================================
-            if(wtype==1):
-
-                K        = np.pi
-                x0       = self.x0
-                y0       = self.y0
-                hx       = self.hx
-                hy       = self.hy
-                rvalllsr = dt*vmax
-                
-                Txx,Tyy  = cotm21.calccoef(sou,K,x0,y0,hx,hy,rvalllsr)
-#==============================================================================
-
-#==============================================================================
-        if(wauthor==3):      
+        if(wauthor==2):      
             
             ctex = 1/(self.hx**2)
             ctey = 1/(self.hy**2) 
 #==============================================================================
             
 #==============================================================================
-# T6 Type - Coef Liu and Sen - Time–space domain high-order FD method for 1D 
+# T21 Type - Coef Liu and Sen - Time–space domain high-order FD method for 1D 
 # acoustic  wave equations 
 #==============================================================================
             if(wtype==1):
                 
                 rvalx = dt*vmax/self.hx
                 rvaly = dt*vmax/self.hy
-                Txx   = ctex*cotm31.calccoef(sou,rvalx)
-                Tyy   = ctey*cotm31.calccoef(sou,rvaly)
+                Txx   = ctex*cotm21.calccoef(sou,rvalx)
+                Tyy   = ctey*cotm21.calccoef(sou,rvaly)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -402,7 +388,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-# T7 Type - Coef Liu and Sen - Time–space domain high-order FD method for 2D 
+# T22 Type - Coef Liu and Sen - Time–space domain high-order FD method for 2D 
 # acoustic  wave equations
 #==============================================================================
             if(wtype==2):
@@ -413,8 +399,8 @@ class coefopt1:
                 
                 tetaval = np.pi/8
                    
-                Txx = ctex*cotm32.calccoef(sou,rvalx,tetaval)
-                Tyy = ctey*cotm32.calccoef(sou,rvaly,tetaval)
+                Txx = ctex*cotm22.calccoef(sou,rvalx,tetaval)
+                Tyy = ctey*cotm22.calccoef(sou,rvaly,tetaval)
                 
                 npx = np.size(Txx)
                 npy = np.size(Tyy)
@@ -435,174 +421,7 @@ class coefopt1:
 #==============================================================================
 
 #==============================================================================
-        if(wauthor==4):
-                        
-            nordem = int(sou/2) 
-#==============================================================================
-            
-#==============================================================================
-# T8 Type- Coef Yajun - Uniform dispersion reduction schemes
-#==============================================================================
-            if(wtype==1):
-
-                rvalx   = dt*vmax/self.hx
-                rvaly   = dt*vmax/self.hy
-                knumber = 2
-                
-                Txx = cotm41.calccoef(nordem,rvalx,knumber)
-                Tyy = cotm41.calccoef(nordem,rvaly,knumber)
-                
-                npx = np.size(Txx)
-                npy = np.size(Tyy)
-                                
-                mcoef = np.zeros((npx,npy))
-                
-                npxm  = int(npx/2)
-                
-                npym  = int(npy/2) 
-                                
-                for i in range(0,npx):
-                    
-                    mcoef[npxm,i] = mcoef[npxm,i] + Txx[i]
-                    
-                for j in range(0,npy):
-                    
-                    mcoef[j,npym] = mcoef[j,npym] + Tyy[j]
-#==============================================================================
-
-#==============================================================================
-# T8 Type- Coef Yajun - Uniform dispersion reduction schemes
-#==============================================================================
-            if(wtype==2):
-
-                rvalx    = dt*vmax/self.hx
-                rvaly    = dt*vmax/self.hy
-                knumber  = 2
-                phiangle = np.pi/4
-                
-                Txx = cotm42.calccoef(nordem,rvalx,knumber,phiangle)
-                Tyy = cotm42.calccoef(nordem,rvaly,knumber,phiangle)
-                
-                npx = np.size(Txx)
-                npy = np.size(Tyy)
-                                
-                mcoef = np.zeros((npx,npy))
-                
-                npxm  = int(npx/2)
-                
-                npym  = int(npy/2) 
-                                
-                for i in range(0,npx):
-                    
-                    mcoef[npxm,i] = mcoef[npxm,i] + Txx[i]
-                    
-                for j in range(0,npy):
-                    
-                    mcoef[j,npym] = mcoef[j,npym] + Tyy[j]
-#==============================================================================
-
-#==============================================================================
-        if(wauthor==5):
-            
-            nordem = int(sou/2)    
-#==============================================================================
-            
-#==============================================================================
-# T9 Type - Coef Kastner e Finkelstein - 2006 and 2007
-#==============================================================================
-            if(wtype==1):
-               
-                rvalx   = dt*vmax/self.hx
-                rvaly   = dt*vmax/self.hy
-                knumber = 2
-
-                Txx = cotm51.calccoef(nordem,rvalx,knumber)
-                Tyy = cotm51.calccoef(nordem,rvaly,knumber)
-                
-                npx = np.size(Txx)
-                npy = np.size(Tyy)
-                                
-                mcoef = np.zeros((npx,npy))
-                
-                npxm  = int(npx/2)
-                
-                npym  = int(npy/2) 
-                                
-                for i in range(0,npx):
-                    
-                    mcoef[npxm,i] = mcoef[npxm,i] + Txx[i]
-                    
-                for j in range(0,npy):
-                    
-                    mcoef[j,npym] = mcoef[j,npym] + Tyy[j]
-#==============================================================================
-
-#==============================================================================
-# T10 Type - Coef Kastner e Finkelstein - 2006 and 2007
-#==============================================================================
-            if(wtype==2):
-               
-                rvalx   = dt*vmax/self.hx
-                rvaly   = dt*vmax/self.hy
-                knumber = 2
-
-                Txx = cotm52.calccoef(nordem,rvalx,knumber)
-                Tyy = cotm52.calccoef(nordem,rvaly,knumber)
-                
-                npx = np.size(Txx)
-                npy = np.size(Tyy)
-                                
-                mcoef = np.zeros((npx,npy))
-                
-                npxm  = int(npx/2)
-                
-                npym  = int(npy/2) 
-                                
-                for i in range(0,npx):
-                    
-                    mcoef[npxm,i] = mcoef[npxm,i] + Txx[i]
-                    
-                for j in range(0,npy):
-                    
-                    mcoef[j,npym] = mcoef[j,npym] + Tyy[j]
-#==============================================================================
-
-#==============================================================================
-        if(wauthor==6):
-            
-            ctex  = 1/(self.hx**2)
-            ctey  = 1/(self.hy**2)
-#==============================================================================
-            
-#==============================================================================
-# T11 Type - Edward Caunt - Master Dissertations Coefficients
-#==============================================================================
-            if(wtype==1):
-               
-                ndim = 1 
-                Txx  = ctex*cotm61.calccoef(sou,ndim)
-                Tyy  = ctey*cotm61.calccoef(sou,ndim)
-                
-                npx = np.size(Txx)
-                npy = np.size(Tyy)
-                                
-                mcoef = np.zeros((npx,npy))
-                
-                npxm  = int(npx/2)
-                
-                npym  = int(npy/2) 
-                                
-                for i in range(0,npx):
-                    
-                    mcoef[npxm,i] = mcoef[npxm,i] + Txx[i]
-                    
-                for j in range(0,npy):
-                    
-                    mcoef[j,npym] = mcoef[j,npym] + Tyy[j]
-#==============================================================================
-
-#==============================================================================
-        if(wauthor==7):
+        if(wauthor==3):
                         
             mvalue  = int(sou/2)
             nvalue  = nvalue
@@ -614,7 +433,7 @@ class coefopt1:
 #==============================================================================
             
 #==============================================================================
-# T12 Type - Wang, Liu and Sen - Effective finite-difference modelling 
+# T31 Type - Wang, Liu and Sen - Effective finite-difference modelling 
 # methods with 2-D acoustic wave equation using a combination of cross 
 # and rhombus stencils
 #==============================================================================
@@ -623,11 +442,11 @@ class coefopt1:
                 Txx    = 0.0
                 Tyy    = 0.0
                 cte    = min(ctex,ctey)
-                mcoef  = cte*cotm71.calccoef(mvalue,nvalue,rvalx,rvaly)            
+                mcoef  = cte*cotm31.calccoef(mvalue,nvalue,rvalx,rvaly)            
 #==============================================================================
 
 #==============================================================================
-# T13 Type - Wang, Liu and Sen - Effective finite-difference modelling 
+# T32 Type - Wang, Liu and Sen - Effective finite-difference modelling 
 # methods with 2-D acoustic wave equation using a combination of cross 
 # and rhombus stencils
 #==============================================================================
@@ -636,7 +455,28 @@ class coefopt1:
                 Txx    = 0.0
                 Tyy    = 0.0
                 cte    = min(ctex,ctey)
-                mcoef  = cte*cotm72.calccoef(mvalue,nvalue,rvalx,rvaly)            
+                mcoef  = cte*cotm32.calccoef(mvalue,nvalue,rvalx,rvaly)            
+#==============================================================================
+
+#==============================================================================
+# T4 - Square Rhombus Adpot Weights
+#==============================================================================
+        if(wauthor==4):
+            
+            mvalue           = int(sou/2)
+            exttrap          = self.exttrap        
+            ctex             = 1/(self.hx**2)
+            ctez             = 1/(self.hy**2)
+            hval             = min(self.hx,self.hy)
+            ctehval          = 1/(hval**2)
+#==============================================================================
+
+#==============================================================================
+            if(wtype==1):
+                                
+                mcoef = coefsquarerhoadpt.calccoef(mvalue,exttrap,hval)
+                Txx   = 0
+                Tyy   = 0
 #==============================================================================
 
 #==============================================================================        
@@ -674,84 +514,4 @@ class coefopt1:
             initialy =  initialy - 1
 
         return pdeaux, contcoef
-#==============================================================================
-
-#==============================================================================
-    def eqconstuct2(self,mcoefs,u,t,x,y,vrange,vmax,vel):
-        
-        npx       = mcoefs.shape[1]
-        npy       = mcoefs.shape[2]
-        npxm      = int(npx/2)
-        npym      = int(npy/2)
-        initialx  = -npxm
-        initialy  =  npym
-        pdeaux    = 0
-        contcoef  = 0 
-        mcoef_new = np.zeros((mcoefs.shape[1],mcoefs.shape[2]))
-
-        for i in range(0,npx):
-            
-            for j in range(0,npy):
-                                
-                a   = int(initialx)
-                b   = int(initialy)
-                pxs = x + a
-                pys = y + b                
-                
-                xvet             = vrange[:]
-                yvet             = mcoefs[:,i,j]
-                cs               = interp1d(xvet,yvet,kind='nearest',fill_value="extrapolate")
-                xs               = vmax
-                new_weight       = cs(vmax)               
-                mcoef_new[i,j]   = new_weight
-
-                if(mcoef_new[i,j]!=0): contcoef = contcoef + 1
-                
-                pdeaux = pdeaux + u[t,pxs,pys]*mcoef_new[i,j]
-                                
-                initialx = initialx + 1
-
-            initialx = -npxm
-            initialy =  initialy - 1
-
-        return pdeaux, contcoef, mcoef_new
-#==============================================================================
-
-#==============================================================================
-    def eqconstuct3(self,mcoefs,u,t,x,y,vel,vrange):
-        
-        npx       = mcoefs.shape[1]
-        npy       = mcoefs.shape[2]
-        npxm      = int(npx/2)
-        npym      = int(npy/2)
-        initialx  = -npxm
-        initialy  =  npym
-        pdeaux    = 0
-        contcoef  = 0 
-
-        for i in range(0,npx):
-            
-            for j in range(0,npy):
-                                
-                a   = int(initialx)
-                b   = int(initialy)
-                pxs = x + a
-                pys = y + b
-                
-                list_points = list()
-
-                for m3 in range(0,vrange.shape[0]):
-                    
-                    pair = (vrange[m3],mcoefs[m3,i,j])
-                    list_points.append(pair)
-                
-                #weight_interp    = interpolate(mcoefs[:,i,j],vel)
-                weight_interp    = interpolate(list_points,vel)
-                pdeaux           = pdeaux + u[t,pxs,pys]*weight_interp
-                initialx         = initialx + 1
-
-            initialx = -npxm
-            initialy =  initialy - 1
-
-        return pdeaux
 #==============================================================================

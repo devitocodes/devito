@@ -22,11 +22,11 @@ class acusdevito:
 #==============================================================================    
     def __init__(self,teste):
         self.teste = teste
-        #self.C0a   = self.geramvel1(teste)
+        self.C0a   = self.geramvel1(teste)
         #self.C0a   = self.geramvel2(teste)
         #self.C0a   = self.geramvel3(teste)
         #self.C0a   = self.geramvel4(teste)
-        self.C0a   = self.geramvel5(teste)
+        #self.C0a   = self.geramvel5(teste)
 #==============================================================================
 
 #==============================================================================        

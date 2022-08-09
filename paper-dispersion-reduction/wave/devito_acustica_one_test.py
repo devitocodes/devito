@@ -18,6 +18,7 @@ import testes_opt              as ttopt
 import rotinas_plot            as rplot
 import macustica               as mc
 import coef_opt                as copt
+from   scipy.interpolate       import interp1d    
 #==============================================================================
 
 #==============================================================================
@@ -42,8 +43,13 @@ plot.close("all")
 #==============================================================================
 # Testes de Leitura de Dados
 #==============================================================================
-ptype  = 9
-ref    = 1
+ptype        = 1
+ref          = 0
+save_stencil = 0
+save_sol     = 0
+print_sol    = 1
+exec_op      = 1
+stop_param   = 0
 
 if(ref!=0):
 
@@ -52,11 +58,7 @@ if(ref!=0):
     if(ptype==3): teste = ttopt.teste3_ref1
     if(ptype==4): teste = ttopt.teste4_ref1
     if(ptype==5): teste = ttopt.teste5_ref1
-    if(ptype==6): teste = ttopt.teste6_ref1
-    if(ptype==7): teste = ttopt.teste7_ref1
-    if(ptype==8): teste = ttopt.teste8_ref1
-    if(ptype==9): teste = ttopt.teste9_ref1
-
+ 
 else:
 
     if(ptype==1): teste = ttopt.teste1
@@ -64,10 +66,6 @@ else:
     if(ptype==3): teste = ttopt.teste3
     if(ptype==4): teste = ttopt.teste4
     if(ptype==5): teste = ttopt.teste5
-    if(ptype==6): teste = ttopt.teste6
-    if(ptype==7): teste = ttopt.teste7
-    if(ptype==8): teste = ttopt.teste8
-    if(ptype==9): teste = ttopt.teste9
     
 MV    = mc.acusdevito(teste)
 coef1 = copt.coefopt1(teste,MV)
@@ -97,14 +95,26 @@ CFL     = teste.CFL     # Constante de Estabilidade
 v       = MV.C0a        # Matriz de Velocidade
 jump    = teste.jump    # Intervalo de Plotagem
 tou     = teste.tou     # Time Order Displacement 
-sou     = teste.sou     # Space Order Displacement 
-nvalue  = teste.nvalue  # Second Parameter for Stencils
-npesos  = teste.npesos  # Allow Different Weights
-wauthor = teste.wauthor # Weight's Author
-wtype   = teste.wtype   # Weight Type        
 btype   = teste.btype   # Boundary Type
-ftype   = teste.ftype   # Source type
-dttype  = teste.dttype  # dt type              
+ftype   = teste.ftype   # Source type  
+dttype  = teste.dttype  # dt type  
+    
+npesos   = teste.npesos   # Allow Different Weights
+wauthor  = teste.wauthor  # Weight's Author
+wtype    = teste.wtype    # Weight Type  
+sou      = teste.sou      # Space Order Displacement     
+nvalue   = teste.nvalue   # Second Parameter for Stencils
+
+exttrapmax = teste.exttrapmax # Total Number of Extra Points
+exttrap    = teste.exttrap    # Choosed Number of Extra Points
+
+if(wauthor!=4):
+
+    print('npesos: %d - wauthor: %d - wtype: %d - mvalue: %d - nvalue: %d'%(npesos,wauthor,wtype,int(sou/2),nvalue))
+
+else:
+    
+    print('npesos: %d - wauthor: %d - wtype: %d - mvalue: %d - exttrap: %d'%(npesos,wauthor,wtype,int(sou/2),exttrap))
 #==============================================================================
 
 #==============================================================================
@@ -120,8 +130,7 @@ class d0domain(SubDomain):
     def define(self, dimensions):
         x, y = dimensions
         return {x: x, y: y}
-d0_domain = d0domain()
-    
+d0_domain = d0domain()    
 grid = Grid(origin=origin,extent=extent,shape=shape,subdomains=(d0_domain),dtype=np.float64)
 #==============================================================================
 
@@ -130,15 +139,21 @@ grid = Grid(origin=origin,extent=extent,shape=shape,subdomains=(d0_domain),dtype
 #==============================================================================
 vmax  = np.around(np.amax(v),1) 
 dtmax = (min(hxv,hyv)*CFL)/(vmax)
-dtmax = np.round(dtmax,8)
 ntmax = int((tn-t0)/dtmax)
 dt0   = (tn-t0)/(ntmax)
 time_range = TimeAxis(start=t0,stop=tn,num=ntmax+1)
 nt         = time_range.num - 1
 nplot      = mt.ceil(nt/jump) + 1
 #==============================================================================
-#print(dt0,nt,jump,nplot,hxv,hyv,dt0*jump,hxv,hyv)
-#sys.exit()
+
+#==============================================================================
+# Analyse Parameters
+#==============================================================================
+if(stop_param==1):
+    print(dt0,nt,jump,nplot,hxv,hyv,dt0*jump)
+    sys.exit()
+#==============================================================================
+
 #==============================================================================
 # Variváveis Simbólicas
 #==============================================================================
@@ -168,16 +183,16 @@ rec.coordinates.data[:, 1] = nypos
 #==============================================================================
 # Construção e Posicionamento dos Receivers Seleionados
 #==============================================================================
-if(ptype==1 or ptype==5 or ptype==6 or ptype==8 or ptype==9):
+if(ptype==1):
 
-    xpositionv  = np.array([500.0,1500.0,500.0,1500.0])
-    ypositionv  = np.array([500.0,500.0,1500.0,1500.0])
+    xpositionv  = np.array([750.0,2250.0, 750.0,2250.0])
+    ypositionv  = np.array([750.0, 750.0,2250.0,2250.0])
 
 if(ptype==2):
-    
-    xpositionv  = np.array([500.0,1500.0,500.0,1500.0])
-    ypositionv  = np.array([500.0,500.0,1500.0,1500.0])
 
+    xpositionv  = np.array([500.0,1500.0, 500.0,1500.0])
+    ypositionv  = np.array([500.0, 500.0,1500.0,1500.0])
+        
 if(ptype==3):
 
     xpositionv  = np.array([4000.0,4000.0,4000.0,6000.0,6000.0,6000.0,8000.0,8000.0,8000.0])   
@@ -187,11 +202,11 @@ if(ptype==4):
     
     xpositionv  = np.array([30000.0,30000.0,30000.0,40000.0,40000.0,40000.0])
     ypositionv  = np.array([2500.0,5000.0,7500.0,2500.0,5000.0,7500.0])
-
-if(ptype==7):
-
-     xpositionv  = np.array([750.0,2250.0, 750.0,2250.0])
-     ypositionv  = np.array([750.0, 750.0,2250.0,2250.0])
+        
+if(ptype==5):
+    
+    xpositionv  = np.array([4000.0,13000.0])
+    ypositionv  = np.array([1500.0,1500.0])
 
 nrec_select = len(xpositionv)
 rec_select  = Receiver(name='rec_select',grid=grid,npoint=nrec_select,time_range=time_range,staggered=NODE,dtype=np.float64)
@@ -207,10 +222,9 @@ u = TimeFunction(name="u",grid=grid,time_order=tou,space_order=sou,staggered=NOD
 vel = Function(name="vel",grid=grid,space_order=2,staggered=NODE,dtype=np.float64)
 vel.data[:,:] = v[:,:]
 
-factor_ref = 5
-fact       = factor_ref*factor_ref
-src_term   = src.inject(field=u.forward,expr=fact*1*src*dt**2*vel**2)
-rec_term   = rec.interpolate(expr=u)
+fact = 1
+src_term = src.inject(field=u.forward,expr=fact*1*src*dt**2*vel**2)
+rec_term = rec.interpolate(expr=u)
 rec_select_term = rec_select.interpolate(expr=u)
 
 if(npesos==0):
@@ -225,14 +239,14 @@ if(npesos==1):
         
         mcoef = np.load("stencil_save/mcoef_%d%d%d%d%d%f%f%f%f.npy"%(npesos,wauthor,wtype,int(sou/2),nvalue,hxv,hyv,dt0,vmax))
         print('Read Memorized Stencil')
-           
+            
     except:
-       
-        Txx,Tyy,mcoef = coef1.calccoef(wauthor,wtype,sou,nvalue)    
-        np.save("stencil_save/mcoef_%d%d%d%d%d%f%f%f%f"%(npesos,wauthor,wtype,int(sou/2),nvalue,hxv,hyv,dt0,vmax),mcoef)    
+        
+        Txx,Tyy,mcoef = coef1.calccoef(wauthor,wtype,sou,nvalue,vmax,dt0)    
+        if(save_stencil==1): np.save("stencil_save/mcoef_%d%d%d%d%d%f%f%f%f"%(npesos,wauthor,wtype,int(sou/2),nvalue,hxv,hyv,dt0,vmax),mcoef)    
         print('Calcualte a New Stencil')
 
-    new_laplace, contcoef = coef1.eqconstuct(mcoef,u,t,x,y)
+    new_laplace, contcoef = coef1.eqconstuct1(mcoef,u,t,x,y)
     pde0                  = Eq(u.dt2 - new_laplace*vel*vel)
     stencil0              = Eq(u.forward, solve(pde0,u.forward),subdomain = grid.subdomains['d0'])
 #==============================================================================
@@ -255,25 +269,34 @@ if(btype==1):
 
 if(btype==2):
 
-    bc = [Eq(u[t+1,0,y],0.),Eq(u[t+1,nptx-1,y],0.),Eq(u[t+1,x,npty-1],0.)]
+    bc  = [Eq(u[t+1,0,y],0.),Eq(u[t+1,nptx-1,y],0.),Eq(u[t+1,x,npty-1],0.)]
     bc1 = [Eq(u[t+1,x,-k],u[t+1,x,k]) for k in range(1,int(sou/2)+1)]
-    op    = Operator([stencil0] + src_term + bc + bc1 + rec_term + rec_select_term + [Eq(usave,u.forward)],subs=grid.spacing_map)
+    op  = Operator([stencil0] + src_term + bc + bc1 + rec_term + rec_select_term + [Eq(usave,u.forward)],subs=grid.spacing_map)
 
 if(btype==3):
 
-    bc = [Eq(u[t+1,x,-k],u[t+1,x,npty-1-k])      for k in range(0,int(sou/2)+1)]
+    bc =      [Eq(u[t+1,x,-k],u[t+1,x,npty-1-k])      for k in range(0,int(sou/2)+1)]
     bc = bc + [Eq(u[t+1,x,npty-1+k],u[t+1,x,k])  for k in range(0,int(sou/2)+1)]
     bc = bc + [Eq(u[t+1,-k,y],u[t+1,nptx-1-k,y]) for k in range(0,int(sou/2)+1)]
     bc = bc + [Eq(u[t+1,nptx-1+k,y],u[t+1,k,y])  for k in range(0,int(sou/2)+1)]
     op = Operator([stencil0] + src_term + bc + rec_term + rec_select_term + [Eq(usave,u.forward)],subs=grid.spacing_map)
 
-usave.data[:] = 0.
-u.data[:]     = 0.
+nrodadas   = 1
+mtime_exec = 0
 
-start = tm.time()
-op(time=nt,dt=dt0)
-end   = tm.time()
-time_exec = end - start
+for i in range(0,nrodadas):
+
+    usave.data[:]      = 0.
+    u.data[:]          = 0.
+    rec.data[:]        = 0.
+    rec_select.data[:] = 0.
+    time_exec = 0.0
+    start     = tm.time()
+    if(exec_op==1): op(time=nt,dt=dt0)
+    end       = tm.time()
+    time_exec = end - start
+        
+    mtime_exec = mtime_exec + time_exec/nrodadas 
 
 Ug[:] = usave.data[:]
 Ug[nplot-1,:,:] = u.data[0,:,:]
@@ -282,14 +305,16 @@ Ug[nplot-1,:,:] = u.data[0,:,:]
 #==============================================================================
 # Plots de Interesse
 #==============================================================================
-#G1 = rplot.graph2d(u.data[0,:,:],teste,ref)
-#R1 = rplot.graph2drec(rec.data,teste,ref)
-#V1 = rplot.graph2dvel(v,teste)
-S1 = rplot.datasave(teste,rec.data,Ug,rec_select.data,ref,ptype,dttype)
+if(print_sol==1): 
+    G1 = rplot.graph2d(u.data[0,:,:],teste,ref)
+    #R1 = rplot.graph2drec(rec.data,teste,ref)
+    #V1 = rplot.graph2dvel(v,teste)
+if(save_sol==1): S1 = rplot.datasave(teste,rec.data,Ug,rec_select.data,ref,ptype,dttype)
 #==============================================================================
 
 #==============================================================================
-print('Problem =  %d'%(ptype))
+print('Problem =  %d - Dtype = %d'%(ptype,teste.dttype+1))
 print('hx = %.2f - hy = %.2f - dt = %.2f - nt = %d - jump = %d - vmax = %.2f'%(hxv,hyv,dt0,nt,jump,vmax))
-print("Tempo de Execuação da Referencia = %.3f s" %time_exec)
+print("Tempo de Execuação = %.3f s" %(mtime_exec))
+print('')
 #==============================================================================

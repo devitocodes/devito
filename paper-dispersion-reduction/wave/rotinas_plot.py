@@ -18,9 +18,8 @@ from   mpl_toolkits.axes_grid1 import make_axes_locatable
 from   matplotlib              import cm
 from   matplotlib.animation    import FFMpegWriter
 from   matplotlib              import ticker
+from   matplotlib.colors       import LogNorm
 import matplotlib.tri          as tri
-from matplotlib.colors import LogNorm
-
 #==============================================================================
 
 #==============================================================================
@@ -34,6 +33,7 @@ def datasave(teste,rec,solplot,rec_select,ref,ptype,dttype):
     nvalue  = teste.nvalue
     wauthor = teste.wauthor
     wtype   = teste.wtype
+    exttrap = teste.exttrap
 
     loc_save1_list = ['teste1/','teste2/','teste3/','teste4/','teste5/']
     loc_save2_list = ['dt1/','dt2/','dt3/','dt4/','dt5/','dt6/']
@@ -55,10 +55,18 @@ def datasave(teste,rec,solplot,rec_select,ref,ptype,dttype):
         if(dttype==3): local_save2 = loc_save2_list[3]
         if(dttype==4): local_save2 = loc_save2_list[4]
         if(dttype==5): local_save2 = loc_save2_list[5]
-         
-        np.save("data_save/%s%srec_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec)    
-        np.save("data_save/%s%ssolplot_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),solplot)
-        np.save("data_save/%s%srec_select_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec_select)
+        
+        if(wauthor!=4):
+        
+            np.save("data_save/%s%srec_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec)    
+            np.save("data_save/%s%ssolplot_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),solplot)
+            np.save("data_save/%s%srec_select_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,nvalue),rec_select)
+        
+        else:
+            
+            np.save("data_save/%s%srec_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,exttrap),rec)    
+            np.save("data_save/%s%ssolplot_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,exttrap),solplot)
+            np.save("data_save/%s%srec_select_%d%d%d%d%d"%(local_save1,local_save2,npesos,wauthor,wtype,mvalue,exttrap),rec_select)
         
     if(ref==1):
         
@@ -86,8 +94,9 @@ def graph2d(U,teste,i):
     nvalue  = teste.nvalue
     wauthor = teste.wauthor
     wtype   = teste.wtype
+    exttrap = teste.exttrap
     
-    if(npesos==0): wauthorw = 'Taylor Stencil - Line'
+    if(npesos==0): wauthorw = 'Taylor Stencil - Cross-Line'
             
     if((npesos==1)and(wauthor==1)and(wtype==1)): wauthorw = 'Yang Liu - 2013 - Line 1'
         
@@ -105,6 +114,8 @@ def graph2d(U,teste,i):
 
     if((npesos==1)and(wauthor==3)and(wtype==2)): wauthorw = 'Enjiang Wang - Yang Liu - Mrinal Sen - 2016 - Cross-Rhombus 2'
     
+    if((npesos==1)and(wauthor==4)and(wtype==1)): wauthorw = 'Taylor Stencil - Square-Rhombus'
+    
     plot.figure(figsize = (14,10))
     fscale =  10**(-3)
 
@@ -116,7 +127,8 @@ def graph2d(U,teste,i):
     plot.gca().yaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f km'))
     plot.axis('equal')
     
-    if(i==0): plot.title('%s - M = %d and N = %d'%(wauthorw,mvalue,nvalue),fontsize=10)
+    if(i==0 and wauthor!=4): plot.title('%s - M = %d and N = %d'%(wauthorw,mvalue,nvalue),fontsize=10)
+    if(i==0 and wauthor==4): plot.title('%s - M = %d and Extra Points = %d'%(wauthorw,mvalue,exttrap),fontsize=10)
     if(i==1): plot.title('Rererence Solution',fontsize=10)
     
     plot.grid()
@@ -129,7 +141,8 @@ def graph2d(U,teste,i):
     cbar.update_ticks()
     plot.draw()
     
-    if(i==0): plot.savefig('figures/temporario/disp_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
+    if(i==0 and wauthor!=4): plot.savefig('figures/temporario/disp_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
+    if(i==0 and wauthor==4): plot.savefig('figures/temporario/disp_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,exttrap),dpi=100)
     if(i==1): plot.savefig('figures/temporario/disp_ref.png',dpi=100)
     
     plot.show()
@@ -154,8 +167,9 @@ def graph2drec(rec,teste,i):
     nvalue  = teste.nvalue
     wauthor = teste.wauthor
     wtype   = teste.wtype
+    exttrap = teste.exttrap
     
-    if(npesos==0): wauthorw = 'Taylor Stencil - Line'
+    if(npesos==0): wauthorw = 'Taylor Stencil - Cross-Line'
             
     if((npesos==1)and(wauthor==1)and(wtype==1)): wauthorw = 'Yang Liu - 2013 - Line 1'
         
@@ -173,6 +187,7 @@ def graph2drec(rec,teste,i):
 
     if((npesos==1)and(wauthor==3)and(wtype==2)): wauthorw = 'Enjiang Wang - Yang Liu - Mrinal Sen - 2016 - Cross-Rhombus 2'
    
+    if((npesos==1)and(wauthor==4)and(wtype==1)): wauthorw = 'Taylor Stencil - Square-Rhombus'
 
     plot.figure(figsize = (14,10))
     fscale =  10**(-3)    
@@ -183,7 +198,8 @@ def graph2drec(rec,teste,i):
     plot.gca().xaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f km'))
     plot.gca().yaxis.set_major_formatter(mticker.FormatStrFormatter('%.1f s'))
     plot.axis('equal')
-    if(i==0): plot.title('%s - M = %d and N = %d'%(wauthorw,mvalue,nvalue),fontsize=10)
+    if(i==0 and wauthor!=4): plot.title('%s - M = %d and N = %d'%(wauthorw,mvalue,nvalue),fontsize=10)
+    if(i==0 and wauthor==4): plot.title('%s - M = %d and Extra Points = %d'%(wauthorw,mvalue,exttrap),fontsize=10)
     if(i==1): plot.title('Reference Solution',fontsize=10)
     plot.grid()
     ax = plot.gca()
@@ -193,7 +209,8 @@ def graph2drec(rec,teste,i):
     cbar = plot.colorbar(fig, cax=cax, format='%.2e')
     cbar.locator = tick_locator
     cbar.update_ticks()
-    if(i==0): plot.savefig('figures/rec_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
+    if(i==0 and wauthor!=4): plot.savefig('figures/rec_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,nvalue),dpi=100)
+    if(i==0 and wauthor==4): plot.savefig('figures/rec_%d%d%d%d%d.png'%(npesos,wauthor,wtype,mvalue,exttrap),dpi=100)
     if(i==1): plot.savefig('figures/rec_ref.png')
     plot.show()
 #==============================================================================

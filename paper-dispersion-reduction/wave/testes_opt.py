@@ -36,7 +36,7 @@ class teste1:
     Y0     = np.linspace(y0,y1,npty)    # Malha Direção Y
     X0grid,Y0grid = np.meshgrid(X0,Y0)  # Grid Auxiliar X0 x Y0 
     t0     = 0.       # Tempo Inicial da Simulação em Milisegundos
-    tn     = 3000.    # Tempo Final   da Simulação em Milisegundos (1 Segundo = 1000 Ms) #min de 0.2s até 2.0s      
+    tn     = 960.    # Tempo Final   da Simulação em Milisegundos (1 Segundo = 1000 Ms) #min de 0.2s até 2.0s      
     f0     = 0.03     # Frequência da Fonte (1 Hz = 0.001 kHz) #min de 0.02 até 0.05
     nfonte = 1        # Número de Fontes  (Para nfonte>1 -> Vetor em xposf e yposf)
     xposf  = 1500.    # Posição da Fonte em X
@@ -51,10 +51,12 @@ class teste1:
     jumpv      = np.array([300,150,100,75,60,50])     # Vetor com Diferentes Valores de Jump
     jump       = jumpv[dttype]                    # Intervalo de Dados a Serem Salvos
     tou        = 2                                # Time Order Displacement 
-    sou        = 2                                # Space Order Displacement
+    sou        = 8                                # Space Order Displacement
     nvalue     = 1                                # Second Parameter for Stencils
-    npesos     = 0                                # Allow Different Weights      
-    wauthor    = 1                                # Weight's Author
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
+    npesos     = 1                                # Allow Different Weights      
+    wauthor    = 4                                # Weight's Author
     wtype      = 1                                # Weight Type
     btype      = 3                                # Boundary Type    
     ftype      = 0                                # Source type                                                                                                                                                                                                                                                                                                                                                                                                                                                  
@@ -100,6 +102,8 @@ class teste1_ref1:
     tou        = 2                               # Time Order Displacement 
     sou        = 40                              # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -147,6 +151,8 @@ class teste2:
     tou        = 2                                # Time Order Displacement 
     sou        = 2                                # Space Order Displacement
     nvalue     = 1                                # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                                # Allow Different Weights      
     wauthor    = 1                                # Weight's Author
     wtype      = 1                                # Weight Type
@@ -194,6 +200,8 @@ class teste2_ref1:
     tou        = 2                               # Time Order Displacement 
     sou        = 40                              # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -241,6 +249,8 @@ class teste3:
     tou        = 2                                # Time Order Displacement 
     sou        = 2                                # Space Order Displacement
     nvalue     = 1                                # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                                # Allow Different Weights      
     wauthor    = 1                                # Weight's Author
     wtype      = 1                                # Weight Type
@@ -288,6 +298,8 @@ class teste3_ref1:
     tou        = 2                               # Time Order Displacement 
     sou        = 40                              # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -335,6 +347,8 @@ class teste4:
     tou        = 2                               # Time Order Displacement 
     sou        = 2                               # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -382,6 +396,8 @@ class teste4_ref1:
     tou        = 2                               # Time Order Displacement 
     sou        = 40                              # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -429,6 +445,8 @@ class teste5:
     tou        = 2                               # Time Order Displacement 
     sou        = 2                               # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
@@ -476,6 +494,8 @@ class teste5_ref1:
     tou        = 2                               # Time Order Displacement 
     sou        = 40                              # Space Order Displacement
     nvalue     = 1                               # Second Parameter for Stencils
+    exttrapmax = int(0.5*(int(sou/2)**2+int(sou/2))) # Maximum Number of Extra Points 
+    exttrap    = np.random.randint(low=0,high=exttrapmax,size=1)[0] # Random Number of Extra Points
     npesos     = 0                               # Allow Different Weights      
     wauthor    = 1                               # Weight's Author
     wtype      = 1                               # Weight Type
