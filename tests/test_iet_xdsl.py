@@ -106,11 +106,11 @@ def test_devito_iet():
     t_limits = as_tuple([str(i) for i in op.body.body[1].body[0].limits])
     t_props = [str(i) for i in op.body.body[1].body[0].properties]
 
-    x_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].limits])  # noqa
-    x_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].properties]  # noqa
+    x_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].limits])  # noqa
+    x_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].properties]  # noqa
 
-    y_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].nodes[0].limits])  # noqa
-    y_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].nodes[0].properties]  # noqa
+    y_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].nodes[0].limits])  # noqa
+    y_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].nodes[0].properties]  # noqa
 
     ctx = MLContext()
     Builtin(ctx)
