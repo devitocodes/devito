@@ -25,6 +25,14 @@ def createStatement(initial_string, val):
     return ret_str
 
 
+def collectStructs(parameters):
+    struct_decs = []
+    for i in parameters:
+        if (i._C_typedecl is not None and i._C_typedecl not in struct_decs):
+            struct_decs.append(i._C_typedecl)
+    return struct_decs
+
+
 def add_to_block(expr, arg_by_expr, result):
     if expr in arg_by_expr:
         return

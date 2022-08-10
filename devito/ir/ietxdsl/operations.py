@@ -298,10 +298,13 @@ class IterationWithSubIndices(Operation):
             "uindices_names":
             ArrayAttr.from_list(
                 [StringAttr.from_str(u) for u in uindices_names]),
-            "uindices_symbmins_dividends": # TODO make a "ModAttr"??
-            ArrayAttr.from_list([StringAttr.from_str(str(u.args[0])) for u in uindices_symbmins]),
-            "uindices_symbmins_divisors": # TODO make a "ModAttr"??
-                ArrayAttr.from_list([StringAttr.from_str(str(u.args[1])) for u in uindices_symbmins]),
+            # TODO make a "ModAttr"??
+            "uindices_symbmins_dividends":
+            ArrayAttr.from_list([StringAttr.from_str(str(u.args[0]))
+                                 for u in uindices_symbmins]),
+            "uindices_symbmins_divisors":
+                ArrayAttr.from_list([StringAttr.from_str(str(u.args[1]))
+                                     for u in uindices_symbmins]),
             "properties":
             ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in properties]),
             "pragmas":

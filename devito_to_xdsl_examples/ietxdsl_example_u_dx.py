@@ -10,7 +10,7 @@ from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration,
                                Statement, StructDecl, ietxdsl_functions,
                                Callable)
 
-from devito.ir.ietxdsl.ietxdsl_functions import createStatement
+from devito.ir.ietxdsl.ietxdsl_functions import createStatement, collectStructs
 
 # Define a simple Devito Operator
 grid = Grid(shape=(3, 3))
@@ -53,9 +53,7 @@ d = {name: register for name, register in zip(op_param_names, b.args)}
 
 headers = op._headers
 includes = op._includes
-struct_decs = [
-    i._C_typedecl for i in op.parameters if i._C_typedecl is not None
-]
+struct_decs = collectStructs(op.parameters)
 
 kernel_comments = op.body.body[0]
 uvec_cast = FindNodes(PointerCast).visit(op)[0]
