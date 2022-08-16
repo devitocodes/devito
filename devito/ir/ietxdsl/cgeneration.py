@@ -232,6 +232,11 @@ class CGeneration:
 
         if (isinstance(operation, Initialise)):
             type = operation.results[0].typ.name
+            # rename float accordingly if required
+            if type == "f32":
+                type = "float"
+            if type == "f64":
+                type = "double"
             self.print(type, indent=True, end=" ")
 
             assignee = operation.id.data
