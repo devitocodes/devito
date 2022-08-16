@@ -257,7 +257,7 @@ class CGen(Visitor):
 
         else:
             # lvalue
-            if f.is_DiscreteFunction:
+            if f.is_DiscreteFunction or (f.is_Array and f._mem_mapped):
                 v = o.obj.name
             else:
                 v = f.name
@@ -272,8 +272,7 @@ class CGen(Visitor):
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
-            if f.is_DiscreteFunction or \
-               (f.is_Array and f._mem_mapped):
+            if f.is_DiscreteFunction or (f.is_Array and f._mem_mapped):
                 if isinstance(o.obj, IndexedData):
                     v = f._C_field_data
                 elif isinstance(o.obj, DeviceMap):

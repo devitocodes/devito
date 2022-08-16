@@ -240,6 +240,7 @@ def abstract_efunc(efunc):
             mapper.update({
                 i: v,
                 i.indexed: v.indexed,
+                i.dmap: v.dmap,
                 i._C_symbol: v._C_symbol,
             })
 

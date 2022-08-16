@@ -420,7 +420,7 @@ class TestCaching(object):
         f = TimeFunction(name='f', grid=grid)
         sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=10)
 
-        eqns = [Eq(f.forward, f + 1.)] + sf.inject(field=f.forward, expr=sf)
+        eqns = [Eq(f.forward, f.dx + 1.)] + sf.inject(field=f.forward, expr=sf)
 
         opt = ('advanced', {'par-nested': 0, 'openmp': True})
         op0 = Operator(eqns, opt=opt)

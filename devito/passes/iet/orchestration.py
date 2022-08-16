@@ -31,6 +31,9 @@ class Orchestrator(object):
     def __init__(self, sregistry):
         self.sregistry = sregistry
 
+    def _make_async_queue(self):
+        return QueueID()
+
     def _make_waitlock(self, iet, sync_ops):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
@@ -56,7 +59,7 @@ class Orchestrator(object):
         return iet, []
 
     def _make_withlock(self, iet, sync_ops):
-        qid = QueueID()
+        qid = self._make_async_queue()
 
         preactions = [self.lang._map_update_host_async(s.function, s.imask, qid)
                       for s in sync_ops]
@@ -99,7 +102,7 @@ class Orchestrator(object):
         return iet, [efunc]
 
     def _make_prefetchupdate(self, iet, sync_ops):
-        qid = QueueID()
+        qid = self._make_async_queue()
 
         postactions = [self.lang._map_update_device_async(s.target, s.imask, qid)
                        for s in sync_ops]
