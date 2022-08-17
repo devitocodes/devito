@@ -17,7 +17,7 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, Tag, as_tuple, filter_ordered, filter_sorted, flatten
 from devito.types.basic import AbstractFunction, AbstractSymbol
-from devito.types.object import AbstractObject
+from devito.types.object import AbstractObject, LocalObject
 from devito.types import Indexed, Symbol
 
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
@@ -388,7 +388,7 @@ class Expression(ExprStmt, Node):
     @property
     def is_scalar(self):
         """True if the LHS is a scalar, False otherwise."""
-        return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase))
+        return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase, LocalObject))
 
     @property
     def is_tensor(self):

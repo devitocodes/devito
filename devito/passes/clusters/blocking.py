@@ -4,6 +4,7 @@ from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
                                SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
                                IterationSpace, Scope)
+from devito.passes import is_on_device
 from devito.symbolics import uxreplace, xreplace_indices
 from devito.tools import UnboundedMultiTuple, as_tuple, flatten
 from devito.types import BlockDimension
@@ -47,7 +48,10 @@ def blocking(clusters, sregistry, options):
     In case of skewing, if 'blockinner' is enabled, the innermost loop is also skewed.
     """
     if options['blockrelax']:
-        analyzer = AnalyzeBlocking()
+        if options['blockrelax'] == 'device-aware':
+            analyzer = AnalyzeDeviceAwareBlocking(options)
+        else:
+            analyzer = AnalyzeBlocking(options)
     else:
         analyzer = AnalyzeHeuristicBlocking(options)
     clusters = analyzer.process(clusters)
@@ -70,6 +74,11 @@ class AnayzeBlockingBase(Queue):
     Encode the TILABLE property.
     """
 
+    def __init__(self, options):
+        super().__init__()
+
+        self.skewing = options['skewing']
+
     def process(self, clusters):
         return self._process_fatd(clusters, 1)
 
@@ -84,6 +93,27 @@ class AnayzeBlockingBase(Queue):
                 return clusters
 
         return super()._process_fatd(clusters, level, prefix)
+
+    def _has_data_reuse(self, cluster):
+        # A necessary but not sufficient condition for the existance of data
+        # reuse in the Cluster is that there must be at least three Indexeds --
+        # the LHS, the RHS, and another Indexed shifted w.r.t. the RHS, e.g.
+        # `a(x), b(x), b(x+1)`. Obv not sufficient because, e.g., `a(x), b(x),
+        # c(x)` would have no data reuse across x-iterations
+        if len(cluster.scope.indexeds) >= 3:
+            return True
+
+        # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
+        # might be enough
+        if any(PARALLEL_IF_ATOMIC in p for p in cluster.properties.values()):
+            return True
+
+        # If we are going to skew, then we might exploit reuse along an
+        # otherwise SEQUENTIAL Dimension
+        if self.skewing:
+            return True
+
+        return False
 
 
 class AnalyzeBlocking(AnayzeBlockingBase):
@@ -100,16 +130,37 @@ class AnalyzeBlocking(AnayzeBlockingBase):
                     PARALLEL_IF_PVT}.intersection(c.properties[d]):
                 return clusters
 
+            # Pointless if there's no data reuse
+            if not self._has_data_reuse(c):
+                return clusters
+
         # All good, `d` is actually TILABLE
         processed = attach_property(clusters, d, TILABLE)
 
         return processed
 
 
+class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
+
+    def __init__(self, options):
+        super().__init__(options)
+
+        self.gpu_fit = options['gpu-fit']
+
+    def _make_key_hook(self, cluster, level):
+        return (is_on_device(cluster.functions, self.gpu_fit),)
+
+    def _has_data_reuse(self, cluster):
+        if is_on_device(cluster.functions, self.gpu_fit):
+            return True
+        else:
+            return super()._has_data_reuse(cluster)
+
+
 class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
 
     def __init__(self, options):
-        super().__init__()
+        super().__init__(options)
 
         self.inner = options['blockinner']
 
@@ -138,6 +189,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
                not ({PARALLEL, PARALLEL_IF_PVT} & c.properties[d]):
+                return clusters
+
+            # Pointless if there's no data reuse
+            if not self._has_data_reuse(c):
                 return clusters
 
             # Heuristic: innermost Dimensions may be ruled out a-priori
@@ -255,8 +310,7 @@ class SynthesizeBlocking(Queue):
                 # Use the innermost BlockDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
-                # The new Cluster properties
-                # TILABLE property is dropped after the blocking.
+                # The new Cluster properties -- TILABLE is dropped after blocking
                 properties = dict(c.properties)
                 properties.pop(d)
                 properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})

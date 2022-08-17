@@ -12,12 +12,12 @@ import numpy as np
 from devito.ir import (Block, Call, Definition, DeviceCall, DeviceFunction,
                        DummyExpr, Return, EntryFunction, FindSymbols, MapExprStmts,
                        Transformer, make_callable)
+from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.misc import is_on_device
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
-from devito.tools import as_mapper, as_tuple, filter_sorted, flatten
+from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM, Symbol
 from devito.types.dense import AliasFunction
 
@@ -155,32 +155,39 @@ class DataManager(object):
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
+        allocs = [self.lang['host-alloc'](memptr, alignment, nbytes)]
 
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
         ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp1), '**')
-        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes_param)
+        allocs.append(self.lang['host-alloc'](memptr, alignment, nbytes_param))
 
         ffp0 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
         init = DummyExpr(ffp0, nbytes_param)
 
-        free0 = self.lang['host-free'](ffp1)
+        frees = [self.lang['host-free'](ffp1),
+                 self.lang['host-free'](obj._C_symbol)]
 
-        free1 = self.lang['host-free'](obj._C_symbol)
+        # Not all backends require explicit allocation/deallocation of the
+        # `dmap` field
+        alloc, free = self._make_dmap_allocfree(obj, nbytes_param)
+
+        # Chain together all allocs and frees
+        allocs = as_tuple(allocs) + as_tuple(alloc)
+        frees = as_tuple(free) + as_tuple(frees)
 
         ret = Return(obj._C_symbol)
 
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, alloc0, alloc1, init, ret)
+        body = (decl, *allocs, init, ret)
         efunc0 = make_callable(name, body, retval=obj._C_typename)
         assert len(efunc0.parameters) == 1  # `nbytes_param`
         alloc = Call(name, nbytes_arg, retobj=obj)
 
         name = self.sregistry.make_name(prefix='free')
-        efunc1 = make_callable(name, (free0, free1))
+        efunc1 = make_callable(name, frees)
         assert len(efunc1.parameters) == 1  # `obj`
         free = Call(name, obj)
 
@@ -231,6 +238,12 @@ class DataManager(object):
         else:
             storage.update(obj, site, allocs=(decl, alloc0, alloc1), frees=(free0, free1))
 
+    def _make_dmap_allocfree(self, obj, nbytes_param):
+        """
+        Construct IETs to allocate and free the `dmap` field of a mapped Array.
+        """
+        return None, None
+
     def _inject_definitions(self, iet, storage):
         efuncs = []
         mapper = {}
@@ -240,11 +253,14 @@ class DataManager(object):
                 mapper[k] = v
                 continue
 
+            assert k.is_Callable
+            cbody = k.body
+
             # objects
-            objs = flatten(v.objs)
+            objs = as_list(cbody.objs) + flatten(v.objs)
 
             # allocs/pallocs
-            allocs = flatten(v.allocs)
+            allocs = as_list(cbody.allocs) + flatten(v.allocs)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
@@ -256,12 +272,17 @@ class DataManager(object):
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
                 frees.append(Block(header=header, body=[init] + body))
-            frees.extend(flatten(v.frees))
+            frees.extend(as_list(cbody.frees) + flatten(v.frees))
+
+            # maps/unmaps
+            maps = as_list(cbody.maps) + flatten(v.maps)
+            unmaps = as_list(cbody.unmaps) + flatten(v.unmaps)
 
             # efuncs
             efuncs.extend(v.efuncs)
 
-            mapper[k.body] = k.body._rebuild(allocs=allocs, objs=objs, frees=frees)
+            mapper[cbody] = cbody._rebuild(allocs=allocs, maps=maps, objs=objs,
+                                           unmaps=unmaps, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
@@ -423,17 +444,6 @@ class DeviceAwareDataManager(DataManager):
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
-    def _dump_transfers(self, iet, storage):
-        mapper = {}
-        for k, v in storage.items():
-            if v.maps or v.unmaps:
-                mapper[iet.body] = iet.body._rebuild(maps=flatten(v.maps),
-                                                     unmaps=flatten(v.unmaps))
-
-        processed = Transformer(mapper, nested=True).visit(iet)
-
-        return processed
-
     @iet_visit
     def derive_transfers(self, iet):
         """
@@ -496,9 +506,9 @@ class DeviceAwareDataManager(DataManager):
                 else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
-            iet = self._dump_transfers(iet, storage)
+            iet, efuncs = self._inject_definitions(iet, storage)
 
-            return iet, {}
+            return iet, {'efuncs': efuncs}
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
 

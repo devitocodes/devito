@@ -590,7 +590,7 @@ class TestMultiSubDomain(object):
 
         f = TimeFunction(name='f', grid=grid)
 
-        eqn = Eq(f.forward, f + 1, subdomain=grid.subdomains['dummy'])
+        eqn = Eq(f.forward, f.dx + 1, subdomain=grid.subdomains['dummy'])
 
         op = Operator(eqn)
 

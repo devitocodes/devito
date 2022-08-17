@@ -539,7 +539,28 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags += ['-std=c++14', '-Xcompiler', '-fPIC']
+        self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
+
+        # Disable `warning #1650-D: result of call is not used`
+        # See `https://gist.github.com/gavinb/f2320f9eaa0e0a7efca6877a34047a9d` about
+        # disabling specific warnings with nvcc
+        if configuration['mpi']:
+            # mpicc/mpicxx default to `nvc++ ...` (add `--showme` to print out the
+            # actual command line that results from expanding out the mpicc/mpicxx
+            # wrappers). However, mpicc/mpicxx also use the `'-Wl,-rpath'`
+            # GCC-specific options, which means we can't use `nvc++` as host
+            # compiler via `-ccbin=nvc++` either, as otherwise it will complain that
+            # `nvcc fatal   : Unknown option '-Wl,-rpath'`. So the simplest option
+            # for now is to avoid adding the flags below in the `else` branch as
+            # they are `nvcc` specific; `nvc++`, used by mpicc/mpicxx+, will use
+            # `nvcc` eventually (since it reads the file suffix .cu), but somehow
+            # it won't digest the options provided in this format...
+            pass
+        else:
+            self.cflags.extend(['-Xcudafe', '--display_error_number',
+                                '--diag-suppress', '1650'])
+            # Same as above but for the host compiler
+            self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
 
         self.src_ext = 'cu'
 
