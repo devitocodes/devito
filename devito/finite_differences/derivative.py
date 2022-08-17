@@ -184,7 +184,7 @@ class Derivative(sympy.Derivative, Differentiable):
         _x0 = dict(self._x0)
         _fd_order = dict(self.fd_order._getters)
         try:
-            _fd_order.update(**(fd_order or {}))
+            _fd_order.update(fd_order or {})
             _fd_order = tuple(_fd_order.values())
             _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
             _x0.update(x0)

@@ -689,6 +689,18 @@ class TestTwoStageEvaluation(object):
         assert Add(*term0.expand().args) == term1.expand()
 
 
+class TestCallAPI(object):
+    """Tests for the f.dx(x0=..., fd_order=...) API"""
+    def test_xderiv_order(self):
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        
+        # Check that supplying a dictionary to fd_order for x-derivs functions correctly
+        expr = f.dxdy(fd_order={x: 2, y: 2}).evaluate - f.dx(fd_order=2).dy(fd_order=2).evaluate
+        assert simplify(expr) == 0
+
+
 def bypass_uneval(expr):
     unevals = expr.find(EvalDerivative)
     mapper = {i: Add(*i.args) for i in unevals}
