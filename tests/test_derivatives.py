@@ -697,7 +697,8 @@ class TestCallAPI(object):
         f = Function(name='f', grid=grid, space_order=4)
         
         # Check that supplying a dictionary to fd_order for x-derivs functions correctly
-        expr = f.dxdy(fd_order={x: 2, y: 2}).evaluate - f.dx(fd_order=2).dy(fd_order=2).evaluate
+        expr = f.dxdy(fd_order={x: 2, y: 2}).evaluate \
+            - f.dx(fd_order=2).dy(fd_order=2).evaluate
         assert simplify(expr) == 0
 
 
