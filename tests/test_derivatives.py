@@ -323,6 +323,28 @@ class TestFD(object):
         assert str(u.dx(fd_order=so//2).evaluate) == str(u1.dx.evaluate)
         assert str(u.dx(fd_order=2*so).evaluate) == str(u2.dx.evaluate)
 
+    def test_xderiv_order(self):
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+
+        # Check that supplying a dictionary to fd_order for x-derivs functions correctly
+        expr = f.dxdy(fd_order={x: 2, y: 2}).evaluate \
+            - f.dx(fd_order=2).dy(fd_order=2).evaluate
+        assert simplify(expr) == 0
+
+    def test_xderiv_x0(self):
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        x, y = grid.dimensions
+        h_x = x.spacing
+        h_y = y.spacing
+        f = Function(name='f', grid=grid, space_order=4)
+
+        # Check that supplying a dictionary to x0 for x-derivs functions correctly
+        expr = f.dxdy(x0={x: x+h_x/2, y: y+h_y/2}).evaluate \
+            - f.dx(x0=x+h_x/2).dy(x0=y+h_y/2).evaluate
+        assert simplify(expr) == 0
+
     def test_fd_new_side(self):
         grid = Grid((10,))
         u = Function(name="u", grid=grid, space_order=4)
@@ -687,19 +709,6 @@ class TestTwoStageEvaluation(object):
         # Through expansion and casting we also check that `term0`
         # is indeed mathematically equivalent to `term1`
         assert Add(*term0.expand().args) == term1.expand()
-
-
-class TestCallAPI(object):
-    """Tests for the f.dx(x0=..., fd_order=...) API"""
-    def test_xderiv_order(self):
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
-        x, y = grid.dimensions
-        f = Function(name='f', grid=grid, space_order=4)
-        
-        # Check that supplying a dictionary to fd_order for x-derivs functions correctly
-        expr = f.dxdy(fd_order={x: 2, y: 2}).evaluate \
-            - f.dx(fd_order=2).dy(fd_order=2).evaluate
-        assert simplify(expr) == 0
 
 
 def bypass_uneval(expr):

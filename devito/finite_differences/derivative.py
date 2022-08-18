@@ -187,7 +187,7 @@ class Derivative(sympy.Derivative, Differentiable):
             _fd_order.update(fd_order or {})
             _fd_order = tuple(_fd_order.values())
             _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
-            _x0.update(x0)
+            _x0.update(x0 or {})
         except AttributeError:
             raise TypeError("Multi-dimensional Derivative, input expected as a dict")
 
