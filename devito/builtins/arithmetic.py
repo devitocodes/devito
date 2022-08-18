@@ -4,7 +4,7 @@ import devito as dv
 from devito.builtins.utils import MPIReduction
 
 
-__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax']
+__all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 accumulator_mapper = {
     # Integer accumulates on Float64
@@ -56,6 +56,42 @@ def norm(f, order=2):
     v = np.power(mr.v, 1/order)
 
     return f.dtype(v)
+
+
+@dv.switchconfig(log_level='ERROR')
+def sum(f, dims=None):
+    """
+    Compute the sum of the Function data over specified dimensions.
+    Defaults to sum over all dmensions
+
+    Parameters
+    ----------
+    f : Function
+        Input Function.
+    dims : Dimension or tuple
+        Dimensions to sum over
+    """
+    if dims is None or dims == f.dimensions:
+        return sumall(f)
+
+    dims = dv.tools.as_tuple(dims)
+    new_dims = tuple(d for d in f.dimensions if d not in dims)
+    shape = tuple(f._size_domain[d] for d in new_dims)
+    if f.is_TimeFunction and f.time_dim not in dims:
+        out = dv.TimeFunction(name="%ssum" % f.name, grid=f.grid,
+                              space_order=f.space_order, shape=shape,
+                              dimensions=new_dims, time_dim=f.time_dim,
+                              time_order=f.time_order)
+    else:
+        out = dv.Function(name="%ssum" % f.name, grid=f.grid,
+                          space_order=f.space_order, shape=shape,
+                          dimensions=new_dims)
+    kw = {}
+    if f.is_TimeFunction:
+        kw = {'time_m': 0, 'time_M': f.time_order}
+    op = dv.Operator(dv.Eq(out, out + f))
+    op(**kw)
+    return out
 
 
 @dv.switchconfig(log_level='ERROR')
