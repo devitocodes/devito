@@ -345,7 +345,7 @@ class TestBuiltinsResult(object):
         grid = Grid((101, 101), extent=(1000., 1000.))
 
         nrec = 101
-        rec0 = TimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec)
+        rec0 = SparseTimeFunction(name='rec0', grid=grid, nt=1001, npoint=nrec)
 
         rec0.data[:, :] = 1 + np.random.rand(*rec0.shape).astype(grid.dtype)
         term1 = np.linalg.norm(rec0.data)
@@ -379,6 +379,38 @@ class TestBuiltinsResult(object):
         assert not fsum.is_TimeFunction
         assert fsum.dimensions == (y,)
         assert np.all(fsum.data == 2 * 11)
+
+    def test_sum_sparse(self):
+        """
+        Test that sum produces the correct result against numpy
+        """
+        grid = Grid((11, 11))
+        nx = 101
+        nt = 1001
+        s = SparseTimeFunction(name='s', grid=grid, nt=nt, npoint=nx)
+        s.data.fill(1.)
+        s.coordinates.data[:] = np.random.rand(*s.coordinates.data.shape)
+        td, rd = s.dimensions
+
+        assert sum(s, dims=None) == sumall(s)
+        assert sum(s, dims=s.dimensions) == sumall(s)
+        assert sumall(s) == (nt * nx)
+
+        ssum = sum(s, dims=rd)
+        assert ssum.is_TimeFunction
+        assert ssum.dimensions == (td,)
+        assert np.all(ssum.data == nx)
+
+        ssum = sum(s, dims=td)
+        assert ssum.is_SparseFunction
+        assert ssum.coordinates == s.coordinates
+        assert ssum.dimensions == (rd,)
+        assert np.all(ssum.data == nt)
+
+        ssuma = sum(ssum)
+        assert ssuma == nt * nx
+        ssuma = sum(ssum, dims=rd)
+        assert ssuma == (nt * nx)
 
     def test_min_max_sparse(self):
         """

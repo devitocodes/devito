@@ -495,7 +495,11 @@ class Operator(Callable):
                 # E.g., SubFunctions
                 continue
             for k, v in p._arg_values(**kwargs).items():
-                if k in args and args[k] != v:
+                try:
+                    val_test = k in args and (args[k] != v).all()
+                except AttributeError:
+                    val_test = k in args and args[k] != v
+                if val_test:
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
