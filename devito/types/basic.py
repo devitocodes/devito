@@ -924,10 +924,12 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return None
 
     def __halo_setup__(self, **kwargs):
-        return tuple(kwargs.get('halo', [(0, 0) for i in range(self.ndim)]))
+        halo = tuple(kwargs.get('halo', [(0, 0) for i in range(self.ndim)]))
+        return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        return tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
+        padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
+        return DimensionTuple(*padding, getters=self.dimensions)
 
     @cached_property
     def _honors_autopadding(self):

@@ -1093,8 +1093,8 @@ class Function(DiscreteFunction):
 
     def __halo_setup__(self, **kwargs):
         halo = kwargs.get('halo')
-        if halo is not None:
-            return halo
+        if halo is not None and isinstance(halo, DimensionTuple):
+            halo = tuple(halo[d] for d in self.dimensions)
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
@@ -1104,7 +1104,8 @@ class Function(DiscreteFunction):
                 halo = (left_points, right_points)
             else:
                 raise TypeError("`space_order` must be int or 3-tuple of ints")
-            return tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
+            halo = tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
+        return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
@@ -1128,15 +1129,18 @@ class Function(DiscreteFunction):
                 #   the effectiveness SIMD vectorization
                 fvd_pad_size = (ub(self._size_nopad[fvd]) - self._size_nopad[fvd]) + vl
                 padding.append((0, fvd_pad_size))
-                return tuple(padding)
             else:
-                return tuple((0, 0) for d in self.dimensions)
+                padding = tuple((0, 0) for d in self.dimensions)
+        elif isinstance(padding, DimensionTuple):
+            padding = tuple(padding[d] for d in self.dimensions)
         elif isinstance(padding, int):
-            return tuple((0, padding) if d.is_Space else (0, 0) for d in self.dimensions)
+            padding = tuple((0, padding) if d.is_Space else (0, 0)
+                            for d in self.dimensions)
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            return tuple((0, i) if isinstance(i, int) else i for i in padding)
+            padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+        return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
     def space_order(self):

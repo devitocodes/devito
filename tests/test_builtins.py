@@ -403,7 +403,7 @@ class TestBuiltinsResult(object):
 
         ssum = sum(s, dims=td)
         assert ssum.is_SparseFunction
-        assert ssum.coordinates == s.coordinates
+        assert (ssum.coordinates.data == s.coordinates.data).all()
         assert ssum.dimensions == (rd,)
         assert np.all(ssum.data == nt)
 

@@ -39,6 +39,10 @@ def norm(f, order=2):
     if f.is_TimeFunction and f._time_buffering:
         kwargs[f.time_dim.max_name] = f._time_size - 1
 
+    # Protect SparseFunctions from accessing duplicated (out-of-domain) data,
+    # otherwise we would eventually be summing more than expected
+    p, eqns = f.guard() if f.is_SparseFunction else (f, [])
+
     dtype = accumulator_mapper[f.dtype]
     s = dv.types.Symbol(name='sum', dtype=dtype)
 
@@ -70,20 +74,19 @@ def sum(f, dims=None):
     if dims == () or dims == f.dimensions:
         return sumall(f)
 
-    # Get dimensions and shape of the result.
+    # Get dimensions and shape of the result
     new_dims = tuple(d for d in f.dimensions if d not in dims)
     shape = tuple(f._size_domain[d] for d in new_dims)
     if f.is_TimeFunction and f.time_dim not in dims:
-        out = dv.TimeFunction(name="%ssum" % f.name, grid=f.grid,
-                              space_order=f.space_order, shape=shape,
-                              dimensions=new_dims, time_dim=f.time_dim,
-                              time_order=f.time_order)
+        out = f._rebuild(name="%ssum" % f.name, shape=shape, dimensions=new_dims,
+                         initializer=np.empty(0))
     elif f.is_SparseTimeFunction:
         if f.time_dim in dims:
             # Sum over time -> SparseFunction
+            coords = f.coordinates._rebuild(name="%ssum_coords" % f.name)
             out = dv.SparseFunction(name="%ssum" % f.name, grid=f.grid,
                                     dimensions=new_dims, npoint=f.shape[1],
-                                    coordinates=f.coordinates)
+                                    coordinates=coords)
         else:
             # Sum over rec -> TimeFunction
             out = dv.TimeFunction(name="%ssum" % f.name, grid=f.grid, shape=shape,
@@ -98,7 +101,7 @@ def sum(f, dims=None):
     if f.is_TimeFunction and f._time_buffering:
         kwargs[f.time_dim.max_name] = f._time_size - 1
 
-    # Only need one guard has they have the same coordiantes and dimensions
+    # Only need one guard as they have the same coordinates and Dimension
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
     op = dv.Operator(eqns + [dv.Eq(out, out + p)])
     op(**kwargs)
@@ -118,6 +121,10 @@ def sumall(f):
     kwargs = {}
     if f.is_TimeFunction and f._time_buffering:
         kwargs[f.time_dim.max_name] = f._time_size - 1
+
+    # Protect SparseFunctions from accessing duplicated (out-of-domain) data,
+    # otherwise we would eventually be summing more than expected
+    p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
     dtype = accumulator_mapper[f.dtype]
     s = dv.types.Symbol(name='sum', dtype=dtype)
@@ -172,17 +179,14 @@ def inner(f, g):
 
     # Protect SparseFunctions from accessing duplicated (out-of-domain) data,
     # otherwise we would eventually be summing more than expected
-    p, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
+    rhs, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
 
     dtype = accumulator_mapper[f.dtype]
     s = dv.types.Symbol(name='sum', dtype=dtype)
 
-    if f.is_SparseFunction:
-        # The rec dimension may not match eventhough they have the same coordinates.
-        gi = g._subs(g._sparse_dim, f._sparse_dim)
     with MPIReduction(f, g, dtype=dtype) as mr:
         op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
-                         [dv.Inc(s, p), dv.Eq(mr.n[0], s)],
+                         [dv.Inc(s, rhs), dv.Eq(mr.n[0], s)],
                          name='inner')
         op.apply(**kwargs)
 
