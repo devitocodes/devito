@@ -324,7 +324,7 @@ class TestBuiltinsResult(object):
 
     def test_inner_sparse(self):
         """
-        Test that inner produces the correct result against numpy
+        Test that inner produces the correct result against NumPy
         """
         grid = Grid((101, 101), extent=(1000., 1000.))
 
@@ -340,7 +340,7 @@ class TestBuiltinsResult(object):
 
     def test_norm_sparse(self):
         """
-        Test that norm produces the correct result against numpy
+        Test that norm produces the correct result against NumPy
         """
         grid = Grid((101, 101), extent=(1000., 1000.))
 
@@ -354,7 +354,7 @@ class TestBuiltinsResult(object):
 
     def test_sum(self):
         """
-        Test that sum produces the correct result against numpy
+        Test that sum produces the correct result against NumPy
         """
         grid = Grid((11, 11))
         x, y = grid.dimensions
@@ -382,7 +382,7 @@ class TestBuiltinsResult(object):
 
     def test_sum_sparse(self):
         """
-        Test that sum produces the correct result against numpy
+        Test that sum produces the correct result against NumPy
         """
         grid = Grid((11, 11))
         nx = 101

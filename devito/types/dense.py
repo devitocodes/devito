@@ -1093,8 +1093,9 @@ class Function(DiscreteFunction):
 
     def __halo_setup__(self, **kwargs):
         halo = kwargs.get('halo')
-        if halo is not None and isinstance(halo, DimensionTuple):
-            halo = tuple(halo[d] for d in self.dimensions)
+        if halo is not None:
+            if isinstance(halo, DimensionTuple):
+                halo = tuple(halo[d] for d in self.dimensions)
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):

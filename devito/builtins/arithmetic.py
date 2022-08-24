@@ -61,7 +61,7 @@ def norm(f, order=2):
 def sum(f, dims=None):
     """
     Compute the sum of the Function data over specified dimensions.
-    Defaults to sum over all dmensions
+    Defaults to sum over all dimensions
 
     Parameters
     ----------
@@ -83,10 +83,10 @@ def sum(f, dims=None):
     elif f.is_SparseTimeFunction:
         if f.time_dim in dims:
             # Sum over time -> SparseFunction
-            coords = f.coordinates._rebuild(name="%ssum_coords" % f.name)
+            new_coords = f.coordinates._rebuild(name="%ssum_coords" % f.name)
             out = dv.SparseFunction(name="%ssum" % f.name, grid=f.grid,
                                     dimensions=new_dims, npoint=f.shape[1],
-                                    coordinates=coords)
+                                    coordinates=new_coords)
         else:
             # Sum over rec -> TimeFunction
             out = dv.TimeFunction(name="%ssum" % f.name, grid=f.grid, shape=shape,

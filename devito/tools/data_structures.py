@@ -5,6 +5,7 @@ from functools import reduce
 import numpy as np
 from multidict import MultiDict
 
+from devito.tools import Pickable
 from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
@@ -29,17 +30,28 @@ class Bunch(object):
         self.__dict__.update(kwargs)
 
 
-class EnrichedTuple(tuple):
+class EnrichedTuple(Pickable, tuple):
 
     """
     A tuple with an arbitrary number of additional attributes.
     """
 
     def __new__(cls, *items, getters=None, **kwargs):
+        # Check kwargs e.g for reconstructed input
+        if '_getters' in kwargs:
+            gets = kwargs.pop('_getters')
+            getters, items = tuple(gets.keys()), tuple(gets.values())
+        # Construct object
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
         obj._getters = dict(zip(getters or [], items))
         return obj
+
+    @property
+    def __rkwargs__(self):
+        # Unfortunately we dynamically modify __dict__ at __new__ so
+        # we can't infer these for the class
+        return tuple(self.__dict__.keys())
 
     def __getitem__(self, key):
         if isinstance(key, (int, slice)):
