@@ -8,7 +8,7 @@ from sympy import Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt)
 from devito.ir import Expression, FindNodes
-from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
+from devito.symbolics import (retrieve_functions, retrieve_indexed, evaluate_relation,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
                               FieldFromComposite, IntDiv, MIN, MAX, ccode)
 from devito.types import Array, Object

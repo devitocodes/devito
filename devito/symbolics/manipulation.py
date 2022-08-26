@@ -16,7 +16,7 @@ from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'split_affine',
            'subs_op_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
-           'evalrel']
+           'evaluate_relation', 'reduce_relation']
 
 
 def uxreplace(expr, rule):

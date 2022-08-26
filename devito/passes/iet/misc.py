@@ -7,7 +7,7 @@ from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX, reduce_relation, rfunc
 from devito.types.relational import Gt
-from devito.tools import is_integer, split, as_list
+from devito.tools import split, as_list
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
 
@@ -106,12 +106,12 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Process inner iterations and adjust their bounds
         for i in inner:
-            # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
-            # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
-            # of the current Iteration's root Dimension e.g. `x_M`. The generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+            # Usually the Iteration's maximum is the MIN of (a) the `symbolic_max` of
+            # current Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the
+            # `symbolic_max` of the current Iteration's root Dimension e.g. `x_M`. The
+            # generated maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
 
-            # In some corner cases an offset may be added (e.g. after CIRE passes)
+            # There are cases were optimizations may add an offset (e.g. CIRE passes)
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
             # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
@@ -131,9 +131,9 @@ def relax_incr_dimensions(iet, **kwargs):
                 i.dim.symbolic_max: i.symbolic_max
             }
 
-            # Step 2: Generate assumptions deriving from hierarchical blocking. Assuming
-            # lower blocking levels perfectly fit within outer levels, we use depth of
-            # IncrDimensions as a rule to generate assumptions such as:
+            # Step 2: Generate inequality relations deriving from hierarchical blocking.
+            # Assuming lower blocking levels perfectly fit within outer levels, we use
+            # the depth of IncrDimensions as a rule to generate assumptions such as:
             # e.g. for 2-level blocking [x (inner Incr), x0_blk1, x0_blk0, x (outer root)]
             # [x0_blk1 > x0_blk0, x0_blk1_size > x0_blk0_size]
             # `defines` keeps all the ancestors and descendants of `i.dim`.
@@ -144,11 +144,11 @@ def relax_incr_dimensions(iet, **kwargs):
             assumptions = as_list(chain.from_iterable((Gt(j.step, k.step), Gt(j, k))
                                   for j, k in product(acs, acs) if j._depth > k._depth))
 
-            # Step 3: Reduce defines min/max candidates using assumptions on `defines`
+            # Reduce defines min/max candidates using assumptions on `defines`
             defmin = reduce_relation(max, defines, assumptions)
             defmax = reduce_relation(min, defines, assumptions)
 
-            # Collect symbolic_min, symbolic_max from defmin/defmax lists
+            # Step 3: Collect symbolic_min, symbolic_max from defmin/defmax lists
             defmin = [j.symbolic_min for j in defmin]
             defmax = [j.symbolic_max for j in defmax]
 
@@ -166,16 +166,24 @@ def relax_incr_dimensions(iet, **kwargs):
                 except:
                     pass
 
-            # Drop candidates that reduce the iteration space
-            # Usually due to presence of offsets due to subdomains and/or subdimensions
+            # Step 5: Drop candidates that reduce the iteration space
+            # Usually due to presence of offsets due to subdimensions
             # From [i0x0_blk0 + i0x0_blk0_size - 1, -i0x_rtkn + x_M, x_M] to
             # [x_M, i0x0_blk0 + i0x0_blk0_size - 1]
             defmin = reduce_relation(min, defmin)
             defmax = reduce_relation(max, defmax)
 
-            # Subsistute offsets if needed, else leave as it is
+            # Step 6: Subsitute offsets if needed, else leave as it is
             defmin = [j.subs(min_map) if j in min_map else j for j in as_list(defmin)]
             defmax = [j.subs(max_map) if j in max_map else j for j in as_list(defmax)]
+
+            # Repeat step 4: More opportunities to drop may have been created
+            for k in defmin.copy():
+                try:
+                    if k.symbolic_min in defmin:
+                        defmin.remove(k.symbolic_min)
+                except:
+                    pass
 
             # At this point, no more simplifications are possible. Final iteration form
             # will be: Iteration i <starting from MAX(defmin) to MIN(defmax)>

@@ -652,6 +652,8 @@ FLOOR = Function('floor')
 MAX = Function('MAX')
 MIN = Function('MIN')
 
+Null = Macro('NULL')
+
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
 SizeOf = lambda *args: DefFunction('sizeof', tuple(args))
 
