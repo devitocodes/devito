@@ -44,13 +44,13 @@ def autotune(operator, args, level, mode):
 
     # User-provided output data won't be altered in `preemptive` mode
     if mode == 'preemptive':
-        output = {i.name: i for i in operator.output}
-        copies = {k: output[k]._C_as_ndarray(v).copy()
-                  for k, v in args.items() if k in output}
+        writes = {i.name: i for i in operator.writes}
+        copies = {k: writes[k]._C_as_ndarray(v).copy()
+                  for k, v in args.items() if k in writes}
         # WARNING: `copies` keeps references to numpy arrays, which is required
         # to avoid garbage collection to kick in during autotuning and prematurely
         # free the shadow copies handed over to C-land
-        at_args.update({k: output[k]._C_make_dataobj(v) for k, v in copies.items()})
+        at_args.update({k: writes[k]._C_make_dataobj(v) for k, v in copies.items()})
 
     # Disable halo exchanges through MPI_PROC_NULL
     if mode in ['preemptive', 'destructive']:

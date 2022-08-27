@@ -14,7 +14,7 @@ from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
-from devito.ir.support import SymbolRegistry
+from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
@@ -23,7 +23,7 @@ from devito.parameters import configuration
 from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          split, timed_pass, timed_region)
+                          frozendict, split, timed_pass, timed_region)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -207,8 +207,8 @@ class Operator(Callable):
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
-        op._input = filter_sorted(flatten(e.reads + e.writes for e in irs.expressions))
-        op._output = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
+        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
@@ -438,8 +438,12 @@ class Operator(Callable):
     # Read-only properties exposed to the outside world
 
     @cached_property
-    def output(self):
-        return tuple(self._output)
+    def reads(self):
+        return tuple(self._reads)
+
+    @cached_property
+    def writes(self):
+        return tuple(self._writes)
 
     @cached_property
     def dimensions(self):
@@ -466,6 +470,14 @@ class Operator(Callable):
         return tuple(i for i in self.parameters if i.is_Object)
 
     # Arguments processing
+
+    @cached_property
+    def _access_modes(self):
+        """
+        A table providing the AccessMode of all user-accessible symbols in `self`.
+        """
+        return frozendict({i: AccessMode(i in self.reads, i in self.writes)
+                           for i in self.input})
 
     def _prepare_arguments(self, autotune=None, **kwargs):
         """
@@ -549,7 +561,7 @@ class Operator(Callable):
 
         # Sanity check
         for p in self.parameters:
-            p._arg_check(args, self._dspace[p])
+            p._arg_check(args, self._dspace[p], am=self._access_modes.get(p))
         for d in self.dimensions:
             if d.is_Derived:
                 d._arg_check(args, self._dspace[p])

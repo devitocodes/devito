@@ -4,7 +4,39 @@ from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_termina
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['Stencil', 'detect_accesses', 'detect_io']
+__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io']
+
+
+class AccessMode(object):
+
+    """
+    A descriptor for access modes (read, write, ...).
+    """
+
+    def __init__(self, R=False, W=False):
+        assert isinstance(R, bool) and isinstance(W, bool)
+        self.R = R
+        self.W = W
+
+    def __repr__(self):
+        if self.R_only:
+            return "R"
+        elif self.W_only:
+            return "W"
+        else:
+            return "R/W"
+
+    @property
+    def R_only(self):
+        return self.R and not self.W
+
+    @property
+    def W_only(self):
+        return self.W and not self.R
+
+    @property
+    def RW(self):
+        return self.R and self.W
 
 
 class Stencil(DefaultOrderedDict):
