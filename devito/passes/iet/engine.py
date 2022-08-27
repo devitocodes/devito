@@ -232,8 +232,8 @@ def abstract_efunc(efunc):
         if i.is_DiscreteFunction:
             base = 'f'
 
-            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-            kwargs.pop('initializer')
+            rkwargs = set(i.__rkwargs__) - {'initializer'}
+            kwargs = {k: getattr(i, k, None) for k in rkwargs}
             kwargs['name'] = '%s%d' % (base, counter[base])
             v = AliasFunction(**kwargs)
 
