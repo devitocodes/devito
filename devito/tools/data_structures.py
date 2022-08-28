@@ -30,28 +30,17 @@ class Bunch(object):
         self.__dict__.update(kwargs)
 
 
-class EnrichedTuple(Pickable, tuple):
+class EnrichedTuple(tuple, Pickable):
 
     """
     A tuple with an arbitrary number of additional attributes.
     """
 
     def __new__(cls, *items, getters=None, **kwargs):
-        # Check kwargs e.g for reconstructed input
-        if '_getters' in kwargs:
-            gets = kwargs.pop('_getters')
-            getters, items = tuple(gets.keys()), tuple(gets.values())
-        # Construct object
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
         obj._getters = dict(zip(getters or [], items))
         return obj
-
-    @property
-    def __rkwargs__(self):
-        # Unfortunately we dynamically modify __dict__ at __new__ so
-        # we can't infer these for the class
-        return tuple(self.__dict__.keys())
 
     def __getitem__(self, key):
         if isinstance(key, (int, slice)):
@@ -61,6 +50,11 @@ class EnrichedTuple(Pickable, tuple):
 
     def __getitem_hook__(self, key):
         return self._getters[key]
+
+    def __getnewargs_ex__(self):
+        # Bypass default reconstruction logic since this class spawns
+        # objects with varying number of attributes
+        return (tuple(self), dict(self.__dict__))
 
 
 class ReducerMap(MultiDict):
