@@ -150,6 +150,7 @@ class Operator(Callable):
 
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
+        cls._check_kwargs(**kwargs)
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -164,6 +165,10 @@ class Operator(Callable):
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         return kwargs
+
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        return
 
     @classmethod
     def _build(cls, expressions, **kwargs):

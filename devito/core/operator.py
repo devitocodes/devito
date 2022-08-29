@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
+from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
 from devito.operator import Operator
 from devito.tools import as_tuple, is_integer, timed_pass
@@ -82,6 +83,11 @@ class BasicOperator(Operator):
     which may be easier to parallelize for certain backends.
     """
 
+    MPI_MODES = tuple(mpi_registry)
+    """
+    The supported MPI modes.
+    """
+
     _Target = None
     """
     The target language constructor, to be specified by subclasses.
@@ -105,6 +111,13 @@ class BasicOperator(Operator):
         kwargs['options'].update(o)
 
         return kwargs
+
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
+            raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:
