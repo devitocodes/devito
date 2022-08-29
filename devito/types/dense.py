@@ -1637,9 +1637,12 @@ class AliasFunction(DiscreteFunction):
     Like a TempFunction, an AliasFunction does not carry data.
     """
 
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('aliased',)
+
     __indices_setup__ = Function.__indices_setup__
 
-    def __init_finalize__(self, *args, **kwargs):
+    def __init_finalize__(self, *args, aliased=None, **kwargs):
+        self.aliased = aliased
         self.save = kwargs.pop('save', None)
 
         super().__init_finalize__(*args, **kwargs)
@@ -1665,3 +1668,7 @@ class AliasFunction(DiscreteFunction):
     data_with_halo = data
     data_ro_domain = data
     data_ro_with_halo = data
+
+    @property
+    def _C_ctype(self):
+        return self.aliased._C_ctype
