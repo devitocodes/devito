@@ -27,44 +27,9 @@ class DeviceOperatorMixin(object):
     3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
     """
 
-    BLOCK_EAGER = True
-    """
-    Apply loop blocking as early as possible, and in particular prior to CIRE.
-    """
-
-    BLOCK_RELAX = False
-    """
-    If set to True, bypass the compiler heuristics that prevent loop blocking in
-    situations where the performance impact might be detrimental.
-    """
-
-    CIRE_MINGAIN = 10
-    """
-    Minimum operation count reduction for a redundant expression to be optimized
-    away. Higher (lower) values make a redundant expression less (more) likely to
-    be optimized away.
-    """
-
-    CIRE_SCHEDULE = 'automatic'
-    """
-    Strategy used to schedule derivatives across loops. This impacts the operational
-    intensity of the generated kernel.
-    """
-
-    PAR_CHUNK_NONAFFINE = 3
-    """
-    Coefficient to adjust the chunk size in non-affine parallel loops.
-    """
-
     GPU_FIT = 'all-fallback'
     """
     Assuming all functions fit into the gpu memory.
-    """
-
-    MAPIFY_REDUCE = False
-    """
-    Vector-expand all scalar reductions to turn them into explicit map-reductions,
-    which may be easier to parallelize for certain backends.
     """
 
     @classmethod
