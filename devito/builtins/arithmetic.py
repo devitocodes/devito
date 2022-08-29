@@ -4,7 +4,7 @@ import devito as dv
 from devito.builtins.utils import MPIReduction
 
 
-__all__ = ['norm', 'sumall', 'inner', 'mmin', 'mmax']
+__all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 accumulator_mapper = {
     # Integer accumulates on Float64
@@ -47,8 +47,7 @@ def norm(f, order=2):
     s = dv.types.Symbol(name='sum', dtype=dtype)
 
     with MPIReduction(f, dtype=dtype) as mr:
-        op = dv.Operator([dv.Eq(s, 0.0)] +
-                         eqns +
+        op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                          [dv.Inc(s, dv.Abs(Pow(p, order))), dv.Eq(mr.n[0], s)],
                          name='norm%d' % order)
         op.apply(**kwargs)
@@ -56,6 +55,57 @@ def norm(f, order=2):
     v = np.power(mr.v, 1/order)
 
     return f.dtype(v)
+
+
+@dv.switchconfig(log_level='ERROR')
+def sum(f, dims=None):
+    """
+    Compute the sum of the Function data over specified dimensions.
+    Defaults to sum over all dimensions
+
+    Parameters
+    ----------
+    f : Function
+        Input Function.
+    dims : Dimension or tuple of Dimension
+        Dimensions to sum over.
+    """
+    dims = dv.tools.as_tuple(dims)
+    if dims == () or dims == f.dimensions:
+        return sumall(f)
+
+    # Get dimensions and shape of the result
+    new_dims = tuple(d for d in f.dimensions if d not in dims)
+    shape = tuple(f._size_domain[d] for d in new_dims)
+    if f.is_TimeFunction and f.time_dim not in dims:
+        out = f._rebuild(name="%ssum" % f.name, shape=shape, dimensions=new_dims,
+                         initializer=np.empty(0))
+    elif f.is_SparseTimeFunction:
+        if f.time_dim in dims:
+            # Sum over time -> SparseFunction
+            new_coords = f.coordinates._rebuild(name="%ssum_coords" % f.name)
+            out = dv.SparseFunction(name="%ssum" % f.name, grid=f.grid,
+                                    dimensions=new_dims, npoint=f.shape[1],
+                                    coordinates=new_coords)
+        else:
+            # Sum over rec -> TimeFunction
+            out = dv.TimeFunction(name="%ssum" % f.name, grid=f.grid, shape=shape,
+                                  dimensions=new_dims, space_order=0,
+                                  time_order=f.time_order)
+    else:
+        out = dv.Function(name="%ssum" % f.name, grid=f.grid,
+                          space_order=f.space_order, shape=shape,
+                          dimensions=new_dims)
+
+    kwargs = {}
+    if f.is_TimeFunction and f._time_buffering:
+        kwargs[f.time_dim.max_name] = f._time_size - 1
+
+    # Only need one guard as they have the same coordinates and Dimension
+    p, eqns = f.guard() if f.is_SparseFunction else (f, [])
+    op = dv.Operator(eqns + [dv.Eq(out, out + p)])
+    op(**kwargs)
+    return out
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -80,8 +130,7 @@ def sumall(f):
     s = dv.types.Symbol(name='sum', dtype=dtype)
 
     with MPIReduction(f, dtype=dtype) as mr:
-        op = dv.Operator([dv.Eq(s, 0.0)] +
-                         eqns +
+        op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                          [dv.Inc(s, p), dv.Eq(mr.n[0], s)],
                          name='sum')
         op.apply(**kwargs)
@@ -136,8 +185,7 @@ def inner(f, g):
     s = dv.types.Symbol(name='sum', dtype=dtype)
 
     with MPIReduction(f, g, dtype=dtype) as mr:
-        op = dv.Operator([dv.Eq(s, 0.0)] +
-                         eqns +
+        op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                          [dv.Inc(s, rhs), dv.Eq(mr.n[0], s)],
                          name='inner')
         op.apply(**kwargs)

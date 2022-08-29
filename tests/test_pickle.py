@@ -14,6 +14,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
                           DeviceID, NPThreads, ThreadID, TempFunction)
+from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               CallFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
@@ -41,6 +42,19 @@ def test_dimension():
 
     assert d.name == new_d.name
     assert d.dtype == new_d.dtype
+
+
+def test_enrichedtuple():
+    # Dummy enriched tuple
+    tup = EnrichedTuple(11, 31, getters=('a', 'b'), left=[3, 4], right=[5, 6])
+
+    pkl_t = pickle.dumps(tup)
+    new_t = pickle.loads(pkl_t)
+
+    assert new_t == tup  # This only tests the actual tuple
+    assert new_t._getters == tup._getters
+    assert new_t.left == tup.left
+    assert new_t.right == tup.right
 
 
 def test_function():
