@@ -226,6 +226,10 @@ class ViscoacousticWaveSolver(object):
                               staggered=NODE)
 
         model = model or self.model
+
+        u.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
+        v.data[:, int(nx/2), int(ny/2), int(nz/2)] = 1
+
         # Pick vp and physical parameters from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
@@ -235,6 +239,7 @@ class ViscoacousticWaveSolver(object):
             # With Memory variable
         
             # Artificial short source injection
+            op0 = self.op_fwdTT(save)
             summary = self.op_fwd(save).apply(time_M=100, src=src, p=p,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
             print(norm(p))
