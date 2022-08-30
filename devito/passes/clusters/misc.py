@@ -72,7 +72,12 @@ class Lift(Queue):
 
             # The contracted iteration and data spaces
             key = lambda d: d not in hope_invariant
-            ispace = c.ispace.project(key).reset()
+            ispace = c.ispace.project(key)
+
+            # Optimization: if not lifting from the innermost Dimension, we can
+            # safely reset the `ispace` to expose potential fusion opportunities
+            if c.ispace[-1].dim not in hope_invariant:
+                ispace = ispace.reset()
 
             properties = {d: v for d, v in c.properties.items() if key(d)}
 
