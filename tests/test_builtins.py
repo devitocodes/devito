@@ -6,7 +6,7 @@ from scipy import misc
 from conftest import skipif
 from devito import Grid, Function, TimeFunction, switchconfig
 from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
-                             inner, mmin, mmax)
+                             inner, mmin, mmax, sum, sumall)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
@@ -324,7 +324,7 @@ class TestBuiltinsResult(object):
 
     def test_inner_sparse(self):
         """
-        Test that inner produces the correct result against numpy
+        Test that inner produces the correct result against NumPy
         """
         grid = Grid((101, 101), extent=(1000., 1000.))
 
@@ -340,7 +340,7 @@ class TestBuiltinsResult(object):
 
     def test_norm_sparse(self):
         """
-        Test that norm produces the correct result against numpy
+        Test that norm produces the correct result against NumPy
         """
         grid = Grid((101, 101), extent=(1000., 1000.))
 
@@ -351,6 +351,66 @@ class TestBuiltinsResult(object):
         term1 = np.linalg.norm(rec0.data)
         term2 = norm(rec0)
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
+
+    def test_sum(self):
+        """
+        Test that sum produces the correct result against NumPy
+        """
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        f = TimeFunction(name='f', grid=grid)
+        f.data.fill(1)
+        assert sum(f) == sumall(f)
+        assert sum(f, dims=None) == sumall(f)
+        assert sum(f, dims=f.dimensions) == sumall(f)
+        assert sumall(f) == np.prod(f.shape)
+
+        fsum = sum(f, dims=x)
+        assert fsum.dimensions == (t, y)
+        assert np.all(fsum.data == 11)
+
+        fsum = sum(f, dims=t)
+        assert not fsum.is_TimeFunction
+        assert fsum.dimensions == (x, y)
+        assert np.all(fsum.data == 2)
+
+        fsum = sum(fsum, dims=x)
+        assert not fsum.is_TimeFunction
+        assert fsum.dimensions == (y,)
+        assert np.all(fsum.data == 2 * 11)
+
+    def test_sum_sparse(self):
+        """
+        Test that sum produces the correct result against NumPy
+        """
+        grid = Grid((11, 11))
+        nx = 101
+        nt = 1001
+        s = SparseTimeFunction(name='s', grid=grid, nt=nt, npoint=nx)
+        s.data.fill(1.)
+        s.coordinates.data[:] = np.random.rand(*s.coordinates.data.shape)
+        td, rd = s.dimensions
+
+        assert sum(s, dims=None) == sumall(s)
+        assert sum(s, dims=s.dimensions) == sumall(s)
+        assert sumall(s) == (nt * nx)
+
+        ssum = sum(s, dims=rd)
+        assert ssum.is_TimeFunction
+        assert ssum.dimensions == (td,)
+        assert np.all(ssum.data == nx)
+
+        ssum = sum(s, dims=td)
+        assert ssum.is_SparseFunction
+        assert (ssum.coordinates.data == s.coordinates.data).all()
+        assert ssum.dimensions == (rd,)
+        assert np.all(ssum.data == nt)
+
+        ssuma = sum(ssum)
+        assert ssuma == nt * nx
+        ssuma = sum(ssum, dims=rd)
+        assert ssuma == (nt * nx)
 
     def test_min_max_sparse(self):
         """

@@ -5,6 +5,7 @@ from functools import reduce
 import numpy as np
 from multidict import MultiDict
 
+from devito.tools import Pickable
 from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
@@ -29,7 +30,7 @@ class Bunch(object):
         self.__dict__.update(kwargs)
 
 
-class EnrichedTuple(tuple):
+class EnrichedTuple(tuple, Pickable):
 
     """
     A tuple with an arbitrary number of additional attributes.
@@ -49,6 +50,11 @@ class EnrichedTuple(tuple):
 
     def __getitem_hook__(self, key):
         return self._getters[key]
+
+    def __getnewargs_ex__(self):
+        # Bypass default reconstruction logic since this class spawns
+        # objects with varying number of attributes
+        return (tuple(self), dict(self.__dict__))
 
 
 class ReducerMap(MultiDict):
