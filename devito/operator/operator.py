@@ -436,7 +436,7 @@ class Operator(Callable):
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        # instrument(graph, profiler=profiler, sregistry=sregistry)
+        instrument(graph, profiler=profiler, sregistry=sregistry)
 
         return graph.root, graph
 
@@ -799,8 +799,7 @@ class Operator(Callable):
         self._postprocess_arguments(args, **kwargs)
 
         # Output summary of performance achieved
-        # return self._emit_apply_profiling(args)        
-        return self
+        return self._emit_apply_profiling(args)
 
     # Performance profiling
 
