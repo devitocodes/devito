@@ -9,7 +9,8 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimen
                     Dimension, SubDimension, Eq, Inc, ReduceMax, Operator,
                     configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import Iteration, FindNodes, retrieve_iteration_tree
+from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
+                           retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -191,6 +192,29 @@ def test_cache_blocking_structure_optrelax():
     assert len(iters) == 2
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
+
+
+def test_cache_blocking_structure_leftright_subdims():
+    grid = Grid(shape=(12, 12))
+    nbl = 3
+
+    damp = Function(name='damp', grid=grid)
+
+    eqns = [Eq(damp, 0.)]
+    for d in damp.dimensions:
+        # Left
+        dl = SubDimension.left(name='%sl' % d.name, parent=d, thickness=nbl)
+        eqns.extend([Inc(damp.subs({d: dl}), 1.)])
+        # right
+        dr = SubDimension.right(name='%sr' % d.name, parent=d, thickness=nbl)
+        eqns.extend([Inc(damp.subs({d: dr}), 1.)])
+
+    op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
+
+    bns, _ = assert_blocking(op,
+                             {'x0_blk0', 'xl0_blk0', 'xr0_blk0', 'x1_blk0', 'x2_blk0'})
+    assert all(IsPerfectIteration().visit(i) for i in bns.values())
+    assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 
 
 @pytest.mark.parametrize('opt, expected', [('noop', ('ijk', 'ikl')),
