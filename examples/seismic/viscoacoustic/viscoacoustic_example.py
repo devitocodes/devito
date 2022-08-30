@@ -31,9 +31,22 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
                                  kernel=kernel, time_order=time_order, **kwargs)
     info("Applying Forward")
 
-    rec, p, v, summary = solver.forward(autotune=autotune)
+    p, v, summary = solver.forward(autotune=autotune)
+    print(norm(p))
 
-    return (summary.gflopss, summary.oi, summary.timings, [rec, p, v])
+
+    info("Applying TIME-TILED Forward")
+
+
+    solver = viscoacoustic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
+                                 space_order=space_order, preset=preset,
+                                 kernel=kernel, time_order=time_order, **kwargs)
+
+    p, v, summary = solver.forwardTT(autotune=autotune)
+    print(norm(p))
+
+
+    return (summary.gflopss, summary.oi, summary.timings, [p, v])
 
 
 @pytest.mark.parametrize('kernel, time_order, normrec, atol', [

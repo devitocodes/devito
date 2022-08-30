@@ -523,12 +523,66 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
     eq_kernel = kernels[kernel]
     eqn = eq_kernel(model, geometry, p, save=save, **kwargs)
 
-    src_term, rec_term = src_rec(p, model, geometry)
+    src_term, _ = src_rec(p, model, geometry)
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+    return Operator(eqn + src_term, subs=model.spacing_map,
                     name='Forward', **kwargs)
 
+
+def ForwardOperatorTT(model, geometry, space_order=4, kernel='sls', time_order=2,
+                    save=False, **kwargs):
+    """
+    Construct method for the forward modelling operator in a viscoacoustic medium.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int, optional
+        Space discretization order.
+    kernel : string, optional
+        selects a viscoacoustic equation from the options below:
+        SLS (Standard Linear Solid) :
+        1st order - Blanch and Symes (1995) / Dutta and Schuster (2014)
+        viscoacoustic equation
+        2nd order - Bai et al. (2014) viscoacoustic equation
+        kv - Ren et al. (2014) viscoacoustic equation
+        maxwell - Deng and McMechan (2007) viscoacoustic equation
+        Defaults to sls 2nd order.
+    save : int or Buffer
+        Saving flag, True saves all time steps, False saves three buffered
+        indices (last three time steps). Defaults to False.
+    """
+    # Create symbols for forward wavefield, particle velocity, source and receivers
+    save_t = geometry.nt if save else None
+
+    if time_order == 1:
+        v = VectorTimeFunction(name="v", grid=model.grid, time_order=time_order,
+                               space_order=space_order, save=save_t)
+        kwargs.update({'v': v})
+
+    p = TimeFunction(name="p", grid=model.grid, time_order=time_order,
+                     space_order=space_order, save=save_t, staggered=NODE)
+
+    # Equations kernels
+    eq_kernel = kernels[kernel]
+    eqn = eq_kernel(model, geometry, p, save=save, **kwargs)
+
+    _, _ = src_rec(p, model, geometry)
+
+    # Substitute spacing terms to reduce flops
+    # return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
+    #                 name='ForwardTT', **kwargs)
+    
+    kwargs['opt'] = ('advanced', {'skewing': True, 'blocklevels': 2})
+
+    # import pdb;pdb.set_trace()
+    return Operator(eqn, subs=model.spacing_map,
+                    name='ForwardTT', **kwargs)
 
 def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **kwargs):
     """

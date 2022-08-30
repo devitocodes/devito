@@ -1,9 +1,9 @@
 from devito import (VectorTimeFunction, TimeFunction, Function, NODE,
-                    DevitoCheckpoint, CheckpointOperator)
+                    DevitoCheckpoint, CheckpointOperator, norm)
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
 from examples.seismic.viscoacoustic.operators import (
-    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+    ForwardOperator, ForwardOperatorTT, AdjointOperator, GradientOperator, BornOperator
 )
 from pyrevolve import Revolver
 
@@ -51,6 +51,13 @@ class ViscoacousticWaveSolver(object):
     def op_fwd(self, save=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
+                               space_order=self.space_order, kernel=self.kernel,
+                               time_order=self.time_order, **self._kwargs)
+
+    @memoized_meth
+    def op_fwdTT(self, save=None):
+        """Cached operator for forward runs with buffered wavefield"""
+        return ForwardOperatorTT(self.model, save=save, geometry=self.geometry,
                                space_order=self.space_order, kernel=self.kernel,
                                time_order=self.time_order, **self._kwargs)
 
@@ -140,14 +147,124 @@ class ViscoacousticWaveSolver(object):
         if self.kernel == 'sls':
             # Execute operator and return wavefield and receiver data
             # With Memory variable
-            summary = self.op_fwd(save).apply(src=src, rec=rec, r=r, p=p,
+
+            # Artificial short source injection
+            self.op_fwd(save).apply(time_M=100, src=src, p=p,
+                                    dt=kwargs.pop('dt', self.dt), **kwargs)
+            print(norm(p))
+
+            # summary = self.op_fwd(save).apply(time_M=self.geometry.nt-1, r=r, p=p,
+            #                                   dt=kwargs.pop('dt', self.dt), **kwargs)
+            summary = self.op_fwdTT(save).apply(time_M=self.geometry.nt-1, r=r, p=p,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
+            print(norm(p))
         else:
             # Execute operator and return wavefield and receiver data
             # Without Memory variable
             summary = self.op_fwd(save).apply(src=src, rec=rec, p=p,
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
-        return rec, p, v, summary
+
+        return p, v, summary
+
+
+    def forwardTT(self, src=None, rec=None, v=None, r=None, p=None, model=None,
+                save=None, **kwargs):
+        """
+        Forward modelling function that creates the necessary
+        data objects for running a forward modelling operator.
+
+        Parameters
+        ----------
+        src : SparseTimeFunction or array_like, optional
+            Time series data for the injected source term.
+        rec : SparseTimeFunction or array_like, optional
+            The interpolated receiver data.
+        v : VectorTimeFunction, optional
+            The computed particle velocity.
+        r : TimeFunction, optional
+            The computed attenuation memory variable.
+        p : TimeFunction, optional
+            Stores the computed wavefield.
+        model : Model, optional
+            Object containing the physical parameters.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+        vp : Function or float, optional
+            The time-constant velocity.
+        save : bool, optional
+            Whether or not to save the entire (unrolled) wavefield.
+
+        Returns
+        -------
+        Receiver, wavefield and performance summary
+        """
+        # Source term is read-only, so re-use the default
+        src = src or self.geometry.src
+
+        # Create a new receiver object to store the result
+        rec = rec or self.geometry.rec
+
+        # Create all the fields v, p, r
+        save_t = src.nt if save else None
+
+        if self.time_order == 1:
+            v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
+                                        time_order=self.time_order,
+                                        space_order=self.space_order)
+            kwargs.update({k.name: k for k in v})
+
+        # Create the forward wavefield if not provided
+        p = p or TimeFunction(name="p", grid=self.model.grid, save=save_t,
+                              time_order=self.time_order, space_order=self.space_order,
+                              staggered=NODE)
+
+        # Memory variable:
+        r = r or TimeFunction(name="r", grid=self.model.grid, save=save_t,
+                              time_order=self.time_order, space_order=self.space_order,
+                              staggered=NODE)
+
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
+
+
+        if self.kernel == 'sls':
+            # Execute operator and return wavefield and receiver data
+            # With Memory variable
+        
+            # Artificial short source injection
+            summary = self.op_fwd(save).apply(time_M=100, src=src, p=p,
+                                              dt=kwargs.pop('dt', self.dt), **kwargs)
+            print(norm(p))
+          
+            op = self.op_fwdTT(save)
+            # summary = op.apply(time_M=self.geometry.nt-1, r=r, p=p,
+            #                   dt=kwargs.pop('dt', self.dt), **kwargs, **{'time0_blk0_size': 64, 'x0_blk0_size': 64, 'x0_blk1_size': 16, 'y0_blk0_size': 32, 'y0_blk1_size': 8})
+
+            summary = op.apply(time_M=self.geometry.nt-1, r=r, p=p,
+                               dt=kwargs.pop('dt', self.dt), **kwargs)
+
+            print(norm(p))
+            
+        else:
+            # Execute operator and return wavefield and receiver data
+            # Without Memory variable
+            summary = self.op_fwdTT(save).apply(src=src, rec=rec, p=p,
+                                              dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        import matplotlib.pyplot as plt
+        from examples.cfd import plot_field
+        from examples.seismic import plot_image
+        
+        nx, ny, nz = self.model.grid.shape
+
+        plot_image(p.data[0, :, :, int(nz/2)], cmap="viridis")
+        plt.show()
+
+        return p, v, summary
+
 
     def adjoint(self, rec, srca=None, va=None, pa=None, r=None, model=None, **kwargs):
         """
