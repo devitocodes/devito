@@ -435,13 +435,17 @@ class IntervalGroup(PartialOrderTuple):
 
         return intervals
 
-    def drop(self, d):
+    def drop(self, d, strict=False):
         # Dropping
-        dims = set().union(*[i._defines for i in as_tuple(d)])
-        intervals = [i._rebuild() for i in self if not i.dim._defines & dims]
+        if strict:
+            dims = set(as_tuple(d))
+            intervals = [i._rebuild() for i in self if i.dim not in dims]
+        else:
+            dims = set().union(*[i._defines for i in as_tuple(d)])
+            intervals = [i._rebuild() for i in self if not i.dim._defines & dims]
 
         # Clean up relations
-        relations = [tuple(i for i in r if i in intervals) for r in self.relations]
+        relations = [tuple(i for i in r if i not in dims) for r in self.relations]
 
         return IntervalGroup(intervals, relations=relations)
 
@@ -808,21 +812,22 @@ class IterationSpace(Space):
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
 
-    def project(self, cond):
+    def project(self, cond, strict=True):
         """
-        Create a new IterationSpace in which only some Dimensions
-        in ``self`` are retained. In particular, a Dimension ``d`` in ``self`` is
-        retained if:
+        Create a new IterationSpace retaining only some of the Dimensions in
+        `self`. In particular, a Dimension `d` in `self` is retained if:
 
-            * either ``cond(d)`` is true (``cond`` is a callable),
-            * or ``d in cond`` is true (``cond`` is an iterable)
+            * either `cond(d)` is true (`cond` is a callable),
+            * or `d in cond` is true (`cond` is an iterable)
         """
         if callable(cond):
             func = cond
         else:
             func = lambda i: i in cond
 
-        intervals = [i for i in self.intervals if func(i.dim)]
+        dims = [i.dim for i in self if not func(i.dim)]
+        intervals = self.intervals.drop(dims, strict=strict)
+
         sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
         directions = {k: v for k, v in self.directions.items() if func(k)}
 
