@@ -797,6 +797,9 @@ class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         compute()
     """
 
+    def _make_region(self, hs, key):
+        return
+
     def _make_compute(self, hs, key, *args):
         return
 
