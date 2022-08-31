@@ -555,12 +555,21 @@ class CudaCompiler(Compiler):
             # they are `nvcc` specific; `nvc++`, used by mpicc/mpicxx+, will use
             # `nvcc` eventually (since it reads the file suffix .cu), but somehow
             # it won't digest the options provided in this format...
+
+            # Also, no need to specify the compute capability via e.g. `-gpu=cc70`,
+            # as nvc++ will automatically compile for the GPU installed in this
+            # system by default
+
             pass
         else:
+            self.cflags.append('-arch=native')
             self.cflags.extend(['-Xcudafe', '--display_error_number',
                                 '--diag-suppress', '1650'])
             # Same as above but for the host compiler
             self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
+
+            if not configuration['safe-math']:
+                self.cflags.append('--use_fast_math')
 
         self.src_ext = 'cu'
 
