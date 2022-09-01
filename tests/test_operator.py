@@ -19,7 +19,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar, Symbol
+from devito.types import Array, Scalar, Symbol, Indirection
 
 
 def dimify(dimensions):
@@ -1853,3 +1853,34 @@ class TestLoopScheduling(object):
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
             't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z'
         )
+
+
+class TestInternals(object):
+
+    def test_indirection(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+        x, y = grid.dimensions
+
+        f = TimeFunction(name='f', grid=grid, save=nt)
+        g = TimeFunction(name='g', grid=grid)
+
+        idx = time + 1
+        s = Indirection('ofs0', idx)
+
+        eqns = [
+            Eq(s, idx),
+            Eq(f[s, x, y], g + 3.)
+        ]
+
+        op = Operator(eqns)
+
+        assert op._dspace[time].lower == 0
+        assert op._dspace[time].upper == 1
+        assert op.arguments()['time_M'] == nt - 2
+
+        op()
+
+        assert np.all(f.data[0] == 0.)
+        assert np.all(f.data[i] == 3. for i in range(1, 10))

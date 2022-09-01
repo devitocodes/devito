@@ -1,11 +1,13 @@
 from ctypes import c_double, c_void_p
 
+import numpy as np
+
 from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard',
-           'Global', 'Hyperplane']
+           'Global', 'Hyperplane', 'Indirection']
 
 
 class Timer(CompositeObject):
@@ -126,3 +128,26 @@ class Hyperplane(tuple):
 class Pointer(Symbol):
 
     _C_ctype = c_void_p
+
+
+class Indirection(Symbol):
+
+    """
+    An Indirection is a Symbol that holds a value used to indirectly access
+    an Indexed.
+
+    Examples
+    --------
+    Below an Indirection, `ofs`, used to access an array `a`.
+
+        ofs = offsets[time + 1]
+        v = a[ofs]
+    """
+
+    __rargs__ = Symbol.__rargs__ + ('mapped',)
+
+    def __new__(cls, name, mapped, dtype=np.uint64, is_const=True):
+        obj = super().__new__(cls, name=name, dtype=dtype, is_const=is_const)
+        obj.mapped = mapped
+
+        return obj
