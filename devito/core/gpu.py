@@ -22,7 +22,7 @@ __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
 class DeviceOperatorMixin(object):
 
     BLOCK_LEVELS = 0
-    MPI_MODES = ('basic',)
+    MPI_MODES = (True, 'basic',)
 
     GPU_FIT = 'all-fallback'
     """
