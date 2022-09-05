@@ -404,7 +404,9 @@ class Buffer(object):
             'dimensions': dims,
             'dtype': function.dtype,
             'halo': function.halo,
-            'space': 'mapped'
+            'space': 'mapped',
+            'mapped': function,
+            'index_mapper': self.index_mapper
         }
         try:
             self.buffer = callback(function, **kwargs)
