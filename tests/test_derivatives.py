@@ -535,6 +535,18 @@ class TestFD(object):
         expr3 = expr.subs({f.dx: f.dx2, 'x0': 2})
         assert simplify(expr3 - (f.dx2(x0=2) + f + 1)) == 0
 
+    def test_issue_1995(self):
+        grid = Grid(shape=(11,), extent=(10.,))
+        f = Function(name='f', grid=grid, space_order=4)
+
+        # To make sure that derivative objects are the same
+        fdx = f.dx
+        fdx2 = f.dx2
+        expr = fdx + fdx2
+        s_expr = expr.subs({fdx: fdx + fdx2, fdx2: fdx2})
+
+        assert expr.find(Derivative) == s_expr.find(Derivative)
+
 
 class TestTwoStageEvaluation(object):
 

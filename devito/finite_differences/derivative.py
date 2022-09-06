@@ -211,8 +211,18 @@ class Derivative(sympy.Derivative, Differentiable):
         # Check if we are calling subs(self, old, new, **hint) in which case
         # return the standard substitution. Need to check `==` rather than `is`
         # because a new derivative could be created i.e `f.dx.subs(f.dx, y)`
-        if len(args) == 2 and args[0] == self:
+        if len(args) == 2 and args[0] is self:
             return args[1]
+        # Check if we are calling subs(self, {old: new}, **hint) in which case
+        # return the standard substitution.
+        elif len(args) == 1 and self in args[0]:
+            new = args[0].pop(self)
+            if len(kwargs) == 0 and len(args) == 0:
+                return new
+            try:
+                return new.subs(args[0], **kwargs)
+            except AttributeError:
+                return new
         try:
             rules = dict(*args)
         except TypeError:
