@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
+from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
 from devito.operator import Operator
 from devito.tools import as_tuple, is_integer, timed_pass
@@ -15,7 +16,77 @@ __all__ = ['CoreOperator', 'CustomOperator',
 
 class BasicOperator(Operator):
 
-    # The various Operator subclasses are expected to override the following attributes
+    # Default values for various optimization options
+
+    BLOCK_LEVELS = 1
+    """
+    Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",
+    3 => "blocks", "sub-blocks", and "sub-sub-blocks", ...
+    """
+
+    BLOCK_EAGER = True
+    """
+    Apply loop blocking as early as possible, and in particular prior to CIRE.
+    """
+
+    BLOCK_RELAX = False
+    """
+    If set to True, bypass the compiler heuristics that prevent loop blocking in
+    situations where the performance impact might be detrimental.
+    """
+
+    CIRE_MINGAIN = 10
+    """
+    Minimum operation count reduction for a redundant expression to be optimized
+    away. Higher (lower) values make a redundant expression less (more) likely to
+    be optimized away.
+    """
+
+    CIRE_SCHEDULE = 'automatic'
+    """
+    Strategy used to schedule derivatives across loops. This impacts the operational
+    intensity of the generated kernel.
+    """
+
+    PAR_COLLAPSE_NCORES = 4
+    """
+    Use a collapse clause if the number of available physical cores is greater
+    than this threshold.
+    """
+
+    PAR_COLLAPSE_WORK = 100
+    """
+    Use a collapse clause if the trip count of the collapsable loops is statically
+    known to exceed this threshold.
+    """
+
+    PAR_CHUNK_NONAFFINE = 3
+    """
+    Coefficient to adjust the chunk size in non-affine parallel loops.
+    """
+
+    PAR_DYNAMIC_WORK = 10
+    """
+    Use dynamic scheduling if the operation count per iteration exceeds this
+    threshold. Otherwise, use static scheduling.
+    """
+
+    PAR_NESTED = 2
+    """
+    Use nested parallelism if the number of hyperthreads per core is greater
+    than this threshold.
+    """
+
+    MAPIFY_REDUCE = False
+    """
+    Vector-expand all scalar reductions to turn them into explicit map-reductions,
+    which may be easier to parallelize for certain backends.
+    """
+
+    MPI_MODES = tuple(mpi_registry)
+    """
+    The supported MPI modes.
+    """
 
     _Target = None
     """
@@ -40,6 +111,13 @@ class BasicOperator(Operator):
         kwargs['options'].update(o)
 
         return kwargs
+
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
+            raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

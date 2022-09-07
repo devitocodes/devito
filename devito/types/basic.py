@@ -159,14 +159,6 @@ class CodeSymbol(object):
         return self
 
     @property
-    def _C_aliases(self):
-        """
-        The symbols aliasing `self`, thus pointing to the same object in the
-        generated code.
-        """
-        return (self,)
-
-    @property
     def _mem_external(self):
         """
         True if the associated data is allocated and freed in Python, False otherwise.

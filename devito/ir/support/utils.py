@@ -4,7 +4,69 @@ from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_termina
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['Stencil', 'detect_accesses', 'detect_io']
+__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io']
+
+
+class AccessMode(object):
+
+    """
+    A descriptor for access modes (read, write, ...).
+    """
+
+    _modes = ('R', 'W', 'R/W', 'RR', 'WR', 'NA')
+
+    def __init__(self, is_read=False, is_write=False, mode=None):
+        if mode is None:
+            assert isinstance(is_read, bool) and isinstance(is_write, bool)
+            if is_read and is_write:
+                mode = 'R/W'
+            elif is_read:
+                mode = 'R'
+            elif is_write:
+                mode = 'W'
+            else:
+                mode = 'NA'
+
+        assert mode in self._modes
+        self.mode = mode
+
+    def __repr__(self):
+        return self.mode
+
+    def __eq__(self, other):
+        return isinstance(other, AccessMode) and self.mode == other.mode
+
+    @property
+    def is_read(self):
+        return self.mode in ('R', 'R/W', 'RR')
+
+    @property
+    def is_write(self):
+        return self.mode in ('W', 'R/W', 'WR')
+
+    @property
+    def is_read_only(self):
+        return self.is_read and not self.is_write
+
+    @property
+    def is_write_only(self):
+        return self.is_write and not self.is_read
+
+    @property
+    def is_read_write(self):
+        return self.is_read and self.is_write
+
+    @property
+    def is_read_reduction(self):
+        return self.mode == 'RR'
+
+    @property
+    def is_write_reduction(self):
+        return self.mode == 'WR'
+
+    @property
+    def is_reduction(self):
+        return self.is_read_reduction or self.is_write_reduction
 
 
 class Stencil(DefaultOrderedDict):

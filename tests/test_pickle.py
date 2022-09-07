@@ -229,6 +229,7 @@ def test_shared_data():
     new_sdata = pickle.loads(pkl_sdata)
 
     assert sdata.name == new_sdata.name
+    assert sdata.shape == new_sdata.shape
     assert sdata.size == new_sdata.size
     assert sdata.fields == new_sdata.fields
     assert sdata.pfields == new_sdata.pfields
@@ -248,7 +249,6 @@ def test_shared_data():
     new_indexed = pickle.loads(pkl_indexed)
 
     assert indexed.name == new_indexed.name
-    assert indexed.shape == new_indexed.shape
 
 
 def test_receiver():

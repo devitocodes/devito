@@ -6,10 +6,10 @@ from cached_property import cached_property
 
 from devito.parameters import configuration
 from devito.tools import as_tuple, c_restrict_void_p, dtype_to_ctype
-from devito.types.basic import AbstractFunction, IndexedData
+from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'IndexedArray']
+__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray']
 
 
 class ArrayBasic(AbstractFunction):
@@ -30,25 +30,10 @@ class ArrayBasic(AbstractFunction):
             return super()._C_name
 
     @property
-    def _C_aliases(self):
-        return (self, self.indexed)
-
-    @property
     def shape(self):
         return self.symbolic_shape
 
     shape_allocated = shape
-
-    @cached_property
-    def indexed(self):
-        return IndexedArray(self.name, shape=self.shape, function=self.function)
-
-
-class IndexedArray(IndexedData):
-
-    @property
-    def _C_aliases(self):
-        return (self, self.function)
 
 
 class Array(ArrayBasic):
@@ -294,8 +279,8 @@ class ArrayObject(ArrayBasic):
         return self._pname
 
     @property
-    def _mem_heap(self):
-        return False
+    def _mem_local(self):
+        return True
 
     @property
     def _mem_stack(self):

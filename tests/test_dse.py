@@ -7,7 +7,7 @@ from conftest import skipif, EVAL, _R, assert_structure, assert_blocking  # noqa
 from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
                     Dimension, SubDimension, ConditionalDimension, DefaultDimension, Grid,
                     Operator, norm, grad, div, dimensions, switchconfig, configuration,
-                    centered, first_derivative, solve, transpose, cos, sin, sqrt)
+                    centered, first_derivative, solve, transpose, Abs, cos, sin, sqrt)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
@@ -177,6 +177,8 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, t1**t2)', 50, True),
     ('Eq(t0, 3.2/h_x)', 6, True),  # seen as `3.2*(1/h_x)`, so counts as 2
     ('Eq(t0, 3.2/h_x*fa + 2.4/h_x*fb)', 15, True),  # `pow(...constants...)` counts as 1
+    ('Eq(t0, Abs(t1 + t2))', 2, False),
+    ('Eq(t0, Abs(t1 + t2))', 6, True),
     # Integer arithmetic should not count
     ('Eq(t0, INT(t1))', 0, True),
     ('Eq(t0, INT(t1*t0))', 1, True),
@@ -1402,8 +1404,8 @@ class TestAliases(object):
         op = Operator([pde, df])
 
         # Check code generation
-        assert_structure(op, ['t,x,y', 't,f', 't,f,x,y'],
-                         't,x,y,f,x,y')
+        assert_structure(op, ['t,x,y', 't,f', 't,f0_blk0,x0_blk0,f,x,y'],
+                         't,x,y,f,f0_blk0,x0_blk0,f,x,y')
 
     def test_space_invariant_v2(self):
         """
