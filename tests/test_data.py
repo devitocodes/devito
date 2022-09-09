@@ -1385,7 +1385,7 @@ class TestDataGather(object):
         if myrank == rank:
             assert np.all(ans == res)
         else:
-            assert ans is None
+            assert ans == np.array(None)
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('start, stop, step', [
@@ -1419,7 +1419,7 @@ class TestDataGather(object):
         if myrank == 0:
             assert np.all(ans == res)
         else:
-            assert ans is None
+            assert ans == np.array(None)
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('start, stop, step', [
@@ -1453,7 +1453,7 @@ class TestDataGather(object):
         if myrank == 0:
             assert np.all(ans == res)
         else:
-            assert ans is None
+            assert ans == np.array(None)
 
     @pytest.mark.parallel(mode=[4, 6])
     def test_gather_time_function(self):
@@ -1470,7 +1470,7 @@ class TestDataGather(object):
         if myrank == 0:
             assert np.all(ans == tdata)
         else:
-            assert ans is None
+            assert ans == np.array(None)
 
 
 def test_scalar_arg_substitution():

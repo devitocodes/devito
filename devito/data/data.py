@@ -89,13 +89,6 @@ class Data(np.ndarray):
         warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
         return np.array(self).__reduce__()
 
-    def reshape_data(self, shape):
-        # FIXME: Need to generalise and think of a better name
-        decomposition = tuple([d for d in self._decomposition if d.size > 1])
-        retval = self.reshape(shape)
-        retval._decomposition = decomposition
-        return retval
-
     def __array_finalize__(self, obj):
         # `self` is the newly created object
         # `obj` is the object from which `self` was created
@@ -162,12 +155,19 @@ class Data(np.ndarray):
         ret._is_distributed = any(i is not None for i in decomposition)
         return ret
 
+    def _prune_shape(self, shape):
+        # Reduce distributed MPI `Data`'s shape to that of an equivalently
+        # sliced numpy array.
+        decomposition = tuple([d for d in self._decomposition if d.size > 1])
+        retval = self.reshape(shape)
+        retval._decomposition = decomposition
+        return retval
+
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            # NOTE: Consolidate with that appearing in __getitem__
             is_gather = True if (kwargs and isinstance(kwargs['gather_rank'], int)) \
                 else False
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
@@ -216,7 +216,6 @@ class Data(np.ndarray):
             comm.Gatherv(sendbuf=sendbuf, recvbuf=(recvbuf, sendcounts), root=gather_rank)
 
             # Reshape the gathered data to produce the output
-            # NOTE: Make cleverer so that new array doesn't need to be allocated
             if rank == gather_rank:
                 if len(self.shape) > len(self._distributor.glb_shape):
                     glb_shape = list(self._distributor.glb_shape)
@@ -302,12 +301,12 @@ class Data(np.ndarray):
             # Check if dimensions of the view should now be reduced to
             # be consistent with those of an equivalent NumPy serial view
             if not is_gather:
-                reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
-                                if type(i) is not np.int64])
+                newshape = tuple([s for s, i in zip(retval.shape, loc_idx)
+                                  if type(i) is not np.int64])
             else:
-                reshape = ()
-            if reshape and (0 not in reshape) and (reshape != retval.shape):
-                return retval.reshape_data(reshape)
+                newshape = ()
+            if newshape and (0 not in newshape) and (newshape != retval.shape):
+                return retval._prune_shape(newshape)
             else:
                 return retval
         elif loc_idx is NONLOCAL:

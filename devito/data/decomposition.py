@@ -105,10 +105,6 @@ class Decomposition(tuple):
     def size(self):
         return sum(i.size for i in self)
 
-    @cached_property
-    def local_size(self):
-        return self.loc_rel_max+1
-
     def __eq__(self, o):
         if not isinstance(o, Decomposition):
             return False
