@@ -2,9 +2,12 @@
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul
 from cgen import Generable
 
+from devito.tools import flatten
+from devito.ir import retrieve_iteration_tree
 from devito.ir.ietxdsl import (MLContext, Builtin, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
-                               Statement, PointerCast, Powi, Initialise, Muli)
+                               Statement, PointerCast, Powi, Initialise, Muli,
+                               StructDecl)
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
@@ -12,6 +15,35 @@ from devito.types.basic import IndexedData
 ctx = MLContext()
 Builtin(ctx)
 iet = IET(ctx)
+
+
+def printHeaders(cgen, header_str, headers):
+    for header in headers:
+        cgen.printOperation(Statement.get(createStatement(header_str, header)))
+
+
+def printStructs(cgen, struct_decs):
+    for struct in struct_decs:
+        cgen.printOperation(
+            StructDecl.get(struct.tpname, struct.fields, struct.declname,
+                           struct.pad_bytes))
+
+
+def getOpParamsNames(op, op_param_names):
+    body = op.body.body[1].args.get('body')
+    body_size = len(body)
+    # then add in anything that comes before the main loop:
+    for i in range(0, (body_size - 1)):
+        val = op.body.body[1].args.get('body')[0]._args['body'][0].write
+        op_param_names.append(str(val))
+
+    # we still need to add the extra time indices even though they aren't passed in
+    devito_iterations = flatten(retrieve_iteration_tree(op.body))
+    timing_indices = [i.uindices for i in devito_iterations if i.dim.is_Time]
+    for tup in timing_indices:
+        for t in tup:
+            op_param_names.append((str(t)))
+    return op_param_names
 
 
 def createStatement(initial_string, val):
