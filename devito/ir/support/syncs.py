@@ -13,27 +13,37 @@ __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate
 
 class SyncOp(Pickable):
 
-    __rargs__ = ('target', 'handle')
+    __rargs__ = ('handle', 'target')
+    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size')
 
-    def __init__(self, target, handle):
-        self.target = target
+    def __init__(self, handle, target, tindex=None, function=None, findex=None,
+                 dim=None, size=1):
         self.handle = handle
+        self.target = target
+
+        self.tindex = tindex
+        self.function = function
+        self.findex = findex
+        self.dim = dim
+        self.size = size
 
     def __eq__(self, other):
-        return (type(self) == type(other) and
-                all(i == j for i, j in zip(self.args, other.args)))
+        return (type(self) is type(other) and
+                self.handle == other.handle and
+                self.target is other.target and
+                self.tindex == other.tindex and
+                self.function is other.function and
+                self.findex == other.findex and
+                self.dim is other.dim and
+                self.size == other.size)
 
     def __hash__(self):
-        return hash((type(self).__name__,) + self.args)
+        return id(self)
 
     def __repr__(self):
         return "%s<%s>" % (self.__class__.__name__, self.handle)
 
     __str__ = __repr__
-
-    @property
-    def args(self):
-        return (self.target, self.handle,)
 
     @property
     def lock(self):
@@ -45,6 +55,11 @@ class SyncOp(Pickable):
 
 class SyncCopyOut(SyncOp):
 
+    def __repr__(self):
+        return "%s<%s->%s>" % (self.__class__.__name__, self.target, self.function)
+
+    __str__ = __repr__
+
     @property
     def imask(self):
         ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
@@ -54,29 +69,14 @@ class SyncCopyOut(SyncOp):
 
 class SyncCopyIn(SyncOp):
 
-    __rargs__ = SyncOp.__rargs__ + ('dim', 'size', 'function', 'tstore')
-
-    def __init__(self, target, handle, dim, size, function, tstore):
-        super().__init__(target, handle)
-
-        self.dim = dim
-        self.size = size
-        self.function = function
-        self.tstore = tstore
-
     def __repr__(self):
-        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                     self.target, self.dim, self.size)
+        return "%s<%s->%s>" % (self.__class__.__name__, self.function, self.target)
 
     __str__ = __repr__
 
     @property
-    def args(self):
-        return super().args + (self.dim, self.size, self.function, self.tstore)
-
-    @property
     def imask(self):
-        ret = [(self.tstore, self.size) if d.root is self.dim.root else FULL
+        ret = [(self.tindex, self.size) if d.root is self.dim.root else FULL
                for d in self.target.dimensions]
         return tuple(ret)
 
