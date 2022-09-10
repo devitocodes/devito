@@ -39,12 +39,22 @@ class EnrichedTuple(tuple, Pickable):
     def __new__(cls, *items, getters=None, **kwargs):
         obj = super(EnrichedTuple, cls).__new__(cls, items)
         obj.__dict__.update(kwargs)
-        obj._getters = dict(zip(getters or [], items))
+        obj._getters = OrderedDict(zip(getters or [], items))
         return obj
 
     def __getitem__(self, key):
-        if isinstance(key, (int, slice)):
-            return super(EnrichedTuple, self).__getitem__(key)
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        elif isinstance(key, slice):
+            items = super().__getitem__(key)
+            if key.step is not None:
+                return items
+            # Reconstruct as an EnrichedTuple
+            start = key.start or 0
+            stop = key.stop if key.stop is not None else len(self)
+            kwargs = dict(self.__dict__)
+            kwargs['getters'] = list(self._getters)[start:stop]
+            return EnrichedTuple(*items, **kwargs)
         else:
             return self.__getitem_hook__(key)
 
