@@ -230,7 +230,7 @@ class Streaming(Asynchronous):
         size = d.symbolic_size
         assert is_integer(size)
 
-        actions[cluster].syncs[pd].append(FetchUpdate(function, None, d, size, target, 0))
+        actions[cluster].syncs[pd].append(FetchUpdate(target, None, d, size, function, 0))
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
         it = prefix[-1]
@@ -276,8 +276,8 @@ class Streaming(Asynchronous):
             GuardBoundNext(function.indices[d], direction),
         )}
 
-        syncs = {d: [ReleaseLock(function, handle),
-                     PrefetchUpdate(function, handle, d, 1, target, tstore)]}
+        syncs = {d: [ReleaseLock(target, handle),
+                     PrefetchUpdate(target, handle, d, 1, function, tstore)]}
 
         pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
@@ -295,7 +295,7 @@ class Streaming(Asynchronous):
                 last = c
         assert first is not None
         assert last is not None
-        actions[first].syncs[d].append(WaitLock(function, handle))
+        actions[first].syncs[d].append(WaitLock(target, handle))
         actions[last].insert.append(pcluster)
         actions[cluster].drop = True
 

@@ -13,10 +13,10 @@ __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate
 
 class SyncOp(Pickable):
 
-    __rargs__ = ('function', 'handle')
+    __rargs__ = ('target', 'handle')
 
-    def __init__(self, function, handle):
-        self.function = function
+    def __init__(self, target, handle):
+        self.target = target
         self.handle = handle
 
     def __eq__(self, other):
@@ -33,7 +33,7 @@ class SyncOp(Pickable):
 
     @property
     def args(self):
-        return (self.handle,)
+        return (self.target, self.handle,)
 
     @property
     def lock(self):
@@ -48,20 +48,20 @@ class SyncCopyOut(SyncOp):
     @property
     def imask(self):
         ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
-               for d in self.function.dimensions]
+               for d in self.target.dimensions]
         return tuple(ret)
 
 
 class SyncCopyIn(SyncOp):
 
-    __rargs__ = SyncOp.__rargs__ + ('dim', 'size', 'target', 'tstore')
+    __rargs__ = SyncOp.__rargs__ + ('dim', 'size', 'function', 'tstore')
 
-    def __init__(self, function, handle, dim, size, target, tstore):
-        super().__init__(function, handle)
+    def __init__(self, target, handle, dim, size, function, tstore):
+        super().__init__(target, handle)
 
         self.dim = dim
         self.size = size
-        self.target = target
+        self.function = function
         self.tstore = tstore
 
     def __repr__(self):
@@ -72,20 +72,13 @@ class SyncCopyIn(SyncOp):
 
     @property
     def args(self):
-        return (self.dim, self.size, self.function, self.target, self.tstore, self.handle)
-
-    @property
-    def dimensions(self):
-        return self.function.dimensions
+        return super().args + (self.dim, self.size, self.function, self.tstore)
 
     @property
     def imask(self):
         ret = [(self.tstore, self.size) if d.root is self.dim.root else FULL
-               for d in self.dimensions]
+               for d in self.target.dimensions]
         return tuple(ret)
-
-    # Pickling support
-    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class WaitLock(SyncCopyOut):
