@@ -4,13 +4,14 @@ from cgen import Generable
 
 from devito.tools import flatten
 from devito.ir import retrieve_iteration_tree
-from devito.ir.ietxdsl import (MLContext, Builtin, IET, Constant, Addi, Modi, Idx,
+from devito.ir.ietxdsl import (MLContext, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise, Muli,
                                StructDecl)
 from devito import ModuloDimension
 import devito.ir.iet.nodes as nodes
 from devito.types.basic import IndexedData
+from xdsl.dialects.builtin import Builtin
 
 ctx = MLContext()
 Builtin(ctx)

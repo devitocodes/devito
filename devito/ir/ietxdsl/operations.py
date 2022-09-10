@@ -1,10 +1,12 @@
 from sympy import Mod
-from typing import Tuple
+from typing import Tuple, List
+from dataclasses import dataclass
+from xdsl.dialects.builtin import (IntegerType, Float32Type, IntegerAttr, StringAttr,
+                                   ArrayAttr)
 
-from xdsl.dialects.builtin import *
-
-from xdsl.irdl import *
-from xdsl.ir import *
+from xdsl.irdl import (ResultDef, OperandDef, RegionDef, AttributeDef, AnyAttr,
+                       irdl_op_definition)
+from xdsl.ir import MLContext, Operation, Block, Region
 
 
 @dataclass
@@ -109,7 +111,7 @@ class Modi(Operation):
 @irdl_op_definition
 class Powi(Operation):
     name: str = "iet.powi"
-    #  This should be changed to Float/Float32Type
+    # DROP THIS COMMENT?  This should be changed to Float/Float32Type
     base = OperandDef(IntegerType)
     exponent = OperandDef(IntegerType)
     output = ResultDef(Float32Type)

@@ -2,10 +2,11 @@ from devito import Operator
 
 from devito.ir import PointerCast, FindNodes
 
-from devito.ir.ietxdsl import (MLContext, Builtin, IET, Block, CGeneration,
+from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
                                ietxdsl_functions, Callable)
 
 from devito.ir.ietxdsl.ietxdsl_functions import collectStructs, getOpParamsNames
+from xdsl.dialects.builtin import Builtin
 
 
 def transform_devito_xdsl_string(op: Operator):

@@ -1,6 +1,5 @@
 from devito import Grid, TimeFunction, Eq, Operator
 from devito.ir.ietxdsl.xdsl_passes import transform_devito_xdsl_string
-
 # flake8: noqa
 
 def test_udx_conversion():

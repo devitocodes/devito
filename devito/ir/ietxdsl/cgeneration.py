@@ -1,8 +1,10 @@
 import io
 from typing import Dict
-from devito.ir.ietxdsl.operations import SSAValue, Callable, BlockArgument, Addi, \
+from devito.ir.ietxdsl.operations import Callable, Addi, \
     Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
     Idx, Initialise, List, Constant, Powi, Muli
+
+from xdsl.ir import SSAValue, BlockArgument
 
 
 SSAValueNames: Dict[SSAValue, str] = {}
@@ -58,15 +60,15 @@ class CGeneration:
 
     def printCallable(self, callable_op: Callable):
         arglist = callable_op.body.blocks[0].args
-        i = 0
+
         self.print("int Kernel(", end='', indent=False)
-        for arg in arglist:
+        for i, arg in enumerate(arglist):
             SSAValueNames[arg] = callable_op.parameters.data[i].data
-            i = i + 1
-        i = 0
+
         num_params = len(list(callable_op.types.data))
         # TODO: fix this workaround
         # need separate loop because only header parameters have types
+        i = 0
         for op_type in callable_op.types.data:
             self.print(op_type.data, end=' ', indent=False)
             self.print(callable_op.header_parameters.data[i].data,
@@ -120,8 +122,8 @@ class CGeneration:
         self.print(f"for (int {iterator} = {lower_bound}, ", end='')
 
         # initialise subindices
-        i = 0
-        for u in uindices_names.data:
+
+        for i, u in enumerate(uindices_names.data):
             self.print(
                 f"{u.data} = ({uindices_symbmins_dividends.data[i].data})%"
                 f"({uindices_symbmins_divisors.data[i].data})",
@@ -130,20 +132,19 @@ class CGeneration:
                 self.print(",", end='')
             else:
                 self.print(";", end=' ')
-            i += 1
+
         self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
         self.print(f"{iterator} += {increment}, ", end='')
 
         # also increment subindices
-        i = 0
-        for u in uindices_names.data:
+        for i, u in enumerate(uindices_names.data):
             self.print(
                 f"{u.data} = ({uindices_symbmins_dividends.data[i].data})"
                 f"%({uindices_symbmins_divisors.data[i].data})",
                 end='')
             if i < (len(uindices_names.data) - 1):
                 self.print(",", end='')
-            i += 1
+
         self.print(")", end='')
         self.print("{")
         self.indent()
