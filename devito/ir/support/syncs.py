@@ -6,9 +6,14 @@ from collections import defaultdict
 
 from devito.data import FULL
 from devito.tools import Pickable, filter_ordered
+from devito.types import DimensionTuple
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
            'normalize_syncs']
+
+
+class IMask(DimensionTuple):
+    pass
 
 
 class SyncOp(Pickable):
@@ -64,7 +69,8 @@ class SyncCopyOut(SyncOp):
     def imask(self):
         ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
                for d in self.target.dimensions]
-        return tuple(ret)
+        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+                     findex=self.findex)
 
 
 class SyncCopyIn(SyncOp):
@@ -78,7 +84,8 @@ class SyncCopyIn(SyncOp):
     def imask(self):
         ret = [(self.tindex, self.size) if d.root is self.dim.root else FULL
                for d in self.target.dimensions]
-        return tuple(ret)
+        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+                     findex=self.findex)
 
 
 class WaitLock(SyncCopyOut):
