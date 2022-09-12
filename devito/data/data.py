@@ -158,7 +158,7 @@ class Data(np.ndarray):
     def _prune_shape(self, shape):
         # Reduce distributed MPI `Data`'s shape to that of an equivalently
         # sliced numpy array.
-        decomposition = tuple([d for d in self._decomposition if d.size > 1])
+        decomposition = tuple(d for d in self._decomposition if d.size > 1)
         retval = self.reshape(shape)
         retval._decomposition = decomposition
         return retval
@@ -168,8 +168,7 @@ class Data(np.ndarray):
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            is_gather = True if (kwargs and isinstance(kwargs['gather_rank'], int)) \
-                else False
+            is_gather = kwargs and isinstance(kwargs['gather_rank'], int)
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
             elif len(args) > 1 and isinstance(args[1], Data) \
@@ -201,8 +200,8 @@ class Data(np.ndarray):
     @_check_idx
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
         loc_idx = self._index_glb_to_loc(glb_idx)
-        is_gather = True if isinstance(gather_rank, int) else False
-        if is_gather and comm_type == gather:
+        is_gather = isinstance(gather_rank, int)
+        if is_gather and comm_type is gather:
             comm = self._distributor.comm
             rank = comm.Get_rank()
 
@@ -301,8 +300,8 @@ class Data(np.ndarray):
             # Check if dimensions of the view should now be reduced to
             # be consistent with those of an equivalent NumPy serial view
             if not is_gather:
-                newshape = tuple([s for s, i in zip(retval.shape, loc_idx)
-                                  if type(i) is not np.int64])
+                newshape = tuple(s for s, i in zip(retval.shape, loc_idx)
+                                 if type(i) is not np.int64)
             else:
                 newshape = ()
             if newshape and (0 not in newshape) and (newshape != retval.shape):
