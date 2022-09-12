@@ -50,10 +50,11 @@ def transform_devito_xdsl_string(op: Operator):
 
     # print header information
     ietxdsl_functions.printHeaders(cgen, "#define", op._headers)
-    ietxdsl_functions.printHeaders(cgen, "#include ", op._includes)  # TOFIX double quotes
+    ietxdsl_functions.printIncludes(cgen, "#include ", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
     # print Kernel
     cgen.printCallable(call_obj)
 
     return cgen.str()
+

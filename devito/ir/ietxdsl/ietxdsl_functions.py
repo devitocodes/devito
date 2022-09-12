@@ -22,6 +22,9 @@ def printHeaders(cgen, header_str, headers):
     for header in headers:
         cgen.printOperation(Statement.get(createStatement(header_str, header)))
 
+def printIncludes(cgen, header_str, headers):
+    for header in headers:
+        cgen.printOperation(Statement.get(createStatement(header_str, '"'+header+'"')))
 
 def printStructs(cgen, struct_decs):
     for struct in struct_decs:

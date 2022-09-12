@@ -197,12 +197,14 @@ class CGeneration:
             return
 
         if (isinstance(operation, Powi)):
+            self.print("pow(", end="", indent=False)
             self.print("(", end="", indent=False)
             self.printResult(operation.base)
             self.print(")", end="", indent=False)
-            self.print(" ^ ", end='', indent=False)
+            self.print(",", end='', indent=False)
             self.print("(", end="", indent=False)
             self.printResult(operation.exponent)
+            self.print(")", end="", indent=False)
             self.print(")", end="", indent=False)
             return
 
