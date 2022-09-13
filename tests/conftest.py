@@ -4,7 +4,7 @@ from subprocess import check_call
 import pytest
 import sys
 
-from devito import configuration
+from devito import Eq, configuration  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Cpu64, Device, sniff_mpi_distro
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
