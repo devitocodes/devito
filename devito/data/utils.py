@@ -241,8 +241,8 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
         if any(k == 0 for k in dat_len[coords[j]]):
             dat_len[coords[j]] = as_tuple([0]*len(dat_len[coords[j]]))
 
-    # Add indices to the `topology` that have been removed from
-    # slicing in order to compute the relevant maps.
+    # If necessary, add the time index to the `topology` as this will
+    # be required to correctly construct various maps.
     if len(np.amax(dat_len)) > len(topology):
         topology = as_list(topology)
         coords = [as_list(l) for l in coords]

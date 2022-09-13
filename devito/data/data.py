@@ -168,7 +168,7 @@ class Data(np.ndarray):
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            is_gather = kwargs and isinstance(kwargs['gather_rank'], int)
+            is_gather = isinstance(kwargs.get('gather_rank', None), int)
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
             elif len(args) > 1 and isinstance(args[1], Data) \
@@ -205,7 +205,7 @@ class Data(np.ndarray):
             comm = self._distributor.comm
             rank = comm.Get_rank()
 
-            sendbuf = np.array(self[:].flatten())
+            sendbuf = self.flat[:]
             sendcounts = np.array(comm.gather(len(sendbuf), gather_rank))
 
             if rank == gather_rank:
@@ -240,7 +240,7 @@ class Data(np.ndarray):
             else:
                 return None
         elif comm_type is index_by_index or is_gather:
-            # Retrieve the pertinent local data prior to mpi send/receive operations
+            # Retrieve the pertinent local data prior to MPI send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
             local_val = super(Data, self).__getitem__(data_idx)
