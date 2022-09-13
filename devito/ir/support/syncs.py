@@ -19,10 +19,10 @@ class IMask(DimensionTuple):
 class SyncOp(Pickable):
 
     __rargs__ = ('handle', 'target')
-    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size')
+    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size', 'origin')
 
     def __init__(self, handle, target, tindex=None, function=None, findex=None,
-                 dim=None, size=1):
+                 dim=None, size=1, origin=None):
         self.handle = handle
         self.target = target
 
@@ -31,6 +31,7 @@ class SyncOp(Pickable):
         self.findex = findex
         self.dim = dim
         self.size = size
+        self.origin = origin
 
     def __eq__(self, other):
         return (type(self) is type(other) and
@@ -40,7 +41,8 @@ class SyncOp(Pickable):
                 self.function is other.function and
                 self.findex == other.findex and
                 self.dim is other.dim and
-                self.size == other.size)
+                self.size == other.size and
+                self.origin == other.origin)
 
     def __hash__(self):
         return id(self)

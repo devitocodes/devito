@@ -405,8 +405,7 @@ class Buffer(object):
             'dtype': function.dtype,
             'halo': function.halo,
             'space': 'mapped',
-            'mapped': function,
-            'index_mapper': self.index_mapper
+            'mapped': function
         }
         try:
             self.buffer = callback(function, **kwargs)

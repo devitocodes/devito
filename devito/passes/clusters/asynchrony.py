@@ -290,7 +290,8 @@ class Streaming(Asynchronous):
         )}
 
         syncs = {d: [ReleaseLock(handle, target),
-                     PrefetchUpdate(handle, target, tindex, function, findex, d, 1)]}
+                     PrefetchUpdate(handle, target, tindex, function, findex, d, 1,
+                                    e.rhs)]}
 
         pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
