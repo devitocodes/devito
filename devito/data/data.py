@@ -155,12 +155,23 @@ class Data(np.ndarray):
         ret._is_distributed = any(i is not None for i in decomposition)
         return ret
 
+    def _prune_shape(self, shape):
+        # Reduce distributed MPI `Data`'s shape to that of an equivalently
+        # sliced numpy array.
+        decomposition = tuple(d for d in self._decomposition if d.size > 1)
+        retval = self.reshape(shape)
+        retval._decomposition = decomposition
+        return retval
+
     def _check_idx(func):
         """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            if len(args) > 1 and isinstance(args[1], Data) \
+            is_gather = isinstance(kwargs.get('gather_rank', None), int)
+            if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
+                comm_type = gather
+            elif len(args) > 1 and isinstance(args[1], Data) \
                     and args[1]._is_mpi_distributed:
                 comm_type = index_by_index
             elif data._is_mpi_distributed:
@@ -189,9 +200,47 @@ class Data(np.ndarray):
     @_check_idx
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
         loc_idx = self._index_glb_to_loc(glb_idx)
-        is_gather = True if isinstance(gather_rank, int) else False
-        if comm_type is index_by_index or is_gather:
-            # Retrieve the pertinent local data prior to mpi send/receive operations
+        is_gather = isinstance(gather_rank, int)
+        if is_gather and comm_type is gather:
+            comm = self._distributor.comm
+            rank = comm.Get_rank()
+
+            sendbuf = self.flat[:]
+            sendcounts = np.array(comm.gather(len(sendbuf), gather_rank))
+
+            if rank == gather_rank:
+                recvbuf = np.zeros(sum(sendcounts), dtype=self.dtype.type)
+            else:
+                recvbuf = None
+            comm.Gatherv(sendbuf=sendbuf, recvbuf=(recvbuf, sendcounts), root=gather_rank)
+
+            # Reshape the gathered data to produce the output
+            if rank == gather_rank:
+                if len(self.shape) > len(self._distributor.glb_shape):
+                    glb_shape = list(self._distributor.glb_shape)
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        glb_shape.insert(i, self.shape[i])
+                else:
+                    glb_shape = self._distributor.glb_shape
+                retval = np.zeros(glb_shape, dtype=self.dtype.type)
+                start, stop, step = 0, 0, 1
+                for i, s in enumerate(sendcounts):
+                    if i > 0:
+                        start += sendcounts[i-1]
+                    stop += sendcounts[i]
+                    data_slice = recvbuf[slice(start, stop, step)]
+                    shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
+                    idx = [slice(r.start, r.stop, r.step)
+                           for r in self._distributor.all_ranges[i]]
+                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        shape.insert(i, glb_shape[i])
+                        idx.insert(i, slice(0, glb_shape[i]+1, 1))
+                    retval[tuple(idx)] = data_slice.reshape(tuple(shape))
+                return retval
+            else:
+                return None
+        elif comm_type is index_by_index or is_gather:
+            # Retrieve the pertinent local data prior to MPI send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
             local_val = super(Data, self).__getitem__(data_idx)
@@ -208,11 +257,12 @@ class Data(np.ndarray):
             if not is_gather:
                 retval = Data(local_val.shape, local_val.dtype.type,
                               decomposition=local_val._decomposition,
-                              modulo=(False,)*len(local_val.shape))
+                              modulo=(False,)*len(local_val.shape),
+                              distributor=local_val._distributor)
             elif rank == gather_rank:
                 retval = np.zeros(it.shape)
             else:
-                retval = np.empty((0, )*len(it.shape))
+                retval = None
             # Iterate over each element of data
             while not it.finished:
                 index = it.multi_index
@@ -249,10 +299,13 @@ class Data(np.ndarray):
                 it.iternext()
             # Check if dimensions of the view should now be reduced to
             # be consistent with those of an equivalent NumPy serial view
-            reshape = tuple([s for s, i in zip(retval.shape, loc_idx)
-                             if type(i) is not np.int64])
-            if reshape and (0 not in reshape) and (reshape != retval.shape):
-                return retval.reshape(reshape)
+            if not is_gather:
+                newshape = tuple(s for s, i in zip(retval.shape, loc_idx)
+                                 if type(i) is not np.int64)
+            else:
+                newshape = ()
+            if newshape and (0 not in newshape) and (newshape != retval.shape):
+                return retval._prune_shape(newshape)
             else:
                 return retval
         elif loc_idx is NONLOCAL:
@@ -366,6 +419,11 @@ class Data(np.ndarray):
 
     def _process_args(self, idx, val):
         """If comm_type is parallel we need to first retrieve local unflipped data."""
+        if (len(as_tuple(idx)) < len(val.shape)) and (len(val.shape) <= len(self.shape)):
+            idx_processed = as_list(idx)
+            for _ in range(len(val.shape)-len(as_tuple(idx))):
+                idx_processed.append(slice(None, None, 1))
+            idx = as_tuple(idx_processed)
         if any(isinstance(i, slice) and i.step is not None and i.step < 0
                for i in as_tuple(idx)):
             processed = []
@@ -532,4 +590,5 @@ class Data(np.ndarray):
 class CommType(Tag):
     pass
 index_by_index = CommType('index_by_index')  # noqa
-serial = CommType('serial')
+serial = CommType('serial')  # noqa
+gather = CommType('gather')  # noqa
