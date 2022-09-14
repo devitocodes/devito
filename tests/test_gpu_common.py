@@ -412,7 +412,7 @@ class TestStreaming(object):
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
         (('buffering', 'streaming', 'orchestrate'), 9, 5),
-        (('buffering', 'streaming', 'fuse', 'orchestrate'), 6, 5),
+        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 6, 5),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
@@ -617,11 +617,6 @@ class TestStreaming(object):
         usave = TimeFunction(name='usave', grid=grid, save=nt)
         vsave = TimeFunction(name='vsave', grid=grid, save=nt)
 
-        u1 = TimeFunction(name='u', grid=grid, time_order=2)
-        v1 = TimeFunction(name='v', grid=grid, time_order=2)
-        usave1 = TimeFunction(name='usave', grid=grid, save=nt)
-        vsave1 = TimeFunction(name='vsave', grid=grid, save=nt)
-
         eqns = [Eq(u.forward, u + 1),
                 Eq(v.forward, v + 1),
                 Eq(usave, u, subdomain=bundle0),
@@ -630,32 +625,47 @@ class TestStreaming(object):
         async_degree = 3
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': (usave, vsave)}))
-        op1 = Operator(eqns,
-                       opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
-                            {'buf-async-degree': async_degree}))
+        op1 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
+                                  {'buf-async-degree': async_degree}))
+        op2 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
+                                  {'buf-async-degree': async_degree,
+                                   'fuse-tasks': True}))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
-        assert len(retrieve_iteration_tree(op1)) == 7
+        assert len(retrieve_iteration_tree(op1)) == 8
+        assert len(retrieve_iteration_tree(op2)) == 5
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree
         assert threads[1].size.size == async_degree
+        symbols = FindSymbols().visit(op2)
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 1
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert len(threads) == 1
+        assert threads[0].size.size == async_degree
 
         # It is true that the usave and vsave eqns are separated in two different
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
         assert len(op1._func_table) == 4
 
+        # Check output
         op0.apply(time_M=nt-1)
-        op1.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
+        for op in [op1, op2]:
+            u1 = TimeFunction(name='u', grid=grid, time_order=2)
+            v1 = TimeFunction(name='v', grid=grid, time_order=2)
+            usave1 = TimeFunction(name='usave', grid=grid, save=nt)
+            vsave1 = TimeFunction(name='vsave', grid=grid, save=nt)
 
-        assert np.all(u.data == u1.data)
-        assert np.all(v.data == v1.data)
-        assert np.all(usave.data == usave1.data)
-        assert np.all(vsave.data == vsave1.data)
+            op.apply(time_M=nt-1, u=u1, v=v1, usave=usave1, vsave=vsave1)
+
+            assert np.all(u.data == u1.data)
+            assert np.all(v.data == v1.data)
+            assert np.all(usave.data == usave1.data)
+            assert np.all(vsave.data == vsave1.data)
 
     def test_composite_full_0(self):
         nt = 10
@@ -952,6 +962,7 @@ class TestStreaming(object):
         u = TimeFunction(name='u', grid=grid, time_order=0)
         u1 = TimeFunction(name='u', grid=grid, time_order=0)
         u2 = TimeFunction(name='u', grid=grid, time_order=0)
+        u3 = TimeFunction(name='u', grid=grid, time_order=0)
         va = TimeFunction(name='va', grid=grid, time_order=0,
                           save=(int(nt//factor.data)), time_dim=t_sub)
         vb = TimeFunction(name='vb', grid=grid, time_order=0,
@@ -972,19 +983,25 @@ class TestStreaming(object):
         op0 = Operator(eqns, opt='noop')
         op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
         op2 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
+        op3 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate',
+                                  {'fuse-tasks': True}))
 
         # Check generated code
         assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 6
-        assert len(op2._func_table) == 6
+        assert len(op2._func_table) == 8
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 6
+        assert len(op3._func_table) == 6
+        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 6
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
         op2.apply(time_m=15, time_M=35, save_shift=0, u=u2)
+        op3.apply(time_m=15, time_M=35, save_shift=0, u=u3)
 
         assert np.all(u.data == u1.data)
         assert np.all(u.data == u2.data)
+        assert np.all(u.data == u3.data)
 
     def test_streaming_split_noleak(self):
         """

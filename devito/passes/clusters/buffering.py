@@ -10,8 +10,8 @@ from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
-from devito.tools import (Bunch, DefaultOrderedDict, as_tuple, filter_ordered, flatten,
-                          is_integer, timed_pass)
+from devito.tools import (Bunch, DefaultOrderedDict, Stamp, as_tuple,
+                          filter_ordered, flatten, is_integer, timed_pass)
 from devito.types import Array, CustomDimension, Dimension, Eq, ModuloDimension
 
 __all__ = ['buffering']
@@ -100,6 +100,7 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
 
     options = {
         'buf-async-degree': options['buf-async-degree'],
+        'buf-fuse-tasks': options['fuse-tasks'],
         'buf-noinit': kwargs.get('opt_noinit', False),
         'buf-callback': kwargs.get('opt_buffer'),
     }
@@ -183,7 +184,7 @@ class Buffering(Queue):
         for c in clusters:
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
-            # E.g., `ub[0, x] = u[time+2, x]`
+            # E.g., `ub[0, x] = usave[time+2, x]`
             for b in buffers:
                 if not b.is_readonly:
                     continue
@@ -218,7 +219,7 @@ class Buffering(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
             # Also append the copy-back if `e` is the last-write of some buffers
-            # E.g., `u[time + 1, x] = ub[sb1, x]`
+            # E.g., `usave[time + 1, x] = ub[sb1, x]`
             for b in buffers:
                 if b.is_readonly:
                     continue
@@ -245,6 +246,27 @@ class Buffering(Queue):
                     c.rebuild(exprs=expr, ispace=ispace, properties=properties)
                 )
 
+        # Lift {write,read}-only buffers into separate IterationSpaces
+        if self.options['buf-fuse-tasks']:
+            return processed
+        for b in buffers:
+            if not (b.is_writeonly or b.is_readonly):
+                continue
+
+            contracted = set().union(*[d._defines for d in b.contraction_mapper])
+
+            stamp = Stamp()
+            processed1 = []
+            for c in processed:
+                if b.buffer in c.functions:
+                    key = lambda d: d not in contracted
+                    dims = c.ispace.project(key).itdimensions
+                    ispace = c.ispace.lift(dims, stamp)
+                    processed1.append(c.rebuild(ispace=ispace))
+                else:
+                    processed1.append(c)
+            processed = processed1
+
         return processed
 
 
@@ -265,6 +287,10 @@ class BufferBatch(list):
         b = Buffer(*args, bds=self.bds, mds=self.mds)
         self.append(b)
         return b
+
+    @property
+    def functions(self):
+        return {b.function for b in self}
 
 
 class Buffer(object):
@@ -425,16 +451,20 @@ class Buffer(object):
         return self.accessv.is_read
 
     @property
-    def is_readonly(self):
-        return self.is_read and self.lastwrite is None
-
-    @property
     def firstread(self):
         return self.accessv.firstread
 
     @property
     def lastwrite(self):
         return self.accessv.lastwrite
+
+    @property
+    def is_readonly(self):
+        return self.firstread is not None and self.lastwrite is None
+
+    @property
+    def is_writeonly(self):
+        return self.lastwrite is not None and self.firstread is None
 
     @property
     def has_uniform_subdims(self):
