@@ -1,4 +1,4 @@
-from devito import Grid, TimeFunction, Eq, XDSLOperator
+from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator
 from devito.ir.ietxdsl.xdsl_passes import transform_devito_xdsl_string
 # flake8: noqa
 from devito.operator.xdsl_operator import XDSLOperator
@@ -14,5 +14,9 @@ def test_create_xdsl_operator():
     xdsl_op.__class__ = XDSLOperator
     xdsl_op.apply(time_M=5)
 
-    print(str(xdsl_op.ccode))
+    op = Operator([eq])
+    op.apply(time_M=5)
+
+    print(xdsl_op.ccode)
+    print(op.ccode)
 
