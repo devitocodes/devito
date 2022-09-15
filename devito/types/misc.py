@@ -144,9 +144,9 @@ class Indirection(Symbol):
         v = a[ofs]
     """
 
-    __rargs__ = Symbol.__rargs__ + ('mapped',)
+    __rkwargs__ = Symbol.__rkwargs__ + ('mapped',)
 
-    def __new__(cls, name, mapped, dtype=np.uint64, is_const=True):
+    def __new__(cls, name=None, mapped=None, dtype=np.uint64, is_const=True):
         obj = super().__new__(cls, name=name, dtype=dtype, is_const=is_const)
         obj.mapped = mapped
 

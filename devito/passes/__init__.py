@@ -1,7 +1,7 @@
 # The following functions may be used by passes at any layer of abstraction
 
 from devito.logger import warning
-from devito.types.dense import AliasFunction, TimeFunction
+from devito.types.dense import TimeFunction
 from devito.tools import as_tuple, is_integer
 
 
@@ -24,7 +24,7 @@ def is_on_device(obj, gpu_fit):
         functions = as_tuple(obj)
 
     fsave = [f for f in functions
-             if isinstance(f, (AliasFunction, TimeFunction)) and is_integer(f.save)]
+             if isinstance(f, TimeFunction) and is_integer(f.save)]
 
     if 'all-fallback' in gpu_fit and fsave:
         warning("TimeFunction %s assumed to fit the GPU memory" % fsave)

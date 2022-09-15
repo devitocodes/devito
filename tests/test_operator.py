@@ -1867,7 +1867,7 @@ class TestInternals(object):
         g = TimeFunction(name='g', grid=grid)
 
         idx = time + 1
-        s = Indirection('ofs0', idx)
+        s = Indirection(name='ofs0', mapped=idx)
 
         eqns = [
             Eq(s, idx),
