@@ -955,9 +955,6 @@ class ArgumentsMap(dict):
         self.platform = op._platform
         self.options = op._options
 
-        # Compute total used memory
-        self.memused = sum(v.nbytes for v in args.values() if isinstance(v, np.ndarray))
-
     @property
     def comm(self):
         """The MPI communicator the arguments are collective over."""
