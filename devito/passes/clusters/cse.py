@@ -3,6 +3,7 @@ from collections import OrderedDict
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
+from devito.symbolics.manipulation import _uxreplace
 from devito.types import Eq, Symbol
 
 __all__ = ['cse']
@@ -67,19 +68,9 @@ def _cse(maybe_exprs, make, mode='default'):
     # dependence involving `a`
     exclude = {i.source.access for i in scope.d_flow.independent()}
 
-    # Some expressions may be pre-processed nested reduction or Function-as-indices.
-    # that already created temporaries. For example
-    # Eq(u[x+1], u[f[x]+1]) would be preprocessed as
-    # [Eq(r0, f[x]), Eq(u[x+1], u[r0+1])]
-    # We filter out these existing temporaries to keep to avoid new common sub-expression
-    # to be prepended to their declaration.
-    temps = [p for p in processed if p.lhs.base.is_Symbol]
-    processed = [p for p in processed if p not in temps]
-
-    mapped = []
     while True:
         # Detect redundancies
-        counted = count(mapped + processed, q_xop).items()
+        counted = count(processed, q_xop).items()
         targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
 
         # Rule out Dimension-independent data dependencies
@@ -92,21 +83,28 @@ def _cse(maybe_exprs, make, mode='default'):
         # Create temporaries
         hit = max(targets.values())
         picked = [k for k, v in targets.items() if v == hit]
-        mapper = OrderedDict([(e, make()) for i, e in enumerate(picked)])
+        temps = [Eq(make(), e) for e in picked]
 
         # Apply replacements
-        processed = [uxreplace(e, mapper) for e in processed]
-        mapped = [uxreplace(e, mapper) for e in mapped]
-        mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
+        # The extracted temporaries are inserted before the first expression
+        # that contains it
+        updated = []
+        for e in processed:
+            pe = e
+            for t in temps:
+                pe, changed = _uxreplace(pe, {t.rhs: t.lhs})
+                if changed and t not in updated:
+                    updated.append(t)
+            updated.append(pe)
+        processed = updated
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
-        exclude.update({i for i in mapper.values()})
+        exclude.update({t.rhs for t in temps})
 
         # Prepare for the next round
         for k in picked:
             targets.pop(k)
-    processed = temps + mapped + processed
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed)
