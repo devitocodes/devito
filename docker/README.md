@@ -1,6 +1,6 @@
-# [Devito] docker image library
+# [Devito] Docker image library
 
-In order to facilitate the dissemination, usage, and development of Devito, we provide a series of docker images. These images support numerous architectures and compilers and are tagged accordingly. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/). The following describes the available images and the workflow to build it yourself. 
+In order to facilitate the dissemination, usage, and development of Devito, we provide a series of Docker images. These images support numerous architectures and compilers and are tagged accordingly. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/). The following describes the available images and the workflow to build it yourself. 
 
 ## [Devito] images
 
@@ -17,8 +17,13 @@ These images provide a working environment for any CPU architecture and come wit
 To run this image locally, you will first of all need to install `docker`. Then, the following commands will get you started:
 
 ```bash
-docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:gcc-latest
-docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm devitocodes/devito:gcc-latest
+# Pull image and start a bash shell 
+docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:gcc-latest /bin/bash
+docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm devitocodes/devito:gcc-latest /bin/bash
+
+# or start a Jupyter notebook server on port 8888
+docker run --rm -it -p 8888:8888 devitocodes/devito:gcc-latest
+
 ```
 
 Alternatively, to run in user context on a cluster with a shared filesystem, you can add the correct user config as `docker` options, e.g.:
@@ -39,7 +44,7 @@ Second, we provide three images to run [Devito] on GPUs, tagged `devito:nvidia-n
 
 - `devito:nvidia-nvc-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `nvc` compiler for `openacc` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
 - `devito:nvidia-clang-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `clang` compiler for `openmp` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
-- `devito:amd-*` is intended to be used on AMD GPUs. It comes with the configuration to use the `aoompcc` compiler for `openmp` offloading. This image also comes with ROCm-aware MPI for multi-GPU deployment. This image can also be used on AMD CPUs since the ROCm compilers are preinstalled. To reflect this architecture, you will need to modify `DEVITO_PLATFORM` to `amd` at runtime.
+- `devito:amd-*` is intended to be used on AMD GPUs. It comes with the configuration to use the `aoompcc` compiler for `openmp` offloading. This image also comes with ROCm-aware MPI for multi-GPU deployment. This image can also be used on AMD CPUs since the ROCm compilers are preinstalled.
 
 #### NVidia
 
@@ -62,7 +67,7 @@ docker run --gpus all --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devi
 
 #### AMD
 
-Unlike NVidia, AMD does not require an additional docker setup and runs with the standard docker. You will, however, need to pass some flags so that the image is linked to the GPU devices. You can find a short walkthrough in these [AMD notes](https://developer.amd.com/wp-content/resources/ROCm%20Learning%20Centre/chapter5/Chapter5.3_%20KerasMultiGPU_ROCm.pdf) for their TensorFlow GPU docker image.
+Unlike NVidia, AMD does not require an additional Docker setup and runs with the standard docker. You will, however, need to pass some flags so that the image is linked to the GPU devices. You can find a short walkthrough in these [AMD notes](https://developer.amd.com/wp-content/resources/ROCm%20Learning%20Centre/chapter5/Chapter5.3_%20KerasMultiGPU_ROCm.pdf) for their TensorFlow GPU Docker image.
 
 
 **Notes**:
@@ -82,7 +87,7 @@ To build the (default) CPU image, run:
 docker build --network=host --file docker/Dockerfile.devito --tag devito .
 ```
 
-Moreover, to build the GPU image with `openacc` offloading and the `nvc` compiler, run:
+To build the GPU image with `openacc` offloading and the `nvc` compiler, run:
 
 ```bash
 docker build --build-arg base=devitocodes/base:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
@@ -101,10 +106,9 @@ docker build --build-arg base=devitocodes/base:amd --network=host --file docker/
 ```
 
 
-## Build/Debug a base image (Useful for development only)
+## Debugging a base image (Useful for development only)
 
-This section is primarily helpful in contributing to or debugging the docker images.
-Devito images are built on top of base layers that provide the necessary software stack (compilers, utilities etc.).
+This section is primarily helpful in contributing to or debugging the Docker images.
 
 To build the base image yourself locally, you need to run the standard build command using the provided Dockerfile.
 
@@ -120,3 +124,13 @@ docker run --rm --name testrun devito_img py.test --nbval -k 'not dask' examples
 ```
 
 [Devito]:https://github.com/devitocodes/devito
+
+## Developing Devito with Docker
+
+.. code-block:: shell
+
+# Example CPU
+docker-compose run devito /bin/bash
+
+# Example GPU
+docker-compose run devito.nvidia /bin/bash

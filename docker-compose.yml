@@ -17,7 +17,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.devito
       args:
-        base: devitocodes/devio:nvidia-base
+        base: devitocodes/bases:nvidia-nvc
     volumes:
       - ./devito:/app/devito/devito
       - ./tests:/app/devito/tests

@@ -4,7 +4,7 @@ Download and Install Devito
 
 There are two main approaches to installing Devito.
 
-- `Docker installation`_, for those looking for a quick “out-of-the-box” way to try Devito
+- `Docker installation`_, for those looking for the least-friction way to try Devito
 - `pip/conda installation`_, for those looking to use Devito as part of a project alongside other packages or/and looking to develop with Devito
 
 
@@ -16,8 +16,13 @@ You can install and run Devito via Docker_:
 .. _Docker: https://www.docker.com/  
 
 There are several "tags" for the Devito Docker images. We provide `Docker for CPUs`_
-and `Docker for GPUs`_ depending on the platform you want to deploy Devito. These are:
+and `Docker for GPUs`_ depending on the platform you want to deploy Devito.
+For detailed installation instructions and information on the Devito Docker image library please follow 
+the docker/README.md_
 
+.. _README.md: ../../docker/README.md
+
+TODROP
 Docker for CPUs
 ```````````````
 Available tags:
@@ -66,6 +71,7 @@ For those aiming to develop in Devito using Docker, you can use docker-compose
    # 2. Start a bash shell with Devito
    docker-compose run devito /bin/bash
 
+TODROP
 Docker for GPUs
 ```````````````
 The GPU image differs from the CPU image in the additional compilers and toolkits necessary to run on GPUs. It contains the same installation and usage of Devito as the CPU image.
