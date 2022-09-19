@@ -67,6 +67,15 @@ def _cse(maybe_exprs, make, mode='default'):
     # dependence involving `a`
     exclude = {i.source.access for i in scope.d_flow.independent()}
 
+    # Some expressions may be pre-processed nested reduction or Function-as-indices.
+    # that already created temporaries. For example
+    # Eq(u[x+1], u[f[x]+1]) would be preprocessed as
+    # [Eq(r0, f[x]), Eq(u[x+1], u[r0+1])]
+    # We filter out these existing temporaries to keep to avoid new common sub-expression
+    # to be prepended to their declaration.
+    temps = [p for p in processed if p.lhs.base.is_Symbol]
+    processed = [p for p in processed if p not in temps]
+
     mapped = []
     while True:
         # Detect redundancies
@@ -97,7 +106,7 @@ def _cse(maybe_exprs, make, mode='default'):
         # Prepare for the next round
         for k in picked:
             targets.pop(k)
-    processed = mapped + processed
+    processed = temps + mapped + processed
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed)
