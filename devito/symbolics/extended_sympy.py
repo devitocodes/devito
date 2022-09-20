@@ -313,8 +313,9 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
         except AttributeError:
             if isinstance(base, str):
                 base = Symbol(base)
-            elif not isinstance(base, sympy.Basic):
-                raise ValueError("`base` must be sympy.Basic or str")
+            else:
+                # Fallback: go plain sympy
+                base = sympify(base)
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
