@@ -110,7 +110,8 @@ def estimate_cost(exprs, estimate=False):
 estimate_values = {
     'elementary': 100,
     'pow': 50,
-    'div': 5
+    'div': 5,
+    'Abs': 5,
 }
 
 
@@ -188,7 +189,10 @@ def _(expr, estimate):
             # Bypass user-defined or language-specific functions
             flops += 0
         elif estimate:
-            flops += estimate_values['elementary']
+            try:
+                flops += estimate_values[type(expr).__name__]
+            except KeyError:
+                flops += estimate_values['elementary']
         else:
             flops += 1
     else:

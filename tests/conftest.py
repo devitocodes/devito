@@ -4,11 +4,7 @@ from subprocess import check_call
 import pytest
 import sys
 
-from sympy import Symbol  # noqa
-
-from devito import (Grid, TimeDimension, SteppingDimension, SpaceDimension, # noqa
-                    Constant, Function, TimeFunction, Eq, configuration, SparseFunction, # noqa
-                    SparseTimeFunction, cos)  # noqa
+from devito import Eq, configuration  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Cpu64, Device, sniff_mpi_distro
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler

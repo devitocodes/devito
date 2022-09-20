@@ -229,13 +229,16 @@ def abstract_efunc(efunc):
     mapper = {}
     counter = Counter()
     for i in FindSymbols().visit(efunc):
-        if i.is_DiscreteFunction:
+        if isinstance(i, AliasFunction):
+            base = i.name
+
+        elif i.is_DiscreteFunction:
             base = 'f'
 
-            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-            kwargs.pop('initializer')
+            rkwargs = set(i.__rkwargs__) - {'initializer'}
+            kwargs = {k: getattr(i, k, None) for k in rkwargs}
             kwargs['name'] = '%s%d' % (base, counter[base])
-            v = AliasFunction(**kwargs)
+            v = AliasFunction(aliased=i, **kwargs)
 
             mapper.update({
                 i: v,

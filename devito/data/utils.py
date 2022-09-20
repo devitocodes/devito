@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito.tools import Tag, as_tuple, is_integer
+from devito.tools import Tag, as_tuple, as_list, is_integer
 
 __all__ = ['Index', 'NONLOCAL', 'PROJECTED', 'index_is_basic', 'index_apply_modulo',
            'index_dist_to_repl', 'convert_index', 'index_handle_oob',
@@ -240,7 +240,21 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
         dat_len[coords[j]] = comm.bcast(shape, root=j)
         if any(k == 0 for k in dat_len[coords[j]]):
             dat_len[coords[j]] = as_tuple([0]*len(dat_len[coords[j]]))
+
+    # If necessary, add the time index to the `topology` as this will
+    # be required to correctly construct various maps.
+    if len(np.amax(dat_len)) > len(topology):
+        topology = as_list(topology)
+        coords = [as_list(l) for l in coords]
+        for _ in range(len(np.amax(dat_len)) - len(topology)):
+            topology.insert(0, 1)
+            for e in coords:
+                e.insert(0, 0)
+        topology = as_tuple(topology)
+        coords = as_tuple([as_tuple(i) for i in coords])
+    dat_len = dat_len.reshape(topology)
     dat_len_cum = distributed_data_size(dat_len, coords, topology)
+
     # This 'transform' will be required to produce the required maps
     transform = []
     for i in as_tuple(loc_idx):

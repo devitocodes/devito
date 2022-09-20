@@ -4,6 +4,7 @@ from cached_property import cached_property
 from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
+from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import retrieve_terminals, q_constant, q_affine, q_terminal
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
@@ -159,14 +160,16 @@ class IterationInstance(LabeledVector):
         return self.rank == 0
 
 
-class TimedAccess(IterationInstance):
+class TimedAccess(IterationInstance, AccessMode):
 
     """
-    An IterationInstance enriched with additional information:
+    A TimedAccess ties together an IterationInstance and an AccessMode.
 
-        * an IterationSpace, from which the TimedAccess is extracted;
-        * A "timestamp", that is an integer indicating the statement within
-          which the TimedAccess appears in the execution flow;
+    Further:
+
+        * It may be associated with an IterationSpace.
+        * It carries a "timestamp", that is an integer indicating the statement
+          within which the TimedAccess appears in the execution flow.
 
     Notes
     -----
@@ -175,22 +178,17 @@ class TimedAccess(IterationInstance):
     on the values of the index functions and the access mode (read, write).
     """
 
-    _modes = ('R', 'W', 'RR', 'WR')
-
     def __new__(cls, access, mode, timestamp, ispace=None):
-        assert mode in cls._modes
+        obj = super().__new__(cls, access)
+        AccessMode.__init__(obj, mode=mode)
+        return obj
+
+    def __init__(self, access, mode, timestamp, ispace=None):
         assert is_integer(timestamp)
 
-        obj = super().__new__(cls, access)
-
-        obj.access = access
-        obj.function = access.function
-        obj.mode = mode
-        obj.timestamp = timestamp
-
-        obj.ispace = ispace or IterationSpace([])
-
-        return obj
+        self.access = access
+        self.timestamp = timestamp
+        self.ispace = ispace or IterationSpace([])
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
@@ -212,6 +210,10 @@ class TimedAccess(IterationInstance):
         return super().__hash__()
 
     @property
+    def function(self):
+        return self.access.function
+
+    @property
     def name(self):
         return self.function.name
 
@@ -226,26 +228,6 @@ class TimedAccess(IterationInstance):
     @property
     def itintervals(self):
         return self.ispace.itintervals
-
-    @property
-    def is_read(self):
-        return self.mode in ['R', 'RR']
-
-    @property
-    def is_write(self):
-        return self.mode in ['W', 'WR']
-
-    @property
-    def is_read_reduction(self):
-        return self.mode == 'RR'
-
-    @property
-    def is_write_reduction(self):
-        return self.mode == 'WR'
-
-    @property
-    def is_reduction(self):
-        return self.is_read_reduction or self.is_write_reduction
 
     @property
     def is_local(self):

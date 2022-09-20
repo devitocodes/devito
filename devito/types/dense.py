@@ -849,14 +849,14 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         return values
 
-    def _arg_check(self, args, intervals):
+    def _arg_check(self, args, intervals, **kwargs):
         """
-        Check that ``args`` contains legal runtime values bound to ``self``.
+        Check that `args` contains legal runtime values bound to `self`.
 
         Raises
         ------
         InvalidArgument
-            If, given the runtime values ``args``, an out-of-bounds array
+            If, given the runtime values `args`, an out-of-bounds array
             access would be performed, or if shape/dtype don't match with
             self's shape/dtype.
         """
@@ -1425,8 +1425,9 @@ class TimeFunction(Function):
     def _time_buffering_default(self):
         return self._time_buffering and not isinstance(self.save, Buffer)
 
-    def _arg_check(self, args, intervals):
-        super(TimeFunction, self)._arg_check(args, intervals)
+    def _arg_check(self, args, intervals, **kwargs):
+        super()._arg_check(args, intervals, **kwargs)
+
         key_time_size = args[self.name].shape[self._time_position]
         if self._time_buffering and self._time_size != key_time_size:
             raise InvalidArgument("Expected `time_size=%d` for runtime "
@@ -1636,9 +1637,12 @@ class AliasFunction(DiscreteFunction):
     Like a TempFunction, an AliasFunction does not carry data.
     """
 
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('aliased',)
+
     __indices_setup__ = Function.__indices_setup__
 
-    def __init_finalize__(self, *args, **kwargs):
+    def __init_finalize__(self, *args, aliased=None, **kwargs):
+        self.aliased = aliased
         self.save = kwargs.pop('save', None)
 
         super().__init_finalize__(*args, **kwargs)
@@ -1664,3 +1668,7 @@ class AliasFunction(DiscreteFunction):
     data_with_halo = data
     data_ro_domain = data
     data_ro_with_halo = data
+
+    @property
+    def _C_ctype(self):
+        return self.aliased._C_ctype

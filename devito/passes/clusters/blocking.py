@@ -145,7 +145,7 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def __init__(self, options):
         super().__init__(options)
 
-        self.gpu_fit = options['gpu-fit']
+        self.gpu_fit = options.get('gpu-fit', ())
 
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
@@ -338,12 +338,12 @@ def decompose(ispace, d, block_dims):
             intervals.append(i)
 
     # Create the intervals relations
-    # 1: `bbd > bd > d`
+    # 1: `bbd > bd`
     relations = [tuple(block_dims)]
 
     # 2: Suitably replace `d` with all `bd`'s
     for r in ispace.relations:
-        if d not in r:
+        if not d._defines.intersection(r):
             relations.append(r)
             continue
 
@@ -352,7 +352,7 @@ def decompose(ispace, d, block_dims):
             if any(i._depth < bd._depth for i in r if i.is_Block):
                 continue
 
-            relations.append(tuple(bd if i is d else i for i in r))
+            relations.append(tuple(bd if i in d._defines else i for i in r))
 
     # 3: Make sure BlockDimensions at same depth stick next to each other
     # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`

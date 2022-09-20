@@ -97,9 +97,9 @@ class Constant(DataSymbol, ArgProvider):
         else:
             return self._arg_defaults()
 
-    def _arg_check(self, args, intervals):
+    def _arg_check(self, args, intervals, **kwargs):
         """
-        Check that ``args`` contains legal runtime values bound to ``self``.
+        Check that `args` contains legal runtime values bound to `self`.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for %s" % self.name)
