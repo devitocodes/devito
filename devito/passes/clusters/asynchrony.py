@@ -6,7 +6,7 @@ from devito.ir import (Forward, GuardBoundNext, Queue, Vector, SEQUENTIAL,
                        WaitLock, WithLock, FetchUpdate, PrefetchUpdate,
                        ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
-from devito.tools import flatten, is_integer, timed_pass
+from devito.tools import is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
@@ -72,9 +72,9 @@ class Tasker(Asynchronous):
             for c1 in clusters:
                 offset = int(clusters.index(c1) <= clusters.index(c0))
 
-                for f in may_require_lock:
+                for target in may_require_lock:
                     try:
-                        writes = c1.scope.writes[f]
+                        writes = c1.scope.writes[target]
                     except KeyError:
                         # No read-write dependency, ignore
                         continue
@@ -82,7 +82,7 @@ class Tasker(Asynchronous):
                     try:
                         if all(w.aindices[d].is_Stepping for w in writes) or \
                            all(w.aindices[d].is_Modulo for w in writes):
-                            size = f.shape_allocated[d]
+                            size = target.shape_allocated[d]
                             assert is_integer(size)
                             ld = CustomDimension(name='ld', symbolic_size=size, parent=d)
                         elif all(w[d] == 0 for w in writes):
@@ -97,10 +97,10 @@ class Tasker(Asynchronous):
                         ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
 
                     try:
-                        lock = locks[f]
+                        lock = locks[target]
                     except KeyError:
                         name = self.sregistry.make_name(prefix='lock')
-                        lock = locks[f] = Lock(name=name, dimensions=ld)
+                        lock = locks[target] = Lock(name=name, dimensions=ld)
 
                     for w in writes:
                         try:
@@ -111,26 +111,35 @@ class Tasker(Asynchronous):
                             index = 0
                             logical_index = 0
 
-                        if logical_index in protected[f]:
+                        if logical_index in protected[target]:
                             continue
 
-                        waits[c1].append(WaitLock(f, lock[index]))
-                        protected[f].add(logical_index)
+                        waits[c1].append(WaitLock(lock[index], target))
+                        protected[target].add(logical_index)
 
             # Taskify `c0`
-            for f in protected:
-                lock = locks[f]
+            for target in protected:
+                lock = locks[target]
 
-                indices = sorted({r[d] for r in c0.scope.reads[f]})
+                indices = sorted({r[d] for r in c0.scope.reads[target]})
                 if indices == [None]:
                     # `lock` is protecting a Function which isn't defined over `d`
                     # E.g., `d=time` and the protected function is `a(x, y)`
                     assert lock.size == 1
                     indices = [0]
 
-                tasks[c0].extend(flatten(
-                    (ReleaseLock(f, lock[i]), WithLock(f, lock[i])) for i in indices
-                ))
+                if is_memcpy(c0):
+                    e = c0.exprs[0]
+                    function = e.lhs.function
+                    findex = e.lhs.indices[d]
+                else:
+                    # Only for backwards compatibility (e.g., tasking w/o buffering)
+                    function = None
+                    findex = None
+
+                for i in indices:
+                    tasks[c0].append(ReleaseLock(lock[i], target))
+                    tasks[c0].append(WithLock(lock[i], target, i, function, findex, d))
 
         processed = []
         for c in clusters:
@@ -227,10 +236,14 @@ class Streaming(Asynchronous):
         function = e.rhs.function
         target = e.lhs.function
 
+        findex = e.rhs.indices[d]
+
         size = d.symbolic_size
         assert is_integer(size)
 
-        actions[cluster].syncs[pd].append(FetchUpdate(function, None, d, size, target, 0))
+        actions[cluster].syncs[pd].append(
+            FetchUpdate(None, target, 0, function, findex, d, size)
+        )
 
     def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
         it = prefix[-1]
@@ -244,23 +257,23 @@ class Streaming(Asynchronous):
 
         fetch = e.rhs.indices[d]
         if direction is Forward:
-            pfetch = fetch + 1
+            findex = fetch + 1
         else:
-            pfetch = fetch - 1
+            findex = fetch - 1
 
-        # If fetching into e.g., `ub[sb1]`, we'll need to prefetch into e.g. `ub[sb0]`
-        tstore0 = e.lhs.indices[d]
-        if is_integer(tstore0):
-            tstore = tstore0
+        # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
+        tindex0 = e.lhs.indices[d]
+        if is_integer(tindex0):
+            tindex = tindex0
         else:
-            assert tstore0.is_Modulo
-            subiters = [i for i in cluster.sub_iterators[d] if i.parent is tstore0.parent]
+            assert tindex0.is_Modulo
+            subiters = [i for i in cluster.sub_iterators[d] if i.parent is tindex0.parent]
             osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
-            n = osubiters.index(tstore0)
+            n = osubiters.index(tindex0)
             if direction is Forward:
-                tstore = osubiters[(n + 1) % len(osubiters)]
+                tindex = osubiters[(n + 1) % len(osubiters)]
             else:
-                tstore = osubiters[(n - 1) % len(osubiters)]
+                tindex = osubiters[(n - 1) % len(osubiters)]
 
         # We need a lock to synchronize the copy-in
         name = self.sregistry.make_name(prefix='lock')
@@ -269,15 +282,16 @@ class Streaming(Asynchronous):
         handle = lock[0]
 
         # Turn `cluster` into a prefetch Cluster
-        expr = uxreplace(e, {tstore0: tstore, fetch: pfetch})
+        expr = uxreplace(e, {tindex0: tindex, fetch: findex})
 
         guards = {d: And(
             cluster.guards.get(d, True),
             GuardBoundNext(function.indices[d], direction),
         )}
 
-        syncs = {d: [ReleaseLock(function, handle),
-                     PrefetchUpdate(function, handle, d, 1, target, tstore)]}
+        syncs = {d: [ReleaseLock(handle, target),
+                     PrefetchUpdate(handle, target, tindex, function, findex, d, 1,
+                                    e.rhs)]}
 
         pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
@@ -295,7 +309,7 @@ class Streaming(Asynchronous):
                 last = c
         assert first is not None
         assert last is not None
-        actions[first].syncs[d].append(WaitLock(function, handle))
+        actions[first].syncs[d].append(WaitLock(handle, target))
         actions[last].insert.append(pcluster)
         actions[cluster].drop = True
 
@@ -315,10 +329,15 @@ class Actions(object):
 
 def is_memcpy(cluster):
     """
-    True if `cluster` emulates a memcpy and the target object is a mapped
-    Array, False otherwise.
+    True if `cluster` emulates a memcpy involving a mapped Array, False otherwise.
     """
-    return (len(cluster.exprs) == 1 and
-            cluster.exprs[0].lhs.function.is_Array and
-            cluster.exprs[0].lhs.function._mem_mapped and
-            cluster.exprs[0].rhs.is_Indexed)
+    if len(cluster.exprs) != 1:
+        return False
+
+    a, b = cluster.exprs[0].args
+
+    if not (a.is_Indexed and b.is_Indexed):
+        return False
+
+    return ((a.function.is_Array and a.function._mem_mapped) or
+            (b.function.is_Array and b.function._mem_mapped))

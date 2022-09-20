@@ -138,6 +138,13 @@ class BasicWrapperMixin(object):
         """
         return self.function.dtype
 
+    @property
+    def is_commutative(self):
+        """
+        Overridden SymPy assumption -- now based on the wrapped object dtype.
+        """
+        return issubclass(self.dtype, np.number)
+
 
 class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
@@ -203,6 +210,8 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     @property
     def free_symbols(self):
         return super().free_symbols - self.bound_symbols
+
+    is_commutative = BasicWrapperMixin.is_commutative
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -304,8 +313,9 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
         except AttributeError:
             if isinstance(base, str):
                 base = Symbol(base)
-            elif not isinstance(base, sympy.Basic):
-                raise ValueError("`base` must be sympy.Basic or str")
+            else:
+                # Fallback: go plain sympy
+                base = sympify(base)
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
@@ -422,6 +432,8 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
 
     __repr__ = __str__
+
+    is_commutative = BasicWrapperMixin.is_commutative
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__

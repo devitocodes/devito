@@ -117,6 +117,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         @wraps(func)
         def wrapper(self):
             if self._data is None:
+                if self._alias:
+                    raise TypeError("Aliasing Functions cannot allocate data")
+
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 
@@ -1624,51 +1627,3 @@ class TempFunction(DiscreteFunction):
                 raise InvalidArgument("Illegal runtime value for `%s`" % self.name)
         else:
             raise InvalidArgument("TempFunction `%s` lacks override" % self.name)
-
-
-class AliasFunction(DiscreteFunction):
-
-    """
-    Tensor symbol that "aliases" another DiscreteFunction. Aliasing here means that
-    the AliasFunction logically represents another object. This is most commonly used
-    when we have a generic routine `foo(af, ...)` that we need to apply to multiple
-    DiscreteFunctions; here `af` is an AliasFunction, used in the body of `foo`.
-
-    Like a TempFunction, an AliasFunction does not carry data.
-    """
-
-    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('aliased',)
-
-    __indices_setup__ = Function.__indices_setup__
-
-    def __init_finalize__(self, *args, aliased=None, **kwargs):
-        self.aliased = aliased
-        self.save = kwargs.pop('save', None)
-
-        super().__init_finalize__(*args, **kwargs)
-
-    @classmethod
-    def __shape_setup__(cls, **kwargs):
-        # We don't care about the actual shape, nobody will ever query it, and
-        # bypassing the `__shape_setup__` makes it easier to use AliasFunction
-        # to map various DiscreteFunction subclasses
-        return None
-
-    def __distributor_setup__(self, **kwargs):
-        # Same rational as `__shape_setup__`  -- we don't care about the
-        # underlying distributor
-        return None
-
-    @property
-    def data(self):
-        # Any attempt at allocating data by the user should fail miserably
-        raise TypeError("AliasFunction cannot allocate data")
-
-    data_domain = data
-    data_with_halo = data
-    data_ro_domain = data
-    data_ro_with_halo = data
-
-    @property
-    def _C_ctype(self):
-        return self.aliased._C_ctype

@@ -6,34 +6,51 @@ from collections import defaultdict
 
 from devito.data import FULL
 from devito.tools import Pickable, filter_ordered
+from devito.types import DimensionTuple
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
            'normalize_syncs']
 
 
+class IMask(DimensionTuple):
+    pass
+
+
 class SyncOp(Pickable):
 
-    __rargs__ = ('function', 'handle')
+    __rargs__ = ('handle', 'target')
+    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size', 'origin')
 
-    def __init__(self, function, handle):
-        self.function = function
+    def __init__(self, handle, target, tindex=None, function=None, findex=None,
+                 dim=None, size=1, origin=None):
         self.handle = handle
+        self.target = target
+
+        self.tindex = tindex
+        self.function = function
+        self.findex = findex
+        self.dim = dim
+        self.size = size
+        self.origin = origin
 
     def __eq__(self, other):
-        return (type(self) == type(other) and
-                all(i == j for i, j in zip(self.args, other.args)))
+        return (type(self) is type(other) and
+                self.handle == other.handle and
+                self.target is other.target and
+                self.tindex == other.tindex and
+                self.function is other.function and
+                self.findex == other.findex and
+                self.dim is other.dim and
+                self.size == other.size and
+                self.origin == other.origin)
 
     def __hash__(self):
-        return hash((type(self).__name__,) + self.args)
+        return id(self)
 
     def __repr__(self):
         return "%s<%s>" % (self.__class__.__name__, self.handle)
 
     __str__ = __repr__
-
-    @property
-    def args(self):
-        return (self.handle,)
 
     @property
     def lock(self):
@@ -45,47 +62,32 @@ class SyncOp(Pickable):
 
 class SyncCopyOut(SyncOp):
 
-    @property
-    def imask(self):
-        ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
-               for d in self.function.dimensions]
-        return tuple(ret)
-
-
-class SyncCopyIn(SyncOp):
-
-    __rargs__ = SyncOp.__rargs__ + ('dim', 'size', 'target', 'tstore')
-
-    def __init__(self, function, handle, dim, size, target, tstore):
-        super().__init__(function, handle)
-
-        self.dim = dim
-        self.size = size
-        self.target = target
-        self.tstore = tstore
-
     def __repr__(self):
-        return "%s<%s->%s:%s:%d>" % (self.__class__.__name__, self.function,
-                                     self.target, self.dim, self.size)
+        return "%s<%s->%s>" % (self.__class__.__name__, self.target, self.function)
 
     __str__ = __repr__
 
     @property
-    def args(self):
-        return (self.dim, self.size, self.function, self.target, self.tstore, self.handle)
+    def imask(self):
+        ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
+               for d in self.target.dimensions]
+        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+                     findex=self.findex)
 
-    @property
-    def dimensions(self):
-        return self.function.dimensions
+
+class SyncCopyIn(SyncOp):
+
+    def __repr__(self):
+        return "%s<%s->%s>" % (self.__class__.__name__, self.function, self.target)
+
+    __str__ = __repr__
 
     @property
     def imask(self):
-        ret = [(self.tstore, self.size) if d.root is self.dim.root else FULL
-               for d in self.dimensions]
-        return tuple(ret)
-
-    # Pickling support
-    __reduce_ex__ = Pickable.__reduce_ex__
+        ret = [(self.tindex, self.size) if d.root is self.dim.root else FULL
+               for d in self.target.dimensions]
+        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+                     findex=self.findex)
 
 
 class WaitLock(SyncCopyOut):
