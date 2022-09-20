@@ -230,13 +230,10 @@ def abstract_efunc(efunc):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    priority = [DiscreteFunction]
-
-    def key(i):
-        for p, cls in enumerate(priority, 1):
-            if isinstance(i, cls):
-                return p
-        return 0
+    priority = {
+        DiscreteFunction: 1,
+    }
+    key = lambda i: priority.get(i, 0)
     functions = sorted(functions, key=key, reverse=True)
 
     # Build abstraction mappings
@@ -265,12 +262,9 @@ def abstract_object(i, mapper, counter, cls=None):
 @abstract_object.register(DiscreteFunction)
 def _(i, mapper, counter):
     base = 'f'
+    name = '%s%d' % (base, counter[base])
 
-    kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-    kwargs['name'] = '%s%d' % (base, counter[base])
-    kwargs['initializer'] = None
-    kwargs['alias'] = True
-    v = i._rebuild(**kwargs)
+    v = i._rebuild(name=name, initializer=None, alias=True)
 
     mapper.update({
         i: v,
@@ -287,10 +281,9 @@ def _(i, mapper, counter):
         base = 'lock'
     else:
         base = 'a'
+    name = '%s%d' % (base, counter[base])
 
-    kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-    kwargs['name'] = '%s%d' % (base, counter[base])
-    v = type(i).__base__(**kwargs)
+    v = i._rebuild(name=name)
 
     mapper.update({
         i: v,
@@ -303,11 +296,9 @@ def _(i, mapper, counter):
 @abstract_object.register(CompositeObject)
 def _(i, mapper, counter):
     base = 'o'
+    name = '%s%d' % (base, counter[base])
 
-    args = [getattr(i, k, None) for k in i.__rargs__]
-    args[0] = '%s%d' % (base, counter[base])
-    kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-    v = i.func(*args, **kwargs)
+    v = i._rebuild(name)
 
     mapper[i] = v
     counter[base] += 1
@@ -316,10 +307,9 @@ def _(i, mapper, counter):
 @abstract_object.register(Indirection)
 def _(i, mapper, counter):
     base = 'ind'
+    name = '%s%d' % (base, counter[base])
 
-    kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-    kwargs['name'] = '%s%d' % (base, counter[base])
-    v = i._rebuild(**kwargs)
+    v = i._rebuild(name=name)
 
     mapper[i] = v
     counter[base] += 1

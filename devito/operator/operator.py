@@ -4,7 +4,6 @@ from math import ceil
 
 from cached_property import cached_property
 import ctypes
-import numpy as np
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
