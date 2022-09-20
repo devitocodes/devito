@@ -190,6 +190,9 @@
         <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
         <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_alias</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Aliasing Functions cannot allocate data&quot;</span><span class="p">)</span>
+
                 <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating host memory for </span><span class="si">%s%s</span><span class="s2"> [</span><span class="si">%s</span><span class="s2">]&quot;</span>
                       <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">,</span> <span class="n">humanbytes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nbytes</span><span class="p">)))</span>
 
@@ -1697,54 +1700,6 @@
                 <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Illegal runtime value for `</span><span class="si">%s</span><span class="s2">`&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;TempFunction `</span><span class="si">%s</span><span class="s2">` lacks override&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-
-
-<span class="k">class</span> <span class="nc">AliasFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Tensor symbol that &quot;aliases&quot; another DiscreteFunction. Aliasing here means that</span>
-<span class="sd">    the AliasFunction logically represents another object. This is most commonly used</span>
-<span class="sd">    when we have a generic routine `foo(af, ...)` that we need to apply to multiple</span>
-<span class="sd">    DiscreteFunctions; here `af` is an AliasFunction, used in the body of `foo`.</span>
-
-<span class="sd">    Like a TempFunction, an AliasFunction does not carry data.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;aliased&#39;</span><span class="p">,)</span>
-
-    <span class="n">__indices_setup__</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__indices_setup__</span>
-
-    <span class="k">def</span> <span class="nf">__init_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">aliased</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span> <span class="o">=</span> <span class="n">aliased</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;save&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">__shape_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># We don&#39;t care about the actual shape, nobody will ever query it, and</span>
-        <span class="c1"># bypassing the `__shape_setup__` makes it easier to use AliasFunction</span>
-        <span class="c1"># to map various DiscreteFunction subclasses</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="k">def</span> <span class="nf">__distributor_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="c1"># Same rational as `__shape_setup__`  -- we don&#39;t care about the</span>
-        <span class="c1"># underlying distributor</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="c1"># Any attempt at allocating data by the user should fail miserably</span>
-        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;AliasFunction cannot allocate data&quot;</span><span class="p">)</span>
-
-    <span class="n">data_domain</span> <span class="o">=</span> <span class="n">data</span>
-    <span class="n">data_with_halo</span> <span class="o">=</span> <span class="n">data</span>
-    <span class="n">data_ro_domain</span> <span class="o">=</span> <span class="n">data</span>
-    <span class="n">data_ro_with_halo</span> <span class="o">=</span> <span class="n">data</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">_C_ctype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">aliased</span><span class="o">.</span><span class="n">_C_ctype</span>
 </pre></div>
 
            </div>
