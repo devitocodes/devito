@@ -1,10 +1,12 @@
-from xdsl.printer import Printer
+from devito import Grid, TimeFunction, Eq, Operator
+from devito.tools import as_tuple
+
 from devito.ir.ietxdsl import (MLContext, Constant, Addi, CGeneration,
                                IET, Callable, Block, Iteration, Idx, Assign)
-from devito.tools import as_tuple
-from xdsl.dialects.builtin import ModuleOp, Builtin
 
-from devito import Grid, TimeFunction, Eq, Operator
+from xdsl.dialects.builtin import ModuleOp, Builtin
+from xdsl.printer import Printer
+
 
 # flake8: noqa
 

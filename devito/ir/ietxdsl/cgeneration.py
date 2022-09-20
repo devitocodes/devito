@@ -1,11 +1,12 @@
 import io
 from typing import Dict
-from devito.ir.ietxdsl.operations import Callable, Addi, \
-    Modi, StructDecl, Statement, Iteration, IterationWithSubIndices, Assign, PointerCast,\
-    Idx, Initialise, List, Constant, Powi, Muli
 
+from devito.ir.ietxdsl.operations import (Callable, Addi, Modi, StructDecl, Statement,
+                                          Iteration, IterationWithSubIndices, Assign,
+                                          PointerCast, Idx, Initialise, List, Constant,
+                                          Powi, Muli)
+from devito.tools import flatten
 from xdsl.ir import SSAValue, BlockArgument
-
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -29,12 +30,11 @@ class CGeneration:
         self.indentation -= 2
 
     def print(self, *args, **kwargs):
-        indent = True
 
         if 'indent' in kwargs.keys():
-            if not kwargs['indent']:
-                indent = False
-            kwargs.pop('indent')
+            indent = kwargs.pop('indent')
+        else:
+            indent = True
 
         if indent:
             print(" " * self.indentation, file=self.output, end='')
@@ -61,22 +61,20 @@ class CGeneration:
     def printCallable(self, callable_op: Callable):
         arglist = callable_op.body.blocks[0].args
 
+        # print kernels and arguments
         self.print("int Kernel(", end='', indent=False)
         for i, arg in enumerate(arglist):
             SSAValueNames[arg] = callable_op.parameters.data[i].data
-
-        num_params = len(list(callable_op.types.data))
         # TODO: fix this workaround
         # need separate loop because only header parameters have types
-        i = 0
-        for op_type in callable_op.types.data:
+        for n, op_type in enumerate(callable_op.types.data):
             self.print(op_type.data, end=' ', indent=False)
-            self.print(callable_op.header_parameters.data[i].data,
+            self.print(callable_op.header_parameters.data[n].data,
                        end='',
                        indent=False)
-            if i < (num_params - 1):
+            if n < (len(list(callable_op.types.data)) - 1):
                 self.print(",", end='', indent=False)
-            i = i + 1
+
         self.print("){")
         self.indent()
         for each_op in callable_op.body.ops:
@@ -87,6 +85,7 @@ class CGeneration:
         pass
 
     def printIteration(self, iteration_op: Iteration):
+        # not used?
         ssa_val = iteration_op.body.blocks[0].args[0]
         iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
@@ -163,13 +162,12 @@ class CGeneration:
 
     def printOperation(self, operation):
         if isinstance(operation, BlockArgument):
+            # Not currently used
             self.print("uuu", indent=False, end="")
             return
         if (isinstance(operation, List)):
             for op in operation:
-                if isinstance(op, Constant) or isinstance(
-                        op, Addi) or isinstance(op, Idx) or isinstance(
-                            op, Modi):
+                if isinstance(op, (Constant, Addi, Idx, Modi)):
                     continue
                 self.printOperation(op)
             return
@@ -235,7 +233,9 @@ class CGeneration:
             return
 
         if (isinstance(operation, Initialise)):
-            type = operation.results[0].typ.name
+            results = flatten(operation.results)
+            assert len(results) == 1
+            type = results[0].typ.name
             # rename float accordingly if required
             if type == "f32":
                 type = "float"
@@ -260,11 +260,7 @@ class CGeneration:
             self.print("]", indent=False, end="")
             return
 
-        if (isinstance(operation, PointerCast)):
-            self.print(operation.statement.data)
-            return
-
-        if (isinstance(operation, Statement)):
+        if (isinstance(operation, (PointerCast, Statement))):
             self.print(operation.statement.data)
             return
 
@@ -275,6 +271,7 @@ class CGeneration:
             for field in operation.fields.data:
                 self.print(field.data)
             self.print("};")
+            self.print('')
             return
 
         self.print(f"// Operation {operation.name} not supported inprinter")

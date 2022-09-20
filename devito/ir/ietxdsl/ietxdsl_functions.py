@@ -2,14 +2,15 @@
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul
 from cgen import Generable
 
+from devito import ModuloDimension
 from devito.tools import flatten
 from devito.ir import retrieve_iteration_tree
+import devito.ir.iet.nodes as nodes
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise, Muli,
                                StructDecl)
-from devito import ModuloDimension
-import devito.ir.iet.nodes as nodes
+from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 from xdsl.dialects.builtin import Builtin
 
@@ -21,10 +22,15 @@ iet = IET(ctx)
 def printHeaders(cgen, header_str, headers):
     for header in headers:
         cgen.printOperation(Statement.get(createStatement(header_str, header)))
+    cgen.printOperation(Statement.get(createStatement('')))
+
 
 def printIncludes(cgen, header_str, headers):
     for header in headers:
-        cgen.printOperation(Statement.get(createStatement(header_str, '"'+header+'"')))
+        cgen.printOperation(Statement.get(
+                            createStatement(header_str, '"' + header + '"')))
+    cgen.printOperation(Statement.get(createStatement('')))
+
 
 def printStructs(cgen, struct_decs):
     for struct in struct_decs:
@@ -33,32 +39,11 @@ def printStructs(cgen, struct_decs):
                            struct.pad_bytes))
 
 
-def getOpParamsNames(op, op_param_names):
-    body = op.body.body[1].args.get('body')
-    body_size = len(body)
-    # then add in anything that comes before the main loop:
-    for i in range(0, (body_size - 1)):
-        val = op.body.body[1].args.get('body')[0]._args['body'][0].write
-        op_param_names.append(str(val))
+def createStatement(string=None, val=None):
+    for t in as_tuple(val):
+        string = string + " " + t
 
-    # we still need to add the extra time indices even though they aren't passed in
-    devito_iterations = flatten(retrieve_iteration_tree(op.body))
-    timing_indices = [i.uindices for i in devito_iterations if i.dim.is_Time]
-    for tup in timing_indices:
-        for t in tup:
-            op_param_names.append((str(t)))
-    return op_param_names
-
-
-def createStatement(initial_string, val):
-    ret_str = initial_string
-    if isinstance(val, tuple):
-        for t in val:
-            ret_str = ret_str + " " + t
-    else:
-        ret_str = ret_str + " " + val
-
-    return ret_str
+    return string
 
 
 def collectStructs(parameters):
