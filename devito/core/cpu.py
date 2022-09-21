@@ -139,7 +139,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry)
+        clusters = cse(clusters, sregistry, cls.CSE_MIN_COST)
 
         # Blocking to improve data locality
         if options['blocklazy']:
@@ -234,7 +234,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cse': lambda i: cse(i, sregistry),
+            'cse': lambda i: cse(i, sregistry, cls.CSE_MIN_COST),
             'opt-pows': optimize_pows,
             'opt-hyperplanes': optimize_hyperplanes,
             'topofuse': lambda i: fuse(i, toposort=True, options=options)

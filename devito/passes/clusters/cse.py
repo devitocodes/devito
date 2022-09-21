@@ -2,9 +2,10 @@ from collections import OrderedDict
 
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
-from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
+from devito.symbolics import count, estimate_cost, q_xop, q_leaf
 from devito.symbolics.manipulation import _uxreplace
 from devito.types import Eq, Symbol
+from devito.types.basic import AbstractFunction
 
 __all__ = ['cse']
 
@@ -14,17 +15,17 @@ class Temp(Symbol):
 
 
 @cluster_pass
-def cse(cluster, sregistry, *args):
+def cse(cluster, sregistry, min_cost, *args):
     """
     Common sub-expressions elimination (CSE).
     """
     make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-    exprs = _cse(cluster, make)
+    exprs = _cse(cluster, make, min_cost=min_cost)
 
     return cluster.rebuild(exprs=exprs)
 
 
-def _cse(maybe_exprs, make, mode='default'):
+def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     """
     Main common sub-expressions elimination routine.
 
@@ -77,7 +78,7 @@ def _cse(maybe_exprs, make, mode='default'):
         targets = OrderedDict([(k, v) for k, v in targets.items()
                                if not k.free_symbols & exclude])
 
-        if not targets:
+        if not targets or max(targets.values()) < min_cost:
             break
 
         # Create temporaries
@@ -100,7 +101,7 @@ def _cse(maybe_exprs, make, mode='default'):
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
-        exclude.update({t.rhs for t in temps})
+        exclude.update({t.lhs for t in temps})
 
         # Prepare for the next round
         for k in picked:
@@ -124,19 +125,17 @@ def _compact_temporaries(exprs):
     # safely be compacted; a generic Symbol could instead be accessed in a subsequent
     # Cluster, for example: `for (i = ...) { a = b; for (j = a ...) ...`
     mapper = {e.lhs: e.rhs for e in exprs
-              if isinstance(e.lhs, Temp) and (q_leaf(e.rhs) or e.rhs.is_Function)}
+              if isinstance(e.lhs, Temp) and
+              (q_leaf(e.rhs) or isinstance(e.rhs, AbstractFunction))}
 
     processed = []
     for e in exprs:
         if e.lhs not in mapper:
             # The temporary is retained, and substitutions may be applied
             expr = e
-            while True:
-                handle = uxreplace(expr, mapper)
-                if handle == expr:
-                    break
-                else:
-                    expr = handle
-            processed.append(handle)
+            changed = True
+            while changed:
+                expr, changed = _uxreplace(expr, mapper)
+            processed.append(expr)
 
     return processed
