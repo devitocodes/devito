@@ -71,7 +71,7 @@ jobs:
           os: ubuntu-18.04
           arch: "gcc-8"
           language: "openmp"
-          sympy: "1.7"
+          sympy: "1.11"
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
@@ -99,7 +99,7 @@ jobs:
           os: ubuntu-18.04
           arch: "icc"
           language: "openmp"
-          sympy: "1.9"
+          sympy: "1.11"
 
         - set: base
           test-set: 'not adjoint'
