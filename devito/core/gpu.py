@@ -223,11 +223,12 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Callbacks used by `Tasking` and `Streaming`
-        on_host, runs_on_host, reads_if_on_host = make_callbacks(options)
+        # Callbacks used by `buffering`, `Tasking` and `Streaming`
+        callback = lambda f: on_host(f, options)
+        runs_on_host, reads_if_on_host = make_callbacks(options)
 
         return {
-            'buffering': lambda i: buffering(i, on_host, sregistry, options),
+            'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
             'tasking': Tasker(runs_on_host, sregistry).process,
             'streaming': Streaming(reads_if_on_host, sregistry).process,
@@ -371,34 +372,37 @@ class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
 
 # Utils
 
+def on_host(f, options):
+    # A Dimension in `f` defining an IterationSpace that definitely
+    # gets executed on the host, regardless of whether it's parallel
+    # or sequential
+    if not is_on_device(f, options['gpu-fit']):
+        return f.time_dim
+    else:
+        return None
 
-def make_callbacks(options):
+
+def make_callbacks(options, key=None):
     """
     Options-dependent callbacks used by various compiler passes.
     """
 
-    def on_host(f):
-        # A Dimension in `f` defining an IterationSpace that definitely
-        # gets executed on the host, regardless of whether it's parallel
-        # or sequential
-        if not is_on_device(f, options['gpu-fit']):
-            return f.time_dim
-        else:
-            return None
+    if key is None:
+        key = lambda f: on_host(f, options)
 
     def runs_on_host(c):
         # The only situation in which a Cluster doesn't get offloaded to
         # the device is when it writes to a host Function
-        retval = {on_host(f) for f in c.scope.writes} - {None}
+        retval = {key(f) for f in c.scope.writes} - {None}
         retval = set().union(*[d._defines for d in retval])
         return retval
 
     def reads_if_on_host(c):
         if not runs_on_host(c):
-            retval = {on_host(f) for f in c.scope.reads} - {None}
+            retval = {key(f) for f in c.scope.reads} - {None}
             retval = set().union(*[d._defines for d in retval])
             return retval
         else:
             return set()
 
-    return on_host, runs_on_host, reads_if_on_host
+    return runs_on_host, reads_if_on_host
