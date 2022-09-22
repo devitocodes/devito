@@ -44,6 +44,9 @@ class DeviceOperatorMixin(object):
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)
 
+        # CSE
+        o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
@@ -156,7 +159,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, cls.CSE_MIN_COST)
+        clusters = cse(clusters, sregistry, options)
 
         # Blocking to define thread blocks
         if options['blocklazy']:
@@ -241,7 +244,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cse': lambda i: cse(i, sregistry, cls.CSE_MIN_COST),
+            'cse': lambda i: cse(i, sregistry, options),
             'opt-pows': optimize_pows,
             'topofuse': lambda i: fuse(i, toposort=True, options=options)
         }

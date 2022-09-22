@@ -5,7 +5,6 @@ from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf
 from devito.symbolics.manipulation import _uxreplace
 from devito.types import Eq, Symbol
-from devito.types.basic import AbstractFunction
 
 __all__ = ['cse']
 
@@ -15,12 +14,12 @@ class Temp(Symbol):
 
 
 @cluster_pass
-def cse(cluster, sregistry, min_cost, *args):
+def cse(cluster, sregistry, options, *args):
     """
     Common sub-expressions elimination (CSE).
     """
     make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-    exprs = _cse(cluster, make, min_cost=min_cost)
+    exprs = _cse(cluster, make, min_cost=options['cse-min-cost'])
 
     return cluster.rebuild(exprs=exprs)
 
@@ -51,9 +50,8 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
     # Just for flexibility, accept either Clusters or exprs
     if isinstance(maybe_exprs, Cluster):
-        cluster = maybe_exprs
-        processed = list(cluster.exprs)
-        scope = cluster.scope
+        processed = list(maybe_exprs.exprs)
+        scope = maybe_exprs.scope
     else:
         processed = list(maybe_exprs)
         scope = Scope(maybe_exprs)
@@ -83,8 +81,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
         # Create temporaries
         hit = max(targets.values())
-        picked = [k for k, v in targets.items() if v == hit]
-        temps = [Eq(make(), e) for e in picked]
+        temps = [Eq(make(), k) for k, v in targets.items() if v == hit]
 
         # Apply replacements
         # The extracted temporaries are inserted before the first expression
@@ -102,10 +99,6 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
         exclude.update({t.lhs for t in temps})
-
-        # Prepare for the next round
-        for k in picked:
-            targets.pop(k)
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed)
@@ -125,15 +118,13 @@ def _compact_temporaries(exprs):
     # safely be compacted; a generic Symbol could instead be accessed in a subsequent
     # Cluster, for example: `for (i = ...) { a = b; for (j = a ...) ...`
     mapper = {e.lhs: e.rhs for e in exprs
-              if isinstance(e.lhs, Temp) and
-              (q_leaf(e.rhs) or isinstance(e.rhs, AbstractFunction))}
+              if isinstance(e.lhs, Temp) and q_leaf(e.rhs)}
 
     processed = []
     for e in exprs:
         if e.lhs not in mapper:
             # The temporary is retained, and substitutions may be applied
-            expr = e
-            changed = True
+            expr, changed = e, True
             while changed:
                 expr, changed = _uxreplace(expr, mapper)
             processed.append(expr)

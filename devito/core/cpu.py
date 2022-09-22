@@ -33,6 +33,9 @@ class Cpu64OperatorMixin(object):
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)
 
+        # CSE
+        o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
         o['blocklevels'] = oo.pop('blocklevels', cls.BLOCK_LEVELS)
@@ -139,7 +142,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, cls.CSE_MIN_COST)
+        clusters = cse(clusters, sregistry, options)
 
         # Blocking to improve data locality
         if options['blocklazy']:
@@ -234,7 +237,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
             'cire-sops': lambda i: cire(i, 'sops', sregistry, options, platform),
-            'cse': lambda i: cse(i, sregistry, cls.CSE_MIN_COST),
+            'cse': lambda i: cse(i, sregistry, options),
             'opt-pows': optimize_pows,
             'opt-hyperplanes': optimize_hyperplanes,
             'topofuse': lambda i: fuse(i, toposort=True, options=options)
