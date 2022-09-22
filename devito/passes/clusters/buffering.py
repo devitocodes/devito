@@ -250,18 +250,30 @@ class Buffering(Queue):
         if self.options['buf-fuse-tasks']:
             return processed
         for b in buffers:
-            if not (b.is_writeonly or b.is_readonly):
+            if b.is_writeonly:
+                # `b` might be written by multiple, potentially mutually-exclusive,
+                # equations. For example, two equations that have or will have
+                # complementary guards, hence only one will be execute. In such a
+                # case, we can split all equations over separate IterationSpaces
+                key0 = lambda: Stamp()
+            elif b.is_readonly:
+                # `b` is read multiple times -- this could just be the case of
+                # coupled equations, so we more cautiously perform a
+                # "buffer-wise" splitting of the IterationSpaces (i.e., only
+                # relevant if there are at least two read-only buffers)
+                stamp = Stamp()
+                key0 = lambda: stamp
+            else:
                 continue
 
             contracted = set().union(*[d._defines for d in b.contraction_mapper])
 
-            stamp = Stamp()
             processed1 = []
             for c in processed:
                 if b.buffer in c.functions:
-                    key = lambda d: d not in contracted
-                    dims = c.ispace.project(key).itdimensions
-                    ispace = c.ispace.lift(dims, stamp)
+                    key1 = lambda d: d not in contracted
+                    dims = c.ispace.project(key1).itdimensions
+                    ispace = c.ispace.lift(dims, key0())
                     processed1.append(c.rebuild(ispace=ispace))
                 else:
                     processed1.append(c)
