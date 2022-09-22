@@ -105,6 +105,10 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
         'buf-callback': kwargs.get('opt_buffer'),
     }
 
+    # Escape hatch to selectively disable buffering
+    if options['buf-async-degree'] == 0:
+        return clusters
+
     return Buffering(callback, sregistry, options).process(clusters)
 
 
