@@ -113,7 +113,7 @@ class AbstractDistributor(ABC):
         The global indices owned by the calling MPI rank, as a mapper from
         Dimensions to slices.
         """
-        return {d: slice(min(i), max(i) + 1)
+        return {d: slice(min(i), max(i) + 1) if len(i) > 0 else slice(0, -1)
                 for d, i in zip(self.dimensions, self.glb_numb)}
 
     @property
