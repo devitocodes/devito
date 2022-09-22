@@ -224,7 +224,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         # on device backends
         def callback(f):
             if f.is_TimeFunction and f.save is not None:
-                return [f.time_dim]
+                return f.time_dim
             else:
                 return None
 

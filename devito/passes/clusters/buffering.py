@@ -121,6 +121,11 @@ class Buffering(Queue):
         return self._process_fatd(clusters, 1, cache={})
 
     def callback(self, clusters, prefix, cache=None):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
         # Locate all Function accesses within the provided `clusters`
         accessmap = AccessMapper(clusters)
 
@@ -132,13 +137,11 @@ class Buffering(Queue):
                 continue
 
             # Is `f` really a buffering candidate?
-            dims = self.callback0(f)
-            if dims is None:
-                continue
-            if not all(any([i.dim in d._defines for i in prefix]) for d in dims):
+            dim = self.callback0(f)
+            if dim is None or d not in dim._defines:
                 continue
 
-            b = cache[f] = buffers.make(f, dims, accessv, self.options, self.sregistry)
+            b = cache[f] = buffers.make(f, dim, accessv, self.options, self.sregistry)
 
         if not buffers:
             return clusters
@@ -314,9 +317,9 @@ class Buffer(object):
     ----------
     function : DiscreteFunction
         The object for which the buffer is created.
-    contracted_dims : list of Dimension
-        The Dimensions in `function` to be contracted, that is to be replaced
-        by ModuloDimensions.
+    d : Dimension
+        The Dimension in `function` to be contracted, that is to be replaced
+        with a ModuloDimension.
     accessv : AccessValue
         All accesses involving `function`.
     options : dict, optional
@@ -333,8 +336,7 @@ class Buffer(object):
         are created.
     """
 
-    def __init__(self, function, contracted_dims, accessv, options, sregistry,
-                 bds=None, mds=None):
+    def __init__(self, function, d, accessv, options, sregistry, bds=None, mds=None):
         # Parse compilation options
         async_degree = options['buf-async-degree']
         callback = options['buf-callback']
@@ -351,53 +353,52 @@ class Buffer(object):
         # E.g., `u[time,x] + u[time+1,x] -> `ub[sb0,x] + ub[sb1,x]`, where `sb0`
         # and `sb1` are ModuloDimensions starting at `time` and `time+1` respectively
         dims = list(function.dimensions)
-        for d in contracted_dims:
-            assert d in function.dimensions
+        assert d in function.dimensions
 
-            # Determine the buffer size, and therefore the span of the ModuloDimension,
-            # along the contracting Dimension `d`
-            indices = filter_ordered(i.indices[d] for i in accessv.accesses)
-            slots = [i.subs({d: 0, d.spacing: 1}) for i in indices]
-            try:
-                size = max(slots) - min(slots) + 1
-            except TypeError:
-                # E.g., special case `slots=[-1 + time/factor, 2 + time/factor]`
-                # Resort to the fast vector-based comparison machinery (rather than
-                # the slower sympy.simplify)
-                slots = [Vector(i) for i in slots]
-                size = int((vmax(*slots) - vmin(*slots) + 1)[0])
+        # Determine the buffer size, and therefore the span of the ModuloDimension,
+        # along the contracting Dimension `d`
+        indices = filter_ordered(i.indices[d] for i in accessv.accesses)
+        slots = [i.subs({d: 0, d.spacing: 1}) for i in indices]
+        try:
+            size = max(slots) - min(slots) + 1
+        except TypeError:
+            # E.g., special case `slots=[-1 + time/factor, 2 + time/factor]`
+            # Resort to the fast vector-based comparison machinery (rather than
+            # the slower sympy.simplify)
+            slots = [Vector(i) for i in slots]
+            size = int((vmax(*slots) - vmin(*slots) + 1)[0])
 
-            if async_degree is not None:
-                if async_degree < size:
-                    warning("Ignoring provided asynchronous degree as it'd be "
-                            "too small for the required buffer (provided %d, "
-                            "but need at least %d for `%s`)"
-                            % (async_degree, size, function.name))
-                else:
-                    size = async_degree
-
-            # Replace `d` with a suitable CustomDimension `bd`
-            name = sregistry.make_name(prefix='db')
-            bd = bds.setdefault((d, size), CustomDimension(name, 0, size-1, size, d))
-            self.contraction_mapper[d] = dims[dims.index(d)] = bd
-
-            # Finally create the ModuloDimensions as children of `bd`
-            if size > 1:
-                # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
-                # follows SymPy's index ordering (time, time-1, time+1) after modulo
-                # replacement, so that associativity errors are consistent. This very
-                # same strategy is also applied in clusters/algorithms/Stepper
-                p, _ = offset_from_centre(d, indices)
-                indices = sorted(indices,
-                                 key=lambda i: -np.inf if i - p == 0 else (i - p))
-                for i in indices:
-                    name = sregistry.make_name(prefix='sb')
-                    md = mds.setdefault((bd, i), ModuloDimension(name, bd, i, size))
-                    self.index_mapper[d][i] = md
-                    self.sub_iterators[d.root].append(md)
+        if async_degree is not None:
+            if async_degree < size:
+                warning("Ignoring provided asynchronous degree as it'd be "
+                        "too small for the required buffer (provided %d, "
+                        "but need at least %d for `%s`)"
+                        % (async_degree, size, function.name))
             else:
-                assert len(indices) == 1
-                self.index_mapper[d][indices[0]] = 0
+                size = async_degree
+
+        # Replace `d` with a suitable CustomDimension `bd`
+        name = sregistry.make_name(prefix='db')
+        bd = bds.setdefault((d, size), CustomDimension(name, 0, size-1, size, d))
+        self.contraction_mapper[d] = dims[dims.index(d)] = bd
+
+        # Finally create the ModuloDimensions as children of `bd`
+        if size > 1:
+            # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
+            # follows SymPy's index ordering (time, time-1, time+1) after modulo
+            # replacement, so that associativity errors are consistent. This very
+            # same strategy is also applied in clusters/algorithms/Stepper
+            p, _ = offset_from_centre(d, indices)
+            indices = sorted(indices,
+                             key=lambda i: -np.inf if i - p == 0 else (i - p))
+            for i in indices:
+                name = sregistry.make_name(prefix='sb')
+                md = mds.setdefault((bd, i), ModuloDimension(name, bd, i, size))
+                self.index_mapper[d][i] = md
+                self.sub_iterators[d.root].append(md)
+        else:
+            assert len(indices) == 1
+            self.index_mapper[d][indices[0]] = 0
 
         # Track the SubDimensions used to index into `function`
         for e in accessv.mapper:

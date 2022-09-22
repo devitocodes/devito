@@ -2,9 +2,8 @@ from collections import OrderedDict, defaultdict
 
 from sympy import And
 
-from devito.ir import (Forward, GuardBoundNext, Queue, Vector, SEQUENTIAL,
-                       WaitLock, WithLock, FetchUpdate, PrefetchUpdate,
-                       ReleaseLock, normalize_syncs)
+from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
+                       FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
 from devito.tools import is_integer, timed_pass
 from devito.types import CustomDimension, Lock
@@ -48,14 +47,12 @@ class Tasker(Asynchronous):
 
         d = prefix[-1].dim
 
-        if not all(SEQUENTIAL in c.properties[d] for c in clusters):
-            return clusters
-
         locks = {}
         waits = defaultdict(list)
         tasks = defaultdict(list)
         for c0 in clusters:
-            if not self.key(c0):
+            dims = self.key(c0)
+            if d not in dims:
                 # Not a candidate asynchronous task
                 continue
 
@@ -178,8 +175,8 @@ class Streaming(Asynchronous):
         # Case 1
         if d.is_Custom and is_integer(it.size):
             for c in clusters:
-                candidates = self.key(c)
-                if candidates:
+                dims = self.key(c)
+                if d._defines & dims:
                     if is_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
                         self._actions_from_init(c, prefix, actions)
@@ -188,12 +185,9 @@ class Streaming(Asynchronous):
                         raise NotImplementedError
 
         # Case 2
-        elif all(SEQUENTIAL in c.properties[d] for c in clusters):
-            mapper = OrderedDict()
-            for c in clusters:
-                candidates = self.key(c)
-                if candidates:
-                    mapper[c] = is_memcpy(c)
+        else:
+            mapper = OrderedDict([(c, is_memcpy(c)) for c in clusters
+                                  if d in self.key(c)])
 
             # Case 2A (special case, leading to more efficient streaming)
             if all(mapper.values()):
@@ -202,7 +196,7 @@ class Streaming(Asynchronous):
 
             # Case 2B
             elif mapper:
-                # There use to be a handler for this case as well, but it was dropped
+                # There used to be a handler for this case, but it was dropped
                 # because it created inefficient code and in practice never used
                 raise NotImplementedError
 
