@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from functools import singledispatch
 
 import cgen as c
 from sympy import Or
@@ -11,8 +12,7 @@ from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper, singledispatchmethod
-from devito.types import QueueID
+from devito.tools import as_mapper
 
 __init__ = ['Orchestrator']
 
@@ -31,16 +31,15 @@ class Orchestrator(object):
     def __init__(self, sregistry):
         self.sregistry = sregistry
 
-    @classmethod
     def _lower_tasks(self, sync_ops, func):
         """
-        Utility classmethod to lower a list of SyncOps into an IET implementing
+        Utility method to lower a list of SyncOps into an IET implementing
         the core of the task.
         """
         actions = []
         prefixes = set()
         for s in sync_ops:
-            v, prefix = func(s.target, s)
+            v, prefix = func(s.function, s, self.lang, self.sregistry)
             actions.extend(v)
             prefixes.add(prefix)
 
@@ -49,9 +48,6 @@ class Orchestrator(object):
         prefix = prefixes.pop()
 
         return actions, prefix
-
-    def _make_async_queue(self):
-        return QueueID()
 
     def _make_waitlock(self, iet, sync_ops):
         waitloop = List(
@@ -77,20 +73,8 @@ class Orchestrator(object):
 
         return iet, []
 
-    @singledispatchmethod
-    def _task_withlock(self, target, sync_op):
-        # The only known handler of a WithLock task is the copy from device
-        # to host. However, we make it single-dispatchable for foreign modules
-        qid = self._make_async_queue()
-
-        actions = [self.lang._map_update_host_async(target, sync_op.imask, qid)]
-        if self.lang._map_wait is not None:
-            actions.append(self.lang._map_wait(qid))
-
-        return actions, 'copy_device_to_host'
-
     def _make_withlock(self, iet, sync_ops):
-        preactions, prefix = self._lower_tasks(sync_ops, self._task_withlock)
+        preactions, prefix = self._lower_tasks(sync_ops, task_withlock)
 
         preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         preactions.append(BlankLine)
@@ -110,16 +94,8 @@ class Orchestrator(object):
 
         return iet, [efunc]
 
-    @singledispatchmethod
-    def _task_fetchupdate(self, target, sync_op):
-        # The only known handler of a FetchUpdate task is the synchronous copy from
-        # host to device. However, we make it single-dispatchable for foreign modules
-        actions = [self.lang._map_update_device(target, sync_op.imask)]
-
-        return actions, 'init_device'
-
     def _make_fetchupdate(self, iet, sync_ops):
-        postactions, prefix = self._lower_tasks(sync_ops, self._task_fetchupdate)
+        postactions, prefix = self._lower_tasks(sync_ops, task_fetchupdate)
 
         # Turn init IET into a Callable
         name = self.sregistry.make_name(prefix=prefix)
@@ -135,20 +111,8 @@ class Orchestrator(object):
 
         return iet, [efunc]
 
-    @singledispatchmethod
-    def _task_prefetchupdate(self, target, sync_op):
-        # The only known handler of a PrefetchUpdate task is the asynchronous copy
-        # from device to host. However, we make it single-dispatchable for foreign modules
-        qid = self._make_async_queue()
-
-        actions = [self.lang._map_update_device_async(target, sync_op.imask, qid)]
-        if self.lang._map_wait is not None:
-            actions.append(self.lang._map_wait(qid))
-
-        return actions, 'prefetch_host_to_device'
-
     def _make_prefetchupdate(self, iet, sync_ops):
-        postactions, prefix = self._lower_tasks(sync_ops, self._task_prefetchupdate)
+        postactions, prefix = self._lower_tasks(sync_ops, task_prefetchupdate)
 
         postactions.append(BlankLine)
         postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
@@ -193,3 +157,47 @@ class Orchestrator(object):
         iet = Transformer(subs).visit(iet)
 
         return iet, {'efuncs': efuncs}
+
+
+# Task handlers
+
+
+@singledispatch
+def task_withlock(function, s, lang, sregistry):
+    """
+    The only known handler of a WithLock task is the copy from device
+    to host. However, we make it single-dispatchable for foreign modules.
+    """
+    qid = lang.AsyncQueue(name='qid')
+
+    actions = [lang._map_update_host_async(s.target, s.imask, qid)]
+    if lang._map_wait is not None:
+        actions.append(lang._map_wait(qid))
+
+    return actions, 'copy_device_to_host'
+
+
+@singledispatch
+def task_fetchupdate(function, s, lang, sregistry):
+    """
+    The only known handler of a FetchUpdate task is the synchronous copy from
+    host to device. However, we make it single-dispatchable for foreign modules.
+    """
+    actions = [lang._map_update_device(s.target, s.imask)]
+
+    return actions, 'init_device'
+
+
+@singledispatch
+def task_prefetchupdate(function, s, lang, sregistry):
+    """
+    The only known handler of a PrefetchUpdate task is the asynchronous copy
+    from device to host. However, we make it single-dispatchable for foreign modules.
+    """
+    qid = lang.AsyncQueue(name='qid')
+
+    actions = [lang._map_update_device_async(s.target, s.imask, qid)]
+    if lang._map_wait is not None:
+        actions.append(lang._map_wait(qid))
+
+    return actions, 'prefetch_host_to_device'
