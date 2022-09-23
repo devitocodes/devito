@@ -1,7 +1,14 @@
 import ctypes
 from collections import OrderedDict
 from collections.abc import Iterable
-from functools import reduce
+from functools import reduce, singledispatch, update_wrapper
+try:
+    # Only available as of Python3.8
+    from functools import singledispatchmethod
+except ImportError:
+    # Will be implemented below in this module
+    singledispatchmethod = None
+from functools import singledispatchmethod
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
 import types
@@ -15,7 +22,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split', 'r
            'filter_sorted', 'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
            'ctypes_to_cstr', 'ctypes_to_cgen', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'c_restrict_void_p']
+           'humanbytes', 'c_restrict_void_p', 'singledispatchmethod']
 
 
 def prod(iterable, initial=1):
@@ -433,3 +440,23 @@ def humanbytes(B):
         return '%d GB' % round(B / GB)
     elif TB <= B:
         return '%d TB' % round(B / TB)
+
+
+if singledispatchmethod is None:
+    def singledispatchmethod(func):
+        """
+        Implementation of singledispatchmethod for compatibility with Python<3.8.
+
+        Extracted from:
+
+            https://stackoverflow.com/questions/24601722/how-can-i-use-\
+                functools-singledispatch-with-instance-methods
+        """
+        dispatcher = singledispatch(func)
+
+        def wrapper(*args, **kw):
+            return dispatcher.dispatch(args[1].__class__)(*args, **kw)
+
+        wrapper.register = dispatcher.register
+        update_wrapper(wrapper, func)
+        return wrapper
