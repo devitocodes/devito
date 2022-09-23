@@ -3,7 +3,8 @@ from ctypes import POINTER, Structure
 from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
 
-__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort']
+__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort',
+           'HierarchyLayer', 'HostLayer']
 
 
 class Buffer(Tag):
@@ -44,3 +45,20 @@ class CtypesFactory(object):
         dtype = POINTER(type(pname, (Structure,), {'_fields_': pfields}))
         key = (pname, tuple(pfields))
         return cls.cache.setdefault(key, dtype)
+
+
+class HierarchyLayer(object):
+
+    """
+    Represent a generic layer of the node storage hierarchy (e.g., disk, host).
+    """
+
+    def __init__(self, suffix=''):
+        self.suffix = suffix
+
+    def __repr__(self):
+        return "Layer<%s>" % self.suffix
+
+
+class HostLayer(HierarchyLayer):
+    pass

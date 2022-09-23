@@ -274,7 +274,7 @@ class DeviceRM(DeviceSymbol):
 class QueueID(Symbol):
 
     def __new__(cls, *args, **kwargs):
-        kwargs.setdefault('name', 'qid')
+        kwargs['name'] = 'qid'
         kwargs.setdefault('is_const', True)
         return super().__new__(cls, *args, **kwargs)
 
