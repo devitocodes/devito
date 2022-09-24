@@ -18,7 +18,7 @@ from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               Keyword, SizeOf, estimate_cost, pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Scalar, Array
+from devito.types import Scalar, Array, Symbol
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -47,71 +47,85 @@ def test_scheduling_after_rewrite():
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
 
-@pytest.mark.parametrize('exprs,expected', [
+@pytest.mark.parametrize('exprs,expected,min_cost', [
     # Simple cases
     (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, t0 + t1)', 'Eq(ti1, t0 + t1)'],
-     ['t0 + t1', '2/r0', 'r0', 'r0']),
+     ['t0 + t1', '2/r0', 'r0', 'r0'], 0),
     (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, 2/(t0 + t1) + 1)', 'Eq(ti1, 2/(t0 + t1) + 1)'],
-     ['2/(t0 + t1)', 'r1 + 1', 'r1', 'r0', 'r0']),
+     ['2/(t0 + t1)', 'r1', 'r1 + 1', 'r0', 'r0'], 0),
     (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
      ['ti0[x, y, z] + ti1[x, y, z]',
-      'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
+      'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)'], 0),
     (['Eq(tu, t0/t1)', 'Eq(ti0, 2 + t0/t1)', 'Eq(ti1, 2 + t0/t1)'],
-     ['t0/t1', 'r1 + 2', 'r1', 'r0', 'r0']),
+     ['t0/t1', 'r1', 'r1 + 2', 'r0', 'r0'], 0),
     # Across expressions
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
-     ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
+     ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0'], 0),
     # Intersecting
     pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
-                 ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'],
+                 ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'], 0,
                  marks=pytest.mark.xfail),
     # Divisions (== powers with negative exponenet) are always captured
     (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
-     ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0']),
+     ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0'], 0),
     # `compact_temporaries` must detect chains of isolated temporaries
     (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
-     ['tv[t, x, y, z]']),
+     ['tv[t, x, y, z]'], 0),
     # Dimension-independent data dependences should be a stopper for CSE
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt + 1)', 'Eq(tz.forward, tv.dt + 2)'],
-     ['1/h_x', '1/dt', '-r1*tv[t, x, y, z]',
-      '-r2*tu[t, x, y, z] + r2*tu[t, x + 1, y, z] + 1',
-      '-r2*tv[t, x, y, z] + r2*tv[t, x + 1, y, z] + 1',
-      'r0 + r1*tv[t + 1, x, y, z] + 1',
-      'r0 + r1*tv[t + 1, x, y, z] + 2']),
+     ['1/h_x', '-r1*tu[t, x, y, z] + r1*tu[t, x + 1, y, z] + 1',
+      '-r1*tv[t, x, y, z] + r1*tv[t, x + 1, y, z] + 1',
+      '1/dt', '-r2*tv[t, x, y, z]',
+      'r0 + r2*tv[t + 1, x, y, z] + 1',
+      'r0 + r2*tv[t + 1, x, y, z] + 2'], 0),
     # Fancy use case with lots of temporaries
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
-     ['1/h_x', 'h_x**(-2)', 'h_y**(-2)', '1/dt', '-r11*tv[t, x, y, z]', '-2.0*r12',
-      '-2.0*r13', '-r11*tv[t, x + 1, y, z] + r11*tv[t + 1, x + 1, y, z]',
-      '-r11*tv[t, x - 1, y, z] + r11*tv[t + 1, x - 1, y, z]',
-      '-r11*tv[t, x, y + 1, z] + r11*tv[t + 1, x, y + 1, z]',
-      '-r11*tv[t, x + 1, y + 1, z] + r11*tv[t + 1, x + 1, y + 1, z]',
-      '-r11*tv[t, x - 1, y + 1, z] + r11*tv[t + 1, x - 1, y + 1, z]',
-      '-r11*tv[t, x, y - 1, z] + r11*tv[t + 1, x, y - 1, z]',
-      '-r11*tv[t, x + 1, y - 1, z] + r11*tv[t + 1, x + 1, y - 1, z]',
-      '-r11*tv[t, x - 1, y - 1, z] + r11*tv[t + 1, x - 1, y - 1, z]',
-      '-r14*tu[t, x, y, z] + r14*tu[t, x + 1, y, z] + 1',
-      '-r14*tv[t, x, y, z] + r14*tv[t, x + 1, y, z] + 1',
-      'r12*(r0*r13 + r1*r13 + r2*r8) + r12*(r13*r3 + r13*r4 + r5*r8) + '
-      'r9*(r13*r6 + r13*r7 + r8*(r10 + r11*tv[t + 1, x, y, z])) + 1',
-      'r13*(r0*r12 + r12*r3 + r6*r9) + r13*(r1*r12 + r12*r4 + r7*r9) + '
-      'r8*(r12*r2 + r12*r5 + r9*(r10 + r11*tv[t + 1, x, y, z])) + 2']),
+     ['1/h_x', '-r11*tu[t, x, y, z] + r11*tu[t, x + 1, y, z] + 1',
+      '-r11*tv[t, x, y, z] + r11*tv[t, x + 1, y, z] + 1',
+      '1/dt', '-r12*tv[t, x - 1, y - 1, z] + r12*tv[t + 1, x - 1, y - 1, z]',
+      '-r12*tv[t, x + 1, y - 1, z] + r12*tv[t + 1, x + 1, y - 1, z]',
+      '-r12*tv[t, x, y - 1, z] + r12*tv[t + 1, x, y - 1, z]',
+      '-r12*tv[t, x - 1, y + 1, z] + r12*tv[t + 1, x - 1, y + 1, z]',
+      '-r12*tv[t, x + 1, y + 1, z] + r12*tv[t + 1, x + 1, y + 1, z]',
+      '-r12*tv[t, x, y + 1, z] + r12*tv[t + 1, x, y + 1, z]',
+      '-r12*tv[t, x - 1, y, z] + r12*tv[t + 1, x - 1, y, z]',
+      '-r12*tv[t, x + 1, y, z] + r12*tv[t + 1, x + 1, y, z]',
+      'h_x**(-2)', '-2.0*r13', 'h_y**(-2)', '-2.0*r14', '-r12*tv[t, x, y, z]',
+      'r14*(r0*r13 + r1*r13 + r2*r8) + r14*(r13*r3 + r13*r4 + r5*r8) + ' +
+      'r9*(r13*r6 + r13*r7 + r8*(r10 + r12*tv[t + 1, x, y, z])) + 1',
+      'r13*(r0*r14 + r14*r3 + r6*r9) + r13*(r1*r14 + r14*r4 + r7*r9) + ' +
+      'r8*(r14*r2 + r14*r5 + r9*(r10 + r12*tv[t + 1, x, y, z])) + 2'], 0),
+    # Existing temporaries from nested Function as index
+    (['Eq(e0, fx[x])', 'Eq(tu, cos(-tu[t, e0, y, z]) + tv[t, x, y, z])',
+      'Eq(tv, cos(tu[t, e0, y, z]) + tw)'],
+     ['fx[x]', 'cos(tu[t, e0, y, z])', 'r0 + tv[t, x, y, z]', 'r0 + tw[t, x, y, z]'], 0),
+    # Make sure -x isn't factorized with default minimum cse cost
+    (['Eq(e0, fx[x])', 'Eq(tu, -tu[t, e0, y, z] + tv[t, x, y, z])',
+      'Eq(tv, -tu[t, e0, y, z] + tw)'],
+     ['fx[x]', '-tu[t, e0, y, z] + tv[t, x, y, z]',
+      '-tu[t, e0, y, z] + tw[t, x, y, z]'], 1)
 ])
-def test_cse(exprs, expected):
+def test_cse(exprs, expected, min_cost):
     """Test common subexpressions elimination."""
     grid = Grid((3, 3, 3))
-    dims = grid.dimensions
+    x, y, z = grid.dimensions
+    t = grid.stepping_dim  # noqa
 
     tu = TimeFunction(name="tu", grid=grid, space_order=2)  # noqa
     tv = TimeFunction(name="tv", grid=grid, space_order=2)  # noqa
     tw = TimeFunction(name="tw", grid=grid, space_order=2)  # noqa
     tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=dims).indexify()  # noqa
+    fx = Function(name="fx", grid=grid, dimensions=(x,), shape=(3,))  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
     t0 = Temp(name='t0')  # noqa
     t1 = Temp(name='t1')  # noqa
     t2 = Temp(name='t2')  # noqa
+    # Needs to not be a Temp to mimic nested index extraction and prevent
+    # cse to compact the temporary back.
+    e0 = Symbol(name='e0')  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
@@ -119,7 +133,8 @@ def test_cse(exprs, expected):
 
     counter = generator()
     make = lambda: Temp(name='r%d' % counter()).indexify()
-    processed = _cse(exprs, make)
+    processed = _cse(exprs, make, min_cost)
+
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
@@ -1178,7 +1193,7 @@ class TestAliases(object):
 
         # Also check against expected operation count to make sure
         # all redundancies have been detected correctly
-        assert sum(i.ops for i in summary1.values()) == 75
+        assert sum(i.ops for i in summary1.values()) == 74
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_from_different_nests(self, rotate):

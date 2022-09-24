@@ -17,6 +17,11 @@ __all__ = ['CoreOperator', 'CustomOperator',
 class BasicOperator(Operator):
 
     # Default values for various optimization options
+    CSE_MIN_COST = 1
+    """
+    Minimum computational cost of an operation to be eliminated as a
+    common sub=expression.
+    """
 
     BLOCK_LEVELS = 1
     """
