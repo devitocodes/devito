@@ -180,7 +180,7 @@ class TestStreaming(object):
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
         assert len(op._func_table) == 2
-        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
+        exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 13 if configuration['language'] == 'openacc' else 12  # No `qid` w/ OMP
         assert str(exprs[b]) == 'const int deviceid = sdata->deviceid;'
         assert str(exprs[b+1]) == 'int time = sdata->time;'
@@ -238,7 +238,7 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'sdata1[0].time = time;'
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 2
-        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
+        exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 15 if configuration['language'] == 'openacc' else 14  # No `qid` w/ OMP
         assert str(exprs[b]) == 'lock0[0] = 1;'
 
@@ -284,7 +284,7 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2
-        exprs = FindNodes(Expression).visit(op._func_table['copy_device_to_host0'].root)
+        exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 15 if configuration['language'] == 'openacc' else 14  # No `qid` w/ OMP
         assert str(exprs[b]) == 'lock0[0] = 1;'
         assert str(exprs[b+1]) == 'lock1[0] = 1;'
@@ -349,7 +349,7 @@ class TestStreaming(object):
         assert str(sections[1].body[0].body[0].body[4].body[-1]) ==\
             'sdata0[wi0].flag = 2;'
         assert len(op1._func_table) == 2
-        exprs = FindNodes(Expression).visit(op1._func_table['copy_device_to_host0'].root)
+        exprs = FindNodes(Expression).visit(op1._func_table['copy_to_host0'].root)
         b = 18 if configuration['language'] == 'openacc' else 17  # No `qid` w/ OMP
         for i in range(3):
             assert 'lock0[t' in str(exprs[b + i])

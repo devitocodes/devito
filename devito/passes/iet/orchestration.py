@@ -144,7 +144,7 @@ class Orchestrator(object):
 
 # Task handlers
 
-layer_host = HostLayer()
+layer_host = HostLayer('host')
 
 
 @singledispatch
@@ -165,19 +165,24 @@ def _(layer, iet, sync_ops, lang, sregistry):
     name = sregistry.make_name(prefix='qid')
     qid = lang.AsyncQueue(name=name)
 
-    body = [lang._map_update_host_async(s.target, s.imask, qid) for s in sync_ops]
-    if lang._map_wait is not None:
-        body.append(lang._map_wait(qid))
+    try:
+        body = [lang._map_update_host_async(s.target, s.imask, qid)
+                for s in sync_ops]
+        if lang._map_wait is not None:
+            body.append(lang._map_wait(qid))
 
-    body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
-    body.append(BlankLine)
+        body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
+        body.append(BlankLine)
+    except NotImplementedError:
+        # A non-device backend
+        body = []
 
     body.extend(list(iet.body))
 
     body.append(BlankLine)
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
-    return body, 'copy_device_to_host'
+    return body, 'copy_to_%s' % layer.suffix
 
 
 @singledispatch
@@ -188,9 +193,12 @@ def fetchupdate(layer, iet, sync_ops, lang, sregistry):
 @fetchupdate.register(HostLayer)
 def _(layer, iet, sync_ops, lang, sregistry):
     body = list(iet.body)
-    body.extend([lang._map_update_device(s.target, s.imask) for s in sync_ops])
+    try:
+        body.extend([lang._map_update_device(s.target, s.imask) for s in sync_ops])
+    except NotImplementedError:
+        pass
 
-    return body, 'init_device'
+    return body, 'init_from_%s' % layer.suffix
 
 
 @singledispatch
@@ -203,13 +211,17 @@ def _(layer, iet, sync_ops, lang, sregistry):
     name = sregistry.make_name(prefix='qid')
     qid = lang.AsyncQueue(name=name)
 
-    body = [lang._map_update_device_async(s.target, s.imask, qid) for s in sync_ops]
-    if lang._map_wait is not None:
-        body.append(lang._map_wait(qid))
+    try:
+        body = [lang._map_update_device_async(s.target, s.imask, qid)
+                for s in sync_ops]
+        if lang._map_wait is not None:
+            body.append(lang._map_wait(qid))
+        body.append(BlankLine)
+    except NotImplementedError:
+        body = []
 
-    body.append(BlankLine)
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
     body = iet.body + (BlankLine,) + tuple(body)
 
-    return body, 'prefetch_host_to_device'
+    return body, 'prefetch_from_%s' % layer.suffix
