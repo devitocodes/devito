@@ -1419,8 +1419,7 @@ class TestAliases(object):
         op = Operator([pde, df])
 
         # Check code generation
-        assert_structure(op, ['t,x,y', 't,f', 't,f0_blk0,x0_blk0,f,x,y'],
-                         't,x,y,f,f0_blk0,x0_blk0,f,x,y')
+        assert_structure(op, ['t,x,y', 't,f', 't,f,x,y'], 't,x,y,f,f,x,y')
 
     def test_space_invariant_v2(self):
         """

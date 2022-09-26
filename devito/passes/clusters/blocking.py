@@ -184,6 +184,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
+        if d.is_Default:
+            # Heuristic: DefaultDimensions typically define relatively small
+            # iteration spaces, hence they're ruled out
+            return clusters
 
         for c in clusters:
             # PARALLEL* and AFFINE are necessary conditions
