@@ -6,7 +6,8 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
-from devito.ir.support import Any, Backward, Forward, IterationSpace, PARALLEL_IF_ATOMIC
+from devito.ir.support import (Any, Backward, Forward, IterationSpace,
+                               PARALLEL_IF_ATOMIC, pull_dims)
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
@@ -198,8 +199,17 @@ def guard(clusters):
                 else:
                     d = cd.parent
 
+                # If `cd` uses, as condition, an arbitrary SymPy expression, then
+                # we must ensure to nest it inside the last of the Dimensions
+                # appearing in `cd.condition`
+                if cd._factor is not None:
+                    k = d
+                else:
+                    dims = pull_dims(cd.condition)
+                    k = max(dims, default=d, key=lambda i: c.ispace.index(i))
+
                 # Pull `cd` from any expr
-                condition = guards.setdefault(d, [])
+                condition = guards.setdefault(k, [])
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])

@@ -7,8 +7,8 @@ import pytest
 from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
-                    Dimension, SubDimension, switchconfig, SubDomain, Lt, Le,
-                    Gt, Ge, Ne, Buffer, sin)
+                    Dimension, DefaultDimension, SubDimension, switchconfig,
+                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1213,6 +1213,50 @@ class TestConditionalDimension(object):
         assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
         assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
         assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+
+    def test_issue_2007(self):
+        """
+        Proxy for a Fourier integral. Main issue: conditional placed too deep
+        in the tree. It's functionally OK, but performance-wise really bad.
+        """
+        freq = [2, 4, 8]
+        nfreq = np.shape(freq)[0]
+        grid = Grid(shape=(5, 5))
+        time = grid.time_dim
+
+        u = TimeFunction(name="u", grid=grid)
+
+        # frequency dimension for holding fft proxy
+        freq_dim = DefaultDimension(name='freq_dim', default_value=nfreq)
+        f = Function(name="f", grid=grid, dimensions=(freq_dim,), shape=(nfreq,))
+
+        # Load the frequencies into f, this will serve as a lower bound for the
+        # proxy integral
+        f.data[:] = np.array(freq[:])
+        # Proxy Fourier integral holder
+        ure = Function(name="ure", grid=grid,
+                       dimensions=(freq_dim,) + u.indices[1:],
+                       shape=(nfreq,) + u.shape[1:])
+
+        # ConditionalDimension based on `f` to simulate bounds of Fourier integral
+        ct = ConditionalDimension(name="ct", parent=time, condition=Ge(time, f))
+        eqns = [
+            Eq(u.forward, u+1),
+            Eq(ure, ure + u, implicit_dims=ct)
+        ]
+
+        op = Operator(eqns)
+
+        op.apply(time_M=10)
+
+        assert np.all(ure.data[0] == 54)
+        assert np.all(ure.data[1] == 49)
+        assert np.all(ure.data[2] == 27)
+
+        # Make sure the ConditionalDimension is at the right depth for performance
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        assert trees[1][1].nodes[0].is_Conditional
 
 
 class TestMashup(object):
