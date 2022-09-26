@@ -1,13 +1,13 @@
 from collections import Counter, OrderedDict, namedtuple
-from functools import partial, wraps
+from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import CompositeObject, Lock
+from devito.types import Array, CompositeObject, Lock, Indirection
 from devito.types.args import ArgProvider
-from devito.types.dense import AliasFunction
+from devito.types.dense import DiscreteFunction
 
 __all__ = ['Graph', 'iet_pass', 'Jitting']
 
@@ -221,70 +221,98 @@ def abstract_efunc(efunc):
     Abstract `efunc` applying a set of rules:
 
         * The `efunc` names becomes "foo".
-        * Any concrete AbstractFunction gets replaced with a "more abstract" object:
-            - DiscreteFunctions become AliasFunctions with name "f0", "f1", ...
-            - Arrays remain Arrays but are renamed as "a0", "a1", ...
-        * Objects remain Objects but are renamed as "o0", "o1", ...
+        * Symbolic objects get replaced with "more abstract" objects:
+            - DiscreteFunctions are renamed as "f0", "f1", ...
+            - Arrays are renamed as "a0", "a1", ...
+            - Objects are renamed as "o0", "o1", ...
     """
+    functions = FindSymbols().visit(efunc)
+
+    # Precedence rules make it possible to reconstruct objects that depend on
+    # higher priority objects
+    priority = {
+        DiscreteFunction: 1,
+    }
+    key = lambda i: priority.get(i, 0)
+    functions = sorted(functions, key=key, reverse=True)
+
+    # Build abstraction mappings
     mapper = {}
     counter = Counter()
-    for i in FindSymbols().visit(efunc):
-        if isinstance(i, AliasFunction):
-            base = i.name
-
-        elif i.is_DiscreteFunction:
-            base = 'f'
-
-            rkwargs = set(i.__rkwargs__) - {'initializer'}
-            kwargs = {k: getattr(i, k, None) for k in rkwargs}
-            kwargs['name'] = '%s%d' % (base, counter[base])
-            v = AliasFunction(aliased=i, **kwargs)
-
-            mapper.update({
-                i: v,
-                i.indexed: v.indexed,
-                i.dmap: v.dmap,
-                i._C_symbol: v._C_symbol,
-            })
-
-        elif i.is_Array:
-            # Use special names for special objects
-            if isinstance(i, Lock):
-                base = 'lock'
-            else:
-                base = 'a'
-
-            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-            kwargs['name'] = '%s%d' % (base, counter[base])
-            v = type(i).__base__(**kwargs)
-
-            mapper.update({
-                i: v,
-                i.indexed: v.indexed,
-                i._C_symbol: v._C_symbol,
-            })
-
-        elif isinstance(i, CompositeObject):
-            base = 'o'
-
-            args = [getattr(i, k, None) for k in i.__rargs__]
-            args[0] = '%s%d' % (base, counter[base])
-            kwargs = {k: getattr(i, k, None) for k in i.__rkwargs__}
-            v = i.func(*args, **kwargs)
-
-            mapper[i] = v
-
-        else:
-            base = i.name
-
-            v = i
-
-        counter[base] += 1
+    for i in functions:
+        abstract_object(i, mapper, counter)
 
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
 
     return efunc
+
+
+@singledispatch
+def abstract_object(i, mapper, counter, cls=None):
+    """
+    Singledispatch-based implementation of object abstraction.
+
+    Singledispatch allows foreign modules to specify their own rules for
+    object abstraction.
+    """
+    return
+
+
+@abstract_object.register(DiscreteFunction)
+def _(i, mapper, counter):
+    base = 'f'
+    name = '%s%d' % (base, counter[base])
+
+    v = i._rebuild(name=name, initializer=None, alias=True)
+
+    mapper.update({
+        i: v,
+        i.indexed: v.indexed,
+        i.dmap: v.dmap,
+        i._C_symbol: v._C_symbol,
+    })
+    counter[base] += 1
+
+
+@abstract_object.register(Array)
+def _(i, mapper, counter):
+    if isinstance(i, Lock):
+        base = 'lock'
+    else:
+        base = 'a'
+    name = '%s%d' % (base, counter[base])
+
+    v = i._rebuild(name=name)
+
+    mapper.update({
+        i: v,
+        i.indexed: v.indexed,
+        i._C_symbol: v._C_symbol,
+    })
+    counter[base] += 1
+
+
+@abstract_object.register(CompositeObject)
+def _(i, mapper, counter):
+    base = 'o'
+    name = '%s%d' % (base, counter[base])
+
+    v = i._rebuild(name)
+
+    mapper[i] = v
+    counter[base] += 1
+
+
+@abstract_object.register(Indirection)
+def _(i, mapper, counter):
+    base = 'ind'
+    name = '%s%d' % (base, counter[base])
+
+    v = i._rebuild(name=name)
+
+    mapper[i] = v
+    counter[base] += 1
 
 
 def update_args(root, efuncs, dag):

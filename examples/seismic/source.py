@@ -213,8 +213,10 @@ class WaveletSource(PointSource):
         self.f0 = kwargs.get('f0')
         self.a = kwargs.get('a')
         self.t0 = kwargs.get('t0')
-        for p in range(kwargs['npoint']):
-            self.data[:, p] = self.wavelet
+
+        if not self.alias:
+            for p in range(kwargs['npoint']):
+                self.data[:, p] = self.wavelet
 
     @property
     def wavelet(self):

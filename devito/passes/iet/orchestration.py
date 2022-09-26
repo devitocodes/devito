@@ -37,7 +37,7 @@ class Orchestrator(object):
     def _make_waitlock(self, iet, sync_ops):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
-                             ",".join(s.function.name for s in sync_ops)),
+                             ",".join(s.target.name for s in sync_ops)),
             body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
             footer=c.Line()
         )
@@ -61,7 +61,7 @@ class Orchestrator(object):
     def _make_withlock(self, iet, sync_ops):
         qid = self._make_async_queue()
 
-        preactions = [self.lang._map_update_host_async(s.function, s.imask, qid)
+        preactions = [self.lang._map_update_host_async(s.target, s.imask, qid)
                       for s in sync_ops]
         if self.lang._map_wait is not None:
             preactions.append(self.lang._map_wait(qid))

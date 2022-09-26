@@ -395,24 +395,30 @@ class TestSparseFunction(object):
         assert list(ownership.keys()) == [grid.distributor.myrank]
 
     @pytest.mark.parallel(mode=4)
-    @pytest.mark.parametrize('coords,expected', [
-        ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]]),
+    @pytest.mark.parametrize('coords,expected,expectedinds', [
+        ([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]],
+         [(slice(0, 1), ), (slice(1, 2), ), (slice(2, 3), ), (slice(3, 4), )]),
+        ([(1.5, 1.5), ], [[], [], [], [0.]],
+         [(slice(0, -1), ), (slice(0, -1), ), (slice(0, -1), ), (slice(0, 1), )])
     ])
-    def test_local_indices(self, coords, expected):
+    def test_local_indices(self, coords, expected, expectedinds):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         data = np.array([0., 1., 2., 3.])
         coords = np.array(coords)
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords))
 
-        # Each of the 4 MPI ranks get one (randomly chosen) sparse point
-        assert sf.npoint == 1
+        # Each of the 4 MPI ranks get one (randomly chosen) sparse point if using 4 points
+        # If we are only using 1 point, only the last mpi rank receives a sparse point
+        npointexpected = 1 if len(coords) == 4 else (grid.distributor.myrank+1)//4
+        assert sf.npoint == npointexpected
 
         sf.coordinates.data[:] = coords
         sf.data[:] = data
-
         expected = np.array(expected[grid.distributor.myrank])
         assert np.all(sf.data == expected)
+        expectedinds = expectedinds[grid.distributor.myrank]
+        assert sf.local_indices == expectedinds
 
     @pytest.mark.parallel(mode=4)
     def test_scatter_gather(self):

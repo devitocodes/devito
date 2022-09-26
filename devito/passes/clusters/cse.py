@@ -2,7 +2,8 @@ from collections import OrderedDict
 
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
-from devito.symbolics import count, estimate_cost, q_xop, q_leaf, uxreplace
+from devito.symbolics import count, estimate_cost, q_xop, q_leaf
+from devito.symbolics.manipulation import _uxreplace
 from devito.types import Eq, Symbol
 
 __all__ = ['cse']
@@ -13,17 +14,17 @@ class Temp(Symbol):
 
 
 @cluster_pass
-def cse(cluster, sregistry, *args):
+def cse(cluster, sregistry, options, *args):
     """
     Common sub-expressions elimination (CSE).
     """
     make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
-    exprs = _cse(cluster, make)
+    exprs = _cse(cluster, make, min_cost=options['cse-min-cost'])
 
     return cluster.rebuild(exprs=exprs)
 
 
-def _cse(maybe_exprs, make, mode='default'):
+def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     """
     Main common sub-expressions elimination routine.
 
@@ -49,9 +50,8 @@ def _cse(maybe_exprs, make, mode='default'):
 
     # Just for flexibility, accept either Clusters or exprs
     if isinstance(maybe_exprs, Cluster):
-        cluster = maybe_exprs
-        processed = list(cluster.exprs)
-        scope = cluster.scope
+        processed = list(maybe_exprs.exprs)
+        scope = maybe_exprs.scope
     else:
         processed = list(maybe_exprs)
         scope = Scope(maybe_exprs)
@@ -67,37 +67,38 @@ def _cse(maybe_exprs, make, mode='default'):
     # dependence involving `a`
     exclude = {i.source.access for i in scope.d_flow.independent()}
 
-    mapped = []
     while True:
         # Detect redundancies
-        counted = count(mapped + processed, q_xop).items()
+        counted = count(processed, q_xop).items()
         targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
 
         # Rule out Dimension-independent data dependencies
         targets = OrderedDict([(k, v) for k, v in targets.items()
                                if not k.free_symbols & exclude])
 
-        if not targets:
+        if not targets or max(targets.values()) < min_cost:
             break
 
         # Create temporaries
         hit = max(targets.values())
-        picked = [k for k, v in targets.items() if v == hit]
-        mapper = OrderedDict([(e, make()) for i, e in enumerate(picked)])
+        temps = [Eq(make(), k) for k, v in targets.items() if v == hit]
 
         # Apply replacements
-        processed = [uxreplace(e, mapper) for e in processed]
-        mapped = [uxreplace(e, mapper) for e in mapped]
-        mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
+        # The extracted temporaries are inserted before the first expression
+        # that contains it
+        updated = []
+        for e in processed:
+            pe = e
+            for t in temps:
+                pe, changed = _uxreplace(pe, {t.rhs: t.lhs})
+                if changed and t not in updated:
+                    updated.append(t)
+            updated.append(pe)
+        processed = updated
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
-        exclude.update({i for i in mapper.values()})
-
-        # Prepare for the next round
-        for k in picked:
-            targets.pop(k)
-    processed = mapped + processed
+        exclude.update({t.lhs for t in temps})
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed)
@@ -117,19 +118,15 @@ def _compact_temporaries(exprs):
     # safely be compacted; a generic Symbol could instead be accessed in a subsequent
     # Cluster, for example: `for (i = ...) { a = b; for (j = a ...) ...`
     mapper = {e.lhs: e.rhs for e in exprs
-              if isinstance(e.lhs, Temp) and (q_leaf(e.rhs) or e.rhs.is_Function)}
+              if isinstance(e.lhs, Temp) and q_leaf(e.rhs)}
 
     processed = []
     for e in exprs:
         if e.lhs not in mapper:
             # The temporary is retained, and substitutions may be applied
-            expr = e
-            while True:
-                handle = uxreplace(expr, mapper)
-                if handle == expr:
-                    break
-                else:
-                    expr = handle
-            processed.append(handle)
+            expr, changed = e, True
+            while changed:
+                expr, changed = _uxreplace(expr, mapper)
+            processed.append(expr)
 
     return processed

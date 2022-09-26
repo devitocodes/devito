@@ -1,3 +1,5 @@
+from ctypes import c_void_p
+
 import sympy
 import pytest
 import numpy as np
@@ -9,7 +11,7 @@ from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
                               FieldFromComposite, IntDiv, MIN, MAX, ccode)
-from devito.types import Array
+from devito.types import Array, Object
 
 
 def test_float_indices():
@@ -190,13 +192,26 @@ def test_field_from_composite():
 
 
 def test_extended_sympy_arithmetic():
+    # NOTE: `s` gets turned into a devito.Symbol, whose dtype
+    # defaults to np.int32
     cfp = CallFromPointer('foo', 's')
     ffp = FieldFromPointer('foo', 's')
     ffc = FieldFromComposite('foo', 's')
 
-    assert ccode(cfp + 1) == '1 + s->foo()'
-    assert ccode(ffp + 1) == '1 + s->foo'
-    assert ccode(ffc + 1) == '1 + s.foo'
+    assert ccode(cfp + 1) == 's->foo() + 1'
+    assert ccode(ffp + 1) == 's->foo + 1'
+    assert ccode(ffc + 1) == 's.foo + 1'
+
+    grid = Grid(shape=(4, 4))
+    u = Function(name='u', grid=grid)
+    foo = FieldFromPointer('foo', u._C_symbol)
+    assert ccode(-1 + foo) == 'u_vec->foo - 1'
+
+    # Now wrapping an object whose dtype is not numeric, hence
+    # noncommutative
+    o = Object(name='o', dtype=c_void_p)
+    bar = FieldFromPointer('bar', o)
+    assert ccode(-1 + bar) == '-1 + o->bar'
 
 
 def test_intdiv():

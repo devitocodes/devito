@@ -4,7 +4,6 @@ from math import ceil
 
 from cached_property import cached_property
 import ctypes
-import numpy as np
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
@@ -954,9 +953,6 @@ class ArgumentsMap(dict):
         self.allocator = op._allocator
         self.platform = op._platform
         self.options = op._options
-
-        # Compute total used memory
-        self.memused = sum(v.nbytes for v in args.values() if isinstance(v, np.ndarray))
 
     @property
     def comm(self):

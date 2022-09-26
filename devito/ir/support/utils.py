@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
-from devito.types import Dimension, ModuloDimension
+from devito.types import Dimension, Indirection, ModuloDimension
 
 __all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io']
 
@@ -114,11 +114,16 @@ def detect_accesses(exprs):
         f = e.function
 
         for a, d0 in zip(e.indices, f.dimensions):
+            if isinstance(a, Indirection):
+                a = a.mapped
+
             if isinstance(a, ModuloDimension) and a.parent.is_Stepping:
                 # Explicitly unfold SteppingDimensions-induced ModuloDimensions
                 mapper[f][a.root].update([a.offset - a.root])
+
             elif isinstance(a, Dimension):
                 mapper[f][a].update([0])
+
             elif a.is_Add:
                 dims = {i for i in a.free_symbols if isinstance(i, Dimension)}
 

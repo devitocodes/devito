@@ -978,6 +978,11 @@ class Uxreplace(Transformer):
     def visit_Expression(self, o):
         return o._rebuild(expr=uxreplace(o.expr, self.mapper))
 
+    def visit_Iteration(self, o):
+        nodes = self._visit(o.nodes)
+        limits = [uxreplace(i, self.mapper) for i in o.limits]
+        return o._rebuild(nodes=nodes, limits=limits)
+
     def visit_Definition(self, o):
         try:
             return o._rebuild(function=self.mapper[o.function])

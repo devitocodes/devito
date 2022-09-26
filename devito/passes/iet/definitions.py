@@ -19,7 +19,6 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM, Symbol
-from devito.types.dense import AliasFunction
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -452,9 +451,7 @@ class DeviceAwareDataManager(DataManager):
         """
 
         def needs_transfer(f):
-            return (f._mem_mapped and
-                    not isinstance(f, AliasFunction) and
-                    is_on_device(f, self.gpu_fit))
+            return f._mem_mapped and not f.alias and is_on_device(f, self.gpu_fit)
 
         writes = set()
         reads = set()
