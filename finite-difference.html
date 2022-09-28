@@ -17,6 +17,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -49,7 +50,13 @@
 <li class="toctree-l1 current"><a class="reference internal" href="userapi.html">API Reference</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="grids.html">Grids</a></li>
 <li class="toctree-l2"><a class="reference internal" href="symbolic.html">Symbolic Objects</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Finite-difference approximations</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Finite-difference approximations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#devito.finite_differences.finite_difference.cross_derivative"><code class="docutils literal notranslate"><span class="pre">cross_derivative()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.finite_differences.finite_difference.first_derivative"><code class="docutils literal notranslate"><span class="pre">first_derivative()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.finite_differences.finite_difference.generate_indices"><code class="docutils literal notranslate"><span class="pre">generate_indices()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.finite_differences.finite_difference.generic_derivative"><code class="docutils literal notranslate"><span class="pre">generic_derivative()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="equation.html">Equation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="operator.html">Operator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="builtins.html">Built-in Operators</a></li>
@@ -92,10 +99,10 @@
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</p></li>
-<li><p><strong>dims</strong> (<em>tuple of Dimension</em>) – Dimensions w.r.t. which to differentiate.</p></li>
-<li><p><strong>fd_order</strong> (<em>tuple of ints</em>) – Coefficient discretization order. Note: this impacts the width of
+<li><p><strong>dims</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t. which to differentiate.</p></li>
+<li><p><strong>fd_order</strong> (<em>tuple</em><em> of </em><em>ints</em>) – Coefficient discretization order. Note: this impacts the width of
 the resulting stencil.</p></li>
-<li><p><strong>deriv_order</strong> (<em>tuple of ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
+<li><p><strong>deriv_order</strong> (<em>tuple</em><em> of </em><em>ints</em>) – Derivative order, e.g. 2 for a second-order derivative.</p></li>
 <li><p><strong>matvec</strong> (<em>Transpose</em><em>, </em><em>optional</em>) – Forward (matvec=direct) or transpose (matvec=transpose) mode of the
 finite difference. Defaults to <cite>direct</cite>.</p></li>
 <li><p><strong>x0</strong> (<em>dict</em><em>, </em><em>optional</em>) – Origin of the finite-difference scheme as a map dim: origin_dim.</p></li>
@@ -219,7 +226,7 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 <li><p><strong>side</strong> (<em>Side</em><em>, </em><em>optional</em>) – Side of the scheme (centered, left, right).</p></li>
 <li><p><strong>matvec</strong> (<em>Transpose</em><em>, </em><em>optional</em>) – Forward (matvec=direct) or transpose (matvec=transpose) mode of the
 finite difference. Defaults to <cite>direct</cite>.</p></li>
-<li><p><strong>x0</strong> (<em>dict of {Dimension: Dimension</em><em> or </em><em>Expr</em><em> or </em><em>Number}</em><em>, </em><em>optional</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
+<li><p><strong>x0</strong> (<em>dict</em><em> of </em><em>{Dimension: Dimension</em><em> or </em><em>Expr</em><em> or </em><em>Number}</em><em>, </em><em>optional</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
 </ul>
 </dd>
 <dt class="field-even">Return type</dt>

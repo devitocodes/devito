@@ -17,6 +17,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -50,7 +51,18 @@
 <li class="toctree-l2"><a class="reference internal" href="grids.html">Grids</a></li>
 <li class="toctree-l2"><a class="reference internal" href="symbolic.html">Symbolic Objects</a></li>
 <li class="toctree-l2"><a class="reference internal" href="finite-difference.html">Finite-difference approximations</a></li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">Equation</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Equation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#devito.types.equation.Eq"><code class="docutils literal notranslate"><span class="pre">Eq</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.equation.Eq.func"><code class="docutils literal notranslate"><span class="pre">Eq.func()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.equation.Eq.subdomain"><code class="docutils literal notranslate"><span class="pre">Eq.subdomain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.equation.Eq.xreplace"><code class="docutils literal notranslate"><span class="pre">Eq.xreplace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.types.equation.Inc"><code class="docutils literal notranslate"><span class="pre">Inc</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.types.equation.ReduceMax"><code class="docutils literal notranslate"><span class="pre">ReduceMax</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#devito.types.equation.ReduceMin"><code class="docutils literal notranslate"><span class="pre">ReduceMin</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="operator.html">Operator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="builtins.html">Built-in Operators</a></li>
 </ul>
@@ -103,7 +115,7 @@ Functions and SparseFunctions as operands.</p>
 computational domain.</p></li>
 <li><p><strong>coefficients</strong> (<em>Substitutions</em><em>, </em><em>optional</em>) – Can be used to replace symbolic finite difference weights with user
 defined weights.</p></li>
-<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
+<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in either the
 left-hand side or in the right-hand side, but that should be honored when
 constructing an Operator.</p></li>
 </ul>

@@ -17,6 +17,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -49,7 +50,21 @@
 <li class="toctree-l1 current"><a class="reference internal" href="userapi.html">API Reference</a><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="grids.html">Grids</a></li>
 <li class="toctree-l2 current"><a class="reference internal" href="symbolic.html">Symbolic Objects</a><ul class="current">
-<li class="toctree-l3 current"><a class="current reference internal" href="#">Dimension</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Dimension</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.BlockDimension"><code class="docutils literal notranslate"><span class="pre">BlockDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.ConditionalDimension"><code class="docutils literal notranslate"><span class="pre">ConditionalDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.CustomDimension"><code class="docutils literal notranslate"><span class="pre">CustomDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.DefaultDimension"><code class="docutils literal notranslate"><span class="pre">DefaultDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.Dimension"><code class="docutils literal notranslate"><span class="pre">Dimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.IncrDimension"><code class="docutils literal notranslate"><span class="pre">IncrDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.ModuloDimension"><code class="docutils literal notranslate"><span class="pre">ModuloDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.SpaceDimension"><code class="docutils literal notranslate"><span class="pre">SpaceDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.StencilDimension"><code class="docutils literal notranslate"><span class="pre">StencilDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.SteppingDimension"><code class="docutils literal notranslate"><span class="pre">SteppingDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.SubDimension"><code class="docutils literal notranslate"><span class="pre">SubDimension</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.dimension.TimeDimension"><code class="docutils literal notranslate"><span class="pre">TimeDimension</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="constant.html">Constant</a></li>
 <li class="toctree-l3"><a class="reference internal" href="function.html">Function</a></li>
 <li class="toctree-l3"><a class="reference internal" href="timefunction.html">TimeFunction</a></li>
@@ -528,7 +543,7 @@ Dimension.</p>
 SubDimension.</p></li>
 <li><p><strong>right</strong> (<em>expr-like</em>) – Symbolic expression providing the right (upper) bound of the
 SubDimension.</p></li>
-<li><p><strong>thickness</strong> (<em>2-tuple of 2-tuples</em>) – The thickness of the left and right regions, respectively.</p></li>
+<li><p><strong>thickness</strong> (<em>2-tuple</em><em> of </em><em>2-tuples</em>) – The thickness of the left and right regions, respectively.</p></li>
 <li><p><strong>local</strong> (<em>bool</em>) – True if, in case of domain decomposition, the SubDimension is
 guaranteed not to span more than one domains, False otherwise.</p></li>
 </ul>

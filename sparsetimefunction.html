@@ -17,6 +17,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -54,7 +55,10 @@
 <li class="toctree-l3"><a class="reference internal" href="function.html">Function</a></li>
 <li class="toctree-l3"><a class="reference internal" href="timefunction.html">TimeFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="sparsefunction.html">SparseFunction</a></li>
-<li class="toctree-l3 current"><a class="current reference internal" href="#">SparseTimeFunction</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">SparseTimeFunction</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#devito.types.SparseTimeFunction"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="precsparsefunction.html">PrecomputedSparseFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="precsparsetimefunction.html">PrecomputedSparseTimeFunction</a></li>
 <li class="toctree-l3"><a class="reference internal" href="vectorfunction.html">VectorFunction</a></li>
@@ -121,8 +125,8 @@ between TimeFunctions and sparse data points. These are based upon standard
 <li><p><strong>coordinates</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The coordinates of each sparse point.</p></li>
 <li><p><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</p></li>
 <li><p><strong>time_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for time derivatives. Defaults to 1.</p></li>
-<li><p><strong>shape</strong> (<em>tuple of ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoint)</span></code>.</p></li>
-<li><p><strong>dimensions</strong> (<em>tuple of Dimension</em><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
+<li><p><strong>shape</strong> (<em>tuple</em><em> of </em><em>ints</em><em>, </em><em>optional</em>) – Shape of the object. Defaults to <code class="docutils literal notranslate"><span class="pre">(nt,</span> <span class="pre">npoint)</span></code>.</p></li>
+<li><p><strong>dimensions</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – Dimensions associated with the object. Only necessary if the SparseFunction
 defines a multi-dimensional tensor.</p></li>
 <li><p><strong>dtype</strong> (<em>data-type</em><em>, </em><em>optional</em>) – Any object that can be interpreted as a numpy data type. Defaults
 to <code class="docutils literal notranslate"><span class="pre">np.float32</span></code>.</p></li>
@@ -274,7 +278,7 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 <li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
 <li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
 <li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
-<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list of Dimension</em><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in the
+<li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in the
 injection expression, but that should be honored when constructing
 the operator.</p></li>
 </ul>

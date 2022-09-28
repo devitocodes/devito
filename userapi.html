@@ -17,6 +17,7 @@
         <script src="_static/underscore.js"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -86,28 +87,313 @@
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="grids.html">Grids</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="grid.html">Grid</a></li>
-<li class="toctree-l2"><a class="reference internal" href="subdomain.html">SubDomain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="grid.html">Grid</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="grid.html#devito.types.Grid"><code class="docutils literal notranslate"><span class="pre">Grid</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.comm"><code class="docutils literal notranslate"><span class="pre">Grid.comm</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.dimension_map"><code class="docutils literal notranslate"><span class="pre">Grid.dimension_map</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.distributor"><code class="docutils literal notranslate"><span class="pre">Grid.distributor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.extent"><code class="docutils literal notranslate"><span class="pre">Grid.extent</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.interior"><code class="docutils literal notranslate"><span class="pre">Grid.interior</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.is_distributed"><code class="docutils literal notranslate"><span class="pre">Grid.is_distributed()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.origin"><code class="docutils literal notranslate"><span class="pre">Grid.origin</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.origin_map"><code class="docutils literal notranslate"><span class="pre">Grid.origin_map</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.origin_offset"><code class="docutils literal notranslate"><span class="pre">Grid.origin_offset</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.origin_symbols"><code class="docutils literal notranslate"><span class="pre">Grid.origin_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.shape_local"><code class="docutils literal notranslate"><span class="pre">Grid.shape_local</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.spacing"><code class="docutils literal notranslate"><span class="pre">Grid.spacing</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.spacing_map"><code class="docutils literal notranslate"><span class="pre">Grid.spacing_map</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.spacing_symbols"><code class="docutils literal notranslate"><span class="pre">Grid.spacing_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.stepping_dim"><code class="docutils literal notranslate"><span class="pre">Grid.stepping_dim</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.subdomains"><code class="docutils literal notranslate"><span class="pre">Grid.subdomains</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.time_dim"><code class="docutils literal notranslate"><span class="pre">Grid.time_dim</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="grid.html#devito.types.Grid.volume_cell"><code class="docutils literal notranslate"><span class="pre">Grid.volume_cell</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="subdomain.html">SubDomain</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="subdomain.html#devito.types.SubDomain"><code class="docutils literal notranslate"><span class="pre">SubDomain</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="subdomain.html#devito.types.SubDomain.define"><code class="docutils literal notranslate"><span class="pre">SubDomain.define()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="symbolic.html">Symbolic Objects</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="dimension.html">Dimension</a></li>
-<li class="toctree-l2"><a class="reference internal" href="constant.html">Constant</a></li>
-<li class="toctree-l2"><a class="reference internal" href="function.html">Function</a></li>
-<li class="toctree-l2"><a class="reference internal" href="timefunction.html">TimeFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsefunction.html">SparseFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsetimefunction.html">SparseTimeFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="precsparsefunction.html">PrecomputedSparseFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="precsparsetimefunction.html">PrecomputedSparseTimeFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vectorfunction.html">VectorFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="vectortimefunction.html">VectorTimeFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tensorfunction.html">TensorFunction</a></li>
-<li class="toctree-l2"><a class="reference internal" href="tensortimefunction.html">TensorTimeFunction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dimension.html">Dimension</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.BlockDimension"><code class="docutils literal notranslate"><span class="pre">BlockDimension</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.ConditionalDimension"><code class="docutils literal notranslate"><span class="pre">ConditionalDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ConditionalDimension.factor"><code class="docutils literal notranslate"><span class="pre">ConditionalDimension.factor</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ConditionalDimension.free_symbols"><code class="docutils literal notranslate"><span class="pre">ConditionalDimension.free_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ConditionalDimension.spacing"><code class="docutils literal notranslate"><span class="pre">ConditionalDimension.spacing</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="finite-difference.html">Finite-difference approximations</a></li>
-<li class="toctree-l1"><a class="reference internal" href="equation.html">Equation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="operator.html">Operator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension"><code class="docutils literal notranslate"><span class="pre">CustomDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.bound_symbols"><code class="docutils literal notranslate"><span class="pre">CustomDimension.bound_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.is_Derived"><code class="docutils literal notranslate"><span class="pre">CustomDimension.is_Derived</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.spacing"><code class="docutils literal notranslate"><span class="pre">CustomDimension.spacing</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.symbolic_max"><code class="docutils literal notranslate"><span class="pre">CustomDimension.symbolic_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">CustomDimension.symbolic_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.CustomDimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">CustomDimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.DefaultDimension"><code class="docutils literal notranslate"><span class="pre">DefaultDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.DefaultDimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">DefaultDimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension"><code class="docutils literal notranslate"><span class="pre">Dimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.class_key"><code class="docutils literal notranslate"><span class="pre">Dimension.class_key()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.spacing"><code class="docutils literal notranslate"><span class="pre">Dimension.spacing</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.symbolic_incr"><code class="docutils literal notranslate"><span class="pre">Dimension.symbolic_incr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.symbolic_max"><code class="docutils literal notranslate"><span class="pre">Dimension.symbolic_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">Dimension.symbolic_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">Dimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.IncrDimension"><code class="docutils literal notranslate"><span class="pre">IncrDimension</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.ModuloDimension"><code class="docutils literal notranslate"><span class="pre">ModuloDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ModuloDimension.bound_symbols"><code class="docutils literal notranslate"><span class="pre">ModuloDimension.bound_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ModuloDimension.symbolic_incr"><code class="docutils literal notranslate"><span class="pre">ModuloDimension.symbolic_incr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ModuloDimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">ModuloDimension.symbolic_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.ModuloDimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">ModuloDimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.SpaceDimension"><code class="docutils literal notranslate"><span class="pre">SpaceDimension</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.StencilDimension"><code class="docutils literal notranslate"><span class="pre">StencilDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.StencilDimension.symbolic_max"><code class="docutils literal notranslate"><span class="pre">StencilDimension.symbolic_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.StencilDimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">StencilDimension.symbolic_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.StencilDimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">StencilDimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.SteppingDimension"><code class="docutils literal notranslate"><span class="pre">SteppingDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SteppingDimension.symbolic_max"><code class="docutils literal notranslate"><span class="pre">SteppingDimension.symbolic_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SteppingDimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">SteppingDimension.symbolic_min</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.SubDimension"><code class="docutils literal notranslate"><span class="pre">SubDimension</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SubDimension.bound_symbols"><code class="docutils literal notranslate"><span class="pre">SubDimension.bound_symbols</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SubDimension.symbolic_max"><code class="docutils literal notranslate"><span class="pre">SubDimension.symbolic_max</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SubDimension.symbolic_min"><code class="docutils literal notranslate"><span class="pre">SubDimension.symbolic_min</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="dimension.html#devito.types.dimension.SubDimension.symbolic_size"><code class="docutils literal notranslate"><span class="pre">SubDimension.symbolic_size</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="dimension.html#devito.types.dimension.TimeDimension"><code class="docutils literal notranslate"><span class="pre">TimeDimension</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="constant.html">Constant</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="constant.html#devito.types.Constant"><code class="docutils literal notranslate"><span class="pre">Constant</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="constant.html#devito.types.Constant.data"><code class="docutils literal notranslate"><span class="pre">Constant.data</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="function.html">Function</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="function.html#devito.types.Function"><code class="docutils literal notranslate"><span class="pre">Function</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.avg"><code class="docutils literal notranslate"><span class="pre">Function.avg()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.data"><code class="docutils literal notranslate"><span class="pre">Function.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.data_domain"><code class="docutils literal notranslate"><span class="pre">Function.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">Function.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">Function.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.data_with_halo"><code class="docutils literal notranslate"><span class="pre">Function.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.dimensions"><code class="docutils literal notranslate"><span class="pre">Function.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.dtype"><code class="docutils literal notranslate"><span class="pre">Function.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.grid"><code class="docutils literal notranslate"><span class="pre">Function.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.name"><code class="docutils literal notranslate"><span class="pre">Function.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.shape"><code class="docutils literal notranslate"><span class="pre">Function.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.shape_allocated"><code class="docutils literal notranslate"><span class="pre">Function.shape_allocated</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.shape_global"><code class="docutils literal notranslate"><span class="pre">Function.shape_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.shape_with_halo"><code class="docutils literal notranslate"><span class="pre">Function.shape_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.space_dimensions"><code class="docutils literal notranslate"><span class="pre">Function.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.space_order"><code class="docutils literal notranslate"><span class="pre">Function.space_order</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="function.html#devito.types.Function.sum"><code class="docutils literal notranslate"><span class="pre">Function.sum()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="timefunction.html">TimeFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction"><code class="docutils literal notranslate"><span class="pre">TimeFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.avg"><code class="docutils literal notranslate"><span class="pre">TimeFunction.avg()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.backward"><code class="docutils literal notranslate"><span class="pre">TimeFunction.backward</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.data"><code class="docutils literal notranslate"><span class="pre">TimeFunction.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.data_domain"><code class="docutils literal notranslate"><span class="pre">TimeFunction.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">TimeFunction.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">TimeFunction.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.data_with_halo"><code class="docutils literal notranslate"><span class="pre">TimeFunction.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.dimensions"><code class="docutils literal notranslate"><span class="pre">TimeFunction.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.dtype"><code class="docutils literal notranslate"><span class="pre">TimeFunction.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.forward"><code class="docutils literal notranslate"><span class="pre">TimeFunction.forward</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.grid"><code class="docutils literal notranslate"><span class="pre">TimeFunction.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.name"><code class="docutils literal notranslate"><span class="pre">TimeFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.shape"><code class="docutils literal notranslate"><span class="pre">TimeFunction.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.shape_allocated"><code class="docutils literal notranslate"><span class="pre">TimeFunction.shape_allocated</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.shape_global"><code class="docutils literal notranslate"><span class="pre">TimeFunction.shape_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.shape_with_halo"><code class="docutils literal notranslate"><span class="pre">TimeFunction.shape_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.space_dimensions"><code class="docutils literal notranslate"><span class="pre">TimeFunction.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.space_order"><code class="docutils literal notranslate"><span class="pre">TimeFunction.space_order</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.sum"><code class="docutils literal notranslate"><span class="pre">TimeFunction.sum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="timefunction.html#devito.types.TimeFunction.time_order"><code class="docutils literal notranslate"><span class="pre">TimeFunction.time_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="sparsefunction.html">SparseFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction"><code class="docutils literal notranslate"><span class="pre">SparseFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.data"><code class="docutils literal notranslate"><span class="pre">SparseFunction.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.data_domain"><code class="docutils literal notranslate"><span class="pre">SparseFunction.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">SparseFunction.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">SparseFunction.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.data_with_halo"><code class="docutils literal notranslate"><span class="pre">SparseFunction.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.dimensions"><code class="docutils literal notranslate"><span class="pre">SparseFunction.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.dtype"><code class="docutils literal notranslate"><span class="pre">SparseFunction.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.grid"><code class="docutils literal notranslate"><span class="pre">SparseFunction.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.gridpoints"><code class="docutils literal notranslate"><span class="pre">SparseFunction.gridpoints</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.guard"><code class="docutils literal notranslate"><span class="pre">SparseFunction.guard()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.inject"><code class="docutils literal notranslate"><span class="pre">SparseFunction.inject()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.interpolate"><code class="docutils literal notranslate"><span class="pre">SparseFunction.interpolate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.name"><code class="docutils literal notranslate"><span class="pre">SparseFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.shape"><code class="docutils literal notranslate"><span class="pre">SparseFunction.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsefunction.html#devito.types.SparseFunction.space_order"><code class="docutils literal notranslate"><span class="pre">SparseFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="sparsetimefunction.html">SparseTimeFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.data"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.data_domain"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.data_with_halo"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.dimensions"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.dtype"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.grid"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.gridpoints"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.gridpoints</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.guard"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.guard()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.inject"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.inject()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.interpolate"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.interpolate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.name"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.shape"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.space_order"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.space_order</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="sparsetimefunction.html#devito.types.SparseTimeFunction.time_order"><code class="docutils literal notranslate"><span class="pre">SparseTimeFunction.time_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="precsparsefunction.html">PrecomputedSparseFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.data"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.data_domain"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.data_with_halo"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.dimensions"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.dtype"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.grid"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.gridpoints"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.gridpoints</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.inject"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.inject()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.interpolate"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.interpolate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.name"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.shape"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsefunction.html#devito.types.PrecomputedSparseFunction.space_order"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="precsparsetimefunction.html">PrecomputedSparseTimeFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.data"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.data</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.data_domain"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.data_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.data_ro_domain"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.data_ro_domain</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.data_ro_with_halo"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.data_ro_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.data_with_halo"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.data_with_halo</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.dimensions"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.dtype"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.grid"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.grid</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.gridpoints"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.gridpoints</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.inject"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.inject()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.interpolate"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.interpolate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.name"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.shape"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.space_order"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.space_order</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.time_order"><code class="docutils literal notranslate"><span class="pre">PrecomputedSparseTimeFunction.time_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="vectorfunction.html">VectorFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="vectorfunction.html#devito.types.VectorFunction"><code class="docutils literal notranslate"><span class="pre">VectorFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="vectorfunction.html#devito.types.VectorFunction.space_dimensions"><code class="docutils literal notranslate"><span class="pre">VectorFunction.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="vectorfunction.html#devito.types.VectorFunction.space_order"><code class="docutils literal notranslate"><span class="pre">VectorFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="vectortimefunction.html">VectorTimeFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="vectortimefunction.html#devito.types.VectorTimeFunction"><code class="docutils literal notranslate"><span class="pre">VectorTimeFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="vectortimefunction.html#devito.types.VectorTimeFunction.space_dimensions"><code class="docutils literal notranslate"><span class="pre">VectorTimeFunction.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="vectortimefunction.html#devito.types.VectorTimeFunction.space_order"><code class="docutils literal notranslate"><span class="pre">VectorTimeFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="tensorfunction.html">TensorFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction"><code class="docutils literal notranslate"><span class="pre">TensorFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction.is_diagonal"><code class="docutils literal notranslate"><span class="pre">TensorFunction.is_diagonal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction.is_symmetric"><code class="docutils literal notranslate"><span class="pre">TensorFunction.is_symmetric()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction.space_dimensions"><code class="docutils literal notranslate"><span class="pre">TensorFunction.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction.space_order"><code class="docutils literal notranslate"><span class="pre">TensorFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="tensortimefunction.html">TensorTimeFunction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="tensortimefunction.html#devito.types.TensorTimeFunction"><code class="docutils literal notranslate"><span class="pre">TensorTimeFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="tensortimefunction.html#devito.types.TensorTimeFunction.is_diagonal"><code class="docutils literal notranslate"><span class="pre">TensorTimeFunction.is_diagonal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensortimefunction.html#devito.types.TensorTimeFunction.is_symmetric"><code class="docutils literal notranslate"><span class="pre">TensorTimeFunction.is_symmetric()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensortimefunction.html#devito.types.TensorTimeFunction.space_dimensions"><code class="docutils literal notranslate"><span class="pre">TensorTimeFunction.space_dimensions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="tensortimefunction.html#devito.types.TensorTimeFunction.space_order"><code class="docutils literal notranslate"><span class="pre">TensorTimeFunction.space_order</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="finite-difference.html">Finite-difference approximations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html#devito.finite_differences.finite_difference.cross_derivative"><code class="docutils literal notranslate"><span class="pre">cross_derivative()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html#devito.finite_differences.finite_difference.first_derivative"><code class="docutils literal notranslate"><span class="pre">first_derivative()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html#devito.finite_differences.finite_difference.generate_indices"><code class="docutils literal notranslate"><span class="pre">generate_indices()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="finite-difference.html#devito.finite_differences.finite_difference.generic_derivative"><code class="docutils literal notranslate"><span class="pre">generic_derivative()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="equation.html">Equation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="equation.html#devito.types.equation.Eq"><code class="docutils literal notranslate"><span class="pre">Eq</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="equation.html#devito.types.equation.Eq.func"><code class="docutils literal notranslate"><span class="pre">Eq.func()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="equation.html#devito.types.equation.Eq.subdomain"><code class="docutils literal notranslate"><span class="pre">Eq.subdomain</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="equation.html#devito.types.equation.Eq.xreplace"><code class="docutils literal notranslate"><span class="pre">Eq.xreplace()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="equation.html#devito.types.equation.Inc"><code class="docutils literal notranslate"><span class="pre">Inc</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="equation.html#devito.types.equation.ReduceMax"><code class="docutils literal notranslate"><span class="pre">ReduceMax</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="equation.html#devito.types.equation.ReduceMin"><code class="docutils literal notranslate"><span class="pre">ReduceMin</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="operator.html">Operator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="operator.html#devito.operator.operator.Operator"><code class="docutils literal notranslate"><span class="pre">Operator</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.apply"><code class="docutils literal notranslate"><span class="pre">Operator.apply()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.arguments"><code class="docutils literal notranslate"><span class="pre">Operator.arguments()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.cfunction"><code class="docutils literal notranslate"><span class="pre">Operator.cfunction</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.cinterface"><code class="docutils literal notranslate"><span class="pre">Operator.cinterface()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.dimensions"><code class="docutils literal notranslate"><span class="pre">Operator.dimensions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.input"><code class="docutils literal notranslate"><span class="pre">Operator.input</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.objects"><code class="docutils literal notranslate"><span class="pre">Operator.objects</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.reads"><code class="docutils literal notranslate"><span class="pre">Operator.reads</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.temporaries"><code class="docutils literal notranslate"><span class="pre">Operator.temporaries</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="operator.html#devito.operator.operator.Operator.writes"><code class="docutils literal notranslate"><span class="pre">Operator.writes</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="builtins.html">Built-in Operators</a></li>
 </ul>
 </div>
