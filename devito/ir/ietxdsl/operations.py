@@ -2,7 +2,7 @@ from sympy import Mod
 from typing import Tuple, List
 from dataclasses import dataclass
 from xdsl.dialects.builtin import (IntegerType, Float32Type, IntegerAttr, StringAttr,
-                                   ArrayAttr)
+                                   ArrayAttr, FloatAttr)
 
 from xdsl.irdl import (ResultDef, OperandDef, RegionDef, AttributeDef, AnyAttr,
                        irdl_op_definition)
@@ -16,6 +16,7 @@ class IET:
     def __post_init__(self):
         # TODO add all operations
         self.ctx.register_op(Constant)
+        self.ctx.register_op(FloatConstant)
         self.ctx.register_op(Addi)
         self.ctx.register_op(Muli)
         self.ctx.register_op(Modi)
@@ -49,6 +50,26 @@ class Constant(Operation):
         res = Constant.build(operands=[],
                              attributes={"value": attr},
                              result_types=[IntegerType.from_width(32)])
+        return res
+
+
+@irdl_op_definition
+class FloatConstant(Operation):
+    name: str = "iet.floatconstant"
+    output = ResultDef(AnyAttr())
+    value = AttributeDef(AnyAttr())
+
+    # TODO verify that the output and value type are equal
+    def verify_(self) -> None:
+        # TODO how to force the attr to have a type? and how to query it?
+        pass
+
+    @staticmethod
+    def get(value):
+        attr = FloatAttr.from_float_and_width(value, 32)
+        res = Constant.build(operands=[],
+                             attributes={"value": attr},
+                             result_types=[Float32Type()])
         return res
 
 
@@ -380,14 +401,14 @@ class Iteration(Operation):
         return Iteration.build(attributes={
             "limits":
             ArrayAttr.from_list([
-                StringAttr.from_str(limits[0]),
-                StringAttr.from_str(limits[1]),
-                StringAttr.from_str(limits[2])
+                StringAttr.from_str(str(limits[0])),
+                StringAttr.from_str(str(limits[1])),
+                StringAttr.from_str(str(limits[2]))
             ]),
             "properties":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in properties]),
+            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in properties]),
             "pragmas":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in pragmas]),
+            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in pragmas]),
             "arg_name":
             arg
         }, regions=[Region.from_block_list([body])])

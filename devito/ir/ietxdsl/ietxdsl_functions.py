@@ -1,15 +1,13 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
-from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul
-from cgen import Generable
+from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
+from cgen import Comment
 
-from devito import ModuloDimension
-from devito.tools import flatten
-from devito.ir import retrieve_iteration_tree
+from devito import ModuloDimension, SpaceDimension
 import devito.ir.iet.nodes as nodes
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise, Muli,
-                               StructDecl)
+                               StructDecl, FloatConstant)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 from xdsl.dialects.builtin import Builtin
@@ -54,6 +52,14 @@ def collectStructs(parameters):
     return struct_decs
 
 
+def calculateAddArguments(arguments):
+    arg_length = len(arguments)
+    if arg_length == 1:
+        return arguments[0]
+    else:
+        return Add(arguments[0], calculateAddArguments(arguments[1:arg_length]))
+
+
 def add_to_block(expr, arg_by_expr, result):
     if expr in arg_by_expr:
         return
@@ -79,12 +85,33 @@ def add_to_block(expr, arg_by_expr, result):
         result.append(arg)
         return
 
+    if isinstance(expr, Float):
+        constant = float(expr.evalf())
+        arg = FloatConstant.get(constant)
+        arg_by_expr[expr] = arg
+        result.append(arg)
+        return
+
     for child_expr in expr.args:
         add_to_block(child_expr, arg_by_expr, result)
 
     if isinstance(expr, Add):
-        lhs = arg_by_expr[expr.args[0]]
-        rhs = arg_by_expr[expr.args[1]]
+        # workaround for large additions (TODO: should this be handled earlier?)
+        num_args = len(expr.args)
+        if num_args > 2:
+            # this works for 3 arguments:
+            first_arg = expr.args[0]
+            second_arg = calculateAddArguments(expr.args[1:num_args])
+            add_to_block(second_arg, arg_by_expr, result)
+        else:
+            first_arg = expr.args[0]
+            second_arg = expr.args[1]
+            if isinstance(second_arg, SpaceDimension) | isinstance(second_arg, Indexed):
+                tmp = first_arg
+                first_arg = second_arg
+                second_arg = tmp
+        lhs = arg_by_expr[first_arg]
+        rhs = arg_by_expr[second_arg]
         sum = Addi.get(lhs, rhs)
         arg_by_expr[expr] = sum
         result.append(sum)
@@ -165,8 +192,9 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.ExpressionBundle):
         assert len(node.children) == 1
-        assert len(node.children[0]) == 1
-        myVisit(node.children[0][0], block, ctx)
+        for idx in range(len(node.children[0])):
+            child = node.children[0][idx]
+            myVisit(child, block, ctx)
         return
 
     if isinstance(node, nodes.Iteration):
@@ -197,7 +225,6 @@ def myVisit(node, block=None, ctx={}):
                     uindices_symbmins, node.index, b)
                 block.add_ops([iteration])
                 return
-
         myVisit(node.children[0][0], b, ctx)
         if len(node.pragmas) > 0:
             for p in node.pragmas:
@@ -210,14 +237,18 @@ def myVisit(node, block=None, ctx={}):
     if isinstance(node, nodes.Section):
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
-        # TODO: there doesn't seem to be a straightforward way of pulling out the
-        # necessary parts of a Section..
         for content in node.ccode.contents:
-            if isinstance(content, Generable):
+            if isinstance(content, Comment):
                 comment = Statement.get(content)
                 block.add_ops([comment])
-            elif isinstance(content, node.Collection):
+            else:
                 myVisit(node.children[0][0], block, ctx)
+        return
+
+    if isinstance(node, nodes.HaloSpot):
+        assert len(node.children) == 1
+        assert isinstance(node.children[0], nodes.Iteration)
+        myVisit(node.children[0], block, ctx)
         return
 
     if isinstance(node, nodes.TimedList):

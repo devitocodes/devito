@@ -99,7 +99,10 @@ class CGeneration:
         self.print(f"{iterator} += {increment}) ", indent=False)
         self.print("{")
         self.indent()
-        self.printOperation(iteration_op.body.ops)
+        for op in iteration_op.body.ops:
+            if isinstance(op, Iteration) | isinstance(op, Statement) | \
+                    isinstance(op, Assign) | isinstance(op, Initialise):
+                self.printOperation(op)
         self.dedent()
         self.print("}")
         pass
@@ -229,7 +232,7 @@ class CGeneration:
             self.printResult(operation.lhs)
             self.print(" = ", indent=False, end="")
             self.printResult(operation.rhs)
-            self.print("", indent=False)
+            self.print(";", indent=False)
             return
 
         if (isinstance(operation, Initialise)):
