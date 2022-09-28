@@ -4,7 +4,7 @@ from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_termina
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, Indirection, ModuloDimension
 
-__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io']
+__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims']
 
 
 class AccessMode(object):
@@ -241,3 +241,18 @@ def detect_io(exprs, relax=False):
                 writes.append(f)
 
     return filter_sorted(reads), filter_sorted(writes)
+
+
+def pull_dims(exprs, flag=True):
+    """
+    Extract all Dimensions from one or more expressions. If `flag=True`
+    (default), all of the ancestor and descendant Dimensions are extracted
+    as well.
+    """
+    dims = set()
+    for e in as_tuple(exprs):
+        dims.update({i for i in e.free_symbols if i.is_Dimension})
+    if flag:
+        return set().union(*[d._defines for d in dims])
+    else:
+        return dims
