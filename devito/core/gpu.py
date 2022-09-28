@@ -76,6 +76,7 @@ class DeviceOperatorMixin(object):
         # Misc
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
+        o['relax'] = oo.pop('relax', True)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
 
         if oo:
@@ -179,7 +180,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, options=options)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)

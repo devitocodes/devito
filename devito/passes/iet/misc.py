@@ -68,7 +68,7 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def relax_incr_dimensions(iet, **kwargs):
+def relax_incr_dimensions(iet, options, **kwargs):
     """
     This pass adjusts the bounds of blocked Iterations in order to include the "remainder
     regions".  Without the relaxation that occurs in this pass, the only way to iterate
@@ -88,6 +88,8 @@ def relax_incr_dimensions(iet, **kwargs):
 
     """
     mapper = {}
+    relax = options['relax']
+
     for tree in retrieve_iteration_tree(iet):
         iterations = [i for i in tree if i.dim.is_Block]
         if not iterations:
@@ -159,12 +161,13 @@ def relax_incr_dimensions(iet, **kwargs):
             # Step 4: Drop a candidate if it is the symbolic_min of other candidates
             # Applies to defmin only. e.g. defmin = [x0_blk0, x_m] and
             # (x0_blk0.symbolic_min is x_m), then drop `x_m`, defmin = [x0_blk0]
-            for k in defmin.copy():  # TOFIX: Should not use a copy I guess?
-                try:
-                    if k.symbolic_min in defmin:
-                        defmin.remove(k.symbolic_min)
-                except:
-                    pass
+            if relax:
+                for k in defmin.copy():  # TOFIX: Should not use a copy I guess?
+                    try:
+                        if k.symbolic_min in defmin:
+                            defmin.remove(k.symbolic_min)
+                    except:
+                        pass
 
             # Step 5: Drop candidates that reduce the iteration space
             # Usually due to presence of offsets due to subdimensions

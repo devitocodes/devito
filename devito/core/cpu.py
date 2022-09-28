@@ -63,6 +63,7 @@ class Cpu64OperatorMixin(object):
         # Misc
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
+        o['relax'] = oo.pop('relax', True)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
 
         # Recognised but unused by the CPU backend
@@ -165,7 +166,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, options=options)
 
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
@@ -254,7 +255,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'denormals': avoid_denormals,
-            'blocking': partial(relax_incr_dimensions),
+            'blocking': partial(relax_incr_dimensions, options=options),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, **kwargs),
