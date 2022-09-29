@@ -303,7 +303,7 @@ class CireInvariantsDivs(CireInvariants):
 
     def _generate(self, exprs, exclude):
         # E.g., extract `1/h_x`
-        rule = lambda e: e.is_Pow and e.exp.is_Number and e.exp < 0
+        rule = lambda e: e.is_Pow and (not e.exp.is_Number or e.exp < 0)
         cbk_search = lambda e: search(e, rule, 'all', 'bfs_first_hit')
         yield self._do_generate(exprs, exclude, cbk_search)
 
