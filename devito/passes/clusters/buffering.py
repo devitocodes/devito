@@ -5,7 +5,7 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
-                       IterationSpace, PARALLEL, Queue, SEQUENTIAL, Vector,
+                       IterationSpace, AFFINE, PARALLEL, Queue, SEQUENTIAL, Vector,
                        lower_exprs, normalize_properties, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
@@ -51,15 +51,18 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
           implemented by other passes).
     **kwargs
         Additional compilation options.
-        Accepted: ['opt_noinit', 'opt_buffer'].
-        * 'opt_noinit': By default, a read buffer always triggers the generation
-        of an initializing Cluster (see example below). When the size of the
-        buffer is 1, the step-through Cluster may suffice, however. In such
-        a case, and with `opt-noinit=True`, the initalizing Cluster is omitted.
-        This creates an implicit contract between the caller and the buffering
-        pass, as the step-through Cluster cannot be further transformed or
-        the buffer might never be initialized with the content of the buffered
-        Function.
+        Accepted: ['opt_init_onread', 'opt_init_onwrite', 'opt_buffer'].
+        * 'opt_init_onread': By default, a read buffer always triggers the
+        generation of an initializing Cluster (see example below). When the
+        size of the buffer is 1, the step-through Cluster might suffice, however.
+        In such a case, and with `opt_init_onread=False`, the initalizing
+        Cluster is omitted.  This creates an implicit contract between the
+        caller and the buffering pass, as the step-through Cluster cannot be
+        further transformed or the buffer might never be initialized with the
+        content of the buffered Function.
+        * 'opt_init_onwrite': By default, a written buffer does not trigger the
+        generation of an initializing Cluster. With `opt_init_onwrite=True`,
+        instead, the buffer gets initialized to zero.
         * 'opt_buffer': A callback that takes a buffering candidate as input
         and returns a buffer, which would otherwise default to an Array.
 
@@ -101,7 +104,8 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
     options = {
         'buf-async-degree': options['buf-async-degree'],
         'buf-fuse-tasks': options['fuse-tasks'],
-        'buf-noinit': kwargs.get('opt_noinit', False),
+        'buf-init-onread': kwargs.get('opt_init_onread', True),
+        'buf-init-onwrite': kwargs.get('opt_init_onwrite', False),
         'buf-callback': kwargs.get('opt_buffer'),
     }
 
@@ -159,28 +163,35 @@ class Buffering(Queue):
         # only if the buffered Function is read in at least one place or in the case
         # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
         # into the buffered Function
-        noinit = self.options['buf-noinit']
-        processed = []
+        init_onread = self.options['buf-init-onread']
+        init_onwrite = self.options['buf-init-onwrite']
+        init = []
         for b in buffers:
-            if b.size == 1 and noinit:
+            if b.is_read or not b.has_uniform_subdims:
                 # Special case: avoid initialization if not strictly necessary
                 # See docstring for more info about what this implies
-                continue
+                if b.size == 1 and not init_onread:
+                    continue
 
-            if b.is_read or not b.has_uniform_subdims:
                 dims = b.function.dimensions
                 lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
                 rhs = b.function[[b.initmap.get(d, Map(d, d)).f for d in dims]]
 
-                expr = lower_exprs(Eq(lhs, rhs))
-                ispace = b.writeto
-                guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
-                          for d in b.contraction_mapper}
-                properties = {d: {PARALLEL} for d in ispace.itdimensions}
+            elif b.is_write and init_onwrite:
+                dims = b.buffer.dimensions
+                lhs = b.buffer.indexify()
+                rhs = 0
 
-                processed.append(
-                    Cluster(expr, ispace, guards=guards, properties=properties)
-                )
+            else:
+                continue
+
+            expr = lower_exprs(Eq(lhs, rhs))
+            ispace = b.writeto
+            guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
+                      for d in b.contraction_mapper}
+            properties = {d: {AFFINE, PARALLEL} for d in ispace.itdimensions}
+
+            init.append(Cluster(expr, ispace, guards=guards, properties=properties))
 
         # Substitution rules to replace buffered Functions with buffers
         subs = {}
@@ -188,6 +199,7 @@ class Buffering(Queue):
             for a in b.accessv.accesses:
                 subs[a] = b.indexed[[b.index_mapper_flat.get(i, i) for i in a.indices]]
 
+        processed = []
         for c in clusters:
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
@@ -255,13 +267,13 @@ class Buffering(Queue):
 
         # Lift {write,read}-only buffers into separate IterationSpaces
         if self.options['buf-fuse-tasks']:
-            return processed
+            return init + processed
         for b in buffers:
             if b.is_writeonly:
                 # `b` might be written by multiple, potentially mutually-exclusive,
                 # equations. For example, two equations that have or will have
-                # complementary guards, hence only one will be execute. In such a
-                # case, we can split all equations over separate IterationSpaces
+                # complementary guards, hence only one will be executed. In such a
+                # case, we can split the equations over separate IterationSpaces
                 key0 = lambda: Stamp()
             elif b.is_readonly:
                 # `b` is read multiple times -- this could just be the case of
@@ -286,7 +298,7 @@ class Buffering(Queue):
                     processed1.append(c)
             processed = processed1
 
-        return processed
+        return init + processed
 
 
 class BufferBatch(list):
@@ -459,16 +471,20 @@ class Buffer(object):
         return np.prod([v.symbolic_size for v in self.contraction_mapper.values()])
 
     @property
-    def is_read(self):
-        return self.accessv.is_read
-
-    @property
     def firstread(self):
         return self.accessv.firstread
 
     @property
     def lastwrite(self):
         return self.accessv.lastwrite
+
+    @property
+    def is_read(self):
+        return self.firstread is not None
+
+    @property
+    def is_write(self):
+        return self.lastwrite is not None
 
     @property
     def is_readonly(self):
