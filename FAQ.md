@@ -29,6 +29,7 @@
 - [How do I find the source of my bug quickly and get support](#how-do-i-find-the-source-of-my-bug-quickly-and-get-support)
 - [Is there a way to get the performance of an Operator](#is-there-a-way-to-get-the-performance-of-an-operator)
 - [How does devito compute the performance of an Operator](#how-does-devito-compute-the-performance-of-an-operator)
+- [How do I fairly compare the performance to that of my in-house code](#how-do-i-fairly-compare-the-performance-to-that-of-my-in-house-code)
 - [Is there is list of refereed papers related to the Devito project](#is-there-a-list-of-refereed-papers-related-to-the-devito-project)
 - [How do I cite Devito](#how-do-i-cite-devito)
 - [Where did the name Devito come from?](#where-did-the-name-devito-come-from)
@@ -665,6 +666,21 @@ At compile time, Devito produces the following estimate: ``2*(x_M-x_m+1)*(y_M-y_
 The produced GFlops/s has been checked against that reported by Intel Advisor in a number of problems and the results were extremely close, which gives confidence about the soundness of the Devito estimate. Clearly, when it gets to articles or presentations, we encourage the use of profilers such as Intel Advisor to back these numbers up. The metrics emitted by Devito are only intended to give an initial yet fairly realistic indication of the Operator performance.
 
 Compiler ninjas may wonder about the counting of loop-invariant sub-expressions, which might produce an over-estimate of the actual performance. Thanks to aggressive code motion, the amount of innermost-loop-invariant sub-expressions in a Devito Operator is typically negligible, so the Devito estimate doesn't basically suffer from this issue, or at least not in a tangible way to the best of our knowledge.
+
+[top](#Frequently-Asked-Questions)
+
+## How do I fairly compare the performance to that of my in-house code
+
+It's challenging! Here's a potentially non-exhaustive list of things to check:
+
+* Check the physics — e.g., there are many TTI variations out there, are the two codes using the same one? You wanna ensure the PDEs are the same.
+* Check the discretization — do the two codes use the same spatial order? most importantly, is it the same spatial order in all problem dimensions? carefully optimized codes often use lower order stencils in some dimensions. This significantly impacts performance
+* Did you try tuning the performance of the Devito `Operator`? E.g., on GPUs it is worth giving the `par-tile` option a go.
+* Snapshotting: compression, serialization, asynchronous streaming if running on device... Many legacy codes have these features enabled out-of-the-box. Are you using them?
+* Time sub-sampling for snapshotting -- yes or no?
+* Expanding box -- yes or no.
+* Mixed precision for model parameters -- yes or no?
+* Other minor potential devito optimizations: use of Buffer(2) to reduce working set size; Trigonometric identities to avoid some temporaries (e.g., cos2 = 1 - sin2), etc...
 
 [top](#Frequently-Asked-Questions)
 
