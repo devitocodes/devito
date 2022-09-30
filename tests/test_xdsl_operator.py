@@ -20,3 +20,4 @@ def test_create_xdsl_operator():
     print(xdsl_op.ccode)
     print(op.ccode)
 
+    # assert(str(op.ccode) == xdsl_op.ccode)

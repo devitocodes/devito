@@ -62,6 +62,7 @@ class CGeneration:
         arglist = callable_op.body.blocks[0].args
 
         # print kernels and arguments
+        self.print('')
         self.print("int Kernel(", end='', indent=False)
         for i, arg in enumerate(arglist):
             SSAValueNames[arg] = callable_op.parameters.data[i].data
@@ -129,25 +130,25 @@ class CGeneration:
             self.print(
                 f"{u.data} = ({uindices_symbmins_dividends.data[i].data})%"
                 f"({uindices_symbmins_divisors.data[i].data})",
-                end='')
+                end='', indent=False)
             if i < (len(uindices_names.data) - 1):
-                self.print(",", end='')
+                self.print(",", end=' ', indent=False)
             else:
-                self.print(";", end=' ')
+                self.print(";", end=' ', indent=False)
 
         self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
-        self.print(f"{iterator} += {increment}, ", end='')
+        self.print(f"{iterator} += {increment},", end=' ', indent=False)
 
         # also increment subindices
         for i, u in enumerate(uindices_names.data):
             self.print(
                 f"{u.data} = ({uindices_symbmins_dividends.data[i].data})"
                 f"%({uindices_symbmins_divisors.data[i].data})",
-                end='')
+                end='', indent=False)
             if i < (len(uindices_names.data) - 1):
-                self.print(",", end='')
+                self.print(",", end=' ', indent=False)
 
-        self.print(")", end='')
+        self.print(")", end='', indent=False)
         self.print("{")
         self.indent()
         self.printOperation(iteration_op.body.ops)
@@ -272,8 +273,8 @@ class CGeneration:
             self.print(operation.id.data)
             self.print("{")
             for field in operation.fields.data:
-                self.print(field.data)
-            self.print("};")
+                self.print(' ', field.data)
+            self.print("} ;")
             self.print('')
             return
 
