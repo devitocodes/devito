@@ -294,16 +294,11 @@ class BufferBatch(list):
     def __init__(self):
         super().__init__()
 
-        # Track the buffer Dimensions created so far
-        self.bds = {}
-        # Track the ModuloDimensions created so far
-        self.mds = {}
-
     def make(self, *args):
         """
         Create a Buffer. See Buffer.__doc__.
         """
-        b = Buffer(*args, bds=self.bds, mds=self.mds)
+        b = Buffer(*args)
         self.append(b)
         return b
 
@@ -330,17 +325,9 @@ class Buffer(object):
         The compilation options. See `buffering.__doc__`.
     sregistry : SymbolRegistry
         The symbol registry, to create unique names for buffers and Dimensions.
-    bds : dict, optional
-        All CustomDimensions created to define buffer dimensions, potentially
-        reusable in the creation of this buffer. The object gets updated if new
-        CustomDimensions are created.
-    mds : dict, optional
-        All ModuloDimensions created to index into other buffers, potentially reusable
-        for indexing into this buffer. The object gets updated if new ModuloDimensions
-        are created.
     """
 
-    def __init__(self, function, d, accessv, options, sregistry, bds=None, mds=None):
+    def __init__(self, function, d, accessv, options, sregistry):
         # Parse compilation options
         async_degree = options['buf-async-degree']
         callback = options['buf-callback']
@@ -382,8 +369,12 @@ class Buffer(object):
                 size = async_degree
 
         # Replace `d` with a suitable CustomDimension `bd`
-        name = sregistry.make_name(prefix='db')
-        bd = bds.setdefault((d, size), CustomDimension(name, 0, size-1, size, d))
+        try:
+            bd = sregistry.get('bds', (d, size))
+        except KeyError:
+            name = sregistry.make_name(prefix='db')
+            v = CustomDimension(name, 0, size-1, size, d)
+            bd = sregistry.setdefault('bds', (d, size), v)
         self.contraction_mapper[d] = dims[dims.index(d)] = bd
 
         # Finally create the ModuloDimensions as children of `bd`
@@ -396,8 +387,12 @@ class Buffer(object):
             indices = sorted(indices,
                              key=lambda i: -np.inf if i - p == 0 else (i - p))
             for i in indices:
-                name = sregistry.make_name(prefix='sb')
-                md = mds.setdefault((bd, i), ModuloDimension(name, bd, i, size))
+                try:
+                    md = sregistry.get('mds', (bd, i))
+                except KeyError:
+                    name = sregistry.make_name(prefix='sb')
+                    v = ModuloDimension(name, bd, i, size)
+                    md = sregistry.setdefault('mds', (bd, i), v)
                 self.index_mapper[d][i] = md
                 self.sub_iterators[d.root].append(md)
         else:
