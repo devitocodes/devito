@@ -173,16 +173,19 @@ def _(layer, iet, sync_ops, lang, sregistry):
 
         body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         body.append(BlankLine)
+
+        name = 'copy_to_%s' % layer.suffix
     except NotImplementedError:
         # A non-device backend
         body = []
+        name = 'copy_from_%s' % layer.suffix
 
     body.extend(list(iet.body))
 
     body.append(BlankLine)
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
-    return body, 'copy_to_%s' % layer.suffix
+    return body, name
 
 
 @singledispatch
@@ -195,10 +198,11 @@ def _(layer, iet, sync_ops, lang, sregistry):
     body = list(iet.body)
     try:
         body.extend([lang._map_update_device(s.target, s.imask) for s in sync_ops])
+        name = 'init_from_%s' % layer.suffix
     except NotImplementedError:
-        pass
+        name = 'init_to_%s' % layer.suffix
 
-    return body, 'init_from_%s' % layer.suffix
+    return body, name
 
 
 @singledispatch
@@ -217,11 +221,14 @@ def _(layer, iet, sync_ops, lang, sregistry):
         if lang._map_wait is not None:
             body.append(lang._map_wait(qid))
         body.append(BlankLine)
+
+        name = 'prefetch_from_%s' % layer.suffix
     except NotImplementedError:
         body = []
+        name = 'prefetch_to_%s' % layer.suffix
 
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 
     body = iet.body + (BlankLine,) + tuple(body)
 
-    return body, 'prefetch_from_%s' % layer.suffix
+    return body, name
