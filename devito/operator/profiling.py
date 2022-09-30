@@ -215,7 +215,12 @@ class AdvancedProfiler(Profiler):
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
             # Number of FLOPs performed
-            ops = int(subs_op_args(data.ops, args))
+            try:
+                ops = int(subs_op_args(data.ops, args))
+            except TypeError:
+                # E.g., a section comprising just function calls, or at least
+                # a sequence of unrecognized or non-conventional expr statements
+                ops = np.nan
 
             try:
                 # Number of grid points computed
@@ -230,10 +235,16 @@ class AdvancedProfiler(Profiler):
                 traffic = np.nan
 
             # Runtime itermaps/itershapes
-            itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
-                                     for k, v in i.items()])
-                        for i in data.itermaps]
-            itershapes = tuple(tuple(i.values()) for i in itermaps)
+            try:
+                itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
+                                         for k, v in i.items()])
+                            for i in data.itermaps]
+                itershapes = tuple(tuple(i.values()) for i in itermaps)
+            except TypeError:
+                # E.g., a section comprising just function calls
+                # E.g., a section comprising just function calls, or at least
+                # a sequence of unrecognized or non-conventional expr statements
+                itershapes = ()
 
             # Add local performance data
             if comm is not MPI.COMM_NULL:

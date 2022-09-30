@@ -8,6 +8,7 @@ from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
@@ -19,7 +20,7 @@ from devito.tools import filter_ordered
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
-           'OmpDataManager', 'OmpOrchestrator']
+           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator']
 
 
 class OmpRegion(ParallelBlock):
@@ -117,7 +118,7 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, arguments, periodic=prodder.periodic)
 
 
-class OmpBB(PragmaLangBB):
+class OmpBB(LangBB):
 
     mapper = {
         # Misc
@@ -131,14 +132,29 @@ class OmpBB(PragmaLangBB):
         'init': None,
         'thread-num': lambda retobj=None:
             Call('omp_get_thread_num', retobj=retobj),
+        # Pragmas
+        'simd-for': c.Pragma('omp simd'),
+        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
+        'atomic': c.Pragma('omp atomic update')
+    }
+    mapper.update(CBB.mapper)
+
+    Region = OmpRegion
+    HostIteration = OmpIteration
+    DeviceIteration = DeviceOmpIteration
+    Prodder = ThreadedProdder
+
+
+class DeviceOmpBB(OmpBB, PragmaLangBB):
+
+    mapper = dict(OmpBB.mapper)
+    mapper.update({
+        # Runtime library
         'num-devices': lambda args, retobj:
             Call('omp_get_num_devices', args, retobj=retobj),
         'set-device': lambda args:
             Call('omp_set_default_device', args),
         # Pragmas
-        'simd-for': c.Pragma('omp simd'),
-        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
-        'atomic': c.Pragma('omp atomic update'),
         'map-enter-to': lambda i, j:
             c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
         'map-enter-alloc': lambda i, j:
@@ -171,16 +187,7 @@ class OmpBB(PragmaLangBB):
             Call('omp_target_alloc', (i, j), retobj=retobj, cast=True),
         'device-free': lambda i, j:
             Call('omp_target_free', (i, j))
-    }
-    mapper.update(CBB.mapper)
-
-    Region = OmpRegion
-    HostIteration = OmpIteration
-    DeviceIteration = DeviceOmpIteration
-    Prodder = ThreadedProdder
-
-
-class DeviceOmpBB(OmpBB):
+    })
 
     # NOTE: Work around clang>=10 issue concerning offloading arrays declared
     # with an `__attribute__(aligned(...))` qualifier
@@ -229,4 +236,8 @@ class DeviceOmpDataManager(PragmaDeviceAwareDataManager):
 
 
 class OmpOrchestrator(Orchestrator):
+    lang = OmpBB
+
+
+class DeviceOmpOrchestrator(Orchestrator):
     lang = DeviceOmpBB

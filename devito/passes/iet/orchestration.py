@@ -1,8 +1,10 @@
 from collections import OrderedDict
+from functools import singledispatch
 
 import cgen as c
 from sympy import Or
 
+from devito.exceptions import CompilationError
 from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
                            AsyncCallable, derive_parameters)
@@ -12,7 +14,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
 from devito.tools import as_mapper
-from devito.types import QueueID
+from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
 
@@ -31,10 +33,7 @@ class Orchestrator(object):
     def __init__(self, sregistry):
         self.sregistry = sregistry
 
-    def _make_async_queue(self):
-        return QueueID()
-
-    def _make_waitlock(self, iet, sync_ops):
+    def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
             header=c.Comment("Wait for `%s` to be copied to the host" %
                              ",".join(s.target.name for s in sync_ops)),
@@ -46,35 +45,25 @@ class Orchestrator(object):
 
         return iet, []
 
-    def _make_releaselock(self, iet, sync_ops):
-        preactions = []
-        preactions.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
-        preactions.extend(DummyExpr(s.handle, 0) for s in sync_ops)
+    def _make_releaselock(self, iet, sync_ops, *args):
+        pre = []
+        pre.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
+        pre.extend(DummyExpr(s.handle, 0) for s in sync_ops)
 
         iet = List(
             header=c.Comment("Release lock(s) as soon as possible"),
-            body=preactions + [iet]
+            body=pre + [iet]
         )
 
         return iet, []
 
-    def _make_withlock(self, iet, sync_ops):
-        qid = self._make_async_queue()
-
-        preactions = [self.lang._map_update_host_async(s.target, s.imask, qid)
-                      for s in sync_ops]
-        if self.lang._map_wait is not None:
-            preactions.append(self.lang._map_wait(qid))
-        preactions.extend([DummyExpr(s.handle, 1) for s in sync_ops])
-        preactions.append(BlankLine)
-
-        postactions = [BlankLine]
-        postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+    def _make_withlock(self, iet, sync_ops, layer):
+        body, prefix = withlock(layer, iet, sync_ops, self.lang, self.sregistry)
 
         # Turn `iet` into an AsyncCallable so that subsequent passes know
         # that we're happy for this Callable to be executed asynchronously
-        name = self.sregistry.make_name(prefix='copy_device_to_host')
-        body = List(body=tuple(preactions) + iet.body + tuple(postactions))
+        name = self.sregistry.make_name(prefix=prefix)
+        body = List(body=body)
         parameters = derive_parameters(body)
         efunc = AsyncCallable(name, body, parameters=parameters)
 
@@ -83,13 +72,12 @@ class Orchestrator(object):
 
         return iet, [efunc]
 
-    def _make_fetchupdate(self, iet, sync_ops):
-        postactions = [self.lang._map_update_device(s.target, s.imask)
-                       for s in sync_ops]
+    def _make_fetchupdate(self, iet, sync_ops, layer):
+        body, prefix = fetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
 
         # Turn init IET into a Callable
-        name = self.sregistry.make_name(prefix='init_device')
-        body = List(body=iet.body + tuple(postactions))
+        name = self.sregistry.make_name(prefix=prefix)
+        body = List(body=body)
         parameters = derive_parameters(body)
         efunc = Callable(name, body, 'void', parameters, 'static')
 
@@ -101,20 +89,13 @@ class Orchestrator(object):
 
         return iet, [efunc]
 
-    def _make_prefetchupdate(self, iet, sync_ops):
-        qid = self._make_async_queue()
-
-        postactions = [self.lang._map_update_device_async(s.target, s.imask, qid)
-                       for s in sync_ops]
-        if self.lang._map_wait is not None:
-            postactions.append(self.lang._map_wait(qid))
-        postactions.append(BlankLine)
-        postactions.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+    def _make_prefetchupdate(self, iet, sync_ops, layer):
+        body, prefix = prefetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
 
         # Turn `iet` into an AsyncCallable so that subsequent passes know
         # that we're happy for this Callable to be executed asynchronously
-        name = self.sregistry.make_name(prefix='prefetch_host_to_device')
-        body = List(body=iet.body + (BlankLine,) + tuple(postactions))
+        name = self.sregistry.make_name(prefix=prefix)
+        body = List(body=body)
         parameters = derive_parameters(body)
         efunc = AsyncCallable(name, body, parameters=parameters)
 
@@ -144,10 +125,110 @@ class Orchestrator(object):
         subs = {}
         for n in sync_spots:
             mapper = as_mapper(n.sync_ops, lambda i: type(i))
+
             for t in sorted(mapper, key=key):
-                subs[n], v = callbacks[t](subs.get(n, n), mapper[t])
+                sync_ops = mapper[t]
+
+                layers = {infer_layer(s.function) for s in sync_ops}
+                if len(layers) != 1:
+                    raise CompilationError("Unsupported streaming case")
+                layer = layers.pop()
+
+                subs[n], v = callbacks[t](subs.get(n, n), sync_ops, layer)
                 efuncs.extend(v)
 
         iet = Transformer(subs).visit(iet)
 
         return iet, {'efuncs': efuncs}
+
+
+# Task handlers
+
+layer_host = HostLayer('host')
+
+
+@singledispatch
+def infer_layer(f):
+    """
+    The layer of the node storage hierarchy in which a Function is found.
+    """
+    return layer_host
+
+
+@singledispatch
+def withlock(layer, iet, sync_ops, lang, sregistry):
+    raise NotImplementedError
+
+
+@withlock.register(HostLayer)
+def _(layer, iet, sync_ops, lang, sregistry):
+    name = sregistry.make_name(prefix='qid')
+    qid = lang.AsyncQueue(name=name)
+
+    try:
+        body = [lang._map_update_host_async(s.target, s.imask, qid)
+                for s in sync_ops]
+        if lang._map_wait is not None:
+            body.append(lang._map_wait(qid))
+
+        body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
+        body.append(BlankLine)
+
+        name = 'copy_to_%s' % layer.suffix
+    except NotImplementedError:
+        # A non-device backend
+        body = []
+        name = 'copy_from_%s' % layer.suffix
+
+    body.extend(list(iet.body))
+
+    body.append(BlankLine)
+    body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+
+    return body, name
+
+
+@singledispatch
+def fetchupdate(layer, iet, sync_ops, lang, sregistry):
+    raise NotImplementedError
+
+
+@fetchupdate.register(HostLayer)
+def _(layer, iet, sync_ops, lang, sregistry):
+    body = list(iet.body)
+    try:
+        body.extend([lang._map_update_device(s.target, s.imask) for s in sync_ops])
+        name = 'init_from_%s' % layer.suffix
+    except NotImplementedError:
+        name = 'init_to_%s' % layer.suffix
+
+    return body, name
+
+
+@singledispatch
+def prefetchupdate(layer, iet, sync_ops, lang, sregistry):
+    raise NotImplementedError
+
+
+@prefetchupdate.register(HostLayer)
+def _(layer, iet, sync_ops, lang, sregistry):
+    name = sregistry.make_name(prefix='qid')
+    qid = lang.AsyncQueue(name=name)
+
+    try:
+        body = [lang._map_update_device_async(s.target, s.imask, qid)
+                for s in sync_ops]
+        if lang._map_wait is not None:
+            body.append(lang._map_wait(qid))
+        body.append(BlankLine)
+
+        name = 'prefetch_from_%s' % layer.suffix
+    except NotImplementedError:
+        body = []
+        name = 'prefetch_to_%s' % layer.suffix
+
+    body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+
+    body = iet.body + (BlankLine,) + tuple(body)
+
+    return body, name

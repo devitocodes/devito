@@ -49,7 +49,7 @@ def test_write_only():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 

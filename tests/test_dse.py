@@ -151,6 +151,8 @@ def test_cse(exprs, expected, min_cost):
     ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
     ('fa[x]/(fb[x]**2)', 'fa[x]/((fb[x]*fb[x]))'),
     ('(fa[x]**0.5)**2', 'fa[x]'),
+    ('fa[x]**s', 'fa[x]**s'),
+    ('fa[x]**(-s)', 'fa[x]**(-s)'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
@@ -1611,6 +1613,20 @@ class TestAliases(object):
             assert all(e.is_scalar for e in exprs[:-1])
             assert op.body.body[-1].body[0].is_ExpressionBundle
             assert op.body.body[-1].body[-1].is_Iteration
+
+    def test_hoisting_symbolic_divs(self):
+        grid = Grid(shape=(3, 3))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        s0 = Scalar(name='s0')
+        s1 = Scalar(name='s1')
+
+        eq = Eq(f, f*(s0**-s1))
+
+        op = Operator(eq)
+
+        assert op._profiler._sections['section0'].sops == 1
+        assert op.body.body[1].body[0].body[0].expr.rhs == s0**-s1
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):

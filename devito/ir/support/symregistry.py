@@ -26,6 +26,10 @@ class SymbolRegistry(object):
         # during compilation
         self.npthreads = []
 
+        # A local cache is used to track symbols across different compiler
+        # passes, to maximize symbol (especially Dimension) reuse
+        self.caches = {}
+
     def make_name(self, prefix=None):
         # By default we're creating a new symbol
         if prefix is None:
@@ -43,3 +47,15 @@ class SymbolRegistry(object):
         npthreads = NPThreads(name=name, size=size)
         self.npthreads.append(npthreads)
         return npthreads
+
+    def get(self, cachename, key):
+        """
+        Get a symbol from one of the local caches.
+        """
+        return self.caches[cachename][key]
+
+    def setdefault(self, cachename, key, v):
+        """
+        Like dict.setdefault, but applied to one of the local caches.
+        """
+        return self.caches.setdefault(cachename, {}).setdefault(key, v)

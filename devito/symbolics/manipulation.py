@@ -200,6 +200,11 @@ def pow_to_mul(expr):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
+        try:
+            int(exp)
+        except TypeError:
+            # E.g., a Symbol, or possibly a generic expression
+            return expr
         if exp > 10 or exp < -10 or int(exp) != exp or exp == 0:
             # Large and non-integer powers remain untouched
             return expr

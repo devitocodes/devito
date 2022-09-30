@@ -12,7 +12,7 @@ from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, prod
-from devito.types import Symbol, Wildcard
+from devito.types import Symbol, QueueID, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -37,13 +37,18 @@ class LangBB(object, metaclass=LangMeta):
     Abstract base class for Language Building Blocks.
     """
 
-    # NOTE: a subclass may want to override the values below, which represent
-    # IET node types used in the various lowering and/or transformation passes
+    # NOTE: a subclass may want to override the attributes below to customize
+    # code generation
     Region = ParallelBlock
     HostIteration = ParallelIteration
     DeviceIteration = ParallelIteration
     Prodder = Prodder
     PointerCast = PointerCast
+
+    AsyncQueue = QueueID
+    """
+    An object used by the language to enqueue asynchronous operations.
+    """
 
     @classmethod
     def _get_num_devices(cls):
