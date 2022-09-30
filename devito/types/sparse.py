@@ -455,12 +455,13 @@ class SparseFunction(AbstractSparseFunction):
         if isinstance(coordinates, Function):
             self._coordinates = coordinates
         else:
-            dimensions = (self.indices[-1], Dimension(name='d'))
+            dimensions = [Dimension(name='d')]
+            dimensions.insert(self._sparse_position, self.indices[self._sparse_position])
             # Only retain the local data region
             if coordinates is not None:
                 coordinates = np.array(coordinates)
             self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
-                                            dtype=self.dtype, dimensions=dimensions,
+                                            dtype=self.dtype, dimensions=tuple(dimensions),
                                             shape=(self.npoint, self.grid.dim),
                                             space_order=0, initializer=coordinates,
                                             distributor=self._distributor)
@@ -524,7 +525,7 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension."""
-        p_dim = self.indices[-1]
+        p_dim = self.indices[self._sparse_position]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
