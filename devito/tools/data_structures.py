@@ -201,10 +201,16 @@ class OrderedSet(OrderedDict, MutableSet):
 
     Notes
     -----
-    Originally extracted from:
+    Readapted from:
 
         https://stackoverflow.com/questions/1653970/does-python-have-an-ordered-set
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        for e in args:
+            self.add(e)
 
     def update(self, *args, **kwargs):
         if kwargs:

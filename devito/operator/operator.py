@@ -21,8 +21,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
-from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          frozendict, split, timed_pass, timed_region)
+from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
+                          filter_sorted, frozendict, split, timed_pass, timed_region)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -182,12 +182,12 @@ class Operator(Callable):
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
-        op._headers = list(cls._default_headers)
-        op._headers.extend(byproduct.headers)
-        op._globals = list(cls._default_globals)
-        op._includes = list(cls._default_includes)
-        op._includes.extend(profiler._default_includes)
-        op._includes.extend(byproduct.includes)
+        op._headers = OrderedSet(*cls._default_headers)
+        op._headers.update(byproduct.headers)
+        op._globals = OrderedSet(*cls._default_globals)
+        op._includes = OrderedSet(*cls._default_includes)
+        op._includes.update(profiler._default_includes)
+        op._includes.update(byproduct.includes)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
