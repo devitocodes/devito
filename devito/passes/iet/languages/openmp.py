@@ -7,12 +7,12 @@ from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
 from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
                        ParallelBlock, PointerCast, While, FindSymbols)
-from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer, PragmaDeviceAwareDataManager)
+                                         PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
@@ -231,7 +231,7 @@ class OmpDataManager(DataManager):
     lang = OmpBB
 
 
-class DeviceOmpDataManager(PragmaDeviceAwareDataManager):
+class DeviceOmpDataManager(DeviceAwareDataManager):
     lang = DeviceOmpBB
 
 

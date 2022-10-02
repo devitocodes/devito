@@ -2,20 +2,21 @@ import cgen as c
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Call, DeviceCall, DummyExpr, DPtr, EntryFunction, List,
-                       Block, ParallelIteration, ParallelTree, Pragma,
-                       FindNodes, FindSymbols, Uxreplace, Transformer)
+from devito.ir import (Call, DummyExpr, EntryFunction, List, Block,
+                       ParallelIteration, ParallelTree, Pragma, Return,
+                       FindSymbols, make_callable)
 from devito.passes import is_on_device
+from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer, PragmaDeviceAwareDataManager)
+                                         PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
-from devito.symbolics import Macro, cast_mapper
+from devito.symbolics import FieldFromPointer, Macro, cast_mapper
 from devito.tools import filter_ordered
-from devito.types import DevicePointer, Symbol
+from devito.types import DeviceMap, Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
@@ -96,6 +97,8 @@ class AccBB(PragmaLangBB):
             c.Pragma('acc enter data create(%s%s)' % (i, j)),
         'map-present': lambda i, j:
             c.Pragma('acc data present(%s%s)' % (i, j)),
+        'map-serial-present': lambda i, j:
+            c.Pragma('acc serial present(%s) copyout(%s)' % (i, j)),
         'map-wait': lambda i:
             c.Pragma('acc wait(%s)' % i),
         'map-update': lambda i, j:
@@ -194,26 +197,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             return super()._make_partree(candidates, nthreads)
 
 
-class DevicePointerFetch(List):
-
-    def __init__(self, dp, **kwargs):
-        hp = dp.mapped.indexed
-
-        tdp = Symbol(name="%s_cpy" % hp.name, dtype=np.uint64)
-        init = DummyExpr(tdp, 0, init=True),
-
-        header = c.Pragma("acc serial present(%s) copyout(%s)" % (hp, tdp))
-        body = DummyExpr(tdp, cast_mapper[tdp.dtype](hp))
-        dpf = Block(header=header, body=body)
-
-        cast = DummyExpr(dp, cast_mapper[(dp.dtype, '*')](tdp), init=True)
-
-        body = [init, dpf, cast]
-
-        super().__init__(body=body)
-
-
-class DeviceAccDataManager(PragmaDeviceAwareDataManager):
+class DeviceAccDataManager(DeviceAwareDataManager):
 
     lang = AccBB
 
@@ -224,8 +208,9 @@ class DeviceAccDataManager(PragmaDeviceAwareDataManager):
 
         OpenACC provides multiple mechanisms to this purpose, including the
         `acc_deviceptr(f)` routine and the `host_data use_device(f)` pragma.
-        However, none of these will work with `nvc` (until at least v22.3) due
-        to a known bug -- see this thread for more info:
+        However, none of these will work with `nvc` when compiling shared
+        libraries (until at least v22.3) due to a known bug -- see this thread
+        for more info:
 
             https://forums.developer.nvidia.com/t/acc-deviceptr-does-not-work-in-\
                 openacc-code-dynamically-loaded-from-a-shared-library/211599
@@ -246,37 +231,43 @@ class DeviceAccDataManager(PragmaDeviceAwareDataManager):
 
         This method creates an IET along the lines of the code snippet above.
         """
-        mapper = {}
-        subs = {}
-        for n in FindNodes(DeviceCall).visit(iet):
-            for i, t in zip(n.arguments, n.types):
-                try:
-                    f = i.function
-                except AttributeError:
-                    continue
-
-                if f.is_Array and f._mem_mapped and t is DPtr:
-                    subs[i] = DevicePointer(
-                        name="%s_dev" % f.name, dtype=f.dtype, mapped=f
-                    )
-
-            mapper[n] = Uxreplace(subs).visit(n)
-
-        if mapper:
-            iet = Transformer(mapper).visit(iet)
-
-        args = [i.base for i in subs.values()]
-
         if not isinstance(iet, EntryFunction):
-            return iet, {'args': args}
+            return iet, {}
 
-        nested = [i for i in FindSymbols('basics').visit(iet)
-                  if isinstance(i, DevicePointer)]
-        dpfs = [DevicePointerFetch(dp) for dp in filter_ordered(args + nested)]
+        dmaps = [i for i in FindSymbols('basics').visit(iet)
+                 if isinstance(i, DeviceMap)]
 
-        iet = iet._rebuild(body=iet.body._rebuild(maps=iet.body.maps + tuple(dpfs)))
+        efuncs = []
+        calls = []
+        for dmap in filter_ordered(dmaps):
+            f = dmap.function
+            hp = f.indexed
 
-        return iet, {}
+            tdp = Symbol(name="dptr", dtype=np.uint64)
+            init = DummyExpr(tdp, 0, init=True)
+
+            dpf = List(body=[
+                Pragma(self.lang.mapper['map-serial-present'], (hp, tdp)),
+                Block(body=DummyExpr(tdp, cast_mapper[tdp.dtype](hp)))
+            ])
+
+            ffp = FieldFromPointer(f._C_field_dmap, f._C_symbol)
+            ctdp = cast_mapper[(hp.dtype, '*')](tdp)
+            cast = DummyExpr(ffp, ctdp)
+
+            ret = Return(ctdp)
+
+            body = List(body=[init, dpf, cast, ret])
+
+            name = self.sregistry.make_name(prefix='map_device_ptr')
+            efuncs.append(make_callable(name, body, retval=hp._C_typename))
+
+            calls.append(Call(name, f, retobj=dmap))
+
+        body = iet.body._rebuild(maps=iet.body.maps + tuple(calls))
+        iet = iet._rebuild(body=body)
+
+        return iet, {'efuncs': efuncs}
 
 
 class AccOrchestrator(Orchestrator):
