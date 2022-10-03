@@ -455,7 +455,7 @@ class SparseFunction(AbstractSparseFunction):
         if isinstance(coordinates, Function):
             self._coordinates = coordinates
         else:
-            dimensions = (self.indices[-1], Dimension(name='d'))
+            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
             # Only retain the local data region
             if coordinates is not None:
                 coordinates = np.array(coordinates)
@@ -524,7 +524,7 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension."""
-        p_dim = self.indices[-1]
+        p_dim = self.indices[self._sparse_position]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
