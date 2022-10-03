@@ -5,8 +5,9 @@ from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
 from devito.arch.compiler import GNUCompiler
-from devito.ir import (Call, Conditional, List, Prodder, ParallelIteration,
-                       ParallelBlock, PointerCast, While, FindSymbols)
+from devito.ir import (Call, Conditional, DeviceCall, List, Prodder,
+                       ParallelIteration, ParallelBlock, PointerCast, While,
+                       FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.orchestration import Orchestrator
@@ -146,6 +147,8 @@ class OmpBB(LangBB):
 
 
 class DeviceOmpBB(OmpBB, PragmaLangBB):
+
+    BackendCall = DeviceCall
 
     mapper = dict(OmpBB.mapper)
     mapper.update({

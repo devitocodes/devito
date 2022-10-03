@@ -127,7 +127,14 @@ class Hyperplane(tuple):
 
 class Pointer(Symbol):
 
-    _C_ctype = c_void_p
+    @classmethod
+    def __dtype_setup__(cls, **kwargs):
+        return kwargs.get('dtype', c_void_p)
+
+    @property
+    def _C_ctype(self):
+        # `dtype` is a ctypes-derived type!
+        return self.dtype
 
 
 class Indirection(Symbol):

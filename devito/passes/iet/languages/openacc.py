@@ -2,7 +2,7 @@ import cgen as c
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Call, DummyExpr, EntryFunction, List, Block,
+from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
                        ParallelIteration, ParallelTree, Pragma, Return,
                        FindSymbols, make_callable)
 from devito.passes import is_on_device
@@ -71,6 +71,8 @@ class DeviceAccIteration(ParallelIteration):
 
 
 class AccBB(PragmaLangBB):
+
+    BackendCall = DeviceCall
 
     mapper = {
         # Misc

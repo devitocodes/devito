@@ -39,6 +39,7 @@ class LangBB(object, metaclass=LangMeta):
 
     # NOTE: a subclass may want to override the attributes below to customize
     # code generation
+    BackendCall = Call
     Region = ParallelBlock
     HostIteration = ParallelIteration
     DeviceIteration = ParallelIteration
