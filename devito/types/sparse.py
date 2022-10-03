@@ -455,13 +455,12 @@ class SparseFunction(AbstractSparseFunction):
         if isinstance(coordinates, Function):
             self._coordinates = coordinates
         else:
-            dimensions = [Dimension(name='d')]
-            dimensions.insert(self._sparse_position, self.indices[self._sparse_position])
+            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
             # Only retain the local data region
             if coordinates is not None:
                 coordinates = np.array(coordinates)
             self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
-                                            dtype=self.dtype, dimensions=tuple(dimensions),
+                                            dtype=self.dtype, dimensions=dimensions,
                                             shape=(self.npoint, self.grid.dim),
                                             space_order=0, initializer=coordinates,
                                             distributor=self._distributor)
