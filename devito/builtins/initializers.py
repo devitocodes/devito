@@ -8,8 +8,7 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
 @dv.switchconfig(log_level='ERROR')
-@abstract_args
-def assign(f, rhs=0, options=None, name='assign', argmap=None, **kwargs):
+def assign(f, rhs=0, options=None, name='assign', **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
@@ -63,7 +62,7 @@ def assign(f, rhs=0, options=None, name='assign', argmap=None, **kwargs):
     else:
         for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
-    dv.Operator(eqs, name=name, **kwargs)(**argmap)
+    dv.Operator(eqs, name=name, **kwargs)()
 
 
 def smooth(f, g, axis=None):
