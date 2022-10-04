@@ -1242,6 +1242,34 @@ class TestConditionalDimension(object):
         # Check it compiles correctly! See issue report
         op.cfunction
 
+    @pytest.mark.parametrize('factor', [
+        4,
+        Constant(name='factor', dtype=np.int32, value=4),
+    ])
+    def test_issue_1927(self, factor):
+        """
+        Ensure `time_M` is correctly inferred even in presence of TimeFunctions
+        defined on ConditionalDimensions.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+        save = 10
+
+        time_sub = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        f = TimeFunction(name='f', grid=grid, save=10, time_dim=time_sub)
+
+        op = Operator(Eq(f, 1))
+
+        assert op.arguments()['time_M'] == 4*(save-1)  # == min legal endpoint
+
+        # Also no issues when supplying an override
+        assert op.arguments(time_M=10)['time_M'] == 10
+        assert op.arguments(time=10)['time_M'] == 10
+
+        op()
+        assert np.all(f.data == 1)
+
     def test_issue_2007(self):
         """
         Proxy for a Fourier integral. Main issue: conditional placed too deep

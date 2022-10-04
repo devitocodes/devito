@@ -223,7 +223,7 @@ class Dimension(ArgProvider):
                 dim.size_name: size,
                 dim.max_name: size if size is None else size-1}
 
-    def _arg_values(self, interval, grid, args=None, **kwargs):
+    def _arg_values(self, interval, grid=None, args=None, **kwargs):
         """
         Produce a map of argument values after evaluating user input. If no user
         input is provided, get a known value in ``args`` and adjust it so that no
@@ -235,7 +235,7 @@ class Dimension(ArgProvider):
         ----------
         interval : Interval
             Description of the Dimension data space.
-        grid : Grid
+        grid : Grid, optional
             Used for spacing overriding and MPI execution; if ``self`` is a distributed
             Dimension, then ``grid`` is used to translate user input into rank-local
             indices.
@@ -264,6 +264,18 @@ class Dimension(ArgProvider):
                 loc_maxv -= max(interval.upper, 0)
             except (AttributeError, TypeError):
                 pass
+
+        # Some `args` may still be DerivedDimenions' defaults. These, in turn,
+        # may represent sets of legal values. If that's the case, here we just
+        # pick one. Note that we sort for determinism
+        try:
+            loc_minv = sorted(loc_minv).pop(0)
+        except TypeError:
+            pass
+        try:
+            loc_maxv = sorted(loc_maxv).pop(0)
+        except TypeError:
+            pass
 
         return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
@@ -640,7 +652,7 @@ class SubDimension(DerivedDimension):
     def _arg_defaults(self, grid=None, **kwargs):
         return {}
 
-    def _arg_values(self, interval, grid, **kwargs):
+    def _arg_values(self, interval, grid=None, **kwargs):
         # Allow override of thickness values to disable BCs
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
@@ -792,6 +804,25 @@ class ConditionalDimension(DerivedDimension):
         except AttributeError:
             pass
         return retval
+
+    def _arg_defaults(self, _min=None, size=None, alias=None):
+        defaults = super()._arg_defaults(_min=_min, size=size, alias=alias)
+
+        # We can also add the parent's default endpoint. Note that exactly
+        # `factor` endpoints are legal, so we return them all. It's then
+        # up to the caller to decide which one to pick upon reduction
+        dim = alias or self
+        if dim._factor is None or size is None:
+            return defaults
+        try:
+            # Is it a symbolic factor?
+            factor = dim._factor.data
+        except AttributeError:
+            factor = dim._factor
+        defaults[dim.parent.max_name] = \
+            frozenset(range(factor*(size - 1), factor*(size)))
+
+        return defaults
 
 
 # ***
@@ -1085,7 +1116,7 @@ class BlockDimension(AbstractIncrDimension):
             # `step` not a Symbol
             return {}
 
-    def _arg_values(self, interval, grid, args=None, **kwargs):
+    def _arg_values(self, interval, grid=None, args=None, **kwargs):
         try:
             name = self.step.name
         except AttributeError:

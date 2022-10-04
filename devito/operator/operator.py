@@ -494,6 +494,17 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
+        # Pre-process Dimension overrides. This may help ruling out ambiguities
+        # when processing the `defaults` arguments. A topological sorting is used
+        # as DerivedDimensions may depend on their parents
+        nodes = self.dimensions
+        edges = [(i, i.parent) for i in self.dimensions if i.is_Derived]
+        toposort = DAG(nodes, edges).topological_sort()
+        futures = {}
+        for d in reversed(toposort):
+            if set(d._arg_names).intersection(kwargs):
+                futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
+
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
@@ -511,7 +522,7 @@ class Operator(Callable):
                 # E.g., SubFunctions
                 continue
             for k, v in p._arg_values(**kwargs).items():
-                if k in args and args[k] != v:
+                if k in args and args[k] not in as_tuple(v) and k not in futures:
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
@@ -545,12 +556,7 @@ class Operator(Callable):
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
         # Process Dimensions
-        # A topological sorting is used so that derived Dimensions are processed after
-        # their parents (note that a leaf Dimension can have an arbitrary long list of
-        # ancestors)
-        dag = DAG(self.dimensions,
-                  [(i, i.parent) for i in self.dimensions if i.is_Derived])
-        for d in reversed(dag.topological_sort()):
+        for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
 
         # Process Objects
