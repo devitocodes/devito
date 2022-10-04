@@ -222,19 +222,7 @@ def abstract_efunc(efunc):
     """
     functions = FindSymbols().visit(efunc)
 
-    # Precedence rules make it possible to reconstruct objects that depend on
-    # higher priority objects
-    priority = {
-        DiscreteFunction: 1,
-    }
-    key = lambda i: priority.get(i, 0)
-    functions = sorted(functions, key=key, reverse=True)
-
-    # Build abstraction mappings
-    mapper = {}
-    counter = Counter()
-    for i in functions:
-        abstract_object(i, mapper, counter)
+    mapper = abstract_objects(functions)
 
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
@@ -242,8 +230,36 @@ def abstract_efunc(efunc):
     return efunc
 
 
+def abstract_objects(objects):
+    """
+    Proxy for `abstract_object`.
+    """
+    # Precedence rules make it possible to reconstruct objects that depend on
+    # higher priority objects
+    priority = {
+        DiscreteFunction: 1,
+    }
+
+    def key(i):
+        try:
+            return priority[i]
+        except (KeyError, TypeError):
+            # TypeError is for unhashable objects
+            return 0
+
+    objects = sorted(objects, key=key, reverse=True)
+
+    # Build abstraction mappings
+    mapper = {}
+    counter = Counter()
+    for i in objects:
+        abstract_object(i, mapper, counter)
+
+    return mapper
+
+
 @singledispatch
-def abstract_object(i, mapper, counter, cls=None):
+def abstract_object(i, mapper, counter):
     """
     Singledispatch-based implementation of object abstraction.
 

@@ -2,12 +2,13 @@ import numpy as np
 
 import devito as dv
 from devito.tools import as_tuple, as_list
-from devito.builtins.utils import nbl_to_padsize, pad_outhalo
+from devito.builtins.utils import abstract_args, nbl_to_padsize, pad_outhalo
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
-def assign(f, rhs=0, options=None, name='assign', **kwargs):
+@abstract_args
+def assign(f, rhs=0, options=None, name='assign', argmap=None, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
@@ -61,7 +62,7 @@ def assign(f, rhs=0, options=None, name='assign', **kwargs):
     else:
         for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
-    dv.Operator(eqs, name=name, **kwargs)()
+    dv.Operator(eqs, name=name, **kwargs)(**argmap)
 
 
 def smooth(f, g, axis=None):
