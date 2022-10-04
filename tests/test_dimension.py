@@ -1,14 +1,14 @@
 from itertools import product
 
 import numpy as np
-from sympy import And
+from sympy import And, Or
 import pytest
 
 from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin)
+                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1213,6 +1213,34 @@ class TestConditionalDimension(object):
         assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
         assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
         assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+
+    def test_issue_1435(self):
+        names = 't1 t2 t3 t4 t5 t6 t7 t8 t9 t10'
+        t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = \
+            tuple(SpaceDimension(i) for i in names.split())
+
+        f0 = Function(name='f0', grid=Grid(shape=(2, 2, 4, 4),
+                                           dimensions=(t1, t2, t3, t4)))
+        f1 = Function(name='f1', grid=Grid(shape=(2, 2, 3, 3),
+                                           dimensions=(t5, t6, t7, t8)))
+        f2 = Function(name='f2', grid=f1.grid)
+
+        cd = ConditionalDimension(name='cd', parent=t10,
+                                  condition=Or(Gt(f0[t5, t6, t7 + t9,
+                                                     t8 + t10],
+                                                  f1[t5, t6, t7, t8]),
+                                               And(~Ne(f0[t5, t6, t7 + t9,
+                                                          t8 + t10],
+                                                       f1[t5, t6, t7, t8]),
+                                                   Lt(2 * t9 + t10,
+                                                      f2[t5, t6, t7, t8]))))
+
+        op = Operator([Eq(f1[t5, t6, t7, t8], f0[t5, t6, t7 + t9, t8 + t10],
+                          implicit_dims=cd),
+                       Eq(f2[t5, t6, t7, t8], 2 * t9 + t10, implicit_dims=cd)])
+
+        # Check it compiles correctly! See issue report
+        op.cfunction
 
     def test_issue_2007(self):
         """
