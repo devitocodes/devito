@@ -78,8 +78,6 @@ jobs:
 
     - name: Build docker image
       run: |
-          # For now prune system to make sure we get the proper latest base
-          docker system prune -a -f
           docker build . --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
 
     - name: Test with pytest
