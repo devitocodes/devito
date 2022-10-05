@@ -9,7 +9,7 @@ from devito.types import Array, CompositeObject, Lock, Indirection
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 
-__all__ = ['Graph', 'iet_pass']
+__all__ = ['Graph', 'iet_pass', 'iet_visit']
 
 
 class Graph(object):

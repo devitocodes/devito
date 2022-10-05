@@ -22,7 +22,8 @@ from devito.parameters import configuration
 from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
-                          filter_sorted, frozendict, split, timed_pass, timed_region)
+                          filter_sorted, frozendict, is_integer, split, timed_pass,
+                          timed_region)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -522,12 +523,16 @@ class Operator(Callable):
                 # E.g., SubFunctions
                 continue
             for k, v in p._arg_values(**kwargs).items():
-                if k in args and args[k] not in as_tuple(v) and k not in futures:
+                if k not in args:
+                    args[k] = v
+                elif k in futures:
+                    # An explicit override is later going to set `args[k]`
+                    pass
+                elif is_integer(args[k]) and args[k] not in as_tuple(v):
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
-                args[k] = v
         args = kwargs['args'] = args.reduce_all()
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in

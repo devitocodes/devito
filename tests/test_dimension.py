@@ -1270,6 +1270,20 @@ class TestConditionalDimension(object):
         op()
         assert np.all(f.data == 1)
 
+    def test_issue_1927_v2(self):
+        size = 16
+        factor = 4
+        i = Dimension(name='i')
+
+        ci = ConditionalDimension(name='ci', parent=i, factor=factor)
+
+        g = Function(name='g', shape=(size,), dimensions=(i,))
+        f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
+
+        op = Operator([Eq(f, g)])
+
+        op.apply()
+
     def test_issue_2007(self):
         """
         Proxy for a Fourier integral. Main issue: conditional placed too deep
