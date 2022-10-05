@@ -212,7 +212,7 @@ class CGeneration:
 
         if (isinstance(operation, Muli)):
             self.printResult(operation.input1)
-            self.print(" * ", end='', indent=False)
+            self.print("*", end='', indent=False)
             self.printResult(operation.input2)
             return
 

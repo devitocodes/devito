@@ -45,17 +45,21 @@ def transform_devito_xdsl_string(op: Operator):
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
+    for cast in FindNodes(PointerCast).visit(op.body):
+        ietxdsl_functions.myVisit(cast, block=b, ctx=d)
+
     for body_i in op.body.body:
         # Comments
-        if body_i.args.get('body') == ():
-            ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
+        if body_i.args.get('body') != ():
+            for body_j in body_i.body:
+                # Casts
+                ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
         else:
-            # Casts
-            for cast in FindNodes(PointerCast).visit(op.body):
-                ietxdsl_functions.myVisit(cast, block=b, ctx=d)
+            ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
 
-        for body_j in body_i.body:
-            ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
+
+
+
 
     # print Kernel
     cgen.printCallable(call_obj)
