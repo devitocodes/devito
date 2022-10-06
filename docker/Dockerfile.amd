@@ -1,9 +1,11 @@
 ##############################################################
 # This Dockerfile contains AMD compilers
 ##############################################################
-ARG ROCM_VERSION=5.1.3
 
-FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete
+ARG arch="aomp"
+
+ARG ROCM_VERSION=5.1.3
+FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -45,10 +47,32 @@ ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
 ENV OMPI_CC=$AOMP/bin/clang
 
+########################################################################
+# AOMP for GPUs (OpenMP offloading)
+########################################################################
+# This will only trigger if arch is aomp since the final stage depends on it
+FROM sdk-base as aomp
+
 # Devito env
 ENV DEVITO_ARCH="aomp"
 ENV DEVITO_PLATFORM="amdgpuX"
 ENV DEVITO_LANGUAGE="openmp"
+
+########################################################################
+# HIPCC for GPUs (HIP)
+########################################################################
+# This will only trigger if arch is hip since the final stage depends on it
+FROM sdk-base as hip
+
+# Devito env
+ENV DEVITO_ARCH="hip"
+ENV DEVITO_PLATFORM="amdgpuX"
+ENV DEVITO_LANGUAGE="hip"
+
+########################################################################
+# Final image
+########################################################################
+FROM ${arch} as final
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
