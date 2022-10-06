@@ -599,6 +599,32 @@ class CudaCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class HipCompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, cpp=True, **kwargs)
+
+        self.cflags.remove('-std=c99')
+        self.cflags.remove('-Wall')
+        self.cflags.remove('-fPIC')
+        self.cflags.extend(['-std=c++14', '-fPIC'])
+
+        # disabling specific warnings with nvcc
+        if configuration['mpi']:
+            raise NotImplementedError
+        else:
+            if not configuration['safe-math']:
+                self.cflags.append('-DHIP_FAST_MATH')
+
+        self.src_ext = 'cpp'
+
+    def __lookup_cmds__(self):
+        self.CC = 'hipcc'
+        self.CXX = 'hipcc'
+        self.MPICC = 'mpic++'
+        self.MPICXX = 'mpicxx'
+
+
 class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -721,6 +747,7 @@ compiler_registry = {
     'clang': ClangCompiler,
     'cray': CrayCompiler,
     'aomp': AOMPCompiler,
+    'hip': HipCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
     'nvc': NvidiaCompiler,
