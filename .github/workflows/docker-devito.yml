@@ -33,7 +33,7 @@ jobs:
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
             tag: 'amd'
-            flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video'
+            flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "amdgpu"]
 
