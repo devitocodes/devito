@@ -60,6 +60,12 @@ class Node(Signer):
     appears in this list are treated as traversable fields.
     """
 
+    _ccode_handler = None
+    """
+    Customizable by subclasses, in particular Operator subclasses which define
+    backend-specific nodes and, su such, require node-specific handlers.
+    """
+
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
         argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
@@ -93,8 +99,11 @@ class Node(Signer):
               from devito.ir.iet import CGen
               CGen().visit(self)
         """
-        from devito.ir.iet.visitors import CGen
-        return CGen().visit(self)
+        try:
+            return self._ccode_handler().visit(self)
+        except (AttributeError, TypeError):
+            from devito.ir.iet.visitors import CGen
+            return CGen().visit(self)
 
     @property
     def view(self):
