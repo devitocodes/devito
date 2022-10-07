@@ -1,14 +1,14 @@
 from itertools import product
 
 import numpy as np
-from sympy import And
+from sympy import And, Or
 import pytest
 
 from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin)
+                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1213,6 +1213,90 @@ class TestConditionalDimension(object):
         assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
         assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
         assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+
+    @pytest.mark.parametrize('init_value,expected', [
+        ([2, 1, 3], [2, 2, 0]),  # updates f1, f2
+        ([3, 3, 3], [3, 3, 0]),  # updates f2
+        ([1, 2, 3], [1, 2, 3])  # no updates
+    ])
+    def test_issue_1435(self, init_value, expected):
+        names = 't1 t2 t3 t4 t5 t6 t7 t8 t9 t10'
+        t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = \
+            tuple(SpaceDimension(i) for i in names.split())
+
+        f0 = Function(name='f0', grid=Grid(shape=(2, 2, 4, 4),
+                                           dimensions=(t1, t2, t3, t4)))
+        f1 = Function(name='f1', grid=Grid(shape=(2, 2, 3, 3),
+                                           dimensions=(t5, t6, t7, t8)))
+        f2 = Function(name='f2', grid=f1.grid)
+
+        f0.data[:] = init_value[0]
+        f1.data[:] = init_value[1]
+        f2.data[:] = init_value[2]
+
+        cd = ConditionalDimension(name='cd', parent=t10,
+                                  condition=Or(Gt(f0[t5, t6, t7 + t9,
+                                                     t8 + t10],
+                                                  f1[t5, t6, t7, t8]),
+                                               And(~Ne(f0[t5, t6, t7 + t9,
+                                                          t8 + t10],
+                                                       f1[t5, t6, t7, t8]),
+                                                   Lt(2 * t9 + t10,
+                                                      f2[t5, t6, t7, t8]))))
+
+        op = Operator([Eq(f1[t5, t6, t7, t8], f0[t5, t6, t7 + t9, t8 + t10],
+                          implicit_dims=cd),
+                       Eq(f2[t5, t6, t7, t8], 2 * t9 + t10, implicit_dims=cd)])
+
+        # Check it compiles correctly! See issue report
+        op.cfunction
+        op.apply(t9_M=5, t10_M=5)
+
+        assert np.all(f0.data[:] == expected[0])
+        assert np.all(f1.data[:] == expected[1])
+        assert np.all(f2.data[:] == expected[2])
+
+    @pytest.mark.parametrize('factor', [
+        4,
+        Constant(name='factor', dtype=np.int32, value=4),
+    ])
+    def test_issue_1927(self, factor):
+        """
+        Ensure `time_M` is correctly inferred even in presence of TimeFunctions
+        defined on ConditionalDimensions.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+        save = 10
+
+        time_sub = ConditionalDimension('t_sub', parent=time, factor=factor)
+
+        f = TimeFunction(name='f', grid=grid, save=10, time_dim=time_sub)
+
+        op = Operator(Eq(f, 1))
+
+        assert op.arguments()['time_M'] == 4*(save-1)  # == min legal endpoint
+
+        # Also no issues when supplying an override
+        assert op.arguments(time_M=10)['time_M'] == 10
+        assert op.arguments(time=10)['time_M'] == 10
+
+        op()
+        assert np.all(f.data == 1)
+
+    def test_issue_1927_v2(self):
+        size = 16
+        factor = 4
+        i = Dimension(name='i')
+
+        ci = ConditionalDimension(name='ci', parent=i, factor=factor)
+
+        g = Function(name='g', shape=(size,), dimensions=(i,))
+        f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
+
+        op = Operator([Eq(f, g)])
+
+        op.apply()
 
     def test_issue_2007(self):
         """

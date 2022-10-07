@@ -509,10 +509,19 @@ class DeviceAwareDataManager(DataManager):
 
         return _place_transfers(iet, mapper=kwargs['mapper'])
 
+    @iet_pass
+    def place_devptr(self, iet, **kwargs):
+        """
+        Transform `iet` such that device pointers are used in DeviceCalls.
+        """
+        return iet, {}
+
     def process(self, graph):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
         mapper = self.derive_transfers(graph)
         self.place_transfers(graph, mapper=mapper)
-        super().process(graph)
+        self.place_definitions(graph)
+        self.place_devptr(graph)
+        self.place_casts(graph)

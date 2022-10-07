@@ -4,7 +4,8 @@ import numpy as np
 
 from devito.data import FULL
 from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
-                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
+                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace,
+                       SymbolRegistry)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, DefaultOrderedDict, filter_ordered, prod
@@ -85,12 +86,18 @@ def linearize_accesses(iet, key, track, sregistry):
     # For all unseen Functions, build the size exprs. For example:
     # `x_fsz0 = u_vec->size[1]`
     imapper = DefaultOrderedDict(dict)
+    dummyregistry = SymbolRegistry()
     for (d, halo, _), v in mapper.items():
-        expr = _generate_fsz(v[0], d, sregistry)
-        if expr:
-            for f in v:
-                imapper[f][d] = expr.write
-                track[f].stmts0.append(expr)
+        for f in list(v):
+            if _generate_fsz(f, d, dummyregistry) is None:
+                v.remove(f)
+        try:
+            expr = _generate_fsz(v[0], d, sregistry)
+        except IndexError:
+            continue
+        for f in v:
+            imapper[f][d] = expr.write
+            track[f].stmts0.append(expr)
 
     # For all unseen Functions, build the stride exprs. For example:
     # `y_stride0 = y_fsz0*z_fsz0`

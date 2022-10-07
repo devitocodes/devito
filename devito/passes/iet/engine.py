@@ -1,4 +1,4 @@
-from collections import Counter, OrderedDict, namedtuple
+from collections import Counter, OrderedDict
 from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
@@ -9,7 +9,7 @@ from devito.types import Array, CompositeObject, Lock, Indirection
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 
-__all__ = ['Graph', 'iet_pass', 'Jitting']
+__all__ = ['Graph', 'iet_pass', 'iet_visit']
 
 
 class Graph(object):
@@ -56,13 +56,10 @@ class Graph(object):
 
             # Update jit-compiler if necessary
             try:
-                jitting = metadata['jitting']
-                self.includes.extend(jitting.includes)
-
                 compiler = kwargs['compiler']
-                compiler.add_include_dirs(jitting.include_dirs)
-                compiler.add_libraries(jitting.libs)
-                compiler.add_library_dirs(jitting.lib_dirs)
+                compiler.add_include_dirs(as_tuple(metadata.get('include_dirs')))
+                compiler.add_libraries(as_tuple(metadata.get('libs')))
+                compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')))
             except KeyError:
                 pass
 
@@ -125,9 +122,6 @@ def iet_pass(func):
 
 def iet_visit(func):
     return iet_pass((iet_visit, func))
-
-
-Jitting = namedtuple('Jitting', 'includes include_dirs libs lib_dirs')
 
 
 def create_call_graph(root, efuncs):
@@ -228,19 +222,7 @@ def abstract_efunc(efunc):
     """
     functions = FindSymbols().visit(efunc)
 
-    # Precedence rules make it possible to reconstruct objects that depend on
-    # higher priority objects
-    priority = {
-        DiscreteFunction: 1,
-    }
-    key = lambda i: priority.get(i, 0)
-    functions = sorted(functions, key=key, reverse=True)
-
-    # Build abstraction mappings
-    mapper = {}
-    counter = Counter()
-    for i in functions:
-        abstract_object(i, mapper, counter)
+    mapper = abstract_objects(functions)
 
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
@@ -248,8 +230,36 @@ def abstract_efunc(efunc):
     return efunc
 
 
+def abstract_objects(objects):
+    """
+    Proxy for `abstract_object`.
+    """
+    # Precedence rules make it possible to reconstruct objects that depend on
+    # higher priority objects
+    priority = {
+        DiscreteFunction: 1,
+    }
+
+    def key(i):
+        try:
+            return priority[i]
+        except (KeyError, TypeError):
+            # TypeError is for unhashable objects
+            return 0
+
+    objects = sorted(objects, key=key, reverse=True)
+
+    # Build abstraction mappings
+    mapper = {}
+    counter = Counter()
+    for i in objects:
+        abstract_object(i, mapper, counter)
+
+    return mapper
+
+
 @singledispatch
-def abstract_object(i, mapper, counter, cls=None):
+def abstract_object(i, mapper, counter):
     """
     Singledispatch-based implementation of object abstraction.
 

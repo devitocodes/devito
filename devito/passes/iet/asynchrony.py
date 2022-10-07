@@ -1,7 +1,6 @@
 from collections import OrderedDict
 
 import cgen as c
-import numpy as np
 
 from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
                        Conditional, Dereference, DummyExpr, FindNodes, FindSymbols,
@@ -78,7 +77,7 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     wrap = While(CondNe(FieldFromPointer(sdata._field_flag, sbase), 0), wrap)
 
     # pthread functions expect exactly one argument of type void*
-    tparameter = Pointer(name='_%s' % sdata.name, dtype=np.void)
+    tparameter = Pointer(name='_%s' % sdata.name)
 
     # Unpack `sdata`
     unpacks = [PointerCast(sdata, tparameter), BlankLine]

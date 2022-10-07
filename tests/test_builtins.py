@@ -4,7 +4,7 @@ from scipy.ndimage import gaussian_filter
 from scipy import misc
 
 from conftest import skipif
-from devito import Grid, Function, TimeFunction, switchconfig
+from devito import ConditionalDimension, Grid, Function, TimeFunction, switchconfig
 from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
                              inner, mmin, mmax, sum, sumall)
 from devito.data import LEFT, RIGHT
@@ -78,6 +78,18 @@ class TestAssign(object):
                                            [0, 2, 2, 0],
                                            [0, 2, 2, 0],
                                            [0, 0, 0, 0]])
+
+    def test_assign_subsampled_timefunction(self):
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        time_sub = ConditionalDimension('t_sub', parent=time, factor=4)
+
+        f = TimeFunction(name='f', grid=grid, save=10, time_dim=time_sub)
+
+        assign(f, 1)
+
+        assert np.all(f.data == 1)
 
     @skipif('nompi')
     @pytest.mark.parallel(mode=4)

@@ -21,8 +21,9 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import Graph, generate_implicit, instrument
 from devito.symbolics import estimate_cost
-from devito.tools import (DAG, Signer, ReducerMap, as_tuple, flatten, filter_sorted,
-                          frozendict, split, timed_pass, timed_region)
+from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
+                          filter_sorted, frozendict, is_integer, split, timed_pass,
+                          timed_region)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -182,12 +183,12 @@ class Operator(Callable):
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
-        op._headers = list(cls._default_headers)
-        op._headers.extend(byproduct.headers)
-        op._globals = list(cls._default_globals)
-        op._includes = list(cls._default_includes)
-        op._includes.extend(profiler._default_includes)
-        op._includes.extend(byproduct.includes)
+        op._headers = OrderedSet(*cls._default_headers)
+        op._headers.update(byproduct.headers)
+        op._globals = OrderedSet(*cls._default_globals)
+        op._includes = OrderedSet(*cls._default_includes)
+        op._includes.update(profiler._default_includes)
+        op._includes.update(byproduct.includes)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -494,6 +495,17 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
+        # Pre-process Dimension overrides. This may help ruling out ambiguities
+        # when processing the `defaults` arguments. A topological sorting is used
+        # as DerivedDimensions may depend on their parents
+        nodes = self.dimensions
+        edges = [(i, i.parent) for i in self.dimensions if i.is_Derived]
+        toposort = DAG(nodes, edges).topological_sort()
+        futures = {}
+        for d in reversed(toposort):
+            if set(d._arg_names).intersection(kwargs):
+                futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
+
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
@@ -511,12 +523,16 @@ class Operator(Callable):
                 # E.g., SubFunctions
                 continue
             for k, v in p._arg_values(**kwargs).items():
-                if k in args and args[k] != v:
+                if k not in args:
+                    args[k] = v
+                elif k in futures:
+                    # An explicit override is later going to set `args[k]`
+                    pass
+                elif is_integer(args[k]) and args[k] not in as_tuple(v):
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
-                args[k] = v
         args = kwargs['args'] = args.reduce_all()
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
@@ -545,12 +561,7 @@ class Operator(Callable):
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
         # Process Dimensions
-        # A topological sorting is used so that derived Dimensions are processed after
-        # their parents (note that a leaf Dimension can have an arbitrary long list of
-        # ancestors)
-        dag = DAG(self.dimensions,
-                  [(i, i.parent) for i in self.dimensions if i.is_Derived])
-        for d in reversed(dag.topological_sort()):
+        for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
 
         # Process Objects
