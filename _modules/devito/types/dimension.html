@@ -297,7 +297,7 @@
                 <span class="n">dim</span><span class="o">.</span><span class="n">size_name</span><span class="p">:</span> <span class="n">size</span><span class="p">,</span>
                 <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">}</span>
 
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Produce a map of argument values after evaluating user input. If no user</span>
 <span class="sd">        input is provided, get a known value in ``args`` and adjust it so that no</span>
@@ -309,7 +309,7 @@
 <span class="sd">        ----------</span>
 <span class="sd">        interval : Interval</span>
 <span class="sd">            Description of the Dimension data space.</span>
-<span class="sd">        grid : Grid</span>
+<span class="sd">        grid : Grid, optional</span>
 <span class="sd">            Used for spacing overriding and MPI execution; if ``self`` is a distributed</span>
 <span class="sd">            Dimension, then ``grid`` is used to translate user input into rank-local</span>
 <span class="sd">            indices.</span>
@@ -338,6 +338,18 @@
                 <span class="n">loc_maxv</span> <span class="o">-=</span> <span class="nb">max</span><span class="p">(</span><span class="n">interval</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
             <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                 <span class="k">pass</span>
+
+        <span class="c1"># Some `args` may still be DerivedDimenions&#39; defaults. These, in turn,</span>
+        <span class="c1"># may represent sets of legal values. If that&#39;s the case, here we just</span>
+        <span class="c1"># pick one. Note that we sort for determinism</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">loc_minv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_minv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">loc_maxv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_maxv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">pass</span>
 
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">loc_minv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">loc_maxv</span><span class="p">}</span>
 
@@ -714,7 +726,7 @@
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{}</span>
 
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="c1"># Allow override of thickness values to disable BCs</span>
         <span class="c1"># However, arguments from the user are considered global</span>
         <span class="c1"># So overriding the thickness to a nonzero value should not cause</span>
@@ -865,7 +877,26 @@
             <span class="n">retval</span> <span class="o">|=</span> <span class="bp">self</span><span class="o">.</span><span class="n">factor</span><span class="o">.</span><span class="n">free_symbols</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="k">pass</span>
-        <span class="k">return</span> <span class="n">retval</span></div>
+        <span class="k">return</span> <span class="n">retval</span>
+
+    <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">defaults</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_arg_defaults</span><span class="p">(</span><span class="n">_min</span><span class="o">=</span><span class="n">_min</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="n">alias</span><span class="p">)</span>
+
+        <span class="c1"># We can also add the parent&#39;s default endpoint. Note that exactly</span>
+        <span class="c1"># `factor` endpoints are legal, so we return them all. It&#39;s then</span>
+        <span class="c1"># up to the caller to decide which one to pick upon reduction</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">alias</span> <span class="ow">or</span> <span class="bp">self</span>
+        <span class="k">if</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">defaults</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Is it a symbolic factor?</span>
+            <span class="n">factor</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">factor</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span>
+        <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="nb">frozenset</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">factor</span><span class="o">*</span><span class="p">(</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">factor</span><span class="o">*</span><span class="p">(</span><span class="n">size</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">defaults</span></div>
 
 
 <span class="c1"># ***</span>
@@ -1159,7 +1190,7 @@
             <span class="c1"># `step` not a Symbol</span>
             <span class="k">return</span> <span class="p">{}</span>
 
-    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="o">.</span><span class="n">name</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
