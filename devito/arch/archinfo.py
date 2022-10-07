@@ -378,6 +378,17 @@ def get_cuda_path():
 
 
 @memoized_func
+def get_hip_path():
+    # *** First try: via commonly used environment variables
+    for i in ['HIP_HOME']:
+        hip_home = os.environ.get(i)
+        if hip_home:
+            return hip_home
+
+    return None
+
+
+@memoized_func
 def get_m1_llvm_path(language):
     # Check if Apple's llvm is installed (installable via Homebrew), which supports
     # OpenMP.

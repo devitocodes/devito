@@ -12,6 +12,8 @@ ENV DEBIAN_FRONTEND noninteractive
 ARG ROCM_VERSION
 ENV rocm=/opt/rocm-${ROCM_VERSION}
 ENV AOMP=/opt/rocm-${ROCM_VERSION}/llvm
+ENV ROCM_HOME /opt/rocm
+ENV HIP_HOME $ROCM_HOME/hip
 
 # Some utils needed
 RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev vim libnuma1 tmux
