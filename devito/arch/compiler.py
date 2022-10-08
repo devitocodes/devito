@@ -18,11 +18,12 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_meth, make_tempdir)
+                          memoized_func, memoized_meth, make_tempdir)
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
+@memoized_func
 def sniff_compiler_version(cc):
     """
     Detect the compiler version.
@@ -85,6 +86,7 @@ def sniff_compiler_version(cc):
     return ver
 
 
+@memoized_func
 def sniff_mpi_distro(mpiexec):
     """
     Detect the MPI version.
@@ -100,6 +102,20 @@ def sniff_mpi_distro(mpiexec):
     except (CalledProcessError, UnicodeDecodeError):
         pass
     return 'unknown'
+
+
+@memoized_func
+def sniff_mpi_flags():
+    mpi_distro = sniff_mpi_distro('mpiexec')
+    if mpi_distro != 'OpenMPI':
+        raise NotImplementedError("Unable to detect MPI compile and link flags")
+
+    # OpenMPI's CC wrapper, namely mpicc, takes the --showme argument to find out
+    # the flags used for compiling and linking
+    compile_flags = check_output(['mpicc', "--showme:compile"]).decode("utf-8")
+    link_flags = check_output(['mpicc', "--showme:link"]).decode("utf-8")
+
+    return compile_flags.split(), link_flags.split()
 
 
 class Compiler(GCCToolchain):
@@ -609,9 +625,12 @@ class HipCompiler(Compiler):
         self.cflags.remove('-fPIC')
         self.cflags.extend(['-std=c++14', '-fPIC'])
 
-        # disabling specific warnings with nvcc
         if configuration['mpi']:
-            raise NotImplementedError
+            # We rather use `hipcc` to compile MPI, but for this we have to
+            # explicitly pass the flags that an `mpicc` would implicitly use
+            compile_flags, link_flags = sniff_mpi_flags()
+            self.cflags.extend(compile_flags)
+            self.ldflags.extend(link_flags)
         else:
             if not configuration['safe-math']:
                 self.cflags.append('-DHIP_FAST_MATH')
@@ -621,8 +640,8 @@ class HipCompiler(Compiler):
     def __lookup_cmds__(self):
         self.CC = 'hipcc'
         self.CXX = 'hipcc'
-        self.MPICC = 'mpic++'
-        self.MPICXX = 'mpicxx'
+        self.MPICC = 'hipcc'
+        self.MPICXX = 'hipcc'
 
 
 class IntelCompiler(Compiler):
