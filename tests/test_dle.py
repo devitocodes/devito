@@ -6,8 +6,8 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    Dimension, SubDimension, Eq, Inc, ReduceMax, Operator,
-                    configuration, dimensions, info, cos)
+                    CustomDimension, Dimension, SubDimension, Eq, Inc, ReduceMax,
+                    Operator, configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
@@ -192,6 +192,23 @@ def test_cache_blocking_structure_optrelax():
     assert len(iters) == 2
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
+
+
+def test_cache_blocking_structure_optrelax_customdim():
+    grid = Grid(shape=(8, 8, 8))
+    d = CustomDimension(name='d', symbolic_size=2)
+    x, y, z = grid.dimensions
+
+    u = TimeFunction(name="u", grid=grid)
+    f = Function(name="f", grid=grid, dimensions=(d, x, y, z), shape=(2,) + grid.shape)
+
+    eqn = Eq(f, u[d, x, y, z] + u[d, x + 1, y, z])
+
+    op = Operator(eqn, opt=('advanced', {'blockrelax': True}))
+
+    _, _ = assert_blocking(op, {'x0_blk0'})
+    assert_structure(op, ['d,x0_blk0,y0_blk0,z0_blk0,x,y,z'],
+                     'd,x0_blk0,y0_blk0,z0_blk0,x,y,z')
 
 
 def test_cache_blocking_structure_leftright_subdims():

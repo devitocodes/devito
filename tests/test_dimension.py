@@ -1370,7 +1370,7 @@ class TestMashup(object):
         eqns = [Eq(f.forward, f + 1),
                 Eq(g.forward, g + 1),
                 Eq(fsave, f.dt2, implicit_dims=[ctime]),
-                Eq(h, f + g, subdomain=grid.interior),
+                Eq(h, f.dx + g, subdomain=grid.interior),
                 Eq(gsave, g.dt2, implicit_dims=[ctime])]
 
         op = Operator(eqns)
