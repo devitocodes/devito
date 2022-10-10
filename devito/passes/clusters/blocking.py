@@ -95,13 +95,14 @@ class AnayzeBlockingBase(Queue):
         return super()._process_fatd(clusters, level, prefix)
 
     def _has_data_reuse(self, cluster):
-        # A necessary but not sufficient condition for the existance of data
-        # reuse in the Cluster is that there must be at least three Indexeds --
-        # the LHS, the RHS, and another Indexed shifted w.r.t. the RHS, e.g.
-        # `a(x), b(x), b(x+1)`. Obv not sufficient because, e.g., `a(x), b(x),
-        # c(x)` would have no data reuse across x-iterations
-        if len(cluster.scope.indexeds) >= 3:
-            return True
+        # A sufficient condition for the existance of data reuse in `cluster`
+        # is that the same Function is accessed twice via two different Indexeds
+        seen = set()
+        for i in cluster.scope.indexeds:
+            if i.function in seen:
+                return True
+            else:
+                seen.add(i.function)
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
         # might be enough
@@ -115,6 +116,11 @@ class AnayzeBlockingBase(Queue):
 
         return False
 
+    def _has_short_trip_count(self, d):
+        # DefaultDimensions and CustomDimensions define small iteration spaces,
+        # often of statically-known size, hence they wouldn't benefit from blocking
+        return d.is_Default or d.is_Custom
+
 
 class AnalyzeBlocking(AnayzeBlockingBase):
 
@@ -123,6 +129,8 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
+        if self._has_short_trip_count(d):
+            return clusters
 
         for c in clusters:
             if not {PARALLEL,
@@ -184,9 +192,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
-        if d.is_Default:
-            # Heuristic: DefaultDimensions typically define relatively small
-            # iteration spaces, hence they're ruled out
+        if self._has_short_trip_count(d):
             return clusters
 
         for c in clusters:
