@@ -129,9 +129,9 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "::set-output name=RUN_CMD::docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
           else
-              echo "::set-output name=RUN_CMD::"
+              echo "RUN_CMD=" >> $GITHUB_ENV
           fi
       id: set-run
 
@@ -143,9 +143,9 @@ jobs:
     - name: Set tests (reduced number for OSX)
       run : |
           if [ "${{ runner.os }}" == 'macOS' ]; then
-              echo "::set-output name=TESTS::tests/test_operator.py"
+              echo "TESTS=tests/test_operator.py" >> $GITHUB_ENV
           else
-              echo "::set-output name=TESTS::tests/"
+              echo "TESTS=tests/" >> $GITHUB_ENV
           fi
       id: set-tests
 
@@ -158,8 +158,8 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} ${{ matrix.arch }} --version
-        ${{ steps.set-run.outputs.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ steps.set-tests.outputs.TESTS }}
+        ${{ env.RUN_CMD }} ${{ matrix.arch }} --version
+        ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Upload coverage to Codecov
       if: "!contains(matrix.name, 'docker')"
