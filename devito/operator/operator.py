@@ -641,16 +641,6 @@ class Operator(Callable):
 
     @cached_property
     def ccode(self):
-        """
-        Generate C code.
-
-        This is a shorthand for
-
-            .. code-block:: python
-
-              from devito.ir.iet import CGen
-              CGen().visit(self)
-        """
         from devito.ir.iet.visitors import CGen
         return CGen(compiler=self._compiler).visit(self)
 
