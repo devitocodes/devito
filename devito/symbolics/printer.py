@@ -9,6 +9,8 @@ from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
+from devito import configuration
+from devito.arch import Device
 
 __all__ = ['ccode']
 
@@ -93,6 +95,23 @@ class CodePrinter(C99CodePrinter):
 
         result = '%'.join(args)
         return result
+
+    def _print_Abs(self, expr):
+        """Print an absolute value. Use `abs` if can infer it is an Integer"""
+        # `abs` undefined in soem offloading cases
+        if isinstance(configuration['platform'], Device):
+            return super()._print(expr)
+
+        # Check if argument is an integer
+        is_integer = True
+        for a in expr.args[0].args:
+            try:
+                is_integer = is_integer and np.issubdtype(a.dtype, np.integer)
+            except AttributeError:
+                is_integer = is_integer and a.is_Integer
+
+        func = "abs" if is_integer else "fabs"
+        return "%s(%s)" % (func, self._print(expr.args[0]))
 
     def _print_Float(self, expr):
         """Print a Float in C-like scientific notation."""
