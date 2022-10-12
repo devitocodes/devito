@@ -27,9 +27,6 @@ class CodePrinter(C99CodePrinter):
     _default_settings = {'compiler': None, 'dtype': np.float32,
                          **C99CodePrinter._default_settings}
 
-    def __init__(self, settings={}):
-        C99CodePrinter.__init__(self, settings)
-
     @property
     def dtype(self):
         return self._settings['dtype']
