@@ -232,7 +232,7 @@ class Operator(Callable):
         Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
         """
         # Create a symbol registry
-        kwargs['sregistry'] = SymbolRegistry()
+        kwargs.setdefault('sregistry', SymbolRegistry())
 
         expressions = as_tuple(expressions)
 
