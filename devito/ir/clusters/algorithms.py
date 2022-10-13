@@ -14,7 +14,7 @@ from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, timed_pass)
-from devito.types import Array, Eq, Inc, Symbol
+from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
@@ -417,7 +417,7 @@ def normalize_reductions(cluster, sregistry, options):
             name = sregistry.make_name()
             a = Array(name=name, dtype=e.dtype, dimensions=dims)
             processed.extend([Eq(a.indexify(), e.rhs),
-                              Inc(e.lhs, a.indexify())])
+                              e.func(e.lhs, a.indexify())])
 
         else:
             processed.append(e)
