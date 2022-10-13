@@ -14,7 +14,7 @@ We provide two CPU images:
 
 These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
 
-To run this image locally, you will first of all need to install `docker`. Then, the following commands will get you started:
+To run this image locally, you will first need to install `docker`. Then, the following commands will get you started:
 
 ```bash
 # Pull image and start a bash shell 
@@ -106,7 +106,7 @@ docker build --build-arg base=devitocodes/base:amd --network=host --file docker/
 ```
 
 
-## Debugging a base image (Useful for development only)
+## Debugging a base image
 
 This section is primarily helpful in contributing to or debugging the Docker images.
 
@@ -127,10 +127,21 @@ docker run --rm --name testrun devito_img py.test --nbval -k 'not dask' examples
 
 ## Developing Devito with Docker
 
-.. code-block:: shell
+For those aiming to develop in Devito using Docker, you can use docker-compose.
+We start by cloning the repo and entering the Devito directory.
 
-# Example CPU
+```bash
+git clone https://github.com/devitocodes/devito.git
+cd devito
+```
+
+### Example CPU
+
+```bash
 docker-compose run devito /bin/bash
+```
 
-# Example GPU
+### Example GPU
+```bash
 docker-compose run devito.nvidia /bin/bash
+```
