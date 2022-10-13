@@ -780,6 +780,7 @@ class FindSymbols(Visitor):
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
                                    if isinstance(i, IndexedBase)],
+        'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
         'defines-aliases': _defines_aliases
     }
