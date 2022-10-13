@@ -630,7 +630,7 @@ def test_sparse_first():
 @pytest.mark.parametrize('inj', ('s_id', '1 + s_id', 's_id[0, 0, s_id]'))
 @pytest.mark.parametrize('shape', [(50, 50, 50)])
 @pytest.mark.parametrize('so', (2, 4, 8))
-@pytest.mark.parametrize('tn', (20, 40, 100))
+@pytest.mark.parametrize('tn', (20, 40, 60))
 def test_decompose_src_to_aligned(shape, so, tn, inj):
     """ Test decomposition of non-aligned source wavelets to equivalent
         aligned to grid points source wavelets
@@ -647,8 +647,6 @@ def test_decompose_src_to_aligned(shape, so, tn, inj):
     # Construct model
     model = Model(vp=v, origin=origin, shape=shape, spacing=spacing, space_order=so)
 
-    x, y, z = model.grid.dimensions  # Get dimensions
-
     t0 = 0  # Simulation starts a t=0
     dt = 1  # model.critical_dt  # Time step from model grid spacing
     tn = tn
@@ -662,7 +660,7 @@ def test_decompose_src_to_aligned(shape, so, tn, inj):
     ste = 0.9
     stepx = (ste-stx)/int(np.sqrt(src.npoint))
 
-    # Uniform x,y source spread
+    # Uniform x, y source spread
     src.coordinates.data[:, :2] = \
         np.array(np.meshgrid(np.arange(stx, ste,
                  stepx), np.arange(stx, ste, stepx))).T.reshape(-1, 2) \
@@ -670,13 +668,12 @@ def test_decompose_src_to_aligned(shape, so, tn, inj):
 
     src.coordinates.data[:, -1] = 20  # Depth is 20m
 
-    # Get positions affected by sparse operator
-    arr = src.gridpoints_all
-
     # Source ID function to hold unique id for each point affected
     s_id = Function(name='s_id', shape=model.grid.shape, dimensions=model.grid.dimensions,
                     space_order=0, dtype=np.int32)
 
+    # Get positions affected by sparse operator
+    arr = src.gridpoints_all
     nzinds = (arr[:, 0], arr[:, 1], arr[:, 2])
     s_id.data[nzinds] = tuple(np.arange(len(nzinds[0])))
 
