@@ -856,9 +856,9 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 try:
                     # E.g., `xs`
                     sub_iterators = writeto.sub_iterators[i.dim]
-                    assert len(sub_iterators) == 1
+                    assert len(sub_iterators) <= 1
                     indices.append(sub_iterators[0])
-                except KeyError:
+                except (KeyError, IndexError):
                     # E.g., `z` -- a non-shifted Dimension
                     indices.append(i.dim - i.lower)
 
