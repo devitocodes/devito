@@ -6,7 +6,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -117,9 +117,9 @@ class AnayzeBlockingBase(Queue):
         return False
 
     def _has_short_trip_count(self, d):
-        # DefaultDimensions and CustomDimensions define small iteration spaces,
-        # often of statically-known size, hence they wouldn't benefit from blocking
-        return d.is_Default or d.is_Custom
+        # Iteration spaces of statically known size are always small, at
+        # most a few tens of unit, so they wouldn't benefit from blocking
+        return is_integer(d.symbolic_size)
 
 
 class AnalyzeBlocking(AnayzeBlockingBase):
