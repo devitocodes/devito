@@ -1,6 +1,6 @@
 import cgen
 
-from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
+from devito.ir import (Any, Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import MIN, MAX, evalrel
@@ -94,7 +94,7 @@ def relax_incr_dimensions(iet, **kwargs):
         if root in mapper:
             continue
 
-        assert all(i.direction is Forward for i in iterations)
+        assert all(i.direction in (Forward, Any) for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Block)
 
         # Get root's `symbolic_max` out of each outer Dimension
