@@ -15,7 +15,7 @@ from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
-from devito.types import (Array, TempFunction, Eq, Symbol, ModuloDimension,
+from devito.types import (Array, TempFunction, Eq, Symbol, Temp, ModuloDimension,
                           CustomDimension, IncrDimension, Indexed, Hyperplane)
 from devito.types.grid import MultiSubDimension
 
@@ -870,7 +870,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            obj = Symbol(name=name, dtype=dtype)
+            obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
 
             callback = lambda idx: obj
