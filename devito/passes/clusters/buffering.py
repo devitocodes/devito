@@ -5,8 +5,8 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
-                       IterationSpace, AFFINE, PARALLEL, Queue, SEQUENTIAL, Vector,
-                       lower_exprs, normalize_properties, vmax, vmin)
+                       IterationSpace, AFFINE, PARALLEL, Queue, Vector,
+                       lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -218,15 +218,21 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
+                properties = c.properties.sequentialize(d)
 
-                processed.append(downgrade(c.rebuild(exprs=expr, ispace=ispace), d))
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
             # Substitute buffered Functions with the newly created buffers
             exprs = [uxreplace(e, subs) for e in c.exprs]
             ispace = c.ispace
             for b in buffers:
                 ispace = ispace.augment(b.sub_iterators)
-            processed.append(downgrade(c.rebuild(exprs=exprs, ispace=ispace), d))
+            properties = c.properties.sequentialize(d)
+            processed.append(
+                c.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+            )
 
             # Also append the copy-back if `e` is the last-write of some buffers
             # E.g., `usave[time + 1, x] = ub[sb1, x]`
@@ -244,8 +250,11 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
+                properties = c.properties.sequentialize(d)
 
-                processed.append(downgrade(c.rebuild(exprs=expr, ispace=ispace), d))
+                processed.append(
+                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                )
 
         # Lift {write,read}-only buffers into separate IterationSpaces
         if self.options['buf-fuse-tasks']:
@@ -688,16 +697,3 @@ def offset_from_centre(d, indices):
             offset = p - vmin(*[Vector(i) for i in indices])[0]
 
     return p, offset
-
-
-def downgrade(c, d):
-    """
-    Buffering induces a storage-related dependence along `c`'s contracted
-    Dimensions. This rebuilds `c` such that its contracted Dimension `d`
-    is tagged SEQUENTIAL.
-    """
-    # Buffering creates a storage-related dependence along the
-    # contracted dimensions
-    properties = dict(c.properties)
-    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
-    return c.rebuild(properties=properties)

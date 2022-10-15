@@ -132,6 +132,7 @@ class AnalyzeBlocking(AnayzeBlockingBase):
         if self._has_short_trip_count(d):
             return clusters
 
+        processed = []
         for c in clusters:
             if not {PARALLEL,
                     PARALLEL_IF_ATOMIC,
@@ -142,8 +143,8 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             if not self._has_data_reuse(c):
                 return clusters
 
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
+            # All good so far, `d` is actually TILABLE
+            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
 
         return processed
 
@@ -195,6 +196,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         if self._has_short_trip_count(d):
             return clusters
 
+        processed = []
         for c in clusters:
             # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
@@ -218,6 +220,8 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if any(i.dim.is_Sub and i.dim.local for i in c.itintervals):
                 return clusters
 
+            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
+
         if len(clusters) > 1:
             # Heuristic: same as above if it induces dynamic bounds
             exprs = flatten(c.exprs for c in as_tuple(clusters))
@@ -227,9 +231,6 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         else:
             # Just avoiding potentially expensive checks
             pass
-
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
 
         return processed
 
@@ -246,11 +247,12 @@ class AnalyzeSkewing(Queue):
 
         d = prefix[-1].dim
 
+        processed = []
         for c in clusters:
             if TILABLE not in c.properties[d]:
                 return clusters
 
-        processed = attach_property(clusters, d, SKEWABLE)
+            processed.append(c.rebuild(properties=c.properties.add(d, SKEWABLE)))
 
         return processed
 
@@ -466,19 +468,3 @@ class SynthesizeSkewing(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
-
-
-# Utils
-
-
-def attach_property(clusters, d, p):
-    """
-    Attach `p` to `c.properties[d]` for each `c` in `clusters`.
-    """
-    processed = []
-    for c in clusters:
-        properties = dict(c.properties)
-        properties[d] = set(properties[d]) | {p}
-        processed.append(c.rebuild(properties=properties))
-
-    return processed

@@ -1,4 +1,4 @@
-from devito.tools import Tag
+from devito.tools import Tag, as_tuple, frozendict
 
 
 class Property(Tag):
@@ -116,3 +116,22 @@ def normalize_properties(*args):
 
 def relax_properties(properties):
     return frozenset(properties - {PARALLEL_INDEP, ROUNDABLE})
+
+
+class Properties(frozendict):
+
+    """
+    A mapper {Dimension -> {properties}}.
+    """
+
+    def add(self, dims, properties):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = set(self[d]) | set(as_tuple(properties))
+        return Properties(m)
+
+    def sequentialize(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = normalize_properties(self[d], {SEQUENTIAL})
+        return Properties(m)
