@@ -243,7 +243,7 @@ class Operator(Callable):
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
-        kwargs['lower'] = cls._lower
+        kwargs['lower'] = cls._rlower
 
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
@@ -261,6 +261,28 @@ class Operator(Callable):
         iet, byproduct = cls._lower_iet(uiet, **kwargs)
 
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
+
+    @classmethod
+    def _rlower(cls, expressions, **kwargs):
+        """
+        Lower `expressions` by carefully disabling a selection of passes so
+        that the resulting IRs may be used in a context of recursive compilation.
+        Thus, `_rlower` is expected to be used internally as a callback by one
+        or more compilation passes, during the "main" phase of compilation.
+        """
+        options = dict(kwargs['options'])
+
+        # It is not only pointless to apply the following passes recursively
+        # (because once, during the main compilation phase, is simply enough),
+        # but also dangerous as a handful of compiler passes, the minority,
+        # might break in some circumstances if applied in cascade (e.g.,
+        # `linearization` on top of `linearization`)
+        options['mpi'] = False
+        options['linearize'] = False  # Will be carried out later on
+
+        kwargs['options'] = options
+
+        return cls._lower(expressions, **kwargs)
 
     @classmethod
     def _initialize_state(cls, **kwargs):
