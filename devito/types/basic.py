@@ -946,6 +946,10 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self._name
 
     @property
+    def _C_type_qualifier(self):
+        return 'restrict'
+
+    @property
     def indices(self):
         """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
@@ -1304,6 +1308,11 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
 
 class IndexedData(IndexedBase):
+
+    @property
+    def _C_type_qualifier(self):
+        return 'restrict'
+
     pass
 
 

@@ -174,7 +174,8 @@ class CGen(Visitor):
         ret = []
         for i in args:
             if isinstance(i, (AbstractFunction, IndexedData)):
-                ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
+                ret.append(c.Value('%s%s' % (i._C_typename, i._C_type_qualifier),
+                                   i._C_name))
             elif i.is_AbstractObject or i.is_Symbol:
                 ret.append(c.Value(i._C_typename, i._C_name))
             else:
@@ -264,7 +265,8 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(i._C_typedata, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(i._C_typedata, '(*%s %s)%s' % (i._C_type_qualifier,
+                                                                v, shape))
             else:
                 rshape = '*'
                 lvalue = c.Value(i._C_typedata, '*%s' % v)
@@ -301,12 +303,14 @@ class CGen(Visitor):
                                                 a1.dim.name)
                 lvalue = c.AlignedAttribute(
                     a0._data_alignment,
-                    c.Value(i._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
+                    c.Value(i._C_typedata, '(*%s %s)%s' % (i._C_type_qualifier, a0.name,
+                                                           shape))
                 )
             else:
                 rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
                 lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(i._C_typedata, '*restrict %s' % a0.name)
+                    a0._data_alignment, c.Value(i._C_typedata, '*%s %s' %
+                                                (i._C_type_qualifier, a0.name))
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
