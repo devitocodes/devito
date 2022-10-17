@@ -441,7 +441,7 @@ class AOMPCompiler(Compiler):
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
 
     def __init__(self, *args, **kwargs):
-        super(AOMPCompiler, self).__init__(*args, cpp=True, **kwargs)
+        super(AOMPCompiler, self).__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:

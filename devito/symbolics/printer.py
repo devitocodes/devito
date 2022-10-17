@@ -9,6 +9,8 @@ from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
+from devito.arch.compiler import AOMPCompiler
+
 __all__ = ['ccode']
 
 
@@ -24,6 +26,7 @@ class CodePrinter(C99CodePrinter):
     """
     def __init__(self, dtype=np.float32, settings={}):
         self.dtype = dtype
+        self.compiler = settings.pop('compiler', None)
         C99CodePrinter.__init__(self, settings)
 
     def parenthesize(self, item, level, strict=False):
@@ -95,6 +98,9 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Abs(self, expr):
         """Print an absolute value. Use `abs` if can infer it is an Integer"""
+        # AOMPCC errors with abs, always use fabs
+        if isinstance(self.compiler, AOMPCompiler):
+            return "fabs(%s)" % self._print(expr.args[0])
         # Check if argument is an integer
         is_integer = True
         for a in expr.args[0].args:
