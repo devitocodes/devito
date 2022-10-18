@@ -542,11 +542,38 @@ class TestConditionalDimension(object):
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.), Eq(usave, u)]
         op = Operator(eqns)
-        op.apply(t_M=nt-2)
+        op.apply()
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
         assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
+
+    def test_overrides(self):
+        # Check overrides
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        f1, f2 = 4, 5
+        n1, n2 = (nt+f1-1)//f1, (nt+f2-1)//f2
+        t1 = ConditionalDimension('t_sub1', parent=time, factor=f1)
+        t2 = ConditionalDimension('t_sub2', parent=time, factor=f2)
+        u1 = TimeFunction(name='usave1', grid=grid, save=n1, time_dim=t1)
+        u2 = TimeFunction(name='usave2', grid=grid, save=n2, time_dim=t2)
+        assert(t1 in u1.indices)
+        assert(t2 in u2.indices)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(u1, u), Eq(u2, u)]
+        op = Operator(eqns)
+        op.apply(u=u, usave1=u1, usave2=u2, time_M=nt-2)
+
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        for (uk, fk) in zip((u1, u2), (f1, f2)):
+            assert np.all([np.allclose(uk.data[i], i*fk)
+                           for i in range((nt+fk-1)//fk)])
 
     def test_basic_shuffles(self):
         """

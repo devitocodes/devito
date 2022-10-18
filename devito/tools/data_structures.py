@@ -1,5 +1,5 @@
 from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, MutableSet, Mapping
+from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
 from functools import reduce
 
 import numpy as np
@@ -112,6 +112,11 @@ class ReducerMap(MultiDict):
             first = candidates[0]
             if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
                 return (first == v).all()
+            elif isinstance(v, Set):
+                if isinstance(first, Set):
+                    return not v.isdisjoint(first)
+                else:
+                    return first in v
             else:
                 return first == v
 
