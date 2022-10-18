@@ -177,11 +177,10 @@ class CGen(Visitor):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
         for i in args:
-            if isinstance(i, (AbstractFunction, IndexedData)):
+            if (isinstance(i, (AbstractFunction, IndexedData))
+               or i.is_AbstractObject or i.is_Symbol):
                 ret.append(c.Value('%s%s' % (i._C_typename, i._C_type_qualifier),
                                    i._C_name))
-            elif i.is_AbstractObject or i.is_Symbol:
-                ret.append(c.Value(i._C_typename, i._C_name))
             else:
                 ret.append(c.Value('void', '*_%s' % i._C_name))
         return ret
