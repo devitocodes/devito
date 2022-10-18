@@ -716,7 +716,7 @@ class Scope(object):
         # The iteration symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
-            for i in d.bound_symbols:
+            for i in d.free_symbols | d.bound_symbols:
                 v = self.reads.setdefault(i.function, [])
                 v.append(TimedAccess(i, 'R', -1))
 
