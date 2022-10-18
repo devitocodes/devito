@@ -56,6 +56,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#devito.operator.operator.Operator"><code class="docutils literal notranslate"><span class="pre">Operator</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.apply"><code class="docutils literal notranslate"><span class="pre">Operator.apply()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.arguments"><code class="docutils literal notranslate"><span class="pre">Operator.arguments()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.ccode"><code class="docutils literal notranslate"><span class="pre">Operator.ccode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.cfunction"><code class="docutils literal notranslate"><span class="pre">Operator.cfunction</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.cinterface"><code class="docutils literal notranslate"><span class="pre">Operator.cinterface()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#devito.operator.operator.Operator.dimensions"><code class="docutils literal notranslate"><span class="pre">Operator.dimensions</span></code></a></li>
@@ -281,6 +282,19 @@ iteration point along the time dimension must be explicitly specified
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.arguments">
 <span class="sig-name descname"><span class="pre">arguments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.arguments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.arguments" title="Permalink to this definition"></a></dt>
 <dd><p>Arguments to run the Operator.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="devito.operator.operator.Operator.ccode">
+<span class="sig-name descname"><span class="pre">ccode</span></span><a class="headerlink" href="#devito.operator.operator.Operator.ccode" title="Permalink to this definition"></a></dt>
+<dd><p>Generate C code.</p>
+<p>This is a shorthand for</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">devito.ir.iet</span> <span class="kn">import</span> <span class="n">CGen</span>
+<span class="n">CGen</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</pre></div>
+</div>
+</div></blockquote>
 </dd></dl>
 
 <dl class="py property">
