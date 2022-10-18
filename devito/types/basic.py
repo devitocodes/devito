@@ -121,6 +121,10 @@ class CodeSymbol(object):
         """
         return
 
+    @property
+    def _C_type_qualifier(self):
+        return ''
+
     @cached_property
     def _C_typequals(self):
         """
