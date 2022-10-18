@@ -75,9 +75,9 @@ jobs:
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py37' ]; then
-              echo "::set-output name=RUN_CMD::docker run --rm --name testrun devito_img"
+              echo "RUN_CMD=docker run --rm --name testrun devito_img" >> $GITHUB_ENV
           else
-              echo "::set-output name=RUN_CMD::"
+              echo "RUN_CMD=" >> $GITHUB_ENV
           fi
       id: set-run
 
@@ -90,38 +90,38 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval -k 'not dask' examples/seismic/tutorials/  # Horrible, but we're still at a loss
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/seismic/acoustic/accuracy.ipynb
+        ${{ env.RUN_CMD }} py.test --nbval -k 'not dask' examples/seismic/tutorials/  # Horrible, but we're still at a loss
+        ${{ env.RUN_CMD }} py.test --nbval examples/seismic/acoustic/accuracy.ipynb
 
     - name: Dask notebooks
       if: runner.os != 'macOS'
       run: |
-          ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/seismic/tutorials/*dask*.ipynb
+          ${{ env.RUN_CMD }} py.test --nbval examples/seismic/tutorials/*dask*.ipynb
 
     - name: Self-adjoint notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/seismic/self_adjoint/
+        ${{ env.RUN_CMD }} py.test --nbval examples/seismic/self_adjoint/
 
     - name: CFD notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/cfd
+        ${{ env.RUN_CMD }} py.test --nbval examples/cfd
 
     - name: User api notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/userapi
+        ${{ env.RUN_CMD }} py.test --nbval examples/userapi
 
     - name: Compiler notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/compiler
+        ${{ env.RUN_CMD }} py.test --nbval examples/compiler
 
     - name: Finance notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/finance
+        ${{ env.RUN_CMD }} py.test --nbval examples/finance
 
     - name: Performance notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/performance
+        ${{ env.RUN_CMD }} py.test --nbval examples/performance
 
     - name: ABC Notebooks
       run: |
-        ${{ steps.set-run.outputs.RUN_CMD }} py.test --nbval examples/seismic/abc_methods
+        ${{ env.RUN_CMD }} py.test --nbval examples/seismic/abc_methods
