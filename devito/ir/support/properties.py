@@ -135,3 +135,6 @@ class Properties(frozendict):
         for d in as_tuple(dims):
             m[d] = normalize_properties(self[d], {SEQUENTIAL})
         return Properties(m)
+
+    def is_parallel(self, d):
+        return len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
