@@ -528,8 +528,6 @@ class UnboundedMultiTuple(object):
     1
     >>> ub.next()
     2
-    >>> ub.next()
-    2
     >>> ub.iter()
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub.iter()  # No effect, tip has reached the last tuple
@@ -572,8 +570,4 @@ class UnboundedMultiTuple(object):
     def next(self):
         if self.curiter is None:
             raise StopIteration
-        try:
-            default = self.items[self.tip][-1]
-        except IndexError:
-            default = None
-        return next(self.curiter, default)
+        return next(self.curiter)

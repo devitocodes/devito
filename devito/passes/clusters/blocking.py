@@ -296,7 +296,10 @@ class SynthesizeBlocking(Queue):
         if blk_size_gen is not None:
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
-            step = sympify(blk_size_gen.next(clusters))
+            try:
+                step = sympify(blk_size_gen.next(clusters))
+            except StopIteration:
+                return clusters
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
             step = None

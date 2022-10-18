@@ -3,8 +3,8 @@ import pytest
 from sympy.abc import a, b, c, d, e
 import time
 
-from devito.tools import (ctypes_to_cstr, toposort, filter_ordered,
-                          transitive_closure)
+from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
+                          filter_ordered, transitive_closure)
 from devito.types.basic import Symbol
 
 
@@ -99,3 +99,24 @@ def test_sympy_subs_symmetric(mapper, expected):
 def test_ctypes_to_cstr(dtype, expected):
     a = Symbol(name='a', dtype=dtype)
     assert ctypes_to_cstr(a._C_ctype) == expected
+
+
+def test_unbounded_multi_tuple():
+    ub = UnboundedMultiTuple([1, 2], [3, 4])
+
+    ub.iter()
+    assert ub.next() == 1
+    assert ub.next() == 2
+
+    with pytest.raises(StopIteration):
+        ub.next()
+
+    ub.iter()
+    assert ub.next() == 3
+    assert ub.next() == 4
+
+    with pytest.raises(StopIteration):
+        ub.next()
+
+    ub.iter()
+    assert ub.next() == 3
