@@ -138,10 +138,12 @@ cd devito
 ### Example CPU
 
 ```bash
+# Start a terminal to develop/run for CPUs using docker compose
 docker-compose run devito /bin/bash
 ```
 
 ### Example GPU
 ```bash
+# Start a terminal to develop/run for GPUs using docker compose
 docker-compose run devito.nvidia /bin/bash
 ```
