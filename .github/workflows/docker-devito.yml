@@ -107,6 +107,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: base=devitocodes/${{ matrix.base }}
 
+      - name: Remove dangling layers
+        run: docker system prune -f
+
       - name: Run tests
         run: |
          docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}

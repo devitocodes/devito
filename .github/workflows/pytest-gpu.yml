@@ -78,7 +78,10 @@ jobs:
 
     - name: Build docker image
       run: |
-          docker build . --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
+          docker build . --rm --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
+
+    - name: Remove dangling layers
+      run: docker system prune -f
 
     - name: Test with pytest
       run: |
