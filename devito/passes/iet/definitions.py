@@ -18,7 +18,9 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import Array, CustomDimension, DeviceMap, DeviceRM, Eq, Symbol
+from devito.types import DeviceRM, Symbol
+
+from devito.data.allocators import CUPY_ALLOC
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -455,6 +457,11 @@ class DeviceAwareDataManager(DataManager):
         `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
         synchronize the host and device copies, while the latter does not.
         """
+        mmap = self.lang._map_to(obj)
+
+        if obj._allocator is CUPY_ALLOC:
+            return
+
         if read_only is False:
             if is_gpu_create(obj, self.gpu_create):
                 mmap = self.lang._map_alloc(obj)
