@@ -3,7 +3,7 @@ from functools import wraps
 
 import numpy as np
 
-from devito.data.allocators import ALLOC_FLAT
+from devito.data.allocators import ALLOC_FLAT, CUPY_ALLOC
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
@@ -82,7 +82,8 @@ class Data(np.ndarray):
             # Dask/Distributed context), which may (re)create a Data object
             # without going through `__array_finalize__`
             return
-        self._allocator.free(*self._memfree_args)
+        if self._allocator is not CUPY_ALLOC:
+            self._allocator.free(*self._memfree_args)
         self._memfree_args = None
 
     def __reduce__(self):
