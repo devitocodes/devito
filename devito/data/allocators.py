@@ -5,6 +5,7 @@ import mmap
 import os
 import sys
 
+import cupy as cp
 import numpy as np
 import ctypes
 from ctypes.util import find_library
@@ -15,7 +16,7 @@ from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator']
+           'CUPY_ALLOC', 'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -317,6 +318,33 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
+class CupyAllocator(MemoryAllocator):
+
+    """
+    Memory allocator based on ``posix`` functions. The allocated memory is
+    aligned to page boundaries.
+    """
+
+    is_Posix = True
+
+    def __init__(self):
+        cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
+    
+    @classmethod
+    def initialize(cls):
+        pass
+
+
+    def _alloc_C_libcall(self, size, ctype):
+
+        mem_obj = cp.zeros(size, dtype=cp.float64)
+        return mem_obj.data.ptr, mem_obj
+
+    def free(self, c_pointer):
+        pass
+
+
+
 class ExternalAllocator(MemoryAllocator):
 
     """
@@ -373,6 +401,7 @@ ALLOC_KNL_DRAM = NumaAllocator(0)
 ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
+CUPY_ALLOC = CupyAllocator()
 
 custom_allocators = {}
 """User-defined allocators."""
