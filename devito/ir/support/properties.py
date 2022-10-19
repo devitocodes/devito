@@ -147,3 +147,6 @@ class Properties(frozendict):
 
     def is_parallel(self, d):
         return len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
+
+    def is_affine(self, d):
+        return AFFINE in self[d]
