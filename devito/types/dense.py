@@ -83,7 +83,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
         self._allocator = kwargs.get('allocator') or default_allocator()
         initializer = kwargs.get('initializer')
-        if initializer is None or callable(initializer):
+        if initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
         elif isinstance(initializer, (np.ndarray, list, tuple)):
