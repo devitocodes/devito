@@ -344,7 +344,6 @@ class CupyAllocator(MemoryAllocator):
         pass
 
 
-
 class ExternalAllocator(MemoryAllocator):
 
     """
