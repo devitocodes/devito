@@ -149,62 +149,6 @@ class Powi(Operation):
 
 
 @irdl_op_definition
-class Muli(Operation):
-    name: str = "iet.muli"
-    input1 = OperandDef(IntegerType)
-    input2 = OperandDef(IntegerType)
-    output = ResultDef(IntegerType)
-
-    # TODO replace with trait
-    def verify_(self) -> None:
-        if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
-            raise Exception("expect all input and output types to be equal")
-
-    @staticmethod
-    def get(lhs, rhs):
-        res = Muli.build(operands=[lhs, rhs],
-                         result_types=[IntegerType.build(32)])
-        return res
-
-
-@irdl_op_definition
-class Modi(Operation):
-    name: str = "iet.modi"
-    input1 = OperandDef(IntegerType)
-    input2 = OperandDef(IntegerType)
-    output = ResultDef(IntegerType)
-
-    def verify_(self) -> None:
-        if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
-            raise Exception("expect all input and output types to be equal")
-
-    @staticmethod
-    def get(lhs, rhs):
-        res = Modi.build(operands=[lhs, rhs],
-                         result_types=[IntegerType.build(32)])
-        return res
-
-
-@irdl_op_definition
-class Powi(Operation):
-    name: str = "iet.powi"
-    #  This should be changed to Float/Float32Type
-    base = OperandDef(IntegerType)
-    exponent = OperandDef(IntegerType)
-    output = ResultDef(Float32Type)
-
-    def verify_(self) -> None:
-        if self.base.typ != self.exponent.typ or self.exponent.typ != self.output.typ:
-            raise Exception("expect all input and output types to be equal")
-
-    @staticmethod
-    def get(base, exponent):
-        res = Powi.build(operands=[base, exponent],
-                         result_types=[Float32Type()])
-        return res
-
-
-@irdl_op_definition
 class Idx(Operation):
     name: str = "iet.idx"
     array = OperandDef(IntegerType)
@@ -222,73 +166,6 @@ class Assign(Operation):
     name: str = "iet.assign"
     lhs = OperandDef(IntegerType)
     rhs = OperandDef(IntegerType)
-
-
-@irdl_op_definition
-class PointerCast(Operation):
-    name: str = "iet.pointercast"
-    statement = AttributeDef(StringAttr)
-
-    @staticmethod
-    def get(statement):
-        return PointerCast.build(
-            operands=[],
-            attributes={"statement": StringAttr.from_str(str(statement))},
-            result_types=[])
-
-
-@irdl_op_definition
-class Statement(Operation):
-    name: str = "iet.comment"
-    statement = AttributeDef(StringAttr)
-
-    @staticmethod
-    def get(statement):
-        return Statement.build(
-            operands=[],
-            attributes={"statement": StringAttr.from_str(str(statement))},
-            result_types=[])
-
-
-@irdl_op_definition
-class StructDecl(Operation):
-    name: str = "iet.structdecl"
-    id = AttributeDef(StringAttr)
-    fields = AttributeDef(ArrayAttr)
-    declname = AttributeDef(StringAttr)
-    padbytes = AttributeDef(AnyAttr())
-
-    @staticmethod
-    def get(name: str, fields: List[str], declname: str, padbytes: int = 0):
-        padb = IntegerAttr.from_int_and_width(padbytes, 32)
-        return StructDecl.build(
-            operands=[],
-            attributes={
-                "id":
-                StringAttr.from_str(name),
-                "fields":
-                ArrayAttr.from_list([StringAttr.from_str(str(f)) for f in fields]),
-                "declname":
-                StringAttr.from_str(str(declname)),
-                "padbytes":
-                padb
-            },
-            result_types=[])
-
-
-@irdl_op_definition
-class Initialise(Operation):
-    name: str = "iet.initialise"
-    id = AttributeDef(StringAttr)
-    rhs = OperandDef(Float32Type)
-    lhs = ResultDef(Float32Type)
-
-    @staticmethod
-    def get(lhs, rhs, id):
-        res = Initialise.build(attributes={"id": StringAttr.from_str(id)},
-                               operands=[lhs],
-                               result_types=[Float32Type()])
-        return res
 
 
 @irdl_op_definition

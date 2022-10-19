@@ -46,9 +46,12 @@ def createStatement(string=None, val=None):
 
 def collectStructs(parameters):
     struct_decs = []
+    struct_strs = []
     for i in parameters:
-        if (i._C_typedecl is not None and i._C_typedecl not in struct_decs):
+        # Bypass a struct decl if it has te same _C_typename
+        if (i._C_typedecl is not None and str(i._C_typename) not in struct_strs):
             struct_decs.append(i._C_typedecl)
+            struct_strs.append(i._C_typename)
     return struct_decs
 
 

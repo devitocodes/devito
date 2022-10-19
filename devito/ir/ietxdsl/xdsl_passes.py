@@ -14,12 +14,10 @@ def transform_devito_xdsl_string(op: Operator):
 
     """
     Transform a Devito Operator to an XDSL code string.
-
     Parameters
     ----------
     op : Operator
         A Devito Operator.
-
     Returns
     -------
     cgen.str
@@ -56,10 +54,6 @@ def transform_devito_xdsl_string(op: Operator):
                 ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
         else:
             ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
-
-
-
-
 
     # print Kernel
     cgen.printCallable(call_obj)

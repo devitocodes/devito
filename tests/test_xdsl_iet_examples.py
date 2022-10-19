@@ -32,6 +32,7 @@ def test_udx_conversion():
                                    "  int * hsize;\n"
                                    "  int * hofs;\n"
                                    "  int * oofs;\n"
+                                   "  void * dmap;\n"
                                    "} ;\n"
                                    "\n"
                                    "struct profiler\n"
@@ -97,6 +98,7 @@ def test_u_plus1_conversion():
                                    "  int * hsize;\n"
                                    "  int * hofs;\n"
                                    "  int * oofs;\n"
+                                   "  void * dmap;\n"
                                    "} ;\n"
                                    "\n"
                                    "struct profiler\n"
@@ -143,7 +145,6 @@ def test_u_and_v_conversion():
 
     xdsl_string = transform_devito_xdsl_string(op)
 
-
     assert xdsl_string == ("#define _POSIX_C_SOURCE 200809L\n"
                           "#define START_TIMER(S) struct timeval start_ ## S , end_ ## S ; gettimeofday(&start_ ## S , NULL);\n"
                           "#define STOP_TIMER(S,T) gettimeofday(&end_ ## S, NULL); T->S += (double)(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;\n"
@@ -163,6 +164,7 @@ def test_u_and_v_conversion():
                           "  int * hsize;\n"
                           "  int * hofs;\n"
                           "  int * oofs;\n"
+                          "  void * dmap;\n"
                           "} ;\n"
                           "\n"
                           "struct profiler\n"
@@ -193,8 +195,8 @@ def test_u_and_v_conversion():
                           "      #pragma omp simd aligned(u,v:32)\n"
                           "      for (int y = y_m; y <= y_M; y += 1) \n"
                           "      {\n"
-                          "        float r2 = r0*u[t1][x + 1][y + 1];\n"
                           "        float r1 = r0*-2.0*u[t0][x + 1][y + 1];\n"
+                          "        float r2 = r0*u[t1][x + 1][y + 1];\n"
                           "        u[t2][x + 1][y + 1] = r0*u[t2][x + 1][y + 1] + r1 + r2;\n"
                           "        v[t2][x + 1][y + 1] = r0*u[t2][x + 1][y + 1] + r1 + r2;\n"
                           "      }\n"

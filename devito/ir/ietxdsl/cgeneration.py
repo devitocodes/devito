@@ -51,7 +51,7 @@ class CGeneration:
     #
     #   42 + 3
     #
-    # we look at the very last operation in the module and then walk iand
+    # we look at the very last operation in the module and then walk and
     # recursively print the following tree expressed by the def-use chain of
     # these operations.
     def printModule(self, module):
@@ -114,7 +114,6 @@ class CGeneration:
         uindices_symbmins_divisors = iteration_op.uindices_symbmins_divisors
         uindices_symbmins_dividends = iteration_op.uindices_symbmins_dividends
         ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = "i_" + str(len(self.iterator_names))
         iterator = str(iteration_op.arg_name.data)
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
