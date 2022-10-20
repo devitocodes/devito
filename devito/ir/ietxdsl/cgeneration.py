@@ -68,15 +68,17 @@ class CGeneration:
             SSAValueNames[arg] = callable_op.parameters.data[i].data
         # TODO: fix this workaround
         # need separate loop because only header parameters have types
-        for n, op_type in enumerate(callable_op.types.data):
-            self.print(op_type.data, end=' ', indent=False)
+        for n, (op_type, op_qual) in enumerate(zip(callable_op.types.data,
+                                                   callable_op.qualifiers.data)):
+            self.print(op_type.data, end='', indent=False)
+            self.print(op_qual.data, end=' ', indent=False)
             self.print(callable_op.header_parameters.data[n].data,
                        end='',
                        indent=False)
             if n < (len(list(callable_op.types.data)) - 1):
-                self.print(",", end='', indent=False)
+                self.print(", ", end='', indent=False)
 
-        self.print("){")
+        self.print(")\n{")
         self.indent()
         for each_op in callable_op.body.ops:
             self.printOperation(each_op)
@@ -97,7 +99,7 @@ class CGeneration:
         increment = iteration_op.limits.data[2].data
         self.print(f"for (int {iterator} = {lower_bound}; ", end='')
         self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
-        self.print(f"{iterator} += {increment}) ", indent=False)
+        self.print(f"{iterator} += {increment})", indent=False)
         self.print("{")
         self.indent()
         for op in iteration_op.body.ops:
@@ -123,8 +125,7 @@ class CGeneration:
         increment = iteration_op.limits.data[2].data
         self.print(f"for (int {iterator} = {lower_bound}, ", end='')
 
-        # initialise subindices
-
+        # Initialise subindices
         for i, u in enumerate(uindices_names.data):
             self.print(
                 f"{u.data} = ({uindices_symbmins_dividends.data[i].data})%"
@@ -147,12 +148,13 @@ class CGeneration:
             if i < (len(uindices_names.data) - 1):
                 self.print(",", end=' ', indent=False)
 
-        self.print(")", end='', indent=False)
+        self.print(")", indent=False)
         self.print("{")
         self.indent()
         self.printOperation(iteration_op.body.ops)
         self.dedent()
-        self.print("}")
+        self.print("}", indent=True)
+        self.print("")
         pass
 
     def printResult(self, result):
@@ -263,7 +265,11 @@ class CGeneration:
             self.print("]", indent=False, end="")
             return
 
-        if (isinstance(operation, (PointerCast, Statement))):
+        if (isinstance(operation, (Statement))):
+            self.print(operation.statement.data)
+            return
+
+        if (isinstance(operation, (PointerCast))):
             self.print(operation.statement.data)
             return
 

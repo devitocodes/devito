@@ -242,11 +242,12 @@ class Callable(Operation):
     parameters = AttributeDef(ArrayAttr)
     header_parameters = AttributeDef(ArrayAttr)
     types = AttributeDef(ArrayAttr)
+    qualifiers = AttributeDef(ArrayAttr)
     body = RegionDef()
 
     @staticmethod
     def get(name: str, params: List[str], header_params: List[str],
-            types: List[str], body: Block):
+            types: List[str], qualifiers: List[str], body: Block):
         return Callable.build(attributes={
             "callable_name":
             StringAttr.from_str(name),
@@ -256,7 +257,9 @@ class Callable(Operation):
             ArrayAttr.from_list(
                 [StringAttr.from_str(p) for p in header_params]),
             "types":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in types])
+            ArrayAttr.from_list([StringAttr.from_str(p) for p in types]),
+            "qualifiers":
+            ArrayAttr.from_list([StringAttr.from_str(q) for q in qualifiers])
         }, regions=[Region.from_block_list([body])])
 
 

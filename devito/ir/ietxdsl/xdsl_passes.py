@@ -32,11 +32,13 @@ def transform_devito_xdsl_string(op: Operator):
     op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
     op_header_params = [opi._C_name for opi in list(op.parameters)]
     op_types = [opi._C_typename for opi in list(op.parameters)]
+    op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
 
     b = Block.from_arg_types([iet.i32] * len(op_param_names))
     d = {name: register for name, register in zip(op_param_names, b.args)}
 
-    call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types, b)
+    call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
+                            op_type_qs, b)
     cgen = CGeneration()
     # print header information
     ietxdsl_functions.printHeaders(cgen, "#define", op._headers)
