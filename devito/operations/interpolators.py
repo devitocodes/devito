@@ -256,7 +256,8 @@ class LinearInterpolator(GenericInterpolator):
 
             # Write/Incr `self`
             lhs = self.sfunction.subs(self_subs)
-            last = [Inc(lhs, rhs)] if increment else [Eq(lhs, rhs)]
+            ecls = Inc if increment else Eq
+            last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
 
             return temps + summands + last
 

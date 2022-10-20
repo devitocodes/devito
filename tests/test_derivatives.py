@@ -416,9 +416,13 @@ class TestFD(object):
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2.dx)]
         op = Operator(eqns)
-        op.apply(time_M=nt-2)
-        # Verify that u2[1, x,y]= du2/dx[0, x, y]
 
+        # NOTE: To assert against u.data[-1] we need to provide explicit bounds
+        # for x_M and y_M, otherwise they wouldn't be necessary as it wouldn't
+        # matter whether we run up to x_M=10 or x_M=11 !
+        op.apply(time_M=nt-2, x_M=11, y_M=11)
+
+        # Verify that u2[1, x,y]= du2/dx[0, x, y]
         assert np.allclose(u.data[-1], nt-1)
         assert np.allclose(u2.data[1], 0.5)
 

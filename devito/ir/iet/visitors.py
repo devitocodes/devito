@@ -169,6 +169,10 @@ class CGen(Visitor):
     Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.
     """
 
+    def __init__(self, *args, compiler=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._compiler = compiler
+
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
@@ -369,8 +373,8 @@ class CGen(Visitor):
         return v
 
     def visit_Expression(self, o):
-        lhs = ccode(o.expr.lhs, dtype=o.dtype)
-        rhs = ccode(o.expr.rhs, dtype=o.dtype)
+        lhs = ccode(o.expr.lhs, dtype=o.dtype, compiler=self._compiler)
+        rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
 
         if o.init:
             code = c.Initializer(c.Value(o.expr.lhs._C_typename, lhs), rhs)
@@ -383,8 +387,9 @@ class CGen(Visitor):
         return code
 
     def visit_AugmentedExpression(self, o):
-        code = c.Statement("%s %s= %s" % (ccode(o.expr.lhs, dtype=o.dtype), o.op,
-                           ccode(o.expr.rhs, dtype=o.dtype)))
+        c_lhs = ccode(o.expr.lhs, dtype=o.dtype, compiler=self._compiler)
+        c_rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
+        code = c.Statement("%s %s= %s" % (c_lhs, o.op, c_rhs))
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
         return code
@@ -1009,6 +1014,10 @@ class Uxreplace(Transformer):
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+
+    def visit_Pragma(self, o):
+        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        return o._rebuild(arguments=arguments)
 
     def visit_PragmaTransfer(self, o):
         function = uxreplace(o.function, self.mapper)

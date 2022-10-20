@@ -1,8 +1,9 @@
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 
-__all__ = ['CBB', 'CDataManager']
+__all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
 
 class CBB(LangBB):
@@ -18,4 +19,8 @@ class CBB(LangBB):
 
 
 class CDataManager(DataManager):
+    lang = CBB
+
+
+class COrchestrator(Orchestrator):
     lang = CBB

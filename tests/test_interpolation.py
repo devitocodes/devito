@@ -5,7 +5,7 @@ import pytest
 from sympy import Float
 
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
-                    Function, TimeFunction,
+                    Function, TimeFunction, DefaultDimension, Eq,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
                     MatrixSparseTimeFunction)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
@@ -590,3 +590,38 @@ def test_msf_interpolate():
     assert np.all(np.unique(nzt) == np.array([1, 2, 3, 4]))
     # 12 points x 4 timesteps
     assert nzt.size == 48
+
+
+def test_sparse_first():
+    """
+    Tests custom sprase function with sparse dimension as first index.
+    """
+
+    class SparseFirst(SparseFunction):
+        """ Custom sparse class with the sparse dimension as the first one"""
+        _sparse_position = 0
+
+    dr = Dimension("cd")
+    ds = DefaultDimension("ps", default_value=3)
+    grid = Grid((11, 11))
+    dims = grid.dimensions
+    s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds), shape=(2, 3))
+    s.coordinates.data[:] = [[.5, .5], [.2, .2]]
+
+    # Check dimensions and shape are correctly initialized
+    assert s.indices[s._sparse_position] == dr
+    assert s.shape == (2, 3)
+    assert s.coordinates.indices[0] == dr
+
+    # Operator
+    u = TimeFunction(name="u", grid=grid, time_order=1)
+    fs = Function(name="fs", grid=grid, dimensions=(*dims, ds), shape=(11, 11, 3))
+
+    eqs = [Eq(u.forward, u+1), Eq(fs, u)]
+    # No time dependence so need the implicit dim
+    rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
+    op = Operator(eqs + rec)
+
+    op(time_M=10)
+    expected = 10*11/2  # n (n+1)/2
+    assert np.allclose(s.data, expected)

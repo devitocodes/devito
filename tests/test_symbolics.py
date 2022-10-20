@@ -6,7 +6,7 @@ import numpy as np
 
 from sympy import Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt)
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
@@ -212,6 +212,12 @@ def test_extended_sympy_arithmetic():
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
     assert ccode(-1 + bar) == '-1 + o->bar'
+
+
+def test_integer_abs():
+    i1 = Dimension(name="i1")
+    assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
+    assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1F)"
 
 
 def test_intdiv():

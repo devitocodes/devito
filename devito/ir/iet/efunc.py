@@ -2,6 +2,7 @@ from cached_property import cached_property
 
 from devito.ir.iet.nodes import Call, Callable
 from devito.ir.iet.utils import derive_parameters
+from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
@@ -151,4 +152,18 @@ class DeviceCall(Call):
     A call to an external function executed asynchronously on a device.
     """
 
-    pass
+    def __init__(self, name, arguments=None, **kwargs):
+        # Explicitly convert host pointers into device pointers
+        processed = []
+        for a in arguments:
+            try:
+                f = a.function
+            except AttributeError:
+                processed.append(a)
+                continue
+            if f._mem_mapped:
+                processed.append(uxreplace(a, {f.indexed: f.dmap}))
+            else:
+                processed.append(a)
+
+        super().__init__(name, arguments=processed, **kwargs)

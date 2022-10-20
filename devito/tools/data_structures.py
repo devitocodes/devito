@@ -1,5 +1,5 @@
 from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, MutableSet, Mapping
+from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
 from functools import reduce
 
 import numpy as np
@@ -112,6 +112,11 @@ class ReducerMap(MultiDict):
             first = candidates[0]
             if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
                 return (first == v).all()
+            elif isinstance(v, Set):
+                if isinstance(first, Set):
+                    return not v.isdisjoint(first)
+                else:
+                    return first in v
             else:
                 return first == v
 
@@ -201,10 +206,16 @@ class OrderedSet(OrderedDict, MutableSet):
 
     Notes
     -----
-    Originally extracted from:
+    Readapted from:
 
         https://stackoverflow.com/questions/1653970/does-python-have-an-ordered-set
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        for e in args:
+            self.add(e)
 
     def update(self, *args, **kwargs):
         if kwargs:

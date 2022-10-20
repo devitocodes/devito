@@ -18,11 +18,11 @@ from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
-from devito.types.misc import Pointer, VolatileInt
+from devito.types.misc import VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'DevicePointer', 'QueueID']
+           'NPThreads', 'DeviceRM', 'QueueID']
 
 
 class NThreadsBase(Scalar):
@@ -274,24 +274,6 @@ class DeviceRM(DeviceSymbol):
 class QueueID(Symbol):
 
     def __new__(cls, *args, **kwargs):
-        kwargs.setdefault('name', 'qid')
+        kwargs['name'] = 'qid'
         kwargs.setdefault('is_const', True)
         return super().__new__(cls, *args, **kwargs)
-
-
-class DevicePointer(Pointer):
-
-    __rkwargs__ = Pointer.__rkwargs__ + ('mapped',)
-
-    def __init_finalize__(self, *args, mapped=None, **kwargs):
-        self._mapped = mapped
-
-        super().__init_finalize__(*args, **kwargs)
-
-    @property
-    def mapped(self):
-        return self._mapped
-
-    @property
-    def _C_ctype(self):
-        return self.mapped.indexed._C_ctype

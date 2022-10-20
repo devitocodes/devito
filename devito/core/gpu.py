@@ -223,15 +223,9 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Callbacks used by `Tasking` and `Streaming`
+        # Callbacks used by `buffering`, `Tasking` and `Streaming`
+        callback = lambda f: on_host(f, options)
         runs_on_host, reads_if_on_host = make_callbacks(options)
-
-        # Callback used by `buffering`
-        def callback(f):
-            if not is_on_device(f, options['gpu-fit']):
-                return [f.time_dim]
-            else:
-                return None
 
         return {
             'buffering': lambda i: buffering(i, callback, sregistry, options),
@@ -378,24 +372,37 @@ class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
 
 # Utils
 
+def on_host(f, options):
+    # A Dimension in `f` defining an IterationSpace that definitely
+    # gets executed on the host, regardless of whether it's parallel
+    # or sequential
+    if not is_on_device(f, options['gpu-fit']):
+        return f.time_dim
+    else:
+        return None
 
-def make_callbacks(options):
+
+def make_callbacks(options, key=None):
     """
     Options-dependent callbacks used by various compiler passes.
     """
 
-    def is_on_host(f):
-        return not is_on_device(f, options['gpu-fit'])
+    if key is None:
+        key = lambda f: on_host(f, options)
 
     def runs_on_host(c):
         # The only situation in which a Cluster doesn't get offloaded to
         # the device is when it writes to a host Function
-        return any(is_on_host(f) for f in c.scope.writes)
+        retval = {key(f) for f in c.scope.writes} - {None}
+        retval = set().union(*[d._defines for d in retval])
+        return retval
 
     def reads_if_on_host(c):
         if not runs_on_host(c):
-            return [f for f in c.scope.reads if is_on_host(f)]
+            retval = {key(f) for f in c.scope.reads} - {None}
+            retval = set().union(*[d._defines for d in retval])
+            return retval
         else:
-            return []
+            return set()
 
     return runs_on_host, reads_if_on_host

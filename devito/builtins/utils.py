@@ -1,7 +1,12 @@
+from functools import wraps
+
 import numpy as np
 
 import devito as dv
+from devito.symbolics import uxreplace
 from devito.tools import as_tuple
+
+__all__ = ['MPIReduction', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
 
 
 class MPIReduction(object):
@@ -98,3 +103,32 @@ def pad_outhalo(function):
             # Need to access it so that that worker is not blocking exectution since
             # _data_with_outhalo requires communication
             function._data_with_outhalo._local[0] = function._data_with_outhalo._local[0]
+
+
+def abstract_args(func):
+    """
+    Turn user-provided arguments into abstract parameters to construct generic
+    Operators. This minimizes the number of constructed and jit-compiled builtins.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        abstract_objects = dv.passes.iet.engine.abstract_objects
+        mapper = abstract_objects(args)
+
+        processed = []
+        argmap = {}
+        for a in args:
+            try:
+                if a.is_DiscreteFunction:
+                    v = uxreplace(a, mapper)
+                    processed.append(v)
+                    argmap[v.name] = a
+                    continue
+            except AttributeError:
+                pass
+            processed.append(a)
+
+        return func(*processed, argmap=argmap, **kwargs)
+
+    return wrapper

@@ -7,7 +7,6 @@ import sympy
 from sympy import Expr, Integer, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
-from devito.symbolics.printer import ccode
 from devito.tools import Pickable, as_tuple, is_integer
 from devito.types import Symbol
 
@@ -332,9 +331,9 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "%s%s" % (self._op, ccode(self.base))
+            return "%s%s" % (self._op, str(self.base))
         else:
-            return "%s(%s)" % (self._op, ccode(self.base))
+            return "%s(%s)" % (self._op, str(self.base))
 
     __repr__ = __str__
 
