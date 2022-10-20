@@ -753,11 +753,13 @@ class IterationSpace(Space):
                      self.directions))
 
     def __getitem__(self, key):
-        retval = self.intervals[key]
+        v = self.intervals[key]
         if isinstance(key, slice):
-            return self.project(lambda d: d in retval.dimensions)
+            return self.project(lambda d: d in v.dimensions)
         else:
-            return retval
+            d = v.dim
+            v = IterationInterval(v, self.sub_iterators[d], self.directions[d])
+            return v
 
     @classmethod
     def union(cls, *others, relations=None):
@@ -916,9 +918,7 @@ class IterationSpace(Space):
 
     @cached_property
     def itintervals(self):
-        return tuple(IterationInterval(
-            i, self.sub_iterators.get(i.dim), self.directions[i.dim]
-        ) for i in self.intervals)
+        return tuple(self[d] for d in self.itdimensions)
 
     @cached_property
     def dimensions(self):

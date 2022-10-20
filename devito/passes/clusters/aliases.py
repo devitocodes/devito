@@ -728,7 +728,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         g = list(group)
 
         try:
-            candidate = k[ridx]
+            candidate = k[ridx].interval
         except IndexError:
             # Degenerate alias (a scalar)
             processed.extend(g)

@@ -359,13 +359,13 @@ class ClusterGroup(tuple):
     ----------
     clusters : tuple of Clusters
         Input elements.
-    itintervals : tuple of IterationIntervals, optional
-        The region of iteration space shared by the ``clusters``.
+    ispace : IterationSpace, optional
+        The IterationSpace section shared by all `clusters`.
     """
 
-    def __new__(cls, clusters, itintervals=None):
+    def __new__(cls, clusters, ispace=None):
         obj = super(ClusterGroup, cls).__new__(cls, flatten(as_tuple(clusters)))
-        obj._itintervals = itintervals
+        obj._ispace = ispace
         return obj
 
     @classmethod
@@ -381,9 +381,8 @@ class ClusterGroup(tuple):
         return Scope(exprs=self.exprs)
 
     @cached_property
-    def itintervals(self):
-        """The prefix IterationIntervals common to all Clusters in self."""
-        return self._itintervals
+    def ispace(self):
+        return self._ispace
 
     @cached_property
     def guards(self):

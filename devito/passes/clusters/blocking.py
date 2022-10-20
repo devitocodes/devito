@@ -89,7 +89,7 @@ class AnayzeBlockingBase(Queue):
             d = prefix[-1].dim
 
             if any(TILABLE in c.properties[d] for c in clusters) and \
-               len({c.itintervals[:level] for c in clusters}) > 1:
+               len({c.ispace[:level] for c in clusters}) > 1:
                 return clusters
 
         return super()._process_fatd(clusters, level, prefix)
@@ -208,7 +208,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
                 return clusters
 
             # Heuristic: innermost Dimensions may be ruled out a-priori
-            is_inner = d is c.itintervals[-1].dim
+            is_inner = d is c.ispace[-1].dim
             if is_inner and not self.inner:
                 return clusters
 
@@ -217,7 +217,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
                 return clusters
 
             # Heuristic: same as above if there's a local SubDimension
-            if any(i.dim.is_Sub and i.dim.local for i in c.itintervals):
+            if any(i.dim.is_Sub and i.dim.local for i in c.ispace):
                 return clusters
 
             processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
@@ -270,7 +270,7 @@ class SynthesizeBlocking(Queue):
         super().__init__()
 
     def _make_key_hook(self, cluster, level):
-        return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
+        return (tuple(cluster.guards.get(i.dim) for i in cluster.ispace[:level]),)
 
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
@@ -397,7 +397,7 @@ def decompose(ispace, d, block_dims):
 class BlockSizeGenerator(UnboundedMultiTuple):
 
     def next(self, clusters):
-        if not any(i.dim.is_Block for i in flatten(c.itintervals for c in clusters)):
+        if not any(i.dim.is_Block for i in flatten(c.ispace for c in clusters)):
             self.iter()
         return super().next()
 
