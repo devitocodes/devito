@@ -2,8 +2,11 @@
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 from cgen import Comment
 
-from devito import ModuloDimension, SpaceDimension
 import devito.ir.iet.nodes as nodes
+
+from devito import ModuloDimension, SpaceDimension
+from devito.passes.iet.languages.openmp import OmpRegion
+
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Addi, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise, Muli,
@@ -249,8 +252,13 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.HaloSpot):
+        # import pdb;pdb.set_trace()
         assert len(node.children) == 1
-        assert isinstance(node.children[0], nodes.Iteration)
+        try:
+            assert isinstance(node.children[0], nodes.Iteration)
+        except:
+            assert isinstance(node.children[0], OmpRegion)
+
         myVisit(node.children[0], block, ctx)
         return
 

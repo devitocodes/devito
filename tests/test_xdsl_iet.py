@@ -4,6 +4,8 @@ from devito.tools import as_tuple
 from devito.ir.ietxdsl import (MLContext, Constant, Addi, CGeneration,
                                IET, Callable, Block, Iteration, Idx, Assign)
 
+from devito.ir.iet import retrieve_iteration_tree
+
 from xdsl.dialects.builtin import ModuleOp, Builtin
 from xdsl.printer import Printer
 
@@ -105,27 +107,30 @@ def test_devito_iet():
     eq = Eq(u.forward, u + 1)
     op = Operator([eq])
 
-    t_limits = as_tuple([str(i) for i in op.body.body[1].body[0].limits])
-    t_props = [str(i) for i in op.body.body[1].body[0].properties]
+    iters = retrieve_iteration_tree(op.body)
+    
+    t_limits = as_tuple([str(i) for i in iters[0][0].limits])
+    t_props = [str(i) for i in iters[0][0].properties]
+ 
+    x_limits = as_tuple([str(i) for i in iters[0][1].limits])
+    x_props = [str(i) for i in iters[0][1].properties]
 
-    x_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].limits])  # noqa
-    x_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].properties]  # noqa
-
-    y_limits = as_tuple([str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].nodes[0].limits])  # noqa
-    y_props = [str(i) for i in op.body.body[1].body[0].nodes[0].body[0].body[0].nodes[0].properties]  # noqa
+    y_limits = [str(i) for i in iters[0][2].limits]
+    y_props = [str(i) for i in iters[0][2].properties]
 
     ctx = MLContext()
     Builtin(ctx)
     iet = IET(ctx)
 
     mod = ModuleOp.from_region_or_ops([
-        Callable.get("kernel", ["u"],["u"],["struct dataobj*"], ["restrict"], Block.from_callable([iet.i32], lambda u: [
-            Iteration.get(t_props, t_limits,"time_loop",
+        Callable.get("kernel", ["u"], ["u"],["struct dataobj*"], ["restrict"],
+                     Block.from_callable([iet.i32], lambda u: [
+            Iteration.get(t_props, t_limits, iters[0][0].dim.name,
                 Block.from_callable([iet.i32, iet.i32, iet.i32],
                                     lambda time, t0, t1: [
-                    Iteration.get(x_props, x_limits,"x_loop",
+                    Iteration.get(x_props, x_limits, iters[0][1].dim.name,
                     Block.from_callable([iet.i32], lambda x: [
-                                  Iteration.get(y_props, y_limits,"y_loop",
+                                  Iteration.get(y_props, y_limits, iters[0][2].dim.name,
                                   Block.from_callable([iet.i32], lambda y: [
                         cst1    := Constant.get(1),
                         x1      := Addi.get(x, cst1),
