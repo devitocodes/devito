@@ -1,8 +1,9 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
-from cgen import Comment
+import cgen
 
 import devito.ir.iet.nodes as nodes
+import devito.mpi.routines as routines
 
 from devito import ModuloDimension, SpaceDimension
 from devito.passes.iet.languages.openmp import OmpRegion
@@ -173,8 +174,17 @@ def add_to_block(expr, arg_by_expr, result):
 
 
 def myVisit(node, block=None, ctx={}):
-    assert isinstance(
-        node, nodes.Node), f'Argument must be subclass of Node, found: {node}'
+    try:
+        print("asserted!")
+        bool_node = isinstance(
+            node, nodes.Node), f'Argument must be subclass of Node, found: {node}'
+        comment_node = isinstance(
+            node, cgen.Comment), f'Argument must be subclass of Node, found: {node}'
+        statement_node = isinstance(
+            node, cgen.Statement), f'Argument must be subclass of Node, found: {node}'
+        assert bool_node or comment_node or statement_node
+    except:
+        print("fail!")
 
     if hasattr(node, 'is_Callable') and node.is_Callable:
         return
@@ -244,7 +254,7 @@ def myVisit(node, block=None, ctx={}):
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
         for content in node.ccode.contents:
-            if isinstance(content, Comment):
+            if isinstance(content, cgen.Comment):
                 comment = Statement.get(content)
                 block.add_ops([comment])
             else:
@@ -252,7 +262,6 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.HaloSpot):
-        # import pdb;pdb.set_trace()
         assert len(node.children) == 1
         try:
             assert isinstance(node.children[0], nodes.Iteration)
@@ -279,14 +288,36 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.List):
-        header = node.header
-        for h in header:
-            comment = Statement.get(h)
-            block.add_ops([comment])
-        footer = node.footer
-        for h in footer:
-            comment = Statement.get(h)
-            block.add_ops([comment])
+        # Problem: When a List is ecountered with only body, but no header or footer
+        # we have a problem
+        for h in node.header:
+            myVisit(h, block, ctx)
+
+        for b in node.body:
+            myVisit(b, block, ctx)
+
+        for f in node.footer:
+            myVisit(f, block, ctx)
+
+        return
+
+    if isinstance(node, nodes.Call):
+        import pdb;pdb.set_trace()
+        return
+
+    if isinstance(node, cgen.Comment):
+        comment = Statement.get(node)
+        block.add_ops([comment])
+        return
+
+    if isinstance(node, cgen.Statement):
+        comment = Statement.get(node)
+        block.add_ops([comment])
+        return
+
+    if isinstance(node, cgen.Line):
+        comment = Statement.get(node)
+        block.add_ops([comment])
         return
 
     raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')
