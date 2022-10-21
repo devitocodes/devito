@@ -281,6 +281,9 @@ class Cluster(object):
                     intervals = intervals.translate(d, v1=-1)
                 else:
                     intervals = intervals.translate(d, 1)
+            for d in self.properties:
+                if self.properties.is_inbound(d):
+                    intervals = intervals.zero(d.root)
 
             # Special case: if the factor of a ConditionalDimension has value 1,
             # then we can safely resort to the parent's Interval
