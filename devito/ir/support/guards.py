@@ -5,14 +5,13 @@ of the compiler to express the conditions under which a certain object
 """
 
 from sympy import Ge, Gt, Le, Lt, Mul, true
-from sympy.core.operations import LatticeOp
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe, FLOAT
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'transform_guard']
+           'BaseGuardBoundNext', 'GuardOverflow']
 
 
 class Guard(object):
@@ -193,19 +192,6 @@ class GuardOverflowLt(BaseGuardOverflow, Lt):
 
 
 GuardOverflow = GuardOverflowGe
-
-
-def transform_guard(expr, guard_type, callback):
-    """
-    Transform the components of a guard according to `callback`.
-    A component `c` is transformed iff `isinstance(c, guard_type)`.
-    """
-    if isinstance(expr, guard_type):
-        return callback(expr)
-    elif isinstance(expr, LatticeOp):
-        return expr.func(*[transform_guard(a, guard_type, callback) for a in expr.args])
-    else:
-        return expr
 
 
 negations = {
