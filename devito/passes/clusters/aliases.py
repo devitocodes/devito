@@ -728,7 +728,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         g = list(group)
 
         try:
-            candidate = k[ridx].interval
+            candidate = k[ridx]
         except IndexError:
             # Degenerate alias (a scalar)
             processed.extend(g)
@@ -806,7 +806,7 @@ def optimize_schedule_padding(schedule, meta, platform):
             it = i.ispace.itintervals[-1]
             if it.dim is i.writeto[-1].dim and ROUNDABLE in meta.properties[it.dim]:
                 vl = platform.simd_items_per_reg(meta.dtype)
-                ispace = i.ispace.add(Interval(it.dim, 0, it.interval.size % vl))
+                ispace = i.ispace.add(Interval(it.dim, 0, it.size % vl))
             else:
                 ispace = i.ispace
             processed.append(ScheduledAlias(i.pivot, i.writeto, ispace, i.aliaseds,

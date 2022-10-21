@@ -544,43 +544,31 @@ Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
 
 
-class IterationInterval(object):
+class IterationInterval(Interval):
 
     """
-    An Interval associated with an IterationDirection.
+    An Interval associated with metadata.
     """
 
     def __init__(self, interval, sub_iterators, direction):
-        self.interval = interval
+        super().__init__(interval.dim, *interval.offsets, stamp=interval.stamp)
         self.sub_iterators = sub_iterators
         self.direction = direction
 
     def __repr__(self):
-        return "%s%s" % (self.interval, self.direction)
+        return "%s%s" % (super().__repr__(), self.direction)
 
     def __eq__(self, other):
         if not isinstance(other, IterationInterval):
             return False
-        return self.direction is other.direction and self.interval == other.interval
+        return self.direction is other.direction and super().__eq__(other)
 
     def __hash__(self):
-        return hash((self.interval, self.direction))
+        return hash((self.dim, self.offsets, self.direction))
 
     @property
     def args(self):
-        return (self.interval, self.sub_iterators, self.direction)
-
-    @property
-    def dim(self):
-        return self.interval.dim
-
-    @property
-    def offsets(self):
-        return self.interval.offsets
-
-    @property
-    def size(self):
-        return self.interval.size
+        return (self, self.sub_iterators, self.direction)
 
 
 class Space(object):
@@ -758,8 +746,7 @@ class IterationSpace(Space):
             return self.project(lambda d: d in v.dimensions)
         else:
             d = v.dim
-            v = IterationInterval(v, self.sub_iterators[d], self.directions[d])
-            return v
+            return IterationInterval(v, self.sub_iterators[d], self.directions[d])
 
     @classmethod
     def union(cls, *others, relations=None):
