@@ -306,7 +306,7 @@
 <span class="sd">        Perform the lowering Expressions -&gt; Clusters -&gt; ScheduleTree -&gt; IET.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Create a symbol registry</span>
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;sregistry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">SymbolRegistry</span><span class="p">()</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s1">&#39;sregistry&#39;</span><span class="p">,</span> <span class="n">SymbolRegistry</span><span class="p">())</span>
 
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
 
@@ -317,7 +317,7 @@
         <span class="c1"># Enable recursive lowering</span>
         <span class="c1"># This may be used by a compilation pass that constructs a new</span>
         <span class="c1"># expression for which a partial or complete lowering is desired</span>
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;lower&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;lower&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_rlower</span>
 
         <span class="c1"># [Eq] -&gt; [LoweredEq]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -335,6 +335,28 @@
         <span class="n">iet</span><span class="p">,</span> <span class="n">byproduct</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_iet</span><span class="p">(</span><span class="n">uiet</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">IRs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="n">uiet</span><span class="p">,</span> <span class="n">iet</span><span class="p">),</span> <span class="n">byproduct</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_rlower</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Lower `expressions` by carefully disabling a selection of passes so</span>
+<span class="sd">        that the resulting IRs may be used in a context of recursive compilation.</span>
+<span class="sd">        Thus, `_rlower` is expected to be used internally as a callback by one</span>
+<span class="sd">        or more compilation passes, during the &quot;main&quot; phase of compilation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">])</span>
+
+        <span class="c1"># It is not only pointless to apply the following passes recursively</span>
+        <span class="c1"># (because once, during the main compilation phase, is simply enough),</span>
+        <span class="c1"># but also dangerous as a handful of compiler passes, the minority,</span>
+        <span class="c1"># might break in some circumstances if applied in cascade (e.g.,</span>
+        <span class="c1"># `linearization` on top of `linearization`)</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;linearize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Will be carried out later on</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span>
+
+        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_initialize_state</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
