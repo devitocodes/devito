@@ -53,6 +53,7 @@ class DeviceOperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
+        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -179,7 +180,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, **kwargs)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
