@@ -337,7 +337,7 @@ class IntervalGroup(PartialOrderTuple):
         return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *interval_groups):
+    def generate(self, op, *interval_groups, relations=None):
         """
         Create a new IntervalGroup from the iterative application of an
         operation to some IntervalGroups.
@@ -349,6 +349,9 @@ class IntervalGroup(PartialOrderTuple):
             or 'union'.
         *interval_groups
             Input IntervalGroups.
+        relations : tuple, optional
+            Relations to be used in the newly constructed IntervalGroup, in addition
+            to the ones inherited via each element in `interval_groups`.
 
         Examples
         --------
@@ -364,6 +367,7 @@ class IntervalGroup(PartialOrderTuple):
         for ig in interval_groups:
             for i in ig:
                 mapper.setdefault(i.dim, []).append(i)
+
         intervals = []
         for v in mapper.values():
             # Create a new Interval through the concatenation v0.key(v1).key(v2)...
@@ -371,7 +375,10 @@ class IntervalGroup(PartialOrderTuple):
             for i in v[1:]:
                 interval = getattr(interval, op)(i)
             intervals.append(interval)
-        relations = set().union(*[ig.relations for ig in interval_groups])
+
+        relations = set(as_tuple(relations))
+        relations.update(set().union(*[ig.relations for ig in interval_groups]))
+
         return IntervalGroup(intervals, relations=relations)
 
     def is_compatible(self, o):
@@ -710,9 +717,11 @@ class IterationSpace(Space):
         super(IterationSpace, self).__init__(intervals)
 
         # Normalize sub-iterators
-        sub_iterators = sub_iterators or {}
-        self._sub_iterators = frozendict([(k, tuple(filter_ordered(as_tuple(v))))
-                                          for k, v in sub_iterators.items()])
+        sub_iterators = dict([(k, tuple(filter_ordered(as_tuple(v))))
+                              for k, v in (sub_iterators or {}).items()])
+        sub_iterators.update({i.dim: () for i in self.intervals
+                              if i.dim not in sub_iterators})
+        self._sub_iterators = frozendict(sub_iterators)
 
         # Normalize directions
         if directions is None:
@@ -751,13 +760,14 @@ class IterationSpace(Space):
             return retval
 
     @classmethod
-    def union(cls, *others):
+    def union(cls, *others, relations=None):
         if not others:
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
 
-        intervals = IntervalGroup.generate('union', *[i.intervals for i in others])
+        intervals = IntervalGroup.generate('union', *[i.intervals for i in others],
+                                           relations=relations)
 
         directions = {}
         for i in others:

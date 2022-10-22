@@ -5,7 +5,7 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import Array, CompositeObject, Lock, Indirection
+from devito.types import Array, CompositeObject, Lock, Indirection, Temp
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 
@@ -315,8 +315,12 @@ def _(i, mapper, counter):
 
 
 @abstract_object.register(Indirection)
+@abstract_object.register(Temp)
 def _(i, mapper, counter):
-    base = 'ind'
+    if isinstance(i, Indirection):
+        base = 'ind'
+    else:
+        base = 'r'
     name = '%s%d' % (base, counter[base])
 
     v = i._rebuild(name=name)

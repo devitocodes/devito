@@ -1,13 +1,14 @@
 from ctypes import c_double, c_void_p
 
 import numpy as np
+from sympy.core.core import ordering_of_classes
 
 from devito.types import CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard',
-           'Global', 'Hyperplane', 'Indirection']
+           'Global', 'Hyperplane', 'Indirection', 'Temp']
 
 
 class Timer(CompositeObject):
@@ -158,3 +159,15 @@ class Indirection(Symbol):
         obj.mapped = mapped
 
         return obj
+
+
+class Temp(Symbol):
+
+    """
+    A Temp is a Symbol used by compiler passes to store locally-constructed
+    temporary expressions.
+    """
+
+    # Just make sure the SymPy args ordering is the same regardless of whether
+    # the arguments are Symbols or Temps
+    ordering_of_classes.insert(ordering_of_classes.index('Symbol') + 1, 'Temp')

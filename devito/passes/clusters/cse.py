@@ -4,12 +4,12 @@ from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import count, estimate_cost, q_xop, q_leaf
 from devito.symbolics.manipulation import _uxreplace
-from devito.types import Eq, Symbol
+from devito.types import Eq, Temp as Temp0
 
 __all__ = ['cse']
 
 
-class Temp(Symbol):
+class Temp(Temp0):
     pass
 
 
@@ -18,7 +18,7 @@ def cse(cluster, sregistry, options, *args):
     """
     Common sub-expressions elimination (CSE).
     """
-    make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype).indexify()
+    make = lambda: Temp(name=sregistry.make_name(), dtype=cluster.dtype)
     exprs = _cse(cluster, make, min_cost=options['cse-min-cost'])
 
     return cluster.rebuild(exprs=exprs)
