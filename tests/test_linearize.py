@@ -446,3 +446,20 @@ def test_issue_1838():
     assert "r4L0(x, y, z) r4[(x)*y_stride2 + (y)*z_stride1 + (z)]" in str(op1)
 
     assert np.allclose(p0.data, p1.data, rtol=1e-6)
+
+
+def test_memspace_stack():
+    grid = Grid(shape=(4, 4))
+    dimensions = grid.dimensions
+
+    a = Array(name='a', dimensions=dimensions, dtype=grid.dtype, scope='stack')
+    u = TimeFunction(name='u', grid=grid)
+
+    eqn = Eq(u.forward, u + a.indexify() + 1.)
+
+    op = Operator(eqn, opt=('advanced', {'linearize': True}))
+
+    # Check generated code
+    assert 'uL0' in str(op)
+    assert 'aL0' not in str(op)
+    assert 'a[x][y]' in str(op)
