@@ -71,14 +71,19 @@ def test_scheduling_after_rewrite():
     # `compact_temporaries` must detect chains of isolated temporaries
     (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
      ['tv[t, x, y, z]'], 0),
-    # Dimension-independent data dependences should be a stopper for CSE
+    # Dimension-independent flow+anti dependences should be a stopper for CSE
+    (['Eq(t0, cos(t1))', 'Eq(t1, 5)', 'Eq(t2, cos(t1))'],
+     ['cos(t1)', '5', 'cos(t1)'], 0),
+    (['Eq(tu, tv + 1)', 'Eq(tv, tu)', 'Eq(tw, tv + 1)'],
+     ['tv[t, x, y, z] + 1', 'tu[t, x, y, z]', 'tv[t, x, y, z] + 1'], 0),
+    # Dimension-independent flow (but not anti) dependences are OK instead as
+    # long as the temporaries are introduced after the write
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt + 1)', 'Eq(tz.forward, tv.dt + 2)'],
      ['1/h_x', '-r1*tu[t, x, y, z] + r1*tu[t, x + 1, y, z] + 1',
       '-r1*tv[t, x, y, z] + r1*tv[t, x + 1, y, z] + 1',
-      '1/dt', '-r2*tv[t, x, y, z]',
-      'r0 + r2*tv[t + 1, x, y, z] + 1',
-      'r0 + r2*tv[t + 1, x, y, z] + 2'], 0),
+      '1/dt', '-r2*tv[t, x, y, z] + r2*tv[t + 1, x, y, z]',
+      'r0 + 1', 'r0 + 2'], 0),
     # Fancy use case with lots of temporaries
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
@@ -92,11 +97,12 @@ def test_scheduling_after_rewrite():
       '-r12*tv[t, x, y + 1, z] + r12*tv[t + 1, x, y + 1, z]',
       '-r12*tv[t, x - 1, y, z] + r12*tv[t + 1, x - 1, y, z]',
       '-r12*tv[t, x + 1, y, z] + r12*tv[t + 1, x + 1, y, z]',
-      'h_x**(-2)', '-2.0*r13', 'h_y**(-2)', '-2.0*r14', '-r12*tv[t, x, y, z]',
-      'r14*(r0*r13 + r1*r13 + r2*r8) + r14*(r13*r3 + r13*r4 + r5*r8) + ' +
-      'r9*(r13*r6 + r13*r7 + r8*(r10 + r12*tv[t + 1, x, y, z])) + 1',
-      'r13*(r0*r14 + r14*r3 + r6*r9) + r13*(r1*r14 + r14*r4 + r7*r9) + ' +
-      'r8*(r14*r2 + r14*r5 + r9*(r10 + r12*tv[t + 1, x, y, z])) + 2'], 0),
+      '-r12*tv[t, x, y, z] + r12*tv[t + 1, x, y, z]',
+      'h_x**(-2)', '-2.0*r13', 'h_y**(-2)', '-2.0*r14',
+      'r10*(r13*r6 + r13*r7 + r8*r9) + r14*(r0*r13 + r1*r13 + r2*r9) + ' +
+      'r14*(r13*r3 + r13*r4 + r5*r9) + 1',
+      'r13*(r0*r14 + r10*r6 + r14*r3) + r13*(r1*r14 + r10*r7 + r14*r4) + ' +
+      'r9*(r10*r8 + r14*r2 + r14*r5) + 2'], 0),
     # Existing temporaries from nested Function as index
     (['Eq(e0, fx[x])', 'Eq(tu, cos(-tu[t, e0, y, z]) + tv[t, x, y, z])',
       'Eq(tv, cos(tu[t, e0, y, z]) + tw)'],
