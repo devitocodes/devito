@@ -6,9 +6,10 @@ from sympy import S
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_constant, q_affine, q_terminal
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
-                          memoized_meth, memoized_generator)
+from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routine,
+                              q_terminal)
+from devito.tools import (Tag, as_tuple, is_integer, filter_ordered, filter_sorted,
+                          flatten, memoized_meth, memoized_generator)
 from devito.types import Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
@@ -67,7 +68,12 @@ class IterationInstance(LabeledVector):
         findices = tuple(access.function.dimensions)
         if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
-        return super().__new__(cls, list(zip(findices, access.indices)))
+        try:
+            indices = access.indices
+        except AttributeError:
+            # E.g., `access` is a FieldFromComposite rather than an Indexed
+            indices = (S.Infinity,)*len(findices)
+        return super().__new__(cls, list(zip(findices, indices)))
 
     def __hash__(self):
         return super().__hash__()
@@ -687,16 +693,27 @@ class Scope(object):
 
         for i, e in enumerate(exprs):
             # Reads
-            for j in retrieve_terminals(e.rhs):
+            terminals = retrieve_terminals(e, deep=True)
+            terminals.remove(e.lhs)  # We retain, though, all the indices
+            for j in filter_ordered(terminals):
                 v = self.reads.setdefault(j.function, [])
                 mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace))
 
             # Write
+            terminals = []
             if q_terminal(e.lhs):
-                v = self.writes.setdefault(e.lhs.function, [])
+                terminals.append(e.lhs)
+            if q_routine(e.rhs):
+                try:
+                    terminals.extend(e.rhs.writes)
+                except AttributeError:
+                    # E.g., foreign routines, such as `cos` or `sin`
+                    pass
+            for j in terminals:
+                v = self.writes.setdefault(j.function, [])
                 mode = 'WR' if e.is_Reduction else 'W'
-                v.append(TimedAccess(e.lhs, mode, i, e.ispace))
+                v.append(TimedAccess(j, mode, i, e.ispace))
 
             # If a reduction, we got one implicit read
             if e.is_Reduction:

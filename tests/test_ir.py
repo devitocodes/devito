@@ -13,9 +13,9 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
-from devito.symbolics import ccode
+from devito.symbolics import FieldFromPointer, ccode
 from devito.tools import prod
-from devito.types import Scalar, Array
+from devito.types import Scalar, Symbol, Array
 
 
 class TestVectorHierarchy(object):
@@ -705,6 +705,37 @@ class TestDependenceAnalysis(object):
 
         # Sanity check: we did find all of the expected dependences
         assert len(expected) == 0
+
+    def test_ffp(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        ffp = FieldFromPointer(f._C_field_data, f._C_symbol)
+
+        exprs = [Eq(ffp, 1), Eq(g.indexify(), f.indexify())]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_flow) == 1
+        v = scope.d_flow.pop()
+        assert v.function is f
+
+    def test_indirect_access(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        s0 = Symbol('s0', dtype=np.int32)
+        s1 = Symbol('s1', dtype=np.int32)
+
+        exprs = [Eq(s1, 1), Eq(f[s0, s1], 5)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_flow) == 1
+        v = scope.d_flow.pop()
+        assert v.function is s1
 
 
 class TestParallelismAnalysis(object):
