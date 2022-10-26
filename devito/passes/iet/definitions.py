@@ -437,9 +437,6 @@ class DeviceAwareDataManager(DataManager):
         """
         mmap = self.lang._map_to(obj)
 
-        if obj._allocator is CUPY_ALLOC:
-            return
-
         if read_only is False:
             unmap = [self.lang._map_update(obj),
                      self.lang._map_release(obj, devicerm=devicerm)]
