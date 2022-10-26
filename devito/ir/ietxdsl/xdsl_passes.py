@@ -35,6 +35,7 @@ def transform_devito_xdsl_string(op: Operator):
     op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
 
     b = Block.from_arg_types([iet.i32] * len(op_param_names))
+    import pdb;pdb.set_trace()
     d = {name: register for name, register in zip(op_param_names, b.args)}
 
     call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,

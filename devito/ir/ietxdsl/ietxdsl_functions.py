@@ -302,6 +302,9 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.Call):
+        # Those parameters without associated types aren't printed in the Kernel header
+        call_name = node.name
+        call_args = [i._C_name for i in node.arguments]
         import pdb;pdb.set_trace()
         return
 
