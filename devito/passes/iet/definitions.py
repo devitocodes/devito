@@ -459,9 +459,6 @@ class DeviceAwareDataManager(DataManager):
         """
         mmap = self.lang._map_to(obj)
 
-        if obj._allocator is CUPY_ALLOC:
-            return
-
         if read_only is False:
             if is_gpu_create(obj, self.gpu_create):
                 mmap = self.lang._map_alloc(obj)
