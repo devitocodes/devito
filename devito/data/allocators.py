@@ -16,7 +16,7 @@ from devito.tools import dtype_to_ctype
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'CUPY_ALLOC', 'default_allocator']
+           'ALLOC_CUPY', 'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -400,7 +400,7 @@ ALLOC_KNL_DRAM = NumaAllocator(0)
 ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
-CUPY_ALLOC = CupyAllocator()
+ALLOC_CUPY = CupyAllocator()
 
 custom_allocators = {}
 """User-defined allocators."""
