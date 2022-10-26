@@ -20,8 +20,6 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import DeviceRM, Symbol
 
-from devito.data.allocators import CUPY_ALLOC
-
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
