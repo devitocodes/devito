@@ -1,7 +1,9 @@
-import numpy as np
-import pytest
 from itertools import permutations
 
+import numpy as np
+import sympy
+
+import pytest
 from conftest import assert_structure, skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
@@ -19,7 +21,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar, Symbol, Indirection
+from devito.types import Array, Barrier, Scalar, Symbol, Indirection
 
 
 def dimify(dimensions):
@@ -1853,6 +1855,41 @@ class TestLoopScheduling(object):
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
             't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z'
         )
+
+    def test_barrier_halts_topofuse(self):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+        time = grid.time_dim
+
+        f = Function(name='f', grid=grid)
+        tu = TimeFunction(name='tu', grid=grid)
+        tv = TimeFunction(name='tv', grid=grid)
+
+        eqns0 = [Eq(tv, 0),
+                 Eq(tv[t-1, z, z, z], 1),
+                 Eq(tu, f + 1)]
+
+        # No surprises here -- the third equation gets swapped with the second
+        # one so as to be fused with the first equation
+        op0 = Operator(eqns0)
+        assert_structure(op0, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
+
+        class DummyBarrier(sympy.Function, Barrier):
+            pass
+
+        eqns1 = list(eqns0)
+        eqns1[1] = Eq(Symbol('dummy'), DummyBarrier(time))
+
+        op1 = Operator(eqns1)
+        assert_structure(op1, ['t,x,y,z', 't', 't,x,y,z'], 't,x,y,z,x,y,z')
+
+        # Again, but now a swap is performed *before* the barrier so it's legal
+        eqns2 = list(eqns0)
+        eqns2.append(eqns1[1])
+
+        op2 = Operator(eqns2)
+        assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
 
 class TestInternals(object):

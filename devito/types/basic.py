@@ -427,7 +427,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _evaluate(self, **kwargs):
         return self
 
-    def indexify(self):
+    def indexify(self, indices=None):
         return self
 
     @property

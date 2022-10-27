@@ -80,7 +80,7 @@ def _hoist_halospots(iet):
 
     def rule1(dep, candidates, loc_dims):
         # A reduction isn't a stopper to hoisting
-        return dep.write.is_reduction
+        return dep.write is not None and dep.write.is_reduction
 
     hoist_rules = [rule0, rule1]
 

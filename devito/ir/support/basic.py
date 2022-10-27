@@ -10,7 +10,7 @@ from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routin
                               q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_ordered, filter_sorted,
                           flatten, memoized_meth, memoized_generator)
-from devito.types import Dimension, DimensionTuple
+from devito.types import Barrier, Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -736,6 +736,19 @@ class Scope(object):
             for i in d.free_symbols | d.bound_symbols:
                 v = self.reads.setdefault(i.function, [])
                 v.append(TimedAccess(i, 'R', -1))
+
+        # Synchronization barriers are converted into mock dependences on symbols
+        # crossing them
+        for i, e in enumerate(exprs):
+            if e.find(Barrier):
+                for a in self.accesses:
+                    f = a.function
+                    indices = [i if d in e.ispace else S.Infinity
+                               for i, d in zip(a, a.aindices)]
+                    mock = f.indexify(indices)
+                    v = self.writes.setdefault(f, [])
+                    v.extend([TimedAccess(mock, 'R', i, e.ispace),
+                              TimedAccess(mock, 'W', i, e.ispace)])
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)

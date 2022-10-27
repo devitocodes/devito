@@ -740,6 +740,13 @@ class IterationSpace(Space):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))
 
+    def __contains__(self, d):
+        try:
+            self[d]
+            return True
+        except KeyError:
+            return False
+
     def __getitem__(self, key):
         v = self.intervals[key]
         if isinstance(key, slice):
