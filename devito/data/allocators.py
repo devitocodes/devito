@@ -321,11 +321,8 @@ class NumaAllocator(MemoryAllocator):
 class CupyAllocator(MemoryAllocator):
 
     """
-    Memory allocator based on ``posix`` functions. The allocated memory is
-    aligned to page boundaries.
+    Memory allocator based on Unified Memory concept. The allocation is made using Cupy.
     """
-
-    is_Posix = True
 
     def __init__(self):
         cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
@@ -334,9 +331,7 @@ class CupyAllocator(MemoryAllocator):
     def initialize(cls):
         pass
 
-
     def _alloc_C_libcall(self, size, ctype):
-
         mem_obj = cp.zeros(size, dtype=cp.float64)
         return mem_obj.data.ptr, (mem_obj,)
 
