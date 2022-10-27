@@ -338,9 +338,9 @@ class CupyAllocator(MemoryAllocator):
     def _alloc_C_libcall(self, size, ctype):
 
         mem_obj = cp.zeros(size, dtype=cp.float64)
-        return mem_obj.data.ptr, mem_obj
+        return mem_obj.data.ptr, (mem_obj,)
 
-    def free(self, c_pointer):
+    def free(self, _):
         pass
 
 
