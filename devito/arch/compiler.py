@@ -726,4 +726,4 @@ Registry dict for deriving Compiler classes according to the environment variabl
 DEVITO_ARCH. Developers should add new compiler classes here.
 """
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
-                          for i in ['4.9', '5', '6', '7', '8', '9', '10', '11']})
+                          for i in ['4.9', '5', '6', '7', '8', '9', '10', '11', '12']})
