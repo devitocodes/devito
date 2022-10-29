@@ -809,6 +809,19 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
+    # Devito default assumptions
+    is_regular = True
+    """
+    True if data and iteration points are aligned. Cases where they won't be
+    aligned (currently unsupported): Functions defined on SubDomains; compressed
+    Functions; etc.
+    """
+
+    is_compact = True
+    """
+    True if data is allocated as a single, contiguous chunk of memory.
+    """
+
     __rkwargs__ = ('name', 'dtype', 'halo', 'padding', 'alias')
 
     @classmethod

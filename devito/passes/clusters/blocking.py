@@ -6,7 +6,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -95,13 +95,14 @@ class AnayzeBlockingBase(Queue):
         return super()._process_fatd(clusters, level, prefix)
 
     def _has_data_reuse(self, cluster):
-        # A necessary but not sufficient condition for the existance of data
-        # reuse in the Cluster is that there must be at least three Indexeds --
-        # the LHS, the RHS, and another Indexed shifted w.r.t. the RHS, e.g.
-        # `a(x), b(x), b(x+1)`. Obv not sufficient because, e.g., `a(x), b(x),
-        # c(x)` would have no data reuse across x-iterations
-        if len(cluster.scope.indexeds) >= 3:
-            return True
+        # A sufficient condition for the existance of data reuse in `cluster`
+        # is that the same Function is accessed twice via two different Indexeds
+        seen = set()
+        for i in cluster.scope.indexeds:
+            if i.function in seen:
+                return True
+            else:
+                seen.add(i.function)
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
         # might be enough
@@ -115,6 +116,11 @@ class AnayzeBlockingBase(Queue):
 
         return False
 
+    def _has_short_trip_count(self, d):
+        # Iteration spaces of statically known size are always small, at
+        # most a few tens of unit, so they wouldn't benefit from blocking
+        return is_integer(d.symbolic_size)
+
 
 class AnalyzeBlocking(AnayzeBlockingBase):
 
@@ -123,7 +129,10 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
+        if self._has_short_trip_count(d):
+            return clusters
 
+        processed = []
         for c in clusters:
             if not {PARALLEL,
                     PARALLEL_IF_ATOMIC,
@@ -134,8 +143,8 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             if not self._has_data_reuse(c):
                 return clusters
 
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
+            # All good so far, `d` is actually TILABLE
+            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
 
         return processed
 
@@ -184,11 +193,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
-        if d.is_Default:
-            # Heuristic: DefaultDimensions typically define relatively small
-            # iteration spaces, hence they're ruled out
+        if self._has_short_trip_count(d):
             return clusters
 
+        processed = []
         for c in clusters:
             # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
@@ -212,6 +220,8 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if any(i.dim.is_Sub and i.dim.local for i in c.itintervals):
                 return clusters
 
+            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
+
         if len(clusters) > 1:
             # Heuristic: same as above if it induces dynamic bounds
             exprs = flatten(c.exprs for c in as_tuple(clusters))
@@ -221,9 +231,6 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         else:
             # Just avoiding potentially expensive checks
             pass
-
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
 
         return processed
 
@@ -240,11 +247,12 @@ class AnalyzeSkewing(Queue):
 
         d = prefix[-1].dim
 
+        processed = []
         for c in clusters:
             if TILABLE not in c.properties[d]:
                 return clusters
 
-        processed = attach_property(clusters, d, SKEWABLE)
+            processed.append(c.rebuild(properties=c.properties.add(d, SKEWABLE)))
 
         return processed
 
@@ -460,19 +468,3 @@ class SynthesizeSkewing(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
-
-
-# Utils
-
-
-def attach_property(clusters, d, p):
-    """
-    Attach `p` to `c.properties[d]` for each `c` in `clusters`.
-    """
-    processed = []
-    for c in clusters:
-        properties = dict(c.properties)
-        properties[d] = set(properties[d]) | {p}
-        processed.append(c.rebuild(properties=properties))
-
-    return processed

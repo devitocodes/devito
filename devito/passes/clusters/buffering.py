@@ -5,8 +5,8 @@ from cached_property import cached_property
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
-                       IterationSpace, AFFINE, PARALLEL, Queue, SEQUENTIAL, Vector,
-                       lower_exprs, normalize_properties, vmax, vmin)
+                       IterationSpace, AFFINE, PARALLEL, Queue, Vector,
+                       lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, uxreplace
@@ -218,13 +218,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-
-                # Buffering creates a storage-related dependence along the
-                # contracted dimensions
-                properties = dict(c.properties)
-                for d in b.contraction_mapper:
-                    d = ispace[d].dim  # E.g., `time_sub -> time`
-                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+                properties = c.properties.sequentialize(d)
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace, properties=properties)
@@ -235,7 +229,10 @@ class Buffering(Queue):
             ispace = c.ispace
             for b in buffers:
                 ispace = ispace.augment(b.sub_iterators)
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+            properties = c.properties.sequentialize(d)
+            processed.append(
+                c.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+            )
 
             # Also append the copy-back if `e` is the last-write of some buffers
             # E.g., `usave[time + 1, x] = ub[sb1, x]`
@@ -253,13 +250,7 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-
-                # Buffering creates a storage-related dependence along the
-                # contracted dimensions
-                properties = dict(c.properties)
-                for d in b.contraction_mapper:
-                    d = ispace[d].dim  # E.g., `time_sub -> time`
-                    properties[d] = normalize_properties(properties[d], {SEQUENTIAL})
+                properties = c.properties.sequentialize(d)
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace, properties=properties)

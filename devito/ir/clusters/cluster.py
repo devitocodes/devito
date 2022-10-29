@@ -4,10 +4,10 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward,
-                               Interval, IntervalGroup, IterationSpace, DataSpace, Scope,
-                               detect_accesses, detect_io, normalize_properties,
-                               normalize_syncs)
+from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
+                               Forward, Interval, IntervalGroup, IterationSpace,
+                               DataSpace, Properties, Scope, detect_accesses,
+                               detect_io, normalize_properties, normalize_syncs)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 
@@ -47,7 +47,7 @@ class Cluster(object):
 
         properties = dict(properties or {})
         properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
-        self._properties = frozendict(properties)
+        self._properties = Properties(properties)
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
