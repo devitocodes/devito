@@ -17,8 +17,6 @@ class IET:
         # TODO add all operations
         self.ctx.register_op(Constant)
         self.ctx.register_op(FloatConstant)
-        self.ctx.register_op(Addi)
-        self.ctx.register_op(Muli)
         self.ctx.register_op(Modi)
         self.ctx.register_op(Iteration)
         self.ctx.register_op(IterationWithSubIndices)
@@ -70,44 +68,6 @@ class FloatConstant(Operation):
         res = Constant.build(operands=[],
                              attributes={"value": attr},
                              result_types=[Float32Type()])
-        return res
-
-
-@irdl_op_definition
-class Addi(Operation):
-    name: str = "iet.addi"
-    input1 = OperandDef(IntegerType)
-    input2 = OperandDef(IntegerType)
-    output = ResultDef(IntegerType)
-
-    # TODO replace with trait
-    def verify_(self) -> None:
-        if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
-            raise Exception("expect all input and output types to be equal")
-
-    @staticmethod
-    def get(lhs, rhs):
-        res = Addi.build(operands=[lhs, rhs],
-                         result_types=[IntegerType.build(32)])
-        return res
-
-
-@irdl_op_definition
-class Muli(Operation):
-    name: str = "iet.muli"
-    input1 = OperandDef(IntegerType)
-    input2 = OperandDef(IntegerType)
-    output = ResultDef(IntegerType)
-
-    # TODO replace with trait
-    def verify_(self) -> None:
-        if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
-            raise Exception("expect all input and output types to be equal")
-
-    @staticmethod
-    def get(lhs, rhs):
-        res = Muli.build(operands=[lhs, rhs],
-                         result_types=[IntegerType.build(32)])
         return res
 
 

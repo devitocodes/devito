@@ -1,12 +1,13 @@
 import io
 from typing import Dict
 
-from devito.ir.ietxdsl.operations import (Callable, Addi, Modi, StructDecl, Statement,
+from devito.ir.ietxdsl.operations import (Callable, Modi, StructDecl, Statement,
                                           Iteration, IterationWithSubIndices, Assign,
                                           PointerCast, Idx, Initialise, List, Constant,
-                                          Powi, Muli)
+                                          Powi)
 from devito.tools import flatten
 from xdsl.ir import SSAValue, BlockArgument
+from xdsl.dialects.arith import Muli, Addi
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -184,9 +185,9 @@ class CGeneration:
             return
 
         if (isinstance(operation, Addi)):
-            self.printResult(operation.input1)
+            self.printResult(operation.lhs)
             self.print(" + ", end='', indent=False)
-            self.printResult(operation.input2)
+            self.printResult(operation.rhs)
             return
 
         if (isinstance(operation, Modi)):
@@ -212,9 +213,9 @@ class CGeneration:
             return
 
         if (isinstance(operation, Muli)):
-            self.printResult(operation.input1)
+            self.printResult(operation.lhs)
             self.print("*", end='', indent=False)
-            self.printResult(operation.input2)
+            self.printResult(operation.rhs)
             return
 
         if (isinstance(operation, Callable)):

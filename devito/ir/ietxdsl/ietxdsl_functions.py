@@ -8,13 +8,15 @@ import devito.mpi.routines as routines
 from devito import ModuloDimension, SpaceDimension
 from devito.passes.iet.languages.openmp import OmpRegion
 
-from devito.ir.ietxdsl import (MLContext, IET, Constant, Addi, Modi, Idx,
+from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
-                               Statement, PointerCast, Powi, Initialise, Muli,
+                               Statement, PointerCast, Powi, Initialise,
                                StructDecl, FloatConstant)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 from xdsl.dialects.builtin import Builtin
+from xdsl.dialects.arith import Muli, Addi
+
 
 ctx = MLContext()
 Builtin(ctx)
@@ -193,9 +195,10 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.Expression):
-        expr = node.expr
+        import pdb;pdb.set_trace()
         b = Block.from_arg_types([iet.i32])
         r = []
+        expr = node.expr
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
@@ -305,7 +308,6 @@ def myVisit(node, block=None, ctx={}):
         # Those parameters without associated types aren't printed in the Kernel header
         call_name = node.name
         call_args = [i._C_name for i in node.arguments]
-        import pdb;pdb.set_trace()
         return
 
     if isinstance(node, cgen.Comment):
