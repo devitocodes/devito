@@ -756,14 +756,14 @@ class IterationSpace(Space):
             return IterationInterval(v, self.sub_iterators[d], self.directions[d])
 
     @classmethod
-    def union(cls, *others, relations=None):
+    def generate(self, op, *others, relations=None):
         if not others:
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
 
-        intervals = IntervalGroup.generate('union', *[i.intervals for i in others],
-                                           relations=relations)
+        intervals = [i.intervals for i in others]
+        intervals = IntervalGroup.generate(op, *intervals, relations=relations)
 
         directions = {}
         for i in others:
@@ -773,8 +773,8 @@ class IterationSpace(Space):
                     directions[k] = v
                 elif v is not Any:
                     # Clash detected
-                    raise ValueError("Cannot compute the union of `IterationSpace`s "
-                                     "with incompatible directions")
+                    raise ValueError("Cannot compute %s of `IterationSpace`s "
+                                     "with incompatible directions" % op)
 
         sub_iterators = {}
         for i in others:
@@ -783,6 +783,14 @@ class IterationSpace(Space):
                 ret.extend([d for d in v if d not in ret])
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    @classmethod
+    def union(cls, *others, relations=None):
+        return cls.generate('union', *others, relations=relations)
+
+    @classmethod
+    def intersection(cls, *others, relations=None):
+        return cls.generate('intersection', *others, relations=relations)
 
     def index(self, key):
         return self.intervals.index(key)
