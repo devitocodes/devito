@@ -1,7 +1,6 @@
 import abc
 from collections import OrderedDict
 from functools import reduce
-from itertools import chain
 from operator import mul
 
 from cached_property import cached_property
@@ -895,12 +894,6 @@ class IterationSpace(Space):
         """
         return (self.intervals.is_compatible(other.intervals) and
                 self.nonderived_directions == other.nonderived_directions)
-
-    def is_forward(self, dim):
-        return self.directions[dim] is Forward
-
-    def is_sub_iterator(self, dim):
-        return dim in chain(*self.sub_iterators.values())
 
     @property
     def itdimensions(self):

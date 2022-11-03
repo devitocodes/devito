@@ -94,8 +94,8 @@ def _hoist_halospots(iet):
         for hs in halo_spots:
             hsmapper[hs] = hs.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
-                loc_dims = frozenset().union([q for d in loc_indices
+            for f, v in hs.fmapper.items():
+                loc_dims = frozenset().union([q for d in v.loc_indices
                                               for q in d._defines])
 
                 for n, i in enumerate(iters):
@@ -172,10 +172,10 @@ def _merge_halospots(iet):
         for hs in halo_spots[1:]:
             mapper[hs] = hs.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
+            for f, v in hs.fmapper.items():
                 test = True
                 for dep in scope.d_flow.project(f):
-                    if any(rule(dep, hs, loc_indices) for rule in merge_rules):
+                    if any(rule(dep, hs, v.loc_indices) for rule in merge_rules):
                         continue
                     test = False
                     break

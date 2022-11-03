@@ -2218,6 +2218,27 @@ class TestOperatorAdvanced(object):
         op.apply(time_M=0, u=u3)
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
 
+    @pytest.mark.parallel(mode=1)
+    def test_haloscheme_union_diff_locindices(self):
+        grid = Grid(shape=(101, 101))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name="f", grid=grid)
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+
+        cond = ConditionalDimension(name='cond', parent=y, condition=y < 10)
+
+        eqns = [
+            Eq(f, u[t, x+2, y]),
+            Eq(u.forward, u[t-1, x+2, y], implicit_dims=[cond])
+        ]
+
+        op = Operator(eqns)
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        op.cfunction
+
 
 def gen_serial_norms(shape, so):
     """
