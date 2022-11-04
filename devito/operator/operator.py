@@ -663,8 +663,11 @@ class Operator(Callable):
 
     @cached_property
     def ccode(self):
-        from devito.ir.iet.visitors import CGen
-        return CGen(compiler=self._compiler).visit(self)
+        try:
+            return self._ccode_handler(compiler=self._compiler).visit(self)
+        except (AttributeError, TypeError):
+            from devito.ir.iet.visitors import CGen
+            return CGen(compiler=self._compiler).visit(self)
 
     def _jit_compile(self):
         """

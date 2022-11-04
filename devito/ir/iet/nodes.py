@@ -99,11 +99,8 @@ class Node(Signer):
               from devito.ir.iet import CGen
               CGen().visit(self)
         """
-        try:
-            return self._ccode_handler().visit(self)
-        except (AttributeError, TypeError):
-            from devito.ir.iet.visitors import CGen
-            return CGen().visit(self)
+        from devito.ir.iet.visitors import CGen
+        return CGen().visit(self)
 
     @property
     def view(self):
