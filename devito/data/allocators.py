@@ -325,7 +325,8 @@ class CupyAllocator(MemoryAllocator):
     """
 
     def __init__(self):
-        cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
+        self.mempool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
+        cp.cuda.set_allocator(self.mempool.malloc)
     
     @classmethod
     def initialize(cls):
@@ -336,7 +337,7 @@ class CupyAllocator(MemoryAllocator):
         return mem_obj.data.ptr, (mem_obj,)
 
     def free(self, _):
-        pass
+        self.mempool.free_all_blocks()
 
 
 class ExternalAllocator(MemoryAllocator):
