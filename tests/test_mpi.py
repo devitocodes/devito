@@ -1066,9 +1066,34 @@ class TestCodeGeneration(object):
             assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
+    @pytest.mark.parallel(mode=1)
+    def test_merge_haloupdate_if_diff_locindices_v0(self):
+        grid = Grid(shape=(101, 101))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name="f", grid=grid)
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+
+        cond = ConditionalDimension(name='cond', parent=y, condition=y < 10)
+
+        eqns = [
+            Eq(f, u[t, x+2, y]),
+            Eq(u.forward, u[t-1, x+2, y], implicit_dims=[cond])
+        ]
+
+        op = Operator(eqns)
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        op.cfunction
+
     @pytest.mark.parallel(mode=2)
-    def test_unmerge_haloudate_if_diff_locindices(self):
+    def test_merge_haloupdate_if_diff_locindices_v1(self):
         """
+        This test is a revisited, more complex version of
+        `test_merge_haloupdate_if_diff_locindices_v0`. And in addition to
+        checking the generated code, it also checks the numerical output.
+
         In the Operator there are three Eqs:
 
         * the first one does *not* require a halo update
@@ -1079,9 +1104,8 @@ class TestCodeGeneration(object):
 
         * the second and third Eqs cannot be fused in the same loop
 
-        So in the IET we end up with two HaloSpots, one for the second and one
-        for the third Eqs. These will *not* be merged because they operate at
-        different `t`-indices (`t+1` and `t`).
+        In the IET we end up with *one* HaloSpots, placed right before the
+        second Eq. The third Eq will seamlessy find its halo up-to-date.
         """
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
@@ -1104,7 +1128,7 @@ class TestCodeGeneration(object):
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
+        assert len(calls) == 1
 
         op.apply(time_M=1)
         glb_pos_map = f.grid.distributor.glb_pos_map
@@ -2217,27 +2241,6 @@ class TestOperatorAdvanced(object):
 
         op.apply(time_M=0, u=u3)
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
-
-    @pytest.mark.parallel(mode=1)
-    def test_haloscheme_union_diff_locindices(self):
-        grid = Grid(shape=(101, 101))
-        x, y = grid.dimensions
-        t = grid.stepping_dim
-
-        f = Function(name="f", grid=grid)
-        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
-
-        cond = ConditionalDimension(name='cond', parent=y, condition=y < 10)
-
-        eqns = [
-            Eq(f, u[t, x+2, y]),
-            Eq(u.forward, u[t-1, x+2, y], implicit_dims=[cond])
-        ]
-
-        op = Operator(eqns)
-
-        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
-        op.cfunction
 
 
 def gen_serial_norms(shape, so):
