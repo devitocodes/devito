@@ -46,6 +46,8 @@ def sniff_compiler_version(cc):
         compiler = "gcc"
     elif ver.startswith("clang"):
         compiler = "clang"
+    elif ver.startswith("cray"):
+        compiler = "cray"
     elif ver.startswith("Apple LLVM"):
         compiler = "clang"
     elif ver.startswith("Homebrew clang"):
@@ -472,6 +474,33 @@ class AOMPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class CrayCompiler(Compiler):
+
+    """HPE Cray's compiler."""
+
+    def __init__(self, *args, **kwargs):
+        super(CrayCompiler, self).__init__(*args, **kwargs)
+
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        self.cflags.append('-march=native')
+
+        # For MPI, mpicc is compiled against amdclang not aompcc, so need the flags back.
+        if kwargs.get('mpi'):
+            self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
+            self.ldflags.extend(['-fopenmp'])
+            self.ldflags.append('-march=%s' % platform.march)
+
+    def __lookup_cmds__(self):
+        self.CC = 'craycc'
+        self.CXX = 'crayCC'
+        self.MPICC = 'craycc'
+        self.MPICXX = 'crayCC'
+
+
 class DPCPPCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -706,6 +735,7 @@ compiler_registry = {
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
     'clang': ClangCompiler,
+    'cray': CrayCompiler,
     'aomp': AOMPCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
