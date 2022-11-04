@@ -90,7 +90,9 @@ class Profiler(object):
             points = set()
             for i in bundles:
                 if any(e.write.is_TimeFunction for e in i.exprs):
-                    points.add(i.size)
+                    # The `ispace` is zero-ed because we don't care if a point
+                    # is touched redundantly
+                    points.add(i.ispace.zero().size)
             points = sum(points, S.Zero)
 
             self._sections[s.name] = SectionData(ops, sops, points, traffic, itermaps)
@@ -241,7 +243,6 @@ class AdvancedProfiler(Profiler):
                             for i in data.itermaps]
                 itershapes = tuple(tuple(i.values()) for i in itermaps)
             except TypeError:
-                # E.g., a section comprising just function calls
                 # E.g., a section comprising just function calls, or at least
                 # a sequence of unrecognized or non-conventional expr statements
                 itershapes = ()
