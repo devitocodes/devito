@@ -119,7 +119,7 @@ class HaloScheme(object):
 
                 if hse.loc_indices != v.loc_indices:
                     # The `loc_dirs` must match otherwise it'd be a symptom there's
-                    # something horrinbly broken somewhere!
+                    # something horribly broken elsewhere!
                     assert hse.loc_dirs == v.loc_dirs
                     assert list(hse.loc_indices) == list(v.loc_indices)
 
