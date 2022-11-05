@@ -148,8 +148,9 @@ def _merge_halospots(iet):
 
     def rule1(dep, hs, loc_indices):
         # TODO This is apparently never hit, but feeling uncomfortable to remove it
-        return dep.is_regular and all(not any(dep.read.touched_halo(d.root))
-                                      for d in dep.cause)
+        return (dep.is_regular and
+                dep.read is not None and
+                all(not any(dep.read.touched_halo(d.root)) for d in dep.cause))
 
     def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
