@@ -1872,7 +1872,7 @@ class TestLoopScheduling(object):
 
         # No surprises here -- the third equation gets swapped with the second
         # one so as to be fused with the first equation
-        op0 = Operator(eqns0)
+        op0 = Operator(eqns0, openmp=True)
         assert_structure(op0, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
         class DummyBarrier(sympy.Function, Barrier):
@@ -1881,14 +1881,14 @@ class TestLoopScheduling(object):
         eqns1 = list(eqns0)
         eqns1[1] = Eq(Symbol('dummy'), DummyBarrier(time))
 
-        op1 = Operator(eqns1)
+        op1 = Operator(eqns1, openmp=True)
         assert_structure(op1, ['t,x,y,z', 't', 't,x,y,z'], 't,x,y,z,x,y,z')
 
         # Again, but now a swap is performed *before* the barrier so it's legal
         eqns2 = list(eqns0)
         eqns2.append(eqns1[1])
 
-        op2 = Operator(eqns2)
+        op2 = Operator(eqns2, openmp=True)
         assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
 
