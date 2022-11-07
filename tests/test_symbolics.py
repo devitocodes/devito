@@ -265,6 +265,14 @@ def test_cast():
     assert v != v1
 
 
+def test_symbolic_printing():
+    a = Symbol('a')
+    b = Symbol('b')
+
+    v = CallFromPointer('foo', 's') + b
+    assert str(v) == 'b + s->foo()'
+
+
 def test_is_on_grid():
     grid = Grid((10,))
     x = grid.dimensions[0]

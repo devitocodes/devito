@@ -144,6 +144,9 @@ class BasicWrapperMixin(object):
         """
         return issubclass(self.dtype, np.number)
 
+    def _sympystr(self, printer):
+        return str(self)
+
 
 class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
