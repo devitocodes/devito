@@ -149,8 +149,7 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
 
@@ -225,16 +224,14 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         body = sections[3].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock1[0], 2)'
         assert str(body.body[1]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata1[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata1[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata1[0].time = time;'
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 2
@@ -279,8 +276,7 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[3]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2

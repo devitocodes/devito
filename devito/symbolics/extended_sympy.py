@@ -144,6 +144,9 @@ class BasicWrapperMixin(object):
         """
         return issubclass(self.dtype, np.number)
 
+    def _sympystr(self, printer):
+        return str(self)
+
 
 class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
@@ -543,6 +546,9 @@ class DefFunction(Function, Pickable):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
 
     __repr__ = __str__
+
+    def _sympystr(self, printer):
+        return str(self)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
