@@ -3,6 +3,7 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
+from sympy import Expr
 
 from devito.parameters import configuration
 from devito.tools import as_tuple, c_restrict_void_p, dtype_to_ctype
@@ -396,13 +397,11 @@ class Bundle(ArrayBasic):
 
     @classmethod
     def __indices_setup__(cls, components=(), **kwargs):
-        d = CustomDimension(name='d', symbolic_size=len(components))
-
         dimensionss = {i.dimensions for i in components}
         if len(dimensionss) > 1:
             raise ValueError("Components must have the same dimensions")
 
-        dimensions = (d,) + dimensionss.pop()
+        dimensions = dimensionss.pop()
 
         return as_tuple(dimensions), as_tuple(dimensions)
 
@@ -434,6 +433,16 @@ class Bundle(ArrayBasic):
         else:
             return None
 
+    def __getitem__(self, index):
+        index = as_tuple(index)
+        if len(index) != self.ndim + 1:
+            raise ValueError("Expected %d indices, got %d instead"
+                             % (self.ndim + 1, len(index)))
+
+        component_index, indices = index[0], index[1:]
+
+        return ComponentAccess(self.indexed[indices], component_index)
+
     _C_structname = 'vector'
     #TODO: reuse from ArrayMapped...
     _C_field_data = 'data'
@@ -444,3 +453,39 @@ class Bundle(ArrayBasic):
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
                                           (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p)]}))
+
+
+class ComponentAccess(Expr):
+
+    indices = ('x', 'y', 'w', 'z')
+
+    def __new__(cls, arg, index):
+        if not arg.is_Indexed:
+            raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
+        if not isinstance(index, int) or index > 3:
+            raise ValueError("Expected 0 <= index < 4")
+
+        obj = Expr.__new__(cls, arg)
+        obj._index = index
+
+        return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self._index,)
+
+    def __str__(self):
+        return "%s.%s" % (self.arg, self.sindex)
+
+    __repr__ = __str__
+
+    @property
+    def arg(self):
+        return self.args[0]
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def sindex(self):
+        return self.indices[self.index]
