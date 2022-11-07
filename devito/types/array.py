@@ -478,6 +478,9 @@ class ComponentAccess(Expr):
 
     __repr__ = __str__
 
+    def _sympystr(self, printer):
+        return str(self)
+
     @property
     def arg(self):
         return self.args[0]
