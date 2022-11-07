@@ -3,13 +3,15 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
+from sympy import Expr
 
 from devito.parameters import configuration
-from devito.tools import as_tuple, c_restrict_void_p, dtype_to_ctype
+from devito.tools import Reconstructable, as_tuple, c_restrict_void_p, dtype_to_ctype
 from devito.types.basic import AbstractFunction
+from devito.types.dimension import CustomDimension
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray']
+__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle']
 
 
 class ArrayBasic(AbstractFunction):
@@ -41,9 +43,8 @@ class Array(ArrayBasic):
     """
     Tensor symbol representing an array in symbolic equations.
 
-    Arrays are created and managed directly by Devito (IOW, they are not
-    expected to be used directly in user code). An Array behaves similarly to
-    a Function, but unlike a Function it carries no user data.
+    An Array behaves similarly to a Function, but unlike a Function it carries
+    no user data.
 
     Parameters
     ----------
@@ -345,3 +346,162 @@ class PointerArray(ArrayBasic):
     @property
     def array(self):
         return self._array
+
+
+class Bundle(ArrayBasic):
+
+    """
+    Tensor symbol representing an unrolled vector of AbstractFunctions.
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    components : tuple of AbstractFunctions
+        The AbstractFunctions of the Bundle. They must have same type.
+
+    Warnings
+    --------
+    Arrays are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
+    """
+
+    is_Bundle = True
+
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('components',)
+
+    def __init__(self, *args, components=(), **kwargs):
+        self._components = tuple(components)
+
+    @classmethod
+    def __args_setup__(cls, *args, **kwargs):
+        components = kwargs.get('components', ())
+        if len(components) <= 1:
+            raise ValueError("Expected at least two components")
+
+        klss = {type(i).__base__ for i in components}
+        if len(klss) != 1:
+            raise ValueError("Components must be of same type")
+        if not issubclass(klss.pop(), AbstractFunction):
+            raise ValueError("Component type must be subclass of AbstractFunction")
+
+        return args, kwargs
+
+    @classmethod
+    def __dtype_setup__(cls, components=(), **kwargs):
+        dtypes = {i.dtype for i in components}
+        if len(dtypes) > 1:
+            raise ValueError("Components must have the same dtype")
+        return dtypes.pop()
+
+    @classmethod
+    def __indices_setup__(cls, components=(), **kwargs):
+        dimensionss = {i.dimensions for i in components}
+        if len(dimensionss) > 1:
+            raise ValueError("Components must have the same dimensions")
+        dimensions = dimensionss.pop()
+        return as_tuple(dimensions), as_tuple(dimensions)
+
+    def __halo_setup__(self, components=(), **kwargs):
+        halos = {i.halo for i in components}
+        if len(halos) > 1:
+            raise ValueError("Components must have the same halo")
+        return halos.pop()
+
+    # Class attributes overrides
+
+    @property
+    def is_Array(self):
+        return self.c0.is_Array
+
+    @property
+    def is_DiscreteFunction(self):
+        return self.c0.is_DiscreteFunction
+
+    # Other properties and methods
+
+    @property
+    def components(self):
+        return self._components
+
+    @property
+    def c0(self):
+        # Shortcut for self.components[0]
+        return self.components[0]
+
+    @property
+    def grid(self):
+        if self.is_DiscreteFunction:
+            return self.c0.grid
+        else:
+            return None
+
+    def __getitem__(self, index):
+        index = as_tuple(index)
+        if len(index) != self.ndim + 1:
+            raise ValueError("Expected %d indices, got %d instead"
+                             % (self.ndim + 1, len(index)))
+
+        component_index, indices = index[0], index[1:]
+
+        return ComponentAccess(self.indexed[indices], component_index)
+
+    _C_structname = 'vector'
+    #TODO: reuse from ArrayMapped...
+    _C_field_data = 'data'
+    _C_field_nbytes = 'nbytes'
+    _C_field_dmap = 'dmap'
+
+    _C_ctype = POINTER(type(_C_structname, (Structure,),
+                            {'_fields_': [(_C_field_data, c_restrict_void_p),
+                                          (_C_field_nbytes, c_ulong),
+                                          (_C_field_dmap, c_void_p)]}))
+
+
+class ComponentAccess(Expr, Reconstructable):
+
+    _component_names = ('x', 'y', 'w', 'z')
+
+    __rkwargs__ =  ('index',)
+
+    def __new__(cls, arg, index=0):
+        if not arg.is_Indexed:
+            raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
+        if not isinstance(index, int) or index > 3:
+            raise ValueError("Expected 0 <= index < 4")
+
+        obj = Expr.__new__(cls, arg)
+        obj._index = index
+
+        return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self._index,)
+
+    def __str__(self):
+        return "%s.%s" % (self.base, self.sindex)
+
+    __repr__ = __str__
+
+    def _sympystr(self, printer):
+        return str(self)
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    @property
+    def index(self):
+        return self._index
+
+    @property
+    def sindex(self):
+        return self._component_names[self.index]
+
+    @property
+    def function(self):
+        return self.base.function
+
+    @property
+    def dtype(self):
+        return self.function.dtype

@@ -5,7 +5,7 @@ from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
                                Stencil, detect_io, detect_accesses)
-from devito.symbolics import IntDiv, uxreplace
+from devito.symbolics import IntDiv, retrieve_terminals, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin
 
@@ -46,6 +46,14 @@ class IREq(sympy.Eq, Pickable):
     @property
     def dtype(self):
         return self.lhs.dtype
+
+    @property
+    def lhs_terminal(self):
+        # Unwrap the written terminal from higher order objects such as
+        # ComponentAccess
+        v = retrieve_terminals(self.lhs)
+        assert len(v) == 1  # No deep retrieval, hence only one terminal expected
+        return v.pop()
 
     @property
     def state(self):

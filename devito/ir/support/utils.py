@@ -202,7 +202,7 @@ def detect_io(exprs, relax=False):
     for i in exprs:
         try:
             roots.append(i.rhs)
-            roots.extend(list(i.lhs.indices))
+            roots.extend(list(i.lhs_terminal.indices))
             roots.extend(list(i.conditionals.values()))
         except AttributeError:
             # E.g., CallFromPointer
