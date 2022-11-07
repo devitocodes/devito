@@ -372,6 +372,10 @@ def classify(exprs, ispace):
             # TODO: improve me
             continue
 
+        #TODO:!!!!!
+        if f.is_Bundle:
+            continue
+
         # For each data access, determine if (and what type of) a halo exchange
         # is required
         halo_labels = defaultdict(set)

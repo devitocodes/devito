@@ -525,3 +525,4 @@ class DeviceAwareDataManager(DataManager):
         self.place_definitions(graph)
         self.place_devptr(graph)
         self.place_casts(graph)
+        from IPython import embed; embed()
