@@ -866,10 +866,10 @@ class Operator(Callable):
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
-        info("Operator `%s` ran in %.2f s" % (self.name,
-                                              fround(self._profiler.py_timers['apply'])))
+        elapsed = fround(self._profiler.py_timers['apply'])
+        info("Operator `%s` ran in %.2f s" % (self.name, elapsed))
 
-        summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
+        summary = self._profiler.summary(args, self._dtype, reduce_over=elapsed)
 
         if not is_log_enabled_for('PERF'):
             # Do not waste time

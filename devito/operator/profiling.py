@@ -282,7 +282,15 @@ class AdvancedProfiler(Profiler):
         # Add global performance data
         if reduce_over is not None:
             # Vanilla metrics
-            summary.add_glb_vanilla(self.py_timers[reduce_over])
+            summary.add_glb_vanilla('vanilla', reduce_over)
+
+            # Same as above but without setup overheads (e.g., host-device
+            # data transfers)
+            reduce_over_nosetup = sum(i.time for i in summary.values())
+            if reduce_over_nosetup == 0:
+                reduce_over_nosetup = reduce_over
+            assert 0 < reduce_over_nosetup <= reduce_over
+            summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
 
             # Typical finite difference benchmark metrics
             if grid is not None:
@@ -292,7 +300,11 @@ class AdvancedProfiler(Profiler):
                     min_t = args[grid.time_dim.min_name] or 0
                     nt = max_t - min_t + 1
                     points = reduce(mul, (nt,) + grid.shape)
-                    summary.add_glb_fdlike(points, self.py_timers[reduce_over])
+                    summary.add_glb_fdlike('fdlike', points, reduce_over)
+
+                    # Same as above but without setup overheads (e.g., host-device
+                    # data transfers)
+                    summary.add_glb_fdlike('fdlike-nosetup', points, reduce_over_nosetup)
 
         return summary
 
@@ -404,7 +416,7 @@ class PerformanceSummary(OrderedDict):
 
         self.subsections[sname][name] = time
 
-    def add_glb_vanilla(self, time):
+    def add_glb_vanilla(self, key, time):
         """
         Reduce the following performance data:
 
@@ -426,9 +438,9 @@ class PerformanceSummary(OrderedDict):
         gflopss = gflops/time
         oi = float(ops/traffic)
 
-        self.globals['vanilla'] = PerfEntry(time, gflopss, None, oi, None, None)
+        self.globals[key] = PerfEntry(time, gflopss, None, oi, None, None)
 
-    def add_glb_fdlike(self, points, time):
+    def add_glb_fdlike(self, key, points, time):
         """
         Add the typical GPoints/s finite-difference metric.
         """
@@ -438,12 +450,18 @@ class PerformanceSummary(OrderedDict):
         gpoints = float(points)/10**9
         gpointss = gpoints/time
 
-        self.globals['fdlike'] = PerfEntry(time, None, gpointss, None, None, None)
+        self.globals[key] = PerfEntry(time, None, gpointss, None, None, None)
 
     @property
     def globals_all(self):
         v0 = self.globals['vanilla']
         v1 = self.globals['fdlike']
+        return PerfEntry(v0.time, v0.gflopss, v1.gpointss, v0.oi, None, None)
+
+    @property
+    def globals_nosetup_all(self):
+        v0 = self.globals['vanilla-nosetup']
+        v1 = self.globals['fdlike-nosetup']
         return PerfEntry(v0.time, v0.gflopss, v1.gpointss, v0.oi, None, None)
 
     @property
