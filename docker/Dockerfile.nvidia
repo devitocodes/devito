@@ -14,7 +14,10 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # nodesource: nvdashboard requires nodejs>=10  
 RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
-RUN apt-get update -y && apt-get install -y -q apt-utils curl wget vim
+RUN apt-get update -y && apt-get install -y -q apt-utils curl wget vim libnuma1 tmux
+
+# Install tmpi
+RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install nvhpc. `nvhpc` is the alias for the latest avaialble version
 ARG ver=nvhpc

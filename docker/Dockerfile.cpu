@@ -11,7 +11,10 @@ FROM ${pyversion} as base
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y vim wget git
+RUN apt-get update && apt-get install -y vim wget git libnuma1 tmux
+
+# Install tmpi
+RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install OpenGL library, necessary for the installation of GemPy
 RUN apt-get install -y libgl1-mesa-glx
