@@ -78,7 +78,7 @@ jobs:
 
     - name: Build docker image
       run: |
-          docker build . --rm --pull --file docker/Dockerfile.devito --tag devito_img --build-arg base=${{ matrix.base }}
+          docker build . --rm --pull --file docker/Dockerfile.devito --tag ${{ matrix.name }} --build-arg base=${{ matrix.base }}
 
     - name: Remove dangling layers
       run: docker system prune -f
@@ -88,22 +88,22 @@ jobs:
         # Remove all existing containers for safety
         docker ps -aq | xargs -r docker rm -f
         # Run tests
-        docker run ${{ matrix.flags }} devito_img ${{ matrix.test_drive_cmd }}
-        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} devito_img pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+        docker run ${{ matrix.flags }} ${{ matrix.name }} ${{ matrix.test_drive_cmd }}
+        docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} ${{ matrix.name }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
       run: |
-        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/acoustic/acoustic_example.py
-        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/elastic/elastic_example.py
-        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/tti/tti_example.py
-        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run ${{ matrix.flags }} devito_img pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test examples with MPI
       if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 devito_img mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/tti/tti_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
