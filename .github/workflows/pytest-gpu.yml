@@ -1,7 +1,7 @@
 # Runner information:
-# OpenACC on NVidia runs on `sarlaac`
-# OpenMP on NVidia runs on `kimogila`
-# OpenMP on AMD runs on `wampa`
+# OpenACC on NVidia runs on `nvidiagpu`
+# OpenMP on NVidia runs on `nvidiagpu`
+# OpenMP on AMD runs on `amdgpu`
 
 name: CI-gpu
 
@@ -50,14 +50,14 @@ jobs:
         - name: pytest-gpu-omp-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "gpu", "docker", "openmp", "kimogila"]
+          tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-clang-nvidia'
 
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
-          tags: ["self-hosted", "gpu",  "docker", "v1004"]
+          tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-nvc'
 
@@ -65,7 +65,7 @@ jobs:
           # We only test the OpenMP generation due to issue with the offloading discussed in
           # https://github.com/ROCm-Developer-Tools/aomp/issues/397
           test_files: "tests/test_gpu_openmp.py"
-          tags: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
+          tags: ["self-hosted", "amdgpu"]
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
           # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group

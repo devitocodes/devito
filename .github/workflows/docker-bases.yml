@@ -29,13 +29,13 @@ jobs:
             arch: 'arch=nvc'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "docker", "openmp"]
+            runner: ["self-hosted", "nvidiagpu"]
 
           - tag: 'devitocodes/bases:nvidia-nvcc'
             arch: 'arch=nvcc'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "docker", "openmp"]
+            runner: ["self-hosted", "nvidiagpu"]
 
           - tag: 'devitocodes/bases:nvidia-clang'
             arch: 'arch=clang'
@@ -45,13 +45,13 @@ jobs:
             # For more info check https://llvm.org/docs/CompileCudaWithLLVM.html and the Prerequisites 
             version: 'ver=nvhpc-21-11'
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "openacc"]
+            runner: ["self-hosted", "nvidiagpu"]
 
           - tag: 'devitocodes/bases:amd'
             arch: ''
             version: ''
             dockerfile: './docker/Dockerfile.amd'
-            runner: ["self-hosted", "gpu", "docker", "openmp", "aomp"]
+            runner: ["self-hosted", "amdgpu"]
           
           # These ones are tiny runs on default
           - tag: 'devitocodes/bases:cpu-gcc'
@@ -70,7 +70,7 @@ jobs:
             arch: 'arch=nvc-host'
             version: ''
             dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "gpu", "docker", "openmp"]
+            runner: ["self-hosted", "nvidiagpu"]
 
     steps:
       - name: Checkout devito
