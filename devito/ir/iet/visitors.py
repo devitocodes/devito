@@ -16,7 +16,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import (GenericVisitor, as_tuple, ctypes_vector_mapper,
+                          filter_ordered, filter_sorted, flatten)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -507,13 +508,18 @@ class CGen(Visitor):
 
     def _operator_typedecls(self, o, mode='all'):
         if mode == 'all':
-            xfilter = lambda i: True
+            xfilter0 = lambda i: True
         else:
             public_types = (AbstractFunction, CompositeObject)
             if mode == 'public':
-                xfilter = lambda i: isinstance(i, public_types)
+                xfilter0 = lambda i: isinstance(i, public_types)
             else:
-                xfilter = lambda i: not isinstance(i, public_types)
+                xfilter0 = lambda i: not isinstance(i, public_types)
+
+        # This is essentially to rule out vector types which are declared already
+        # in some external headers
+        xfilter = lambda i: (xfilter0(i) and
+                             i._C_ctype not in ctypes_vector_mapper.values())
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [i._C_typedecl for i in candidates

@@ -10,7 +10,8 @@ from cgen import Struct, Value, dtype_to_ctype as cgen_dtype_to_ctype
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',
            'double3', 'double4', 'dtypes_vector_mapper',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
-           'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p']
+           'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p',
+           'ctypes_vector_mapper']
 
 
 # *** Custom np.dtypes
