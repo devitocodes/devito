@@ -7,8 +7,50 @@ import ctypes
 import numpy as np
 from cgen import Struct, Value, dtype_to_ctype as cgen_dtype_to_ctype
 
-__all__ = ['dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+__all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',
+           'double3', 'double4', 'dtypes_vector_mapper',
+           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
            'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p']
+
+
+# *** Custom np.dtypes
+
+# NOTE: the following is inspired by pyopencl.cltypes
+
+mapper = {
+    "int": np.int32,
+    "float": np.float32,
+    "double": np.float64
+}
+
+field_names = ["x", "y", "z", "w"]
+counts = [2, 3, 4]
+dtypes_vector_mapper = {}
+for base_name, base_dtype in mapper.items():
+    for count in counts:
+        name = "%s%d" % (base_name, count)
+
+        titles = field_names[:count]
+
+        padded_count = count
+        if count == 3:
+            padded_count = 4
+
+        names = ["s%d" % i for i in range(count)]
+        while len(names) < padded_count:
+            names.append("padding%d" % (len(names) - count))
+
+        if len(titles) < len(names):
+            titles.extend((len(names) - len(titles)) * [None])
+
+        dtype = np.dtype(dict(
+            names=names,
+            formats=[base_dtype] * padded_count,
+            titles=titles))
+
+        globals()[name] = dtype
+
+        dtypes_vector_mapper[(base_dtype, count)] = dtype
 
 
 # *** np.dtypes lowering
@@ -21,6 +63,10 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
+    try:
+        return ctypes_vector_mapper[dtype]
+    except KeyError:
+        pass
     if issubclass(dtype, ctypes._SimpleCData):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
@@ -46,9 +92,28 @@ class c_restrict_void_p(ctypes.c_void_p):
     pass
 
 
+ctypes_vector_mapper = {}
+for base_name, base_dtype in mapper.items():
+    base_ctype = dtype_to_ctype(base_dtype)
+
+    for count in counts:
+        dtype = dtypes_vector_mapper[(base_dtype, count)]
+
+        name = "%s%d" % (base_name, count)
+        ctype = type(name, (ctypes.Structure,),
+                     {'_fields_': [(i, base_ctype)] for i in field_names[:count]})
+
+        ctypes_vector_mapper[dtype] = ctype
+
+
+# *** ctypes lowering
+
+
 def ctypes_to_cstr(ctype, toarray=None, qualifiers=None):
     """Translate ctypes types into C strings."""
-    if issubclass(ctype, ctypes.Structure):
+    if ctype in ctypes_vector_mapper.values():
+        retval = ctype.__name__
+    elif issubclass(ctype, ctypes.Structure):
         retval = 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):
         retval = 'union %s' % ctype.__name__

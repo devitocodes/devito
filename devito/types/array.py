@@ -6,7 +6,8 @@ from cached_property import cached_property
 from sympy import Expr
 
 from devito.parameters import configuration
-from devito.tools import Reconstructable, as_tuple, c_restrict_void_p, dtype_to_ctype
+from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
+                          dtype_to_ctype, dtypes_vector_mapper)
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import CustomDimension
 from devito.types.utils import CtypesFactory
@@ -392,7 +393,11 @@ class Bundle(ArrayBasic):
         dtypes = {i.dtype for i in components}
         if len(dtypes) > 1:
             raise ValueError("Components must have the same dtype")
-        return dtypes.pop()
+        dtype = dtypes.pop()
+        try:
+            return dtypes_vector_mapper[(dtype, len(components))]
+        except KeyError:
+            raise NotImplementedError("Unsupported vector type `%s`" % dtype)
 
     @classmethod
     def __indices_setup__(cls, components=(), **kwargs):
