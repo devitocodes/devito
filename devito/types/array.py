@@ -460,7 +460,7 @@ class Bundle(ArrayBasic):
 
 class ComponentAccess(Expr, Reconstructable):
 
-    _component_indices = ('x', 'y', 'w', 'z')
+    _component_names = ('x', 'y', 'w', 'z')
 
     __rkwargs__ =  ('index',)
 
@@ -496,7 +496,7 @@ class ComponentAccess(Expr, Reconstructable):
 
     @property
     def sindex(self):
-        return self._component_indices[self.index]
+        return self._component_names[self.index]
 
     @property
     def function(self):
