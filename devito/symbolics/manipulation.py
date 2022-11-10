@@ -11,6 +11,7 @@ from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic
+from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
@@ -106,11 +107,12 @@ def _(expr, args):
         return expr._new_rawargs(*args)
 
 
+@_uxreplace_handle.register(ComponentAccess)
 @_uxreplace_handle.register(Eq)
 def _(expr, args):
-    # Preserve properties such as `implicit_dims`
-    return expr.func(*args, subdomain=expr.subdomain, coefficients=expr.substitutions,
-                     implicit_dims=expr.implicit_dims)
+    # Handler for all other Reconstructable objects
+    kwargs = {i: getattr(expr, i) for i in expr.__rkwargs__}
+    return expr.func(*args, **kwargs)
 
 
 def _eval_numbers(expr, args):

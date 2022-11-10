@@ -11,7 +11,7 @@ from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCas
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, filter_ordered, prod
-from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
+from devito.types import Array, Bundle, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
 from devito.types.dense import DiscreteFunction
 
@@ -199,6 +199,7 @@ def _(f, d, fsz, sregistry):
 
 
 @_generate_fsz.register(Array)
+@_generate_fsz.register(Bundle)
 def _(f, d, fsz, sregistry):
     return DummyExpr(fsz, f.symbolic_shape[d], init=True)
 
@@ -210,6 +211,7 @@ def _generate_macro(f, indexeds, tracker, strides, sregistry):
 
 @_generate_macro.register(DiscreteFunction)
 @_generate_macro.register(Array)
+@_generate_macro.register(Bundle)
 def _(f, indexeds, tracker, strides, sregistry):
     # Generate e.g. `usave[(time)*xi_slc0 + (xi)*yi_slc0 + (yi)]`
     assert len(strides) == len(f.dimensions) - 1

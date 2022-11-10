@@ -6,7 +6,7 @@ from cached_property import cached_property
 from sympy import Expr
 
 from devito.parameters import configuration
-from devito.tools import as_tuple, c_restrict_void_p, dtype_to_ctype
+from devito.tools import Reconstructable, as_tuple, c_restrict_void_p, dtype_to_ctype
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import CustomDimension
 from devito.types.utils import CtypesFactory
@@ -392,7 +392,6 @@ class Bundle(ArrayBasic):
         dtypes = {i.dtype for i in components}
         if len(dtypes) > 1:
             raise ValueError("Components must have the same dtype")
-
         return dtypes.pop()
 
     @classmethod
@@ -400,10 +399,14 @@ class Bundle(ArrayBasic):
         dimensionss = {i.dimensions for i in components}
         if len(dimensionss) > 1:
             raise ValueError("Components must have the same dimensions")
-
         dimensions = dimensionss.pop()
-
         return as_tuple(dimensions), as_tuple(dimensions)
+
+    def __halo_setup__(self, components=(), **kwargs):
+        halos = {i.halo for i in components}
+        if len(halos) > 1:
+            raise ValueError("Components must have the same halo")
+        return halos.pop()
 
     # Class attributes overrides
 
@@ -455,11 +458,13 @@ class Bundle(ArrayBasic):
                                           (_C_field_dmap, c_void_p)]}))
 
 
-class ComponentAccess(Expr):
+class ComponentAccess(Expr, Reconstructable):
 
-    indices = ('x', 'y', 'w', 'z')
+    _component_indices = ('x', 'y', 'w', 'z')
 
-    def __new__(cls, arg, index):
+    __rkwargs__ =  ('index',)
+
+    def __new__(cls, arg, index=0):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
         if not isinstance(index, int) or index > 3:
@@ -474,7 +479,7 @@ class ComponentAccess(Expr):
         return super()._hashable_content() + (self._index,)
 
     def __str__(self):
-        return "%s.%s" % (self.arg, self.sindex)
+        return "%s.%s" % (self.base, self.sindex)
 
     __repr__ = __str__
 
@@ -482,7 +487,7 @@ class ComponentAccess(Expr):
         return str(self)
 
     @property
-    def arg(self):
+    def base(self):
         return self.args[0]
 
     @property
@@ -491,4 +496,12 @@ class ComponentAccess(Expr):
 
     @property
     def sindex(self):
-        return self.indices[self.index]
+        return self._component_indices[self.index]
+
+    @property
+    def function(self):
+        return self.base.function
+
+    @property
+    def dtype(self):
+        return self.function.dtype

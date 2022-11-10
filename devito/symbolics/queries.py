@@ -3,6 +3,9 @@ from sympy import Eq, IndexedBase, Mod, S, diff, nan
 from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
                                              IndexedPointer, IntDiv)
 from devito.tools import as_tuple, is_integer
+from devito.types.basic import AbstractFunction
+from devito.types.constant import Constant
+from devito.types.dimension import Dimension
 
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
@@ -46,7 +49,6 @@ def q_terminal(expr):
 
 
 def q_routine(expr):
-    from devito.types.basic import AbstractFunction
     return expr.is_Function and not isinstance(expr, AbstractFunction)
 
 
@@ -246,7 +248,6 @@ def q_positive(expr):
         # E.g., p0 - x / p1 + x
 
         assert len(args) == 3
-        from devito.types.constant import Constant
 
         found = [None, None, None]
         for i in args:
@@ -302,5 +303,4 @@ def q_dimension(expr):
     """
     Return True if ``expr`` is a dimension, False otherwise.
     """
-    from devito.types.dimension import Dimension
     return isinstance(expr, Dimension)
