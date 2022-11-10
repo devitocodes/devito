@@ -117,6 +117,6 @@ def derive_parameters(iet, drop_locals=False):
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
-        parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
+        parameters = [p for p in parameters if not (p.is_ArrayBasic or p.is_LocalObject)]
 
     return parameters

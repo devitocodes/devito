@@ -26,7 +26,7 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 class MetaSite(object):
 
     _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'efuncs')
+              'maps', 'unmaps', 'bundles', 'unbundles', 'efuncs')
 
     def __init__(self):
         for i in self._items:
@@ -74,15 +74,12 @@ class DataManager(object):
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, sregistry, *args):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        """
-        self.sregistry = sregistry
+    def __init__(self, lower=None, **kwargs):
+        # Machinery for recursive compilation
+        self._lower = lower
+        self._kwargs = kwargs
+
+        self.sregistry = kwargs['sregistry']
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -192,6 +189,12 @@ class DataManager(object):
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
+    def _pack_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
+        """
+        Pack up a Bundle in the high bandwidth memory.
+        """
+        pass
+
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
         Allocate an Array of Objects in the low latency memory.
@@ -298,9 +301,9 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        # Process inline definitions
         storage = Storage()
 
+        # Process inline definitions
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression and k.is_initializable:
                 self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
@@ -327,6 +330,12 @@ class DataManager(object):
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_Bundle:
+                if i._mem_local:
+                    self._alloc_local_array_on_high_bw_mem(iet, i, storage)
+                else:
+                    self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
+                    self._pack_mapped_bundle_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
@@ -376,22 +385,10 @@ class DataManager(object):
 
 class DeviceAwareDataManager(DataManager):
 
-    def __init__(self, sregistry, options):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        options : dict
-            The optimization options.
-            Accepted: ['gpu-fit'].
-            * 'gpu-fit': an iterable of `Function`s that are guaranteed to fit
-              in the device memory. By default, all `Function`s except saved
-              `TimeFunction`'s are assumed to fit in the device memory.
-        """
-        super().__init__(sregistry)
-        self.gpu_fit = options['gpu-fit']
+    def __init__(self, **kwargs):
+        self.gpu_fit = kwargs['options']['gpu-fit']
+
+        super().__init__(**kwargs)
 
     def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
         """

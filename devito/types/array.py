@@ -443,13 +443,16 @@ class Bundle(ArrayBasic):
 
     def __getitem__(self, index):
         index = as_tuple(index)
-        if len(index) != self.ndim + 1:
-            raise ValueError("Expected %d indices, got %d instead"
-                             % (self.ndim + 1, len(index)))
+        if len(index) == self.ndim:
+            return super().__getitem__(index)
+        elif len(index) == self.ndim + 1:
+            component_index, indices = index[0], index[1:]
+            return ComponentAccess(self.indexed[indices], component_index)
+        else:
+            raise ValueError("Expected %d or %d indices, got %d instead"
+                             % (self.ndim, self.ndim + 1, len(index)))
 
-        component_index, indices = index[0], index[1:]
 
-        return ComponentAccess(self.indexed[indices], component_index)
 
     _C_structname = 'vector'
     #TODO: reuse from ArrayMapped...
@@ -469,7 +472,7 @@ class ComponentAccess(Expr, Reconstructable):
 
     __rkwargs__ =  ('index',)
 
-    def __new__(cls, arg, index=0):
+    def __new__(cls, arg, index=0, **kwargs):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
         if not isinstance(index, int) or index > 3:
@@ -487,6 +490,8 @@ class ComponentAccess(Expr, Reconstructable):
         return "%s.%s" % (self.base, self.sindex)
 
     __repr__ = __str__
+
+    func = Reconstructable._rebuild
 
     def _sympystr(self, printer):
         return str(self)

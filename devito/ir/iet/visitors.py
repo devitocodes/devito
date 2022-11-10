@@ -16,7 +16,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import (GenericVisitor, as_tuple, ctypes_vector_mapper,
+                          filter_ordered, filter_sorted, flatten, is_external_ctype)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -507,13 +508,17 @@ class CGen(Visitor):
 
     def _operator_typedecls(self, o, mode='all'):
         if mode == 'all':
-            xfilter = lambda i: True
+            xfilter0 = lambda i: True
         else:
             public_types = (AbstractFunction, CompositeObject)
             if mode == 'public':
-                xfilter = lambda i: isinstance(i, public_types)
+                xfilter0 = lambda i: isinstance(i, public_types)
             else:
-                xfilter = lambda i: not isinstance(i, public_types)
+                xfilter0 = lambda i: not isinstance(i, public_types)
+
+        # This is essentially to rule out vector types which are declared already
+        # in some external headers
+        xfilter = lambda i: xfilter0(i) and not is_external_ctype(i._C_ctype, o._includes)
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [i._C_typedecl for i in candidates
@@ -764,6 +769,7 @@ class FindSymbols(Visitor):
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
+        - `writs`: Collect all written objects
         - `defines`: Collect all defined objects
         - `defines-aliases`: Collect all defined objects and their aliases
     """
