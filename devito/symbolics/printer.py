@@ -199,6 +199,7 @@ class CodePrinter(C99CodePrinter):
     _print_IndexSum = _print_Fallback
     _print_Keyword = _print_Fallback
     _print_Basic = _print_Fallback
+    _print_ComponentAccess = _print_Fallback
 
 
 # Always parenthesize IntDiv and InlineIf within expressions
