@@ -11,7 +11,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',
            'double3', 'double4', 'dtypes_vector_mapper',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
            'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p',
-           'ctypes_vector_mapper']
+           'ctypes_vector_mapper', 'is_external_ctype']
 
 
 # *** Custom np.dtypes
@@ -209,3 +209,22 @@ def ctypes_to_cgen(ctype, fields=None):
         entries.append(Value(cstr, n))
 
     return Struct(ctype.__name__, entries)
+
+
+known_ctypes = {
+    'vector_types.h': list(ctypes_vector_mapper.values()),
+}
+
+
+def is_external_ctype(ctype, includes):
+    """
+    True if `ctype` is known to be declared in one of the given `includes`
+    files, False otherwise.
+    """
+    # Get the base type
+    while issubclass(ctype, ctypes._Pointer):
+        ctype = ctype._type_
+
+    #TODO!!
+    return False
+    from IPython import embed; embed()

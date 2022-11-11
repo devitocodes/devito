@@ -327,6 +327,8 @@ class DataManager(object):
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
+            elif i.is_Bundle:
+                from IPython import embed; embed()
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:

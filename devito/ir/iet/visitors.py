@@ -17,7 +17,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
 from devito.tools import (GenericVisitor, as_tuple, ctypes_vector_mapper,
-                          filter_ordered, filter_sorted, flatten)
+                          filter_ordered, filter_sorted, flatten, is_external_ctype)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -518,8 +518,7 @@ class CGen(Visitor):
 
         # This is essentially to rule out vector types which are declared already
         # in some external headers
-        xfilter = lambda i: (xfilter0(i) and
-                             i._C_ctype not in ctypes_vector_mapper.values())
+        xfilter = lambda i: xfilter0(i) and not is_external_ctype(i._C_ctype, o._includes)
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [i._C_typedecl for i in candidates
