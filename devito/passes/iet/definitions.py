@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM, Symbol
+from devito.types import DeviceRM, Eq, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -74,15 +74,12 @@ class DataManager(object):
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, sregistry, *args):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        """
-        self.sregistry = sregistry
+    def __init__(self, lower=None, **kwargs):
+        # Machinery for recursive compilation
+        self._lower = lower
+        self._kwargs = kwargs
+
+        self.sregistry = kwargs['sregistry']
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -191,6 +188,27 @@ class DataManager(object):
         free = Call(name, obj)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
+
+    def _alloc_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
+        # Subtract the halo so that we copy CORE+HALO and not just the CORE
+        dims = obj.dimensions
+        eq = Eq(obj.indexify(indices=[d - obj._size_halo[d].left for d in dims]), 1)
+        from IPython import embed; embed()
+        irs, _ = self._lower(eq, **self._kwargs)
+        from IPython import embed; embed()
+
+        name = self.sregistry.make_name(prefix='pack')
+        body = (decl, *packs, init, ret)
+        efunc0 = make_callable(name, body, retval=obj._C_typename)
+        assert len(efunc0.parameters) == 1  # `nbytes_param`
+        pack = Call(name, nbytes_arg, retobj=obj)
+
+        name = self.sregistry.make_name(prefix='unpack')
+        efunc1 = make_callable(name, unpacks)
+        assert len(efunc1.parameters) == 1  # `obj`
+        unpack = Call(name, obj)
+
+        storage.update(obj, site, allocs=pack, frees=unpack, efuncs=(efunc0, efunc1))
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -328,7 +346,10 @@ class DataManager(object):
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
             elif i.is_Bundle:
-                from IPython import embed; embed()
+                if i._mem_local:
+                    from IPython import embed; embed()
+                else:
+                    self._alloc_mapped_bundle_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
@@ -378,22 +399,10 @@ class DataManager(object):
 
 class DeviceAwareDataManager(DataManager):
 
-    def __init__(self, sregistry, options):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        options : dict
-            The optimization options.
-            Accepted: ['gpu-fit'].
-            * 'gpu-fit': an iterable of `Function`s that are guaranteed to fit
-              in the device memory. By default, all `Function`s except saved
-              `TimeFunction`'s are assumed to fit in the device memory.
-        """
-        super().__init__(sregistry)
-        self.gpu_fit = options['gpu-fit']
+    def __init__(self, **kwargs):
+        self.gpu_fit = kwargs['options']['gpu-fit']
+
+        super().__init__(**kwargs)
 
     def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
         """

@@ -103,7 +103,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
             parizer.initialize(graph, options=options)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         return graph
 
@@ -179,7 +179,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)
