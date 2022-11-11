@@ -8,7 +8,8 @@ from conftest import assert_blocking, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension)
+                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
+                    CustomDimension)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1406,6 +1407,33 @@ class TestConditionalDimension(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         assert trees[1][1].nodes[0].is_Conditional
+
+
+class TestCustomDimension(object):
+
+    def test_shifted_minmax(self):
+        grid = Grid(shape=(4, 4))
+
+        so = 4
+
+        u = TimeFunction(name='u', grid=grid, space_order=so)
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+
+        subdims = [CustomDimension(name=d.name, parent=d,
+                                   symbolic_min=d.symbolic_min - so,
+                                   symbolic_max=d.symbolic_max + so)
+                   for d in grid.dimensions]
+
+        eqn = Eq(v, u)
+        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims)))
+
+        op = Operator(eqn)
+
+        u.data_with_halo[:] = 1.
+
+        op.apply(time_M=1)
+
+        assert np.all(v.data_with_halo[:] == 1)
 
 
 class TestMashup(object):
