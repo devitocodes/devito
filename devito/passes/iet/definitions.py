@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM, Eq, Symbol
+from devito.types import DeviceRM, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -189,26 +189,11 @@ class DataManager(object):
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
+    def _alloc_local_bundle_on_high_bw_mem(self, site, obj, storage):
+        raise NotImplementedError
+
     def _alloc_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
-        # Subtract the halo so that we copy CORE+HALO and not just the CORE
-        dims = obj.dimensions
-        eq = Eq(obj.indexify(indices=[d - obj._size_halo[d].left for d in dims]), 1)
-        from IPython import embed; embed()
-        irs, _ = self._lower(eq, **self._kwargs)
-        from IPython import embed; embed()
-
-        name = self.sregistry.make_name(prefix='pack')
-        body = (decl, *packs, init, ret)
-        efunc0 = make_callable(name, body, retval=obj._C_typename)
-        assert len(efunc0.parameters) == 1  # `nbytes_param`
-        pack = Call(name, nbytes_arg, retobj=obj)
-
-        name = self.sregistry.make_name(prefix='unpack')
-        efunc1 = make_callable(name, unpacks)
-        assert len(efunc1.parameters) == 1  # `obj`
-        unpack = Call(name, obj)
-
-        storage.update(obj, site, allocs=pack, frees=unpack, efuncs=(efunc0, efunc1))
+        raise NotImplementedError
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -347,7 +332,7 @@ class DataManager(object):
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
             elif i.is_Bundle:
                 if i._mem_local:
-                    from IPython import embed; embed()
+                    self._alloc_local_bundle_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_mapped_bundle_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
