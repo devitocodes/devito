@@ -911,13 +911,13 @@ class HaloUpdate(MPICallable):
 
 class IsendCall(Call):
 
-    def __init__(self, arguments):
+    def __init__(self, arguments, **kwargs):
         super().__init__('MPI_Isend', arguments)
 
 
 class IrecvCall(Call):
 
-    def __init__(self, arguments):
+    def __init__(self, arguments, **kwargs):
         super().__init__('MPI_Irecv', arguments)
 
 

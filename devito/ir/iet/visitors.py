@@ -1017,7 +1017,11 @@ class Uxreplace(Transformer):
 
     def visit_Call(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
-        return o._rebuild(arguments=arguments)
+        if o.retobj is not None:
+            retobj = uxreplace(o.retobj, self.mapper)
+            return o._rebuild(arguments=arguments, retobj=retobj)
+        else:
+            return o._rebuild(arguments=arguments)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)

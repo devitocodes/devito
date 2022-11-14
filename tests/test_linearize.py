@@ -469,3 +469,24 @@ def test_memspace_stack():
     assert 'uL0' in str(op)
     assert 'aL0' not in str(op)
     assert 'a[x][y]' in str(op)
+
+
+def test_call_retval_indexed():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='v', grid=grid)
+
+    call = Call('bar', [f.indexed], retobj=g.indexify())
+    foo = Callable('foo', call, 'void', parameters=[f])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+
+    linearize(graph, mode=True, sregistry=SymbolRegistry())
+
+    foo = graph.root
+
+    assert foo.body.body[0].write.name == 'y_fsz0'
+    assert foo.body.body[2].write.name == 'y_stride0'
+    assert str(foo.body.body[-1]) == 'vL0(x, y) = bar(f);'
