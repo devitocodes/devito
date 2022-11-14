@@ -286,6 +286,17 @@ void foo(struct dataobj *restrict u_vec, float *restrict u)
 }"""
 
 
+def test_call_retobj_indexed():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+    v = Function(name='v', grid=grid)
+
+    call = Call('foo', [u], retobj=v.indexify())
+
+    assert str(call) == "v[x, y] = foo(u_vec);"
+
+
 def test_null_init():
     grid = Grid(shape=(10, 10))
 

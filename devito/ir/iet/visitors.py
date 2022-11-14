@@ -403,7 +403,10 @@ class CGen(Visitor):
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
-            return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
+            if retobj.is_Indexed:
+                return c.Assign(retobj, call)
+            else:
+                return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
 
     def visit_Conditional(self, o):
         try:
