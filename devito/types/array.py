@@ -472,7 +472,7 @@ class ComponentAccess(Expr, Reconstructable):
 
     __rkwargs__ =  ('index',)
 
-    def __new__(cls, arg, index=0):
+    def __new__(cls, arg, index=0, **kwargs):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
         if not isinstance(index, int) or index > 3:
@@ -490,6 +490,8 @@ class ComponentAccess(Expr, Reconstructable):
         return "%s.%s" % (self.base, self.sindex)
 
     __repr__ = __str__
+
+    func = Reconstructable._rebuild
 
     def _sympystr(self, printer):
         return str(self)
