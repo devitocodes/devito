@@ -925,7 +925,10 @@ class PointerCast(ExprStmt, Node):
 
     @property
     def defines(self):
-        return (self.function.indexed,)
+        if isinstance(self.obj, IndexedBase):
+            return (self.obj,)
+        else:
+            return (self.function.indexed,)
 
 
 class Dereference(ExprStmt, Node):

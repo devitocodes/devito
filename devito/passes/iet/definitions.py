@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM, Symbol
+from devito.types import DeviceMap, DeviceRM, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -26,7 +26,7 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 class MetaSite(object):
 
     _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'bundles', 'unbundles', 'efuncs')
+              'maps', 'unmaps', 'efuncs')
 
     def __init__(self):
         for i in self._items:
@@ -74,9 +74,8 @@ class DataManager(object):
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, lower=None, **kwargs):
-        # Machinery for recursive compilation
-        self._lower = lower
+    def __init__(self, **kwargs):
+        # Stashed for recursive compilation
         self._kwargs = kwargs
 
         self.sregistry = kwargs['sregistry']
@@ -188,12 +187,6 @@ class DataManager(object):
         free = Call(name, obj)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
-
-    def _pack_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
-        """
-        Pack up a Bundle in the high bandwidth memory.
-        """
-        pass
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -335,7 +328,6 @@ class DataManager(object):
                     self._alloc_local_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
-                    self._pack_mapped_bundle_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
@@ -511,6 +503,13 @@ class DeviceAwareDataManager(DataManager):
         """
         Transform `iet` such that device pointers are used in DeviceCalls.
         """
+        dmaps = [i for i in FindSymbols('basics').visit(iet)
+                 if isinstance(i, DeviceMap)]
+
+        maps = [self.lang.PointerCast(i.function, obj=i) for i in dmaps]
+        body = iet.body._rebuild(maps=iet.body.maps + tuple(maps))
+        iet = iet._rebuild(body=body)
+
         return iet, {}
 
     def process(self, graph):

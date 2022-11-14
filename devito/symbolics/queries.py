@@ -6,6 +6,7 @@ from devito.tools import as_tuple, is_integer
 from devito.types.basic import AbstractFunction
 from devito.types.constant import Constant
 from devito.types.dimension import Dimension
+from devito.types.object import AbstractObject
 
 
 __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
@@ -19,7 +20,7 @@ __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xo
 # * Number
 # * Symbol
 # * Indexed
-extra_leaves = (FieldFromPointer, FieldFromComposite, IndexedBase)
+extra_leaves = (FieldFromPointer, FieldFromComposite, IndexedBase, AbstractObject)
 
 
 def q_symbol(expr):
