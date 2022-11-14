@@ -3,7 +3,6 @@ from functools import partial
 import numpy as np
 
 from devito.arch.compiler import compiler_registry
-from devito.arch.archinfo import CPU64
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.passes import is_on_device
@@ -414,8 +413,8 @@ def make_callbacks(options, key=None):
 def host_kwargs(**kwargs):
     """
     Produce a new set of kwargs enforcing host compilation. This is especially
-    useful in the case of recursive compilation in the case of device backends,
-    when one wants to generate a piece of host-specific code.
+    useful in the case of recursive compilation for device backends, when one
+    wants to generate a piece of host-specific code.
     """
     options = kwargs['options']
 
@@ -424,11 +423,10 @@ def host_kwargs(**kwargs):
     else:
         language = 'openmp'
 
-    custom_kwargs = {
-        'platform': CPU64,
-        'language': language
+    kwargs = {
+        'platform': 'cpu64',
+        'language': language,
+        'compiler': 'custom',
     }
-    custom_kwargs['compiler'] = compiler_registry['gcc'](mpi=options['mpi'],
-                                                         **custom_kwargs)
 
-    return {**kwargs, **custom_kwargs}
+    return kwargs
