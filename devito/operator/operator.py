@@ -978,6 +978,31 @@ class Operator(Callable):
             self._lib.name = soname
 
 
+def rcompile(expressions, **kwargs):
+    """
+    Perform recursive compilation on an ordered sequence of symbolic expressions.
+    """
+    #TODO: DROP _rlower...
+
+    kwargs = parse_kwargs(**kwargs)
+    cls = operator_selector(**kwargs)
+
+    kwargs = cls._normalize_kwargs(**kwargs)
+
+    # Tweak the compilation kwargs
+    options = dict(kwargs['options'])
+    # NOTE: it is not only pointless to apply the following passes recursively
+    # (because once, during the main compilation phase, is simply enough), but
+    # also dangerous as a handful of compiler passes, the minority, might break
+    # in some circumstances if applied in cascade (e.g., `linearization` on top
+    # of `linearization`)
+    options['mpi'] = False
+    options['linearize'] = False  # Will be carried out later on
+    kwargs['options'] = options
+
+    return cls._lower(expressions, **kwargs)
+
+
 # Misc helpers
 
 
