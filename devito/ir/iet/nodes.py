@@ -16,7 +16,7 @@ from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types.basic import Basic, AbstractFunction, AbstractSymbol
 from devito.types.object import AbstractObject, LocalObject
 from devito.types import Indexed, Symbol
 
@@ -319,7 +319,7 @@ class Call(ExprStmt, Node):
         ret = ()
         if self.base is not None:
             ret += (self.base,)
-        if self.retobj is not None:
+        if isinstance(self.retobj, Basic):
             ret += (self.retobj,)
         return ret
 

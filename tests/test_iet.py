@@ -296,6 +296,8 @@ def test_call_retobj_indexed():
 
     assert str(call) == "v[x, y] = foo(u_vec);"
 
+    assert not call.defines
+
 
 def test_null_init():
     grid = Grid(shape=(10, 10))
