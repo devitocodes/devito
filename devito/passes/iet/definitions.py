@@ -26,7 +26,7 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 class MetaSite(object):
 
     _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'efuncs')
+              'maps', 'unmaps', 'bundles', 'unbundles', 'efuncs')
 
     def __init__(self):
         for i in self._items:
@@ -189,11 +189,11 @@ class DataManager(object):
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
-    def _alloc_local_bundle_on_high_bw_mem(self, site, obj, storage):
-        raise NotImplementedError
-
-    def _alloc_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
-        raise NotImplementedError
+    def _pack_mapped_bundle_on_high_bw_mem(self, site, obj, storage):
+        """
+        Pack up a Bundle in the high bandwidth memory.
+        """
+        pass
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -301,9 +301,9 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        # Process inline definitions
         storage = Storage()
 
+        # Process inline definitions
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression and k.is_initializable:
                 self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
@@ -332,9 +332,10 @@ class DataManager(object):
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
             elif i.is_Bundle:
                 if i._mem_local:
-                    self._alloc_local_bundle_on_high_bw_mem(iet, i, storage)
+                    self._alloc_local_array_on_high_bw_mem(iet, i, storage)
                 else:
-                    self._alloc_mapped_bundle_on_high_bw_mem(iet, i, storage)
+                    self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
+                    self._pack_mapped_bundle_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:

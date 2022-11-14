@@ -772,6 +772,7 @@ class FindSymbols(Visitor):
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
+        - `writs`: Collect all written objects
         - `defines`: Collect all defined objects
         - `defines-aliases`: Collect all defined objects and their aliases
     """

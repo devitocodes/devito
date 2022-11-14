@@ -707,6 +707,9 @@ class CallableBody(Node):
         Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
+    bundles : list of Nodes, optional
+        Data bundling for `body`. Used to initialize data subjected to layout
+        transformation (w.r.t. how it arrives from Python), such as vector types.
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
@@ -714,17 +717,19 @@ class CallableBody(Node):
         Object definitions for `body`.
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
+    unbundles : list of Nodes, optional
+        Data unbundling for `body`.
     frees : list of Calls, optional
         Data deallocations for `body`.
     """
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'maps', 'objs',
-                    'body', 'unmaps', 'frees']
+    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps', 'objs',
+                    'body', 'unmaps', 'unbundles', 'frees']
 
-    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
-                 objs=None, maps=None, unmaps=None, frees=None):
+    def __init__(self, body, init=(), unpacks=(), allocs=(), casts=(),
+                 bundles=(), objs=(), maps=(), unmaps=(), unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -733,9 +738,11 @@ class CallableBody(Node):
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
         self.casts = as_tuple(casts)
+        self.bundles = as_tuple(bundles)
         self.maps = as_tuple(maps)
         self.objs = as_tuple(objs)
         self.unmaps = as_tuple(unmaps)
+        self.unbundles = as_tuple(unbundles)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
