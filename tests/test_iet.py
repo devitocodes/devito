@@ -295,7 +295,7 @@ def test_call_retobj_indexed():
 
     call = Call('foo', [u], retobj=v.indexify())
 
-    assert str(call) == "v[x, y] = foo(u_vec);"
+    assert str(call) == "v[x][y] = foo(u_vec);"
 
     assert not call.defines
 

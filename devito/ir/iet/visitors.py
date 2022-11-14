@@ -404,7 +404,7 @@ class CGen(Visitor):
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
             if retobj.is_Indexed:
-                return c.Assign(retobj, call)
+                return c.Assign(ccode(retobj), call)
             else:
                 return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
 
