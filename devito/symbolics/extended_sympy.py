@@ -547,6 +547,9 @@ class DefFunction(Function, Pickable):
 
     __repr__ = __str__
 
+    def _sympystr(self, printer):
+        return str(self)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
