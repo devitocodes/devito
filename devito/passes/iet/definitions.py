@@ -512,6 +512,13 @@ class DeviceAwareDataManager(DataManager):
 
         return iet, {}
 
+    @iet_pass
+    def place_bundling(self, iet, **kwargs):
+        """
+        Transform `iet` adding snippets to pack and unpack Bundles.
+        """
+        return iet, {}
+
     def process(self, graph):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
@@ -520,4 +527,5 @@ class DeviceAwareDataManager(DataManager):
         self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
         self.place_devptr(graph)
+        self.place_bundling(graph)
         self.place_casts(graph)
