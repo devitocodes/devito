@@ -225,6 +225,11 @@ def is_external_ctype(ctype, includes):
     while issubclass(ctype, ctypes._Pointer):
         ctype = ctype._type_
 
-    #TODO!!
+    if issubclass(ctype, ctypes._SimpleCData):
+        return False
+
+    for k, v in known_ctypes.items():
+        if ctype in v:
+            return True
+
     return False
-    from IPython import embed; embed()

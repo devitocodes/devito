@@ -256,7 +256,8 @@ def test_make_cuda_stream():
 
     iet = Call('foo', stream)
     iet = ElementalFunction('foo', iet, 'void')
-    iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
 
     assert str(iet) == """\
 static inline void foo()

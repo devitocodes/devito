@@ -1278,7 +1278,8 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value), ispace=None))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+        dm = CDataManager(sregistry=None)
+        iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
         for i in iet.body.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression

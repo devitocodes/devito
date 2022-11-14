@@ -52,8 +52,16 @@ class IREq(sympy.Eq, Pickable):
         # Unwrap the written terminal from higher order objects such as
         # ComponentAccess
         v = retrieve_terminals(self.lhs)
-        assert len(v) == 1  # No deep retrieval, hence only one terminal expected
-        return v.pop()
+        if len(v) == 1:
+            return v.pop()
+        else:
+            # TODO: We need to restructure the extended_sympy hierarchy because
+            # in some corner cases more than one terminal might be detected, which
+            # is ugly and misleading (e.g., `u_vec->size[time]` might return both
+            # `u_vec->size` and `time`, but the terminal retrieval should have
+            # stopped at the outer object, that is `u_vec->size[time]` itself,
+            # just like we normally do for Indexeds)
+            return None
 
     @property
     def state(self):
