@@ -438,6 +438,20 @@ class ClangCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class CrayCompiler(ClangCompiler):
+
+    """HPE Cray's Clang compiler."""
+
+    def __init__(self, *args, **kwargs):
+        super(CrayCompiler, self).__init__(*args, **kwargs)
+
+    def __lookup_cmds__(self):
+        self.CC = 'cc'
+        self.CXX = 'CC'
+        self.MPICC = 'cc'
+        self.MPICXX = 'CC'
+
+
 class AOMPCompiler(Compiler):
 
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
@@ -472,33 +486,6 @@ class AOMPCompiler(Compiler):
         self.CXX = 'aompcc'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
-
-
-class CrayCompiler(Compiler):
-
-    """HPE Cray's compiler."""
-
-    def __init__(self, *args, **kwargs):
-        super(CrayCompiler, self).__init__(*args, **kwargs)
-
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
-        if not configuration['safe-math']:
-            self.cflags.append('-ffast-math')
-
-        platform = kwargs.pop('platform', configuration['platform'])
-        self.cflags.append('-march=native')
-
-        # For MPI, mpicc is compiled against amdclang not aompcc, so need the flags back.
-        if kwargs.get('mpi'):
-            self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
-            self.ldflags.extend(['-fopenmp'])
-            self.ldflags.append('-march=%s' % platform.march)
-
-    def __lookup_cmds__(self):
-        self.CC = 'craycc'
-        self.CXX = 'crayCC'
-        self.MPICC = 'craycc'
-        self.MPICXX = 'crayCC'
 
 
 class DPCPPCompiler(Compiler):
