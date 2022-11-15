@@ -27,13 +27,13 @@ jobs:
         include:
           - tag: 'devitocodes/bases:nvidia-nvc'
             arch: 'arch=nvc'
-            version: ''
+            version: 'ver=nvhpc-22-7'
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "nvidiagpu"]
 
           - tag: 'devitocodes/bases:nvidia-nvcc'
             arch: 'arch=nvcc'
-            version: ''
+            version: 'ver=nvhpc-22-7'
             dockerfile: './docker/Dockerfile.nvidia'
             runner: ["self-hosted", "nvidiagpu"]
 

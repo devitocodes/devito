@@ -12,7 +12,10 @@ ENV rocm=/opt/rocm-${ROCM_VERSION}
 ENV AOMP=/opt/rocm-${ROCM_VERSION}/llvm
 
 # Some utils needed
-RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev vim
+RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev vim libnuma1 tmux
+
+# Install tmpi
+RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # ROCm-aware MPI. Taken from:
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
