@@ -81,9 +81,18 @@ def dtype_to_mpitype(dtype):
     return {np.ubyte: 'MPI_BYTE',
             np.ushort: 'MPI_UNSIGNED_SHORT',
             np.int32: 'MPI_INT',
+            int2: 'MPI_INT',
+            int3: 'MPI_INT',
+            int4: 'MPI_INT',
             np.float32: 'MPI_FLOAT',
+            float2: 'MPI_FLOAT',
+            float3: 'MPI_FLOAT',
+            float4: 'MPI_FLOAT',
             np.int64: 'MPI_LONG',
-            np.float64: 'MPI_DOUBLE'}[dtype]
+            np.float64: 'MPI_DOUBLE',
+            double2: 'MPI_DOUBLE',
+            double3: 'MPI_DOUBLE',
+            double4: 'MPI_DOUBLE'}[dtype]
 
 
 # *** Custom ctypes

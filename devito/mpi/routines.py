@@ -31,6 +31,9 @@ class HaloExchangeBuilder(object):
         obj = object.__new__(mpi_registry[mpimode])
 
         obj._lower = lower
+        #TODO: rcompile should be used, and it shouldn't use an sregistry
+        # unless one is explicitly supplied...
+        kwargs.pop('sregistry')
         obj._kwargs = kwargs
 
         # Unique name generators
