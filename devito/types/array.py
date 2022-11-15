@@ -467,6 +467,13 @@ class Bundle(ArrayBasic):
     def _mem_heap(self):
         return self.c0._mem_heap
 
+    @property
+    def _dist_dimensions(self):
+        return self.c0._dist_dimensions
+
+    def _C_get_field(self, region, dim, side=None):
+        return self.c0._C_get_field(region, dim, side=side)
+
     def __getitem__(self, index):
         index = as_tuple(index)
         if len(index) == self.ndim:
