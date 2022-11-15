@@ -416,10 +416,6 @@ class Bundle(ArrayBasic):
     # Class attributes overrides
 
     @property
-    def is_Array(self):
-        return self.c0.is_Array
-
-    @property
     def is_DiscreteFunction(self):
         return self.c0.is_DiscreteFunction
 
@@ -441,6 +437,36 @@ class Bundle(ArrayBasic):
         else:
             return None
 
+    # CodeSymbol overrides
+
+    @property
+    def _mem_internal_eager(self):
+        return self.c0._mem_internal_eager
+
+    @property
+    def _mem_internal_lazy(self):
+        return self.c0._mem_internal_lazy
+
+    @property
+    def _mem_local(self):
+        return self.c0._mem_local
+
+    @property
+    def _mem_mapped(self):
+        return self.c0._mem_mapped
+
+    @property
+    def _mem_host(self):
+        return self.c0._mem_host
+
+    @property
+    def _mem_stack(self):
+        return self.c0._mem_stack
+
+    @property
+    def _mem_heap(self):
+        return self.c0._mem_heap
+
     def __getitem__(self, index):
         index = as_tuple(index)
         if len(index) == self.ndim:
@@ -452,18 +478,18 @@ class Bundle(ArrayBasic):
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
 
+    #TODO: TRY DROPPING THESE!
+    _C_structname = ArrayMapped._C_structname
+    _C_field_data = ArrayMapped._C_field_data
+    _C_field_nbytes = ArrayMapped._C_field_nbytes
+    _C_field_dmap = ArrayMapped._C_field_dmap
 
-
-    _C_structname = 'vector'
-    #TODO: reuse from ArrayMapped...
-    _C_field_data = 'data'
-    _C_field_nbytes = 'nbytes'
-    _C_field_dmap = 'dmap'
-
-    _C_ctype = POINTER(type(_C_structname, (Structure,),
-                            {'_fields_': [(_C_field_data, c_restrict_void_p),
-                                          (_C_field_nbytes, c_ulong),
-                                          (_C_field_dmap, c_void_p)]}))
+    @property
+    def _C_ctype(self):
+        if self._mem_mapped:
+            return ArrayMapped._C_ctype
+        else:
+            return POINTER(dtype_to_ctype(self.dtype))
 
 
 class ComponentAccess(Expr, Reconstructable):
