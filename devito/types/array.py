@@ -3,14 +3,14 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
-from sympy import Expr
+from sympy import Expr, Number
 
 from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper)
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import CustomDimension
-from devito.types.utils import CtypesFactory
+from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle']
 
@@ -436,6 +436,18 @@ class Bundle(ArrayBasic):
             return self.c0.grid
         else:
             return None
+
+    @property
+    def symbolic_shape(self):
+        # A Bundle may be defined over a SteppingDimension, which is of unknown
+        # size, hence we gotta use the actual numeric size instead
+        ret = []
+        for d, s, v in zip(self.dimensions, super().symbolic_shape, self.c0.shape):
+            if d.is_Stepping:
+                ret.append(Number(v))
+            else:
+                ret.append(s)
+        return DimensionTuple(*ret, getters=self.dimensions)
 
     # CodeSymbol overrides
 
