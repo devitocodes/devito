@@ -199,9 +199,16 @@ def _(f, d, fsz, sregistry):
 
 
 @_generate_fsz.register(Array)
-@_generate_fsz.register(Bundle)
 def _(f, d, fsz, sregistry):
     return DummyExpr(fsz, f.symbolic_shape[d], init=True)
+
+
+@_generate_fsz.register(Bundle)
+def _(f, *args):
+    if f.is_DiscreteFunction:
+        return _generate_fsz.registry[DiscreteFunction](f, *args)
+    else:
+        return _generate_fsz.registry[Array](f, *args)
 
 
 @singledispatch

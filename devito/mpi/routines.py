@@ -15,7 +15,8 @@ from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBu
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
-from devito.tools import dtype_to_mpitype, dtype_to_ctype, flatten, generator
+from devito.tools import (dtype_to_mpitype, dtype_len, dtype_to_ctype, flatten,
+                          generator)
 from devito.types import Array, Dimension, Eq, Symbol, LocalObject, CompositeObject
 
 __all__ = ['HaloExchangeBuilder', 'mpi_registry']
@@ -345,7 +346,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
-        count = reduce(mul, bufs.shape, 1)
+        count = reduce(mul, bufs.shape, 1)*dtype_len(f.dtype)
         rrecv = MPIRequestObject(name='rrecv', liveness='eager')
         rsend = MPIRequestObject(name='rsend', liveness='eager')
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
@@ -532,7 +533,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
-        count = reduce(mul, sizes, 1)
+        count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
         rrecv = Byref(FieldFromPointer(msg._C_field_rrecv, msg))
         rsend = Byref(FieldFromPointer(msg._C_field_rsend, msg))
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
@@ -695,7 +696,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
-        count = reduce(mul, sizes, 1)
+        count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
         rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
