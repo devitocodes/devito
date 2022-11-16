@@ -9,7 +9,7 @@ from cgen import Struct, Value, dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',
            'double3', 'double4', 'dtypes_vector_mapper',
-           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype',
+           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p',
            'ctypes_vector_mapper', 'is_external_ctype']
 
@@ -93,6 +93,18 @@ def dtype_to_mpitype(dtype):
             double2: 'MPI_DOUBLE',
             double3: 'MPI_DOUBLE',
             double4: 'MPI_DOUBLE'}[dtype]
+
+
+def dtype_len(dtype):
+    """
+    Number of elements associated with one object of type `dtype`. Thus,
+    return 1 for scalar dtypes, N for vector dtypes of rank N.
+    """
+    try:
+        # Vector types
+        return len(dtype)
+    except TypeError:
+        return 1
 
 
 # *** Custom ctypes
