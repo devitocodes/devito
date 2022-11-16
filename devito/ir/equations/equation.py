@@ -48,22 +48,6 @@ class IREq(sympy.Eq, Pickable):
         return self.lhs.dtype
 
     @property
-    def lhs_terminal(self):
-        # Unwrap the written terminal from higher order objects such as
-        # ComponentAccess
-        v = retrieve_terminals(self.lhs)
-        if len(v) == 1:
-            return v.pop()
-        else:
-            # TODO: We need to restructure the extended_sympy hierarchy because
-            # in some corner cases more than one terminal might be detected, which
-            # is ugly and misleading (e.g., `u_vec->size[time]` might return both
-            # `u_vec->size` and `time`, but the terminal retrieval should have
-            # stopped at the outer object, that is `u_vec->size[time]` itself,
-            # just like we normally do for Indexeds)
-            return None
-
-    @property
     def state(self):
         return {i: getattr(self, i) for i in self.__rkwargs__}
 

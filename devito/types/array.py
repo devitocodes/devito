@@ -558,5 +558,9 @@ class ComponentAccess(Expr, Reconstructable):
         return self.base.function
 
     @property
+    def indices(self):
+        return self.base.indices
+
+    @property
     def dtype(self):
         return self.function.dtype
