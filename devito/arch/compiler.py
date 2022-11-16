@@ -46,8 +46,6 @@ def sniff_compiler_version(cc):
         compiler = "gcc"
     elif ver.startswith("clang"):
         compiler = "clang"
-    elif ver.startswith("cray"):
-        compiler = "cray"
     elif ver.startswith("Apple LLVM"):
         compiler = "clang"
     elif ver.startswith("Homebrew clang"):
@@ -56,6 +54,8 @@ def sniff_compiler_version(cc):
         compiler = "icc"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
+    elif ver.startswith("cray"):
+        compiler = "cray"
     else:
         compiler = "unknown"
 
@@ -441,9 +441,6 @@ class ClangCompiler(Compiler):
 class CrayCompiler(ClangCompiler):
 
     """HPE Cray's Clang compiler."""
-
-    def __init__(self, *args, **kwargs):
-        super(CrayCompiler, self).__init__(*args, **kwargs)
 
     def __lookup_cmds__(self):
         self.CC = 'cc'
