@@ -12,7 +12,6 @@ def test_udx_conversion():
     op.apply(time_M=5)
 
     xdsl_string = transform_devito_xdsl_string(op)
-
     assert xdsl_string == ("#define _POSIX_C_SOURCE 200809L\n"
                           "#define START_TIMER(S) struct timeval start_ ## S , end_ ## S ; gettimeofday(&start_ ## S , NULL);\n"
                           "#define STOP_TIMER(S,T) gettimeofday(&end_ ## S, NULL); T->S += (double)(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;\n"

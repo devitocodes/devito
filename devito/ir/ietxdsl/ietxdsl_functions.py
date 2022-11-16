@@ -3,7 +3,7 @@ from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
 
 import devito.ir.iet.nodes as nodes
-import devito.mpi.routines as routines
+import devito.mpi.routines as routines  # noqa
 
 from devito import ModuloDimension, SpaceDimension
 from devito.passes.iet.languages.openmp import OmpRegion
@@ -14,8 +14,9 @@ from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                StructDecl, FloatConstant)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
-from xdsl.dialects.builtin import Builtin
+from xdsl.dialects.builtin import Builtin, i32
 from xdsl.dialects.arith import Muli, Addi
+from xdsl.dialects.func import Call
 
 
 ctx = MLContext()
@@ -89,7 +90,8 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, Integer):
         constant = int(expr.evalf())
-        arg = Constant.get(constant)
+        arg = Constant.from_int_constant(constant, i32)
+        # arg = Constant.get(constant)
         arg_by_expr[expr] = arg
         result.append(arg)
         return
@@ -195,8 +197,7 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.Expression):
-        import pdb;pdb.set_trace()
-        b = Block.from_arg_types([iet.i32])
+        b = Block.from_arg_types([i32])
         r = []
         expr = node.expr
         if node.init:
@@ -220,7 +221,7 @@ def myVisit(node, block=None, ctx={}):
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
         index = node.index
-        b = Block.from_arg_types([iet.i32])
+        b = Block.from_arg_types([i32])
         ctx = {**ctx, index: b.args[0]}
         # check if there are subindices
         hasSubIndices = False
@@ -308,6 +309,9 @@ def myVisit(node, block=None, ctx={}):
         # Those parameters without associated types aren't printed in the Kernel header
         call_name = node.name
         call_args = [i._C_name for i in node.arguments]
+        call = Call.get(call_name, [call_args], 'void')
+        import pdb;pdb.set_trace()
+        block.add_ops([call])
         return
 
     if isinstance(node, cgen.Comment):

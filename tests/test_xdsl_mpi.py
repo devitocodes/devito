@@ -28,11 +28,14 @@ class TestOperatorSimple(object):
         f = TimeFunction(name='f', grid=grid)
         f.data_with_halo[:] = 1.
 
-        # op = Operator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
-        # op.apply(time=1)
+        op = Operator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
+        op.apply(time=1)
+
+        f.data_with_halo[:] = 1.
 
         xdsl_op = XDSLOperator(Eq(f.forward, f[t, x-1] + f[t, x+1] + 1))
         xdsl_op.__class__ = XDSLOperator
+
         xdsl_op.apply(time=1)
 
         assert np.all(f.data_ro_domain[1] == 3.)

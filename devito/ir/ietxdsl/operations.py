@@ -3,7 +3,8 @@ from typing import Tuple, List
 from dataclasses import dataclass
 from xdsl.dialects.builtin import (IntegerType, Float32Type, IntegerAttr, StringAttr,
                                    ArrayAttr, FloatAttr)
-
+from xdsl.dialects.arith import Constant
+from xdsl.dialects.builtin import i32
 from xdsl.irdl import (ResultDef, OperandDef, RegionDef, AttributeDef, AnyAttr,
                        irdl_op_definition)
 from xdsl.ir import MLContext, Operation, Block, Region
@@ -15,7 +16,6 @@ class IET:
 
     def __post_init__(self):
         # TODO add all operations
-        self.ctx.register_op(Constant)
         self.ctx.register_op(FloatConstant)
         self.ctx.register_op(Modi)
         self.ctx.register_op(Iteration)
@@ -27,28 +27,7 @@ class IET:
         self.ctx.register_op(PointerCast)
         self.ctx.register_op(Statement)
         self.ctx.register_op(StructDecl)
-        self.i32 = IntegerType.from_width(32)
         self.f32 = Float32Type()
-
-
-@irdl_op_definition
-class Constant(Operation):
-    name: str = "iet.constant"
-    output = ResultDef(AnyAttr())
-    value = AttributeDef(AnyAttr())
-
-    # TODO verify that the output and value type are equal
-    def verify_(self) -> None:
-        # TODO how to force the attr to have a type? and how to query it?
-        pass
-
-    @staticmethod
-    def get(value):
-        attr = IntegerAttr.from_int_and_width(value, 32)
-        res = Constant.build(operands=[],
-                             attributes={"value": attr},
-                             result_types=[IntegerType.from_width(32)])
-        return res
 
 
 @irdl_op_definition

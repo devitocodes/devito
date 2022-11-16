@@ -7,7 +7,7 @@ from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
                                ietxdsl_functions, Callable)
 
 from devito.ir.ietxdsl.ietxdsl_functions import collectStructs
-from xdsl.dialects.builtin import Builtin
+from xdsl.dialects.builtin import Builtin, i32
 
 
 def transform_devito_xdsl_string(op: Operator):
@@ -34,7 +34,7 @@ def transform_devito_xdsl_string(op: Operator):
     op_types = [opi._C_typename for opi in list(op.parameters)]
     op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
 
-    b = Block.from_arg_types([iet.i32] * len(op_param_names))
+    b = Block.from_arg_types([i32] * len(op_param_names))
     d = {name: register for name, register in zip(op_param_names, b.args)}
 
     call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
@@ -59,7 +59,7 @@ def transform_devito_xdsl_string(op: Operator):
 
     # print Kernel
     cgen.printCallable(call_obj)
-    
+
     from xdsl.printer import Printer
     Printer().print(call_obj.body)
 

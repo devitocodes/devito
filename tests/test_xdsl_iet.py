@@ -1,13 +1,14 @@
 from devito import Grid, TimeFunction, Eq, Operator
 from devito.tools import as_tuple
 
-from devito.ir.ietxdsl import (MLContext, Constant, Addi, CGeneration,
+from devito.ir.ietxdsl import (MLContext, CGeneration,
                                IET, Callable, Block, Iteration, Idx, Assign)
 
 from devito.ir.iet import retrieve_iteration_tree
 
-from xdsl.dialects.builtin import ModuleOp, Builtin
+from xdsl.dialects.builtin import ModuleOp, Builtin, i32
 from xdsl.printer import Printer
+from xdsl.dialects.arith import Addi, Constant
 
 
 # flake8: noqa
@@ -32,8 +33,8 @@ def test_expression():
     # We might want to consider a mode where we can transparently move between
     # a sequential and a tree representation of such an ir.
     mod = ModuleOp.from_region_or_ops([
-        cst42 := Constant.get(42),
-        cst3 := Constant.get(3),
+        cst42 := Constant.from_int_constant(42, i32),
+        cst3 := Constant.from_int_constant(3, i32),
         Addi.get(cst42, cst3),
     ])
 
@@ -64,23 +65,23 @@ def test_example():
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
             "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"],
-            Block.from_callable([iet.i32], lambda u: [
+            Block.from_callable([i32], lambda u: [
                 Iteration
                 .get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
                      Block.from_callable([
-                         iet.i32, iet.i32, iet.i32
+                         i32, i32, i32
                      ], lambda time, t0, t1: [
                          Iteration.
                          get(["affine", "parallel", "skewable"],
                              ("x_m", "x_M", "1"),"x_loop",
-                             Block.from_callable([iet.i32], lambda x: [
+                             Block.from_callable([i32], lambda x: [
                                  Iteration.get(
                                      [
                                          "affine",
                                          "parallel", "skewable", "vector-dim"
                                      ], ("y_m", "y_M", "1"),"y_loop",
-                                     Block.from_callable([iet.i32], lambda y: [
-                                         cst1 := Constant.get(1),
+                                     Block.from_callable([i32], lambda y: [
+                                         cst1 := Constant.from_int_constant(1, i32),
                                          x1 := Addi.get(x, cst1),
                                          y1 := Addi.get(y, cst1),
                                          ut0 := Idx.get(u, t0),
@@ -124,15 +125,15 @@ def test_devito_iet():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get("kernel", ["u"], ["u"],["struct dataobj*"], ["restrict"],
-                     Block.from_callable([iet.i32], lambda u: [
+                     Block.from_callable([i32], lambda u: [
             Iteration.get(t_props, t_limits, iters[0][0].dim.name,
-                Block.from_callable([iet.i32, iet.i32, iet.i32],
+                Block.from_callable([i32, i32, i32],
                                     lambda time, t0, t1: [
                     Iteration.get(x_props, x_limits, iters[0][1].dim.name,
-                    Block.from_callable([iet.i32], lambda x: [
+                    Block.from_callable([i32], lambda x: [
                                   Iteration.get(y_props, y_limits, iters[0][2].dim.name,
-                                  Block.from_callable([iet.i32], lambda y: [
-                        cst1    := Constant.get(1),
+                                  Block.from_callable([i32], lambda y: [
+                        cst1    := Constant.from_int_constant(1, i32),
                         x1      := Addi.get(x, cst1),
                         y1      := Addi.get(y, cst1),
                         ut0     := Idx.get(u, t0),
