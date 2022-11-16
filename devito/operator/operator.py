@@ -243,7 +243,7 @@ class Operator(Callable):
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
-        kwargs['lower'] = cls._rlower
+        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
 
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
@@ -263,26 +263,10 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rlower(cls, expressions, **kwargs):
-        """
-        Lower `expressions` by carefully disabling a selection of passes so
-        that the resulting IRs may be used in a context of recursive compilation.
-        Thus, `_rlower` is expected to be used internally as a callback by one
-        or more compilation passes, during the "main" phase of compilation.
-        """
-        options = dict(kwargs['options'])
-
-        # It is not only pointless to apply the following passes recursively
-        # (because once, during the main compilation phase, is simply enough),
-        # but also dangerous as a handful of compiler passes, the minority,
-        # might break in some circumstances if applied in cascade (e.g.,
-        # `linearization` on top of `linearization`)
-        options['mpi'] = False
-        options['linearize'] = False  # Will be carried out later on
-
-        kwargs['options'] = options
-
-        return cls._lower(expressions, **kwargs)
+    def _rcompile_wrapper(cls, **kwargs):
+        def wrapper(expressions, kwargs=kwargs):
+            return rcompile(expressions, kwargs)
+        return wrapper
 
     @classmethod
     def _initialize_state(cls, **kwargs):
@@ -978,16 +962,16 @@ class Operator(Callable):
             self._lib.name = soname
 
 
-def rcompile(expressions, **kwargs):
+def rcompile(expressions, kwargs=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
     """
-    #TODO: DROP _rlower...
-
-    kwargs = parse_kwargs(**kwargs)
-    cls = operator_selector(**kwargs)
-
-    kwargs = cls._normalize_kwargs(**kwargs)
+    if not kwargs or 'options' not in kwargs:
+        kwargs = parse_kwargs(**kwargs)
+        cls = operator_selector(**kwargs)
+        kwargs = cls._normalize_kwargs(**kwargs)
+    else:
+        cls = operator_selector(**kwargs)
 
     # Tweak the compilation kwargs
     options = dict(kwargs['options'])
@@ -999,6 +983,9 @@ def rcompile(expressions, **kwargs):
     options['mpi'] = False
     options['linearize'] = False  # Will be carried out later on
     kwargs['options'] = options
+
+    # Recursive profiling not supported -- would be a complete mess
+    kwargs.pop('profiler', None)
 
     return cls._lower(expressions, **kwargs)
 

@@ -5,6 +5,7 @@ import numpy as np
 from devito.arch.compiler import compiler_registry
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
+from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
@@ -95,6 +96,21 @@ class DeviceOperatorMixin(object):
             return None
         else:
             return cls.GPU_FIT
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs):
+        options = kwargs['options']
+
+        def wrapper(expressions, kwargs=kwargs, mode='default'):
+            if mode == 'host':
+                kwargs = {
+                    'platform': 'cpu64',
+                    'language': 'C' if options['par-disabled'] else 'openmp',
+                    'compiler': 'custom',
+                }
+            return rcompile(expressions, kwargs)
+
+        return wrapper
 
 # Mode level
 
@@ -408,25 +424,3 @@ def make_callbacks(options, key=None):
             return set()
 
     return runs_on_host, reads_if_on_host
-
-
-def host_kwargs(**kwargs):
-    """
-    Produce a new set of kwargs enforcing host compilation. This is especially
-    useful in the case of recursive compilation for device backends, when one
-    wants to generate a piece of host-specific code.
-    """
-    options = kwargs['options']
-
-    if options['par-disabled']:
-        language = 'C'
-    else:
-        language = 'openmp'
-
-    kwargs = {
-        'platform': 'cpu64',
-        'language': language,
-        'compiler': 'custom',
-    }
-
-    return kwargs

@@ -74,10 +74,8 @@ class DataManager(object):
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, sregistry=None, **kwargs):
-        # Stashed for recursive compilation
-        self._kwargs = kwargs
-
+    def __init__(self, rcompile=None, sregistry=None, **kwargs):
+        self.rcompile = rcompile
         self.sregistry = sregistry
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
