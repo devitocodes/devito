@@ -1436,23 +1436,6 @@ class TestCustomDimension(object):
         assert np.all(v.data_with_halo[:] == 1)
 
 
-class TestSteppingDimension(object):
-
-    def test_arg_size(self):
-        grid = Grid(shape=(4, 4))
-        t = grid.stepping_dim
-
-        u = TimeFunction(name='u', grid=grid)
-
-        eqn = Eq(u, t.symbolic_size)
-
-        op = Operator(eqn)
-
-        op.apply(time_M=5)
-
-        assert np.all(u.data[:] == 2)
-
-
 class TestMashup(object):
 
     """

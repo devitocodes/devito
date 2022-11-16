@@ -1404,7 +1404,7 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, _min=None, size=None, **kwargs):
+    def _arg_defaults(self, _min=None, **kwargs):
         """
         A map of default argument values defined by this dimension.
 
@@ -1412,15 +1412,13 @@ class SteppingDimension(DerivedDimension):
         ----------
         _min : int, optional
             Minimum point as provided by data-carrying objects.
-        size : int, optional
-            Size as provided by data-carrying symbols.
 
         Notes
         -----
         A SteppingDimension does not know its max point and therefore
         does not have a size argument.
         """
-        return {self.parent.min_name: _min, self.size_name: size}
+        return {self.parent.min_name: _min}
 
     def _arg_values(self, *args, **kwargs):
         """
