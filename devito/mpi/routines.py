@@ -27,14 +27,11 @@ class HaloExchangeBuilder(object):
     Build IET-based routines to implement MPI halo exchange.
     """
 
-    def __new__(cls, mpimode, generators=None, lower=None, **kwargs):
+    def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None, **kwargs):
         obj = object.__new__(mpi_registry[mpimode])
 
-        obj._lower = lower
-        #TODO: rcompile should be used, and it shouldn't use an sregistry
-        # unless one is explicitly supplied...
-        kwargs.pop('sregistry')
-        obj._kwargs = kwargs
+        obj.rcompile = rcompile
+        obj.sregistry = sregistry
 
         # Unique name generators
         generators = generators or {}
@@ -47,10 +44,6 @@ class HaloExchangeBuilder(object):
         obj._efuncs = []
 
         return obj
-
-    @property
-    def sregistry(self):
-        return self._kwargs['sregistry']
 
     @property
     def efuncs(self):
@@ -322,7 +315,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         eqns.append(eq)
 
         # Compile `eqns` into an IET via recursive compilation
-        irs, _ = self._lower(eqns, **self._kwargs)
+        irs, _ = self.rcompile(eqns)
 
         parameters = [buf] + list(buf.shape) + [f] + f_offsets
 
