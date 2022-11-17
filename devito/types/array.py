@@ -492,7 +492,7 @@ class Bundle(ArrayBasic):
 
 class ComponentAccess(Expr, Reconstructable):
 
-    _component_names = ('x', 'y', 'w', 'z')
+    _component_names = ('x', 'y', 'z', 'w')
 
     __rkwargs__ =  ('index',)
 
