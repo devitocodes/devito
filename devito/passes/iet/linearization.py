@@ -150,7 +150,11 @@ def linearize_accesses(iet, key0, tracker=None, sregistry=None, options=None,
             k = key1(f, d)
             try:
                 fsz = tracker.sizes[k]
-                v = _generate_fsz(f, d, fsz, sregistry)
+                val = _generate_fsz(f, d)
+                if val.free_symbols.issubset(f.bound_symbols):
+                    v = DummyExpr(fsz, val, init=True)
+                else:
+                    v = None
             except KeyError:
                 v = None
             if v is not None:
@@ -189,26 +193,26 @@ def linearize_accesses(iet, key0, tracker=None, sregistry=None, options=None,
 
 
 @singledispatch
-def _generate_fsz(f, d, fsz, sregistry):
+def _generate_fsz(f, d):
     return
 
 
 @_generate_fsz.register(DiscreteFunction)
-def _(f, d, fsz, sregistry):
-    return DummyExpr(fsz, f._C_get_field(FULL, d).size, init=True)
+def _(f, d):
+    return f._C_get_field(FULL, d).size
 
 
 @_generate_fsz.register(Array)
-def _(f, d, fsz, sregistry):
-    return DummyExpr(fsz, f.symbolic_shape[d], init=True)
+def _(f, d):
+    return f.symbolic_shape[d]
 
 
 @_generate_fsz.register(Bundle)
-def _(f, *args):
+def _(f, d):
     if f.is_DiscreteFunction:
-        return _generate_fsz.registry[DiscreteFunction](f, *args)
+        return _generate_fsz.registry[DiscreteFunction](f, d)
     else:
-        return _generate_fsz.registry[Array](f, *args)
+        return _generate_fsz.registry[Array](f, d)
 
 
 @singledispatch
