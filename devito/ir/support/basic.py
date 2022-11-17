@@ -8,8 +8,8 @@ from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routine,
                               q_terminal)
-from devito.tools import (Tag, as_tuple, is_integer, filter_ordered, filter_sorted,
-                          flatten, memoized_meth, memoized_generator)
+from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
+                          memoized_meth, memoized_generator)
 from devito.types import Barrier, Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
@@ -693,9 +693,12 @@ class Scope(object):
 
         for i, e in enumerate(exprs):
             # Reads
-            terminals = retrieve_terminals(e, deep=True)
-            terminals.remove(e.lhs)  # We retain, though, all the indices
-            for j in filter_ordered(terminals):
+            terminals = retrieve_terminals(e.rhs, deep=True, mode='unique')
+            try:
+                terminals.update(retrieve_terminals(e.lhs.indices))
+            except AttributeError:
+                pass
+            for j in terminals:
                 v = self.reads.setdefault(j.function, [])
                 mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace))
