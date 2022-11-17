@@ -449,35 +449,14 @@ class Bundle(ArrayBasic):
                 ret.append(s)
         return DimensionTuple(*ret, getters=self.dimensions)
 
-    # CodeSymbol overrides
+    # CodeSymbol overrides defaulting to self.c0's behaviour
 
-    @property
-    def _mem_internal_eager(self):
-        return self.c0._mem_internal_eager
-
-    @property
-    def _mem_internal_lazy(self):
-        return self.c0._mem_internal_lazy
-
-    @property
-    def _mem_local(self):
-        return self.c0._mem_local
-
-    @property
-    def _mem_mapped(self):
-        return self.c0._mem_mapped
-
-    @property
-    def _mem_host(self):
-        return self.c0._mem_host
-
-    @property
-    def _mem_stack(self):
-        return self.c0._mem_stack
-
-    @property
-    def _mem_heap(self):
-        return self.c0._mem_heap
+    for i in ['_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
+              '_mem_mapped', '_mem_host', '_mem_stack', '_mem_heap', '_size_domain',
+              '_size_halo', '_size_owned', '_size_padding', '_size_nopad',
+              '_size_nodomain', '_offset_domain', '_offset_halo', '_offset_owned',
+              '_dist_dimensions', '_C_get_field']:
+        locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property
     def _dist_dimensions(self):

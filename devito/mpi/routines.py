@@ -1039,7 +1039,7 @@ class MPIMsg(CompositeObject):
             entry.sizes = (c_int*len(shape))(*shape)
 
             # Allocate the send/recv buffers
-            size = reduce(mul, shape)
+            size = reduce(mul, shape)*dtype_len(target.dtype)
             ctype = dtype_to_ctype(target.dtype)
             entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
