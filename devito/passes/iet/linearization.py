@@ -56,7 +56,7 @@ def linearization(iet, lmode=None, tracker=None, **kwargs):
         key0 = lambda f: lmode(f) and f.ndim > 1
     else:
         # Default
-        key0 = lambda f: (f.is_DiscreteFunction or f.is_Array or f.is_Bundle) and f.ndim > 1
+        key0 = lambda f: f.is_AbstractFunction and f.ndim > 1
     key = lambda f: key0(f) and not f._mem_stack
 
     iet = linearize_accesses(iet, key, tracker, **kwargs)

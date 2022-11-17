@@ -7,7 +7,8 @@ import sympy
 from sympy import Expr, Integer, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
-from devito.tools import Pickable, as_tuple, is_integer
+from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,
+                          double2, double3, double4, int2, int3, int4)
 from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
@@ -596,14 +597,29 @@ class InlineIf(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-# Shortcuts (mostly for retrocompatibility)
+# *** Casting
+
+class CastStar(object):
+
+    base = None
+
+    def __new__(cls, base=''):
+        return cls.base(base, '*')
+
+
+# Dynamically create INT, INT2, .... INTP, INT2P, ... FLOAT, ...
+for base_name in ['int', 'float', 'double']:
+    for i in ['', '2', '3', '4']:
+        v = '%s%s' % (base_name, i)
+        cls = type(v.upper(), (Cast,), {'_base_typ': v})
+        globals()[cls.__name__] = cls
+
+        clsp = type('%sP' % v.upper(), (CastStar,), {'base': cls})
+        globals()[clsp.__name__] = clsp
+
 
 class CHAR(Cast):
     _base_typ = 'char'
-
-
-class INT(Cast):
-    _base_typ = 'int'
 
 
 class LONG(Cast):
@@ -614,40 +630,41 @@ class ULONG(Cast):
     _base_typ = 'unsigned long'
 
 
-class FLOAT(Cast):
-    _base_typ = 'float'
-
-
-class DOUBLE(Cast):
-    _base_typ = 'double'
-
-
 class VOID(Cast):
     _base_typ = 'void'
-
-
-class CastStar(object):
-
-    base = None
-
-    def __new__(cls, base=''):
-        return cls.base(base, '*')
 
 
 class CHARP(CastStar):
     base = CHAR
 
 
-class INTP(CastStar):
-    base = INT
+cast_mapper = {
+    np.int8: CHAR,
+    np.uint8: CHAR,
+    int: INT,
+    np.int32: INT,
+    np.int64: LONG,
+    np.uint64: ULONG,
+    np.float32: FLOAT,
+    float: DOUBLE,
+    np.float64: DOUBLE,
 
+    (np.int8, '*'): CHARP,
+    (np.uint8, '*'): CHARP,
+    (int, '*'): INTP,
+    (np.int32, '*'): INTP,
+    (np.int64, '*'): INTP,
+    (np.float32, '*'): FLOATP,
+    (float, '*'): DOUBLEP,
+    (np.float64, '*'): DOUBLEP
+}
 
-class FLOATP(CastStar):
-    base = FLOAT
-
-
-class DOUBLEP(CastStar):
-    base = DOUBLE
+for base_name in ['int', 'float', 'double']:
+    for i in [2, 3, 4]:
+        v = '%s%d' % (base_name, i)
+        cls = locals()[v]
+        cast_mapper[cls] = locals()[v.upper()]
+        cast_mapper[(cls, '*')] = locals()['%sP' % v.upper()]
 
 
 # Some other utility objects
@@ -684,27 +701,6 @@ def rfunc(func, item, *args):
     else:
         return rf(item, rfunc(func, *args))
 
-
-cast_mapper = {
-    np.int8: CHAR,
-    np.uint8: CHAR,
-    int: INT,
-    np.int32: INT,
-    np.int64: LONG,
-    np.uint64: ULONG,
-    np.float32: FLOAT,
-    float: DOUBLE,
-    np.float64: DOUBLE,
-
-    (np.int8, '*'): CHARP,
-    (np.uint8, '*'): CHARP,
-    (int, '*'): INTP,
-    (np.int32, '*'): INTP,
-    (np.int64, '*'): INTP,
-    (np.float32, '*'): FLOATP,
-    (float, '*'): DOUBLEP,
-    (np.float64, '*'): DOUBLEP
-}
 
 rfunc_mapper = {
     min: MIN,
