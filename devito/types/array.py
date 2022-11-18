@@ -453,14 +453,29 @@ class Bundle(ArrayBasic):
                 ret.append(s)
         return DimensionTuple(*ret, getters=self.dimensions)
 
+    @property
+    def initvalue(self):
+        return None
+
+    @property
+    def is_shared(self):
+        if self.c0.is_Array:
+            return self.c0._is_shared
+        else:
+            return False
+
     # CodeSymbol overrides defaulting to self.c0's behaviour
 
     for i in ['_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
-              '_mem_mapped', '_mem_host', '_mem_stack', '_mem_heap', '_size_domain',
+              '_mem_mapped', '_mem_host', '_mem_stack', '_size_domain',
               '_size_halo', '_size_owned', '_size_padding', '_size_nopad',
               '_size_nodomain', '_offset_domain', '_offset_halo', '_offset_owned',
               '_dist_dimensions', '_C_get_field']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
+
+    @property
+    def _mem_heap(self):
+        return not self._mem_stack
 
     @property
     def _dist_dimensions(self):

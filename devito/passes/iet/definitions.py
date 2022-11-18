@@ -311,7 +311,7 @@ class DataManager(object):
                 continue
             elif i.is_LocalObject:
                 self._alloc_object_on_low_lat_mem(iet, i, storage)
-            elif i.is_Array:
+            elif i.is_Array or i.is_Bundle:
                 if i._mem_heap:
                     if i._mem_host:
                         self._alloc_host_array_on_high_bw_mem(iet, i, storage)
@@ -321,11 +321,6 @@ class DataManager(object):
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 else:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
-            elif i.is_Bundle:
-                if i._mem_local:
-                    self._alloc_local_array_on_high_bw_mem(iet, i, storage)
-                else:
-                    self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
