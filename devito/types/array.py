@@ -419,6 +419,10 @@ class Bundle(ArrayBasic):
     def is_DiscreteFunction(self):
         return self.c0.is_DiscreteFunction
 
+    @property
+    def is_TimeFunction(self):
+        return self.c0.is_TimeFunction
+
     # Other properties and methods
 
     @property
