@@ -9,7 +9,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                DataSpace, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs)
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, frozendict
+from devito.tools import as_tuple, dtype_len, flatten, frozendict
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -337,6 +337,7 @@ class Cluster(object):
         """
         reads, writes = detect_io(self.exprs, relax=True)
         accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
+
         ret = {}
         for i, mode in accesses:
             if not i.is_AbstractFunction:
@@ -344,12 +345,21 @@ class Cluster(object):
             elif i in self.dspace.parts:
                 # Stencils extend the data spaces beyond the iteration spaces
                 intervals = self.dspace.parts[i]
+
                 # Assume that invariant dimensions always cause new loads/stores
                 invariants = self.ispace.intervals.drop(intervals.dimensions)
                 intervals = intervals.generate('union', invariants, intervals)
-                ret[(i, mode)] = intervals
+
+                # Bundles impact depends on the number of components
+                try:
+                    v = len(i.components)
+                except AttributeError:
+                    v = 1
+
+                for n in range(v):
+                    ret[(i, mode, n)] = intervals
             else:
-                ret[(i, mode)] = self.ispace.intervals
+                ret[(i, mode, 0)] = self.ispace.intervals
         return ret
 
 
