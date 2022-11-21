@@ -54,6 +54,8 @@ def sniff_compiler_version(cc):
         compiler = "icc"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
+    elif ver.startswith("cray"):
+        compiler = "cray"
     else:
         compiler = "unknown"
 
@@ -436,6 +438,17 @@ class ClangCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class CrayCompiler(ClangCompiler):
+
+    """HPE Cray's Clang compiler."""
+
+    def __lookup_cmds__(self):
+        self.CC = 'cc'
+        self.CXX = 'CC'
+        self.MPICC = 'cc'
+        self.MPICXX = 'CC'
+
+
 class AOMPCompiler(Compiler):
 
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
@@ -706,6 +719,7 @@ compiler_registry = {
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
     'clang': ClangCompiler,
+    'cray': CrayCompiler,
     'aomp': AOMPCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
