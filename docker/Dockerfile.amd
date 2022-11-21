@@ -45,6 +45,16 @@ ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
 ENV OMPI_CC=$AOMP/bin/clang
 
+# Install Omnitrace, an AMDResearch profiling tool which is de facto the best profiler from AMD
+RUN wget https://github.com/AMDResearch/omnitrace/releases/download/v1.7.3/omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh -q
+RUN mv omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh omnitrace-installer.sh && \
+    chmod +x omnitrace-installer.sh && \
+    mkdir -p /opt/omnitrace && \
+    mv omnitrace-installer.sh /opt/omnitrace && \
+    cd /opt/omnitrace && \
+    ./omnitrace-installer.sh --skip-license && \
+    cd -
+
 # Devito env
 ENV DEVITO_ARCH="aomp"
 ENV DEVITO_PLATFORM="amdgpuX"

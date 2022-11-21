@@ -14,3 +14,8 @@ if [[ -z "${DEPLOY_ENV}" ]]; then
 else
     exec "$@"
 fi
+
+if [[ -n "${ROCM_VERSION}" ]]; then
+    echo "sourcing Omnitrace"
+    source /opt/omnitrace/share/omnitrace/setup-env.sh
+fi
