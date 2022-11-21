@@ -289,7 +289,6 @@ class AdvancedProfiler(Profiler):
             reduce_over_nosetup = sum(i.time for i in summary.values())
             if reduce_over_nosetup == 0:
                 reduce_over_nosetup = reduce_over
-            assert 0 < reduce_over_nosetup <= reduce_over
             summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
 
             # Typical finite difference benchmark metrics
