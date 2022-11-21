@@ -118,10 +118,7 @@ class ReducerMap(MultiDict):
                 else:
                     return first in v
             elif isinstance(first, Set):
-                if isinstance(v, Set):
-                    return not first.isdisjoint(v)
-                else:
-                    return v in first
+                return v in first
             else:
                 return first == v
 
