@@ -45,15 +45,26 @@ ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
 ENV OMPI_CC=$AOMP/bin/clang
 
-# Install Omnitrace, an AMDResearch profiling tool which is de facto the best profiler from AMD
+# Install Omnitrace, an AMDResearch profiling tool akin to Nvidia's Nsight-systems
 RUN wget https://github.com/AMDResearch/omnitrace/releases/download/v1.7.3/omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh -q
-RUN mv omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh omnitrace-installer.sh && \
-    chmod +x omnitrace-installer.sh && \
-    mkdir -p /opt/omnitrace && \
-    mv omnitrace-installer.sh /opt/omnitrace && \
-    cd /opt/omnitrace && \
-    ./omnitrace-installer.sh --skip-license && \
-    cd -
+RUN ./omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh --prefix=/opt/omnitrace --exclude-subdir --skip-license && \
+    rm omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh
+
+# Install Omniperf, an AMDResearch profiling tool akin to Nvidia's Nsight-compute
+RUN apt-get update && apt-get install -y software-properties-common && \   # cmake3.19 required by Omniperf...
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | sudo apt-key add - && \
+    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' && \
+    apt-get update && \
+    apt install -y -q cmake
+RUN apt-get update && apt-get install lmod  # to eventually bring it in PATH via the entrypoint
+ENV OMNIPERF_DIR=/app/omniperf
+RUN wget https://github.com/AMDResearch/omniperf/releases/download/v1.0.4/omniperf-1.0.4.tar.gz -q
+RUN tar xfz omniperf-1.0.4.tar.gz && \
+    cd omniperf-1.0.4/ && \
+    /venv/bin/pip install --no-cache-dir -r requirements.txt && \
+    mkdir build && cd build/ && \
+    cmake -DCMAKE_INSTALL_PREFIX=${OMNIPERF_DIR}/1.0.4 -DPYTHON_DEPS=${OMNIPERF_DIR}/python-libs -DMOD_INSTALL_PATH=${OMNIPERF_DIR}/modulefiles .. && \
+    make install
 
 # Devito env
 ENV DEVITO_ARCH="aomp"
