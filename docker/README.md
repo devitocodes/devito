@@ -90,36 +90,36 @@ docker build --network=host --file docker/Dockerfile.devito --tag devito .
 To build the GPU image with `openacc` offloading and the `nvc` compiler, run:
 
 ```bash
-docker build --build-arg base=devitocodes/base:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
+docker build --build-arg base=devitocodes/bases:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
 ```
 
 or if you wish to use the `clang` compiler with `openmp` offloading:
 
 ```bash
-docker build --build-arg base=devitocodes/base:nvidia-clang --network=host --file docker/Dockerfile --tag devito .
+docker build --build-arg base=devitocodes/bases:nvidia-clang --network=host --file docker/Dockerfile --tag devito .
 ```
 
 and finally, for AMD architectures:
 
 ```bash
-docker build --build-arg base=devitocodes/base:amd --network=host --file docker/Dockerfile --tag devito .
+docker build --build-arg base=devitocodes/bases:amd --network=host --file docker/Dockerfile --tag devito .
 ```
 
 
 ## Debugging a base image
 
-This section is primarily helpful in contributing to or debugging the Docker images.
-
 To build the base image yourself locally, you need to run the standard build command using the provided Dockerfile.
+Following this, we build the Devito image using the previously built base:
 
 ```bash
-# To locally build the base CPU image for gcc, run: 
 docker build . --file docker/Dockerfile.cpu --tag devito-gcc --build-arg arch=gcc
-# To locally build the Devito image using the previously built base, run: 
 docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devito-gcc:latest
-# To run tests using the newly built image, run: 
+```
+
+and then, to run tests or/and examples using the newly built image
+
+```bash
 docker run --rm --name testrun devito_img pytest -k "not adjoint" -m "not parallel" tests/
-# To test for example, seismic tutorials using the newly built image, run: 
 docker run --rm --name testrun devito_img py.test --nbval -k 'not dask' examples/seismic/tutorials/
 ```
 

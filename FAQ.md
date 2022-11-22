@@ -242,7 +242,7 @@ Note the default values are in **bold**. Links in the table take you to a sectio
 
 | Variable | Values |
 |:---|:---|
-| [DEVITO_ARCH](#DEVITO_ARCH) | **custom**, gnu, gcc, clang, pgcc, pgi, nvc, cuda, osx, intel, icpc, icc, intel-knl, knl, gcc-4.9, gcc-5, gcc-6, gcc-7, gcc-8, gcc-9, gcc-10 | 
+| [DEVITO_ARCH](#DEVITO_ARCH) | **custom**, gnu, gcc, clang, pgcc, pgi, nvc, cuda, osx, intel, icpc, icc, intel-knl, knl, gcc-4.9, gcc-5, gcc-6, gcc-7, gcc-8, gcc-9, gcc-10, gcc-11, gcc-12 |
 | [DEVITO_PLATFORM](#DEVITO_PLATFORM) | **cpu64**, cpu64-dummy, intel64, snb, ivb, hsw, bdw, skx, klx, clx, knl, knl7210, arm, power8, power9, nvidiaX] | 
 | [DEVITO_PROFILING](#DEVITO_PROFILING) | **basic**, advanced, advisor | 
 | [DEVITO_BACKEND](#DEVITO_BACKEND) | **core**, void | 
