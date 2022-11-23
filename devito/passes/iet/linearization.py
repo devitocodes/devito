@@ -252,8 +252,12 @@ def _(f, indexeds, tracker, strides, sregistry):
             define, _ = headers[i.base]
             pname = str(define.name)
 
-        v = tuple(strides.values())[-n:]
-        subs[i] = FIndexed(i, pname, strides=v)
+        if len(i.indices) == i.function.ndim:
+            v = tuple(strides.values())[-n:]
+            subs[i] = FIndexed(i, pname, strides=v)
+        else:
+            # Honour custom indexing
+            subs[i] = i.base[sum(i.indices)]
 
 
 def linearize_pointers(iet, key):
