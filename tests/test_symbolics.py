@@ -4,14 +4,14 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Symbol
+from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
                               FieldFromComposite, IntDiv, MIN, MAX, ccode)
-from devito.types import Array, Object
+from devito.types import Array, LocalObject, Object
 
 
 def test_float_indices():
@@ -271,6 +271,12 @@ def test_symbolic_printing():
 
     v = CallFromPointer('foo', 's') + b
     assert str(v) == 'b + s->foo()'
+
+    class MyLocalObject(LocalObject, Expr):
+        pass
+
+    lo = MyLocalObject(name='lo')
+    assert str(lo + 2) == '2 + lo'
 
 
 def test_is_on_grid():
