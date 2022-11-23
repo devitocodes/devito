@@ -918,7 +918,7 @@ class PointerCast(ExprStmt, Node):
     @property
     def expr_symbols(self):
         f = self.function
-        if f.is_ArrayBasic:
+        if not self.flat and f.is_ArrayBasic:
             return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
         else:
             return ()

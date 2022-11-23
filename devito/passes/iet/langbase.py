@@ -348,8 +348,12 @@ class Sections(tuple):
         return obj
 
     @property
+    def size(self):
+        return prod(s for _, s in self)
+
+    @property
     def nbytes(self):
-        return prod(s for _, s in self)*SizeOf(self.function.indexed._C_typedata)
+        return self.size*SizeOf(self.function.indexed._C_typedata)
 
 
 def make_sections_from_imask(f, imask=None):

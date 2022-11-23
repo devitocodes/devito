@@ -1029,6 +1029,11 @@ class Uxreplace(Transformer):
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
 
+    def visit_PointerCast(self, o):
+        function = self.mapper.get(o.function, o.function)
+        obj = self.mapper.get(o.obj, o.obj)
+        return o._rebuild(function=function, obj=obj)
+
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         return o._rebuild(arguments=arguments)

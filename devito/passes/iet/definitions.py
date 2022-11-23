@@ -351,12 +351,12 @@ class DataManager(object):
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
-        casts = [self.lang.PointerCast(i.function, obj=i) for i in bases
-                 if i not in defines]
+        casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
+                      if i not in defines)
 
         # Incorporate the newly created casts
         if casts:
-            iet = iet._rebuild(body=iet.body._rebuild(casts=casts))
+            iet = iet._rebuild(body=iet.body._rebuild(casts=casts + iet.body.casts))
 
         return iet, {}
 
@@ -496,8 +496,9 @@ class DeviceAwareDataManager(DataManager):
         """
         Transform `iet` such that device pointers are used in DeviceCalls.
         """
+        defines = FindSymbols('defines').visit(iet)
         dmaps = [i for i in FindSymbols('basics').visit(iet)
-                 if isinstance(i, DeviceMap)]
+                 if isinstance(i, DeviceMap) and i not in defines]
 
         maps = [self.lang.PointerCast(i.function, obj=i) for i in dmaps]
         body = iet.body._rebuild(maps=iet.body.maps + tuple(maps))
