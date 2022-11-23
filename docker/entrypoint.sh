@@ -17,7 +17,7 @@ fi
 
 if [[ -n "${ROCM_VERSION}" ]]; then
     echo "configuring Omnitrace..."
-    source /opt/omnitrace/share/omnitrace/setup-env.sh
+    module use /opt/omnitrace/share/modulefiles
     echo "configuring Omniperf..."
     module use /opt/omniperf/modulefiles
     module load omniperf
