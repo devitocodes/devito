@@ -13,7 +13,7 @@ Docker
 For detailed installation instructions and information on the Devito Docker image library please follow 
 the docker/README.md_
 
-.. _README.md: ../../docker/README.md
+.. _README.md: https://github.com/devitocodes/devito/tree/master/docker#readme
 
 
 Virtual environment
