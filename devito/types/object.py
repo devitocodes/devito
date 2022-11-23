@@ -50,6 +50,9 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
 
     __str__ = __repr__
 
+    def _sympystr(self, printer):
+        return str(self)
+
     def _hashable_content(self):
         return (self.name, self.dtype)
 
