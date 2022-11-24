@@ -3,10 +3,10 @@ from operator import attrgetter
 
 from sympy import sympify
 
-from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
-                              uxreplace)
-from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
-from devito.types import Dimension, IgnoreDimSort
+from devito.symbolics import retrieve_indexed, split_affine, uxreplace
+from devito.tools import PartialOrderTuple, as_tuple, filter_sorted, flatten
+from devito.types import Dimension, IgnoreDimSort, StencilDimension
+from devito.types.basic import AbstractFunction
 
 __all__ = ['dimension_sort', 'lower_exprs']
 
@@ -18,6 +18,7 @@ def dimension_sort(expr):
     """
 
     def handle_indexed(indexed):
+        postponed = []
         relation = []
         for i in indexed.indices:
             try:
@@ -25,16 +26,29 @@ def dimension_sort(expr):
                 if isinstance(maybe_dim, Dimension):
                     relation.append(maybe_dim)
             except ValueError:
+                # Perhaps `i` contains a StencilDimension, originating from a Derivative,
+                # hence it's in the form `x + i0 + k` where `k` is a number
+                if i.is_Add:
+                    sdims = i.find(StencilDimension)
+                    other = i.find(Dimension) - sdims
+                    if sdims and other:
+                        assert len(other) == 1
+                        relation.append(other.pop())
+                        postponed.extend(sorted(sdims, key=lambda i: i.name))
+                        continue
+
                 # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
                 nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
                 if nested:
                     relation.extend(nested)
-                else:
-                    # Fallback: Just insert all the Dimensions we find, regardless of
-                    # what the user is attempting to do
-                    relation.extend([d for d in filter_sorted(i.free_symbols)
-                                     if isinstance(d, Dimension)])
-        return tuple(relation)
+                    continue
+
+                # Fallback: Just insert all the Dimensions we find, regardless of
+                # what the user is attempting to do
+                relation.extend([d for d in filter_sorted(i.free_symbols)
+                                 if isinstance(d, Dimension)])
+
+        return tuple(relation) + tuple(postponed)
 
     if isinstance(expr.implicit_dims, IgnoreDimSort):
         relations = set()
@@ -98,7 +112,7 @@ def lower_exprs(expressions, **kwargs):
 
         # Handle Functions (typical case)
         mapper = {f: lower_exprs(f.indexify(subs=dimension_map), **kwargs)
-                  for f in retrieve_functions(expr)}
+                  for f in expr.find(AbstractFunction)}
 
         # Handle Indexeds (from index notation)
         for i in retrieve_indexed(expr):

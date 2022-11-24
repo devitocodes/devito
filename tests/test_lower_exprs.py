@@ -31,8 +31,8 @@ class TestCollectDerivatives(object):
 
             # Since all Function are time dependent, there should be no collection
             # and produce the same result as with the pre evaluated expression
-            expr = Operator._lower_exprs([eq])[0]
-            expr2 = Operator._lower_exprs([eq.evaluate])[0]
+            expr = Operator._lower_exprs([eq], options={})[0]
+            expr2 = Operator._lower_exprs([eq.evaluate], options={})[0]
 
         assert expr == expr2
 
@@ -190,6 +190,7 @@ class TestLowering(object):
     """
     Test that expression lowering works as expected.
     """
+
     def test_lower_func_as_ind(self):
         grid = Grid((11, 11))
         x, y = grid.dimensions
@@ -203,6 +204,22 @@ class TestLowering(object):
         lowered = LoweredEq(Eq(u[t + 1, x + 2, y + 2], u[t, x + oh[h] + 2, y + 2]))
 
         with timed_region('x'):
-            leq = Operator._lower_exprs(eq)
+            leq = Operator._lower_exprs(eq, options={})
 
         assert leq[0] == lowered
+
+
+class ATestUnexpanded(object):
+
+    def test_dx(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name="u", grid=grid, space_order=4)
+        u1 = TimeFunction(name="u", grid=grid, space_order=4)
+
+        eq = Eq(u.forward, u.dx + 1.)
+
+        #op0 = Operator(eq)
+        op1 = Operator(eq, opt=('advanced', {'expand': False}))
+
+        from IPython import embed; embed()

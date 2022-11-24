@@ -61,6 +61,7 @@ class Cpu64OperatorMixin(object):
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
         # Misc
+        o['expand'] = oo.pop('expand', cls.EXPAND)
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)

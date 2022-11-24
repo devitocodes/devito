@@ -9,7 +9,7 @@ from sympy import Expr
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
                           flatten, frozendict, is_integer, toposort)
-from devito.types import Dimension, ModuloDimension
+from devito.types import Dimension, ModuloDimension, StencilDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
            'DataSpace', 'Forward', 'Backward', 'Any']
@@ -284,6 +284,17 @@ class Interval(AbstractInterval):
                 pass
         return self
 
+    def expand(self):
+        lower = self.lower
+        if isinstance(self.lower, Expr):
+            for i in self.lower.find(StencilDimension):
+                lower = lower.subs(i, i._min)
+        upper = self.upper
+        if isinstance(self.upper, Expr):
+            for i in self.upper.find(StencilDimension):
+                upper = upper.subs(i, i._max)
+        return Interval(self.dim, lower, upper, self.stamp)
+
 
 class IntervalGroup(PartialOrderTuple):
 
@@ -483,6 +494,12 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
         return IntervalGroup(intervals, relations=self.relations)
 
+    def expand(self, d=None):
+        if d is None:
+            d = self.dimensions
+        intervals = [i.expand() if i.dim in as_tuple(d) else i for i in self]
+        return IntervalGroup(intervals, relations=self.relations)
+
     def index(self, key):
         if isinstance(key, Interval):
             return super(IntervalGroup, self).index(key)
@@ -640,7 +657,9 @@ class DataSpace(Space):
 
     def __init__(self, intervals, parts=None):
         super(DataSpace, self).__init__(intervals)
-        self._parts = frozendict(parts or {})
+
+        parts = {k: v.expand() for k, v in (parts or {}).items()}
+        self._parts = frozendict(parts)
 
     def __eq__(self, other):
         return isinstance(other, DataSpace) and\

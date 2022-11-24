@@ -579,7 +579,7 @@ class Weights(Array):
         assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
         assert isinstance(weights, (list, tuple, np.ndarray))
 
-        kwargs['scope'] = 'static'
+        kwargs['scope'] = 'constant'
 
         super().__init_finalize__(*args, **kwargs)
 
