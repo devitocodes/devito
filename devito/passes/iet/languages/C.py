@@ -9,8 +9,6 @@ __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 class CBB(LangBB):
 
     mapper = {
-        'aligned': lambda i:
-            '__attribute__((aligned(%d)))' % i,
         'host-alloc': lambda i, j, k:
             Call('posix_memalign', (i, j, k)),
         'host-free': lambda i:

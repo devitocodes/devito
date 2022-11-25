@@ -7,6 +7,7 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 from collections import OrderedDict
 from collections.abc import Iterable
 from itertools import chain, groupby
+import ctypes
 
 import cgen as c
 from sympy import IndexedBase
@@ -15,9 +16,9 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode, uxreplace
-from devito.tools import (GenericVisitor, as_tuple, filter_ordered, filter_sorted,
-                          flatten, is_external_ctype)
+from devito.symbolics import ListInitializer, ccode, uxreplace
+from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
+                          filter_sorted, flatten, is_external_ctype, c_restrict_void_p)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -174,17 +175,103 @@ class CGen(Visitor):
         super().__init__(*args, **kwargs)
         self._compiler = compiler
 
+    # The following mappers may be customized by subclasses (that is,
+    # backend-specific CGen-erators)
+    _qualifiers_mapper = {
+        'is_const': 'const',
+        'is_volatile': 'volatile',
+        '_mem_constant': 'static const',
+        '_mem_shared': '',
+    }
+    _restrict_keyword = 'restrict'
+
+    def _gen_struct_decl(self, obj, masked=()):
+        """
+        Convert ctypes.Struct -> cgen.Structure.
+        """
+        ctype = obj._C_ctype
+        while issubclass(ctype, ctypes._Pointer):
+            ctype = ctype._type_
+
+        if not issubclass(ctype, ctypes.Structure):
+            return None
+
+        try:
+            return obj._C_typedecl
+        except AttributeError:
+            pass
+
+        # Most of the times we end up here -- a generic procedure to
+        # automatically derive a cgen.Structure from the object _C_ctype
+
+        try:
+            fields = obj.fields
+        except AttributeError:
+            fields = (None,)*len(ctype._fields_)
+
+        #entries = [self._gen_value(obj, masked=('const',))]
+        entries = []
+        for i, (n, ct) in zip(fields, ctype._fields_):
+            try:
+                entries.append(self._gen_value(i, 0, masked=('const',)))
+            except AttributeError:
+                cstr = ctypes_to_cstr(ct)
+                if ct is c_restrict_void_p:
+                    cstr = '%srestrict' % cstr
+                entries.append(c.Value(cstr, n))
+
+        return c.Struct(ctype.__name__, entries)
+
+    def _gen_value(self, obj, level=2, masked=()):
+        qualifiers = [v for k, v in self._qualifiers_mapper.items()
+                      if getattr(obj, k, False) and v not in masked]
+
+        if obj._mem_stack and level == 2:
+            strtype = obj._C_typedata
+            strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
+        else:
+            strtype = ctypes_to_cstr(obj._C_ctype)
+            strshape = ''
+            if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
+                #is it always the case that _C_ctype == c_void_restrict_p? 
+                strtype = '%s%s' % (strtype, self._restrict_keyword)
+        strtype = ' '.join(qualifiers + [strtype])
+
+        strname = obj._C_name
+        strobj = '%s%s' % (strname, strshape)
+
+        try:
+            if obj.cargs:
+                strobj = MultilineCall(strobj, obj.cargs, True)
+        except AttributeError:
+            pass
+
+        value = c.Value(strtype, strobj)
+
+        try:
+            if obj.is_AbstractFunction and obj._data_alignment and level == 2:
+                value = c.AlignedAttribute(obj._data_alignment, value)
+        except AttributeError:
+            pass
+
+        try:
+            if obj.initvalue is not None and level == 2:
+                value = c.Initializer(value, ListInitializer(obj.initvalue))
+        except AttributeError:
+            pass
+
+        return value
+
+    def _gen_rettype(self, obj):
+        try:
+            return self._gen_value(obj, 0).typename
+        except AttributeError:
+            assert isinstance(obj, str)
+            return obj
+
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
-        ret = []
-        for i in args:
-            if isinstance(i, (AbstractFunction, IndexedData)):
-                ret.append(c.Value('%srestrict' % i._C_typename, i._C_name))
-            elif i.is_AbstractObject or i.is_Symbol:
-                ret.append(c.Value(i._C_typename, i._C_name))
-            else:
-                ret.append(c.Value('void', '*_%s' % i._C_name))
-        return ret
+        return [self._gen_value(i, 1) for i in args]
 
     def _args_call(self, args):
         """
@@ -315,7 +402,7 @@ class CGen(Visitor):
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
-            lvalue = c.Value(a0._C_typename, a0._C_name)
+            lvalue = self._gen_value(a0, 0)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Block(self, o):
@@ -343,42 +430,14 @@ class CGen(Visitor):
         return c.Statement(v)
 
     def visit_Definition(self, o):
-        f = o.function
-
-        if o.shape is not None:
-            v = o.shape
-        else:
-            v = ""
-
-        if o.qualifier is not None:
-            v = "%s %s" % (v, o.qualifier)
-
-        v = "%s%s" % (f._C_name, v)
-
-        if f._mem_stack:
-            v = c.Value(f._C_typedata, v)
-        else:
-            if o.cargs:
-                v = MultilineCall(v, o.cargs, True)
-
-            # Aesthetics: `float * a` -> `float *a`
-            try:
-                t, stars = f._C_typename.split()
-                v = c.Value(t, '%s%s' % (stars, v))
-            except ValueError:
-                v = c.Value(f._C_typename, v)
-
-        if o.initvalue is not None:
-            v = c.Initializer(v, o.initvalue)
-
-        return v
+        return self._gen_value(o.function)
 
     def visit_Expression(self, o):
         lhs = ccode(o.expr.lhs, dtype=o.dtype, compiler=self._compiler)
         rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
 
         if o.init:
-            code = c.Initializer(c.Value(o.expr.lhs._C_typename, lhs), rhs)
+            code = c.Initializer(self._gen_value(o.expr.lhs, 0), rhs)
         else:
             code = c.Assign(lhs, rhs)
 
@@ -397,7 +456,7 @@ class CGen(Visitor):
 
     def visit_Call(self, o, nested_call=False):
         retobj = o.retobj
-        cast = o.cast and retobj._C_typename
+        cast = o.cast and self._gen_rettype(retobj)
         arguments = self._args_call(o.arguments)
         if retobj is None:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
@@ -406,7 +465,8 @@ class CGen(Visitor):
             if retobj.is_Indexed:
                 return c.Assign(ccode(retobj), call)
             else:
-                return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
+                rettype = self._gen_rettype(retobj)
+                return c.Initializer(c.Value(rettype, retobj._C_name), call)
 
     def visit_Conditional(self, o):
         try:
@@ -476,7 +536,7 @@ class CGen(Visitor):
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
-        prefix = ' '.join(o.prefix + (o.retval,))
+        prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
         signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
         return c.FunctionBody(signature, c.Block(body))
 
@@ -510,7 +570,7 @@ class CGen(Visitor):
                 for i in o._includes]
 
     def _operator_typedecls(self, o, mode='all'):
-        xfilter0 = lambda i: i._C_typedecl is not None
+        xfilter0 = lambda i: self._gen_struct_decl(i) is not None
 
         if mode == 'all':
             xfilter1 = xfilter0
@@ -526,11 +586,12 @@ class CGen(Visitor):
         xfilter = lambda i: xfilter1(i) and not is_external_ctype(i._C_ctype, o._includes)
 
         candidates = o.parameters + tuple(o._dspace.parts)
-        typedecls = [i._C_typedecl for i in candidates if xfilter(i)]
+        typedecls = [self._gen_struct_decl(i) for i in candidates if xfilter(i)]
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([j._C_typedecl for j in i.root.parameters if xfilter(j)])
+            typedecls.extend([self._gen_struct_decl(j) for j in i.root.parameters
+                              if xfilter(j)])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls
@@ -548,7 +609,8 @@ class CGen(Visitor):
         efuncs = [blankline]
         for i in o._func_table.values():
             if i.local:
-                prefix = ' '.join(i.root.prefix + (i.root.retval,))
+                rettype = self._gen_rettype(i.root.retval)
+                prefix = ' '.join(i.root.prefix + (rettype,))
                 esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
                                                     self._args_decl(i.root.parameters)))
                 efuncs.extend([self._visit(i.root), blankline])

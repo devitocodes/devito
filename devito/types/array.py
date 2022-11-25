@@ -67,9 +67,15 @@ class Array(ArrayBasic):
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
-        'static'. Defaults to 'heap'. 'static' means a static array in a
-        C/C++ sense and, therefore, implies 'stack'.
-        Note: not all scopes make sense for a given space.
+        'static', 'constant', 'shared'. 'static' refers to a static array in a
+        C/C++ sense. 'constant' and 'shared' mean that the Array represents an
+        object allocated in so called constant and shared memory, respectively,
+        which are typical of device architectures. If 'shared' is specified but
+        the underlying architecture does not something akin to shared memory, the
+        behaviour is unspecified. If 'constant' is specified but the underlying
+        architecture does not have something akin to constant memory, the Array
+        falls back to a global, const, static array in a C/C++ sense.
+        Note that not all scopes make sense for a given space.
     initvalue : array-like, optional
         The initial content of the Array. Must be None if `scope='heap'`.
 
@@ -82,8 +88,7 @@ class Array(ArrayBasic):
     is_Array = True
 
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
-                   ('dimensions', 'liveness', 'space', 'scope', 'is_shared',
-                    'initvalue'))
+                   ('dimensions', 'liveness', 'space', 'scope', 'initvalue'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -104,10 +109,7 @@ class Array(ArrayBasic):
         assert self._space in ['local', 'mapped', 'host']
 
         self._scope = kwargs.get('scope', 'heap')
-        assert self._scope in ['heap', 'stack', 'static']
-
-        # Qualifiers
-        self._is_shared = kwargs.get('is_shared', False)
+        assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -187,15 +189,19 @@ class Array(ArrayBasic):
 
     @property
     def _mem_stack(self):
-        return self._scope == 'stack'
+        return self._scope in ('stack', 'shared')
 
     @property
     def _mem_heap(self):
         return self._scope == 'heap'
 
     @property
-    def is_shared(self):
-        return self._is_shared
+    def _mem_shared(self):
+        return self._scope == 'shared'
+
+    @property
+    def _mem_constant(self):
+        return self._scope == 'constant'
 
     @property
     def initvalue(self):
@@ -456,20 +462,13 @@ class Bundle(ArrayBasic):
     def initvalue(self):
         return None
 
-    @property
-    def is_shared(self):
-        if self.c0.is_Array:
-            return self.c0._is_shared
-        else:
-            return False
-
     # CodeSymbol overrides defaulting to self.c0's behaviour
 
     for i in ['_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
-              '_mem_mapped', '_mem_host', '_mem_stack', '_size_domain',
-              '_size_halo', '_size_owned', '_size_padding', '_size_nopad',
-              '_size_nodomain', '_offset_domain', '_offset_halo', '_offset_owned',
-              '_dist_dimensions', '_C_get_field']:
+              '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
+              '_mem_shared', '_size_domain', '_size_halo', '_size_owned',
+              '_size_padding', '_size_nopad', '_size_nodomain', '_offset_domain',
+              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property

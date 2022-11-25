@@ -82,7 +82,7 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        decl = Definition(obj, cargs=obj.cargs)
+        decl = Definition(obj)
 
         if obj._C_init:
             definition = (decl, obj._C_init)
@@ -97,13 +97,7 @@ class DataManager(object):
         """
         Allocate an Array in the low latency memory.
         """
-        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        alignment = self.lang['aligned'](obj._data_alignment)
-        if obj.initvalue is None:
-            initvalue = None
-        else:
-            initvalue = ListInitializer(obj.initvalue)
-        alloc = Definition(obj, shape=shape, qualifier=alignment, initvalue=initvalue)
+        alloc = Definition(obj)
 
         storage.update(obj, site, allocs=alloc)
 
@@ -175,7 +169,7 @@ class DataManager(object):
 
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, *allocs, init, ret)
-        efunc0 = make_callable(name, body, retval=obj._C_typename)
+        efunc0 = make_callable(name, body, retval=obj)
         assert len(efunc0.parameters) == 1  # `nbytes_param`
         alloc = Call(name, nbytes_arg, retobj=obj)
 
@@ -190,8 +184,7 @@ class DataManager(object):
         """
         Allocate an Array of Objects in the low latency memory.
         """
-        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        decl = Definition(obj, shape=shape)
+        decl = Definition(obj)
 
         storage.update(obj, site, allocs=decl)
 

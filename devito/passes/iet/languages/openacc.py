@@ -262,7 +262,7 @@ class DeviceAccDataManager(DeviceAwareDataManager):
             body = List(body=[init, dpf, cast, ret])
 
             name = self.sregistry.make_name(prefix='map_device_ptr')
-            efuncs.append(make_callable(name, body, retval=hp._C_typename))
+            efuncs.append(make_callable(name, body, retval=hp))
 
             calls.append(Call(name, f, retobj=dmap))
 
