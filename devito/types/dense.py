@@ -118,7 +118,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         def wrapper(self):
             if self._data is None:
                 if self._alias:
-                    raise TypeError("Aliasing Functions cannot allocate data")
+                    # Aliasing Functions must not allocate data
+                    return
 
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
