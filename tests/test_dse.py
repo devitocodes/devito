@@ -1253,6 +1253,7 @@ class TestAliases(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
+    @skipif('cpu64-arm')
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
     def test_minimize_remainders_due_to_autopadding(self, rotate):
@@ -1632,7 +1633,7 @@ class TestAliases(object):
         op = Operator(eq)
 
         assert op._profiler._sections['section0'].sops == 1
-        assert op.body.body[1].body[0].body[0].expr.rhs == s0**-s1
+        assert op.body.body[-1].body[0].body[0].expr.rhs == s0**-s1
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):

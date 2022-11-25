@@ -6,7 +6,7 @@ import sys
 
 from devito import Eq, configuration  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Cpu64, Device, sniff_mpi_distro
+from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
 from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
 from devito.tools import as_tuple
@@ -23,7 +23,7 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-nvc'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-nvc', 'cpu64-arm'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -68,6 +68,10 @@ def skipif(items, whole_module=False):
            isinstance(configuration['compiler'], IntelCompiler) and \
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icc+cpu64` won't work with this test"
+            break
+        # Skip if it won't run on Arm
+        if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):
+            skipit = "Arm doesn't support x86-specific instructions"
             break
 
     if skipit is False:

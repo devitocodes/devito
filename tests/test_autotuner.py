@@ -306,6 +306,7 @@ def test_multiple_threads(opt_options):
     assert len(op._state['autotuning'][0]['tuned']) == 3
 
 
+@skipif('cpu64-arm')
 @switchconfig(platform='knl7210')  # To trigger nested parallelism
 def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
