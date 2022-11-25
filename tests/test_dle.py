@@ -262,33 +262,61 @@ def test_cache_blocking_structure_optrelax_linalg(opt, expected):
     assert np.linalg.norm(F.data) == 128.0
 
 
-@pytest.mark.parametrize('par_tile,expected', [
-    (True, ((16, 16, 16), (16, 16, 16))),
-    ((32, 4, 4), ((4, 4, 32), (4, 4, 32))),
-    (((16, 4), (16,)), ((4, 4, 16), (16, 16, 16))),
-    (((32, 4, 4), 1), ((4, 4, 32), (4, 4, 32))),
-    (((32, 4, 4), 1, 'tag0'), ((4, 4, 32), (4, 4, 32))),
-    ((((32, 4, 8), 1, 'tag0'), ((32, 8, 4), 2)), ((8, 4, 32), (4, 8, 32))),
-])
-def test_cache_blocking_structure_optpartile(par_tile, expected):
-    grid = Grid(shape=(8, 8, 8))
+class TestBlockingParTile(object):
 
-    u = TimeFunction(name="u", grid=grid, space_order=4)
-    v = TimeFunction(name="v", grid=grid, space_order=4)
+    @pytest.mark.parametrize('par_tile,expected', [
+        ((16, 16, 16), ((16, 16, 16), (16, 16, 16))),
+        ((32, 4, 4), ((4, 4, 32), (4, 4, 32))),
+        (((16, 4, 4), (16, 16, 16)), ((4, 4, 16), (16, 16, 16))),
+        (((32, 4, 4), 1), ((4, 4, 32), (4, 4, 32))),
+        (((32, 4, 4), 1, 'tag0'), ((4, 4, 32), (4, 4, 32))),
+        ((((32, 4, 8), 1, 'tag0'), ((32, 8, 4), 2)), ((8, 4, 32), (4, 8, 32))),
+    ])
+    def test_structure(self, par_tile, expected):
+        grid = Grid(shape=(8, 8, 8))
 
-    eqns = [Eq(u.forward, u.dx),
-            Eq(v.forward, u.forward.dx)]
+        u = TimeFunction(name="u", grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
 
-    op = Operator(eqns, opt=('advanced', {'par-tile': par_tile,
-                                          'blockinner': True}))
+        eqns = [Eq(u.forward, u.dx),
+                Eq(v.forward, u.forward.dx)]
 
-    bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
-    assert len(bns) == len(expected)
-    for root, v in zip(bns.values(), expected):
-        iters = FindNodes(Iteration).visit(root)
-        iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
-        assert len(iters) == len(v)
-        assert all(i.step == j for i, j in zip(iters, v))
+        op = Operator(eqns, opt=('advanced', {'par-tile': par_tile,
+                                              'blockinner': True}))
+
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+        assert len(bns) == len(expected)
+        for root, v in zip(bns.values(), expected):
+            iters = FindNodes(Iteration).visit(root)
+            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
+            assert len(iters) == len(v)
+            assert all(i.step == j for i, j in zip(iters, v))
+
+    def test_structure_2p5D(self):
+        grid = Grid(shape=(80, 80, 80))
+
+        u = TimeFunction(name="u", grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, u.dx),
+                Eq(v.forward, u.forward.dx)]
+
+        par_tile = (16, 4)
+
+        op = Operator(eqns, opt=('advanced', {'par-tile': par_tile,
+                                              'blockinner': True}))
+
+        # 3D grid, but par-tile has only 2 entries => generates so called
+        # 2.5D blocking
+
+        bns, _ = assert_blocking(op, {'y0_blk0', 'y1_blk0'})
+        for root in bns.values():
+            iters = FindNodes(Iteration).visit(root)
+            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
+            assert len(iters) == 2
+            # NOTE: par-tile are applied in reverse order
+            assert iters[0].step == par_tile[1]
+            assert iters[1].step == par_tile[0]
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])

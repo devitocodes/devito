@@ -65,7 +65,9 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     #
     # `a[i] + 1` will be excluded, as there's a flow Dimension-independent data
     # dependence involving `a`
-    exclude = {i.source.access for i in scope.d_flow.independent()}
+    d_flow = {i.source.access for i in scope.d_flow.independent()}
+    d_anti = {i.source.access for i in scope.d_anti.independent()}
+    exclude = d_flow & d_anti
 
     while True:
         # Detect redundancies
@@ -101,12 +103,12 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         exclude.update({t.lhs for t in temps})
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
-    processed = _compact_temporaries(processed)
+    processed = _compact_temporaries(processed, exclude)
 
     return processed
 
 
-def _compact_temporaries(exprs):
+def _compact_temporaries(exprs, exclude):
     """
     Drop temporaries consisting of isolated symbols.
     """
@@ -118,7 +120,7 @@ def _compact_temporaries(exprs):
     # safely be compacted; a generic Symbol could instead be accessed in a subsequent
     # Cluster, for example: `for (i = ...) { a = b; for (j = a ...) ...`
     mapper = {e.lhs: e.rhs for e in exprs
-              if isinstance(e.lhs, Temp) and q_leaf(e.rhs)}
+              if isinstance(e.lhs, Temp) and q_leaf(e.rhs) and e.lhs not in exclude}
 
     processed = []
     for e in exprs:

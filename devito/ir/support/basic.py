@@ -6,10 +6,11 @@ from sympy import S
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import retrieve_terminals, q_constant, q_affine, q_terminal
+from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routine,
+                              q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Dimension, DimensionTuple
+from devito.types import Barrier, Dimension, DimensionTuple
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -67,7 +68,12 @@ class IterationInstance(LabeledVector):
         findices = tuple(access.function.dimensions)
         if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
-        return super().__new__(cls, list(zip(findices, access.indices)))
+        try:
+            indices = access.indices
+        except AttributeError:
+            # E.g., `access` is a FieldFromComposite rather than an Indexed
+            indices = (S.Infinity,)*len(findices)
+        return super().__new__(cls, list(zip(findices, indices)))
 
     def __hash__(self):
         return super().__hash__()
@@ -687,16 +693,30 @@ class Scope(object):
 
         for i, e in enumerate(exprs):
             # Reads
-            for j in retrieve_terminals(e.rhs):
+            terminals = retrieve_terminals(e.rhs, deep=True, mode='unique')
+            try:
+                terminals.update(retrieve_terminals(e.lhs.indices))
+            except AttributeError:
+                pass
+            for j in terminals:
                 v = self.reads.setdefault(j.function, [])
                 mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
                 v.append(TimedAccess(j, mode, i, e.ispace))
 
             # Write
+            terminals = []
             if q_terminal(e.lhs):
-                v = self.writes.setdefault(e.lhs.function, [])
+                terminals.append(e.lhs)
+            if q_routine(e.rhs):
+                try:
+                    terminals.extend(e.rhs.writes)
+                except AttributeError:
+                    # E.g., foreign routines, such as `cos` or `sin`
+                    pass
+            for j in terminals:
+                v = self.writes.setdefault(j.function, [])
                 mode = 'WR' if e.is_Reduction else 'W'
-                v.append(TimedAccess(e.lhs, mode, i, e.ispace))
+                v.append(TimedAccess(j, mode, i, e.ispace))
 
             # If a reduction, we got one implicit read
             if e.is_Reduction:
@@ -716,9 +736,22 @@ class Scope(object):
         # The iteration symbols too
         dimensions = set().union(*[e.dimensions for e in exprs])
         for d in dimensions:
-            for i in d.bound_symbols:
+            for i in d.free_symbols | d.bound_symbols:
                 v = self.reads.setdefault(i.function, [])
                 v.append(TimedAccess(i, 'R', -1))
+
+        # Synchronization barriers are converted into mock dependences on symbols
+        # crossing them
+        for i, e in enumerate(exprs):
+            if e.find(Barrier):
+                for a in self.accesses:
+                    f = a.function
+                    indices = [i if d in e.ispace else S.Infinity
+                               for i, d in zip(a, a.aindices)]
+                    mock = f.indexify(indices)
+                    v = self.writes.setdefault(f, [])
+                    v.extend([TimedAccess(mock, 'R', i, e.ispace),
+                              TimedAccess(mock, 'W', i, e.ispace)])
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)

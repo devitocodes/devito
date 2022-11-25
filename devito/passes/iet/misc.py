@@ -65,7 +65,7 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def relax_incr_dimensions(iet, **kwargs):
+def relax_incr_dimensions(iet, options=None, **kwargs):
     """
     This pass adjusts the bounds of blocked Iterations in order to include the "remainder
     regions".  Without the relaxation that occurs in this pass, the only way to iterate
@@ -84,6 +84,9 @@ def relax_incr_dimensions(iet, **kwargs):
         <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
+    if options['blockperfect']:
+        return iet, {}
+
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
         iterations = [i for i in tree if i.dim.is_Block]

@@ -2,7 +2,7 @@ import numpy as np
 import click
 import os
 
-from devito import configuration, info, warning, set_log_level, switchconfig, norm
+from devito import Device, configuration, info, warning, set_log_level, switchconfig, norm
 from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
@@ -167,7 +167,9 @@ def option_performance(f):
         return value
 
     def config_blockshape(ctx, param, value):
-        if value:
+        if isinstance(configuration['platform'], Device):
+            normalized_value = []
+        elif value:
             # Block innermost loops if a full block shape is provided
             # Note: see https://github.com/devitocodes/devito/issues/320 for why
             # we use blockinner=True only if the backend compiler is Intel
@@ -196,7 +198,9 @@ def option_performance(f):
 
     def config_autotuning(ctx, param, value):
         """Setup auto-tuning to run in ``{basic,aggressive,...}+preemptive`` mode."""
-        if value != 'off':
+        if isinstance(configuration['platform'], Device):
+            level = False
+        elif value != 'off':
             # Sneak-peek at the `block-shape` -- if provided, keep auto-tuning off
             if ctx.params['block_shape']:
                 warning("Skipping autotuning (using explicit block-shape `%s`)"

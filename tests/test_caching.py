@@ -2,14 +2,15 @@ from ctypes import byref, c_void_p
 import weakref
 
 import numpy as np
+from sympy import Expr
 import pytest
 
 from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
                     ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
                     DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
                     TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, Scalar, Symbol,
-                          ThreadID)
+from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, LocalObject,
+                          Scalar, Symbol, ThreadID)
 
 
 @pytest.fixture
@@ -191,6 +192,22 @@ class TestHashing(object):
         # And obviously:
         assert hash(foo0) != hash(foo2)
         assert hash(foo1) != hash(foo2)
+
+    def test_local_objects(self):
+        s = Symbol(name='s')
+
+        class DummyLocalObject(LocalObject, Expr):
+            dtype = type('Bar', (c_void_p,), {})
+
+        foo0 = DummyLocalObject('foo')
+        foo1 = DummyLocalObject('foo', (s,))
+        foo2 = DummyLocalObject('foo', (s,))
+        foo3 = DummyLocalObject('foo', (s,), liveness='eager')
+
+        assert hash(foo0) != hash(foo1)
+        assert hash(foo1) == hash(foo2)
+        assert hash(foo3) != hash(foo0)
+        assert hash(foo3) != hash(foo1)
 
 
 class TestCaching(object):

@@ -177,6 +177,9 @@ class LocalObject(AbstractObject):
         self._liveness = kwargs.get('liveness', 'lazy')
         assert self._liveness in ['eager', 'lazy']
 
+    def _hashable_content(self):
+        return super()._hashable_content() + self.cargs + (self.liveness,)
+
     @property
     def liveness(self):
         return self._liveness

@@ -3,7 +3,7 @@ from collections.abc import Iterable
 
 from itertools import groupby
 
-from devito.ir.support import Scope
+from devito.ir.support import IterationSpace, Scope
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['Queue', 'QueueStateful', 'cluster_pass']
@@ -28,11 +28,11 @@ class Queue(object):
         return self._process_fdta(clusters, 1)
 
     def _make_key(self, element, level):
-        itintervals = element.itintervals[:level]
+        ispace = element.ispace[:level]
 
         subkey = self._make_key_hook(element, level)
 
-        return (itintervals,) + subkey
+        return (ispace,) + subkey
 
     def _make_key_hook(self, element, level):
         return ()
@@ -41,7 +41,7 @@ class Queue(object):
         """
         fdta -> First Divide Then Apply
         """
-        prefix = prefix or []
+        prefix = prefix or IterationSpace([])
 
         # Divide part
         processed = []
