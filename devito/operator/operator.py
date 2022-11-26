@@ -186,6 +186,7 @@ class Operator(Callable):
         op._headers = OrderedSet(*cls._default_headers)
         op._headers.update(byproduct.headers)
         op._globals = OrderedSet(*cls._default_globals)
+        op._globals.update(byproduct.globals)
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)

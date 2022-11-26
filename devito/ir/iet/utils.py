@@ -111,9 +111,11 @@ def derive_parameters(iet, drop_locals=False):
     parameters = [s for s in candidates if s.name not in defines]
 
     # Drop globally-visible objects
-    parameters = [p for p in parameters if not isinstance(p, (Global, Keyword, Macro))]
-    # Drop (to be) locally declared objects
-    parameters = [p for p in parameters if not p._mem_internal_eager]
+    parameters = [p for p in parameters
+                  if not isinstance(p, (Global, Keyword, Macro))]
+    # Drop (to be) locally declared objects as well as global objects
+    parameters = [p for p in parameters
+                  if not (p._mem_internal_eager or p._mem_constant)]
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:

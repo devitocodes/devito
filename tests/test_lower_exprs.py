@@ -1,3 +1,5 @@
+import numpy as np
+
 from devito import (Grid, TimeFunction, Function, Operator, Eq, solve,
                     DefaultDimension)
 from devito.finite_differences import Derivative
@@ -209,7 +211,7 @@ class TestLowering(object):
         assert leq[0] == lowered
 
 
-class ATestUnexpanded(object):
+class TestUnexpanded(object):
 
     def test_dx(self):
         grid = Grid(shape=(10, 10))
@@ -219,7 +221,10 @@ class ATestUnexpanded(object):
 
         eq = Eq(u.forward, u.dx + 1.)
 
-        #op0 = Operator(eq)
+        op0 = Operator(eq)
         op1 = Operator(eq, opt=('advanced', {'expand': False}))
 
-        from IPython import embed; embed()
+        op0.apply(time_M=5)
+        op1.apply(time_M=5, u=u1)
+
+        assert np.allclose(u.data, u1.data, rtol=1e-6)

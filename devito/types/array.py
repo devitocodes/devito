@@ -24,7 +24,7 @@ class ArrayBasic(AbstractFunction):
 
     @property
     def _C_name(self):
-        if self._mem_stack:
+        if self._mem_stack or self._mem_constant:
             # No reason to distinguish between two different names, that is
             # the _C_name and the name -- just `self.name` is enough
             return self.name

@@ -180,7 +180,7 @@ class CGen(Visitor):
     _qualifiers_mapper = {
         'is_const': 'const',
         'is_volatile': 'volatile',
-        '_mem_constant': 'static const',
+        '_mem_constant': 'static',
         '_mem_shared': '',
     }
     _restrict_keyword = 'restrict'
@@ -226,7 +226,7 @@ class CGen(Visitor):
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
                       if getattr(obj, k, False) and v not in masked]
 
-        if obj._mem_stack and level == 2:
+        if (obj._mem_stack or obj._mem_constant) and level == 2:
             strtype = obj._C_typedata
             strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
         else:
@@ -255,7 +255,7 @@ class CGen(Visitor):
             pass
 
         try:
-            if obj.initvalue is not None and level == 2:
+            if obj.initvalue is not None and obj.initvalue.is_numeric and level == 2:
                 value = c.Initializer(value, ListInitializer(obj.initvalue))
         except AttributeError:
             pass
@@ -596,6 +596,12 @@ class CGen(Visitor):
 
         return typedecls
 
+    def _operator_globals(self, o, mode='all'):
+        # Sorting for deterministic code generation
+        v = sorted(o._globals, key=lambda i: i.name)
+
+        return [self._gen_value(i) for i in v]
+
     def visit_Operator(self, o, mode='all'):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
@@ -627,7 +633,10 @@ class CGen(Visitor):
             typedecls.append(c.Extern('C', signature))
         typedecls = [i for j in typedecls for i in (j, blankline)]
 
-        return c.Module(headers + includes + typedecls +
+        # Global variables
+        globs = self._operator_globals(o, mode)
+
+        return c.Module(headers + includes + typedecls + globs +
                         esigns + [blankline, kernel] + efuncs)
 
 
@@ -857,6 +866,7 @@ class FindSymbols(Visitor):
                                    if isinstance(i, IndexedBase)],
         'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
+        'globals': lambda n: [f.indexed for f in n.functions if f._mem_constant],
         'defines-aliases': _defines_aliases
     }
 

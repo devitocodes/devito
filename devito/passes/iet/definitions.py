@@ -5,6 +5,7 @@ of symbols and data.
 
 from collections import OrderedDict
 from functools import singledispatch
+from itertools import product
 from operator import itemgetter
 
 import numpy as np
@@ -26,7 +27,7 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 class MetaSite(object):
 
     _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'efuncs')
+              'maps', 'unmaps', 'efuncs', 'globs')
 
     def __init__(self):
         for i in self._items:
@@ -100,6 +101,30 @@ class DataManager(object):
         alloc = Definition(obj)
 
         storage.update(obj, site, allocs=alloc)
+
+    def _alloc_array_on_global_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the global memory.
+        """
+        # Is dynamic initialization required?
+        try:
+            if all(i.is_Number for i in obj.initvalue):
+                storage.update(obj, site, globs=obj)
+                return
+        except AttributeError:
+            storage.update(obj, site, globs=obj)
+            return
+
+        initvalue = np.array(obj.initvalue)
+
+        name = self.sregistry.make_name(prefix='init_global')
+        body = []
+        for i in product(*[range(s) for s in obj.shape]):
+            body.append(self.lang['alloc-global-symbol'](obj[i], initvalue[i]))
+        efunc = make_callable(name, body)
+        alloc = Call(name, efunc.parameters)
+
+        storage.update(obj, site, allocs=alloc, globs=obj, efuncs=efunc)
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -232,6 +257,7 @@ class DataManager(object):
 
     def _inject_definitions(self, iet, storage):
         efuncs = []
+        globs = set()
         mapper = {}
         for k, v in storage.items():
             # Expr -> LocalExpr ?
@@ -267,12 +293,15 @@ class DataManager(object):
             # efuncs
             efuncs.extend(v.efuncs)
 
+            # Global symbols
+            globs.update(v.globs)
+
             mapper[cbody] = cbody._rebuild(allocs=allocs, maps=maps, objs=objs,
                                            unmaps=unmaps, frees=frees)
 
         processed = Transformer(mapper, nested=True).visit(iet)
 
-        return processed, flatten(efuncs)
+        return processed, flatten(efuncs), globs
 
     @iet_pass
     def place_definitions(self, iet, **kwargs):
@@ -292,7 +321,7 @@ class DataManager(object):
             if k.is_Expression and k.is_initializable:
                 self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
 
-        iet, _ = self._inject_definitions(iet, storage)
+        iet, _, _ = self._inject_definitions(iet, storage)
 
         # Process all other definitions, essentially all temporary objects
         # created by the compiler up to this point (Array, LocalObject, etc.)
@@ -312,16 +341,18 @@ class DataManager(object):
                         self._alloc_local_array_on_high_bw_mem(iet, i, storage)
                     else:
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
-                else:
+                elif i._mem_stack:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
+                else:
+                    self._alloc_array_on_global_mem(iet, i, storage)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
-        iet, efuncs = self._inject_definitions(iet, storage)
+        iet, efuncs, globs = self._inject_definitions(iet, storage)
 
-        return iet, {'efuncs': efuncs}
+        return iet, {'efuncs': efuncs, 'globals': globs}
 
     @iet_pass
     def place_casts(self, iet, **kwargs):
@@ -342,7 +373,7 @@ class DataManager(object):
         # defined inside the kernel, which happens, for example, when:
         # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
-        defines = set(FindSymbols('defines').visit(iet))
+        defines = set(FindSymbols('defines|globals').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
         casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
                       if i not in defines)
@@ -478,7 +509,7 @@ class DeviceAwareDataManager(DataManager):
                 else:
                     self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
 
-            iet, efuncs = self._inject_definitions(iet, storage)
+            iet, efuncs, _ = self._inject_definitions(iet, storage)
 
             return iet, {'efuncs': efuncs}
 

@@ -594,12 +594,18 @@ class IndexDerivative(IndexSum):
 
     def __new__(cls, expr, dimensions, **kwargs):
         if not (expr.is_Mul and len(expr.args) == 2):
-            raise ValueError("Expect expr*weights, got `%s` instead" % str(expr))
-        _, weights = expr.args
-        if not isinstance(weights, Weights):
-            # All of the SymPy versions we support end up placing the Weights
-            # array here, so if something changes we'll get an alarm through
-            # this exception
+            raise ValueError("Expect `expr*weights`, got `%s` instead" % str(expr))
+        a0, a1 = expr.args
+
+        # `a0` and `a1` may or may not be Indexeds this point. In the former case,
+        # we need to pull out the underlying Functions
+        f0, f1 = a0.function, a1.function
+
+        if isinstance(f0, Weights):
+            weights = a0
+        elif isinstance(f1, Weights):
+            weights = a1
+        else:
             raise ValueError("Couldn't find weights array")
 
         obj = super().__new__(cls, expr, dimensions)
@@ -618,8 +624,9 @@ class IndexDerivative(IndexSum):
             return expr
 
         w = self.weights
+        f = w.function
         d = w.dimension
-        mapper = {w.subs(d, i): w.weights[n] for n, i in enumerate(d.range)}
+        mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
         return expr

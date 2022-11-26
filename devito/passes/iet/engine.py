@@ -32,6 +32,7 @@ class Graph(object):
 
         self.includes = []
         self.headers = []
+        self.globals = []
 
     @property
     def root(self):
@@ -53,6 +54,7 @@ class Graph(object):
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
+            self.globals.extend(as_tuple(metadata.get('globals')))
 
             # Update jit-compiler if necessary
             try:

@@ -1,4 +1,4 @@
-from devito.ir import Call
+from devito.ir import Call, DummyExpr
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
@@ -13,6 +13,8 @@ class CBB(LangBB):
             Call('posix_memalign', (i, j, k)),
         'host-free': lambda i:
             Call('free', (i,)),
+        'alloc-global-symbol': lambda i, j:
+            DummyExpr(i, j)
     }
 
 

@@ -37,12 +37,13 @@ class CodeSymbol(object):
 
         * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
         * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
-        * "scope": `_mem_stack`, `_mem_heap`
+        * "scope": `_mem_stack`, `_mem_heap`, `_mem_constant`, `_mem_shared`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
     memory (but not both), and on the heap. Refer to the __doc__ of the single
-    _mem_* properties for more info.
+    _mem_* properties for more info. Obviously, not all triplets make sense
+    for a given architecture.
     """
 
     @abc.abstractmethod
@@ -173,7 +174,22 @@ class CodeSymbol(object):
     @property
     def _mem_heap(self):
         """
-        True if the associated data was/is/will be allocated on the heap,
+        True if the associated data gets allocated on the heap, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_constant(self):
+        """
+        True if the associated data gets allocated in global constant memory,
+        False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_shared(self):
+        """
+        True if the associated data gets allocated in so called shared memory,
         False otherwise.
         """
         return False

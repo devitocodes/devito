@@ -17,7 +17,7 @@ def lower_index_derivatives(clusters, sregistry=None, **kwargs):
 
             mapper = {}
             for i in e.find(IndexDerivative):
-                intervals = [Interval(d, d._min, d._max) for d in i.dimensions]
+                intervals = [Interval(d, 0, 0) for d in i.dimensions]
                 ispace0 = IterationSpace(intervals)
 
                 extra = (c.ispace.itdimensions + i.dimensions,)
@@ -26,7 +26,12 @@ def lower_index_derivatives(clusters, sregistry=None, **kwargs):
                 name = sregistry.make_name(prefix='r')
                 s = Symbol(name=name, dtype=e.dtype)
                 expr0 = Eq(s, 0.)
-                expr1 = Inc(s, i.expr)
+
+                # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
+                # StencilDimensions starting points
+                subs = {i.weights: i.weights.subs(d, d - d._min)
+                        for d in i.dimensions}
+                expr1 = Inc(s, uxreplace(i.expr, subs))
 
                 processed.extend([c.rebuild(exprs=expr0),
                                   c.rebuild(exprs=expr1, ispace=ispace)])
