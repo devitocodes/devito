@@ -18,7 +18,6 @@ def dimension_sort(expr):
     """
 
     def handle_indexed(indexed):
-        postponed = []
         relation = []
         for i in indexed.indices:
             try:
@@ -26,17 +25,6 @@ def dimension_sort(expr):
                 if isinstance(maybe_dim, Dimension):
                     relation.append(maybe_dim)
             except ValueError:
-                # Perhaps `i` contains a StencilDimension, originating from a Derivative,
-                # hence it's in the form `x + i0 + k` where `k` is a number
-                if i.is_Add:
-                    sdims = i.find(StencilDimension)
-                    other = i.find(Dimension) - sdims
-                    if sdims and other:
-                        assert len(other) == 1
-                        relation.append(other.pop())
-                        postponed.extend(sorted(sdims, key=lambda i: i.name))
-                        continue
-
                 # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
                 nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
                 if nested:
@@ -48,7 +36,11 @@ def dimension_sort(expr):
                 relation.extend([d for d in filter_sorted(i.free_symbols)
                                  if isinstance(d, Dimension)])
 
-        return tuple(relation) + tuple(postponed)
+        # StencilDimensions are lowered subsequently through special compiler
+        # passes, so they can be ignored here
+        relation = tuple(d for d in relation if not d.is_Stencil)
+
+        return relation
 
     if isinstance(expr.implicit_dims, IgnoreDimSort):
         relations = set()

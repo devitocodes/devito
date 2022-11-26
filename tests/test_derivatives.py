@@ -714,6 +714,14 @@ class TestTwoStageEvaluation(object):
         # is indeed mathematically equivalent to `term1`
         assert Add(*term0.expand().args) == term1.expand()
 
+    def test_dxdy_v2(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term1 = f.dxdy._evaluate(expand=False)
+        assert len(term1.find(IndexDerivative)) == 2
+
 
 def bypass_uneval(expr):
     unevals = expr.find(EvalDerivative)

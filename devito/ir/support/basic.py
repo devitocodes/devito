@@ -89,8 +89,14 @@ class IterationInstance(LabeledVector):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
-            elif len(dims) == 1:
-                candidate = dims.pop()
+                continue
+
+            # E.g. `x + i0 + i1` -> `candidates = {x}`
+            sdims = {d for d in dims if d.is_Stencil}
+            #TODO: Util to separate out DIM and STENCILDIMS From IndexExpression?
+            candidates = dims - sdims
+            if len(candidates) == 1:
+                candidate = candidates.pop()
                 if fi._defines & candidate._defines:
                     if q_affine(i, candidate):
                         retval.append(AFFINE)
@@ -107,8 +113,10 @@ class IterationInstance(LabeledVector):
         retval = []
         for i, fi in zip(self, self.findices):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
-            if len(dims) == 1:
-                retval.append(dims.pop())
+            sdims = {d for d in dims if d.is_Stencil}
+            candidates = dims - sdims
+            if len(candidates) == 1:
+                retval.append(candidates.pop())
             elif isinstance(i, Dimension):
                 retval.append(i)
             else:

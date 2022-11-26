@@ -13,7 +13,7 @@ from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
-from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
+from devito.types import Array, DimensionTuple, Evaluable, Spacing, StencilDimension
 
 __all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
 
@@ -579,6 +579,8 @@ class Weights(Array):
         assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
         assert isinstance(weights, (list, tuple, np.ndarray))
 
+        self._spacings = set().union(*[i.find(Spacing) for i in weights])
+
         kwargs['scope'] = 'constant'
 
         super().__init_finalize__(*args, **kwargs)
@@ -587,26 +589,30 @@ class Weights(Array):
     def dimension(self):
         return self.dimensions[0]
 
+    @property
+    def spacings(self):
+        return self._spacings
+
     weights = Array.initvalue
 
 
 class IndexDerivative(IndexSum):
 
     def __new__(cls, expr, dimensions, **kwargs):
-        if not (expr.is_Mul and len(expr.args) == 2):
+        # Detect the Weights among the arguments
+        weightss = []
+        for a in expr.args:
+            try:
+                f = a.function
+            except AttributeError:
+                continue
+            if isinstance(f, Weights):
+                weightss.append(a)
+
+        # Sanity check
+        if not (expr.is_Mul and len(weightss) == 1):
             raise ValueError("Expect `expr*weights`, got `%s` instead" % str(expr))
-        a0, a1 = expr.args
-
-        # `a0` and `a1` may or may not be Indexeds this point. In the former case,
-        # we need to pull out the underlying Functions
-        f0, f1 = a0.function, a1.function
-
-        if isinstance(f0, Weights):
-            weights = a0
-        elif isinstance(f1, Weights):
-            weights = a1
-        else:
-            raise ValueError("Couldn't find weights array")
+        weights = weightss.pop()
 
         obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights

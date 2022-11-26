@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from devito import (Grid, TimeFunction, Function, Operator, Eq, solve,
                     DefaultDimension)
@@ -213,13 +214,20 @@ class TestLowering(object):
 
 class TestUnexpanded(object):
 
-    def test_dx(self):
+    @pytest.mark.parametrize('expr', [
+        'u.dx',
+        'u.dx.dy',
+        'u.dxdy',
+        'u.dx.dy + u.dy.dx',
+        'u.dx2 + u.dx.dy'
+    ])
+    def test_single_eq(self, expr):
         grid = Grid(shape=(10, 10))
 
         u = TimeFunction(name="u", grid=grid, space_order=4)
         u1 = TimeFunction(name="u", grid=grid, space_order=4)
 
-        eq = Eq(u.forward, u.dx + 1.)
+        eq = Eq(u.forward, eval(expr) + 1.)
 
         op0 = Operator(eq)
         op1 = Operator(eq, opt=('advanced', {'expand': False}))
@@ -227,4 +235,4 @@ class TestUnexpanded(object):
         op0.apply(time_M=5)
         op1.apply(time_M=5, u=u1)
 
-        assert np.allclose(u.data, u1.data, rtol=1e-6)
+        assert np.allclose(u.data, u1.data, rtol=1e-5)

@@ -9,7 +9,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     Operator, norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos, sin, sqrt)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.finite_differences.differentiable import diffify
+from devito.finite_differences.differentiable import Weights, diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
@@ -495,6 +495,10 @@ class TestAliases(object):
                 if i == p.name:
                     ret.append(p)
         return tuple(ret)
+
+    def get_arrays(self, iet):
+        return [i for i in FindSymbols().visit(iet)
+                if i.is_Array and not isinstance(i, Weights)]
 
     def check_array(self, array, exp_halo, exp_shape, rotate=False):
         assert len(array.dimensions) == len(exp_halo)
@@ -1479,6 +1483,33 @@ class TestAliases(object):
 
     def test_space_invariant_v4(self):
         """
+        Without prematurely expanding derivatives.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqn = Eq(u.forward, (u*cos(f)).dx + 1.)
+
+        op0 = Operator(eqn)
+        op1 = Operator(eqn, opt=('advanced', {'expand': False}))
+
+        # Check generated code
+        for op in [op0, op1]:
+            xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
+            arrays = self.get_arrays(op)
+            assert len(arrays) == 1
+            self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
+
+        op0.apply(time_M=10)
+        op1.apply(time_M=10, u=u1)
+
+        assert np.allclose(u.data, u1.data, rtol=10e-6)
+
+    def test_space_invariant_v5(self):
+        """
         Similar to test_space_invariant, stems from viscoacoustic -- a portion
         of a space derivative that would be redundantly computed in two separated
         loop nests is recognised to be a time invariant and factored into a common
@@ -1486,9 +1517,9 @@ class TestAliases(object):
         """
         grid = Grid(shape=(10, 10, 10))
 
-        f = Function(name='f', grid=grid)
-        u = TimeFunction(name='u', grid=grid)
-        v = TimeFunction(name='v', grid=grid)
+        f = Function(name='f', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
 
         eqns = [Eq(u.forward, (u*cos(f)).dx + v),
                 Eq(v.forward, (v*cos(f)).dy + u.forward.dx)]
@@ -1496,10 +1527,44 @@ class TestAliases(object):
         op = Operator(eqns)
 
         xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        arrays = self.get_arrays(op)
         assert len(arrays) == 1
-        self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs))
-        assert op._profiler._sections['section1'].sops == 15
+        self.check_array(arrays[0], ((2, 2), (2, 2), (0, 0)), (xs+4, ys+4, zs))
+        assert op._profiler._sections['section1'].sops == 34
+
+    def test_space_invariant_v6(self):
+        """
+        Like test_space_invariant_v5, but now try expanded vs unexpanded
+        derivatives.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
+        v1 = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, (u*cos(f)).dx + v + 1.),
+                Eq(v.forward, (v*cos(f)).dy + u.forward.dx + 1.)]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=('advanced', {'expand': False}))
+
+        # Check generated code
+        for op in [op0, op1]:
+            xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
+            arrays = self.get_arrays(op)
+            assert len(arrays) == 1
+            self.check_array(arrays[0], ((2, 2), (2, 2), (0, 0)), (xs+4, ys+4, zs))
+        #TODO -- FIX THE OPERATION COUNT !!!!!!!!!!!!!!!!!
+        #assert op1._profiler._sections['section1'].sops == 34
+
+        op0.apply(time_M=10)
+        op1.apply(time_M=10, u=u1, v=v1)
+
+        assert np.allclose(u.data, u1.data, rtol=10e-5)
+        assert np.allclose(v.data, v1.data, rtol=10e-5)
 
     def test_catch_duplicate_from_different_clusters(self):
         """

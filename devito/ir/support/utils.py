@@ -3,10 +3,10 @@ from collections import defaultdict
 from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
                               uxreplace)
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
-from devito.types import Dimension, Indirection, ModuloDimension
+from devito.types import Dimension, Indirection, ModuloDimension, StencilDimension
 
 __all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims',
-           'shift_back']
+           'shift_back', 'sdims_min', 'sdims_max', 'sdims_separate']
 
 
 class AccessMode(object):
@@ -278,3 +278,27 @@ def shift_back(objects):
         processed.append(uxreplace(o, subs))
 
     return processed
+
+
+# *** Utility functions for expressions that potentially contain StencilDimensions
+
+def sdims_min(expr):
+    """
+    Replace all StencilDimensions in `expr` with their minimum point.
+    """
+    sdims = expr.find(StencilDimension)
+    mapper = {e: e._min for e in sdims}
+    return expr.subs(mapper)
+
+
+def sdims_max(expr):
+    """
+    Replace all StencilDimensions in `expr` with their maximum point.
+    """
+    sdims = expr.find(StencilDimension)
+    mapper = {e: e._max for e in sdims}
+    return expr.subs(mapper)
+
+
+def sdims_separate(expr):
+    from IPython import embed; embed()

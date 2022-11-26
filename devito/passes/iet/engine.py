@@ -81,6 +81,7 @@ class Graph(object):
         # Uniqueness
         self.includes = filter_ordered(self.includes)
         self.headers = filter_ordered(self.headers, key=str)
+        self.globals = filter_ordered(self.globals)
 
     def visit(self, func, **kwargs):
         """

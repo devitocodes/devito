@@ -100,6 +100,7 @@ class Dimension(ArgProvider):
     is_Sub = False
     is_Conditional = False
     is_Stepping = False
+    is_Stencil = False
     is_SubIterator = False
     is_Modulo = False
     is_Incr = False
@@ -1321,6 +1322,8 @@ class StencilDimension(BasicDimension):
     spacing : expr-like, optional
         The space between two stencil points.
     """
+
+    is_Stencil = True
 
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
 
