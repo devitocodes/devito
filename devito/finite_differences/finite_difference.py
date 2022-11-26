@@ -94,7 +94,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
 
 @check_input
 @check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -155,9 +155,10 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     (-1/h_y)*(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x) + (-f(1, h_y + 2)*\
 g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
     """
-    x0 = kwargs.get('x0', {})
+    x0 = x0 or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims):
-        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0)
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
+                                  **kwargs)
 
     return expr
 
