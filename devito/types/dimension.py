@@ -1322,6 +1322,8 @@ class StencilDimension(BasicDimension):
         The space between two stencil points.
     """
 
+    __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
+
     def __init_finalize__(self, name, _min, _max, spacing=None, **kwargs):
         self._spacing = sympy.sympify(spacing) or sympy.S.One
 
