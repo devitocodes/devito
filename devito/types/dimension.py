@@ -14,7 +14,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
            'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'dimensions']
+           'Spacing', 'dimensions']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -320,6 +320,10 @@ class Dimension(ArgProvider):
     __getnewargs_ex__ = Pickable.__getnewargs_ex__
 
 
+class Spacing(Scalar):
+    pass
+
+
 class BasicDimension(Dimension, Symbol):
 
     __doc__ = Dimension.__doc__
@@ -328,7 +332,7 @@ class BasicDimension(Dimension, Symbol):
         return Symbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None, **kwargs):
-        self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+        self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
 
 
 class DefaultDimension(Dimension, DataSymbol):
@@ -357,7 +361,7 @@ class DefaultDimension(Dimension, DataSymbol):
         return DataSymbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None, default_value=None, **kwargs):
-        self._spacing = spacing or Scalar(name='h_%s' % name, is_const=True)
+        self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
         self._default_value = default_value or 0
 
     @cached_property

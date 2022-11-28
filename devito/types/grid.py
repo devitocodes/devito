@@ -14,7 +14,7 @@ from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
-                                    SteppingDimension, SubDimension)
+                                    Spacing, SteppingDimension, SubDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -147,7 +147,7 @@ class Grid(CartesianDiscretization, ArgProvider):
             ndim = len(shape)
             assert ndim <= 3
             dim_names = self._default_dimensions[:ndim]
-            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=dtype, is_const=True)
+            dim_spacing = tuple(Spacing(name='h_%s' % n, dtype=dtype, is_const=True)
                                 for n in dim_names)
             dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                for n, s in zip(dim_names, dim_spacing))
