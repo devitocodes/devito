@@ -8,17 +8,18 @@ if [[ "$MPIVER" = "HPCX" ]]; then
    hpcx_load
 fi
 
-if [[ -z "${DEPLOY_ENV}" ]]; then
-    exec "$@"
-    ./codecov -t -t ${CODECOV_TOKEN} -F "${DEVITO_ARCH}-${DEVITO-PLATFORM}"
-else
-    exec "$@"
-fi
-
 if [[ -n "${ROCM_VERSION}" ]]; then
+    source /usr/share/lmod/lmod/init/profile
     echo "configuring Omnitrace..."
     module use /opt/omnitrace/share/modulefiles
     echo "configuring Omniperf..."
     module use /opt/omniperf/modulefiles
     module load omniperf
+fi
+
+if [[ -z "${DEPLOY_ENV}" ]]; then
+    exec "$@"
+    ./codecov -t -t ${CODECOV_TOKEN} -F "${DEVITO_ARCH}-${DEVITO-PLATFORM}"
+else
+    exec "$@"
 fi
