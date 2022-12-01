@@ -42,7 +42,6 @@ class Cpu64OperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
-        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 

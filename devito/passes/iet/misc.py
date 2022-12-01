@@ -84,9 +84,6 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
         <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
-    if options['blockperfect']:
-        return iet, {}
-
     mapper = {}
     for tree in retrieve_iteration_tree(iet):
         iterations = [i for i in tree if i.dim.is_Block]
@@ -105,6 +102,11 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
 
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
+            # If definitely in-bounds, as ensured by a prior compiler pass, then
+            # we can skip this step
+            if i.is_Inbound:
+                continue
+
             # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
             # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
             # of the current Iteration's root Dimension e.g. `x_M`. The generated
