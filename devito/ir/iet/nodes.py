@@ -11,7 +11,7 @@ from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
@@ -551,6 +551,10 @@ class Iteration(Node):
     @property
     def is_Vectorized(self):
         return VECTORIZED in self.properties
+
+    @property
+    def is_Inbound(self):
+        return INBOUND in self.properties
 
     @property
     def ncollapsed(self):
