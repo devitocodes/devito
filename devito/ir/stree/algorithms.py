@@ -146,9 +146,8 @@ def stree_make_halo(stree):
             spot = k
             ancestors = [n for n in k.ancestors if n.is_Iteration]
             for n in ancestors:
-                # Place the halo exchange right before the first
-                # distributed Dimension which requires it
-                if any(i.dim in n.dim._defines for i in v.halos):
+                # Place the halo exchange before the first distributed Dimension
+                if n.dim._defines.intersection(f._dist_dimensions):
                     spot = n
                     break
             mapper.setdefault(spot, []).append(hs.project(f))
