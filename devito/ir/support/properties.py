@@ -171,3 +171,6 @@ class Properties(frozendict):
 
     def is_inbound(self, dims):
         return any(INBOUND in self.get(d, ()) for d in as_tuple(dims))
+
+    def is_sequential(self, dims):
+        return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))
