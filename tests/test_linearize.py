@@ -289,7 +289,7 @@ def test_strides_forwarding0():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, sregistry=SymbolRegistry())
 
     # Since `f` is passed via `f.indexed`, we expect the stride exprs to be
     # lifted in `foo` and then passed down to `bar` as arguments
@@ -318,7 +318,7 @@ def test_strides_forwarding1():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, sregistry=SymbolRegistry())
 
     # Despite `a` is passed via `a.indexed`, and since it's an Array (which
     # have symbolic shape), we expect the stride exprs to be placed in `bar`,
@@ -364,7 +364,7 @@ def test_strides_forwarding2():
     graph.efuncs['foo0'] = foo0
     graph.efuncs['foo1'] = foo1
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root
@@ -403,7 +403,7 @@ def test_strides_forwarding3():
     graph = Graph(root)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root

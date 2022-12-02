@@ -25,37 +25,47 @@ def linearize(graph, **kwargs):
     access function, such as `a[i, j] -> a[i*n + j]`. The row-major format
     of the underlying Function objects is honored.
     """
-    mode = kwargs['mode']
-    if not mode:
+    options = kwargs.get('options', {})
+    lmode = kwargs.pop('lmode', options.get('linearize'))
+    if not lmode:
         return
 
     # All information that need to be propagated across callables
-    tracker = Bunch(sizes={}, strides={}, undef=defaultdict(set), cbks={})
+    tracker = Bunch(
+        sizes={},
+        strides={},
+        undef=defaultdict(set),
+        subs={},
+        headers={}
+    )
 
-    linearization(graph, tracker=tracker, **kwargs)
+    linearization(graph, lmode=lmode, tracker=tracker, **kwargs)
 
     # Sanity check
     assert not tracker.undef
 
 
 @iet_pass
-def linearization(iet, mode=None, tracker=None, sregistry=None, **kwargs):
+def linearization(iet, lmode=None, tracker=None, **kwargs):
     """
     Carry out the actual work of `linearize`.
     """
-    # `mode` may be a callback describing what Function types, and under what
+    # `lmode` may be a callback describing what Function types, and under what
     # conditions, should linearization be applied
-    if callable(mode):
-        key0 = lambda f: mode(f) and f.ndim > 1
+    if callable(lmode):
+        key0 = lambda f: lmode(f) and f.ndim > 1
     else:
         # Default
         key0 = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
-    key1 = lambda f: not f._mem_stack
-    key = lambda f: key0(f) and key1(f)
+    key = lambda f: key0(f) and not f._mem_stack
 
-    iet, headers = linearize_accesses(iet, key, tracker, sregistry)
+    #iet = split_pointers(iet, key, **kwargs)
+    iet = linearize_accesses(iet, key, tracker, **kwargs)
     iet = linearize_pointers(iet, key)
-    iet = linearize_transfers(iet, sregistry)
+    iet = linearize_transfers(iet, **kwargs)
+
+    # Postprocess headers
+    headers = [(ccode(define), ccode(expr)) for define, expr in tracker.headers.values()]
 
     return iet, {'headers': headers}
 
@@ -113,17 +123,17 @@ def linearize_accesses(iet, key0, tracker, sregistry):
 
     # Update unique access macros
     # E.g. `{f(x, y) -> foo}`, `foo(Indexed) -> f[(x)*y_stride0 + (y)]`
-    headers = []
     for f in needs:
-        if f in tracker.cbks:
-            continue
-        header, tracker.cbks[f] = _generate_macro(f, mapper[f], sregistry)
-        headers.append(header)
+        # All the Indexeds demanding an access macro. For a given `f`, more than
+        # one access macros may be required -- in particular, it will be more
+        # than one if `f` was optimized by the `split_pointers` pass
+        v = [i for i in indexeds if i.function is f]
+
+        _generate_macro(f, v, tracker, mapper[f], sregistry)
 
     # Turn Indexeds into FIndexeds
     # E.g. `u[t2, x+8, y+9, z+7] -> uL(t2, x+8, y+9, z+7)`
-    subs = {i: tracker.cbks[i.function](i) for i in indexeds if i.function in needs}
-    iet = Uxreplace(subs).visit(iet)
+    iet = Uxreplace(tracker.subs).visit(iet)
 
     # 2) What `iet` *offers*
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
@@ -170,7 +180,10 @@ def linearize_accesses(iet, key0, tracker, sregistry):
     else:
         assert len(stmts1) == 0
 
-    return iet, headers
+    return iet
+
+
+#FIndexed(a.base[a.indexed.indices[1:]], 'u1', a.strides[1:])
 
 
 @singledispatch
@@ -189,15 +202,13 @@ def _(f, d, fsz, sregistry):
 
 
 @singledispatch
-def _generate_macro(f, strides, sregistry):
-    return None, None
+def _generate_macro(f, indexeds, tracker, strides, sregistry):
+    pass
 
 
 @_generate_macro.register(DiscreteFunction)
 @_generate_macro.register(Array)
-def _(f, strides, sregistry):
-    pname = sregistry.make_name(prefix='%sL' % f.name)
-
+def _(f, indexeds, tracker, strides, sregistry):
     # Generate e.g. `usave[(time)*xi_slc0 + (xi)*yi_slc0 + (yi)]`
     assert len(strides) == len(f.dimensions) - 1
     macroargnames = [d.name for d in f.dimensions]
@@ -206,15 +217,28 @@ def _(f, strides, sregistry):
     items = [m*strides[d] for m, d in zip(macroargs, f.dimensions[1:])]
     items.append(MacroArgument(f.dimensions[-1].name))
 
-    value = Add(*items, evaluate=False)
-    expr = Indexed(IndexedData(f.name, None, f), value)
-    define = DefFunction(pname, macroargnames)
-    header = (ccode(define), ccode(expr))
+    headers = tracker.headers
+    subs = tracker.subs
+    for i in indexeds:
+        if i in subs:
+            continue
 
-    def cbk(i):
-        return FIndexed(i, pname, strides=tuple(strides.values()))
+        n = len(i.indices)
 
-    return header, cbk
+        if i.base not in headers:
+            pname = sregistry.make_name(prefix='%sL' % f.name)
+
+            value = Add(*items[-n:], evaluate=False)
+            expr = Indexed(IndexedData(f.name, None, f), value)
+            define = DefFunction(pname, macroargnames[-n:])
+
+            headers[i.base] = (define, expr)
+        else:
+            define, _ = headers[i.base]
+            pname = str(define.name)
+
+        v = tuple(strides.values())[-n:]
+        subs[i] = FIndexed(i, pname, strides=v)
 
 
 def linearize_pointers(iet, key):
@@ -240,7 +264,7 @@ def linearize_pointers(iet, key):
     return iet
 
 
-def linearize_transfers(iet, sregistry):
+def linearize_transfers(iet, sregistry=None, **kwargs):
     casts = FindNodes(PointerCast).visit(iet)
     candidates = {i.function for i in casts if i.flat is not None}
 
