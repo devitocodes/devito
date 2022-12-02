@@ -6,14 +6,15 @@ import numpy as np
 from sympy import Add
 
 from devito.data import FULL
-from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
-                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
+from devito.ir import (BlankLine, Call, DummyExpr, Dereference, Iteration, List,
+                       PointerCast, Transfer, FindNodes, FindSymbols, Transformer,
+                       Uxreplace)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import DefFunction, MacroArgument, ccode
+from devito.symbolics import Byref, DefFunction, IndexedPointer, MacroArgument, ccode
 from devito.tools import Bunch, filter_ordered, prod
 from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
-from devito.types.dense import DiscreteFunction
+from devito.types.dense import DiscreteFunction, Function
 
 
 __all__ = ['linearize']
@@ -59,7 +60,7 @@ def linearization(iet, lmode=None, tracker=None, **kwargs):
         key0 = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
     key = lambda f: key0(f) and not f._mem_stack
 
-    #iet = split_pointers(iet, key, **kwargs)
+    iet = split_pointers(iet, key, **kwargs)
     iet = linearize_accesses(iet, key, tracker, **kwargs)
     iet = linearize_pointers(iet, key)
     iet = linearize_transfers(iet, **kwargs)
@@ -86,7 +87,78 @@ def key1(f, d):
         return False
 
 
-def linearize_accesses(iet, key0, tracker, sregistry):
+def key2(f):
+    """
+    True if `f` *must* be indexed with `int64` expressions, False otherwise.
+    """
+    try:
+        return f.save is not None
+    except AttributeError:
+        return False
+
+
+def split_pointers(iet, key0, tracker=None, options=None, **kwargs):
+    """
+    Split a pointer to a large object O into a set of pointers `{p1, ..., pn}`,
+    where each `pi` points to a slice of O.
+
+    For example, instead of using `u(t1, x, y, z)` and `u(t2, x, y, z)`,
+    we will generate `ut1(x, y, z)` and `ut2(x, y, z)`, where `ut1` and `ut2`
+    point to `u[t1]` and `u[t2]` respectively.
+
+    This allows to use int32 expressions to index into arrays in many more
+    situations than otherwise possible.
+
+    Clearly, this can easily be defeated, even with dummy 1D problems defined
+    over ridiculously large grids (e.g., a 1D grid with billions of points).
+    But for most problems of practical interest, this pass will allow to use
+    int32, which often results in better performance.
+    """
+    if options['index-mode'] == 'int64':
+        return iet
+
+    # The split Dimension is the outermost one
+    sd = 0
+
+    # Substitute e.g. `u[t0, x, y, z] -> ut0[x, y, z]`
+    mapper = {}
+    subs = {}
+    for i in FindSymbols('indexeds').visit(iet):
+        f = i.function
+        if not (f.is_Function and f.ndim > 3 and key0(f) and not key2(f)):
+            continue
+
+        k = (i.base, i.indices[sd])
+        try:
+            v = mapper[k]
+        except KeyError:
+            name = "".join(j.name for j in k)
+            v = mapper[k] = IndexedData(name, None, f)
+
+        subs[i] = v[i.indices[sd+1:]]
+
+    iet = Uxreplace(subs).visit(iet)
+
+    # Create and inject the new base pointers e.g. `ut0 = &(u[t0])`
+    seen = set()
+    subs = {}
+    for n in FindNodes(Iteration).visit(iet):
+        exprs = []
+        for (base, d), v in mapper.items():
+            if d in n.defines:
+                ptr = Byref(IndexedPointer(base, d))
+                exprs.append(DummyExpr(v, ptr, init=True))
+                seen.add((base, d))
+
+        if exprs:
+            subs[n] = tuple(exprs)
+
+    iet = Transformer(subs, nested=True).visit(iet)
+
+    return iet
+
+
+def linearize_accesses(iet, key0, tracker=None, sregistry=None, **kwargs):
     """
     Turn Indexeds into FIndexeds and create the necessary access Macros.
     """
@@ -229,7 +301,7 @@ def _(f, indexeds, tracker, strides, sregistry):
             pname = sregistry.make_name(prefix='%sL' % f.name)
 
             value = Add(*items[-n:], evaluate=False)
-            expr = Indexed(IndexedData(f.name, None, f), value)
+            expr = Indexed(IndexedData(i.base, None, f), value)
             define = DefFunction(pname, macroargnames[-n:])
 
             headers[i.base] = (define, expr)

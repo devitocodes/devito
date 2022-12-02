@@ -65,6 +65,7 @@ class Cpu64OperatorMixin(object):
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
+        o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
