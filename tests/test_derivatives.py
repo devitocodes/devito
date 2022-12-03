@@ -674,7 +674,7 @@ class TestTwoStageEvaluation(object):
         u = Function(name="u", grid=grid, space_order=2)
 
         ui = u.subs(x, x + i*x.spacing)
-        w = Weights(name='w0', dimensions=i, weights=[-0.5, 0, 0.5])
+        w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
 
         idxder = IndexDerivative(ui*w, w.dimension)
 

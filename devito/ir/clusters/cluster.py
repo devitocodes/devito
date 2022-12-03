@@ -7,7 +7,8 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
                                DataSpace, Properties, Scope, detect_accesses,
-                               detect_io, normalize_properties, normalize_syncs)
+                               detect_io, normalize_properties, normalize_syncs,
+                               sdims_min, sdims_max)
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict
 
@@ -257,7 +258,11 @@ class Cluster(object):
             if f is None:
                 continue
 
-            intervals = [Interval(d, min(offs), max(offs)) for d, offs in v.items()]
+            #TODO OOOOOOOo
+            intervals = [Interval(d,
+                                  min([sdims_min(i) for i in offs]),
+                                  max([sdims_max(i) for i in offs]))
+                         for d, offs in v.items()]
             intervals = IntervalGroup(intervals)
 
             # Factor in the IterationSpace -- if the min/max points aren't zero,

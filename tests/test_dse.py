@@ -1489,6 +1489,30 @@ class TestAliases(object):
 
     def test_space_invariant_v4(self):
         """
+        Similar to test_space_invariant, stems from viscoacoustic -- a portion
+        of a space derivative that would be redundantly computed in two separated
+        loop nests is recognised to be a time invariant and factored into a common
+        temporary.
+        """
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+
+        eqns = [Eq(u.forward, (u*cos(f)).dx + v),
+                Eq(v.forward, (v*cos(f)).dy + u.forward.dx)]
+
+        op = Operator(eqns)
+
+        xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
+        arrays = self.get_arrays(op)
+        assert len(arrays) == 1
+        self.check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs))
+        assert op._profiler._sections['section1'].sops == 15
+
+    def test_unexpanded_v0(self):
+        """
         Without prematurely expanding derivatives.
         """
         grid = Grid(shape=(10, 10, 10))
@@ -1514,33 +1538,9 @@ class TestAliases(object):
 
         assert np.allclose(u.data, u1.data, rtol=10e-6)
 
-    def test_space_invariant_v5(self):
+    def test_unexpanded_v1(self):
         """
-        Similar to test_space_invariant, stems from viscoacoustic -- a portion
-        of a space derivative that would be redundantly computed in two separated
-        loop nests is recognised to be a time invariant and factored into a common
-        temporary.
-        """
-        grid = Grid(shape=(10, 10, 10))
-
-        f = Function(name='f', grid=grid, space_order=4)
-        u = TimeFunction(name='u', grid=grid, space_order=4)
-        v = TimeFunction(name='v', grid=grid, space_order=4)
-
-        eqns = [Eq(u.forward, (u*cos(f)).dx + v),
-                Eq(v.forward, (v*cos(f)).dy + u.forward.dx)]
-
-        op = Operator(eqns)
-
-        xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
-        arrays = self.get_arrays(op)
-        assert len(arrays) == 1
-        self.check_array(arrays[0], ((2, 2), (2, 2), (0, 0)), (xs+4, ys+4, zs))
-        assert op._profiler._sections['section1'].sops == 34
-
-    def test_space_invariant_v6(self):
-        """
-        Like test_space_invariant_v5, but now try expanded vs unexpanded
+        Inspired by test_space_invariant_v5, but now try with unexpanded
         derivatives.
         """
         grid = Grid(shape=(10, 10, 10))
@@ -1571,6 +1571,26 @@ class TestAliases(object):
 
         assert np.allclose(u.data, u1.data, rtol=10e-5)
         assert np.allclose(v.data, v1.data, rtol=10e-5)
+
+    def test_unexpanded_v2(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
+        v1 = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, (u.dx.dy + v*u.dx + 1.)),
+                Eq(v.forward, (v.dy.dx + u.dx.dz + 1.))]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=('advanced', {'expand': False}))
+
+        op0.apply(time_M=5)
+        op1.apply(time_M=5, u=u1, v=v1)
+
+        assert np.allclose(u.data, u1.data, rtol=10e-3)
+        assert np.allclose(v.data, v1.data, rtol=10e-3)
 
     def test_catch_duplicate_from_different_clusters(self):
         """
@@ -2692,6 +2712,20 @@ class TestAliases(object):
 
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
         assert op._profiler._sections['section0'].sops == 16
+
+    def test_fusion_after_unexpansion(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqn = Eq(u.forward, u.dx + u.dy)
+
+        op = Operator(eqn, opt=('advanced', {'expand': False}))
+        print(op)
+
+        #TODO -- FIX THE OPERATION COUNT !!!!!!!!!!!!!!!!!
+        #assert op._profiler._sections['section0'].sops == 34
+        assert_structure(op, ['t,x,y,z', 't,x,y,z,i0'], 't,x,y,z,i0')
 
 
 class TestIsoAcoustic(object):

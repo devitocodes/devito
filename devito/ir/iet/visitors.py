@@ -304,11 +304,16 @@ class CGen(Visitor):
                 g = list(group)
 
                 if k in (ExpressionBundle, Section) and len(g) >= 2:
-                    # Separate consecutive Sections/ExpressionBundles with BlankLine
+                    # Separate consecutive Sections/ExpressionBundles with
+                    # BlankLine
                     for i in g[:-1]:
                         rebuilt.append(i)
                         rebuilt.append(BlankLine)
                     rebuilt.append(g[-1])
+                elif (k is Iteration and
+                      prev is ExpressionBundle and
+                      all(i.dim.is_Stencil for i in g)):
+                    rebuilt.extend(g)
                 elif prev in candidates and k in candidates:
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)

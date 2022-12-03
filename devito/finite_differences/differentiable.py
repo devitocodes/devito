@@ -579,7 +579,10 @@ class Weights(Array):
         assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
         assert isinstance(weights, (list, tuple, np.ndarray))
 
-        self._spacings = set().union(*[i.find(Spacing) for i in weights])
+        try:
+            self._spacings = set().union(*[i.find(Spacing) for i in weights])
+        except AttributeError:
+            self._spacing = set()
 
         kwargs['scope'] = 'constant'
 
