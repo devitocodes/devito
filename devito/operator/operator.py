@@ -355,7 +355,6 @@ class Operator(Callable):
         clusters = cls._specialize_clusters(clusters, **kwargs)
 
         # Operation count after specialization
-        #TODO: extend estimate_cost to parse StencilDimension correctly
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
         try:
             profiler.record_ops_variation(init_ops, final_ops)

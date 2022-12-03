@@ -18,7 +18,7 @@ from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               Keyword, SizeOf, estimate_cost, pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Scalar, Array, Symbol
+from devito.types import Array, Scalar, Symbol
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -225,6 +225,11 @@ def test_pow_to_mul(expr, expected):
     ('Eq(t0, ffp)', 0, True),
     ('Eq(t0, ffp + 1.)', 1, True),
     ('Eq(t0, ffp + ffp)', 1, True),
+    # W/ StencilDimensions
+    ('Eq(fb, fd.dx)', 10, False),
+    ('Eq(fb, fd.dx)', 10, True),
+    ('Eq(fb, fd.dx._evaluate(expand=False))', 10, False),
+    ('Eq(fb, fd.dx.dy + fa.dx)', 66, False),
 ])
 def test_estimate_cost(expr, expected, estimate):
     # Note: integer arithmetic isn't counted
@@ -241,6 +246,7 @@ def test_estimate_cost(expr, expected, estimate):
     fa = Function(name='fa', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fb = Function(name='fb', grid=grid, shape=(4,), dimensions=(x,))  # noqa
     fc = Function(name='fc', grid=grid)  # noqa
+    fd = Function(name='fd', grid=grid, space_order=4)  # noqa
     foo = lambda *args: DefFunction('foo', tuple(args))  # noqa
     k = Keyword('k')  # noqa
     ffp = FieldFromPointer('size', fa._C_symbol)  # noqa
@@ -2730,7 +2736,7 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 140
+        assert summary0[('section1', None)].ops == 148
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31
