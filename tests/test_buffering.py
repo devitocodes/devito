@@ -483,6 +483,38 @@ def test_conddim_backwards():
     assert np.all(v.data == v1.data)
 
 
+def test_conddim_backwards_multi_slots():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+    time_dim = grid.time_dim
+    x, y = grid.dimensions
+
+    factor = Constant(name='factor', value=2, dtype=np.int32)
+    time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(u.save):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.backward, v + u.backward + u + u.forward + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 3
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    op0.apply(time_m=1, time_M=9)
+    op1.apply(time_m=1, time_M=9, v=v1)
+
+    assert np.all(v.data == v1.data)
+
+
 def test_conddim_backwards_unstructured():
     nt = 10
     grid = Grid(shape=(4, 4))

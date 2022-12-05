@@ -9,7 +9,7 @@ from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
                        lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
-from devito.symbolics import retrieve_function_carriers, uxreplace
+from devito.symbolics import IntDiv, retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, Stamp, as_tuple,
                           filter_ordered, flatten, is_integer, timed_pass)
 from devito.types import Array, CustomDimension, Dimension, Eq, ModuloDimension
@@ -676,24 +676,32 @@ def offset_from_centre(d, indices):
         offset = 0
 
     else:
-        # E.g., `time/factor-1` and `time/factor+1` present among the
-        # indices in `index_mapper`, but not `time/factor`. We reconstruct
-        # `time/factor` -- the starting pointing at time_m or time_M
         assert len(indices) > 0
-        v = indices[0]
+
+        p = None
+        for i in indices:
+            if i in d._defines or isinstance(i, IntDiv):
+                p = i
+                break
+
+        if p is None:
+            # E.g., `time/factor-1` and `time/factor+1` present among the
+            # indices in `index_mapper`, but not `time/factor`. We reconstruct
+            # `time/factor` -- the starting pointing at time_m or time_M
+            v = indices[0]
+            try:
+                p = sum(v.args[1:])
+                if not ((p - v).is_Integer or (p - v).is_Symbol):
+                    raise ValueError
+            except (IndexError, ValueError):
+                raise NotImplementedError("Cannot apply buffering with nonlinear "
+                                          "index functions (found `%s`)" % v)
 
         try:
-            p = sum(v.args[1:])
-            if not ((p - v).is_Integer or (p - v).is_Symbol):
-                raise ValueError
-        except (IndexError, ValueError):
-            raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                      "index functions (found `%s`)" % v)
-        try:
-            # Start assuming e.g. `list(m) = [time - 1, time + 2]`
+            # Start assuming e.g. `indices = [time - 1, time + 2]`
             offset = p - min(indices)
         except TypeError:
-            # Actually, e.g. `list(m) = [time/factor - 1, time/factor + 2]`
+            # Actually, e.g. `indices = [time/factor - 1, time/factor + 2]`
             offset = p - vmin(*[Vector(i) for i in indices])[0]
 
     return p, offset
