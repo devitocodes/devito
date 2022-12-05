@@ -125,7 +125,7 @@ class BaseGuardBoundNext(Guard):
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p0` up to the nearest multiple of `v`
+                # Round `p0 + 1` up to the nearest multiple of `v`
                 p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
             else:
                 p0 = p0 + 1
@@ -136,12 +136,12 @@ class BaseGuardBoundNext(Guard):
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p1` down to the nearest sub-multiple of `v`
-                # NOTE: we use FLOAT(d.factor) to make sure we don't drop negative
-                # values on the floor. E.g., `iteration=time - 1`, `v=2`, then when
-                # `time=0` we want the Mul to evaluate to -1, not to 0, which is
-                # what C's integer division would give us
-                p1 = Mul(((p1 - 1) / FLOAT(v)), v, evaluate=False)
+                # Round `p1 - 1` down to the nearest sub-multiple of `v`
+                # NOTE: we use ABS to make sure we handle negative values properly.
+                # Once `p1 - 1` is negative (e.g. `iteration=time - 1` and `time=0`),
+                # as long as we get a negative number, rather than 0 and even if it's
+                # not `-v`, we0re good
+                p1 = (p1 - 1) - abs(p1 - 1) % v
             else:
                 p1 = p1 - 1
 
