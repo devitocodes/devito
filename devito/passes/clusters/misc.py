@@ -103,7 +103,7 @@ class Fusion(Queue):
     def _make_key_hook(self, cgroup, level):
         assert level > 0
         assert len(cgroup.guards) == 1
-        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.ispace[:level-1]),)
+        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.ispace[:level]),)
 
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
@@ -253,17 +253,11 @@ class Fusion(Queue):
                 rule = lambda i: i.is_cross
                 scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
 
-                # Optimization: we exploit the following property:
-                # no prefix => (edge <=> at least one (any) dependence)
-                # to jump out of this potentially expensive loop as quickly as possible
-                if not prefix and any(scope.d_all_gen()):
-                    dag.add_edge(cg0, cg1)
-
                 # Anti-dependences along `prefix` break the execution flow
                 # (intuitively, "the loop nests are to be kept separated")
                 # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
                 # * All ClusterGroups after `cg1` cannot precede `cg1`
-                elif any(i.cause & prefix for i in scope.d_anti_gen()):
+                if any(i.cause & prefix for i in scope.d_anti_gen()):
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
                         dag.add_edge(cg2, cg1)
                     for cg2 in cgroups[cgroups.index(cg1)+1:]:
