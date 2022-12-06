@@ -4,7 +4,7 @@ import numpy as np
 from sympy import And, Or
 import pytest
 
-from conftest import assert_blocking, skipif, opts_tiling
+from conftest import assert_blocking, assert_structure, skipif, opts_tiling
 from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
@@ -13,7 +13,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
-from devito.types import Array
+from devito.types import Array, Symbol
 
 
 class TestBufferedDimension(object):
@@ -1407,6 +1407,33 @@ class TestConditionalDimension(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 3
         assert trees[1][1].nodes[0].is_Conditional
+
+    def test_diff_guards_halts_topofuse(self):
+        grid = Grid(shape=(4,))
+        time = grid.time_dim
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+        s2 = Symbol(name='s2')
+
+        cd0 = ConditionalDimension(name='cd0', parent=time, condition=Ge(time, 2))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        eqns = [
+            Eq(s0, time, implicit_dims=(cd0,)),
+            Eq(s1, time, implicit_dims=(cd0,)),
+            Eq(f, s0 + s1, implicit_dims=(cd0,)),
+            Eq(s2, time),
+            Eq(g, s2)
+        ]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        assert_structure(op, ['t', 't,x', 't,x'], 't,x,x')
 
 
 class TestCustomDimension(object):
