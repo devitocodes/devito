@@ -153,6 +153,7 @@ void foo()
   for (int i = 0; i <= 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
+
     for (int j = 0; j <= 5; j += 1)
     {
       for (int k = 0; k <= 7; k += 1)
@@ -286,6 +287,7 @@ def test_transformer_replace_function_body(block1, block2):
   for (int i = 0; i <= 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
+
     for (int j = 0; j <= 5; j += 1)
     {
       for (int k = 0; k <= 7; k += 1)

@@ -93,14 +93,10 @@ class BasicOperator(Operator):
     The supported MPI modes.
     """
 
-    INDEX_MODE = "int32"
+    INDEX_MODE = "int64"
     """
-    The type of the expression used to compute array indices. Either `int32`
-    (default) or `int64`. `int64` should be used for big problems producing
-    extremely large indices, such as when problems with >> 10**9 grid points are
-    executed, and without the help of domain decomposition. The compiler uses
-    heuristics to enforce `int64` when indexing into objects that are known to
-    be particularly big in terms of data points.
+    The type of the expression used to compute array indices. Either `int64`
+    (default) or `int32`.
     """
 
     _Target = None

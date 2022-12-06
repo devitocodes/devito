@@ -30,59 +30,6 @@ def test_basic():
     assert np.all(u.data == u1.data)
 
 
-def test_pointer_split():
-    """
-    Unlike `test_basic`, here we use a 3D grid, which triggers the `split_pointers`
-    pass before linearization.
-    """
-    grid = Grid(shape=(16, 16, 16))
-
-    u = TimeFunction(name='u', grid=grid)
-    u1 = TimeFunction(name='u', grid=grid)
-
-    eqn = Eq(u.forward, u + 1)
-
-    op0 = Operator(eqn)
-    op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
-
-    # Check generated code
-    assert 'uL0' not in str(op0)
-    assert 'uL0' in str(op1)
-    assert 'uL1' in str(op1)
-    exprs = FindNodes(Expression).visit(op1)[-3:-1]
-    assert str(exprs[0]) == 'float * ut0 = &(u[t0]);'
-    assert str(exprs[1]) == 'float * ut1 = &(u[t1]);'
-
-    op0.apply(time_M=10)
-    op1.apply(time_M=10, u=u1)
-    from IPython import embed; embed()
-
-    assert np.all(u.data == u1.data)
-
-
-def Atest_pointer_split_forbidden():
-    grid = Grid(shape=(16, 16, 16))
-
-    u = TimeFunction(name='u', grid=grid, save=10)
-    u1 = TimeFunction(name='u', grid=grid, save=10)
-    from IPython import embed; embed()
-
-    eqn = Eq(u.forward, u + 1)
-
-    #op0 = Operator(eqn)
-    op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
-    from IPython import embed; embed()
-
-    # Check generated code
-    assert 'uL0' not in str(op0)
-    assert 'uL0' in str(op1)
-
-    op0.apply(time_M=10)
-    op1.apply(time_M=10, u=u1)
-
-    assert np.all(u.data == u1.data)
-
-
 @pytest.mark.parallel(mode=[(1, 'basic'), (1, 'diag2'), (1, 'full')])
 def test_mpi():
     grid = Grid(shape=(4, 4))
@@ -342,7 +289,8 @@ def test_strides_forwarding0():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Since `f` is passed via `f.indexed`, we expect the stride exprs to be
     # lifted in `foo` and then passed down to `bar` as arguments
@@ -371,7 +319,8 @@ def test_strides_forwarding1():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Despite `a` is passed via `a.indexed`, and since it's an Array (which
     # have symbolic shape), we expect the stride exprs to be placed in `bar`,
@@ -417,7 +366,8 @@ def test_strides_forwarding2():
     graph.efuncs['foo0'] = foo0
     graph.efuncs['foo1'] = foo1
 
-    linearize(graph, lmode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root
@@ -456,14 +406,17 @@ def test_strides_forwarding3():
     graph = Graph(root)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root
     bar = graph.efuncs['bar']
 
     assert root.body.body[0].write.name == 'y_fsz0'
+    assert root.body.body[0].write.dtype is np.int64
     assert root.body.body[2].write.name == 'y_stride0'
+    assert root.body.body[2].write.dtype is np.int64
 
     assert bar.parameters[1].name == 'y_stride0'
 
