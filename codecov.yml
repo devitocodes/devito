@@ -21,3 +21,8 @@ coverage:
 
 ignore:
   - "**/*.ipynb"
+  - docs
+  - docker
+  - binder
+  - .github
+  - .git
