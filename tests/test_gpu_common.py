@@ -435,6 +435,37 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    def test_streaming_fused(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+            vsave.data[i, :] = i
+
+        eqns = [Eq(u.forward, u + usave + vsave),
+                Eq(v.forward, v + usave + vsave)]
+
+        op = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
+
+        # Check generated code
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write is u
+        assert trees[0][-1].nodes[0].body[1].write is v
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[0] == 56)
+        assert np.all(v.data[0] == 56)
+        assert np.all(u.data[1] == 72)
+        assert np.all(v.data[1] == 72)
+
     @pytest.mark.parametrize('opt', [
         ('buffering', 'streaming', 'orchestrate'),
     ])

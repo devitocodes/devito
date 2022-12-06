@@ -120,20 +120,21 @@ class Fusion(Queue):
 
         # Fusion
         processed = []
-        for k, g in groupby(clusters, key=self._key):
-            maybe_fusible = list(g)
+        for k, group in groupby(clusters, key=self._key):
+            g = list(group)
 
-            if len(maybe_fusible) == 1:
-                processed.extend(maybe_fusible)
-            else:
-                try:
-                    # Perform fusion
-                    fused = Cluster.from_clusters(*maybe_fusible)
-                    processed.append(fused)
-                except ValueError:
-                    # We end up here if, for example, some Clusters have same
-                    # iteration Dimensions but different (partial) orderings
+            for maybe_fusible in self._apply_heuristics(g):
+                if len(maybe_fusible) == 1:
                     processed.extend(maybe_fusible)
+                else:
+                    try:
+                        # Perform fusion
+                        fused = Cluster.from_clusters(*maybe_fusible)
+                        processed.append(fused)
+                    except ValueError:
+                        # We end up here if, for example, some Clusters have same
+                        # iteration Dimensions but different (partial) orderings
+                        processed.extend(maybe_fusible)
 
         return [ClusterGroup(processed, prefix)]
 
@@ -152,7 +153,11 @@ class Fusion(Queue):
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if isinstance(s, (FetchUpdate, PrefetchUpdate)):
+                    if (isinstance(s, (FetchUpdate, PrefetchUpdate)) or
+                        (not self.fusetasks and isinstance(s, WaitLock))):
+                        # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
+                        # be fused, as in the worst case scenario the WaitLocks
+                        # get "hoisted" above the first Cluster in the sequence
                         continue
                     elif (isinstance(s, (WaitLock, ReleaseLock)) or
                           (self.fusetasks and isinstance(s, WithLock))):
@@ -160,10 +165,44 @@ class Fusion(Queue):
                     else:
                         mapper[k].add(s)
                 mapper[k] = frozenset(mapper[k])
-            mapper = frozendict(mapper)
-            key += (mapper,)
+            if any(mapper.values()):
+                mapper = frozendict(mapper)
+                key += (mapper,)
 
         return key
+
+    def _apply_heuristics(self, clusters):
+        # We know at this point that `clusters` are potentially fusible since
+        # they have same `_key`, but should we actually fuse them? In most cases
+        # yes, but there are exceptions...
+
+        # 1) Consider the following scenario with three Clusters:
+        #  c0[no syncs]
+        #  c1[WaitLock]
+        #  c2[no syncs]
+        # Then we return two groups [[c0], [c1, c2]] rather than a single group
+        # [[c0, c1, c2]] because this way c0 can be computed without having to
+        # wait on a lock for a longer period
+        processed = []
+
+        group = []
+        flag = False  # True -> need to dump before creating a new group
+
+        def dump():
+            processed.append(tuple(group))
+            group[:] = []
+
+        for c in clusters:
+            if any(isinstance(i, WaitLock) for i in flatten(c.syncs.values())):
+                if flag:
+                    dump()
+                    flag = False
+            else:
+                flag = True
+            group.append(c)
+        dump()
+
+        return processed
 
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If
