@@ -483,7 +483,8 @@ def test_call_retval_indexed():
     # Emulate what the compiler would do
     graph = Graph(foo)
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
 
     foo = graph.root
 
@@ -508,7 +509,8 @@ def test_bundle():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
 
     foo = graph.root
     bar = graph.efuncs['bar']
