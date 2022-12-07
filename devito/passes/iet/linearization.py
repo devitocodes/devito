@@ -239,6 +239,8 @@ def _(f, indexeds, tracker, strides, sregistry):
             continue
 
         n = len(i.indices)
+        if n == 1:
+            continue
 
         if i.base not in headers:
             pname = sregistry.make_name(prefix='%sL' % f.name)
