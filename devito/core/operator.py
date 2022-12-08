@@ -93,6 +93,12 @@ class BasicOperator(Operator):
     The supported MPI modes.
     """
 
+    INDEX_MODE = "int64"
+    """
+    The type of the expression used to compute array indices. Either `int64`
+    (default) or `int32`.
+    """
+
     _Target = None
     """
     The target language constructor, to be specified by subclasses.

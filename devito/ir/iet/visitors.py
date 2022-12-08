@@ -206,7 +206,7 @@ class CGen(Visitor):
         """
         Generate cgen blank lines in between logical units.
         """
-        candidates = (ExpressionBundle, Iteration, Section)
+        candidates = (Expression, ExpressionBundle, Iteration, Section)
 
         processed = []
         for child in children:
@@ -800,7 +800,7 @@ class FindSymbols(Visitor):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(ret, key=lambda i: i.name)
+        return sorted(ret, key=lambda i: str(i))
 
     def visit_tuple(self, o):
         return self.Retval(*[self._visit(i) for i in o])

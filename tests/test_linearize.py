@@ -289,7 +289,8 @@ def test_strides_forwarding0():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Since `f` is passed via `f.indexed`, we expect the stride exprs to be
     # lifted in `foo` and then passed down to `bar` as arguments
@@ -318,7 +319,8 @@ def test_strides_forwarding1():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Despite `a` is passed via `a.indexed`, and since it's an Array (which
     # have symbolic shape), we expect the stride exprs to be placed in `bar`,
@@ -364,7 +366,8 @@ def test_strides_forwarding2():
     graph.efuncs['foo0'] = foo0
     graph.efuncs['foo1'] = foo1
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+              sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root
@@ -403,14 +406,17 @@ def test_strides_forwarding3():
     graph = Graph(root)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, mode=True, sregistry=SymbolRegistry())
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
     root = graph.root
     bar = graph.efuncs['bar']
 
     assert root.body.body[0].write.name == 'y_fsz0'
+    assert root.body.body[0].write.dtype is np.int64
     assert root.body.body[2].write.name == 'y_stride0'
+    assert root.body.body[2].write.dtype is np.int64
 
     assert bar.parameters[1].name == 'y_stride0'
 

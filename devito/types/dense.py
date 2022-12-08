@@ -866,6 +866,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
+
         key = args[self.name]
         if len(key.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
@@ -874,8 +875,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if key.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
+
         for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
+
+        if args.options['index-mode'] == 'int32' and \
+           args.options['linearize'] and \
+           self.size - 1 >= np.iinfo(np.int32).max:
+            raise InvalidArgument("`%s`, with its %d elements, may be too big for "
+                                  "int32 pointer arithmetic, which might cause an "
+                                  "overflow. Use the 'index-mode=int64' option"
+                                  % (self, self.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
