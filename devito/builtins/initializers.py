@@ -8,7 +8,7 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
 @dv.switchconfig(log_level='ERROR')
-def assign(f, rhs=0, options=None, name='assign', **kwargs):
+def assign(f, rhs=0, options=None, name='assign', domain_only=True, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
@@ -23,6 +23,9 @@ def assign(f, rhs=0, options=None, name='assign', **kwargs):
         be passed to Eq.
     name : str, optional
         Name of the operator.
+    domain_only : bool, optional
+        Restrict the assignment to `f`'s physical domain (True, default) or include
+        the halo as well.
 
     Examples
     --------
@@ -52,6 +55,7 @@ def assign(f, rhs=0, options=None, name='assign', **kwargs):
     """
     if not isinstance(rhs, list):
         rhs = len(as_list(f))*[rhs, ]
+
     eqs = []
     if options:
         for i, j, k in zip(as_list(f), rhs, options):
@@ -62,6 +66,17 @@ def assign(f, rhs=0, options=None, name='assign', **kwargs):
     else:
         for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
+
+    if not domain_only:
+        subs = {}
+        for d, h in zip(f.dimensions, f._size_halo):
+            if sum(h) == 0:
+                continue
+            subs[d] = dv.CustomDimension(name=d.name, parent=d,
+                                         symbolic_min=d.symbolic_min - h.left,
+                                         symbolic_max=d.symbolic_max + h.right)
+        eqs = [eq.xreplace(subs) for eq in eqs]
+
     dv.Operator(eqs, name=name, **kwargs)()
 
 
