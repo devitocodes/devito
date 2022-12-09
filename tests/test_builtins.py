@@ -25,6 +25,7 @@ class TestAssign(object):
 
         assign(f, 4)
 
+        assert not np.all(f.data_with_halo == 4)
         assert np.all(f.data == 4)
 
     def test_multiple_fns_single_scalar(self):
@@ -112,6 +113,15 @@ class TestAssign(object):
             slices.append(slice(i, j, 1))
         slices = as_tuple(slices)
         assert np.all(a[slices] - np.array(g.data[:]) == 0)
+
+    def test_single_scalar_with_halo(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        assign(f, 4, domain_only=False)
+
+        assert np.all(f.data_with_halo == 4)
 
 
 class TestGaussianSmooth(object):
