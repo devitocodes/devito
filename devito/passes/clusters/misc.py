@@ -248,10 +248,17 @@ class Fusion(Queue):
 
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
+
+            def is_cross(dep):
+                # True if a cross-ClusterGroup dependence, False otherwise
+                t0 = dep.source.timestamp
+                t1 = dep.sink.timestamp
+                v = len(cg0.exprs)
+                return t0 < v <= t1 or t1 < v <= t0
+
             for cg1 in cgroups[n+1:]:
                 # A Scope to compute all cross-ClusterGroup anti-dependences
-                rule = lambda i: i.is_cross
-                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
+                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=is_cross)
 
                 # Anti-dependences along `prefix` break the execution flow
                 # (intuitively, "the loop nests are to be kept separated")
