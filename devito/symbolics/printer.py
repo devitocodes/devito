@@ -3,8 +3,10 @@ Utilities to turn SymPy objects into C strings.
 """
 
 import numpy as np
+import sympy
 
 from mpmath.libmp import prec_to_dps, to_str
+from packaging.version import Version
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
@@ -115,6 +117,27 @@ class CodePrinter(C99CodePrinter):
         func = "abs" if is_integer else "fabs"
         return "%s(%s)" % (func, self._print(expr.args[0]))
 
+    def _print_Add(self, expr, order=None):
+        """"
+        Print an addition.
+        """
+        terms = self._as_ordered_terms(expr, order=order)
+
+        PREC = precedence(expr)
+        l = []
+        for term in terms:
+            t = self._print(term)
+            if precedence(term) < PREC:
+                l.extend(["+", "(%s)" % t])
+            elif t.startswith('-'):
+                l.extend(["-", t[1:]])
+            else:
+                l.extend(["+", t])
+        sign = l.pop(0)
+        if sign == '+':
+            sign = ""
+        return sign + ' '.join(l)
+
     def _print_Float(self, expr):
         """Print a Float in C-like scientific notation."""
         prec = expr._prec
@@ -223,3 +246,9 @@ def ccode(expr, **settings):
         the input ``expr`` itself.
     """
     return CodePrinter(settings=settings).doprint(expr, None)
+
+
+# Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
+# to always use the correct one from our printer
+if Version(sympy.__version__) >= Version("1.11"):
+    setattr(sympy.printing.str.StrPrinter, '_print_Add', CodePrinter._print_Add)
