@@ -28,8 +28,9 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     for c in clusters:
 
         exprs = []
+        seen = {}
         for e in c.exprs:
-            expr, v = _lower_index_derivatives_core(e, c, weights, sregistry)
+            expr, v = _lower_index_derivatives_core(e, c, weights, seen, sregistry)
             exprs.append(expr)
             processed.extend(v)
 
@@ -38,7 +39,7 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     return processed, weights
 
 
-def _lower_index_derivatives_core(expr, c, weights, sregistry):
+def _lower_index_derivatives_core(expr, c, weights, seen, sregistry):
     """
     Recursively carry out the core of `lower_index_derivatives`.
     """
@@ -48,7 +49,7 @@ def _lower_index_derivatives_core(expr, c, weights, sregistry):
     args = []
     processed = []
     for a in expr.args:
-        e, clusters = _lower_index_derivatives_core(a, c, weights, sregistry)
+        e, clusters = _lower_index_derivatives_core(a, c, weights, seen, sregistry)
         args.append(e)
         processed.extend(clusters)
 
@@ -56,6 +57,22 @@ def _lower_index_derivatives_core(expr, c, weights, sregistry):
 
     if not isinstance(expr, IndexDerivative):
         return expr, processed
+
+    # Create concrete Weights and reuse them whenever possible
+    name = sregistry.make_name(prefix='w')
+    w0 = expr.weights.function
+    k = tuple(w0.weights)
+    try:
+        w = weights[k]
+    except KeyError:
+        w = weights[k] = w0._rebuild(name=name)
+    expr = uxreplace(expr, {w0.indexed: w.indexed})
+
+    # Have I seen this IndexDerivative already?
+    try:
+        return seen[expr], []
+    except KeyError:
+        pass
 
     dims = retrieve_dimensions(expr, deep=True)
     dims = tuple(filter_ordered(d for d in dims if isinstance(d, StencilDimension)))
@@ -74,15 +91,8 @@ def _lower_index_derivatives_core(expr, c, weights, sregistry):
     ispace1 = ispace.project(lambda d: d is not dims[-1])
     processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
 
-    # Create concrete Weights and reuse them whenever possible
-    name = sregistry.make_name(prefix='w')
-    w0 = expr.weights.function
-    k = tuple(w0.weights)
-    try:
-        w = weights[k]
-    except KeyError:
-        w = weights[k] = w0._rebuild(name=name)
-    expr = uxreplace(expr, {w0.indexed: w.indexed})
+    # Track IndexDerivative to avoid intra-Cluster duplicates
+    seen[expr] = s
 
     # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
     # StencilDimensions starting points

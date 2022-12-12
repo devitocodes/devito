@@ -1597,6 +1597,29 @@ class TestAliases(object):
         assert np.allclose(u.data, u1.data, rtol=10e-3)
         assert np.allclose(v.data, v1.data, rtol=10e-3)
 
+    def test_unexpanded_v3(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
+        v1 = TimeFunction(name='v', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, (u.dx.dy + v*u + 1.)),
+                Eq(v.forward, (v + u.dx.dy + 1.))]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=('advanced', {'expand': False}))
+
+        # Check generated code -- redundant IndexDerivatives have been caught!
+        op1._profiler._sections['section0'].sops == 65
+
+        op0.apply(time_M=5)
+        op1.apply(time_M=5, u=u1, v=v1)
+
+        assert np.allclose(u.data, u1.data, rtol=10e-3)
+        assert np.allclose(v.data, v1.data, rtol=10e-3)
+
     def test_catch_duplicate_from_different_clusters(self):
         """
         Check that the compiler is able to detect redundant aliases when these
