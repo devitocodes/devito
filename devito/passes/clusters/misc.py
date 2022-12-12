@@ -115,6 +115,8 @@ class Fusion(Queue):
         # Toposort to maximize fusion
         if self.toposort:
             clusters = self._toposort(cgroups, prefix)
+            if self.toposort == 'nofuse':
+                return [clusters]
         else:
             clusters = ClusterGroup(cgroups)
 
@@ -209,13 +211,13 @@ class Fusion(Queue):
         # not, do not waste time computing a new topological ordering
         counter = Counter(self._key(cg) for cg in cgroups)
         if not any(v > 1 for it, v in counter.most_common()):
-            return ClusterGroup(cgroups)
+            return ClusterGroup(cgroups, prefix)
 
         # Similarly, if all ClusterGroups have the same exact prefix and
         # use the same form of synchronization (if any at all), no need to
         # attempt a topological sorting
         if len(counter.most_common()) == 1:
-            return ClusterGroup(cgroups)
+            return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
 
@@ -237,7 +239,7 @@ class Fusion(Queue):
                 return e
             assert False
 
-        return ClusterGroup(dag.topological_sort(choose_element))
+        return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
     def _build_dag(self, cgroups, prefix):
         """
@@ -303,10 +305,27 @@ def fuse(clusters, toposort=False, options=None):
     """
     Clusters fusion.
 
-    If ``toposort=True``, then the Clusters are reordered to maximize the likelihood
-    of fusion; the new ordering is computed such that all data dependencies are honored.
+    If `toposort=True`, then the Clusters are reordered to maximize the likelihood
+    of fusion; the new ordering is computed such that all data dependencies are
+    honored.
+
+    If `toposort='maximal'`, then `toposort` is performed, iteratively, multiple
+    times to actually maximize Clusters fusion. Hence, this is more aggressive than
+    `toposort=True`.
     """
-    return Fusion(toposort, options).process(clusters)
+    if toposort != 'maximal':
+        return Fusion(toposort, options).process(clusters)
+
+    nxt = clusters
+    while True:
+        nxt = fuse(clusters, toposort='nofuse', options=options)
+        if all(c0 is c1 for c0, c1 in zip(clusters, nxt)):
+            break
+        clusters = nxt
+    clusters = fuse(clusters, toposort=False, options=options)
+
+    return clusters
+
 
 
 @cluster_pass(mode='all')

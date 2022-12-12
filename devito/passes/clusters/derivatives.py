@@ -11,11 +11,16 @@ __all__ = ['lower_index_derivatives']
 
 @timed_pass()
 def lower_index_derivatives(clusters, mode=None, **kwargs):
-    clusters = _lower_index_derivatives(clusters, **kwargs)
+    clusters, weights = _lower_index_derivatives(clusters, **kwargs)
+
+    if not weights:
+        return clusters
+
     if mode != 'noop':
-        clusters = fuse(clusters, toposort=True)
+        clusters = fuse(clusters, toposort='maximal')
 
     return clusters
+
 
 def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     processed = []
@@ -30,7 +35,7 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
 
         processed.append(c.rebuild(exprs=exprs))
 
-    return processed
+    return processed, weights
 
 
 def _lower_index_derivatives_core(expr, c, weights, sregistry):

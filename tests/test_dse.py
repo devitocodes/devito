@@ -1586,6 +1586,11 @@ class TestAliases(object):
         op0 = Operator(eqns)
         op1 = Operator(eqns, opt=('advanced', {'expand': False}))
 
+        # Check generated code -- expect maximal fusion!
+        assert_structure(op1,
+                         ['t,x,y,z', 't,x,y,z,i0', 't,x,y,z,i1', 't,x,y,z,i1,i0'],
+                         't,x,y,z,i0,i1,i0')
+
         op0.apply(time_M=5)
         op1.apply(time_M=5, u=u1, v=v1)
 
