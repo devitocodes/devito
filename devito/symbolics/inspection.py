@@ -98,11 +98,18 @@ def estimate_cost(exprs, estimate=False):
         # Also, the routine below is *much* faster than count_ops
         flops = 0
         for expr in as_tuple(exprs):
+            # TODO: this if-then should be part of singledispatch too, but because
+            # of the annoying symbolics/ vs types/ structuring, we can't do that
+            # because of circular imports...
             if expr.is_Equality:
                 e = expr.rhs
+                if expr.is_Reduction:
+                    flops += 1
             else:
                 e = expr
+
             flops += _estimate_cost(e, estimate)[0]
+
         return flops
     except:
         warning("Cannot estimate cost of `%s`" % str(exprs))
