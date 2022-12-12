@@ -1,9 +1,13 @@
-##############################################################
-# This Dockerfile contains AMD compilers
-##############################################################
+####################################################################################
+# This Dockerfile contains the AMD ROCm SDK as well as other useful tools for Devito
+####################################################################################
+ARG arch="aomp"
 ARG ROCM_VERSION=5.1.3
 
-FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete
+########################################################################
+# Build base image with apt setup and common env
+########################################################################
+FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -11,8 +15,22 @@ ARG ROCM_VERSION
 ENV rocm=/opt/rocm-${ROCM_VERSION}
 ENV AOMP=/opt/rocm-${ROCM_VERSION}/llvm
 
+# Bring in cmake3.19 apt repo
+RUN apt-get update && \
+    apt-get install -y wget software-properties-common && \
+    wget https://apt.kitware.com/keys/kitware-archive-latest.asc && \
+    apt-key add kitware-archive-latest.asc && \
+    apt-add-repository 'deb https://apt.kitware.com/ubuntu/ bionic main'
+
 # Some utils needed
-RUN apt-get update && apt-get install -y wget git autoconf dh-autoreconf flex python3-venv python3-dev vim libnuma1 tmux
+# * lmod required to source Omniperf via `module use`
+RUN apt-get update && \
+    apt-get install -y git autoconf dh-autoreconf flex \
+        python3-venv python3-dev vim lmod cmake libnuma1 tmux
+
+# MongoDB utils is ultimately used by Omniperf
+RUN wget https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2004-x86_64-100.6.1.deb && \
+    apt install ./mongodb-database-tools-ubuntu2004-x86_64-100.6.1.deb
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -45,10 +63,51 @@ ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
 ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
 ENV OMPI_CC=$AOMP/bin/clang
 
-# Devito env
+# Install Omnitrace, an AMDResearch profiling tool akin to Nvidia's Nsight-systems
+ENV OMNITRACE_DIR=/opt/omnitrace
+RUN wget https://github.com/AMDResearch/omnitrace/releases/download/v1.7.3/omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh -q && \
+    chmod +x omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh && \
+    mkdir -p ${OMNITRACE_DIR} && \
+    ./omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh --prefix=${OMNITRACE_DIR} --exclude-subdir --skip-license && \
+    rm omnitrace-1.7.3-ubuntu-20.04-ROCm-50100-PAPI-OMPT-Python3.sh
+
+# Install Omniperf, an AMDResearch profiling tool akin to Nvidia's Nsight-compute
+ENV OMNIPERF_DIR=/opt/omniperf
+RUN wget https://github.com/AMDResearch/omniperf/releases/download/v1.0.4/omniperf-1.0.4.tar.gz -q
+RUN tar xfz omniperf-1.0.4.tar.gz && \
+    cd omniperf-1.0.4/ && \
+    mkdir -p ${OMNIPERF_DIR} && \
+    python3 -m pip install -t ${OMNIPERF_DIR}/python-libs -r requirements.txt && \
+    mkdir build && cd build/ && \
+    cmake -DCMAKE_INSTALL_PREFIX=${OMNIPERF_DIR}/1.0.4 -DPYTHON_DEPS=${OMNIPERF_DIR}/python-libs -DMOD_INSTALL_PATH=${OMNIPERF_DIR}/modulefiles .. && \
+    make install && \
+    rm -rf omniperf-1.0.4.tar.gz omniperf-1.0.4/
+ENV PYTHONPATH ${OMNIPERF_DIR}/python-libs:${PYTHONPATH}
+
+# This will only trigger if arch is aomp since the final stage depends on it
+########################################################################
+# AOMP for GPUs via OpenMP config
+########################################################################
+FROM sdk-base as aomp
+
 ENV DEVITO_ARCH="aomp"
 ENV DEVITO_PLATFORM="amdgpuX"
 ENV DEVITO_LANGUAGE="openmp"
+
+# This will only trigger if arch is hip since the final stage depends on it
+########################################################################
+# HIPCC for GPUs via HIP config
+########################################################################
+FROM sdk-base as hip
+
+ENV DEVITO_ARCH="hip"
+ENV DEVITO_PLATFORM="amdgpuX"
+ENV DEVITO_LANGUAGE="hip"
+
+########################################################################
+# Final image
+########################################################################
+FROM ${arch} as final
 
 RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
