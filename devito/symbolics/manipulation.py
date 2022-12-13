@@ -223,7 +223,20 @@ def pow_to_mul(expr):
             posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
             return Pow(posexpr, -1, evaluate=False)
     else:
-        return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
+        args = [pow_to_mul(i) for i in expr.args]
+
+        # Some SymPy versions will evaluate the two-args case
+        # `(negative integer, mul)` despite the `evaluate=False`. For example,
+        # `Mul(-2, a*a, evaluate=False)` gets evaluated to `-2/a**2`. By swapping
+        # the args, the issue disappears...
+        try:
+            a0, a1 = args
+            if a0.is_Number and a0 < 0:
+                args = [a1, a0]
+        except ValueError:
+            pass
+
+        return expr.func(*args, evaluate=False)
 
 
 AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
