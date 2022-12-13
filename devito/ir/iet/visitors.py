@@ -255,8 +255,10 @@ class CGen(Visitor):
             pass
 
         try:
-            if obj.initvalue is not None and obj.initvalue.is_numeric and level == 2:
-                value = c.Initializer(value, ListInitializer(obj.initvalue))
+            if obj.initvalue is not None and level == 2:
+                init = ListInitializer(obj.initvalue)
+                if not obj._mem_constant or init.is_numeric:
+                    value = c.Initializer(value, ccode(init))
         except AttributeError:
             pass
 

@@ -505,7 +505,7 @@ class TestAliases(object):
 
     def get_arrays(self, iet):
         return [i for i in FindSymbols().visit(iet)
-                if i.is_Array and not isinstance(i, Weights)]
+                if i.is_Array and i._mem_heap]
 
     def check_array(self, array, exp_halo, exp_shape, rotate=False):
         assert len(array.dimensions) == len(exp_halo)
@@ -1530,7 +1530,7 @@ class TestAliases(object):
         # Check generated code
         for op in [op0, op1]:
             xs, ys, zs = self.get_params(op, 'x_size', 'y_size', 'z_size')
-            arrays = self.get_arrays(op)
+            arrays = [i for i in self.get_arrays(op) if i._mem_heap]
             assert len(arrays) == 1
             self.check_array(arrays[0], ((2, 2), (0, 0), (0, 0)), (xs+4, ys, zs))
 

@@ -20,7 +20,7 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
                               ListInitializer, SizeOf, VOID, Keyword, pow_to_mul,
                               ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceMap, DeviceRM, Symbol
+from devito.types import Array, DeviceMap, DeviceRM, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -114,18 +114,23 @@ class DataManager(object):
         except AttributeError:
             return
 
-        initvalue = np.array(obj.initvalue)
+        # Create input array
+        name = '%s_init' % obj.name
+        initvalue = np.array([pow_to_mul(i) for i in obj.initvalue])
+        src = Array(name=name, dtype=obj.dtype, dimensions=obj.dimensions,
+                    space='host', scope='stack', initvalue=initvalue)
 
+        # Copy input array into global array
         name = self.sregistry.make_name(prefix='init_global')
-        body = []
-        for i in product(*[range(s) for s in obj.shape]):
-            body.append(
-                self.lang['alloc-global-symbol'](obj[i], pow_to_mul(initvalue[i]))
-            )
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        body = [Definition(src),
+                self.lang['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
         efunc = make_callable(name, body)
         alloc = Call(name, efunc.parameters)
 
         storage.update(obj, site, allocs=alloc, efuncs=efunc)
+
+        return self.lang['header-memcpy']
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -349,13 +354,16 @@ class DataManager(object):
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
         # Handle postponed global objects
-        if isinstance(iet, EntryFunction):
+        includes = set()
+        if isinstance(iet, EntryFunction) and globs:
             for i in globs:
-                self._alloc_array_on_global_mem(iet, i, storage)
+                includes.add(self._alloc_array_on_global_mem(iet, i, storage))
 
         iet, efuncs = self._inject_definitions(iet, storage)
 
-        return iet, {'efuncs': efuncs, 'globals': tuple(globs)}
+        return iet, {'efuncs': efuncs,
+                     'globals': as_tuple(globs),
+                     'includes': as_tuple(includes)}
 
     @iet_pass
     def place_casts(self, iet, **kwargs):
