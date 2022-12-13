@@ -640,6 +640,8 @@ class CGen(Visitor):
 
         # Global variables
         globs = self._operator_globals(o, mode)
+        if globs:
+            globs.append(blankline)
 
         return c.Module(headers + includes + typedecls + globs +
                         esigns + [blankline, kernel] + efuncs)
