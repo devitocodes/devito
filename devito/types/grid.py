@@ -16,7 +16,7 @@ from devito.types.dense import Function
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     SteppingDimension, SubDimension)
 
-__all__ = ['Grid', 'SubDomain', 'SubDomainSet']
+__all__ = ['Grid', 'SubDomain', 'SubDomainSet', 'MultiSubDimension']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')

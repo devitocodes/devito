@@ -12,7 +12,8 @@ from devito.logger import warning
 from devito.symbolics import IntDiv, retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, Stamp, as_tuple,
                           filter_ordered, flatten, is_integer, timed_pass)
-from devito.types import Array, CustomDimension, Dimension, Eq, ModuloDimension
+from devito.types import (Array, CustomDimension, Dimension, Eq, ModuloDimension,
+                          MultiSubDimension)
 
 __all__ = ['buffering']
 
@@ -179,6 +180,17 @@ class Buffering(Queue):
 
             elif b.is_write and init_onwrite:
                 dims = b.buffer.dimensions
+
+                # Special case 1: avoid initialization if not strictly necessary
+                if any(isinstance(d, MultiSubDimension) for d in dims):
+                    continue
+                # Special case 2: no need in the case of double buffering
+                try:
+                    if isinstance(b.lastwrite.rhs.function, Array):
+                        continue
+                except AttributeError:
+                    pass
+
                 lhs = b.buffer.indexify()
                 rhs = 0
 
