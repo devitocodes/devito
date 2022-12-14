@@ -216,8 +216,8 @@ class Buffering(Queue):
                 lhs = b.indexed[[b.lastmap.get(d, Map(d, d)).b for d in dims]]
                 rhs = b.function[[b.lastmap.get(d, Map(d, d)).f for d in dims]]
 
-                expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
-                ispace = b.written
+                expr = lower_exprs(Eq(lhs, rhs))
+                ispace = b.readfrom
                 properties = c.properties.sequentialize(d)
 
                 processed.append(
@@ -554,6 +554,23 @@ class Buffer(object):
         intervals = IntervalGroup(intervals, relations=relations)
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    @cached_property
+    def readfrom(self):
+        """
+        The `readfrom` IterationSpace, that is the iteration space that must be
+        iterated over to update the buffer with the buffered Function values.
+        """
+        cdims = set().union(*[d._defines
+                              for d in flatten(self.contraction_mapper.items())])
+
+        ispace0 = self.written.project(lambda d: d in cdims)
+        ispace1 = self.writeto.project(lambda d: d not in cdims)
+
+        extra = (ispace0.itdimensions + ispace1.itdimensions,)
+        ispace = IterationSpace.union(ispace0, ispace1, relations=extra)
+
+        return ispace
 
     @cached_property
     def lastmap(self):
