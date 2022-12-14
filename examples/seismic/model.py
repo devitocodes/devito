@@ -133,7 +133,8 @@ class GenericModel(object):
         # First initialization
         init = self.damp is None
         # Get current Function if alread yinitialized
-        self.damp = self.damp or Function(name="damp", grid=self.grid, space_order=0)
+        self.damp = self.damp or Function(name="damp", grid=self.grid,
+                                          space_order=self.space_order)
         if callable(bcs):
             bcs(self.damp, self.nbl)
         else:
