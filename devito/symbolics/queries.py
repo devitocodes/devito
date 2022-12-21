@@ -1,6 +1,7 @@
-from sympy import Eq, Mod, S, diff, nan
+from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import IntDiv
+from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
+                                             IndexedPointer, IntDiv)
 from devito.tools import as_tuple, is_integer
 
 
@@ -15,6 +16,7 @@ __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xo
 # * Number
 # * Symbol
 # * Indexed
+extra_leaves = (FieldFromPointer, FieldFromComposite, IndexedBase)
 
 
 def q_symbol(expr):
@@ -25,7 +27,7 @@ def q_symbol(expr):
 
 
 def q_leaf(expr):
-    return expr.is_Atom or expr.is_Indexed
+    return expr.is_Atom or expr.is_Indexed or isinstance(expr, extra_leaves)
 
 
 def q_indexed(expr):
@@ -38,7 +40,9 @@ def q_function(expr):
 
 
 def q_terminal(expr):
-    return expr.is_Symbol or expr.is_Indexed
+    return (expr.is_Symbol or
+            expr.is_Indexed or
+            isinstance(expr, extra_leaves + (IndexedPointer,)))
 
 
 def q_routine(expr):

@@ -53,6 +53,7 @@ class DeviceOperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
+        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -77,6 +78,7 @@ class DeviceOperatorMixin(object):
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
+        o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -179,7 +181,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, **kwargs)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
@@ -193,7 +195,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         cls._Target.DataManager(sregistry, options).process(graph)
 
         # Linearize n-dimensional Indexeds
-        linearize(graph, mode=options['linearize'], sregistry=sregistry)
+        linearize(graph, **kwargs)
 
         return graph
 
@@ -258,8 +260,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'orchestrate': partial(orchestrator.process),
             'pthreadify': partial(pthreadify, sregistry=sregistry),
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, mode=options['linearize'],
-                                 sregistry=sregistry),
+            'linearize': partial(linearize, **kwargs),
             'prodders': partial(hoist_prodders),
             'init': partial(parizer.initialize, options=options)
         }

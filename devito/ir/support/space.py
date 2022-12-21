@@ -1,7 +1,6 @@
 import abc
 from collections import OrderedDict
 from functools import reduce
-from itertools import chain
 from operator import mul
 
 from cached_property import cached_property
@@ -544,43 +543,31 @@ Any = IterationDirection('*')
 """Wildcard direction (both '++' and '--' would be OK)."""
 
 
-class IterationInterval(object):
+class IterationInterval(Interval):
 
     """
-    An Interval associated with an IterationDirection.
+    An Interval associated with metadata.
     """
 
     def __init__(self, interval, sub_iterators, direction):
-        self.interval = interval
+        super().__init__(interval.dim, *interval.offsets, stamp=interval.stamp)
         self.sub_iterators = sub_iterators
         self.direction = direction
 
     def __repr__(self):
-        return "%s%s" % (self.interval, self.direction)
+        return "%s%s" % (super().__repr__(), self.direction)
 
     def __eq__(self, other):
         if not isinstance(other, IterationInterval):
             return False
-        return self.direction is other.direction and self.interval == other.interval
+        return self.direction is other.direction and super().__eq__(other)
 
     def __hash__(self):
-        return hash((self.interval, self.direction))
+        return hash((self.dim, self.offsets, self.direction))
 
     @property
     def args(self):
-        return (self.interval, self.sub_iterators, self.direction)
-
-    @property
-    def dim(self):
-        return self.interval.dim
-
-    @property
-    def offsets(self):
-        return self.interval.offsets
-
-    @property
-    def size(self):
-        return self.interval.size
+        return (self, self.sub_iterators, self.direction)
 
 
 class Space(object):
@@ -752,22 +739,30 @@ class IterationSpace(Space):
         return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
                      self.directions))
 
+    def __contains__(self, d):
+        try:
+            self[d]
+            return True
+        except KeyError:
+            return False
+
     def __getitem__(self, key):
-        retval = self.intervals[key]
+        v = self.intervals[key]
         if isinstance(key, slice):
-            return self.project(lambda d: d in retval.dimensions)
+            return self.project(lambda d: d in v.dimensions)
         else:
-            return retval
+            d = v.dim
+            return IterationInterval(v, self.sub_iterators[d], self.directions[d])
 
     @classmethod
-    def union(cls, *others, relations=None):
+    def generate(self, op, *others, relations=None):
         if not others:
             return IterationSpace(IntervalGroup())
         elif len(others) == 1:
             return others[0]
 
-        intervals = IntervalGroup.generate('union', *[i.intervals for i in others],
-                                           relations=relations)
+        intervals = [i.intervals for i in others]
+        intervals = IntervalGroup.generate(op, *intervals, relations=relations)
 
         directions = {}
         for i in others:
@@ -777,8 +772,8 @@ class IterationSpace(Space):
                     directions[k] = v
                 elif v is not Any:
                     # Clash detected
-                    raise ValueError("Cannot compute the union of `IterationSpace`s "
-                                     "with incompatible directions")
+                    raise ValueError("Cannot compute %s of `IterationSpace`s "
+                                     "with incompatible directions" % op)
 
         sub_iterators = {}
         for i in others:
@@ -787,6 +782,14 @@ class IterationSpace(Space):
                 ret.extend([d for d in v if d not in ret])
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    @classmethod
+    def union(cls, *others, relations=None):
+        return cls.generate('union', *others, relations=relations)
+
+    @classmethod
+    def intersection(cls, *others, relations=None):
+        return cls.generate('intersection', *others, relations=relations)
 
     def index(self, key):
         return self.intervals.index(key)
@@ -892,12 +895,6 @@ class IterationSpace(Space):
         return (self.intervals.is_compatible(other.intervals) and
                 self.nonderived_directions == other.nonderived_directions)
 
-    def is_forward(self, dim):
-        return self.directions[dim] is Forward
-
-    def is_sub_iterator(self, dim):
-        return dim in chain(*self.sub_iterators.values())
-
     @property
     def itdimensions(self):
         return self.intervals.dimensions
@@ -916,9 +913,7 @@ class IterationSpace(Space):
 
     @cached_property
     def itintervals(self):
-        return tuple(IterationInterval(
-            i, self.sub_iterators.get(i.dim), self.directions[i.dim]
-        ) for i in self.intervals)
+        return tuple(self[d] for d in self.itdimensions)
 
     @cached_property
     def dimensions(self):

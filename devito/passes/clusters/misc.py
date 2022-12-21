@@ -103,10 +103,10 @@ class Fusion(Queue):
     def _make_key_hook(self, cgroup, level):
         assert level > 0
         assert len(cgroup.guards) == 1
-        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.itintervals[:level-1]),)
+        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.ispace[:level-1]),)
 
     def process(self, clusters):
-        cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
+        cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
         clusters = ClusterGroup.concatenate(*cgroups)
         return clusters
@@ -140,7 +140,7 @@ class Fusion(Queue):
     def _key(self, c):
         # Two Clusters/ClusterGroups are fusion candidates if their key is identical
 
-        key = (frozenset(c.itintervals), c.guards)
+        key = (frozenset(c.ispace.itintervals), c.guards)
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
@@ -294,7 +294,7 @@ class Fission(Queue):
             return clusters
 
         # Do not waste time if definitely nothing to do
-        if all(len(prefix) == len(c.itintervals) for c in clusters):
+        if all(len(prefix) == len(c.ispace) for c in clusters):
             return clusters
 
         # Analyze and abort if fissioning would break a dependence
@@ -330,7 +330,7 @@ class Fission(Queue):
             index = len(prefix)
             dims = tuple(i.dim for i in prefix)
 
-            it = c.itintervals[index]
+            it = c.ispace[index]
             guards = frozendict({d: v for d, v in c.guards.items() if d in dims})
 
             return (it, guards)

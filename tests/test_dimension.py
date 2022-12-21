@@ -10,7 +10,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           retrieve_iteration_tree)
+                           FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
 from devito.types import Array
 
@@ -44,6 +44,44 @@ class TestBufferedDimension(object):
         # g is time 15 to 21 (loop twice the 7 buffer then 15->21)
         for i in range(7):
             assert np.allclose(g.data[i], 14+i+1)
+
+    @pytest.mark.parametrize('time_order', [1, 2, 5])
+    def test_modulo_dims_generation(self, time_order):
+        grid = Grid((3, 3))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name="f", grid=grid, save=Buffer(2), time_order=time_order)
+
+        # Irrespective of time_order -- Buffer takes precedence
+        assert f.shape == (2, 3, 3)
+
+        op = Operator([Eq(f[t+1, x, y], f + f[t-1, x, y] + 1)])
+
+        # Check that only *two*, and not three (t-1, t, t+1)  ModuloDimensions
+        # have been generated
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 2
+
+        op(time_M=3)
+        assert np.all(f.data[0] == 4)
+        assert np.all(f.data[1] == 2)
+
+    def test_modulo_dims_generation_v2(self):
+        grid = Grid((3, 3))
+
+        f = TimeFunction(name="f", grid=grid, save=Buffer(5))
+
+        op = Operator([Eq(f.forward, f + f.backward + 1)])
+
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 3
+
+        op(time_M=3)
+
+        # NOTE: default is time_m=1, hence the first written entry is f.data[2]
+        assert np.all(f.data[0:2] == 0)
+        assert np.all(f.data[2] == 1)
+        assert np.all(f.data[3] == 2)
+        assert np.all(f.data[4] == 4)
 
 
 class TestSubDimension(object):

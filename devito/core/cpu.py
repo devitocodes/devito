@@ -42,6 +42,7 @@ class Cpu64OperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
+        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 
@@ -64,6 +65,7 @@ class Cpu64OperatorMixin(object):
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
+        o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
@@ -165,7 +167,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, **kwargs)
 
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
@@ -180,7 +182,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         cls._Target.DataManager(sregistry).process(graph)
 
         # Linearize n-dimensional Indexeds
-        linearize(graph, mode=options['linearize'], sregistry=sregistry)
+        linearize(graph, **kwargs)
 
         return graph
 
@@ -254,12 +256,11 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'denormals': avoid_denormals,
-            'blocking': partial(relax_incr_dimensions),
+            'blocking': partial(relax_incr_dimensions, **kwargs),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, mode=options['linearize'],
-                                 sregistry=sregistry),
+            'linearize': partial(linearize, **kwargs),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
             'init': partial(parizer.initialize, options=options)

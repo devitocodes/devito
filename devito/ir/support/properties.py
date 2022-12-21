@@ -81,6 +81,13 @@ could be separated into three one-dimensional iteration spaces
       c c
 """
 
+INBOUND = Property('inbound')
+"""
+A Dimension defining an iteration space that is guaranteed to generate in-bounds
+array accesses, typically through the use of custom conditionals in the body. This
+is used for iteration spaces that are larger than the data space.
+"""
+
 
 def normalize_properties(*args):
     if not args:
@@ -130,8 +137,33 @@ class Properties(frozendict):
             m[d] = set(self[d]) | set(as_tuple(properties))
         return Properties(m)
 
+    def drop(self, dims, properties=None):
+        m = dict(self)
+        for d in as_tuple(dims):
+            if properties is None:
+                m.pop(d)
+            else:
+                m[d] = self[d] - set(as_tuple(properties))
+        return Properties(m)
+
     def sequentialize(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = normalize_properties(self[d], {SEQUENTIAL})
         return Properties(m)
+
+    def inbound(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = set(m[d]) | {INBOUND}
+        return Properties(m)
+
+    def is_parallel(self, dims):
+        return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
+                   for d in as_tuple(dims))
+
+    def is_affine(self, dims):
+        return any(AFFINE in self.get(d, ()) for d in as_tuple(dims))
+
+    def is_inbound(self, dims):
+        return any(INBOUND in self.get(d, ()) for d in as_tuple(dims))

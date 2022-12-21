@@ -15,8 +15,8 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 class TimeAxis(object):
     """
     Data object to store the TimeAxis. Exactly three of the four key arguments
-    must be prescribed. Because of remainder values it is not possible to create
-    a TimeAxis that exactly adhears to the inputs therefore start, stop, step
+    must be prescribed. Because of remainder values, it is not possible to create
+    a TimeAxis that exactly adheres to the inputs; therefore, start, stop, step
     and num values should be taken from the TimeAxis object rather than relying
     upon the input values.
 
@@ -180,7 +180,7 @@ Shot = PointSource
 class WaveletSource(PointSource):
 
     """
-    Abstract base class for symbolic objects that encapsulate a set of
+    Abstract base class for symbolic objects that encapsulates a set of
     sources with a pre-defined source signal wavelet.
 
     Parameters
@@ -248,7 +248,7 @@ class WaveletSource(PointSource):
 class RickerSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined Ricker wavelet:
 
     http://subsurfwiki.org/wiki/Ricker_wavelet
@@ -280,7 +280,7 @@ class RickerSource(WaveletSource):
 class GaborSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined Gabor wavelet:
 
     https://en.wikipedia.org/wiki/Gabor_wavelet
@@ -313,7 +313,7 @@ class GaborSource(WaveletSource):
 class DGaussSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined 1st derivative wavelet of a Gaussian Source.
 
     Notes

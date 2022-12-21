@@ -1,111 +1,131 @@
-=============
-Obtain Devito
-=============
+===========================
+Download and Install Devito
+===========================
 
-There are three main approaches to installing Devito. For those looking for the
-least-friction way to try Devito, we recommend the Docker route. For those
-looking to use Devito alongside other packages as part of a project, we support
-pip installation. If you're looking to develop for Devito, you might benefit from
-using the included conda environment that includes all the bells and whistles we
-recommend when developing for Devito.
+There are two main approaches to installing Devito.
 
-Docker installation
+- `Docker`_, for those looking for the least-friction way to try Devito
+- `Virtual environment`_, for those looking to use Devito as part of a project alongside other packages
+
+Docker
+------
+
+For detailed installation instructions and information on the Devito Docker image library please follow 
+the docker/README.md_
+
+.. _README.md: https://github.com/devitocodes/devito/tree/master/docker#readme
+
+
+Virtual environment
 -------------------
-You can install and run Devito via Docker_:
 
-.. _Docker: https://www.docker.com/  
+venv route
+``````````
 
-.. code-block:: shell
+Devito is available as a `pip package`_ in PyPI.
 
-   # get the code
-   git clone https://github.com/devitocodes/devito.git
-   cd devito
+Create a `Python virtual environment`_
 
-   # 1. run the tests
-   docker-compose run devito /tests
-
-   # 2. start a jupyter notebook server on port 8888
-   docker-compose up devito
-
-   # 3. start a bash shell with devito
-   docker-compose run devito /bin/bash
-
-The three sample commands above have only been included as illustrations of typical
-uses of Devito inside a container. They are not required to be run in that order.
-
-1. Command 1 above runs the unit tests included with Devito to check whether the
-installation succeeded. This is not necessary but a handy first thing to run. As
-long as the first few tests are passing, it is possible to press `Ctrl+C` to stop
-the testing and continue.
-
-2. Command 2 starts a Jupyter_ notebook server inside the
-docker container and forwards the port to `http://localhost:8888`.
-After running this command, you can copy-paste the complete URL from the terminal window where
-the command was run - to a browser to open a jupyter session to try out the included
-tutorials. Alternatively, you may simply point your browser to `http://localhost:8888`
-and, if prompted for a password, copy-paste the authentication token from the command
-window. Once successfully in the Jupyter notebook session, proceed to run the tutorials
-provided in the `examples` folder or create your own notebooks. 
-
-3. Command 3 above starts a bash (command-line) shell with Devito loaded into the
-environment. Essentially, it means that any python code run after this command will
-see devito when doing imports like `from devito import Function`. Any code using
-Devito can be executed using this method.
-
-Issues? Ask us for help on Slack_. Also look at our list of known
-installation issues_.
-
-.. _Jupyter: https://jupyter.org/
-
-Pip installation
-----------------
-This is the recommended method when setting up Devito as part of a larger project
-that uses Devito among other python packages. To install Devito using `pip`, simply
-do:
-
+.. _Python virtual environment: https://docs.python.org/3/library/venv.html
 
 .. code-block:: shell
 
-   pip install --user git+https://github.com/devitocodes/devito.git
+  python3 -m venv <your_venv_name>
+
+Source the newly created `venv`. This needs to be repeated each time a new terminal is open.
+
+.. code-block:: shell
+
+  source <your_venv_name>/bin/activate
 
 
-to install. Note that you don't need to get the code
-using git first in this method. 
+To install the `latest Devito release`_ along with any additional dependencies, follow:
+
+.. code-block:: shell
+
+   pip install devito
+   # ...or to install additional dependencies:
+   # pip install devito[extras,mpi,nvidia]
+
+.. _latest Devito release: https://pypi.org/project/devito/#history
+
+To install the latest Devito development version, without the tutorials, follow:
+
+.. code-block:: shell
+
+   pip install git+https://github.com/devitocodes/devito.git
+   # ...or to install additional dependencies:
+   # pip install git+https://github.com/devitocodes/devito.git#egg=project[extras,mpi,nvidia]
+
+Additional dependencies:
+
+- extras : optional dependencies for Jupyter notebooks, plotting, benchmarking
+- mpi : optional dependencies for MPI (mpi4py)
+- nvidia : optional dependencies for targetting GPU deployment
+
+.. _pip package: https://pypi.org/project/devito/
+
+Note that here, you do not need to get the code via `git clone`.
 Depending on your needs, this might also be the recommended setup for using Devito
-in a production-like environment. However, since some of the components need to be
+in a production-like environment. However, since some components need to be
 compiled before use, this approach may be sensitive to the C/C++ compilers present
-on your system and the related environment including what other packages you might
+on your system and the related environment, including what other packages you might
 have installed.
 
-If you are facing any issues, we are happy to help on Slack_. Also look at our list of known
-installation issues_.
 
-Conda Environment
------------------
-If your objective is to contribute to and develop for Devito, the recommended way would
-be to use the included conda environment that also installs an appropriate C compiler
-along with all the bells and whistles we felt were necessary when developing for Devito.
-Please install either Anaconda_ or Miniconda_ using the instructions
-provided at the download links. You will need the Python 3 version.
-
-To install Devito, including examples, tests and tutorial notebooks,
-follow these:
-
-.. code-block:: shell
-
-   git clone https://github.com/devitocodes/devito.git
-   cd devito
-   conda env create -f environment-dev.yml
-   source activate devito
-   pip install -e .
-
-If you are facing any issues, we are happy to help on Slack_. Also look at our list of known
-installation issues_.
-
-.. _issues: https://github.com/devitocodes/devito/wiki/Installation-Issues  
-
-.. _Slack: https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg
+conda route
+```````````
+Please install either Anaconda_ or Miniconda_.
 
 .. _Anaconda: https://www.continuum.io/downloads
 
 .. _Miniconda: https://conda.io/miniconda.html
+
+.. _Python virtual environment: https://docs.python.org/3/library/venv.html
+
+.. _Conda environment: https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/environments.html
+
+.. code-block:: shell
+
+   # Create new env with the name devito
+   conda create --name devito
+   # Activate the environment
+   conda activate devito
+
+and finally, install Devito along with any extra dependencies:
+
+.. code-block:: shell
+
+   pip install devito
+   # ... or to install additional dependencies
+   # pip install devito[extras,mpi,nvidia]
+
+
+For developers
+``````````````
+First clone Devito:
+
+.. code-block:: shell
+
+   git clone https://github.com/devitocodes/devito.git
+   cd devito
+
+and then install the requirements in your virtual environment (venv or conda):
+
+.. code-block:: shell
+
+   # Install requirements
+   pip install -e .
+   # ...or to install additional dependencies
+   # pip install -e .[extras,mpi,nvidia]
+
+
+Facing issues?
+--------------
+
+If you are facing any issues, we are happy to help on Slack_. Also, have a look at our
+list of known installation issues_.
+
+.. _issues: https://github.com/devitocodes/devito/wiki/Installation-Issues
+
+.. _Slack: https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg

@@ -22,7 +22,7 @@ from devito.types.misc import VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'QueueID']
+           'NPThreads', 'DeviceRM', 'QueueID', 'Barrier']
 
 
 class NThreadsBase(Scalar):
@@ -277,3 +277,12 @@ class QueueID(Symbol):
         kwargs['name'] = 'qid'
         kwargs.setdefault('is_const', True)
         return super().__new__(cls, *args, **kwargs)
+
+
+class Barrier(object):
+
+    """
+    Mixin class for symbolic objects representing thread barriers.
+    """
+
+    pass

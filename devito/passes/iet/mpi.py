@@ -80,7 +80,7 @@ def _hoist_halospots(iet):
 
     def rule1(dep, candidates, loc_dims):
         # A reduction isn't a stopper to hoisting
-        return dep.write.is_reduction
+        return dep.write is not None and dep.write.is_reduction
 
     hoist_rules = [rule0, rule1]
 
@@ -94,8 +94,8 @@ def _hoist_halospots(iet):
         for hs in halo_spots:
             hsmapper[hs] = hs.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
-                loc_dims = frozenset().union([q for d in loc_indices
+            for f, v in hs.fmapper.items():
+                loc_dims = frozenset().union([q for d in v.loc_indices
                                               for q in d._defines])
 
                 for n, i in enumerate(iters):
@@ -148,8 +148,9 @@ def _merge_halospots(iet):
 
     def rule1(dep, hs, loc_indices):
         # TODO This is apparently never hit, but feeling uncomfortable to remove it
-        return dep.is_regular and all(not any(dep.read.touched_halo(d.root))
-                                      for d in dep.cause)
+        return (dep.is_regular and
+                dep.read is not None and
+                all(not any(dep.read.touched_halo(d.root)) for d in dep.cause))
 
     def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
@@ -172,10 +173,10 @@ def _merge_halospots(iet):
         for hs in halo_spots[1:]:
             mapper[hs] = hs.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
+            for f, v in hs.fmapper.items():
                 test = True
                 for dep in scope.d_flow.project(f):
-                    if any(rule(dep, hs, loc_indices) for rule in merge_rules):
+                    if any(rule(dep, hs, v.loc_indices) for rule in merge_rules):
                         continue
                     test = False
                     break

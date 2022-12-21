@@ -27,7 +27,7 @@ jobs:
       matrix:
         name: [
            pytest-ubuntu-py37-gcc5-omp,
-           pytest-ubuntu-py38-gcc6-omp,
+           pytest-ubuntu-py38-gcc12-omp,
            pytest-ubuntu-py36-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py38-gcc8-omp,
@@ -45,10 +45,10 @@ jobs:
           language: "openmp"
           sympy: "1.7"
 
-        - name: pytest-ubuntu-py38-gcc6-omp
+        - name: pytest-ubuntu-py38-gcc12-omp
           python-version: '3.8'
-          os: ubuntu-18.04
-          arch: "gcc-6"
+          os: ubuntu-22.04
+          arch: "gcc-12"
           language: "openmp"
           sympy: "1.8"
 
@@ -71,7 +71,7 @@ jobs:
           os: ubuntu-18.04
           arch: "gcc-8"
           language: "openmp"
-          sympy: "1.7"
+          sympy: "1.11"
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
@@ -99,7 +99,7 @@ jobs:
           os: ubuntu-18.04
           arch: "icc"
           language: "openmp"
-          sympy: "1.9"
+          sympy: "1.11"
 
         - set: base
           test-set: 'not adjoint'

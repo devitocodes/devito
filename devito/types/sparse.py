@@ -459,11 +459,12 @@ class SparseFunction(AbstractSparseFunction):
             # Only retain the local data region
             if coordinates is not None:
                 coordinates = np.array(coordinates)
-            self._coordinates = SubFunction(name='%s_coords' % self.name, parent=self,
-                                            dtype=self.dtype, dimensions=dimensions,
-                                            shape=(self.npoint, self.grid.dim),
-                                            space_order=0, initializer=coordinates,
-                                            distributor=self._distributor)
+            self._coordinates = SubFunction(
+                name='%s_coords' % self.name, parent=self, dtype=self.dtype,
+                dimensions=dimensions, shape=(self.npoint, self.grid.dim),
+                space_order=0, initializer=coordinates, alias=self.alias,
+                distributor=self._distributor
+            )
             if self.npoint == 0:
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after

@@ -126,12 +126,12 @@ class CodeSymbol(object):
         """
         The type qualifiers of the object in the generated code.
         """
-        known_qualifiers = ('is_const', 'is_volatile')
-        qualifiers = []
-        for i in known_qualifiers:
-            if getattr(self, i, False):
-                qualifiers.append(i.split('_')[1])
-        return as_tuple(qualifiers)
+        mapper = {
+            'is_const': 'const',
+            'is_volatile': 'volatile',
+            'is_shared': '__shared__',
+        }
+        return tuple(v for k, v in mapper.items() if getattr(self, k, False))
 
     @property
     def _C_typedecl(self):
@@ -427,7 +427,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _evaluate(self, **kwargs):
         return self
 
-    def indexify(self):
+    def indexify(self, indices=None):
         return self
 
     @property

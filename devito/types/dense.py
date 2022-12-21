@@ -83,7 +83,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
         self._allocator = kwargs.get('allocator') or default_allocator()
         initializer = kwargs.get('initializer')
-        if initializer is None or callable(initializer):
+        if initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
         elif isinstance(initializer, (np.ndarray, list, tuple)):
@@ -118,7 +118,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         def wrapper(self):
             if self._data is None:
                 if self._alias:
-                    raise TypeError("Aliasing Functions cannot allocate data")
+                    # Aliasing Functions must not allocate data
+                    return
 
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
@@ -865,6 +866,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
+
         key = args[self.name]
         if len(key.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
@@ -873,8 +875,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if key.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
+
         for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
+
+        if args.options['index-mode'] == 'int32' and \
+           args.options['linearize'] and \
+           self.size - 1 >= np.iinfo(np.int32).max:
+            raise InvalidArgument("`%s`, with its %d elements, may be too big for "
+                                  "int32 pointer arithmetic, which might cause an "
+                                  "overflow. Use the 'index-mode=int64' option"
+                                  % (self, self.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self

@@ -81,7 +81,8 @@ class Array(ArrayBasic):
     is_Array = True
 
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
-                   ('dimensions', 'liveness', 'space', 'scope', 'initvalue'))
+                   ('dimensions', 'liveness', 'space', 'scope', 'is_shared',
+                    'initvalue'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -103,6 +104,9 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static']
+
+        # Qualifiers
+        self._is_shared = kwargs.get('is_shared', False)
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -187,6 +191,10 @@ class Array(ArrayBasic):
     @property
     def _mem_heap(self):
         return self._scope == 'heap'
+
+    @property
+    def is_shared(self):
+        return self._is_shared
 
     @property
     def initvalue(self):

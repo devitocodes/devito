@@ -12,13 +12,28 @@ FROM ${pyversion}-slim-bullseye as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
-# nodesource: nvdashboard requires nodejs>=10  
-RUN echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
-RUN apt-get update -y && apt-get install -y -q apt-utils curl wget vim
+RUN apt-get update -y && apt-get install -y -q gpg apt-utils curl wget vim libnuma1 tmux
+
+# nodesource: nvdashboard requires nodejs>=10
+RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
+RUN echo 'deb [trusted=yes, signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' | tee /etc/apt/sources.list.d/nvhpc.list
+RUN apt-key update *&& apt-get update -y
+
+# Install tmpi
+RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install nvhpc. `nvhpc` is the alias for the latest avaialble version
 ARG ver=nvhpc
-RUN apt-get install -y -q ${ver}
+# We use the standard apt-get for the default latest nvhpc. For earlier version, apt has a bug that it will always
+# install the latest nvhpc-x-y no matter which version nvhpc-x-z is requested which would double (extra 10Gb) the size of the image.
+# So for specific version we directly download the specific deb and install it.
+RUN if [ "$ver" = "nvhpc" ]; then \
+        apt-get install -y -q ${ver}; \
+    else \
+        export year=$(echo $ver | cut -d "-" -f 2) && export minor=$(echo $ver | cut -d "-" -f 3) && \
+        wget https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64/nvhpc-20${year}_${year}.${minor}_amd64.deb && \
+        apt-get install --allow-unauthenticated -y -q ./nvhpc-20${year}_${year}.${minor}_amd64.deb; \
+    fi;
 
 RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y -q \
