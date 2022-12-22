@@ -1,7 +1,8 @@
-from collections import ChainMap
+from collections import ChainMap, defaultdict
 from itertools import product
 from functools import singledispatch
 
+from cached_property import cached_property
 import numpy as np
 import sympy
 from sympy.core.add import _addsort
@@ -9,11 +10,12 @@ from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
-from cached_property import cached_property
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
-from devito.tools import as_tuple, filter_ordered, flatten, is_integer, split
-from devito.types import Array, DimensionTuple, Evaluable, Spacing, StencilDimension
+from devito.tools import (as_tuple, filter_ordered, flatten, frozendict, is_integer,
+                          split)
+from devito.types import (Array, DimensionTuple, Evaluable, Indexed, Spacing,
+                          StencilDimension)
 
 __all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
 
@@ -562,6 +564,25 @@ class IndexSum(DifferentiableOp):
     @property
     def free_symbols(self):
         return super().free_symbols - set(self.dimensions)
+
+    @cached_property
+    def mapper(self):
+        """
+        Map StencilDimensions (used to express the underlying derivative) to
+        the Dimensions they iterate over.
+        """
+        ret = defaultdict(set)
+        for indexed in self.find(Indexed):
+            f = indexed.function
+            if not f.is_DiscreteFunction:
+                continue
+
+            for d, i in zip(f.dimensions, indexed.indices):
+                for sd in self.dimensions:
+                    if sd in i.free_symbols:
+                        ret[d].add(sd)
+
+        return frozendict(ret)
 
 
 class Weights(Array):
