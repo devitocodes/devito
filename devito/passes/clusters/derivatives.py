@@ -25,16 +25,24 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
 def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     processed = []
     weights = {}
+
+    def dump(exprs):
+        if exprs:
+            processed.append(c.rebuild(exprs=exprs))
+            exprs[:] = []
+
     for c in clusters:
 
         exprs = []
         seen = {}
         for e in c.exprs:
             expr, v = _lower_index_derivatives_core(e, c, weights, seen, sregistry)
+            if v:
+                dump(exprs)
             exprs.append(expr)
             processed.extend(v)
 
-        processed.append(c.rebuild(exprs=exprs))
+        dump(exprs)
 
     return processed, weights
 
