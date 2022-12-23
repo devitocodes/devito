@@ -87,6 +87,10 @@ def _lower_index_derivatives_core(expr, c, weights, seen, sregistry):
 
     dims = tuple(reversed(dims))
 
+    # If a StencilDimension already appears in `c.ispace`, perhaps with its custom
+    # upper and lower offsets, we honor it
+    dims = tuple(d for d in dims if d not in c.ispace)
+
     intervals = [Interval(d, 0, 0) for d in dims]
     ispace0 = IterationSpace(intervals)
 
