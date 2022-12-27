@@ -134,7 +134,7 @@ class Properties(frozendict):
     def add(self, dims, properties):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = set(self[d]) | set(as_tuple(properties))
+            m[d] = set(self.get(d, [])) | set(as_tuple(properties))
         return Properties(m)
 
     def drop(self, dims, properties=None):
@@ -149,13 +149,13 @@ class Properties(frozendict):
     def sequentialize(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = normalize_properties(self[d], {SEQUENTIAL})
+            m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
         return Properties(m)
 
     def inbound(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = set(m[d]) | {INBOUND}
+            m[d] = set(m.get(d, [])) | {INBOUND}
         return Properties(m)
 
     def is_parallel(self, dims):
