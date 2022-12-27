@@ -356,7 +356,7 @@ class DataManager(object):
         # Handle postponed global objects
         includes = set()
         if isinstance(iet, EntryFunction) and globs:
-            for i in globs:
+            for i in sorted(globs, key=lambda f: f.name):
                 includes.add(self._alloc_array_on_global_mem(iet, i, storage))
 
         iet, efuncs = self._inject_definitions(iet, storage)
