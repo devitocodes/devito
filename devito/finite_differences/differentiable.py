@@ -571,6 +571,7 @@ class IndexSum(DifferentiableOp):
         Map StencilDimensions (used to express the underlying derivative) to
         the Dimensions they iterate over.
         """
+        #TODO: we may want to get this by construction...
         ret = defaultdict(set)
         for indexed in self.find(Indexed):
             f = indexed.function
@@ -582,7 +583,10 @@ class IndexSum(DifferentiableOp):
                     if sd in i.free_symbols:
                         ret[d].add(sd)
 
-        return frozendict(ret)
+        # Sanity check
+        assert all(len(v) == 1 for v in ret.values())
+
+        return frozendict({d: v.pop() for d, v in ret.items()})
 
 
 class Weights(Array):
