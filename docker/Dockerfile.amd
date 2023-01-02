@@ -4,8 +4,8 @@
 
 ARG arch="aomp"
 
-ARG ROCM_VERSION=5.1.3
-FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete as sdk-base
+ARG ROCM_VERSION=5.4
+FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
