@@ -16,8 +16,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import (GenericVisitor, as_tuple, ctypes_vector_mapper,
-                          filter_ordered, filter_sorted, flatten, is_external_ctype)
+from devito.tools import (GenericVisitor, as_tuple, filter_ordered, filter_sorted,
+                          flatten, is_external_ctype)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -772,7 +772,6 @@ class FindSymbols(Visitor):
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
-        - `writs`: Collect all written objects
         - `defines`: Collect all defined objects
         - `defines-aliases`: Collect all defined objects and their aliases
     """

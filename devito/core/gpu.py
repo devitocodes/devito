@@ -2,7 +2,6 @@ from functools import partial
 
 import numpy as np
 
-from devito.arch.compiler import compiler_registry
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile

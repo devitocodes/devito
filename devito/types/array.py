@@ -9,7 +9,6 @@ from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper)
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import CustomDimension
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle']
@@ -495,7 +494,6 @@ class Bundle(ArrayBasic):
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
 
-    #TODO: TRY DROPPING THESE!
     _C_structname = ArrayMapped._C_structname
     _C_field_data = ArrayMapped._C_field_data
     _C_field_nbytes = ArrayMapped._C_field_nbytes
@@ -513,7 +511,7 @@ class ComponentAccess(Expr, Reconstructable):
 
     _component_names = ('x', 'y', 'z', 'w')
 
-    __rkwargs__ =  ('index',)
+    __rkwargs__ = ('index',)
 
     def __new__(cls, arg, index=0, **kwargs):
         if not arg.is_Indexed:

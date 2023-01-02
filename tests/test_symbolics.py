@@ -266,7 +266,6 @@ def test_cast():
 
 
 def test_symbolic_printing():
-    a = Symbol('a')
     b = Symbol('b')
 
     v = CallFromPointer('foo', 's') + b

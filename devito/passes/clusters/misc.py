@@ -153,8 +153,8 @@ class Fusion(Queue):
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if (isinstance(s, (FetchUpdate, PrefetchUpdate)) or
-                        (not self.fusetasks and isinstance(s, WaitLock))):
+                    if isinstance(s, (FetchUpdate, PrefetchUpdate)) or \
+                       (not self.fusetasks and isinstance(s, WaitLock)):
                         # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence

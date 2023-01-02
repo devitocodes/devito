@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 from cgen import Struct, Value, dtype_to_ctype as cgen_dtype_to_ctype
 
-__all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',
+__all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p',
@@ -81,18 +81,18 @@ def dtype_to_mpitype(dtype):
     return {np.ubyte: 'MPI_BYTE',
             np.ushort: 'MPI_UNSIGNED_SHORT',
             np.int32: 'MPI_INT',
-            int2: 'MPI_INT',
-            int3: 'MPI_INT',
-            int4: 'MPI_INT',
+            int2: 'MPI_INT',  # noqa
+            int3: 'MPI_INT',  # noqa
+            int4: 'MPI_INT',  # noqa
             np.float32: 'MPI_FLOAT',
-            float2: 'MPI_FLOAT',
-            float3: 'MPI_FLOAT',
-            float4: 'MPI_FLOAT',
+            float2: 'MPI_FLOAT',  # noqa
+            float3: 'MPI_FLOAT',  # noqa
+            float4: 'MPI_FLOAT',  # noqa
             np.int64: 'MPI_LONG',
             np.float64: 'MPI_DOUBLE',
-            double2: 'MPI_DOUBLE',
-            double3: 'MPI_DOUBLE',
-            double4: 'MPI_DOUBLE'}[dtype]
+            double2: 'MPI_DOUBLE',  # noqa
+            double3: 'MPI_DOUBLE',  # noqa
+            double4: 'MPI_DOUBLE'}[dtype]  # noqa
 
 
 def dtype_len(dtype):

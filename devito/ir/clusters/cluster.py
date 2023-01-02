@@ -9,7 +9,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                DataSpace, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs)
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, dtype_len, flatten, frozendict
+from devito.tools import as_tuple, flatten, frozendict
 
 __all__ = ["Cluster", "ClusterGroup"]
 

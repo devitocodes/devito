@@ -7,7 +7,7 @@ of the compiler to express the conditions under which a certain object
 from sympy import Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, CondNe, FLOAT
+from devito.symbolics import CondEq, CondNe
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
@@ -140,7 +140,7 @@ class BaseGuardBoundNext(Guard):
                 # NOTE: we use ABS to make sure we handle negative values properly.
                 # Once `p1 - 1` is negative (e.g. `iteration=time - 1` and `time=0`),
                 # as long as we get a negative number, rather than 0 and even if it's
-                # not `-v`, we0re good
+                # not `-v`, we're good
                 p1 = (p1 - 1) - abs(p1 - 1) % v
             else:
                 p1 = p1 - 1
