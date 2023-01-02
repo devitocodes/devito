@@ -472,7 +472,7 @@ class AOMPCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(AOMPCompiler, self).__init__(*args, **kwargs)
 
-        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags += ['-v', '-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
@@ -623,7 +623,7 @@ class HipCompiler(Compiler):
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.extend(['-std=c++14', '-fPIC'])
+        self.cflags.extend(['-v', '-std=c++14', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
