@@ -565,29 +565,6 @@ class IndexSum(DifferentiableOp):
     def free_symbols(self):
         return super().free_symbols - set(self.dimensions)
 
-    @cached_property
-    def mapper(self):
-        """
-        Map StencilDimensions (used to express the underlying derivative) to
-        the Dimensions they iterate over.
-        """
-        #TODO: we may want to get this by construction...
-        ret = defaultdict(set)
-        for indexed in self.find(Indexed):
-            f = indexed.function
-            if not f.is_DiscreteFunction:
-                continue
-
-            for d, i in zip(f.dimensions, indexed.indices):
-                for sd in self.dimensions:
-                    if sd in i.free_symbols:
-                        ret[d].add(sd)
-
-        # Sanity check
-        assert all(len(v) == 1 for v in ret.values())
-
-        return frozendict({d: v.pop() for d, v in ret.items()})
-
 
 class Weights(Array):
 
@@ -650,6 +627,29 @@ class IndexDerivative(IndexSum):
     @property
     def weights(self):
         return self._weights
+
+    @cached_property
+    def mapper(self):
+        """
+        Map StencilDimensions (used to express the underlying derivative) to
+        the Dimensions they iterate over.
+        """
+        #TODO: we may want to get this by construction...
+        ret = defaultdict(set)
+        for indexed in self.find(Indexed):
+            f = indexed.function
+            if not f.is_DiscreteFunction:
+                continue
+
+            for d, i in zip(f.dimensions, indexed.indices):
+                for sd in self.dimensions:
+                    if sd in i.free_symbols:
+                        ret[d].add(sd)
+
+        # Sanity check
+        assert all(len(v) == 1 for v in ret.values())
+
+        return frozendict({d: v.pop() for d, v in ret.items()})
 
     def _evaluate(self, **kwargs):
         expr = super()._evaluate(**kwargs)
