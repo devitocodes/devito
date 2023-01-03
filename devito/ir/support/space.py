@@ -841,6 +841,10 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def translate(self, d, v0=0, v1=None):
+        intervals = self.intervals.translate(d, v0, v1)
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
+
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)
 
