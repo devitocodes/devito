@@ -638,13 +638,13 @@ class IndexDerivative(IndexSum):
         ret = defaultdict(set)
         for indexed in self.find(Indexed):
             f = indexed.function
-            if not f.is_DiscreteFunction:
+            if isinstance(f, Weights):
                 continue
 
             for d, i in zip(f.dimensions, indexed.indices):
                 for sd in self.dimensions:
                     if sd in i.free_symbols:
-                        ret[d].add(sd)
+                        ret[d.root].add(sd)
 
         # Sanity check
         assert all(len(v) == 1 for v in ret.values())
