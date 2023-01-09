@@ -737,6 +737,30 @@ class TestDependenceAnalysis(object):
         v = scope.d_flow.pop()
         assert v.function is s1
 
+    def test_array_shared(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a = Array(name='a', dimensions=(x, y), halo=((2, 2), (2, 2)), scope='shared')
+        s = Symbol(name='s')
+
+        exprs = [Eq(a[x, y], 1), Eq(s, a[x, y-2] + a[x, y+2])]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        # There *seems* to be a WAR here, but the fact that `a` is thread-shared
+        # ensures that is not the case
+        # There is instead a RAW -- no surprises here
+        assert len(scope.d_all) == len(scope.d_flow) == 2
+        assert scope.d_flow.pop().function is a
+
+        # If the reads lexicographically precede the writes, then instead it really
+        # is a WAR
+        exprs = [Eq(s, a[x, y-2] + a[x, y+2]), Eq(a[x, y], 1)]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_anti) == 2
+        assert scope.d_anti.pop().function is a
+
 
 class TestParallelismAnalysis(object):
 

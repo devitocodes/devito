@@ -335,7 +335,11 @@ class TimedAccess(IterationInstance, AccessMode):
             ai = sai
             fi = self.findices[n]
 
-            if not ai or ai._defines & sit.dim._defines:
+            if self.function._mem_shared:
+                # Special case: the distance between two regular, thread-shared
+                # objects fallbacks to zero, as any other value would be nonsensical.
+                ret.append(S.Zero)
+            elif not ai or ai._defines & sit.dim._defines:
                 # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)` and `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
