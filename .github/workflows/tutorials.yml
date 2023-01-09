@@ -39,7 +39,7 @@ jobs:
 
           - name: tutos-osx-gcc-py37
             os: macos-latest
-            compiler: gcc-9
+            compiler: gcc-11
             language: "openmp"
 
           - name: tutos-osx-clang-py37
