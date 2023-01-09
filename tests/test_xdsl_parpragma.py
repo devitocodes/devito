@@ -31,7 +31,7 @@ def test_example():
                                          ], ("y_m", "y_M", "1"), "y_loop",
                                          Block.
                                          from_callable([i32], lambda y: [
-                                             cst1 := Constant.from_int_constant(1, i32),
+                                             cst1 := Constant.from_int_and_width(1, i32),
                                              x1 := Addi.get(x, cst1),
                                              y1 := Addi.get(y, cst1),
                                              ut0 := Idx.get(u, t0),

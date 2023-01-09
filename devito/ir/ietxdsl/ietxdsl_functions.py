@@ -90,7 +90,7 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, Integer):
         constant = int(expr.evalf())
-        arg = Constant.from_int_constant(constant, i32)
+        arg = Constant.from_int_and_width(constant, i32)
         # arg = Constant.get(constant)
         arg_by_expr[expr] = arg
         result.append(arg)
