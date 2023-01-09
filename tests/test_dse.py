@@ -2533,6 +2533,37 @@ class TestAliases(object):
         op = Operator(eqn, opt=('advanced', {'cire-mingain': 1}))
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 2
 
+    def test_invariants_with_conditional(self):
+        factor = 4
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        time_dim = grid.time_dim
+
+        fd = DefaultDimension(name='fd', default_value=2)
+        f = Function(name='f', dimensions=(fd,), shape=(2,))
+        g = Function(name='g', grid=grid)
+
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        uf = Function(name='uf', grid=grid, space_order=2, dimensions=(fd, x, y),
+                      shape=(2, 10, 10))
+
+        # Standard case
+        eqn = Eq(u, u - (cos(time_sub * factor * f) * uf))
+
+        op = Operator(eqn, opt='advanced')
+        assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
+        # Make sure it compiles
+        op.cfunction
+
+        # Check hoisting for time invariant
+        eqn = Eq(u, u - (cos(time_sub * factor * f) * sin(g) * uf))
+
+        op = Operator(eqn, opt='advanced')
+        assert_structure(op, ['x,y', 't', 't,fd', 't,fd,x,y'], 'x,y,t,fd,x,y')
+        # Make sure it compiles
+        op.cfunction
+
     def test_hoisting_pow_one(self):
         """
         MFE for issue #1614.
