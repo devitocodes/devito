@@ -1,24 +1,44 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" />
+  <meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
   <title>Finite-difference approximations &mdash; Devito v4.6.2</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-    <link rel="shortcut icon" href="_static/devito_logo.png"/>
+  
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
         <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/jquery.js"></script>
-        <script src="_static/underscore.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="_static/doctools.js"></script>
         <script src="_static/sphinx_highlight.js"></script>
-    <script src="_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Equation" href="equation.html" />
@@ -27,14 +47,29 @@
 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
+    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
+
+          
             <a href="index.html" class="icon icon-home"> Devito v4.6.2
-            <img src="_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+
+          
           </a>
+
+          
+            
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -42,7 +77,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://github.com/devitocodes/devito/tree/master/examples">Tutorials</a></li>
@@ -64,39 +110,81 @@
 </li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="index.html">Devito v4.6.2</a>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="userapi.html">API Reference</a></li>
-      <li class="breadcrumb-item active">Finite-difference approximations</li>
+    
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="userapi.html">API Reference</a> &raquo;</li>
+        
+      <li>Finite-difference approximations</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
+        
+          
             <a href="_sources/finite-difference.rst.txt" rel="nofollow"> View page source</a>
+          
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <section id="module-devito.finite_differences.finite_difference">
-<span id="finite-difference-approximations"></span><h1>Finite-difference approximations<a class="headerlink" href="#module-devito.finite_differences.finite_difference" title="Permalink to this heading"></a></h1>
+<span id="finite-difference-approximations"></span><h1>Finite-difference approximations<a class="headerlink" href="#module-devito.finite_differences.finite_difference" title="Permalink to this heading">¶</a></h1>
 <dl class="py function">
 <dt class="sig sig-object py" id="devito.finite_differences.finite_difference.cross_derivative">
-<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">cross_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dims</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deriv_order</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">cross_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dims</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deriv_order</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#cross_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.cross_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arbitrary-order cross derivative of a given expression.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the cross derivative is produced.</p></li>
 <li><p><strong>dims</strong> (<em>tuple</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t. which to differentiate.</p></li>
@@ -111,10 +199,10 @@ finite difference. Defaults to <cite>direct</cite>.</p></li>
 otherwise an IndexSum is returned. Defaults to True.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Cross-derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>expr-like</p>
 </dd>
 </dl>
@@ -148,10 +236,10 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 
 <dl class="py function">
 <dt class="sig sig-object py" id="devito.finite_differences.finite_difference.first_derivative">
-<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">first_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">centered[0]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">direct[1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbolic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expand</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">first_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">centered[0]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">direct[1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbolic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expand</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#first_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>First-order derivative of a given expression.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the first-order derivative is produced.</p></li>
 <li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
@@ -167,10 +255,10 @@ finite difference. Defaults to <cite>direct</cite>.</p></li>
 otherwise an IndexSum is returned. Defaults to True.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>First-order derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>expr-like</p>
 </dd>
 </dl>
@@ -215,10 +303,10 @@ The expanded form is obtained via <code class="docutils literal notranslate"><sp
 
 <dl class="py function">
 <dt class="sig sig-object py" id="devito.finite_differences.finite_difference.generate_indices">
-<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">generate_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/tools.html#generate_indices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generate_indices" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">generate_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">side</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/tools.html#generate_indices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generate_indices" title="Permalink to this definition">¶</a></dt>
 <dd><p>Indices for the finite-difference scheme.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Expression that is differentiated.</p></li>
 <li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – Dimensions w.r.t which the derivative is taken.</p></li>
@@ -229,7 +317,7 @@ finite difference. Defaults to <cite>direct</cite>.</p></li>
 <li><p><strong>x0</strong> (<em>dict</em><em> of </em><em>{Dimension: Dimension</em><em> or </em><em>Expr</em><em> or </em><em>Number}</em><em>, </em><em>optional</em>) – Origin of the scheme, ie. <cite>x</cite>, <cite>x + .5 * x.spacing</cite>, …</p></li>
 </ul>
 </dd>
-<dt class="field-even">Return type</dt>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>An IndexSet, representing an ordered list of indices.</p>
 </dd>
 </dl>
@@ -237,10 +325,10 @@ finite difference. Defaults to <cite>direct</cite>.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="devito.finite_differences.finite_difference.generic_derivative">
-<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">generic_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deriv_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">direct[1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbolic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expand</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">devito.finite_differences.finite_difference.</span></span><span class="sig-name descname"><span class="pre">generic_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fd_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deriv_order</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">matvec</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">direct[1]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">symbolic</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expand</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_differences/finite_difference.html#generic_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.finite_differences.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Arbitrary-order derivative of a given expression.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Expression for which the derivative is produced.</p></li>
 <li><p><strong>dim</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a>) – The Dimension w.r.t. which to differentiate.</p></li>
@@ -255,10 +343,10 @@ finite difference. Defaults to <cite>direct</cite>.</p></li>
 otherwise an IndexSum is returned. Defaults to True.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">deriv-order</span></code> derivative of <code class="docutils literal notranslate"><span class="pre">expr</span></code>.</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>expr-like</p>
 </dd>
 </dl>
@@ -268,30 +356,42 @@ otherwise an IndexSum is returned. Defaults to True.</p></li>
 
 
            </div>
+           
           </div>
-          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="tensortimefunction.html" class="btn btn-neutral float-left" title="TensorTimeFunction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+          <footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
         <a href="equation.html" class="btn btn-neutral float-right" title="Equation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="tensortimefunction.html" class="btn btn-neutral float-left" title="TensorTimeFunction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2016-2019, Devito.</p>
-  </div>
+    <p>
+        &#169; Copyright 2016-2019, Devito.
 
-   
+    </p>
+  </div> 
 
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

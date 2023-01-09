@@ -1,37 +1,72 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
   <title>devito.types.dimension &mdash; Devito v4.6.2</title>
-      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
   <!--[if lt IE 9]>
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/underscore.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
         <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
+    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
+
+          
             <a href="../../../index.html" class="icon icon-home"> Devito v4.6.2
-            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+
+          
           </a>
+
+          
+            
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -39,7 +74,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://github.com/devitocodes/devito/tree/master/examples">Tutorials</a></li>
@@ -47,30 +93,69 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">Devito v4.6.2</a>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">devito.types.dimension</li>
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.types.dimension</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <h1>Source code for devito.types.dimension</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
 
@@ -97,7 +182,7 @@
 
 <div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
 
 <span class="sd">    A Dimension represents a problem dimension. It is typically used to index</span>
@@ -183,7 +268,7 @@
     <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;spacing&#39;</span><span class="p">,)</span>
 
     <span class="k">def</span> <span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Equivalent to ``BasicDimension(*args, **kwargs)``.</span>
 
 <span class="sd">        Notes</span>
@@ -198,7 +283,7 @@
 
 <div class="viewcode-block" id="Dimension.class_key"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension.class_key">[docs]</a>    <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">class_key</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Overrides sympy.Symbol.class_key such that Dimensions always</span>
 <span class="sd">        preceed other symbols when printed (e.g. x + h_x, not h_x + x).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -215,27 +300,27 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol representing the physical spacing along the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol representing the physical spacing along the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_spacing</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbolic size of the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbolic size of the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol defining the minimum point of the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol defining the minimum point of the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">symbolic_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol defining the maximum point of the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol defining the maximum point of the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">symbolic_incr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The increment value while iterating over the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The increment value while iterating over the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">S</span><span class="o">.</span><span class="n">One</span>
 
     <span class="nd">@cached_property</span>
@@ -266,7 +351,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_maybe_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Could it be a distributed Dimension?&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Could it be a distributed Dimension?&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">True</span>
 
     <span class="nd">@cached_property</span>
@@ -275,11 +360,11 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Tuple of argument names introduced by the Dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Tuple of argument names introduced by the Dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alias</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A map of default argument values defined by the Dimension.</span>
 
 <span class="sd">        Parameters</span>
@@ -298,7 +383,7 @@
                 <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interval</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Produce a map of argument values after evaluating user input. If no user</span>
 <span class="sd">        input is provided, get a known value in ``args`` and adjust it so that no</span>
 <span class="sd">        out-of-bounds memory accesses will be performeed. The adjustment exploits</span>
@@ -354,7 +439,7 @@
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">loc_minv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">loc_maxv</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">interval</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Raises</span>
 <span class="sd">        ------</span>
 <span class="sd">        InvalidArgument</span>
@@ -407,7 +492,7 @@
 
 <div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">DataSymbol</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space with statically-known size.</span>
 
 <span class="sd">    Parameters</span>
@@ -447,7 +532,7 @@
 
 <div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
 
 <span class="sd">    This symbol represents a space dimension that defines the extent of</span>
@@ -469,7 +554,7 @@
 
 <div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
 
 <span class="sd">    This symbol represents a time dimension that defines the extent of time.</span>
@@ -490,7 +575,7 @@
 
 <span class="k">class</span> <span class="nc">DerivedDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space derived from a ``parent`` Dimension.</span>
 
 <span class="sd">    Parameters</span>
@@ -534,7 +619,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A DerivedDimension performs no runtime checks.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A DerivedDimension performs no runtime checks.&quot;&quot;&quot;</span>
         <span class="k">return</span>
 
 
@@ -545,7 +630,7 @@
 
 <div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
 <span class="sd">    Dimension.</span>
 
@@ -759,7 +844,7 @@
 
 <div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a non-convex iteration sub-space derived from a ``parent``</span>
 <span class="sd">    Dimension, implemented by the compiler generating conditional &quot;if-then&quot; code</span>
 <span class="sd">    within the parent Dimension&#39;s iteration space.</span>
@@ -906,7 +991,7 @@
 
 <div class="viewcode-block" id="ModuloDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ModuloDimension">[docs]</a><span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
 <span class="sd">    ``parent`` Dimension, which cyclically produces a finite range of values,</span>
 <span class="sd">    such as ``0, 1, 2, 0, 1, 2, 0, ...``.</span>
@@ -1048,7 +1133,7 @@
 
 <span class="k">class</span> <span class="nc">AbstractIncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
 <span class="sd">    ``parent`` Dimension, with one point every ``step`` points. Thus, if</span>
 <span class="sd">    ``step == k``, the dimension represents the sequence ``min, min + k,</span>
@@ -1093,7 +1178,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_depth</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The depth of `self` in the hierarchy of IncrDimensions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">len</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defines</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Incr</span><span class="p">])</span>
@@ -1153,7 +1238,7 @@
 
 <div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A concrete implementation of an AbstractIncrDimension.</span>
 
 <span class="sd">    Notes</span>
@@ -1166,7 +1251,7 @@
 
 <div class="viewcode-block" id="BlockDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.BlockDimension">[docs]</a><span class="k">class</span> <span class="nc">BlockDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol for lowering TILABLE Dimensions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1240,7 +1325,7 @@
 
 <div class="viewcode-block" id="CustomDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a><span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension defining an iteration space with known size. Unlike a DefaultDimension,</span>
 <span class="sd">    a CustomDimension provides more freedom -- the symbolic_{min,max,size} of the</span>
 <span class="sd">    # Dimension can be set at will.</span>
@@ -1338,13 +1423,13 @@
         <span class="k">return</span> <span class="p">{}</span>
 
     <span class="k">def</span> <span class="nf">_arg_check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A CustomDimension performs no runtime checks.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A CustomDimension performs no runtime checks.&quot;&quot;&quot;</span>
         <span class="k">return</span></div>
 
 
 <span class="k">class</span> <span class="nc">DynamicDimensionMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A mixin to create Dimensions producing non-const Symbols.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
@@ -1375,7 +1460,7 @@
 
 <div class="viewcode-block" id="StencilDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.StencilDimension">[docs]</a><span class="k">class</span> <span class="nc">StencilDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing the points of a stencil.</span>
 
 <span class="sd">    Parameters</span>
@@ -1444,7 +1529,7 @@
 
 <div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
 <span class="sd">    Dimension, which cyclically produces a finite range of values, such</span>
 <span class="sd">    as ``0, 1, 2, 0, 1, 2, 0, ...`` (also referred to as &quot;modulo buffered</span>
@@ -1477,7 +1562,7 @@
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">_arg_names</span>
 
     <span class="k">def</span> <span class="nf">_arg_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A map of default argument values defined by this dimension.</span>
 
 <span class="sd">        Parameters</span>
@@ -1493,7 +1578,7 @@
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">_min</span><span class="p">}</span>
 
     <span class="k">def</span> <span class="nf">_arg_values</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The argument values provided by a SteppingDimension are those</span>
 <span class="sd">        of its parent, as it acts as an alias.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -1525,27 +1610,38 @@
 </pre></div>
 
            </div>
+           
           </div>
           <footer>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2016-2019, Devito.</p>
-  </div>
+    <p>
+        &#169; Copyright 2016-2019, Devito.
 
-   
+    </p>
+  </div> 
 
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

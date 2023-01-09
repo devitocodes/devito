@@ -1,37 +1,72 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
   <title>devito.types.sparse &mdash; Devito v4.6.2</title>
-      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
   <!--[if lt IE 9]>
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/underscore.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
         <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
+    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
+
+          
             <a href="../../../index.html" class="icon icon-home"> Devito v4.6.2
-            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+
+          
           </a>
+
+          
+            
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -39,7 +74,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://github.com/devitocodes/devito/tree/master/examples">Tutorials</a></li>
@@ -47,30 +93,69 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">Devito v4.6.2</a>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">devito.types.sparse</li>
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.types.sparse</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <h1>Source code for devito.types.sparse</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">product</span>
@@ -100,18 +185,18 @@
 
 <span class="k">class</span> <span class="nc">AbstractSparseFunction</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An abstract class to define behaviours common to all sparse functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">_sparse_position</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
-    <span class="sd">&quot;&quot;&quot;Position of sparse index among the function indices.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Position of sparse index among the function indices.&quot;&quot;&quot;</span>
 
     <span class="n">_radius</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="sd">&quot;&quot;&quot;The radius of the stencil operators provided by the SparseFunction.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The radius of the stencil operators provided by the SparseFunction.&quot;&quot;&quot;</span>
 
     <span class="n">_sub_functions</span> <span class="o">=</span> <span class="p">()</span>
-    <span class="sd">&quot;&quot;&quot;SubFunctions encapsulated within this AbstractSparseFunction.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;SubFunctions encapsulated within this AbstractSparseFunction.&quot;&quot;&quot;</span>
 
     <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">DiscreteFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">,</span> <span class="s1">&#39;space_order&#39;</span><span class="p">)</span>
 
@@ -124,7 +209,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_fd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__fd_setup__</span><span class="p">()</span>
 
     <span class="k">def</span> <span class="nf">__fd_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Dynamically add derivative short-cuts.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">generate_fd_shortcuts</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">)</span>
@@ -159,7 +244,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">space_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The space order.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The space order.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span>
 
     <span class="nd">@property</span>
@@ -168,7 +253,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">gridpoints</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The *reference* grid point corresponding to each sparse point.</span>
 
 <span class="sd">        Notes</span>
@@ -179,13 +264,13 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Implement an interpolation operation from the grid onto the given sparse points</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Implement an injection operation from a sparse point onto the grid</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolator</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -197,7 +282,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_support</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The grid points surrounding each sparse point within the radius of self&#39;s</span>
 <span class="sd">        injection/interpolation operators.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -208,13 +293,13 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_dist_datamap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Mapper ``M : MPI rank -&gt; required sparse data``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_rank</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_support</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
 
     <span class="k">def</span> <span class="nf">_dist_scatter_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A mask to index into ``self.data``, which creates a new data array that</span>
 <span class="sd">        logically contains N consecutive groups of sparse data values, where N</span>
 <span class="sd">        is the number of MPI ranks. The i-th group contains the sparse data</span>
@@ -228,7 +313,7 @@
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_dist_count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A 2-tuple of comm-sized iterables, which tells how many sparse points</span>
 <span class="sd">        is this MPI rank expected to send/receive to/from each other MPI rank.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -243,7 +328,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_dist_reorder_mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        An ordering mask that puts ``self._sparse_position`` at the front.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">,)</span>
@@ -251,7 +336,7 @@
         <span class="k">return</span> <span class="n">ret</span>
 
     <span class="k">def</span> <span class="nf">_dist_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing the</span>
 <span class="sd">        sparse data values across the MPI ranks needing them.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -292,14 +377,14 @@
         <span class="k">return</span> <span class="n">sshape</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">rshape</span><span class="p">,</span> <span class="n">rcount</span><span class="p">,</span> <span class="n">rdisp</span>
 
     <span class="k">def</span> <span class="nf">_dist_subfunc_alltoall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dmap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        The metadata necessary to perform an ``MPI_Alltoallv`` distributing</span>
 <span class="sd">        self&#39;s SubFunction values across the MPI ranks needing them.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
     <span class="k">def</span> <span class="nf">_dist_scatter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A ``numpy.ndarray`` containing up-to-date data values belonging</span>
 <span class="sd">        to the calling MPI rank. A data value belongs to a given MPI rank R</span>
 <span class="sd">        if its coordinates fall within R&#39;s local domain.</span>
@@ -362,12 +447,12 @@
 
 <span class="k">class</span> <span class="nc">AbstractSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An abstract class to define behaviours common to all sparse time-varying functions.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
 
     <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="n">AbstractSparseFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;nt&#39;</span><span class="p">,</span> <span class="s1">&#39;time_order&#39;</span><span class="p">)</span>
 
@@ -380,7 +465,7 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init_finalize__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__fd_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Dynamically add derivative short-cuts.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">generate_fd_shortcuts</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="p">,</span>
@@ -388,7 +473,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">time_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The time dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The time dimension.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_dim</span>
 
     <span class="nd">@classmethod</span>
@@ -420,7 +505,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">time_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The time order.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The time order.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_order</span>
 
     <span class="nd">@property</span>
@@ -429,7 +514,7 @@
 
 
 <div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a sparse array in symbolic equations.</span>
 
 <span class="sd">    A SparseFunction carries multi-dimensional data that are not aligned with</span>
@@ -515,7 +600,7 @@
     <span class="n">is_SparseFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_radius</span> <span class="o">=</span> <span class="mi">1</span>
-    <span class="sd">&quot;&quot;&quot;The radius of the stencil operators provided by the SparseFunction.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The radius of the stencil operators provided by the SparseFunction.&quot;&quot;&quot;</span>
 
     <span class="n">_sub_functions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">,)</span>
 
@@ -547,7 +632,7 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span>
 
     <span class="k">def</span> <span class="nf">__distributor_setup__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A `SparseDistributor` handles the SparseFunction decomposition based on</span>
 <span class="sd">        physical ownership, and allows to convert between global and local indices.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -556,7 +641,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The SparseFunction coordinates.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The SparseFunction coordinates.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span>
 
     <span class="nd">@property</span>
@@ -565,13 +650,13 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_point_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for coordinate value in each dimension of the point.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol for coordinate value in each dimension of the point.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">d</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
                      <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_position_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Symbols map for the position of the sparse points relative to the grid</span>
 <span class="sd">        origin.</span>
 
@@ -593,26 +678,26 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_point_increments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Index increments in each dimension for each point symbol.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Index increments in each dimension for each point symbol.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">product</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">repeat</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">))</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_coordinate_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol representing the coordinate values in each dimension.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol representing the coordinate values in each dimension.&quot;&quot;&quot;</span>
         <span class="n">p_dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">indexify</span><span class="p">((</span><span class="n">p_dim</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
                       <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">)])</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_coordinate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for each grid index according to the coordinates.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol for each grid index according to the coordinates.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">INT</span><span class="p">(</span><span class="n">FLOOR</span><span class="p">((</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span><span class="p">)</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
                                          <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_symbols</span><span class="p">,</span>
                                          <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dimensions</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">dim</span><span class="p">])])</span>
 
     <span class="k">def</span> <span class="nf">_coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_offset</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">cast_mapper</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">](</span><span class="n">c</span> <span class="o">-</span> <span class="n">o</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">of</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coordinate_symbols</span><span class="p">,</span>
                                                   <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin_symbols</span><span class="p">,</span>
@@ -648,7 +733,7 @@
         <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SparseFunction.guard"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.guard">[docs]</a>    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate guarded expressions, that is expressions that are evaluated</span>
 <span class="sd">        by an Operator only if certain conditions are met.  The introduced</span>
 <span class="sd">        condition, here, is that all grid points in the support of a sparse</span>
@@ -809,7 +894,7 @@
 
 
 <div class="viewcode-block" id="SparseTimeFunction"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span> <span class="n">SparseFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a space- and time-varying sparse array in symbolic</span>
 <span class="sd">    equations.</span>
 
@@ -893,7 +978,7 @@
                    <span class="n">SparseFunction</span><span class="o">.</span><span class="n">__rkwargs__</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SparseTimeFunction.interpolate"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
 
 <span class="sd">        Parameters</span>
@@ -924,7 +1009,7 @@
                                                            <span class="n">self_subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="SparseTimeFunction.inject"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations injecting an arbitrary expression into a field.</span>
 
 <span class="sd">        Parameters</span>
@@ -954,7 +1039,7 @@
 
 
 <div class="viewcode-block" id="PrecomputedSparseFunction"><a class="viewcode-back" href="../../../precsparsefunction.html#devito.types.PrecomputedSparseFunction">[docs]</a><span class="k">class</span> <span class="nc">PrecomputedSparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a sparse array in symbolic equations; unlike</span>
 <span class="sd">    SparseFunction, PrecomputedSparseFunction uses externally-defined data</span>
 <span class="sd">    for interpolation.</span>
@@ -1028,7 +1113,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">interpolation_coeffs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; The Precomputed interpolation coefficients.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot; The Precomputed interpolation coefficients.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolation_coeffs</span>
 
     <span class="k">def</span> <span class="nf">_dist_scatter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -1063,7 +1148,7 @@
 
 <div class="viewcode-block" id="PrecomputedSparseTimeFunction"><a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">PrecomputedSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span>
                                     <span class="n">PrecomputedSparseFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a space- and time-varying sparse array in symbolic</span>
 <span class="sd">    equations; unlike SparseTimeFunction, PrecomputedSparseTimeFunction uses</span>
 <span class="sd">    externally-defined data for interpolation.</span>
@@ -1121,7 +1206,7 @@
     <span class="n">is_PrecomputedSparseTimeFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
 <div class="viewcode-block" id="PrecomputedSparseTimeFunction.interpolate"><a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
 
 <span class="sd">        Parameters</span>
@@ -1152,7 +1237,7 @@
 
 
 <span class="k">class</span> <span class="nc">MatrixSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A specialised type of SparseTimeFunction where the interpolation is externally</span>
 <span class="sd">    defined.  Currently, this means that the (integer) grid points and associated</span>
 <span class="sd">    coefficients for each sparse point are explicitly provided as separate</span>
@@ -1238,7 +1323,7 @@
     <span class="n">is_SparseTimeFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Position of time index among the function indices.&quot;&quot;&quot;</span>
 
     <span class="c1"># We use DiscreteFunction instead of AbstractSparseTimeFunction</span>
     <span class="c1"># because we want to get rid of &#39;npoint&#39;</span>
@@ -1489,7 +1574,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_radius</span>
 
     <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Creates a :class:`sympy.Eq` equation for the interpolation</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Creates a :class:`sympy.Eq` equation for the interpolation</span>
 <span class="sd">        of an expression onto this sparse point collection.</span>
 
 <span class="sd">        :param expr: The expression to interpolate.</span>
@@ -1541,7 +1626,7 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">Inc</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">)]</span>
 
     <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for injection of an expression onto a grid</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Symbol for injection of an expression onto a grid</span>
 
 <span class="sd">        :param field: The grid field into which we inject.</span>
 <span class="sd">        :param expr: The expression to inject.</span>
@@ -1653,7 +1738,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__indices_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the default dimension indices for a given data shape.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
@@ -1671,7 +1756,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this function.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a tuple of argument names introduced by this function.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">gridpoints</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
                      <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">interpolation_coefficients</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
@@ -1681,7 +1766,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gridpoints</span>
 
     <span class="k">def</span> <span class="nf">_rank_to_points</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        For each rank in self.grid.distributor, return</span>
 <span class="sd">        a numpy array of int32s for the positions within</span>
 <span class="sd">        this rank&#39;s self.gridpoints/self.interpolation_coefficients (i.e.</span>
@@ -2086,27 +2171,38 @@
 </pre></div>
 
            </div>
+           
           </div>
           <footer>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2016-2019, Devito.</p>
-  </div>
+    <p>
+        &#169; Copyright 2016-2019, Devito.
 
-   
+    </p>
+  </div> 
 
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>

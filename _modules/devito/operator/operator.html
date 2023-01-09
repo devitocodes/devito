@@ -1,37 +1,72 @@
+
+
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
   <meta charset="utf-8" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
   <title>devito.operator.operator &mdash; Devito v4.6.2</title>
-      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
-    <link rel="shortcut icon" href="../../../_static/devito_logo.png"/>
+  
+
+  
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+
+  
+
+  
   <!--[if lt IE 9]>
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../../" src="../../../_static/documentation_options.js"></script>
         <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/underscore.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
         <script src="../../../_static/doctools.js"></script>
         <script src="../../../_static/sphinx_highlight.js"></script>
-    <script src="../../../_static/js/theme.js"></script>
+    
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+
+    
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
     <link href="../../../_static/devito_style.css" rel="stylesheet" type="text/css">
 
 </head>
 
-<body class="wy-body-for-nav"> 
+<body class="wy-body-for-nav">
+
+   
   <div class="wy-grid-for-nav">
+    
     <nav data-toggle="wy-nav-shift" class="wy-nav-side">
       <div class="wy-side-scroll">
         <div class="wy-side-nav-search" >
+          
+
+          
             <a href="../../../index.html" class="icon icon-home"> Devito v4.6.2
-            <img src="../../../_static/devito_logo.png" class="logo" alt="Logo"/>
+          
+
+          
           </a>
+
+          
+            
+            
+          
+
+          
 <div role="search">
   <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
     <input type="text" name="q" placeholder="Search docs" />
@@ -39,7 +74,18 @@
     <input type="hidden" name="area" value="default" />
   </form>
 </div>
-        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference external" href="https://github.com/devitocodes/devito/tree/master/examples">Tutorials</a></li>
@@ -47,30 +93,69 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../userapi.html">API Reference</a></li>
 </ul>
 
+            
+          
         </div>
+        
       </div>
     </nav>
 
-    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
           <a href="../../../index.html">Devito v4.6.2</a>
+        
       </nav>
 
+
       <div class="wy-nav-content">
+        
         <div class="rst-content">
-          <div role="navigation" aria-label="Page navigation">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-      <li><a href="../../../index.html" class="icon icon-home"></a></li>
-          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
-      <li class="breadcrumb-item active">devito.operator.operator</li>
+    
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>devito.operator.operator</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
+        
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
-             
+            
   <h1>Source code for devito.operator.operator</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="kn">import</span> <span class="n">attrgetter</span>
@@ -105,7 +190,7 @@
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../../operator.html#devito.operator.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Callable</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Generate, JIT-compile and run C code starting from an ordered sequence</span>
 <span class="sd">    of symbolic expressions.</span>
 
@@ -302,7 +387,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_lower</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Perform the lowering Expressions -&gt; Clusters -&gt; ScheduleTree -&gt; IET.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="c1"># Create a symbol registry</span>
@@ -338,7 +423,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_rlower</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Lower `expressions` by carefully disabling a selection of passes so</span>
 <span class="sd">        that the resulting IRs may be used in a context of recursive compilation.</span>
 <span class="sd">        Thus, `_rlower` is expected to be used internally as a callback by one</span>
@@ -364,7 +449,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_dsl</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Backend hook for specialization at the DSL level. The input is made of</span>
 <span class="sd">        expressions and other higher order objects such as Injection or</span>
 <span class="sd">        Interpolation; the expressions are still unevaluated at this stage,</span>
@@ -375,7 +460,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_exprs</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Backend hook for specialization at the expression level.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">expressions</span>
@@ -383,7 +468,7 @@
     <span class="nd">@classmethod</span>
     <span class="nd">@timed_pass</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lowering.Expressions&#39;</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">_lower_exprs</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Expression lowering:</span>
 
 <span class="sd">            * Apply rewrite rules;</span>
@@ -414,7 +499,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_clusters</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Backend hook for specialization at the Cluster level.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">clusters</span>
@@ -422,7 +507,7 @@
     <span class="nd">@classmethod</span>
     <span class="nd">@timed_pass</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lowering.Clusters&#39;</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">_lower_clusters</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="n">profiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Clusters lowering:</span>
 
 <span class="sd">            * Group expressions into Clusters;</span>
@@ -457,7 +542,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_stree</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Backend hook for specialization at the Schedule tree level.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">stree</span>
@@ -465,7 +550,7 @@
     <span class="nd">@classmethod</span>
     <span class="nd">@timed_pass</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lowering.ScheduleTree&#39;</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">_lower_stree</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Schedule tree lowering:</span>
 
 <span class="sd">            * Turn a sequence of Clusters into a ScheduleTree;</span>
@@ -483,7 +568,7 @@
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_specialize_iet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">graph</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Backend hook for specialization at the Iteration/Expression tree level.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">graph</span>
@@ -491,7 +576,7 @@
     <span class="nd">@classmethod</span>
     <span class="nd">@timed_pass</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lowering.uIET&#39;</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">_lower_uiet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="n">profiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Turn a ScheduleTree into an unbounded Iteration/Expression tree, that is</span>
 <span class="sd">        in essence a &quot;floating&quot; IET where one or more variables may be unbounded</span>
 <span class="sd">        (i.e., no definition placed yet).</span>
@@ -510,7 +595,7 @@
     <span class="nd">@classmethod</span>
     <span class="nd">@timed_pass</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;lowering.IET&#39;</span><span class="p">)</span>
     <span class="k">def</span> <span class="nf">_lower_iet</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">uiet</span><span class="p">,</span> <span class="n">profiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Iteration/Expression tree lowering:</span>
 
 <span class="sd">            * Introduce distributed-memory, shared-memory, and SIMD parallelism;</span>
@@ -574,14 +659,14 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_access_modes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        A table providing the AccessMode of all user-accessible symbols in `self`.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">frozendict</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="n">AccessMode</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">writes</span><span class="p">)</span>
                            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">})</span>
 
     <span class="k">def</span> <span class="nf">_prepare_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">autotune</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Process runtime arguments passed to ``.apply()` and derive</span>
 <span class="sd">        default values for any remaining arguments.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -693,7 +778,7 @@
         <span class="k">return</span> <span class="n">args</span>
 
     <span class="k">def</span> <span class="nf">_postprocess_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Process runtime arguments upon returning from ``.apply()``.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Process runtime arguments upon returning from ``.apply()``.&quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="n">p</span><span class="o">.</span><span class="n">_arg_apply</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="n">args</span><span class="p">[</span><span class="n">p</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
@@ -702,7 +787,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_known_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The arguments that can be passed to ``apply`` when running the Operator.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The arguments that can be passed to ``apply`` when running the Operator.&quot;&quot;&quot;</span>
         <span class="n">ret</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span><span class="p">:</span>
             <span class="n">ret</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">_arg_names</span><span class="p">)</span>
@@ -716,11 +801,11 @@
         <span class="k">return</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">setup</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Auto-tuning to improve runtime performance.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Auto-tuning to improve runtime performance.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">args</span>
 
 <div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../../operator.html#devito.operator.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Arguments to run the Operator.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Arguments to run the Operator.&quot;&quot;&quot;</span>
         <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="c1"># Check all arguments are present</span>
         <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
@@ -732,7 +817,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_soname</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;A unique name for the shared object resulting from JIT compilation.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;A unique name for the shared object resulting from JIT compilation.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Signer</span><span class="o">.</span><span class="n">_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">configuration</span><span class="p">)</span>
 
     <span class="nd">@cached_property</span>
@@ -741,7 +826,7 @@
         <span class="k">return</span> <span class="n">CGen</span><span class="p">(</span><span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        JIT-compile the C code generated by the Operator.</span>
 
 <span class="sd">        It is ensured that JIT compilation will only be performed once per</span>
@@ -762,7 +847,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">cfunction</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The JIT-compiled C function as a ctypes.FuncPtr object.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The JIT-compiled C function as a ctypes.FuncPtr object.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_jit_compile</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_soname</span><span class="p">)</span>
@@ -776,7 +861,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
 
 <div class="viewcode-block" id="Operator.cinterface"><a class="viewcode-back" href="../../../operator.html#devito.operator.operator.Operator.cinterface">[docs]</a>    <span class="k">def</span> <span class="nf">cinterface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">force</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate two files under the prescribed temporary directory:</span>
 
 <span class="sd">            * `X.c` (or `X.cpp`): the code generated for this Operator;</span>
@@ -814,7 +899,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Operator.apply"><a class="viewcode-back" href="../../../operator.html#devito.operator.operator.Operator.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Execute the Operator.</span>
 
 <span class="sd">        With no arguments provided, the Operator runs using the data carried by the</span>
@@ -936,7 +1021,7 @@
             <span class="n">perf</span><span class="p">(</span><span class="s2">&quot;Flops reduction after symbolic optimization: [</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="s1">&#39; ; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ops</span><span class="p">))</span>
 
     <span class="k">def</span> <span class="nf">_emit_apply_profiling</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Produce a performance summary of the profiled sections.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Produce a performance summary of the profiled sections.&quot;&quot;&quot;</span>
         <span class="c1"># Rounder to 2 decimal places</span>
         <span class="n">fround</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">ceil</span><span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span> <span class="o">/</span> <span class="mi">100</span>
 
@@ -1068,12 +1153,12 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">comm</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;The MPI communicator the arguments are collective over.&quot;&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The MPI communicator the arguments are collective over.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">comm</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_NULL</span>
 
 
 <span class="k">def</span> <span class="nf">parse_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parse keyword arguments provided to an Operator.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># `dse` -- deprecated, dropped</span>
@@ -1193,27 +1278,38 @@
 </pre></div>
 
            </div>
+           
           </div>
           <footer>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2016-2019, Devito.</p>
-  </div>
+    <p>
+        &#169; Copyright 2016-2019, Devito.
 
-   
+    </p>
+  </div> 
 
 </footer>
         </div>
       </div>
+
     </section>
+
   </div>
-  <script>
+  
+
+  <script type="text/javascript">
       jQuery(function () {
           SphinxRtdTheme.Navigation.enable(true);
       });
-  </script> 
+  </script>
+
+  
+  
+    
+   
 
 </body>
 </html>
