@@ -143,7 +143,15 @@ class Fusion(Queue):
     def _key(self, c):
         # Two Clusters/ClusterGroups are fusion candidates if their key is identical
 
-        key = (frozenset(c.ispace.itintervals), c.guards)
+        key = (frozenset(c.ispace.itintervals),)
+
+        # If there are writes to thread-shared object, make it part of the key.
+        # This will promote fusion of non-adjacent Clusters writing to (some form of)
+        # shared memory, which in turn will minimize the number of necessary barriers
+        if any(f._mem_shared for f in c.scope.writes):
+            key += (True,)
+
+        key += (c.guards,)
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
