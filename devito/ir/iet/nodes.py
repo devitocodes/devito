@@ -63,7 +63,7 @@ class Node(Signer):
     _ccode_handler = None
     """
     Customizable by subclasses, in particular Operator subclasses which define
-    backend-specific nodes and, su such, require node-specific handlers.
+    backend-specific nodes and, as such, require node-specific handlers.
     """
 
     def __new__(cls, *args, **kwargs):
