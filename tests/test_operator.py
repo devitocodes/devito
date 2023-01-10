@@ -21,7 +21,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Barrier, Scalar, Symbol, Indirection
+from devito.types import Array, Barrier, CustomDimension, Indirection, Scalar, Symbol
 
 
 def dimify(dimensions):
@@ -1913,6 +1913,25 @@ class TestLoopScheduling(object):
         # theory would tag
         op = Operator(eqns, openmp=True)
         assert_structure(op, ['x,y', 'i,x,y'], 'x,y,i,x,y')
+
+    def test_topofuse_w_numeric_dim(self):
+        r = Dimension('r')
+        x = Dimension('x')
+        i = CustomDimension('i', 0, 3)
+
+        a = Array(name='a', dimensions=(i,))
+        b = Array(name='b', dimensions=(r,))
+        f = Function(name='f', dimensions=(r, i), shape=(3, 4))
+        g = Function(name='g', dimensions=(r, i), shape=(3, 4))
+
+        eqns = [Eq(a[i], r, implicit_dims=(r, i)),
+                Eq(f, 1),
+                Eq(b[r], 2),
+                Eq(g, a[4])]
+
+        op = Operator(eqns)
+
+        assert_structure(op, ['r,i', 'r'], 'r,i')
 
 
 class TestInternals(object):

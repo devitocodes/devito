@@ -148,10 +148,9 @@ class Fusion(Queue):
         # If there are writes to thread-shared object, make it part of the key.
         # This will promote fusion of non-adjacent Clusters writing to (some form of)
         # shared memory, which in turn will minimize the number of necessary barriers
-        if any(f._mem_shared for f in c.scope.writes):
-            key += (True,)
+        key += (any(f._mem_shared for f in c.scope.writes),)
 
-        key += (c.guards,)
+        key += (c.guards if any(c.guards) else None,)
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
@@ -230,11 +229,12 @@ class Fusion(Queue):
         dag = self._build_dag(cgroups, prefix)
 
         def choose_element(queue, scheduled):
+            if not scheduled:
+                return queue.pop()
+
             # Heuristic: let `k0` be the key of the last scheduled node; then out of
             # the possible schedulable nodes we pick the one with key `k1` such that
             # `max_i : k0[:i] == k1[:i]` (i.e., the one with "the most similar key")
-            if not scheduled:
-                return queue.pop()
             key = self._key(scheduled[-1])
             for i in reversed(range(len(key) + 1)):
                 candidates = [e for e in queue if self._key(e)[:i] == key[:i]]
@@ -245,6 +245,7 @@ class Fusion(Queue):
                     continue
                 queue.remove(e)
                 return e
+
             assert False
 
         return ClusterGroup(dag.topological_sort(choose_element), prefix)

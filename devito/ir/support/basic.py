@@ -332,23 +332,71 @@ class TimedAccess(IterationInstance, AccessMode):
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
 
-            ai = sai
-            fi = self.findices[n]
-
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
                 # objects fallbacks to zero, as any other value would be nonsensical.
                 ret.append(S.Zero)
-            elif not ai or ai._defines & sit.dim._defines:
-                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)` and `ai=t`
+
+            elif sai and oai and sai._defines & sit.dim._defines:
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`
+                # and `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-            elif fi in sit.dim._defines:
+
+            elif not sai and not oai:
+                # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
+                if self[n] - other[n] == 0:
+                    ret.append(S.Zero)
+                else:
+                    break
+
+            elif sai in self.ispace and oai in other.ispace:
+                # E.g., `self=R<f,[x, y]>`, `sai=time`, self.itintervals=(time, x, y)
+                # with `n=0`
+                continue
+
+            elif any(d and d._defines & sit.dim._defines for d in (sai, oai)):
+                # In some cases, the distance degenerates because `self` and
+                # `other` never intersect, which essentially means there's no
+                # dependence between them. In this case, we set the distance to
+                # a dummy value (the imaginary unit). Hence, we call these
+                # "imaginary dependences". This occurs in just a small set of
+                # special cases, which we handle here
+
+                # Case 1: `sit` is an IterationInterval with statically known
+                # trip count, e.g. it ranges from 0 to 3. `other` performs a
+                # constant access at 4. Then, there is no dependence.
+                for v in (self[n], other[n]):
+                    try:
+                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
+                            return Vector(S.ImaginaryUnit)
+                    except TypeError:
+                        pass
+
+                # Fallback
+                ret.append(S.Infinity)
+                break
+
+            elif self.findices[n] in sit.dim._defines:
                 # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>` and `fi=p_src` (`n=1`)
                 ret.append(S.Infinity)
                 break
+
+        if S.Infinity in ret:
+            return Vector(*ret)
+
+        # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
+        # nasty, `a[i+1, 3] -> a[i, 4]`
+        n = len(ret)
+        for i, j in zip(self[n:], other[n:]):
+            if i == j:
+                ret.append(S.Zero)
+            else:
+                v = i - j
+                if v.is_Number and v.is_finite:
+                    return Vector(S.ImaginaryUnit)
 
         return Vector(*ret)
 
@@ -550,6 +598,10 @@ class Dependence(object):
     @property
     def is_local(self):
         return self.function.is_Symbol
+
+    @property
+    def is_imaginary(self):
+        return S.ImaginaryUnit in self.distance
 
     @memoized_meth
     def is_const(self, dim):
@@ -843,7 +895,8 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_flow = not r.is_read_reduction
+                        is_flow = (not dependence.is_imaginary and
+                                   not r.is_read_reduction)
                     if is_flow:
                         yield dependence
 
@@ -870,7 +923,8 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_anti = not r.is_read_reduction
+                        is_anti = (not dependence.is_imaginary and
+                                   not r.is_read_reduction)
                     if is_anti:
                         yield dependence
 
@@ -896,7 +950,7 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
-                        is_output = True
+                        is_output = not dependence.is_imaginary
                     if is_output:
                         yield dependence
 
