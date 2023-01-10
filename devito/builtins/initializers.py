@@ -8,7 +8,7 @@ __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
 @dv.switchconfig(log_level='ERROR')
-def assign(f, rhs=0, options=None, name='assign', domain_only=True, **kwargs):
+def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
 
@@ -23,9 +23,9 @@ def assign(f, rhs=0, options=None, name='assign', domain_only=True, **kwargs):
         be passed to Eq.
     name : str, optional
         Name of the operator.
-    domain_only : bool, optional
-        Restrict the assignment to `f`'s physical domain (True, default) or include
-        the halo as well.
+    assign_halo : bool, optional
+        Include the halo region in the assignment (False, default) or restrict it
+        to `f`'s physical domain.
 
     Examples
     --------
@@ -67,7 +67,7 @@ def assign(f, rhs=0, options=None, name='assign', domain_only=True, **kwargs):
         for i, j in zip(as_list(f), rhs):
             eqs.append(dv.Eq(i, j))
 
-    if not domain_only:
+    if assign_halo:
         subs = {}
         for d, h in zip(f.dimensions, f._size_halo):
             if sum(h) == 0:

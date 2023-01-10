@@ -119,7 +119,7 @@ class TestAssign(object):
 
         f = Function(name='f', grid=grid)
 
-        assign(f, 4, domain_only=False)
+        assign(f, 4, assign_halo=True)
 
         assert np.all(f.data_with_halo == 4)
 
