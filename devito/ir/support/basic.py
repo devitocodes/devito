@@ -10,7 +10,7 @@ from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routin
                               q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple
+from devito.types import Barrier, Dimension, DimensionTuple, Jump
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -805,10 +805,10 @@ class Scope(object):
                 v = self.reads.setdefault(i.function, [])
                 v.append(TimedAccess(i, 'R', -1))
 
-        # Synchronization barriers are converted into mock dependences on symbols
-        # crossing them
+        # Objects altering the control flow (e.g., synchronization barriers,
+        # break statements, ...) are converted into mock dependences
         for i, e in enumerate(exprs):
-            if e.find(Barrier):
+            if e.find(Barrier) | e.find(Jump):
                 for a in self.accesses:
                     f = a.function
                     indices = [i if d in e.ispace else S.Infinity
