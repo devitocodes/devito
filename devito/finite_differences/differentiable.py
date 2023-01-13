@@ -31,7 +31,7 @@ class Differentiable(sympy.Expr, Evaluable):
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
 
-    _state = ('space_order', 'time_order', 'indices')
+    __rkwargs__ = ('space_order', 'time_order', 'indices')
 
     @cached_property
     def _functions(self):
@@ -224,7 +224,8 @@ class Differentiable(sympy.Expr, Evaluable):
 
     def __eq__(self, other):
         return super(Differentiable, self).__eq__(other) and\
-            all(getattr(self, i, None) == getattr(other, i, None) for i in self._state)
+            all(getattr(self, i, None) == getattr(other, i, None)
+                for i in self.__rkwargs__)
 
     @property
     def name(self):

@@ -187,6 +187,23 @@ class TestCollectDerivatives(object):
 
         assert eq == leq
 
+    def test_nocollection_mixed_order(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+
+        # First case is obvious...
+        eq = Eq(u.forward, u.dx2 + u.dx.dy + 1.)
+        leq = collect_derivatives.func([eq])[0]
+
+        assert eq == leq
+
+        # y-derivative should not get collected!
+        eq = Eq(u.forward, u.dy2 + u.dx.dy + 1.)
+        leq = collect_derivatives.func([eq])[0]
+
+        assert eq == leq
+
 
 class TestLowering(object):
 
@@ -219,7 +236,7 @@ class TestUnexpanded(object):
         'u.dx.dy',
         'u.dxdy',
         'u.dx.dy + u.dy.dx',
-        'u.dx2 + u.dx.dy'
+        'u.dx2 + u.dx.dy',
     ])
     def test_single_eq(self, expr):
         grid = Grid(shape=(10, 10))
