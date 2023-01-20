@@ -9,7 +9,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension)
+                    CustomDimension, dimensions)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1434,6 +1434,27 @@ class TestConditionalDimension(object):
         op.cfunction
 
         assert_structure(op, ['t', 't,x', 't,x'], 't,x,x')
+
+    def test_array_shared_w_topofuse(self):
+        shape = (4, 4, 4)
+        dims = dimensions('i x y')
+
+        i, _, _ = dims
+        cd0 = ConditionalDimension(name='cd0', parent=i, condition=Ge(i, 2))
+
+        f = Function(name='f', dimensions=dims, shape=shape)
+        a0 = Array(name='a0', dimensions=dims, scope='shared')
+        a1 = Array(name='a1', dimensions=dims, scope='shared')
+
+        eqns = [Eq(a0, 1),
+                Eq(a0, 1, implicit_dims=(cd0,)),
+                Eq(f, a0),
+                Eq(a1, 1),
+                Eq(a1, 2, implicit_dims=(cd0,))]
+
+        op = Operator(eqns, openmp=True)
+
+        assert_structure(op, ['i,x,y', 'i',  'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
 
 class TestCustomDimension(object):

@@ -131,14 +131,21 @@ class Fusion(Queue):
                 else:
                     try:
                         # Perform fusion
-                        fused = Cluster.from_clusters(*maybe_fusible)
-                        processed.append(fused)
+                        processed.append(Cluster.from_clusters(*maybe_fusible))
                     except ValueError:
                         # We end up here if, for example, some Clusters have same
                         # iteration Dimensions but different (partial) orderings
                         processed.extend(maybe_fusible)
 
-        return [ClusterGroup(processed, prefix)]
+        # Maximize effectiveness of topo-sorting at next stage by only
+        # grouping together Clusters characterized by data dependencies
+        if self.toposort and prefix:
+            dag = self._build_dag(processed, prefix)
+            mapper = dag.connected_components(enumerated=True)
+            groups = groupby(processed, key=mapper.get)
+            return [ClusterGroup(tuple(g), prefix) for _, g in groups]
+        else:
+            return [ClusterGroup(processed, prefix)]
 
     def _key(self, c):
         # Two Clusters/ClusterGroups are fusion candidates if their key is identical
@@ -149,6 +156,8 @@ class Fusion(Queue):
         # This will promote fusion of non-adjacent Clusters writing to (some form of)
         # shared memory, which in turn will minimize the number of necessary barriers
         key += (any(f._mem_shared for f in c.scope.writes),)
+        # Same story for reads from thread-shared objects
+        key += (any(f._mem_shared for f in c.scope.reads),)
 
         key += (c.guards if any(c.guards) else None,)
 
@@ -214,6 +223,8 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
+        #TODO: memoize_meth??
+
         # Are there any ClusterGroups that could potentially be fused? If
         # not, do not waste time computing a new topological ordering
         counter = Counter(self._key(cg) for cg in cgroups)
@@ -250,7 +261,7 @@ class Fusion(Queue):
 
         return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
-    def _build_dag(self, cgroups, prefix):
+    def _build_dag(self, cgroups, prefix, peeking=False):
         """
         A DAG representing the data dependences across the ClusterGroups within
         a given scope.
@@ -305,6 +316,9 @@ class Fusion(Queue):
                 # Clearly, output dependences must be honored
                 elif any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
+
+            if peeking and dag.edges:
+                return dag
 
         return dag
 
