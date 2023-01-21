@@ -146,6 +146,21 @@ class Properties(frozendict):
                 m[d] = self[d] - set(as_tuple(properties))
         return Properties(m)
 
+    def parallelize(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            v = set(self.get(d, []))
+            v.difference_update({PARALLEL_IF_PVT, PARALLEL_IF_ATOMIC, SEQUENTIAL})
+            v.add(PARALLEL)
+            m[d] = v
+        return Properties(m)
+
+    def affine(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = set(self.get(d, [])) | {AFFINE}
+        return Properties(m)
+
     def sequentialize(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
