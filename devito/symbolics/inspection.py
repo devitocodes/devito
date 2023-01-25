@@ -13,7 +13,7 @@ from devito.symbolics.queries import q_routine
 from devito.symbolics.search import search
 from devito.tools import as_tuple, prod
 
-__all__ = ['compare_ops', 'count', 'estimate_cost']
+__all__ = ['compare_ops', 'estimate_cost']
 
 
 def compare_ops(e1, e2):
@@ -56,17 +56,6 @@ def compare_ops(e1, e2):
             return True
     else:
         return False
-
-
-def count(exprs, query):
-    """
-    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
-    matching ``query`` and ``v`` is the number of its occurrences.
-    """
-    mapper = Counter()
-    for expr in as_tuple(exprs):
-        mapper.update(Counter(search(expr, query, 'all', 'bfs')))
-    return dict(mapper)
 
 
 def estimate_cost(exprs, estimate=False):
