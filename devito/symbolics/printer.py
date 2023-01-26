@@ -12,6 +12,7 @@ from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
 from devito.arch.compiler import AOMPCompiler
+from devito.symbolics.extended_sympy import integer_args
 
 __all__ = ['ccode']
 
@@ -101,20 +102,23 @@ class CodePrinter(C99CodePrinter):
         args = ['(%s)' % self._print(a) for a in expr.args]
         return '%'.join(args)
 
+    def _print_Min(self, expr):
+        """Print Min using devito defined header Min"""
+        func = 'MIN' if integer_args(*expr.args) else 'fmin'
+        return "%s(%s)" % (func, self._print(expr.args)[1:-1])
+
+    def _print_Max(self, expr):
+        """Print Max using devito defined header Max"""
+        func = 'MAX' if integer_args(*expr.args) else 'fmax'
+        return "%s(%s)" % (func, self._print(expr.args)[1:-1])
+
     def _print_Abs(self, expr):
         """Print an absolute value. Use `abs` if can infer it is an Integer"""
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler):
             return "fabs(%s)" % self._print(expr.args[0])
         # Check if argument is an integer
-        is_integer = True
-        for a in expr.args[0].args:
-            try:
-                is_integer = is_integer and np.issubdtype(a.dtype, np.integer)
-            except AttributeError:
-                is_integer = is_integer and a.is_Integer
-
-        func = "abs" if is_integer else "fabs"
+        func = "abs" if integer_args(*expr.args[0].args) else "fabs"
         return "%s(%s)" % (func, self._print(expr.args[0]))
 
     def _print_Add(self, expr, order=None):

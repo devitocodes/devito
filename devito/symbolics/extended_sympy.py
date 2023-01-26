@@ -9,13 +9,14 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,  # noqa
                           double2, double3, double4, int2, int3, int4)
+from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',  # noqa
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
-           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper',
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
+           'Null', 'SizeOf', 'rfunc', 'cast_mapper',
            'BasicWrapperMixin']
 
 
@@ -672,12 +673,6 @@ for base_name in ['int', 'float', 'double']:
 
 
 # Some other utility objects
-
-CEIL = Function('ceil')
-FLOOR = Function('floor')
-MAX = Function('MAX')
-MIN = Function('MIN')
-
 Null = Macro('NULL')
 
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
@@ -691,10 +686,10 @@ def rfunc(func, item, *args):
     Examples
     ----------
     >> rfunc(min, [a, b, c, d])
-    MIN(a, MIN(b, MIN(c, d)))
+    Min(a, Min(b, Min(c, d)))
 
     >> rfunc(max, [a, b, c, d])
-    MAX(a, MAX(b, MAX(c, d)))
+    Max(a, Max(b, Max(c, d)))
     """
 
     assert func in rfunc_mapper
@@ -703,10 +698,35 @@ def rfunc(func, item, *args):
     if len(args) == 0:
         return item
     else:
-        return rf(item, rfunc(func, *args))
+        return rf(item, rfunc(func, *args), evaluate=False)
 
 
 rfunc_mapper = {
-    min: MIN,
-    max: MAX,
+    min: Min,
+    max: Max,
 }
+
+
+def integer_args(*args):
+    """
+    Check if expression is Integer.
+    Used to choose the function printed in the c-code
+    """
+    if len(args) == 0:
+        return False
+
+    if len(args) == 1:
+        try:
+            return np.issubdtype(args[0].dtype, np.integer)
+        except AttributeError:
+            return args[0].is_integer
+    res = True
+    for a in args:
+        try:
+            if len(a.args) > 0:
+                res = res and integer_args(*a.args)
+            else:
+                res = res and integer_args(a)
+        except AttributeError:
+            res = res and integer_args(a)
+    return res

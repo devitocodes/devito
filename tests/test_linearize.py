@@ -191,7 +191,7 @@ def test_codegen_quality1():
     assert all('const long' not in str(i) for i in exprs[-3:])
 
     # Only two access macros necessary, namely `uL0` and `r1L0` (the other five
-    # obviously are _POSIX_C_SOURCE, MIN, MAX, START_TIMER, STOP_TIMER)
+    # obviously are _POSIX_C_SOURCE, Min, Max, START_TIMER, STOP_TIMER)
     assert len(op._headers) == 7
 
 
