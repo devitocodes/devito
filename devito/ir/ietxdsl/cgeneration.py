@@ -267,7 +267,8 @@ class CGeneration:
             return
 
         if (isinstance(operation, (Statement))):
-            self.print(operation.statement.data)
+            # import pdb;pdb.set_trace()
+            self.print(operation.attributes['statement'])
             return
 
         if (isinstance(operation, (PointerCast))):
@@ -276,9 +277,9 @@ class CGeneration:
 
         if (isinstance(operation, StructDecl)):
             self.print("struct", indent=False, end=" ")
-            self.print(operation.id.data)
+            self.print(operation.attributes['id'])
             self.print("{")
-            for field in operation.fields.data:
+            for field in operation.attributes['fields'].data:
                 self.print(' ', field.data)
             self.print("} ;")
             self.print('')
