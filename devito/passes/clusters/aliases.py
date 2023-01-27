@@ -268,7 +268,7 @@ class CireInvariants(CireTransformer, Queue):
         intervals = c.ispace.intervals.drop(d).reset()
         properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
 
-        return AliasKey(ispace, intervals, c.dtype, None, properties)
+        return AliasKey(ispace, intervals, c.dtype, c.guards, properties)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # Always prefer the Variant with fewer temporaries
