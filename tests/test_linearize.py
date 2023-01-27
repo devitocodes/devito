@@ -168,9 +168,10 @@ def test_codegen_quality0():
     assert len(exprs) == 6
     assert all('const long' in str(i) for i in exprs[:-2])
 
-    # Only four access macros necessary, namely `uL0`, `bufL0`, `bufL1` (the
-    # other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
-    assert len(op._headers) == 6
+    # Only four access macros necessary, namely `uL0`, `bufL0`, `bufL1`
+    # MIN/MAX for the efunc args
+    # (the other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
+    assert len(op._headers) == 8
 
 
 def test_codegen_quality1():

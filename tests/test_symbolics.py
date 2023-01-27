@@ -415,8 +415,7 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
@@ -458,8 +457,7 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a)]', 'a']),

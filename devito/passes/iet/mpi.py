@@ -298,6 +298,7 @@ def make_mpi(iet, mpimode=None, **kwargs):
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
     iet = Transformer(mapper, nested=True).visit(iet)
+    headers = user_heb.headers
 
     # Must drop the PARALLEL tag from the Iterations within which halo
     # exchanges are performed
@@ -312,8 +313,9 @@ def make_mpi(iet, mpimode=None, **kwargs):
                                for n in tree[:tree.index(i)+1]})
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
+    headers.update({'includes': ['mpi.h'], 'efuncs': efuncs})
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
+    return iet, headers
 
 
 def mpiize(graph, **kwargs):
