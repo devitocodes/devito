@@ -16,8 +16,7 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer', 
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
            'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
-           'Null', 'SizeOf', 'rfunc', 'cast_mapper',
-           'BasicWrapperMixin']
+           'Null', 'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -705,28 +704,3 @@ rfunc_mapper = {
     min: Min,
     max: Max,
 }
-
-
-def integer_args(*args):
-    """
-    Check if expression is Integer.
-    Used to choose the function printed in the c-code
-    """
-    if len(args) == 0:
-        return False
-
-    if len(args) == 1:
-        try:
-            return np.issubdtype(args[0].dtype, np.integer)
-        except AttributeError:
-            return args[0].is_integer
-    res = True
-    for a in args:
-        try:
-            if len(a.args) > 0:
-                res = res and integer_args(*a.args)
-            else:
-                res = res and integer_args(a)
-        except AttributeError:
-            res = res and integer_args(a)
-    return res
