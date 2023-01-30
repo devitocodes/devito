@@ -65,7 +65,11 @@ class IterationInstance(LabeledVector):
     """
 
     def __new__(cls, access):
-        findices = tuple(access.function.dimensions)
+        try:
+            findices = tuple(access.function.dimensions)
+        except AttributeError:
+            # E.g., Objects, which don't have `dimensions`
+            findices = ()
         if len(findices) != len(set(findices)):
             raise ValueError("Illegal non-unique `findices`")
         try:

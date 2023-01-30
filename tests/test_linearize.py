@@ -6,7 +6,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, 
                     MatrixSparseTimeFunction, sin)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, linearize
-from devito.types import Array
+from devito.types import Array, Bundle
 
 
 def test_basic():
@@ -469,3 +469,57 @@ def test_memspace_stack():
     assert 'uL0' in str(op)
     assert 'aL0' not in str(op)
     assert 'a[x][y]' in str(op)
+
+
+def test_call_retval_indexed():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='v', grid=grid)
+
+    call = Call('bar', [f.indexed], retobj=g.indexify())
+    foo = Callable('foo', call, 'void', parameters=[f])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
+
+    foo = graph.root
+
+    assert foo.body.body[0].write.name == 'y_fsz0'
+    assert foo.body.body[2].write.name == 'y_stride0'
+    assert str(foo.body.body[-1]) == 'vL0(x, y) = bar(f);'
+
+
+def test_bundle():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    fg = Bundle(name='fg', components=(f, g))
+
+    bar = Callable('bar', DummyExpr(fg[0, 0, 0], 0), 'void', parameters=[fg.indexed])
+    call = Call('bar', [fg.indexed])
+    foo = Callable('foo', call, 'void', parameters=[f, g])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
+
+    foo = graph.root
+    bar = graph.efuncs['bar']
+
+    # Instead of propagating the components, we propagate the necessary strides!
+    assert f not in bar.parameters
+    assert g not in bar.parameters
+
+    assert foo.body.body[0].write.name == 'y_fsz0'
+    y_stride0 = foo.body.body[2].write
+    assert y_stride0.name == 'y_stride0'
+    assert y_stride0 in bar.parameters

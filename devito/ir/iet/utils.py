@@ -1,7 +1,7 @@
 from devito.ir.iet import FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
 from devito.tools import filter_ordered
-from devito.types import Array, Global, LocalObject
+from devito.types import Global
 
 __all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters']
 
@@ -117,6 +117,6 @@ def derive_parameters(iet, drop_locals=False):
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
-        parameters = [p for p in parameters if not isinstance(p, (Array, LocalObject))]
+        parameters = [p for p in parameters if not (p.is_ArrayBasic or p.is_LocalObject)]
 
     return parameters

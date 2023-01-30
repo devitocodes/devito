@@ -42,7 +42,6 @@ class Cpu64OperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
-        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=16)
 
@@ -103,7 +102,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
             parizer.initialize(graph, options=options)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         return graph
 
@@ -179,7 +178,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)

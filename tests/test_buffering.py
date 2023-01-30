@@ -77,7 +77,7 @@ def test_read_only():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -126,7 +126,7 @@ def test_read_only_backwards():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -144,7 +144,7 @@ def test_read_only_backwards_unstructured():
     nt = 10
     grid = Grid(shape=(2, 2))
 
-    u = TimeFunction(name='u', grid=grid, save=nt)
+    u = TimeFunction(name='u', grid=grid, save=nt, space_order=0)
     v = TimeFunction(name='v', grid=grid)
     v1 = TimeFunction(name='v', grid=grid)
 
@@ -460,7 +460,8 @@ def test_conddim_backwards():
     factor = Constant(name='factor', value=2, dtype=np.int32)
     time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
 
-    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub)
+    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub,
+                     space_order=0)
     v = TimeFunction(name='v', grid=grid)
     v1 = TimeFunction(name='v', grid=grid)
 
@@ -468,6 +469,39 @@ def test_conddim_backwards():
         u.data[i, :] = i
 
     eqns = [Eq(v.backward, v.backward + v + u + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op1)) == 3
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    assert len(buffers) == 1
+
+    op0.apply(time_m=1, time_M=9)
+    op1.apply(time_m=1, time_M=9, v=v1)
+
+    assert np.all(v.data == v1.data)
+
+
+def test_conddim_backwards_multi_slots():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+    time_dim = grid.time_dim
+    x, y = grid.dimensions
+
+    factor = Constant(name='factor', value=2, dtype=np.int32)
+    time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub,
+                     space_order=0)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    for i in range(u.save):
+        u.data[i, :] = i
+
+    eqns = [Eq(v.backward, v + u.backward + u + u.forward + 1.)]
 
     op0 = Operator(eqns, opt='noop')
     op1 = Operator(eqns, opt='buffering')
@@ -492,7 +526,8 @@ def test_conddim_backwards_unstructured():
     factor = Constant(name='factor', value=2, dtype=np.int32)
     time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
 
-    u = TimeFunction(name='u', grid=grid, time_order=0, save=nt, time_dim=time_sub)
+    u = TimeFunction(name='u', grid=grid, space_order=0, time_order=0, save=nt,
+                     time_dim=time_sub)
     v = TimeFunction(name='v', grid=grid)
     v1 = TimeFunction(name='v', grid=grid)
 
@@ -542,7 +577,7 @@ def test_conddim_w_shifting():
 
     u = TimeFunction(name='u', grid=grid, time_order=0)
     u1 = TimeFunction(name='u', grid=grid, time_order=0)
-    usave = TimeFunction(name='usave', grid=grid, time_order=0,
+    usave = TimeFunction(name='usave', grid=grid, space_order=0, time_order=0,
                          save=(int(nt//factor.data)), time_dim=t_sub)
 
     for i in range(usave.save):
@@ -577,7 +612,7 @@ def test_multi_access():
     nt = 10
     grid = Grid(shape=(2, 2))
 
-    u = TimeFunction(name='u', grid=grid, save=nt)
+    u = TimeFunction(name='u', grid=grid, save=nt, space_order=0)
     v = TimeFunction(name='v', grid=grid)
     v1 = TimeFunction(name='v', grid=grid)
     w = TimeFunction(name='w', grid=grid)
@@ -609,7 +644,7 @@ def test_issue_1901():
     time = grid.time_dim
     x, y = grid.dimensions
 
-    usave = TimeFunction(name='usave', grid=grid, save=10)
+    usave = TimeFunction(name='usave', grid=grid, save=10, space_order=0)
     v = TimeFunction(name='v', grid=grid)
 
     eq = [Eq(v[time, x, y], usave)]
@@ -678,6 +713,38 @@ def test_stencil_issue_1915(subdomain):
     subdomain = grid.subdomains[subdomain]
 
     eqn = Eq(u.forward, u.dx + 1, subdomain=subdomain)
+
+    op0 = Operator(eqn, opt='noop')
+    op1 = Operator(eqn, opt='buffering')
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2, u=u1)
+
+    assert np.all(u.data == u1.data)
+
+
+@skipif('cpu64-icc')
+@pytest.mark.parametrize('subdomain', ['domain', 'interior'])
+def test_stencil_issue_1915_v2(subdomain):
+    """
+    Follow up of test_stencil_issue_1915, now with reverse propagation.
+    """
+    nt = 5
+    grid = Grid(shape=(6, 6))
+    time = grid.time_dim
+    x, y = grid.dimensions
+
+    u = TimeFunction(name='u', grid=grid, space_order=4)
+    u1 = TimeFunction(name='u', grid=grid, space_order=4)
+
+    usave = TimeFunction(name='usave', grid=grid, space_order=4, save=nt)
+
+    for i in range(nt):
+        usave.data[i] = i
+
+    subdomain = grid.subdomains[subdomain]
+
+    eqn = Eq(u, usave[time, x, y-1] + usave + usave[time, x, y+1], subdomain=subdomain)
 
     op0 = Operator(eqn, opt='noop')
     op1 = Operator(eqn, opt='buffering')

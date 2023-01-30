@@ -4,6 +4,7 @@ import numpy as np
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
+from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
@@ -53,7 +54,6 @@ class DeviceOperatorMixin(object):
         o['blockeager'] = oo.pop('blockeager', cls.BLOCK_EAGER)
         o['blocklazy'] = oo.pop('blocklazy', not o['blockeager'])
         o['blockrelax'] = oo.pop('blockrelax', cls.BLOCK_RELAX)
-        o['blockperfect'] = oo.pop('blockperfect', False)
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
@@ -95,6 +95,21 @@ class DeviceOperatorMixin(object):
         else:
             return cls.GPU_FIT
 
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs):
+        options = kwargs['options']
+
+        def wrapper(expressions, kwargs=kwargs, mode='default'):
+            if mode == 'host':
+                kwargs = {
+                    'platform': 'cpu64',
+                    'language': 'C' if options['par-disabled'] else 'openmp',
+                    'compiler': 'custom',
+                }
+            return rcompile(expressions, kwargs)
+
+        return wrapper
+
 # Mode level
 
 
@@ -117,7 +132,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         parizer.initialize(graph, options=options)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry, options).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         return graph
 
@@ -192,7 +207,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry, options).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)

@@ -1,10 +1,12 @@
 from collections import defaultdict
 
-from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
+from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
+                              uxreplace)
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import Dimension, Indirection, ModuloDimension
 
-__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims']
+__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims',
+           'shift_back']
 
 
 class AccessMode(object):
@@ -256,3 +258,23 @@ def pull_dims(exprs, flag=True):
         return set().union(*[d._defines for d in dims])
     else:
         return dims
+
+
+def shift_back(objects):
+    """
+    Translate the Indexeds in a given collection of objects along all
+    Dimensions by the left-halo.
+
+    This is useful to create input for recursive compilation from pre-existing,
+    and therefore already lowered/indefixied, input.
+    """
+    processed = []
+    for o in as_tuple(objects):
+        subs = {}
+        for i in retrieve_indexed(o):
+            subs[i] = i.subs({v: v - s.left
+                              for v, s in zip(i.indices, i.function._size_halo)})
+
+        processed.append(uxreplace(o, subs))
+
+    return processed

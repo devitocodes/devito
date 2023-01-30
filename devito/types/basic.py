@@ -280,6 +280,7 @@ class Basic(CodeSymbol):
     is_Array = False
     is_PointerArray = False
     is_ObjectArray = False
+    is_Bundle = False
     is_Object = False
     is_LocalObject = False
 
