@@ -52,6 +52,12 @@ jobs:
             version: ''
             dockerfile: './docker/Dockerfile.amd'
             runner: ["self-hosted", "amdgpu"]
+
+          - tag: 'devitocodes/bases:amd-hip'
+            arch: 'arch=hip'
+            version: ''
+            dockerfile: './docker/Dockerfile.amd'
+            runner: ["self-hosted", "amdgpu"]
           
           # These ones are tiny runs on default
           - tag: 'devitocodes/bases:cpu-gcc'
