@@ -1326,9 +1326,11 @@
 <div class="viewcode-block" id="CustomDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a><span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension defining an iteration space with known size. Unlike a DefaultDimension,</span>
-<span class="sd">    a CustomDimension provides more freedom -- the symbolic_{min,max,size} of the</span>
-<span class="sd">    # Dimension can be set at will.</span>
+<span class="sd">    Dimension defining an iteration space with known size. Unlike a</span>
+<span class="sd">    DefaultDimension, a CustomDimension:</span>
+
+<span class="sd">        * Provides more freedom -- the symbolic_{min,max,size} can be set at will;</span>
+<span class="sd">        * It provides no runtime argument values.</span>
 
 <span class="sd">    Notes</span>
 <span class="sd">    -----</span>

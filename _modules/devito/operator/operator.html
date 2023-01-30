@@ -402,7 +402,7 @@
         <span class="c1"># Enable recursive lowering</span>
         <span class="c1"># This may be used by a compilation pass that constructs a new</span>
         <span class="c1"># expression for which a partial or complete lowering is desired</span>
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;lower&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_rlower</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;rcompile&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_rcompile_wrapper</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># [Eq] -&gt; [LoweredEq]</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower_exprs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -422,26 +422,10 @@
         <span class="k">return</span> <span class="n">IRs</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="n">stree</span><span class="p">,</span> <span class="n">uiet</span><span class="p">,</span> <span class="n">iet</span><span class="p">),</span> <span class="n">byproduct</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_rlower</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Lower `expressions` by carefully disabling a selection of passes so</span>
-<span class="sd">        that the resulting IRs may be used in a context of recursive compilation.</span>
-<span class="sd">        Thus, `_rlower` is expected to be used internally as a callback by one</span>
-<span class="sd">        or more compilation passes, during the &quot;main&quot; phase of compilation.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">])</span>
-
-        <span class="c1"># It is not only pointless to apply the following passes recursively</span>
-        <span class="c1"># (because once, during the main compilation phase, is simply enough),</span>
-        <span class="c1"># but also dangerous as a handful of compiler passes, the minority,</span>
-        <span class="c1"># might break in some circumstances if applied in cascade (e.g.,</span>
-        <span class="c1"># `linearization` on top of `linearization`)</span>
-        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">options</span><span class="p">[</span><span class="s1">&#39;linearize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Will be carried out later on</span>
-
-        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span>
-
-        <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">_rcompile_wrapper</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">rcompile</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_initialize_state</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -822,8 +806,11 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="kn">from</span> <span class="nn">devito.ir.iet.visitors</span> <span class="kn">import</span> <span class="n">CGen</span>
-        <span class="k">return</span> <span class="n">CGen</span><span class="p">(</span><span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ccode_handler</span><span class="p">(</span><span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+            <span class="kn">from</span> <span class="nn">devito.ir.iet.visitors</span> <span class="kn">import</span> <span class="n">CGen</span>
+            <span class="k">return</span> <span class="n">CGen</span><span class="p">(</span><span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1132,6 +1119,34 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">soname</span><span class="p">,</span> <span class="n">binary</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">soname</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">soname</span></div>
+
+
+<span class="k">def</span> <span class="nf">rcompile</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform recursive compilation on an ordered sequence of symbolic expressions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">kwargs</span> <span class="ow">or</span> <span class="s1">&#39;options&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="n">parse_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="n">operator_selector</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_normalize_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="bp">cls</span> <span class="o">=</span> <span class="n">operator_selector</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="c1"># Tweak the compilation kwargs</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">])</span>
+    <span class="c1"># NOTE: it is not only pointless to apply the following passes recursively</span>
+    <span class="c1"># (because once, during the main compilation phase, is simply enough), but</span>
+    <span class="c1"># also dangerous as a handful of compiler passes, the minority, might break</span>
+    <span class="c1"># in some circumstances if applied in cascade (e.g., `linearization` on top</span>
+    <span class="c1"># of `linearization`)</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;linearize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Will be carried out later on</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span>
+
+    <span class="c1"># Recursive profiling not supported -- would be a complete mess</span>
+    <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;profiler&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_lower</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
 <span class="c1"># Misc helpers</span>

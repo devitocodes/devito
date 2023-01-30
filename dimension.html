@@ -297,9 +297,14 @@ accesses in indirectly accessed arrays.</p>
 <dt class="sig sig-object py" id="devito.types.dimension.CustomDimension">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.dimension.</span></span><span class="sig-name descname"><span class="pre">CustomDimension</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/dimension.html#CustomDimension"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.dimension.CustomDimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BasicDimension</span></code></p>
-<p>Dimension defining an iteration space with known size. Unlike a DefaultDimension,
-a CustomDimension provides more freedom – the symbolic_{min,max,size} of the
-# Dimension can be set at will.</p>
+<p>Dimension defining an iteration space with known size. Unlike a
+DefaultDimension, a CustomDimension:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Provides more freedom – the symbolic_{min,max,size} can be set at will;</p></li>
+<li><p>It provides no runtime argument values.</p></li>
+</ul>
+</div></blockquote>
 <p class="rubric">Notes</p>
 <p>This type should not be instantiated directly in user code.</p>
 <dl class="py property">
