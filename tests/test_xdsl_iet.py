@@ -1,8 +1,9 @@
 from devito import Grid, TimeFunction, Eq, Operator
 from devito.tools import as_tuple
 
-from devito.ir.ietxdsl import (MLContext, CGeneration, Powi,
-                               IET, Callable, Block, Iteration, Idx, Assign)
+from devito.ir.ietxdsl import (MLContext, CGeneration, Powi, IET, Callable,
+                               Block, Iteration, Idx, Assign, Initialise,
+                               floatingPointLike)
 
 from devito.ir.iet import retrieve_iteration_tree
 
@@ -114,6 +115,29 @@ def test_Iteration():
         ]))
 
 
+    ])
+
+    printer = Printer()
+    printer.print_op(mod)
+
+
+def test_Initialise():
+    ctx = MLContext()
+    Builtin(ctx)
+    iet = IET(ctx)
+
+    mod = ModuleOp.from_region_or_ops([
+        cst1 := Constant.from_int_and_width(1, i32),
+        x1 := Addi.get(cst1, cst1),
+        y1 := Addi.get(cst1, cst1),
+        ut0 := Idx.get(x1, cst1),
+        ut0x1 := Idx.get(ut0, x1),
+        ut0x1y1 := Idx.get(ut0x1, y1),
+        rhs := Addi.get(ut0x1y1, cst1),
+        ut1 := Idx.get(x1, cst1),
+        ut1x1 := Idx.get(ut1, x1),
+        lhs := Idx.get(ut1x1, y1),
+        Assign.build([lhs, rhs])
     ])
 
     printer = Printer()

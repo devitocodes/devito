@@ -1,6 +1,33 @@
-from devito import Grid, TimeFunction, Eq, Operator
+from devito import Grid, Function, TimeFunction, Eq, Operator, Constant
 from devito.ir.ietxdsl.xdsl_passes import transform_devito_xdsl_string
 # flake8: noqa
+
+def test_simpl_math_ops():
+
+    a = Constant(name='a', value=10)
+    eq = Eq(a, a + 1)
+    op = Operator([eq])
+    op.apply()
+
+    xdsl_string = transform_devito_xdsl_string(op)
+    print(xdsl_string)
+    import pdb;pdb.set_trace()
+
+
+
+
+def test_Function_only_conversion():
+
+    # Define a simple Devito Operator
+    grid = Grid(shape=(3, 3))
+    u = Function(name='u', grid=grid)
+    eq = Eq(u, u + 1)
+    op = Operator([eq])
+    op.apply()
+
+    xdsl_string = transform_devito_xdsl_string(op)
+    import pdb;pdb.set_trace()
+
 
 def test_udx_conversion():
 

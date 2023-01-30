@@ -3,11 +3,13 @@ from typing import Dict
 
 from devito.ir.ietxdsl.operations import (Callable, Modi, StructDecl, Statement,
                                           Iteration, IterationWithSubIndices, Assign,
-                                          PointerCast, Idx, Initialise, List, Constant,
+                                          PointerCast, Idx, Initialise, List,
                                           Powi)
 from devito.tools import flatten
+
 from xdsl.ir import SSAValue, BlockArgument
-from xdsl.dialects.arith import Muli, Addi
+
+from xdsl.dialects.arith import Muli, Addi, Constant
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -61,22 +63,23 @@ class CGeneration:
 
     def printCallable(self, callable_op: Callable):
         arglist = callable_op.body.blocks[0].args
-
         # print kernels and arguments
         self.print('')
         self.print("int Kernel(", end='', indent=False)
         for i, arg in enumerate(arglist):
-            SSAValueNames[arg] = callable_op.parameters.data[i].data
+            # IMPORTANT TOFIX? Here we print a Function like u[..][..][..]
+            SSAValueNames[arg] = callable_op.attributes['parameters'].data[i].data
         # TODO: fix this workaround
         # need separate loop because only header parameters have types
-        for n, (op_type, op_qual) in enumerate(zip(callable_op.types.data,
-                                                   callable_op.qualifiers.data)):
+        for n, (op_type, op_qual) in enumerate(zip(callable_op.attributes['types'].data,
+                callable_op.attributes['qualifiers'].data)): # noqa
+
             self.print(op_type.data, end='', indent=False)
             self.print(op_qual.data, end=' ', indent=False)
-            self.print(callable_op.header_parameters.data[n].data,
+            self.print(callable_op.attributes['header_parameters'].data[n].data,
                        end='',
                        indent=False)
-            if n < (len(list(callable_op.types.data)) - 1):
+            if n < (len(list(callable_op.attributes['types'].data)) - 1):
                 self.print(", ", end='', indent=False)
 
         self.print(")\n{")
@@ -91,13 +94,16 @@ class CGeneration:
     def printIteration(self, iteration_op: Iteration):
         # not used?
         ssa_val = iteration_op.body.blocks[0].args[0]
-        iterator = str(iteration_op.arg_name.data)
+        iterator = str(iteration_op.attributes['arg_name'].data)
         SSAValueNames[ssa_val] = iterator
+
         self.iterator_names[
             iteration_op.regions[0].blocks[0].args[0]] = iterator
-        lower_bound = iteration_op.limits.data[0].data
-        upper_bound = iteration_op.limits.data[1].data
-        increment = iteration_op.limits.data[2].data
+
+        lower_bound = iteration_op.attributes['limits'].data[0].data
+        upper_bound = iteration_op.attributes['limits'].data[1].data
+        increment = iteration_op.attributes['limits'].data[2].data
+
         self.print(f"for (int {iterator} = {lower_bound}; ", end='')
         self.print(f"{iterator} <= {upper_bound}; ", end='', indent=False)
         self.print(f"{iterator} += {increment})", indent=False)
@@ -121,9 +127,9 @@ class CGeneration:
         SSAValueNames[ssa_val] = iterator
         self.iterator_names[
             iteration_op.regions[0].blocks[0].args[0]] = iterator
-        lower_bound = iteration_op.limits.data[0].data
-        upper_bound = iteration_op.limits.data[1].data
-        increment = iteration_op.limits.data[2].data
+        lower_bound = iteration_op.attributes['limits'].data[0].data
+        upper_bound = iteration_op.attributes['limits'].data[1].data
+        increment = iteration_op.attributes['limits'].data[2].data
         self.print(f"for (int {iterator} = {lower_bound}, ", end='')
 
         # Initialise subindices
@@ -245,12 +251,15 @@ class CGeneration:
             # rename float accordingly if required
             if type == "f32":
                 type = "float"
-            if type == "f64":
+            elif type == "f64":
                 type = "double"
+            # TOFIX: resort to float
+            else:
+                type = "float"
             self.print(type, indent=True, end=" ")
-
-            assignee = operation.id.data
-            self.print(assignee, indent=False, end="")
+            assignee = operation.attributes['name'].data
+            for l in assignee:
+                self.print(l.data, indent=False, end="")
             ssa_val = operation.lhs
             SSAValueNames[ssa_val] = assignee
 
@@ -267,17 +276,16 @@ class CGeneration:
             return
 
         if (isinstance(operation, (Statement))):
-            # import pdb;pdb.set_trace()
-            self.print(operation.attributes['statement'])
+            self.print(operation.attributes['statement'].data)
             return
 
         if (isinstance(operation, (PointerCast))):
-            self.print(operation.statement.data)
+            self.print(operation.attributes['statement'].data)
             return
 
         if (isinstance(operation, StructDecl)):
             self.print("struct", indent=False, end=" ")
-            self.print(operation.attributes['id'])
+            self.print(operation.attributes['id'].data)
             self.print("{")
             for field in operation.attributes['fields'].data:
                 self.print(' ', field.data)

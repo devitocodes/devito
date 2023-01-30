@@ -17,8 +17,5 @@ def test_create_xdsl_operator():
     op = Operator([eq])
     op.apply(time_M=5)
 
-    print(xdsl_op.ccode)
-    import pdb;pdb.set_trace()
-    print(op.ccode)
-
+    # TOFIX to add proper test
     # assert(str(op.ccode) == xdsl_op.ccode)

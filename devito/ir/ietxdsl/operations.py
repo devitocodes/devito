@@ -2,19 +2,18 @@ from sympy import Mod
 from typing import Tuple, List, Annotated, Union
 from dataclasses import dataclass
 
-from xdsl.dialects.builtin import (IntegerType, StringAttr,
-                                   ArrayAttr, OpAttr, FunctionType,
-                                   ContainerOf, IndexType,
-                                   Float32Type, IntegerAttr, FloatAttr)
+from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
+                                   ContainerOf, IndexType, Float16Type, Float32Type,
+                                   Float64Type, AnyIntegerAttr, FloatAttr)
 from xdsl.dialects.arith import Constant
 
-from xdsl.irdl import (ResultDef, OperandDef, AttributeDef, AnyAttr,
-                       irdl_op_definition, Operand, AnyOf, RegionDef,
-                       VarOperand, OptOpAttr)
+from xdsl.irdl import (AttributeDef, AnyAttr, irdl_op_definition, Operand, AnyOf,
+                       VarOperand)
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
+floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
 
 @dataclass
@@ -35,14 +34,14 @@ class IET:
         self.ctx.register_op(PointerCast)
         self.ctx.register_op(Statement)
         self.ctx.register_op(StructDecl)
-        self.f32 = Float32Type()
+        self.f32 = floatingPointLike
 
 
 @irdl_op_definition
 class FloatConstant(Operation):
     name: str = "iet.floatconstant"
-    output = ResultDef(AnyAttr())
-    value = AttributeDef(AnyAttr())
+    output: Annotated[OpResult, Attribute]
+    value: Annotated[Operand, Attribute]
 
     # TODO verify that the output and value type are equal
     def verify_(self) -> None:
@@ -80,7 +79,7 @@ class Modi(Operation):
 class Powi(Operation):
     name: str = "iet.Powi"
     base: Annotated[Operand, signlessIntegerLike]
-    exp: Annotated[Operand, signlessIntegerLike]
+    exponent: Annotated[Operand, signlessIntegerLike]
     result: Annotated[OpResult, signlessIntegerLike]
 
     def verify_(self) -> None:
@@ -89,25 +88,44 @@ class Powi(Operation):
 
     @staticmethod
     def get(base: Union[Operation, SSAValue],
-            exp: Union[Operation, SSAValue]):
+            exponent: Union[Operation, SSAValue]):
         base = SSAValue.get(base)
-        return Powi.build(operands=[base, exp],
+        return Powi.build(operands=[base, exponent],
                           result_types=[base.typ])
+
+
+@irdl_op_definition
+class Initialise(Operation):
+    name: str = "iet.initialise"
+
+    lhs: Annotated[OpResult, Attribute]
+    rhs: Annotated[Operand, Attribute]
+    namet: OpAttr[StringAttr]
+
+    @staticmethod
+    def get(lhs: Union[Operation, SSAValue],
+            rhs: Union[Operation, SSAValue],
+            namet: str):
+        attributes = {"name": ArrayAttr.from_list([StringAttr.from_str(str(f))
+                      for f in namet])}
+        res = Initialise.build(attributes=attributes,
+                               operands=[rhs],
+                               result_types=[lhs.typ])
+        return res
 
 
 @irdl_op_definition
 class Idx(Operation):
     name: str = "iet.idx"
-    lhs: Annotated[Operand, signlessIntegerLike]
-    rhs: Annotated[Operand, signlessIntegerLike]
-    result: Annotated[OpResult, signlessIntegerLike]
+    array: Annotated[Operand, signlessIntegerLike]
+    index: Annotated[Operand, signlessIntegerLike]
+    output: Annotated[OpResult, signlessIntegerLike]
 
     @staticmethod
-    def get(operand1: Union[Operation, SSAValue],
-            operand2: Union[Operation, SSAValue]):
-        operand1 = SSAValue.get(operand1)
-        return Idx.build(operands=[operand1, operand2],
-                         result_types=[operand1.typ])
+    def get(array: Union[Operation, SSAValue],
+            index: Union[Operation, SSAValue]):
+        return Idx.build(operands=[array, index],
+                         result_types=[IntegerType.build(32)])
 
 
 @irdl_op_definition
@@ -133,10 +151,10 @@ class PointerCast(Operation):
 @irdl_op_definition
 class Statement(Operation):
     name: str = "iet.comment"
-    statement = AttributeDef(StringAttr)
+    statement = OpAttr[StringAttr]
 
     @staticmethod
-    def get(statement):
+    def get(statement: str):
         return Statement.build(
             operands=[],
             attributes={"statement": StringAttr.from_str(str(statement))},
@@ -146,14 +164,14 @@ class Statement(Operation):
 @irdl_op_definition
 class StructDecl(Operation):
     name: str = "iet.structdecl"
-    id = AttributeDef(StringAttr)
-    fields = AttributeDef(ArrayAttr)
-    declname = AttributeDef(StringAttr)
-    padbytes = AttributeDef(AnyAttr())
+    id: OpAttr[StringAttr]
+    fields: OpAttr[Attribute]
+    declname: OpAttr[StringAttr]
+    padbytes: OpAttr[Attribute]
 
     @staticmethod
     def get(name: str, fields: List[str], declname: str, padbytes: int = 0):
-        padb = IntegerAttr.from_int_and_width(padbytes, 32)
+        padb = AnyIntegerAttr.from_int_and_width(padbytes, 32)
         return StructDecl.build(
             operands=[],
             attributes={
@@ -170,31 +188,15 @@ class StructDecl(Operation):
 
 
 @irdl_op_definition
-class Initialise(Operation):
-    name: str = "iet.initialise"
-    id = AttributeDef(StringAttr)
-    rhs = OperandDef(Float32Type)
-    lhs = ResultDef(Float32Type)
-
-    @staticmethod
-    def get(lhs, rhs, id):
-        res = Initialise.build(attributes={"id": StringAttr.from_str(id)},
-                               operands=[lhs],
-                               result_types=[Float32Type()])
-        return res
-
-
-@irdl_op_definition
 class Callable(Operation):
     name: str = "iet.callable"
 
     body: Region
-    callable_name = OpAttr[StringAttr]
+    callable_name: OpAttr[StringAttr]
     parameters = Annotated[VarOperand, AnyAttr()]
     header_parameters = Annotated[VarOperand, AnyAttr()]
     types = Annotated[VarOperand, AnyAttr()]
     qualifiers = Annotated[VarOperand, AnyAttr()]
-    body = Region
 
     @staticmethod
     def get(name: str,
@@ -220,11 +222,11 @@ class Callable(Operation):
 class Iteration(Operation):
     name: str = "iet.iteration"
 
-    arg_name = OpAttr[StringAttr]
+    arg_name: OpAttr[StringAttr]
     body: Region
-    limits = OpAttr[Attribute]
-    properties = OpAttr[Attribute]
-    pragmas = OpAttr[Attribute]
+    limits: OpAttr[Attribute]
+    properties: OpAttr[Attribute]
+    pragmas: OpAttr[Attribute]
 
     @staticmethod
     def get(properties: List[str | StringAttr],
@@ -250,14 +252,15 @@ class Iteration(Operation):
 @irdl_op_definition
 class IterationWithSubIndices(Operation):
     name: str = "iet.iteration_with_subindices"
-    arg_name = AttributeDef(StringAttr)
-    body = RegionDef()
-    limits = AttributeDef(ArrayAttr)
-    uindices_names = AttributeDef(ArrayAttr)
-    uindices_symbmins_dividends = AttributeDef(ArrayAttr)
-    uindices_symbmins_divisors = AttributeDef(ArrayAttr)
-    properties = AttributeDef(ArrayAttr)
-    pragmas = AttributeDef(ArrayAttr)
+
+    arg_name: OpAttr[StringAttr]
+    body: Region
+    limits: OpAttr[Attribute]
+    uindices_names: OpAttr[Attribute]
+    uindices_symbmins_dividends: OpAttr[Attribute]
+    uindices_symbmins_divisors: OpAttr[Attribute]
+    properties: OpAttr[Attribute]
+    pragmas: OpAttr[Attribute]
 
     @staticmethod
     def get(properties: List[str],

@@ -14,10 +14,15 @@ from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                StructDecl, FloatConstant)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
-from xdsl.dialects.builtin import Builtin, i32
+
+from xdsl.irdl import AnyOf
+from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
+                                   Float64Type, Builtin, i32)
+
 from xdsl.dialects.arith import Muli, Addi
 from xdsl.dialects.func import Call
 
+floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
 ctx = MLContext()
 Builtin(ctx)
@@ -82,6 +87,7 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, Symbol):
         # All symbols must be passed in at the start
+
         my_expr = Symbol(expr.name)
         assert my_expr in arg_by_expr, f'Symbol with name {expr.name} not found ' \
                                        f'in {arg_by_expr}'
@@ -203,7 +209,7 @@ def myVisit(node, block=None, ctx={}):
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
-            init = Initialise.get(r[-1].results[0], [iet.f32], str(expr_name))
+            init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
             block.add_ops([init])
         else:
             add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)
@@ -310,7 +316,6 @@ def myVisit(node, block=None, ctx={}):
         call_name = node.name
         call_args = [i._C_name for i in node.arguments]
         call = Call.get(call_name, [call_args], 'void')
-        import pdb;pdb.set_trace()
         block.add_ops([call])
         return
 
