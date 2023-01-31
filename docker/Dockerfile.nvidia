@@ -28,7 +28,7 @@ ARG ver=nvhpc
 # install the latest nvhpc-x-y no matter which version nvhpc-x-z is requested which would double (extra 10Gb) the size of the image.
 # So for specific version we directly download the specific deb and install it.
 RUN if [ "$ver" = "nvhpc" ]; then \
-        apt-get install -y -q ${ver}; \
+        apt-get install -y -q --allow-unauthenticated ${ver}; \
     else \
         export year=$(echo $ver | cut -d "-" -f 2) && export minor=$(echo $ver | cut -d "-" -f 3) && \
         wget https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64/nvhpc-20${year}_${year}.${minor}_amd64.deb && \
