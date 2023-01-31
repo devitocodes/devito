@@ -92,6 +92,8 @@ class Fusion(Queue):
     Fuse Clusters with compatible IterationSpace.
     """
 
+    _q_guards_in_key = True
+
     def __init__(self, toposort, options=None):
         options = options or {}
 
@@ -99,11 +101,6 @@ class Fusion(Queue):
         self.fusetasks = options.get('fuse-tasks', False)
 
         super().__init__()
-
-    def _make_key_hook(self, cgroup, level):
-        assert level > 0
-        assert len(cgroup.guards) == 1
-        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.ispace[:level]),)
 
     def process(self, clusters):
         cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
