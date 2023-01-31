@@ -85,8 +85,8 @@ jobs:
       if: matrix.name != 'tutos-docker-gcc-py37'
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
-        pip install matplotlib blosc
+        pip install -e .[extras]
+        pip install ipywidgets
 
     - name: Seismic notebooks
       run: |
