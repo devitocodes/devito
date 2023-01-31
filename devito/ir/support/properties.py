@@ -131,7 +131,7 @@ class Properties(frozendict):
     A mapper {Dimension -> {properties}}.
     """
 
-    def add(self, dims, properties):
+    def add(self, dims, properties=None):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = set(self.get(d, [])) | set(as_tuple(properties))
@@ -141,7 +141,7 @@ class Properties(frozendict):
         m = dict(self)
         for d in as_tuple(dims):
             if properties is None:
-                m.pop(d)
+                m.pop(d, None)
             else:
                 m[d] = self[d] - set(as_tuple(properties))
         return Properties(m)

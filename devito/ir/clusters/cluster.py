@@ -46,9 +46,15 @@ class Cluster(object):
         self._guards = Guards(guards or {})
         self._syncs = frozendict(syncs or {})
 
-        properties = dict(properties or {})
-        properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
-        self._properties = Properties(properties)
+        # Normalize properties
+        properties = Properties(properties or {})
+        for d in ispace.itdimensions:
+            properties = properties.add(d)
+        for i in properties:
+            for d in as_tuple(i):
+                if d not in ispace.itdimensions:
+                    properties = properties.drop(d)
+        self._properties = properties
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
