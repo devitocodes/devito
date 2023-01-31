@@ -4,7 +4,7 @@
 
 ARG arch="aomp"
 
-ARG ROCM_VERSION=5.1.3
+ARG ROCM_VERSION=5.4.2
 FROM rocm/dev-ubuntu-20.04:${ROCM_VERSION}-complete as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -25,10 +25,12 @@ RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/l
 # https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
 # UCX. Clang does not support some of the flags such as '-dynamic-list-data' so build UCX with gcc
 RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
-    git clone --branch v1.10.0 https://github.com/openucx/ucx.git ucx && \
+    git clone --branch v1.11.x https://github.com/openucx/ucx.git ucx && \
     cd ucx && ./autogen.sh && \
     mkdir build && cd build && \
-    ../contrib/configure-opt --prefix=/opt/ucx/ --with-rocm=${with_rocm} --without-knem --without-cuda --without-java&& \
+    ../contrib/configure-opt --prefix=/opt/ucx/ --with-rocm=${with_rocm} \
+                             --without-knem --without-cuda --without-java \
+                             --enable-optimizations && \
     make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
     make install && \
     rm -rf /deps/ucx
@@ -36,10 +38,12 @@ RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
 # OpenMPI
 # Build OpenMPI with `amdclang` so that `mpicc` links to the correct compiler
 RUN mkdir -p /opt/openmpi && cd /deps && \
-    git clone --branch v4.1.0 https://github.com/open-mpi/ompi.git openmpi && \
+    git clone --branch v4.1.x https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
-    ../configure OMPI_CC=$AOMP/bin/clang OMPI_CXX=$AOMP/bin/clang++ OMPI_F90=$AOMP/bin/flang CXX=$AOMP/bin/clang++ CC=$AOMP/bin/clang FC=$AOMP/bin/flang --prefix=/opt/openmpi/ --with-ucx=/opt/ucx --without-verbs && \
+    ../configure CC=$AOMP/bin/clang CXX=$AOMP/bin/clang++ FC=$AOMP/bin/flang \
+                 --prefix=/opt/openmpi/ --with-ucx=/opt/ucx \
+                 --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
     make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
     make install && \
     rm -rf /deps/openmpi
