@@ -6,7 +6,7 @@ from cached_property import cached_property
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Properties, Scope, detect_accesses,
+                               DataSpace, Guards, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs,
                                sdims_min, sdims_max)
 from devito.symbolics import estimate_cost
@@ -43,7 +43,7 @@ class Cluster(object):
 
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
-        self._guards = frozendict(guards or {})
+        self._guards = Guards(guards or {})
         self._syncs = frozendict(syncs or {})
 
         properties = dict(properties or {})
