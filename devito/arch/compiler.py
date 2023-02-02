@@ -493,8 +493,8 @@ class AOMPCompiler(Compiler):
         self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
-        self.CC = 'clang'
-        self.CXX = 'clang++'
+        self.CC = 'amdclang'
+        self.CXX = 'amdclang++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
