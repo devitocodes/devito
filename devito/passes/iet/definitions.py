@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               ListInitializer, SizeOf, VOID, Keyword, ccode)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM, Symbol
+from devito.types import DeviceMap, DeviceRM, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -74,14 +74,8 @@ class DataManager(object):
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, sregistry, *args):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        """
+    def __init__(self, rcompile=None, sregistry=None, **kwargs):
+        self.rcompile = rcompile
         self.sregistry = sregistry
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
@@ -298,9 +292,9 @@ class DataManager(object):
         iet : Callable
             The input Iteration/Expression tree.
         """
-        # Process inline definitions
         storage = Storage()
 
+        # Process inline definitions
         for k, v in MapExprStmts().visit(iet).items():
             if k.is_Expression and k.is_initializable:
                 self._alloc_scalar_on_low_lat_mem((iet,) + v, k, storage)
@@ -317,7 +311,7 @@ class DataManager(object):
                 continue
             elif i.is_LocalObject:
                 self._alloc_object_on_low_lat_mem(iet, i, storage)
-            elif i.is_Array:
+            elif i.is_Array or i.is_Bundle:
                 if i._mem_heap:
                     if i._mem_host:
                         self._alloc_host_array_on_high_bw_mem(iet, i, storage)
@@ -357,12 +351,12 @@ class DataManager(object):
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
-        casts = [self.lang.PointerCast(i.function, obj=i) for i in bases
-                 if i not in defines]
+        casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
+                      if i not in defines)
 
         # Incorporate the newly created casts
         if casts:
-            iet = iet._rebuild(body=iet.body._rebuild(casts=casts))
+            iet = iet._rebuild(body=iet.body._rebuild(casts=casts + iet.body.casts))
 
         return iet, {}
 
@@ -376,22 +370,10 @@ class DataManager(object):
 
 class DeviceAwareDataManager(DataManager):
 
-    def __init__(self, sregistry, options):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to quickly access the special symbols that may
-            appear in the IET.
-        options : dict
-            The optimization options.
-            Accepted: ['gpu-fit'].
-            * 'gpu-fit': an iterable of `Function`s that are guaranteed to fit
-              in the device memory. By default, all `Function`s except saved
-              `TimeFunction`'s are assumed to fit in the device memory.
-        """
-        super().__init__(sregistry)
-        self.gpu_fit = options['gpu-fit']
+    def __init__(self, **kwargs):
+        self.gpu_fit = kwargs['options']['gpu-fit']
+
+        super().__init__(**kwargs)
 
     def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -514,6 +496,21 @@ class DeviceAwareDataManager(DataManager):
         """
         Transform `iet` such that device pointers are used in DeviceCalls.
         """
+        defines = FindSymbols('defines').visit(iet)
+        dmaps = [i for i in FindSymbols('basics').visit(iet)
+                 if isinstance(i, DeviceMap) and i not in defines]
+
+        maps = [self.lang.PointerCast(i.function, obj=i) for i in dmaps]
+        body = iet.body._rebuild(maps=iet.body.maps + tuple(maps))
+        iet = iet._rebuild(body=body)
+
+        return iet, {}
+
+    @iet_pass
+    def place_bundling(self, iet, **kwargs):
+        """
+        Transform `iet` adding snippets to pack and unpack Bundles.
+        """
         return iet, {}
 
     def process(self, graph):
@@ -524,4 +521,5 @@ class DeviceAwareDataManager(DataManager):
         self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph)
         self.place_devptr(graph)
+        self.place_bundling(graph)
         self.place_casts(graph)

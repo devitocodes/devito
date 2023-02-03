@@ -1167,9 +1167,11 @@ class BlockDimension(AbstractIncrDimension):
 class CustomDimension(BasicDimension):
 
     """
-    Dimension defining an iteration space with known size. Unlike a DefaultDimension,
-    a CustomDimension provides more freedom -- the symbolic_{min,max,size} of the
-    # Dimension can be set at will.
+    Dimension defining an iteration space with known size. Unlike a
+    DefaultDimension, a CustomDimension:
+
+        * Provides more freedom -- the symbolic_{min,max,size} can be set at will;
+        * It provides no runtime argument values.
 
     Notes
     -----

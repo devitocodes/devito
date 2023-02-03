@@ -162,8 +162,15 @@ class Properties(frozendict):
         return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
                    for d in as_tuple(dims))
 
+    def is_parallel_relaxed(self, dims):
+        items = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
+        return any(len(self[d] & items) > 0 for d in as_tuple(dims))
+
     def is_affine(self, dims):
         return any(AFFINE in self.get(d, ()) for d in as_tuple(dims))
 
     def is_inbound(self, dims):
         return any(INBOUND in self.get(d, ()) for d in as_tuple(dims))
+
+    def is_sequential(self, dims):
+        return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))

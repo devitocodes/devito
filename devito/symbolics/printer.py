@@ -207,6 +207,9 @@ class CodePrinter(C99CodePrinter):
         else:
             return "%s(%s)" % (expr._op, self._print(expr.base))
 
+    def _print_ComponentAccess(self, expr):
+        return "%s.%s" % (self._print(expr.base), expr.sindex)
+
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
         if self.dtype == np.float32:

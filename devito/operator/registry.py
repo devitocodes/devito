@@ -26,7 +26,7 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
     """
 
     _modes = ('noop', 'advanced', 'advanced-fsg')
-    _languages = ('C', 'openmp', 'openacc', 'cuda')
+    _languages = ('C', 'openmp', 'openacc', 'cuda', 'hip')
     _accepted = _modes + tuple(product(_modes, _languages))
 
     def add(self, operator, platform, mode, language='C'):

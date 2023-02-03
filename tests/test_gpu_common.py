@@ -149,8 +149,7 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
 
@@ -225,16 +224,14 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         body = sections[3].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock1[0], 2)'
         assert str(body.body[1]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata1[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata1[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata1[0].time = time;'
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 2
@@ -279,8 +276,7 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[3]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2
@@ -439,6 +435,37 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    def test_streaming_fused(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+            vsave.data[i, :] = i
+
+        eqns = [Eq(u.forward, u + usave + vsave),
+                Eq(v.forward, v + usave + vsave)]
+
+        op = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
+
+        # Check generated code
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write is u
+        assert trees[0][-1].nodes[0].body[1].write is v
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[0] == 56)
+        assert np.all(v.data[0] == 56)
+        assert np.all(u.data[1] == 72)
+        assert np.all(v.data[1] == 72)
+
     @pytest.mark.parametrize('opt', [
         ('buffering', 'streaming', 'orchestrate'),
     ])
@@ -543,6 +570,34 @@ class TestStreaming(object):
         op1.apply(time_M=nt-2, dt=0.1, grad=grad1)
 
         assert np.all(grad.data == grad1.data)
+
+    def test_streaming_multi_input_conddim_backward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+        x, y = grid.dimensions
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=nt, time_dim=time_sub)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        for i in range(u.save):
+            u.data[i, :] = i
+
+        expr = u.dt2 + 3.*u.dt(x0=time_sub - time_sub.spacing)
+
+        eqns = [Eq(v.backward, v + expr + 1.)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': u}))
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt, dt=.01)
+        op1.apply(time_M=nt, dt=.01, v=v1)
+
+        assert np.all(v.data == v1.data)
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 2),

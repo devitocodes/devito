@@ -15,7 +15,7 @@ from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
-           'get_cuda_path', 'check_cuda_runtime', 'get_m1_llvm_path',
+           'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
            'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
            'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
@@ -373,6 +373,17 @@ def get_cuda_path():
             # Sanity check
             if os.path.exists(cuda_home):
                 return cuda_home
+
+    return None
+
+
+@memoized_func
+def get_hip_path():
+    # *** First try: via commonly used environment variables
+    for i in ['HIP_HOME']:
+        hip_home = os.environ.get(i)
+        if hip_home:
+            return hip_home
 
     return None
 

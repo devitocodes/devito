@@ -11,7 +11,7 @@ from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCas
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, filter_ordered, prod
-from devito.types import Array, Symbol, FIndexed, Indexed, Wildcard
+from devito.types import Array, Bundle, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
 from devito.types.dense import DiscreteFunction
 
@@ -56,7 +56,7 @@ def linearization(iet, lmode=None, tracker=None, **kwargs):
         key0 = lambda f: lmode(f) and f.ndim > 1
     else:
         # Default
-        key0 = lambda f: (f.is_DiscreteFunction or f.is_Array) and f.ndim > 1
+        key0 = lambda f: f.is_AbstractFunction and f.ndim > 1
     key = lambda f: key0(f) and not f._mem_stack
 
     iet = linearize_accesses(iet, key, tracker, **kwargs)
@@ -77,7 +77,7 @@ def key1(f, d):
           constant symbolic sizes and strides;
         * A 3-tuple `(Dimension, halo size, grid)` otherwise.
     """
-    if f.is_regular and f.is_compact:
+    if f.is_regular:
         # TODO: same grid + same halo => same padding, however this is not asserted
         # during compilation... so maybe we should do it at `prepare_args` time?
         return (d, f._size_halo[d], getattr(f, 'grid', None))
@@ -150,8 +150,12 @@ def linearize_accesses(iet, key0, tracker=None, sregistry=None, options=None,
             k = key1(f, d)
             try:
                 fsz = tracker.sizes[k]
-                v = _generate_fsz(f, d, fsz, sregistry)
-            except KeyError:
+                val = _generate_fsz(f, d)
+                if val.free_symbols.issubset(f.bound_symbols):
+                    v = DummyExpr(fsz, val, init=True)
+                else:
+                    v = None
+            except (AttributeError, KeyError):
                 v = None
             if v is not None:
                 instances[fsz] = v
@@ -189,18 +193,26 @@ def linearize_accesses(iet, key0, tracker=None, sregistry=None, options=None,
 
 
 @singledispatch
-def _generate_fsz(f, d, fsz, sregistry):
+def _generate_fsz(f, d):
     return
 
 
 @_generate_fsz.register(DiscreteFunction)
-def _(f, d, fsz, sregistry):
-    return DummyExpr(fsz, f._C_get_field(FULL, d).size, init=True)
+def _(f, d):
+    return f._C_get_field(FULL, d).size
 
 
 @_generate_fsz.register(Array)
-def _(f, d, fsz, sregistry):
-    return DummyExpr(fsz, f.symbolic_shape[d], init=True)
+def _(f, d):
+    return f.symbolic_shape[d]
+
+
+@_generate_fsz.register(Bundle)
+def _(f, d):
+    if f.is_DiscreteFunction:
+        return _generate_fsz.registry[DiscreteFunction](f, d)
+    else:
+        return _generate_fsz.registry[Array](f, d)
 
 
 @singledispatch
@@ -210,6 +222,7 @@ def _generate_macro(f, indexeds, tracker, strides, sregistry):
 
 @_generate_macro.register(DiscreteFunction)
 @_generate_macro.register(Array)
+@_generate_macro.register(Bundle)
 def _(f, indexeds, tracker, strides, sregistry):
     # Generate e.g. `usave[(time)*xi_slc0 + (xi)*yi_slc0 + (yi)]`
     assert len(strides) == len(f.dimensions) - 1
@@ -226,6 +239,8 @@ def _(f, indexeds, tracker, strides, sregistry):
             continue
 
         n = len(i.indices)
+        if n == 1:
+            continue
 
         if i.base not in headers:
             pname = sregistry.make_name(prefix='%sL' % f.name)
@@ -239,8 +254,12 @@ def _(f, indexeds, tracker, strides, sregistry):
             define, _ = headers[i.base]
             pname = str(define.name)
 
-        v = tuple(strides.values())[-n:]
-        subs[i] = FIndexed(i, pname, strides=v)
+        if len(i.indices) == i.function.ndim:
+            v = tuple(strides.values())[-n:]
+            subs[i] = FIndexed(i, pname, strides=v)
+        else:
+            # Honour custom indexing
+            subs[i] = i.base[sum(i.indices)]
 
 
 def linearize_pointers(iet, key):

@@ -11,12 +11,12 @@ from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.support import (SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
+from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
                                Property, Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import Signer, as_tuple, filter_ordered, filter_sorted, flatten
-from devito.types.basic import AbstractFunction, AbstractSymbol
+from devito.types.basic import Basic, AbstractFunction, AbstractSymbol
 from devito.types.object import AbstractObject, LocalObject
 from devito.types import Indexed, Symbol
 
@@ -58,6 +58,12 @@ class Node(Signer):
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
     walked over by a Visitor. All arguments in __init__ whose name
     appears in this list are treated as traversable fields.
+    """
+
+    _ccode_handler = None
+    """
+    Customizable by subclasses, in particular Operator subclasses which define
+    backend-specific nodes and, as such, require node-specific handlers.
     """
 
     def __new__(cls, *args, **kwargs):
@@ -313,7 +319,7 @@ class Call(ExprStmt, Node):
         ret = ()
         if self.base is not None:
             ret += (self.base,)
-        if self.retobj is not None:
+        if isinstance(self.retobj, Basic):
             ret += (self.retobj,)
         return ret
 
@@ -547,6 +553,10 @@ class Iteration(Node):
         return VECTORIZED in self.properties
 
     @property
+    def is_Inbound(self):
+        return INBOUND in self.properties
+
+    @property
     def ncollapsed(self):
         for i in self.properties:
             if i.name == 'collapsed':
@@ -701,6 +711,9 @@ class CallableBody(Node):
         Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
+    bundles : list of Nodes, optional
+        Data bundling for `body`. Used to initialize data subjected to layout
+        transformation (w.r.t. how it arrives from Python), such as vector types.
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
@@ -708,17 +721,19 @@ class CallableBody(Node):
         Object definitions for `body`.
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
+    unbundles : list of Nodes, optional
+        Data unbundling for `body`.
     frees : list of Calls, optional
         Data deallocations for `body`.
     """
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'maps', 'objs',
-                    'body', 'unmaps', 'frees']
+    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps', 'objs',
+                    'body', 'unmaps', 'unbundles', 'frees']
 
-    def __init__(self, body, init=None, unpacks=None, allocs=None, casts=None,
-                 objs=None, maps=None, unmaps=None, frees=None):
+    def __init__(self, body, init=(), unpacks=(), allocs=(), casts=(),
+                 bundles=(), objs=(), maps=(), unmaps=(), unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -727,9 +742,11 @@ class CallableBody(Node):
         self.unpacks = as_tuple(unpacks)
         self.allocs = as_tuple(allocs)
         self.casts = as_tuple(casts)
+        self.bundles = as_tuple(bundles)
         self.maps = as_tuple(maps)
         self.objs = as_tuple(objs)
         self.unmaps = as_tuple(unmaps)
+        self.unbundles = as_tuple(unbundles)
         self.frees = as_tuple(frees)
 
     def __repr__(self):
@@ -905,14 +922,17 @@ class PointerCast(ExprStmt, Node):
     @property
     def expr_symbols(self):
         f = self.function
-        if f.is_ArrayBasic:
+        if not self.flat and f.is_ArrayBasic:
             return tuple(flatten(s.free_symbols for s in f.symbolic_shape[1:]))
         else:
             return ()
 
     @property
     def defines(self):
-        return (self.function.indexed,)
+        if isinstance(self.obj, IndexedBase):
+            return (self.obj,)
+        else:
+            return (self.function.indexed,)
 
 
 class Dereference(ExprStmt, Node):

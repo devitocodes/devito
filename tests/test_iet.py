@@ -256,7 +256,8 @@ def test_make_cuda_stream():
 
     iet = Call('foo', stream)
     iet = ElementalFunction('foo', iet, 'void')
-    iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
 
     assert str(iet) == """\
 static inline void foo()
@@ -284,6 +285,19 @@ void foo(struct dataobj *restrict u_vec, float *restrict u)
 {
   u(x, y) = 1;
 }"""
+
+
+def test_call_retobj_indexed():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+    v = Function(name='v', grid=grid)
+
+    call = Call('foo', [u], retobj=v.indexify())
+
+    assert str(call) == "v[x][y] = foo(u_vec);"
+
+    assert not call.defines
 
 
 def test_null_init():

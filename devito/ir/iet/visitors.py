@@ -16,7 +16,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
 from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import (GenericVisitor, as_tuple, filter_ordered, filter_sorted,
+                          flatten, is_external_ctype)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -402,7 +403,10 @@ class CGen(Visitor):
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
-            return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
+            if retobj.is_Indexed:
+                return c.Assign(ccode(retobj), call)
+            else:
+                return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
 
     def visit_Conditional(self, o):
         try:
@@ -506,23 +510,27 @@ class CGen(Visitor):
                 for i in o._includes]
 
     def _operator_typedecls(self, o, mode='all'):
+        xfilter0 = lambda i: i._C_typedecl is not None
+
         if mode == 'all':
-            xfilter = lambda i: True
+            xfilter1 = xfilter0
         else:
             public_types = (AbstractFunction, CompositeObject)
             if mode == 'public':
-                xfilter = lambda i: isinstance(i, public_types)
+                xfilter1 = lambda i: xfilter0(i) and isinstance(i, public_types)
             else:
-                xfilter = lambda i: not isinstance(i, public_types)
+                xfilter1 = lambda i: xfilter0(i) and not isinstance(i, public_types)
+
+        # This is essentially to rule out vector types which are declared already
+        # in some external headers
+        xfilter = lambda i: xfilter1(i) and not is_external_ctype(i._C_ctype, o._includes)
 
         candidates = o.parameters + tuple(o._dspace.parts)
-        typedecls = [i._C_typedecl for i in candidates
-                     if xfilter(i) and i._C_typedecl is not None]
+        typedecls = [i._C_typedecl for i in candidates if xfilter(i)]
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([j._C_typedecl for j in i.root.parameters
-                              if xfilter(j) and j._C_typedecl is not None])
+            typedecls.extend([j._C_typedecl for j in i.root.parameters if xfilter(j)])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls
@@ -1008,13 +1016,22 @@ class Uxreplace(Transformer):
 
     def visit_Call(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
-        return o._rebuild(arguments=arguments)
+        if o.retobj is not None:
+            retobj = uxreplace(o.retobj, self.mapper)
+            return o._rebuild(arguments=arguments, retobj=retobj)
+        else:
+            return o._rebuild(arguments=arguments)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+
+    def visit_PointerCast(self, o):
+        function = self.mapper.get(o.function, o.function)
+        obj = self.mapper.get(o.obj, o.obj)
+        return o._rebuild(function=function, obj=obj)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
