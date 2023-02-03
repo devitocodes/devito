@@ -301,7 +301,7 @@ class Call(ExprStmt, Node):
             if isinstance(i, AbstractFunction):
                 continue
             elif isinstance(i, (Indexed, IndexedBase, AbstractObject, Symbol)):
-                retval.append(i)
+                retval.extend(i.free_symbols)
             elif isinstance(i, Call):
                 retval.extend(i.expr_symbols)
             else:
