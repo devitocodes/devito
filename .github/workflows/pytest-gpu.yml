@@ -55,7 +55,6 @@ jobs:
           tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-clang-nvidia'
-          mpi_flags: ''
 
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
@@ -63,7 +62,6 @@ jobs:
           tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-nvc'
-          mpi_flags: ''
 
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
@@ -73,7 +71,6 @@ jobs:
           # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
           # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
           flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm --name testrun-amd"
-          mpi_flags: "--mca btl '^openib' -x UCX_TLS=sm,self,rocm_copy,rocm_ipc  --mca pml ucx"
 
     steps:
     - name: Checkout devito
@@ -99,6 +96,5 @@ jobs:
         docker run ${{ matrix.flags }} ${{ matrix.name }} pytest ${{ matrix.test_examples }}
 
     - name: Test examples with MPI
-      if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun ${{ matrix.mpi_flags }} -n 2 pytest ${{ matrix.test_examples }}
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
