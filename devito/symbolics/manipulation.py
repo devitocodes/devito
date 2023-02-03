@@ -51,6 +51,12 @@ def _uxreplace(expr, rule):
         args, eargs = split(expr.args, lambda i: i in v)
         args = [v[i] for i in args if v[i] is not None]
         changed = True
+    elif expr.__class__ in rule:
+        # Exact type -> type substitution
+        cls = rule[expr.__class__]
+        expr = cls(*expr.args)
+        args, eargs = [], expr.args
+        changed = True
     else:
         try:
             args, eargs = [], expr.args

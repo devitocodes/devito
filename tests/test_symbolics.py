@@ -6,11 +6,11 @@ import numpy as np
 
 from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs)
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
-                              FieldFromComposite, IntDiv, MIN, MAX, ccode)
+                              FieldFromComposite, IntDiv, MIN, MAX, ccode, uxreplace)
 from devito.types import Array, LocalObject, Object
 
 
@@ -326,6 +326,22 @@ def test_solve_time():
     # TODO: replace by retreive_derivatives after Fabio's PR
     assert sympy.simplify(u.dx - sol.args[2].args[0].args[1]) == 0
     assert sympy.simplify(sol - (-dt**2*u.dx/m + 2.0*u - u.backward)) == 0
+
+
+@pytest.mark.parametrize('expr,subs,expected', [
+    ('f', '{f: g}', 'g'),
+    ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
+    ('cos(f)', '{cos: sin}', 'sin(f)'),
+    ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
+])
+def test_uxreplace(expr, subs, expected):
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions  # noqa
+
+    f = Function(name='f', grid=grid)  # noqa
+    g = Function(name='g', grid=grid)  # noqa
+
+    assert uxreplace(eval(expr), eval(subs)) == eval(expected)
 
 
 class TestRelationsWithAssumptions(object):
