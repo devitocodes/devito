@@ -1454,7 +1454,7 @@ class TestConditionalDimension(object):
 
         op = Operator(eqns, openmp=True)
 
-        assert_structure(op, ['i,x,y', 'i',  'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
+        assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
 
 class TestCustomDimension(object):

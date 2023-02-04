@@ -5,7 +5,6 @@ of symbols and data.
 
 from collections import OrderedDict
 from functools import singledispatch
-from itertools import product
 from operator import itemgetter
 
 import numpy as np
@@ -17,8 +16,7 @@ from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
-                              ListInitializer, SizeOf, VOID, Keyword, pow_to_mul,
-                              ccode)
+                              SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import Array, DeviceMap, DeviceRM, Symbol
 

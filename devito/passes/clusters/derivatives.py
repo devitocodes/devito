@@ -1,10 +1,10 @@
 from devito.finite_differences import IndexDerivative
-from devito.ir import Cluster, Interval, IntervalGroup, IterationSpace
+from devito.ir import Interval, IterationSpace
 from devito.passes.clusters.misc import fuse
 from devito.symbolics import (retrieve_dimensions, reuse_if_untouched, q_leaf,
                               uxreplace)
-from devito.tools import as_tuple, filter_ordered, timed_pass
-from devito.types import Eq, Inc, Spacing, StencilDimension, Symbol
+from devito.tools import filter_ordered, timed_pass
+from devito.types import Eq, Inc, StencilDimension, Symbol
 
 __all__ = ['lower_index_derivatives']
 

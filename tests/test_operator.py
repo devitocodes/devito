@@ -1916,7 +1916,6 @@ class TestLoopScheduling(object):
 
     def test_topofuse_w_numeric_dim(self):
         r = Dimension('r')
-        x = Dimension('x')
         i = CustomDimension('i', 0, 3)
 
         a = Array(name='a', dimensions=(i,))

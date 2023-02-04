@@ -6,7 +6,7 @@ from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, s
 from devito.types import Dimension, Indirection, ModuloDimension, StencilDimension
 
 __all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims',
-           'shift_back', 'sdims_min', 'sdims_max', 'sdims_separate']
+           'shift_back', 'sdims_min', 'sdims_max']
 
 
 class AccessMode(object):
@@ -304,7 +304,3 @@ def sdims_max(expr):
         return expr
     mapper = {e: e._max for e in sdims}
     return expr.subs(mapper)
-
-
-def sdims_separate(expr):
-    from IPython import embed; embed()

@@ -1,4 +1,4 @@
-from devito.ir import Call, DummyExpr
+from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB

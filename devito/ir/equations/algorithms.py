@@ -5,7 +5,7 @@ from sympy import sympify
 
 from devito.symbolics import retrieve_indexed, split_affine, uxreplace
 from devito.tools import PartialOrderTuple, as_tuple, filter_sorted, flatten
-from devito.types import Dimension, IgnoreDimSort, StencilDimension
+from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
 
 __all__ = ['dimension_sort', 'lower_exprs']

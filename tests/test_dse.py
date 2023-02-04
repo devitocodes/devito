@@ -9,7 +9,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeF
                     Operator, norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos, sin, sqrt)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.finite_differences.differentiable import Weights, diffify
+from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
@@ -1564,8 +1564,7 @@ class TestAliases(object):
             arrays = self.get_arrays(op)
             assert len(arrays) == 1
             self.check_array(arrays[0], ((2, 2), (2, 2), (0, 0)), (xs+4, ys+4, zs))
-        #TODO -- FIX THE OPERATION COUNT !!!!!!!!!!!!!!!!!
-        #assert op1._profiler._sections['section1'].sops == 34
+        assert op1._profiler._sections['section1'].sops == 44
 
         op0.apply(time_M=10)
         op1.apply(time_M=10, u=u1, v=v1)

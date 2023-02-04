@@ -347,7 +347,6 @@ def fuse(clusters, toposort=False, options=None):
     return clusters
 
 
-
 @cluster_pass(mode='all')
 def optimize_pows(cluster, *args):
     """

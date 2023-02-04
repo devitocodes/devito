@@ -1,4 +1,3 @@
-from collections import Counter
 from functools import singledispatch
 
 import numpy as np
@@ -10,7 +9,6 @@ from devito.logger import warning
 from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
-from devito.symbolics.search import search
 from devito.tools import as_tuple, prod
 
 __all__ = ['compare_ops', 'estimate_cost']

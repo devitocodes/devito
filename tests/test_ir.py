@@ -770,9 +770,9 @@ class TestDependenceAnalysis(object):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
 
-        a0 = Array(name='a', dimensions=(x,))
-        a1 = Array(name='a', dimensions=(x, y))
-        s = Symbol(name='s')
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
 
         # List comprehension would need explicit locals/globals mappings to eval
         for i, e in enumerate(list(eqns)):
@@ -783,16 +783,15 @@ class TestDependenceAnalysis(object):
 
     @pytest.mark.parametrize('eqns', [
         ['Eq(a0[4], 1)', 'Eq(s, a0[4])'],
-        #['Eq(a1[3, y], 1)', 'Eq(s, a1[3, y+1])'],
         ['Eq(a1[x+1, 4], 1)', 'Eq(s, a1[x, 4])'],
     ])
     def test_dep_nasty(self, eqns):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
 
-        a0 = Array(name='a', dimensions=(x,))
-        a1 = Array(name='a', dimensions=(x, y))
-        s = Symbol(name='s')
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
 
         # List comprehension would need explicit locals/globals mappings to eval
         for i, e in enumerate(list(eqns)):

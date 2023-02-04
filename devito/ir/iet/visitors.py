@@ -209,7 +209,6 @@ class CGen(Visitor):
         except AttributeError:
             fields = (None,)*len(ctype._fields_)
 
-        #entries = [self._gen_value(obj, masked=('const',))]
         entries = []
         for i, (n, ct) in zip(fields, ctype._fields_):
             try:
@@ -233,7 +232,6 @@ class CGen(Visitor):
             strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
-                #is it always the case that _C_ctype == c_void_restrict_p? 
                 strtype = '%s%s' % (strtype, self._restrict_keyword)
         strtype = ' '.join(qualifiers + [strtype])
 
