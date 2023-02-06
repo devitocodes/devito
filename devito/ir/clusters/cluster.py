@@ -255,7 +255,6 @@ class Cluster(object):
             if f is None:
                 continue
 
-            #TODO OOOOOOOo
             intervals = [Interval(d,
                                   min([sdims_min(i) for i in offs]),
                                   max([sdims_max(i) for i in offs]))
