@@ -1,4 +1,4 @@
-from collections import ChainMap, defaultdict
+from collections import ChainMap
 from itertools import product
 from functools import singledispatch
 
@@ -14,10 +14,9 @@ from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict, is_integer,
                           split)
-from devito.types import (Array, DimensionTuple, Evaluable, Indexed, Spacing,
-                          StencilDimension)
+from devito.types import Array, DimensionTuple, Evaluable, Spacing, StencilDimension
 
-__all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative']
+__all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative', 'Weights']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -506,6 +505,8 @@ class IndexSum(DifferentiableOp):
     Dimensions, of an indexed expression.
     """
 
+    __rargs__ = ('expr', 'dimensions')
+
     is_commutative = True
 
     def __new__(cls, expr, dimensions, **kwargs):
@@ -529,7 +530,7 @@ class IndexSum(DifferentiableOp):
                     raise ValueError("Dimension `%s` already appears in a "
                                      "nested tensor contraction" % d)
 
-        obj = sympy.Expr.__new__(cls, expr, *dimensions)
+        obj = sympy.Expr.__new__(cls, expr)
         obj._expr = expr
         obj._dimensions = dimensions
 
@@ -540,6 +541,9 @@ class IndexSum(DifferentiableOp):
                                  ', '.join(d.name for d in self.dimensions))
 
     __str__ = __repr__
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.dimensions,)
 
     @property
     def expr(self):
@@ -565,6 +569,8 @@ class IndexSum(DifferentiableOp):
     @property
     def free_symbols(self):
         return super().free_symbols - set(self.dimensions)
+
+    func = DifferentiableOp._rebuild
 
 
 class Weights(Array):
@@ -616,7 +622,11 @@ class Weights(Array):
 
 class IndexDerivative(IndexSum):
 
-    def __new__(cls, expr, dimensions, **kwargs):
+    __rargs__ = ('expr', 'mapper')
+
+    def __new__(cls, expr, mapper, **kwargs):
+        dimensions = as_tuple(mapper.values())
+
         # Detect the Weights among the arguments
         weightss = []
         for a in expr.args:
@@ -634,35 +644,20 @@ class IndexDerivative(IndexSum):
 
         obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights
+        obj._mapper = frozendict(mapper)
 
         return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.mapper,)
 
     @property
     def weights(self):
         return self._weights
 
-    @cached_property
+    @property
     def mapper(self):
-        """
-        Map StencilDimensions (used to express the underlying derivative) to
-        the Dimensions they iterate over.
-        """
-        #TODO: we may want to get this by construction...
-        ret = defaultdict(set)
-        for indexed in self.find(Indexed):
-            f = indexed.function
-            if isinstance(f, Weights):
-                continue
-
-            for d, i in zip(f.dimensions, indexed.indices):
-                for sd in self.dimensions:
-                    if sd in i.free_symbols:
-                        ret[d.root].add(sd)
-
-        # Sanity check
-        assert all(len(v) == 1 for v in ret.values())
-
-        return frozendict({d: v.pop() for d, v in ret.items()})
+        return self._mapper
 
     def _evaluate(self, **kwargs):
         expr = super()._evaluate(**kwargs)
