@@ -1,8 +1,8 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import LM, LC, Pow, Add, Mul, Min, Max
+from sympy import Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -15,9 +15,8 @@ from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'split_affine',
-           'subs_op_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
-           'evalrel']
+__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
+           'uxreplace', 'Uxmapper', 'reuse_if_untouched', 'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -243,41 +242,6 @@ def pow_to_mul(expr):
             pass
 
         return expr.func(*args, evaluate=False)
-
-
-AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
-
-
-def split_affine(expr):
-    """
-    Split an affine scalar function into its three components, namely variable,
-    coefficient, and translation from origin.
-
-    Raises
-    ------
-    ValueError
-        If ``expr`` is non affine.
-    """
-    if expr.is_Number:
-        return AffineFunction(None, None, expr)
-
-    # Handle super-quickly the calls like `split_affine(x+1)`, which are
-    # the majority.
-    if expr.is_Add and len(expr.args) == 2:
-        if expr.args[0].is_Number and expr.args[1].is_Symbol:
-            # SymPy deterministically orders arguments -- first numbers, then symbols
-            return AffineFunction(expr.args[1], 1, expr.args[0])
-
-    # Fallback
-    poly = expr.as_poly()
-    try:
-        if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
-            raise ValueError
-    except AttributeError:
-        # `poly` might be None
-        raise ValueError
-
-    return AffineFunction(LM(poly), LC(poly), poly.TC())
 
 
 def indexify(expr):

@@ -3,7 +3,7 @@ from operator import attrgetter
 
 from sympy import sympify
 
-from devito.symbolics import retrieve_indexed, split_affine, uxreplace
+from devito.symbolics import retrieve_indexed, uxreplace
 from devito.tools import PartialOrderTuple, as_tuple, filter_sorted, flatten
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
@@ -21,11 +21,11 @@ def dimension_sort(expr):
         relation = []
         for i in indexed.indices:
             try:
-                maybe_dim = split_affine(i).var
-                if isinstance(maybe_dim, Dimension):
-                    relation.append(maybe_dim)
-            except ValueError:
-                # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
+                # Assume it's an AffineIndexAccessFunction...
+                relation.append(i.d)
+            except AttributeError:
+                # It's not! Maybe there are some nested Indexeds (e.g., the
+                # situation is A[B[i]])
                 nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
                 if nested:
                     relation.extend(nested)

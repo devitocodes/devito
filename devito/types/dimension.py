@@ -1,6 +1,7 @@
 from collections import namedtuple
 
 import sympy
+from sympy.core.decorators import call_highest_priority
 import numpy as np
 from cached_property import cached_property
 
@@ -106,6 +107,9 @@ class Dimension(ArgProvider):
     is_Incr = False
     is_Block = False
 
+    # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
+    _op_priority = sympy.Expr._op_priority + 1.
+
     __rargs__ = ('name',)
     __rkwargs__ = ('spacing',)
 
@@ -199,6 +203,22 @@ class Dimension(ArgProvider):
     @cached_property
     def _defines(self):
         return frozenset({self})
+
+    @call_highest_priority('__radd__')
+    def __add__(self, other):
+        return AffineIndexAccessFunction(self, other)
+
+    @call_highest_priority('__add__')
+    def __radd__(self, other):
+        return AffineIndexAccessFunction(self, other)
+
+    @call_highest_priority('__rsub__')
+    def __sub__(self, other):
+        return AffineIndexAccessFunction(self, -other)
+
+    @call_highest_priority('__sub__')
+    def __rsub__(self, other):
+        return AffineIndexAccessFunction(other, -self)
 
     @property
     def _arg_names(self):
@@ -1449,8 +1469,112 @@ class SteppingDimension(DerivedDimension):
         return values
 
 
-# ***
-# Utils
+# *** Utils
+
+
+class IndexAccessFunction(sympy.Add):
+
+    """
+    A IndexAccessFunction is an expression used to index into a Function.
+    """
+
+    # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
+    _op_priority = sympy.Add._op_priority + 1.
+
+    def __eq__(self, other):
+        return super().__eq__(other)
+
+    __hash__ = sympy.Add.__hash__
+
+
+class AffineIndexAccessFunction(IndexAccessFunction):
+    """
+    An AffineIndexAccessFunction is the sum of three operands:
+
+        * the "main" Dimension (in practice a SpaceDimension or a TimeDimension);
+        * an offset (number or symbolic expression, of dtype integer).
+        * a StencilDimension;
+
+    Examples
+    --------
+    The AffineIndexAccessFunction `x + sd + 3`, with `sd \in [-2, 2]`, represents
+    the index access functions `[x + 1, x + 2, x + 3, x + 4, x + 5]`
+    """
+
+    def __new__(cls, *args, **kwargs):
+        d = 0
+        sd = 0
+        ofs_items = []
+        for a in args:
+            if isinstance(a, StencilDimension):
+                if sd != 0:
+                    return sympy.Add(*args, **kwargs)
+                sd = a
+            elif isinstance(a, Dimension):
+                d = cls._separate_dims(d, a, ofs_items)
+                if d is None:
+                    return sympy.Add(*args, **kwargs)
+            elif isinstance(a, AffineIndexAccessFunction):
+                if sd != 0 and a.sd != 0:
+                    return sympy.Add(*args, **kwargs)
+                d = cls._separate_dims(d, a.d, ofs_items)
+                if d is None:
+                    return sympy.Add(*args, **kwargs)
+                sd = a.sd
+                ofs_items.append(a.ofs)
+            else:
+                ofs_items.append(a)
+
+        ofs = sympy.Add(*[i for i in ofs_items if i is not None])
+        if not all(is_integer(i) or i.is_Symbol for i in ofs.free_symbols):
+            return sympy.Add(*args, **kwargs)
+
+        obj = IndexAccessFunction.__new__(cls, d, ofs, sd)
+
+        if isinstance(obj, AffineIndexAccessFunction):
+            obj.d = d
+            obj.ofs = ofs
+            obj.sd = sd
+        else:
+            # E.g., SymPy simplified it to Zero or something else
+            pass
+
+        return obj
+
+    @classmethod
+    def _separate_dims(cls, d0, d1, ofs_items):
+        if d0 == 0 and d1 == 0:
+            return None
+        elif d0 == 0 and isinstance(d1, Dimension):
+            return d1
+        elif d1 == 0 and isinstance(d0, Dimension):
+            return d0
+        elif isinstance(d0, Dimension) and isinstance(d1, AbstractIncrDimension):
+            # E.g., `time + x0_blk0` after skewing
+            ofs_items.append(d1)
+            return d0
+        elif isinstance(d1, Dimension) and isinstance(d0, AbstractIncrDimension):
+            # E.g., `time + x0_blk0` after skewing
+            ofs_items.append(d0)
+            return d1
+        else:
+            return None
+
+    @call_highest_priority('__radd__')
+    def __add__(self, other):
+        return AffineIndexAccessFunction(self, other)
+
+    @call_highest_priority('__add__')
+    def __radd__(self, other):
+        return AffineIndexAccessFunction(self, other)
+
+    @call_highest_priority('__rsub__')
+    def __sub__(self, other):
+        return AffineIndexAccessFunction(self, -other)
+
+    @call_highest_priority('__sub__')
+    def __rsub__(self, other):
+        return AffineIndexAccessFunction(other, -self)
 
 
 def dimensions(names):

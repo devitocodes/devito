@@ -8,7 +8,7 @@ from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights)
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import StencilDimension
+from devito.types.dimension import StencilDimension
 
 _PRECISION = 9
 

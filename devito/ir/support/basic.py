@@ -91,12 +91,14 @@ class IterationInstance(LabeledVector):
                 retval.append(AFFINE)
                 continue
 
+            # TODO: Exploit AffineIndexAccessFunction instead of calling
+            # q_affine -- ultimately it should get quicker!
+
             sdims = {d for d in dims if d.is_Stencil}
             if dims == sdims:
                 candidates = sdims
             else:
                 # E.g. `x + i0 + i1` -> `candidates = {x}`
-                #TODO: Util to separate out DIM and STENCILDIMS From IndexExpression?
                 candidates = dims - sdims
 
             if len(candidates) == 1:
@@ -119,6 +121,7 @@ class IterationInstance(LabeledVector):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
+
             if len(candidates) == 1:
                 retval.append(candidates.pop())
             elif isinstance(i, Dimension):
