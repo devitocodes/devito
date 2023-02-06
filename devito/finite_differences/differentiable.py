@@ -12,9 +12,10 @@ from sympy.core.evalf import evalf_table
 
 from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
-from devito.tools import (as_tuple, filter_ordered, flatten, frozendict, is_integer,
-                          split)
-from devito.types import Array, DimensionTuple, Evaluable, Spacing, StencilDimension
+from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
+                          infer_dtype, is_integer, split)
+from devito.types import (Array, DimensionTuple, Evaluable, Indexed, Spacing,
+                          StencilDimension)
 
 __all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative', 'Weights']
 
@@ -63,6 +64,11 @@ class Differentiable(sympy.Expr, Evaluable):
             return grids.pop()
         except KeyError:
             return None
+
+    @cached_property
+    def dtype(self):
+        dtypes = {f.dtype for f in self.find(Indexed)} - {None}
+        return infer_dtype(dtypes)
 
     @cached_property
     def indices(self):

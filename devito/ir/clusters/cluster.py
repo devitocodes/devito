@@ -10,7 +10,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                detect_io, normalize_properties, normalize_syncs,
                                sdims_min, sdims_max)
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, frozendict
+from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -237,17 +237,8 @@ class Cluster(object):
             except TypeError:
                 # E.g. `i.dtype` is a ctypes pointer, which has no dtype equivalent
                 pass
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
 
-        if len(fdtypes) > 1:
-            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
-        elif len(fdtypes) == 1:
-            return fdtypes.pop()
-        elif len(dtypes) == 1:
-            return dtypes.pop()
-        else:
-            # E.g., mixed integer arithmetic
-            return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+        return infer_dtype(dtypes)
 
     @cached_property
     def dspace(self):
@@ -435,16 +426,8 @@ class ClusterGroup(tuple):
         data type with highest precision is returned.
         """
         dtypes = {i.dtype for i in self}
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
-        if len(fdtypes) > 1:
-            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
-        elif len(fdtypes) == 1:
-            return fdtypes.pop()
-        elif len(dtypes) == 1:
-            return dtypes.pop()
-        else:
-            # E.g., mixed integer arithmetic
-            return max(dtypes, key=lambda i: np.dtype(i).itemsize)
+
+        return infer_dtype(dtypes)
 
     @cached_property
     def meta(self):

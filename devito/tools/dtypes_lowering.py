@@ -11,7 +11,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype']
+           'is_external_ctype', 'infer_dtype']
 
 
 # *** Custom np.dtypes
@@ -211,3 +211,24 @@ def is_external_ctype(ctype, includes):
             return True
 
     return False
+
+
+def infer_dtype(dtypes):
+    """
+    Given a set of np.dtypes, return the "winning" dtype:
+
+        * In the case of multiple floating dtypes, return the dtype with
+          highest precision;
+        * If there's at least one floating dtype, ignore any integer dtypes.
+    """
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+
+    if len(fdtypes) > 1:
+        return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
+    elif len(fdtypes) == 1:
+        return fdtypes.pop()
+    elif len(dtypes) == 1:
+        return dtypes.pop()
+    else:
+        # E.g., mixed integer arithmetic
+        return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
