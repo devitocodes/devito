@@ -46,6 +46,8 @@ jobs:
           pytest-gpu-acc-nvidia,
           pytest-gpu-omp-amd
         ]
+        test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
+
         include:
         - name: pytest-gpu-omp-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
@@ -62,9 +64,7 @@ jobs:
           flags: '--gpus all --rm --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
-          # We only test the OpenMP generation due to issue with the offloading discussed in
-          # https://github.com/ROCm-Developer-Tools/aomp/issues/397
-          test_files: "tests/test_gpu_openmp.py"
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           tags: ["self-hosted", "amdgpu"]
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
@@ -93,17 +93,8 @@ jobs:
 
     - name: Test examples
       run: |
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/acoustic/acoustic_example.py
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/elastic/elastic_example.py
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/tti/tti_example.py
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest ${{ matrix.test_examples }}
 
     - name: Test examples with MPI
-      if: matrix.name != 'pytest-gpu-omp-amd'
       run: |
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/acoustic/acoustic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/elastic/elastic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/tti/tti_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpirun -n 2 pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
