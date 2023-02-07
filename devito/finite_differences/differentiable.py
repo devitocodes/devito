@@ -527,9 +527,14 @@ class IndexSum(DifferentiableOp):
                 pass
             raise ValueError("Expected Dimension with numeric size, "
                              "got `%s` instead" % d)
-        if not expr.has_free(*dimensions):
+
+        # TODO: `has_free` only available with SymPy v>=1.10
+        # We should start using `not expr.has_free(*dimensions)` once we drop
+        # support for SymPy 1.8<=v<1.0
+        if not all(d in expr.free_symbols for d in dimensions):
             raise ValueError("All Dimensions `%s` must appear in `expr` "
                              "as free variables" % str(dimensions))
+
         for i in expr.find(IndexSum):
             for d in dimensions:
                 if d in i.dimensions:
