@@ -220,8 +220,6 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
-        #TODO: memoize_meth??
-
         # Are there any ClusterGroups that could potentially be fused? If
         # not, do not waste time computing a new topological ordering
         counter = Counter(self._key(cg) for cg in cgroups)
