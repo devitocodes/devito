@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
+import cupy as cp
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, ALLOC_CUPY, configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -205,6 +206,26 @@ class TestDataBasic(object):
 
         sf.data[1:-1, 0] = np.arange(8)
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
+
+    def test_uma_allocation(self):
+        """
+        Test Unified Memory allocation.
+        """
+        nt = 5
+        grid = Grid(shape=(4, 4, 4))
+
+        u = Function(name='u', grid=grid, allocator=ALLOC_CUPY )
+        u.data[:] = 5
+        address = u.data.ctypes.data
+        pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
+        assert pointerAttr.devicePointer == pointerAttr.hostPointer
+
+        v = TimeFunction(name='v', grid=grid, save=nt, allocator=ALLOC_CUPY )
+        v.data[:] = 5
+        address = v.data.ctypes.data
+        pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
+        assert pointerAttr.devicePointer == pointerAttr.hostPointer
+
 
 
 class TestLocDataIDX(object):
