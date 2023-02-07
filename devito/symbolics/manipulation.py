@@ -236,7 +236,7 @@ def pow_to_mul(expr):
         # the args, the issue disappears...
         try:
             a0, a1 = args
-            if a0.is_Number and a0 < 0:
+            if a0.is_Number and a0 < 0 and not q_leaf(a1):
                 args = [a1, a0]
         except ValueError:
             pass

@@ -160,6 +160,7 @@ def test_cse(exprs, expected, min_cost):
     ('fa[x]**s', 'fa[x]**s'),
     ('fa[x]**(-s)', 'fa[x]**(-s)'),
     ('-2/(s**2)', '-2/(s*s)'),
+    ('-fa[x]', '-fa[x]'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
