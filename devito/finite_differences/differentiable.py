@@ -670,6 +670,11 @@ class IndexDerivative(IndexSum):
     def mapper(self):
         return self._mapper
 
+    @property
+    def total_order(self):
+        iderivs = self.expr.find(IndexDerivative)
+        return 1 + max([i.total_order for i in iderivs], default=0)
+
     def _evaluate(self, **kwargs):
         expr = super()._evaluate(**kwargs)
 
