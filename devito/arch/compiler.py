@@ -12,8 +12,8 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
-                         check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9,
+                         get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -535,6 +535,9 @@ class PGICompiler(Compiler):
                 self.cflags.extend(['-mp', '-acc:gpu'])
             elif language == 'openmp':
                 self.cflags.extend(['-mp=gpu'])
+        elif isinstance(platform, Cpu64):
+            if language == 'openmp':
+                self.cflags.append('-mp')
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
