@@ -369,14 +369,20 @@ class TimedAccess(IterationInstance, AccessMode):
                 # special cases, which we handle here
 
                 # Case 1: `sit` is an IterationInterval with statically known
-                # trip count, e.g. it ranges from 0 to 3. `other` performs a
-                # constant access at 4. Then, there is no dependence.
+                # trip count. E.g. it ranges from 0 to 3; `other` performs a
+                # constant access at 4
                 for v in (self[n], other[n]):
                     try:
                         if bool(v < sit.symbolic_min or v > sit.symbolic_max):
                             return Vector(S.ImaginaryUnit)
                     except TypeError:
                         pass
+
+                # Case 2: `sit` is an IterationInterval over a local SubDimension
+                # and `other` performs a constant access
+                for d0, d1 in ((sai, oai), (oai, sai)):
+                    if d0 is None and d1.is_Sub and d1.local:
+                        return Vector(S.ImaginaryUnit)
 
                 # Fallback
                 ret.append(S.Infinity)
