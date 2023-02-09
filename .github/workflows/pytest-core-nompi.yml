@@ -26,6 +26,7 @@ jobs:
 
       matrix:
         name: [
+           pytest-ubuntu-py39-gcc11-noomp,
            pytest-ubuntu-py38-gcc12-omp,
            pytest-ubuntu-py36-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
@@ -37,6 +38,13 @@ jobs:
         ]
         set: [base, adjoint]
         include:
+        - name: pytest-ubuntu-py39-gcc11-noomp
+          python-version: '3.9'
+          os: ubuntu-22.04
+          arch: "gcc-11"
+          language: "C"
+          sympy: "1.11"
+
         - name: pytest-ubuntu-py38-gcc12-omp
           python-version: '3.8'
           os: ubuntu-22.04
