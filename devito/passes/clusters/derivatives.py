@@ -26,7 +26,7 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     processed = []
     weights = {}
 
-    def dump(exprs):
+    def dump(exprs, c):
         if exprs:
             processed.append(c.rebuild(exprs=exprs))
             exprs[:] = []
@@ -38,11 +38,11 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
         for e in c.exprs:
             expr, v = _lower_index_derivatives_core(e, c, weights, seen, sregistry)
             if v:
-                dump(exprs)
+                dump(exprs, c)
             exprs.append(expr)
             processed.extend(v)
 
-        dump(exprs)
+        dump(exprs, c)
 
     return processed, weights
 
@@ -83,7 +83,7 @@ def _lower_index_derivatives_core(expr, c, weights, seen, sregistry):
         pass
 
     dims = retrieve_dimensions(expr, deep=True)
-    dims = tuple(filter_ordered(d for d in dims if isinstance(d, StencilDimension)))
+    dims = filter_ordered(d for d in dims if isinstance(d, StencilDimension))
 
     dims = tuple(reversed(dims))
 
