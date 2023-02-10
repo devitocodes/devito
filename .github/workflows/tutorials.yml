@@ -94,7 +94,7 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        ${{ env.RUN_CMD }} py.test --nbval -k 'not dask' -k 'not synthetics' examples/seismic/tutorials/
+        ${{ env.RUN_CMD }} py.test --nbval -k 'not dask' examples/seismic/tutorials/
         ${{ env.RUN_CMD }} py.test --nbval examples/seismic/acoustic/accuracy.ipynb
 
     - name: Failing notebooks
