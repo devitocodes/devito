@@ -698,7 +698,7 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx2._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
-        assert term1.total_order == 1
+        assert term1.depth == 1
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
@@ -716,7 +716,7 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx.dy._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
-        assert term1.total_order == 2
+        assert term1.depth == 2
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
