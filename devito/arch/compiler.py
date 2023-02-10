@@ -767,6 +767,7 @@ compiler_registry = {
     'clang': ClangCompiler,
     'cray': CrayCompiler,
     'aomp': AOMPCompiler,
+    'amdclang': AOMPCompiler,
     'hip': HipCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
