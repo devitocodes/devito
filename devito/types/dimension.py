@@ -1486,6 +1486,22 @@ class IndexAccessFunction(sympy.Add):
 
     __hash__ = sympy.Add.__hash__
 
+    @call_highest_priority('__radd__')
+    def __add__(self, other):
+        return self.func(self, other)
+
+    @call_highest_priority('__add__')
+    def __radd__(self, other):
+        return self.func(self, other)
+
+    @call_highest_priority('__rsub__')
+    def __sub__(self, other):
+        return self.func(self, -other)
+
+    @call_highest_priority('__sub__')
+    def __rsub__(self, other):
+        return self.func(other, -self)
+
 
 class AffineIndexAccessFunction(IndexAccessFunction):
     """
@@ -1559,22 +1575,6 @@ class AffineIndexAccessFunction(IndexAccessFunction):
             return d1
         else:
             return None
-
-    @call_highest_priority('__radd__')
-    def __add__(self, other):
-        return AffineIndexAccessFunction(self, other)
-
-    @call_highest_priority('__add__')
-    def __radd__(self, other):
-        return AffineIndexAccessFunction(self, other)
-
-    @call_highest_priority('__rsub__')
-    def __sub__(self, other):
-        return AffineIndexAccessFunction(self, -other)
-
-    @call_highest_priority('__sub__')
-    def __rsub__(self, other):
-        return AffineIndexAccessFunction(other, -self)
 
 
 def dimensions(names):
