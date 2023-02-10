@@ -71,9 +71,9 @@ class Array(ArrayBasic):
         C/C++ sense. 'constant' and 'shared' mean that the Array represents an
         object allocated in so called constant and shared memory, respectively,
         which are typical of device architectures. If 'shared' is specified but
-        the underlying architecture does not something akin to shared memory, the
-        behaviour is unspecified. If 'constant' is specified but the underlying
-        architecture does not have something akin to constant memory, the Array
+        the underlying architecture doesn't have something akin to shared memory,
+        the behaviour is unspecified. If 'constant' is specified but the underlying
+        architecture doesn't have something akin to constant memory, the Array
         falls back to a global, const, static array in a C/C++ sense.
         Note that not all scopes make sense for a given space.
     initvalue : array-like, optional
