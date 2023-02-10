@@ -707,6 +707,25 @@ class TestDependenceAnalysis(object):
         # Sanity check: we did find all of the expected dependences
         assert len(expected) == 0
 
+    def test_2061(self):
+
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=0)
+        s = Symbol(name='s', dtype=np.int32)
+
+        eqns = [Eq(s, 0),
+                Eq(f[s], x),
+                Eq(s, s + 1, implicit_dims=(x,))]
+
+        op = Operator(eqns)
+
+        op.apply()
+
+        assert np.all(f.data == list(range(10)))
+        import pdb;pdb.set_trace()
+
     def test_ffp(self):
         grid = Grid(shape=(4, 4))
 
