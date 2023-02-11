@@ -11,7 +11,7 @@ FROM ${pyversion} as base
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y vim wget git libnuma1 tmux
+RUN apt-get update && apt-get install -y vim wget git libnuma-dev tmux numactl
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -24,7 +24,7 @@ RUN apt-get install -y libgl1-mesa-glx
 ##############################################################
 FROM base as gcc
 
-RUN apt-get install -y mpich libmpich-dev 
+RUN apt-get install -y mpich libmpich-dev
 # Env vars defaults
 ENV DEVITO_ARCH="gcc"
 ENV DEVITO_LANGUAGE="openmp"
