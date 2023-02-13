@@ -6,10 +6,11 @@ from cached_property import cached_property
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Properties, Scope, detect_accesses,
-                               detect_io, normalize_properties, normalize_syncs)
+                               DataSpace, Guards, Properties, Scope, detect_accesses,
+                               detect_io, normalize_properties, normalize_syncs,
+                               sdims_min, sdims_max)
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, frozendict
+from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -42,12 +43,18 @@ class Cluster(object):
 
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
-        self._guards = frozendict(guards or {})
+        self._guards = Guards(guards or {})
         self._syncs = frozendict(syncs or {})
 
-        properties = dict(properties or {})
-        properties.update({i.dim: properties.get(i.dim, set()) for i in ispace.intervals})
-        self._properties = Properties(properties)
+        # Normalize properties
+        properties = Properties(properties or {})
+        for d in ispace.itdimensions:
+            properties = properties.add(d)
+        for i in properties:
+            for d in as_tuple(i):
+                if d not in ispace.itdimensions:
+                    properties = properties.drop(d)
+        self._properties = properties
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
@@ -230,17 +237,8 @@ class Cluster(object):
             except TypeError:
                 # E.g. `i.dtype` is a ctypes pointer, which has no dtype equivalent
                 pass
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
 
-        if len(fdtypes) > 1:
-            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
-        elif len(fdtypes) == 1:
-            return fdtypes.pop()
-        elif len(dtypes) == 1:
-            return dtypes.pop()
-        else:
-            # E.g., mixed integer arithmetic
-            return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+        return infer_dtype(dtypes)
 
     @cached_property
     def dspace(self):
@@ -257,7 +255,10 @@ class Cluster(object):
             if f is None:
                 continue
 
-            intervals = [Interval(d, min(offs), max(offs)) for d, offs in v.items()]
+            intervals = [Interval(d,
+                                  min([sdims_min(i) for i in offs]),
+                                  max([sdims_max(i) for i in offs]))
+                         for d, offs in v.items()]
             intervals = IntervalGroup(intervals)
 
             # Factor in the IterationSpace -- if the min/max points aren't zero,
@@ -424,16 +425,8 @@ class ClusterGroup(tuple):
         data type with highest precision is returned.
         """
         dtypes = {i.dtype for i in self}
-        fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
-        if len(fdtypes) > 1:
-            return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
-        elif len(fdtypes) == 1:
-            return fdtypes.pop()
-        elif len(dtypes) == 1:
-            return dtypes.pop()
-        else:
-            # E.g., mixed integer arithmetic
-            return max(dtypes, key=lambda i: np.dtype(i).itemsize)
+
+        return infer_dtype(dtypes)
 
     @cached_property
     def meta(self):

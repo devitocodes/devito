@@ -35,7 +35,7 @@ class TestSubdomains(object):
 
         eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
         with timed_region('x'):
-            expr = Operator._lower_exprs([eq0])[0]
+            expr = Operator._lower_exprs([eq0], options={})[0]
         assert expr.rhs == x1 * f[x1 + 1, y1 + 1] + y1
 
     def test_multiple_middle(self):

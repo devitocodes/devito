@@ -15,7 +15,7 @@ from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import FieldFromPointer, ccode
 from devito.tools import prod
-from devito.types import Scalar, Symbol, Array
+from devito.types import Array, Scalar, Symbol
 
 
 class TestVectorHierarchy(object):
@@ -736,6 +736,69 @@ class TestDependenceAnalysis(object):
         assert len(scope.d_all) == len(scope.d_flow) == 1
         v = scope.d_flow.pop()
         assert v.function is s1
+
+    def test_array_shared(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a = Array(name='a', dimensions=(x, y), halo=((2, 2), (2, 2)), scope='shared')
+        s = Symbol(name='s')
+
+        exprs = [Eq(a[x, y], 1), Eq(s, a[x, y-2] + a[x, y+2])]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        # There *seems* to be a WAR here, but the fact that `a` is thread-shared
+        # ensures that is not the case
+        # There is instead a RAW -- no surprises here
+        assert len(scope.d_all) == len(scope.d_flow) == 2
+        assert scope.d_flow.pop().function is a
+
+        # If the reads lexicographically precede the writes, then instead it really
+        # is a WAR
+        exprs = [Eq(s, a[x, y-2] + a[x, y+2]), Eq(a[x, y], 1)]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_anti) == 2
+        assert scope.d_anti.pop().function is a
+
+    @pytest.mark.parametrize('eqns', [
+        ['Eq(a0[4], 1)', 'Eq(s, a0[3])'],
+        ['Eq(a1[3, 4], 1)', 'Eq(s, a1[3, 5])'],
+        ['Eq(a1[x+1, 4], 1)', 'Eq(s, a1[x, 5])'],
+    ])
+    def test_nodep(self, eqns):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = LoweredEq(eval(e))
+
+        scope = Scope(eqns)
+        assert len(scope.d_all) == 0
+
+    @pytest.mark.parametrize('eqns', [
+        ['Eq(a0[4], 1)', 'Eq(s, a0[4])'],
+        ['Eq(a1[x+1, 4], 1)', 'Eq(s, a1[x, 4])'],
+    ])
+    def test_dep_nasty(self, eqns):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = LoweredEq(eval(e))
+
+        scope = Scope(eqns)
+        assert len(scope.d_all) == 1
 
 
 class TestParallelismAnalysis(object):

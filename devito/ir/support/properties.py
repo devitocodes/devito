@@ -131,31 +131,46 @@ class Properties(frozendict):
     A mapper {Dimension -> {properties}}.
     """
 
-    def add(self, dims, properties):
+    def add(self, dims, properties=None):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = set(self[d]) | set(as_tuple(properties))
+            m[d] = set(self.get(d, [])) | set(as_tuple(properties))
         return Properties(m)
 
     def drop(self, dims, properties=None):
         m = dict(self)
         for d in as_tuple(dims):
             if properties is None:
-                m.pop(d)
+                m.pop(d, None)
             else:
                 m[d] = self[d] - set(as_tuple(properties))
+        return Properties(m)
+
+    def parallelize(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            v = set(self.get(d, []))
+            v.difference_update({PARALLEL_IF_PVT, PARALLEL_IF_ATOMIC, SEQUENTIAL})
+            v.add(PARALLEL)
+            m[d] = v
+        return Properties(m)
+
+    def affine(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = set(self.get(d, [])) | {AFFINE}
         return Properties(m)
 
     def sequentialize(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = normalize_properties(self[d], {SEQUENTIAL})
+            m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
         return Properties(m)
 
     def inbound(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = set(m[d]) | {INBOUND}
+            m[d] = set(m.get(d, [])) | {INBOUND}
         return Properties(m)
 
     def is_parallel(self, dims):

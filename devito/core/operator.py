@@ -17,6 +17,7 @@ __all__ = ['CoreOperator', 'CustomOperator',
 class BasicOperator(Operator):
 
     # Default values for various optimization options
+
     CSE_MIN_COST = 1
     """
     Minimum computational cost of an operation to be eliminated as a
@@ -86,6 +87,12 @@ class BasicOperator(Operator):
     """
     Vector-expand all scalar reductions to turn them into explicit map-reductions,
     which may be easier to parallelize for certain backends.
+    """
+
+    EXPAND = True
+    """
+    Unroll all loops with short, numeric trip count, such as loops created by
+    finite-difference derivatives.
     """
 
     MPI_MODES = tuple(mpi_registry)

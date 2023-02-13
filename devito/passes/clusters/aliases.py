@@ -10,13 +10,14 @@ from devito.finite_differences import EvalDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationInstance, IterationSpace, Interval, Cluster,
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
-                       relax_properties)
+                       relax_properties, sdims_min, sdims_max)
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
                               reuse_if_untouched, retrieve_indexed, search, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
 from devito.types import (Array, TempFunction, Eq, Symbol, Temp, ModuloDimension,
-                          CustomDimension, IncrDimension, Indexed, Hyperplane)
+                          CustomDimension, IncrDimension, StencilDimension, Indexed,
+                          Hyperplane)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -546,18 +547,18 @@ def collect(extracted, ispace, minstorage):
                     for i, b, v in zip(c.indexeds, c.bases, offsets)}
             pivot = uxreplace(c.expr, subs)
 
-            # All aliased expressions
-            aliaseds = [extracted[i.expr] for i in g]
-
             # Distance of each aliased expression from the basis alias
+            aliaseds = []
             distances = []
-            for i in g:
+            for i in g._items:
+                aliaseds.append(extracted[i.expr])
+
                 distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
             # Compute the alias score
-            na = len(aliaseds)
+            na = g.naliases
             nr = nredundants(ispace, pivot)
             score = estimate_cost(pivot, True)*((na - 1) + nr)
             if score > 0:
@@ -973,7 +974,7 @@ class Candidate(object):
 
     def __init__(self, expr, ispace, indexeds, bases, offsets):
         self.expr = expr
-        self.shifts = ispace.intervals
+        self.ispace = ispace
         self.indexeds = indexeds
         self.bases = bases
         self.offsets = offsets
@@ -1023,6 +1024,10 @@ class Candidate(object):
     def dimensions(self):
         return frozenset(i for i, _ in self.Toffsets)
 
+    @property
+    def shifts(self):
+        return self.ispace.intervals
+
 
 class Group(tuple):
 
@@ -1030,13 +1035,35 @@ class Group(tuple):
     A collection of aliasing expressions.
     """
 
+    def __new__(cls, items):
+        # Expand out the StencilDimensions, if any
+        processed = []
+        for c in items:
+            if not c.expr.find(StencilDimension):
+                processed.append(c)
+                continue
+
+            for f in (sdims_min, sdims_max):
+                expr = f(c.expr)
+                indexeds = [f(i) for i in c.indexeds]
+                offsets = [LabeledVector([(d, f(i)) for d, i in v.items()])
+                           for v in c.offsets]
+
+                processed.append(
+                    Candidate(expr, c.ispace, indexeds, c.bases, offsets)
+                )
+
+        obj = super().__new__(cls, processed)
+        obj._items = items
+        return obj
+
     def __repr__(self):
         return "Group(%s)" % ", ".join([str(i) for i in self])
 
     def find_rotation_distance(self, d, interval):
         """
-        The distance from the Group pivot of a rotation along Dimension ``d`` that
-        can safely iterate over the ``interval``.
+        The distance from the Group pivot of a rotation along `d`
+        such that it is still possible to safely iterate over `interval`.
         """
         assert d is interval.dim
 
@@ -1061,8 +1088,8 @@ class Group(tuple):
     @cached_property
     def diameter(self):
         """
-        The size of the iteration space required to evaluate all aliasing expressions
-        in this Group, along each Dimension.
+        The size of the iteration space required to evaluate all aliasing
+        expressions in this Group, along each Dimension.
         """
         ret = defaultdict(int)
         for i in self.Toffsets:
@@ -1093,6 +1120,15 @@ class Group(tuple):
     @property
     def dimensions_translated(self):
         return frozenset(d for d, v in self.diameter.items() if v > 0)
+
+    @property
+    def naliases(self):
+        na = len(self._items)
+
+        sdims = set().union(*[c.expr.find(StencilDimension) for c in self._items])
+        implicit = int(np.prod([i._size for i in sdims])) - 1
+
+        return na + implicit
 
     @cached_property
     def _pivot_legal_rotations(self):
@@ -1159,7 +1195,7 @@ class Group(tuple):
                 lower, upper = c.shifts[l].offsets
 
                 try:
-                    # Assume `ofs[d]` is a number (typical case)
+                    # Assume `ofs[l]` is a number (typical case)
                     maxd = min(0, max(ret[l][0], -ofs[l] - lower))
                     mini = max(0, min(ret[l][1], hsize - ofs[l] - upper))
 
@@ -1347,7 +1383,10 @@ def nredundants(ispace, expr):
     used = {i for i in expr.free_symbols if i.is_Dimension}
 
     # "Short" dimensions won't count
-    key = lambda d: d.is_Sub and d.local
+    key0 = lambda d: d.is_Sub and d.local
+    # StencilDimensions are like an inlined iteration space so they won't count
+    key1 = lambda d: d.is_Stencil
+    key = lambda d: key0(d) or key1(d)
     iterated = {d for d in iterated if not key(d)}
     used = {d for d in used if not key(d)}
 

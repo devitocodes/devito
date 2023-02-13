@@ -10,7 +10,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
                     div, grad, switchconfig)
-from devito import  Le, Lt, Ge, Gt  # noqa
+from devito import  Inc, Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -21,7 +21,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Barrier, Scalar, Symbol, Indirection
+from devito.types import Array, Barrier, CustomDimension, Indirection, Scalar, Symbol
 
 
 def dimify(dimensions):
@@ -176,7 +176,7 @@ class TestCodeGen(object):
         expr = eval(expr)
 
         with timed_region('x'):
-            expr = Operator._lower_exprs([expr])[0]
+            expr = Operator._lower_exprs([expr], options={})[0]
 
         assert str(expr).replace(' ', '') == expected
 
@@ -1891,6 +1891,46 @@ class TestLoopScheduling(object):
 
         op2 = Operator(eqns2, openmp=True)
         assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
+
+    def test_array_shared_w_topofuse(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        i = Dimension('i')
+
+        a0 = Array(name='a0', dimensions=(x, y), halo=((2, 2), (2, 2)),
+                   scope='shared')
+        a1 = Array(name='a1', dimensions=(x, y), halo=((2, 2), (2, 2)),
+                   scope='shared')
+        w = Array(name='w', dimensions=(i,))
+        s = Symbol(name='s')
+
+        eqns = [Eq(a1, 1),
+                Inc(s, w*a1[x+2, y], implicit_dims=(i, x, y)),
+                Eq(a0, 2)]
+
+        # For thread-shared Arrays, WAR dependencies shouldn't prevent topo-fusion
+        # opportunities, since they're not really WAR's as classic Lamport
+        # theory would tag
+        op = Operator(eqns, openmp=True)
+        assert_structure(op, ['x,y', 'i,x,y'], 'x,y,i,x,y')
+
+    def test_topofuse_w_numeric_dim(self):
+        r = Dimension('r')
+        i = CustomDimension('i', 0, 3)
+
+        a = Array(name='a', dimensions=(i,))
+        b = Array(name='b', dimensions=(r,))
+        f = Function(name='f', dimensions=(r, i), shape=(3, 4))
+        g = Function(name='g', dimensions=(r, i), shape=(3, 4))
+
+        eqns = [Eq(a[i], r, implicit_dims=(r, i)),
+                Eq(f, 1),
+                Eq(b[r], 2),
+                Eq(g, a[4])]
+
+        op = Operator(eqns)
+
+        assert_structure(op, ['r,i', 'r'], 'r,i')
 
 
 class TestInternals(object):

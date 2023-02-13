@@ -295,6 +295,10 @@ class ListInitializer(sympy.Expr, Pickable):
 
     __repr__ = __str__
 
+    @property
+    def is_numeric(self):
+        return all(i.is_Number for i in self.params)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 

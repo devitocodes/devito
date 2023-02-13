@@ -8,7 +8,7 @@ from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard',
-           'Global', 'Hyperplane', 'Indirection', 'Temp']
+           'Global', 'Hyperplane', 'Indirection', 'Temp', 'Jump']
 
 
 class Timer(CompositeObject):
@@ -171,3 +171,13 @@ class Temp(Symbol):
     # Just make sure the SymPy args ordering is the same regardless of whether
     # the arguments are Symbols or Temps
     ordering_of_classes.insert(ordering_of_classes.index('Symbol') + 1, 'Temp')
+
+
+class Jump(object):
+
+    """
+    Mixin class for symbolic objects representing jumps in the control flow,
+    such as return and break statements.
+    """
+
+    pass

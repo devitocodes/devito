@@ -68,7 +68,11 @@ class Profiler(object):
             ops = sum(i.ops*i.ispace.size for i in bundles)
 
             # Operation count at each section iteration
-            sops = sum(i.ops for i in bundles)
+            # NOTE: for practical reasons, it makes much more sense to "flatten"
+            # the StencilDimensions, because one expects to see the number of
+            # operations per time- or space-Dimension
+            sops = sum(i.ops*max(i.ispace.project(lambda d: d.is_Stencil).size, 1)
+                       for i in bundles)
 
             # Total memory traffic
             mapper = {}

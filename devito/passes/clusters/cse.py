@@ -1,8 +1,12 @@
-from collections import OrderedDict
+from collections import Counter, OrderedDict
+from functools import singledispatch
 
+from sympy import Add, Function, Indexed, Mul, Pow
+
+from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
-from devito.symbolics import count, estimate_cost, q_xop, q_leaf
+from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
 from devito.types import Eq, Temp as Temp0
 
@@ -71,7 +75,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
     while True:
         # Detect redundancies
-        counted = count(processed, q_xop).items()
+        counted = count(processed).items()
         targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
 
         # Rule out Dimension-independent data dependencies
@@ -132,3 +136,46 @@ def _compact_temporaries(exprs, exclude):
             processed.append(expr)
 
     return processed
+
+
+@singledispatch
+def count(expr):
+    """
+    Construct a mapper `expr -> #occurrences` for each sub-expression in `expr`.
+    """
+    mapper = Counter()
+    for a in expr.args:
+        mapper.update(count(a))
+    return mapper
+
+
+@count.register(list)
+@count.register(tuple)
+def _(exprs):
+    mapper = Counter()
+    for e in exprs:
+        mapper.update(count(e))
+    return mapper
+
+
+@count.register(IndexDerivative)
+@count.register(Indexed)
+def _(expr):
+    """
+    Handler for objects preventing CSE to propagate through their arguments.
+    """
+    return Counter()
+
+
+@count.register(Add)
+@count.register(Mul)
+@count.register(Pow)
+@count.register(Function)
+def _(expr):
+    mapper = Counter()
+    for a in expr.args:
+        mapper.update(count(a))
+
+    mapper[expr] += 1
+
+    return mapper

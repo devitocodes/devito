@@ -9,7 +9,7 @@ from devito.types.dimension import Dimension
 from devito.types.object import AbstractObject
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
            'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
            'q_identity', 'q_symbol', 'q_multivar', 'q_monoaffine', 'q_dimension',
            'q_positive', 'q_negative']
@@ -51,10 +51,6 @@ def q_terminal(expr):
 
 def q_routine(expr):
     return expr.is_Function and not isinstance(expr, AbstractFunction)
-
-
-def q_xop(expr):
-    return (expr.is_Add or expr.is_Mul or expr.is_Pow or q_routine(expr))
 
 
 def q_terminalop(expr, depth=0):

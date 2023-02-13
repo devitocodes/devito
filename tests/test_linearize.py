@@ -421,6 +421,35 @@ def test_strides_forwarding3():
     assert bar.parameters[1].name == 'y_stride0'
 
 
+def test_strides_forwarding4():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+
+    # Construct the following Calls tree
+    # foo
+    #   bar
+    call0 = Call('sin', (f[0, 0],))
+    bar = Callable('bar', call0, 'void', parameters=[f.indexed])
+    call1 = Call(bar.name, [f.indexed])
+    root = Callable('foo', call1, 'void', parameters=[f])
+
+    # Emulate what the compiler would do
+    graph = Graph(root)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
+
+    root = graph.root
+    bar = graph.efuncs['bar']
+
+    assert root.body.body[0].write.name == 'y_fsz0'
+    assert root.body.body[2].write.name == 'y_stride0'
+    assert root.body.body[4].arguments[1].name == 'y_stride0'
+    assert bar.parameters[1].name == 'y_stride0'
+
+
 def test_issue_1838():
     """
     MFE for issue #1838.

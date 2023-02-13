@@ -6,6 +6,7 @@ from operator import mul
 from cached_property import cached_property
 from sympy import Expr
 
+from devito.ir.support.utils import sdims_min, sdims_max
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
                           flatten, frozendict, is_integer, toposort)
@@ -284,6 +285,10 @@ class Interval(AbstractInterval):
                 pass
         return self
 
+    def expand(self):
+        return Interval(self.dim, sdims_min(self.lower), sdims_max(self.upper),
+                        self.stamp)
+
 
 class IntervalGroup(PartialOrderTuple):
 
@@ -483,6 +488,12 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
         return IntervalGroup(intervals, relations=self.relations)
 
+    def expand(self, d=None):
+        if d is None:
+            d = self.dimensions
+        intervals = [i.expand() if i.dim in as_tuple(d) else i for i in self]
+        return IntervalGroup(intervals, relations=self.relations)
+
     def index(self, key):
         if isinstance(key, Interval):
             return super(IntervalGroup, self).index(key)
@@ -640,7 +651,9 @@ class DataSpace(Space):
 
     def __init__(self, intervals, parts=None):
         super(DataSpace, self).__init__(intervals)
-        self._parts = frozendict(parts or {})
+
+        parts = {k: v.expand() for k, v in (parts or {}).items()}
+        self._parts = frozendict(parts)
 
     def __eq__(self, other):
         return isinstance(other, DataSpace) and\
@@ -821,6 +834,10 @@ class IterationSpace(Space):
                       for k, v in self.directions.items()}
 
         return IterationSpace(intervals, sub_iterators, directions)
+
+    def translate(self, d, v0=0, v1=None):
+        intervals = self.intervals.translate(d, v0, v1)
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def reset(self):
         return IterationSpace(self.intervals.reset(), self.sub_iterators, self.directions)

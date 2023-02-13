@@ -83,8 +83,10 @@ class Derivative(sympy.Derivative, Differentiable):
     evaluation are `x0`, `fd_order` and `side`.
     """
 
-    _state = ('expr', 'dims', 'side', 'fd_order', 'transpose', '_ppsubs', 'x0')
     _fd_priority = 3
+
+    __rargs__ = ('expr', 'dims')
+    __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs', 'x0')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) == sympy.Derivative:
@@ -104,7 +106,8 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
-        obj._ppsubs = as_tuple(frozendict(i) for i in kwargs.get("subs", []))
+        obj._ppsubs = as_tuple(frozendict(i) for i in
+                               kwargs.get("subs", kwargs.get("_ppsubs", [])))
         obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 
@@ -237,7 +240,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     @cached_property
     def _metadata(self):
-        state = list(self._state)
+        state = list(self.__rargs__ + self.__rkwargs__)
         state.remove('expr')
         ret = [getattr(self, i) for i in state]
         ret.append(self.expr.staggered or (None,))

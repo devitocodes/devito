@@ -16,9 +16,9 @@ from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
-                              ListInitializer, SizeOf, VOID, Keyword, ccode)
+                              SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceMap, DeviceRM, Symbol
+from devito.types import Array, DeviceMap, DeviceRM, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -82,7 +82,7 @@ class DataManager(object):
         """
         Allocate a LocalObject in the low latency memory.
         """
-        decl = Definition(obj, cargs=obj.cargs)
+        decl = Definition(obj)
 
         if obj._C_init:
             definition = (decl, obj._C_init)
@@ -97,15 +97,38 @@ class DataManager(object):
         """
         Allocate an Array in the low latency memory.
         """
-        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        alignment = self.lang['aligned'](obj._data_alignment)
-        if obj.initvalue is None:
-            initvalue = None
-        else:
-            initvalue = ListInitializer(obj.initvalue)
-        alloc = Definition(obj, shape=shape, qualifier=alignment, initvalue=initvalue)
+        alloc = Definition(obj)
 
         storage.update(obj, site, allocs=alloc)
+
+    def _alloc_array_on_global_mem(self, site, obj, storage):
+        """
+        Allocate an Array in the global memory.
+        """
+        # Is dynamic initialization required?
+        try:
+            if all(i.is_Number for i in obj.initvalue):
+                return
+        except AttributeError:
+            return
+
+        # Create input array
+        name = '%s_init' % obj.name
+        initvalue = np.array([pow_to_mul(i) for i in obj.initvalue])
+        src = Array(name=name, dtype=obj.dtype, dimensions=obj.dimensions,
+                    space='host', scope='stack', initvalue=initvalue)
+
+        # Copy input array into global array
+        name = self.sregistry.make_name(prefix='init_global')
+        nbytes = SizeOf(obj._C_typedata)*obj.size
+        body = [Definition(src),
+                self.lang['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
+        efunc = make_callable(name, body)
+        alloc = Call(name, efunc.parameters)
+
+        storage.update(obj, site, allocs=alloc, efuncs=efunc)
+
+        return self.lang['header-memcpy']
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -175,7 +198,7 @@ class DataManager(object):
 
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, *allocs, init, ret)
-        efunc0 = make_callable(name, body, retval=obj._C_typename)
+        efunc0 = make_callable(name, body, retval=obj)
         assert len(efunc0.parameters) == 1  # `nbytes_param`
         alloc = Call(name, nbytes_arg, retobj=obj)
 
@@ -190,8 +213,7 @@ class DataManager(object):
         """
         Allocate an Array of Objects in the low latency memory.
         """
-        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
-        decl = Definition(obj, shape=shape)
+        decl = Definition(obj)
 
         storage.update(obj, site, allocs=decl)
 
@@ -282,7 +304,7 @@ class DataManager(object):
         return processed, flatten(efuncs)
 
     @iet_pass
-    def place_definitions(self, iet, **kwargs):
+    def place_definitions(self, iet, globs=None, **kwargs):
         """
         Create a new IET where all symbols have been declared, allocated, and
         deallocated in one or more memory spaces.
@@ -319,16 +341,27 @@ class DataManager(object):
                         self._alloc_local_array_on_high_bw_mem(iet, i, storage)
                     else:
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
-                else:
+                elif i._mem_stack:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
+                else:
+                    # Track, to be handled by the EntryFunction being a global obj!
+                    globs.add(i)
             elif i.is_ObjectArray:
                 self._alloc_object_array_on_low_lat_mem(iet, i, storage)
             elif i.is_PointerArray:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
+        # Handle postponed global objects
+        includes = set()
+        if isinstance(iet, EntryFunction) and globs:
+            for i in sorted(globs, key=lambda f: f.name):
+                includes.add(self._alloc_array_on_global_mem(iet, i, storage))
+
         iet, efuncs = self._inject_definitions(iet, storage)
 
-        return iet, {'efuncs': efuncs}
+        return iet, {'efuncs': efuncs,
+                     'globals': as_tuple(globs),
+                     'includes': as_tuple(includes)}
 
     @iet_pass
     def place_casts(self, iet, **kwargs):
@@ -349,7 +382,7 @@ class DataManager(object):
         # defined inside the kernel, which happens, for example, when:
         # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
-        defines = set(FindSymbols('defines').visit(iet))
+        defines = set(FindSymbols('defines|globals').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
         casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
                       if i not in defines)
@@ -364,7 +397,7 @@ class DataManager(object):
         """
         Apply the `place_definitions` and `place_casts` passes.
         """
-        self.place_definitions(graph)
+        self.place_definitions(graph, globs=set())
         self.place_casts(graph)
 
 
@@ -519,7 +552,7 @@ class DeviceAwareDataManager(DataManager):
         """
         mapper = self.derive_transfers(graph)
         self.place_transfers(graph, mapper=mapper)
-        self.place_definitions(graph)
+        self.place_definitions(graph, globs=set())
         self.place_devptr(graph)
         self.place_bundling(graph)
         self.place_casts(graph)

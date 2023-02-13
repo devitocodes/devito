@@ -19,7 +19,7 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, generate_implicit, instrument
+from devito.passes import Graph, lower_index_derivatives, generate_implicit, instrument
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -186,6 +186,7 @@ class Operator(Callable):
         op._headers = OrderedSet(*cls._default_headers)
         op._headers.update(byproduct.headers)
         op._globals = OrderedSet(*cls._default_globals)
+        op._globals.update(byproduct.globals)
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
@@ -303,14 +304,16 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
+        expand = kwargs['options'].get('expand', True)
+
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
         # Lower functional DSL
-        expressions = flatten([i.evaluate for i in expressions])
+        expressions = flatten([i._evaluate(expand=expand) for i in expressions])
         expressions = [j for i in expressions for j in i._flatten]
 
-        # A second round of specialization is performed on nevaluated expressions
+        # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
 
         # "True" lowering (indexification, shifting, ...)
@@ -360,6 +363,9 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters, sregistry=sregistry)
+
+        # Lower all remaining high order symbolic objects
+        clusters = lower_index_derivatives(clusters, **kwargs)
 
         return ClusterGroup(clusters)
 
