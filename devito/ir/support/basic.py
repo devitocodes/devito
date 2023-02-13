@@ -2,6 +2,7 @@ from itertools import chain
 
 from cached_property import cached_property
 from sympy import S
+from sympy.tensor.indexed import IndexException
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
@@ -822,7 +823,10 @@ class Scope(object):
                     f = a.function
                     indices = [i if d in e.ispace else S.Infinity
                                for i, d in zip(a, a.aindices)]
-                    mock = f.indexify(indices)
+                    try:
+                        mock = f.indexify(indices)
+                    except IndexException:
+                        continue
                     v = self.writes.setdefault(f, [])
                     v.extend([TimedAccess(mock, 'R', i, e.ispace),
                               TimedAccess(mock, 'W', i, e.ispace)])
