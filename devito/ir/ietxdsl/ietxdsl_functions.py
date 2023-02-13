@@ -11,13 +11,13 @@ from devito.passes.iet.languages.openmp import OmpRegion
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise,
-                               StructDecl, FloatConstant)
+                               StructDecl)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
 from xdsl.irdl import AnyOf
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
-                                   Float64Type, Builtin, i32)
+                                   Float64Type, Builtin, i32, f32)
 
 from xdsl.dialects.arith import Muli, Addi
 from xdsl.dialects.func import Call
@@ -49,7 +49,7 @@ def printStructs(cgen, struct_decs):
                            struct.pad_bytes))
 
 
-def createStatement(string=None, val=None):
+def createStatement(string="", val=None):
     for t in as_tuple(val):
         string = string + " " + t
 
@@ -68,11 +68,13 @@ def collectStructs(parameters):
 
 
 def calculateAddArguments(arguments):
-    arg_length = len(arguments)
-    if arg_length == 1:
+    # Get an input of arguments that are added. In case only one argument remains,
+    # return the argument.
+    # In case more, return expression by breaking down args.
+    if len(arguments) == 1:
         return arguments[0]
     else:
-        return Add(arguments[0], calculateAddArguments(arguments[1:arg_length]))
+        return Add(arguments[0], calculateAddArguments(arguments[1:len(arguments)]))
 
 
 def add_to_block(expr, arg_by_expr, result):
@@ -97,14 +99,13 @@ def add_to_block(expr, arg_by_expr, result):
     if isinstance(expr, Integer):
         constant = int(expr.evalf())
         arg = Constant.from_int_and_width(constant, i32)
-        # arg = Constant.get(constant)
         arg_by_expr[expr] = arg
         result.append(arg)
         return
 
     if isinstance(expr, Float):
         constant = float(expr.evalf())
-        arg = FloatConstant.get(constant)
+        arg = Constant.from_float_and_width(constant, f32)
         arg_by_expr[expr] = arg
         result.append(arg)
         return
@@ -114,15 +115,16 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, Add):
         # workaround for large additions (TODO: should this be handled earlier?)
-        num_args = len(expr.args)
-        if num_args > 2:
+        len_args = len(expr.args)
+        if len_args > 2:
             # this works for 3 arguments:
             first_arg = expr.args[0]
-            second_arg = calculateAddArguments(expr.args[1:num_args])
+            second_arg = calculateAddArguments(expr.args[1:len_args])
             add_to_block(second_arg, arg_by_expr, result)
         else:
             first_arg = expr.args[0]
             second_arg = expr.args[1]
+            # Mostly additions in indexing
             if isinstance(second_arg, SpaceDimension) | isinstance(second_arg, Indexed):
                 tmp = first_arg
                 first_arg = second_arg
@@ -135,6 +137,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Mul):
+        # Convert a sympy.core.mul.Mul to xdsl.dialects.arith.Muli
         lhs = arg_by_expr[expr.args[0]]
         rhs = arg_by_expr[expr.args[1]]
         sum = Muli.get(lhs, rhs)
@@ -143,6 +146,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Mod):
+        # To update docstring
         lhs = arg_by_expr[expr.args[0]]
         rhs = arg_by_expr[expr.args[1]]
         sum = Modi.get(lhs, rhs)
@@ -151,6 +155,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Pow):
+        # Convert sympy.core.power.Pow to devito.ir.ietxdsl.operations.Powi
         base = arg_by_expr[expr.args[0]]
         exponent = arg_by_expr[expr.args[1]]
         pow = Powi.get(base, exponent)
@@ -171,6 +176,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Eq):
+        # Convert devito.ir.equations.equation.ClusterizedEq to devito.ir.ietxdsl.operations.Assign
         add_to_block(expr.args[0], arg_by_expr, result)
         lhs = arg_by_expr[expr.args[0]]
         add_to_block(expr.args[1], arg_by_expr, result)

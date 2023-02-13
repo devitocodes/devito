@@ -7,8 +7,7 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
                                    Float64Type, AnyIntegerAttr, FloatAttr)
 from xdsl.dialects.arith import Constant
 
-from xdsl.irdl import (AttributeDef, AnyAttr, irdl_op_definition, Operand, AnyOf,
-                       VarOperand)
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf, VarOperand, AnyAttr, ParameterDef
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute
 
 
@@ -60,16 +59,17 @@ class FloatConstant(Operation):
 @irdl_op_definition
 class Modi(Operation):
     name: str = "iet.modi"
-    input1 = Annotated[Operand, signlessIntegerLike]
-    input2 = Annotated[Operand, signlessIntegerLike]
-    output = Annotated[OpResult, signlessIntegerLike]
+    input1: Annotated[Operand, signlessIntegerLike]
+    input2: Annotated[Operand, signlessIntegerLike]
+    output: Annotated[OpResult, signlessIntegerLike]
 
     def verify_(self) -> None:
         if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
             raise Exception("expect all input and output types to be equal")
 
     @staticmethod
-    def get(lhs, rhs):
+    def get(lhs: Union[Operation, SSAValue],
+            rhs: Union[Operation, SSAValue]):
         res = Modi.build(operands=[lhs, rhs],
                          result_types=[IntegerType.build(32)])
         return res
@@ -116,6 +116,7 @@ class Initialise(Operation):
 
 @irdl_op_definition
 class Idx(Operation):
+    # memref load TODO
     name: str = "iet.idx"
     array: Annotated[Operand, signlessIntegerLike]
     index: Annotated[Operand, signlessIntegerLike]
@@ -138,7 +139,7 @@ class Assign(Operation):
 @irdl_op_definition
 class PointerCast(Operation):
     name: str = "iet.pointercast"
-    statement = AttributeDef(StringAttr)
+    statement: OpAttr[StringAttr]
 
     @staticmethod
     def get(statement):
@@ -151,7 +152,7 @@ class PointerCast(Operation):
 @irdl_op_definition
 class Statement(Operation):
     name: str = "iet.comment"
-    statement = OpAttr[StringAttr]
+    statement: OpAttr[StringAttr]
 
     @staticmethod
     def get(statement: str):
@@ -193,10 +194,10 @@ class Callable(Operation):
 
     body: Region
     callable_name: OpAttr[StringAttr]
-    parameters = Annotated[VarOperand, AnyAttr()]
-    header_parameters = Annotated[VarOperand, AnyAttr()]
-    types = Annotated[VarOperand, AnyAttr()]
-    qualifiers = Annotated[VarOperand, AnyAttr()]
+    parameters: OpAttr[Attribute]
+    header_parameters: OpAttr[Attribute]
+    types: OpAttr[Attribute]
+    qualifiers: OpAttr[Attribute]
 
     @staticmethod
     def get(name: str,
@@ -222,8 +223,8 @@ class Callable(Operation):
 class Iteration(Operation):
     name: str = "iet.iteration"
 
-    arg_name: OpAttr[StringAttr]
     body: Region
+    arg_name: OpAttr[StringAttr]
     limits: OpAttr[Attribute]
     properties: OpAttr[Attribute]
     pragmas: OpAttr[Attribute]

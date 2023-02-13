@@ -19,4 +19,4 @@ pytest>=3.6,<8.0
 pytest-runner
 pytest-cov
 xdsl<=0.8.2
-frozenlist<=1.4.*
+frozenlist<=1.4

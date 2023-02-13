@@ -11,9 +11,6 @@ def test_simpl_math_ops():
 
     xdsl_string = transform_devito_xdsl_string(op)
     print(xdsl_string)
-    import pdb;pdb.set_trace()
-
-
 
 
 def test_Function_only_conversion():
@@ -26,7 +23,6 @@ def test_Function_only_conversion():
     op.apply()
 
     xdsl_string = transform_devito_xdsl_string(op)
-    import pdb;pdb.set_trace()
 
 
 def test_udx_conversion():

@@ -8,7 +8,6 @@ from devito.ir.ietxdsl.operations import (Callable, Modi, StructDecl, Statement,
 from devito.tools import flatten
 
 from xdsl.ir import SSAValue, BlockArgument
-
 from xdsl.dialects.arith import Muli, Addi, Constant
 
 SSAValueNames: Dict[SSAValue, str] = {}
@@ -62,6 +61,8 @@ class CGeneration:
         self.printOperation(module.ops[-1])
 
     def printCallable(self, callable_op: Callable):
+        # Assert that we only have one block in the callable_op.body
+        assert len(callable_op.body.blocks) == 1
         arglist = callable_op.body.blocks[0].args
         # print kernels and arguments
         self.print('')
@@ -71,15 +72,15 @@ class CGeneration:
             SSAValueNames[arg] = callable_op.attributes['parameters'].data[i].data
         # TODO: fix this workaround
         # need separate loop because only header parameters have types
-        for n, (op_type, op_qual) in enumerate(zip(callable_op.attributes['types'].data,
+        for i, (op_type, op_qual) in enumerate(zip(callable_op.attributes['types'].data,
                 callable_op.attributes['qualifiers'].data)): # noqa
 
             self.print(op_type.data, end='', indent=False)
             self.print(op_qual.data, end=' ', indent=False)
-            self.print(callable_op.attributes['header_parameters'].data[n].data,
+            self.print(callable_op.attributes['header_parameters'].data[i].data,
                        end='',
                        indent=False)
-            if n < (len(list(callable_op.attributes['types'].data)) - 1):
+            if i < (len(list(callable_op.attributes['types'].data)) - 1):
                 self.print(", ", end='', indent=False)
 
         self.print(")\n{")
