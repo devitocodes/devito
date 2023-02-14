@@ -6,11 +6,11 @@ import numpy as np
 
 from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos)
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos, Min, Max)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
-                              FieldFromComposite, IntDiv, MIN, MAX, ccode, uxreplace)
+                              FieldFromComposite, IntDiv, ccode, uxreplace)
 from devito.types import Array, LocalObject, Object
 
 
@@ -367,6 +367,7 @@ class TestRelationsWithAssumptions(object):
 
         f.data[:] = 0.1
         eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c, d]))]
+
         op = Operator(eqns, opt=('advanced'))
         op.apply(time_M=5)
         fnorm = norm(f)
@@ -383,25 +384,25 @@ class TestRelationsWithAssumptions(object):
         assert fnorm == fnorm2
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
-        ([min, '[a, b, c, d]', '[]', 'MIN(a, MIN(b, MIN(c, d)))']),
-        ([max, '[a, b, c, d]', '[]', 'MAX(a, MAX(b, MAX(c, d)))']),
+        ([min, '[a, b, c, d]', '[]', 'Min(a, Min(b, Min(c, d)))']),
+        ([max, '[a, b, c, d]', '[]', 'Max(a, Max(b, Max(c, d)))']),
         ([min, '[a]', '[]', 'a']),
-        ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'MIN(a, b)']),
-        ([min, '[a, b, c]', '[]', 'MIN(a, MIN(b, c))']),
-        ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(b, d)']),
+        ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'Min(a, b)']),
+        ([min, '[a, b, c]', '[]', 'Min(a, Min(b, c))']),
+        ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'Min(b, d)']),
         ([min, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'c']),
         ([max, '[a]', '[Le(a, a)]', 'a']),
         ([max, '[a, b]', '[Le(a, b)]', 'b']),
-        ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'MAX(a, b)']),
+        ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'Max(a, b)']),
         ([max, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'd']),
-        ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(a, MAX(c, d))']),
-        ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
-        ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(a, MAX(c, d))']),
-        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, a)]', 'MIN(c, d)']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'Max(a, Max(c, d))']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'Max(a, d)']),
+        ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'Max(a, Max(c, d))']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, a)]', 'Min(c, d)']),
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
-        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(c, d))']),
-        ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'MIN(a, MIN(b, c))']),
-        ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'MAX(c, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'Min(a, Min(c, d))']),
+        ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'Min(a, Min(b, c))']),
+        ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'Max(c, d)']),
         ([max, '[a, b, c, d]', '[Gt(a, b + c + d)]', 'a']),
     ])
     def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
@@ -414,37 +415,36 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
-        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(b, MIN(c, d)))']),
-        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
-        ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'MAX(b, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'Min(a, Min(b, Min(c, d)))']),
+        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'Min(a, b)']),
+        ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'Max(b, d)']),
         ([max, '[a, b, c, d]', '[Ge(a + d, b), Gt(b, a + d)]',
-         'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d), Le(d, c)]', 'MAX(a, MAX(b, c))']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MIN(a, c)']),
-        ([min, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MAX(a, c)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MAX(a, c)']),
-        ([max, '[a, b, c, d]', '[Lt(c, d).reversed, Le(a, b).reversed]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d + a).negated]', 'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Lt(c, d + a).negated]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d + a).negated]', 'MAX(b, d)']),
+         'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(d, c)]', 'Max(a, Max(b, c))']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'Min(a, c)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Max(a, c)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'Max(a, c)']),
+        ([max, '[a, b, c, d]', '[Lt(c, d).reversed, Le(a, b).reversed]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d + a).negated]', 'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Lt(c, d + a).negated]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d + a).negated]', 'Max(b, d)']),
         ([max, '[a, b, c, d]', '[Le(c + b, d + a).negated]',
-          'MAX(a, MAX(b, MAX(c, d)))']),
+          'Max(a, Max(b, Max(c, d)))']),
         ([max, '[a, b, c, d, e]', '[Gt(a, b + c + e)]',
-          'MAX(a, MAX(b, MAX(c, MAX(d, e))))']),
+          'Max(a, Max(b, Max(c, Max(d, e))))']),
         ([max, '[a, b, c, d, e]', '[Ge(c, a), Ge(b, a), Ge(a, c), Ge(e, c), Ge(d, e)]',
-          'MAX(b, d)']),
+          'Max(b, d)']),
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
@@ -457,14 +457,13 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a)]', 'a']),
-        ([min, '[a, b, c, d]', '[Ge(b, d)]', 'MIN(a, d)']),
-        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
-        ([max, '[a, b, c, d, e]', 'None', 'MAX(e, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, d)]', 'Min(a, d)']),
+        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'Min(a, b)']),
+        ([max, '[a, b, c, d, e]', 'None', 'Max(e, d)']),
     ])
     def test_assumptions(self, op, expr, assumptions, expected):
         """

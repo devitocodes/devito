@@ -6,9 +6,10 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
+from devito.finite_differences.elementary import floor
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
-from devito.symbolics import (INT, FLOOR, cast_mapper, indexify,
+from devito.symbolics import (INT, cast_mapper, indexify,
                               retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth, is_integer)
@@ -532,7 +533,7 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_indices(self):
         """Symbol for each grid index according to the coordinates."""
-        return tuple([INT(FLOOR((c - o) / i.spacing))
+        return tuple([INT(floor((c - o) / i.spacing))
                       for c, o, i in zip(self._coordinate_symbols,
                                          self.grid.origin_symbols,
                                          self.grid.dimensions[:self.grid.dim])])

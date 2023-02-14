@@ -3,7 +3,7 @@ import cgen
 from devito.ir import (Any, Forward, List, Prodder, FindNodes, Transformer,
                        filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import MIN, MAX, evalrel
+from devito.symbolics import evalrel
 from devito.tools import split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
@@ -81,7 +81,7 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
     to:
 
     <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
-        <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
+        <Iteration x; (x0_blk0, Min(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
     mapper = {}
@@ -107,15 +107,15 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
             if i.is_Inbound:
                 continue
 
-            # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
+            # The Iteration's maximum is the Min of (a) the `symbolic_max` of current
             # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
             # of the current Iteration's root Dimension e.g. `x_M`. The generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+            # maximum will be `Min(x0_blk0 + x0_blk0_size - 1, x_M)
 
             # In some corner cases an offset may be added (e.g. after CIRE passes)
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
+            # maximum will be `Min(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
 
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
             iter_max = evalrel(min, [i.symbolic_max, root_max])
@@ -124,8 +124,8 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
-                   ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
+        headers = [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
+                   ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]
     else:
         headers = []
 

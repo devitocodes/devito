@@ -283,8 +283,8 @@ def reuse_if_untouched(expr, args, evaluate=False):
 def evalrel(func=min, input=None, assumptions=None):
     """
     The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
-    for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
-    MIN/MAX expression of the reduced-size input.
+    for a Min/Max expression based on the given `assumptions` and (ii) return the nested
+    Min/Max expression of the reduced-size input.
 
     Parameters
     ----------
@@ -307,7 +307,7 @@ def evalrel(func=min, input=None, assumptions=None):
     >>> c = Symbol('c')
     >>> d = Symbol('d')
     >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
-    MAX(a, c)
+    Max(a, c)
     """
     sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
 
@@ -353,7 +353,7 @@ def evalrel(func=min, input=None, assumptions=None):
     mapper = transitive_closure(mapper)
     input = [i.subs(mapper) for i in input]
 
-    # Explore simplification opportunities that may have emerged and generate MIN/MAX
+    # Explore simplification opportunities that may have emerged and generate Min/Max
     # expression
     try:
         exp = sfunc(*input)  # Can it be evaluated or simplified?
