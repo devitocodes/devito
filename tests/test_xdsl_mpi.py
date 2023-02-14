@@ -1,11 +1,14 @@
+"""
+DEVITO_MPI=0 DEVITO_LOGGING=DEBUG pytest -m "not parallel" tests/test_xdsl_*
+DEVITO_MPI=1 DEVITO_LOGGING=DEBUG pytest -m parallel tests/test_xdsl_mpi.py
+"""
+
 import numpy as np
 import pytest
 from cached_property import cached_property
 
 from conftest import skipif, _R, assert_blocking
-from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
-                    SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
+from devito import (Grid, TimeFunction, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
                     switchconfig, generic_derivative, XDSLOperator)
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
