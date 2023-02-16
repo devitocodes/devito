@@ -6,8 +6,9 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
                                    Float64Type, AnyIntegerAttr, FloatAttr)
 from xdsl.dialects.arith import Constant
+from xdsl.dialects.func import Return
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf, VarOperand, AnyAttr, ParameterDef
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute
 
 
@@ -199,6 +200,7 @@ class Callable(Operation):
     types: OpAttr[Attribute]
     qualifiers: OpAttr[Attribute]
     retval: OpAttr[Attribute]
+    prefix: OpAttr[Attribute]
 
     @staticmethod
     def get(name: str,
@@ -207,6 +209,7 @@ class Callable(Operation):
             types: Attribute,
             qualifiers: Attribute,
             retval: Attribute,
+            prefix: Attribute,
             body: Block = []):
         return Callable.build(attributes={
             "callable_name": StringAttr.from_str(name),
@@ -220,7 +223,9 @@ class Callable(Operation):
             ArrayAttr.from_list([StringAttr.from_str(q) for q in qualifiers]),
             # It should be only one though
             "retval":
-            ArrayAttr.from_list([StringAttr.from_str(retval)])
+            StringAttr.from_str(retval),
+            "prefix":
+            StringAttr.from_str(prefix)
         }, regions=[Region.from_block_list([body])])
 
 

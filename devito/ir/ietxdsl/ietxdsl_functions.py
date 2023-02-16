@@ -145,6 +145,11 @@ def add_to_block(expr, arg_by_expr, result):
         result.append(sum)
         return
 
+    if isinstance(expr, nodes.Return):
+        # Covert a Return node
+        # import pdb;pdb.set_trace()
+        return
+
     if isinstance(expr, Mod):
         # To update docstring
         lhs = arg_by_expr[expr.args[0]]
@@ -319,13 +324,19 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.Call):
         # Those parameters without associated types aren't printed in the Kernel header
-        call_name = str(node.name)
-        call_args = [str(i._C_name) for i in node.arguments]
+        # call_name = str(node.name)
+        # call_args = [str(i._C_name) for i in node.arguments]
         # import pdb;pdb.set_trace()
         # call = Call.get(call_name, [call_args], 'void')
         # block.add_ops([call])
         print("Call placement-skipping")
         return
+
+    if isinstance(node, nodes.Conditional):
+        # Those parameters without associated types aren't printed in the Kernel header
+        print("Conditional placement skipping")
+        return
+
 
     if isinstance(node, cgen.Comment):
         # cgen.Comment as Statement

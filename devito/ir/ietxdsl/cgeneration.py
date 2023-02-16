@@ -62,13 +62,19 @@ class CGeneration:
 
     def printCallable(self, callable_op: Callable):
         # Assert that we only have one block in the callable_op.body
+
         assert len(callable_op.body.blocks) == 1
         arglist = callable_op.body.blocks[0].args
 
         # Print kernels and arguments
         self.print('')
+        retval = callable_op.attributes['retval'].data
+        prefix = callable_op.attributes['prefix'].data
+        if prefix != '':
+            prefix = prefix + " "
         name = callable_op.attributes['callable_name'].data
-        self.print(f"int {name}(", end='', indent=False)
+
+        self.print(f"{prefix}{retval} {name}(", end='', indent=False)
         for i, arg in enumerate(arglist):
             # IMPORTANT TOFIX? Here we print a Function like u[..][..][..]
             SSAValueNames[arg] = callable_op.attributes['parameters'].data[i].data
@@ -89,7 +95,8 @@ class CGeneration:
         self.indent()
         for each_op in callable_op.body.ops:
             self.printOperation(each_op)
-        self.print("return 0;")
+        if retval == "int":
+            self.print("return 0;")
         self.dedent()
         self.print("}")
         pass
@@ -257,7 +264,10 @@ class CGeneration:
             elif type == "f64":
                 type = "double"
             # TOFIX: resort to float
+            # elif type == "integer_type":
+            #     type = "const int"
             else:
+                # import pdb;pdb.set_trace()
                 type = "float"
             self.print(type, indent=True, end=" ")
             assignee = operation.attributes['name'].data

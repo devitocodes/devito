@@ -2,6 +2,7 @@ from devito import Operator
 
 from devito.ir import PointerCast, FindNodes
 from devito.ir.iet import FindSymbols
+from devito.ir.iet.nodes import CallableBody
 
 from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
                                ietxdsl_functions, Callable)
@@ -28,69 +29,82 @@ def transform_devito_xdsl_string(op: Operator):
     Builtin(ctx)
     iet = IET(ctx)
 
-    # Those parameters without associated types aren't printed in the Kernel header
-    op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
-    op_header_params = [opi._C_name for opi in list(op.parameters)]
-    op_types = [opi._C_typename for opi in list(op.parameters)]
-    op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
-    retval = str(op.retval)
-
-    # import pdb;pdb.set_trace()
-
-    b = Block.from_arg_types([i32] * len(op_param_names))
-    d = {name: register for name, register in zip(op_param_names, b.args)}
-
-    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
-                            op_type_qs, retval, b)
     cgen = CGeneration()
-    # print header information
+    # Print headers/includes/Structs
     ietxdsl_functions.printHeaders(cgen, "#define", op._headers)
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
+    # Scan an Operator
+    # Those parameters without associated types aren't printed in the Kernel header
+    op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
+    op_header_params = [i._C_name for i in list(op.parameters)]
+    op_types = [i._C_typename for i in list(op.parameters)]
+    op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
+    prefix = '-'.join(op.prefix)
+    retval = str(op.retval)
+
+    # TOFIX
+    b = Block.from_arg_types([i32] * len(op_param_names))
+    d = {name: register for name, register in zip(op_param_names, b.args)}
+
+    # Add Casts
     for cast in FindNodes(PointerCast).visit(op.body):
         ietxdsl_functions.myVisit(cast, block=b, ctx=d)
 
-    for body_i in op.body.body:
-        # import pdb;pdb.set_trace()
+    # Create a Callable for the main kernel
+    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
+                            op_type_qs, retval, prefix, b)
+
+    # Visit the Operator body
+    assert isinstance(op.body, CallableBody)
+    for i in op.body.body:
         # Comments
-        if body_i.args.get('body') != ():
-            for body_j in body_i.body:
+        # import pdb;pdb.set_trace()
+        if i.args.get('body') != ():
+            for body_j in i.body:
                 # Casts
                 ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
         else:
-            ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
+            ietxdsl_functions.myVisit(i, block=b, ctx=d)
 
     # print Kernel
     cgen.printCallable(call_obj)
 
-
     # Look for extra functions in the operator and print them out
     op_funcs = [value for _, value in op._func_table.items()]
+
+    # After finishing kernels, now we check the rest of the functions
     for op_func in op_funcs:
         op = op_func.root
         name = op.name
+
         # Those parameters without associated types aren't printed in the Kernel header
         op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
-        op_header_params = [opi._C_name for opi in list(op.parameters)]
-        op_types = [opi._C_typename for opi in list(op.parameters)]
-        op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
+        op_header_params = [i._C_name for i in list(op.parameters)]
+        op_types = [i._C_typename for i in list(op.parameters)]
+        op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
+        prefix = '-'.join(op.prefix)
+        retval = str(op.retval)
 
         b = Block.from_arg_types([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
 
-        call_obj = Callable.get(name, op_param_names, op_header_params, op_types,
-                                op_type_qs, b)
+        # Add Casts
+        for cast in FindNodes(PointerCast).visit(op.body):
+            ietxdsl_functions.myVisit(cast, block=b, ctx=d)
 
-        # for body_i in op.body.body:
-            # import pdb;pdb.set_trace()
+        call_obj = Callable.get(name, op_param_names, op_header_params, op_types,
+                                op_type_qs, retval, prefix, b)
+
+        for body_i in op.body.body:
             # Comments
-            # if body_i.args.get('body') != ():
-            #     for body_j in body_i.body:
+            if body_i.args.get('body') != ():
+                for body_j in body_i.body:
                     # Casts
-            #         ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
-            # else:
-            #     ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
+                    ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
+            else:
+                ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
 
         # print Kernel
 
