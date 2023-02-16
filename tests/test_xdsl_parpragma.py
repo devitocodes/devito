@@ -13,7 +13,7 @@ def test_example():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
-            "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"],
+            "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"], "int",
             Block.from_callable([i32], lambda u: [
                 Iteration.
                 get(["affine", "sequential"],

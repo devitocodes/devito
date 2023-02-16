@@ -33,12 +33,15 @@ def transform_devito_xdsl_string(op: Operator):
     op_header_params = [opi._C_name for opi in list(op.parameters)]
     op_types = [opi._C_typename for opi in list(op.parameters)]
     op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
+    retval = str(op.retval)
+
+    # import pdb;pdb.set_trace()
 
     b = Block.from_arg_types([i32] * len(op_param_names))
     d = {name: register for name, register in zip(op_param_names, b.args)}
 
-    call_obj = Callable.get("kernel", op_param_names, op_header_params, op_types,
-                            op_type_qs, b)
+    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
+                            op_type_qs, retval, b)
     cgen = CGeneration()
     # print header information
     ietxdsl_functions.printHeaders(cgen, "#define", op._headers)
@@ -49,6 +52,7 @@ def transform_devito_xdsl_string(op: Operator):
         ietxdsl_functions.myVisit(cast, block=b, ctx=d)
 
     for body_i in op.body.body:
+        # import pdb;pdb.set_trace()
         # Comments
         if body_i.args.get('body') != ():
             for body_j in body_i.body:
@@ -59,6 +63,41 @@ def transform_devito_xdsl_string(op: Operator):
 
     # print Kernel
     cgen.printCallable(call_obj)
+
+
+    # Look for extra functions in the operator and print them out
+    op_funcs = [value for _, value in op._func_table.items()]
+    for op_func in op_funcs:
+        op = op_func.root
+        name = op.name
+        # Those parameters without associated types aren't printed in the Kernel header
+        op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
+        op_header_params = [opi._C_name for opi in list(op.parameters)]
+        op_types = [opi._C_typename for opi in list(op.parameters)]
+        op_type_qs = [opi._C_type_qualifier for opi in list(op.parameters)]
+
+        b = Block.from_arg_types([i32] * len(op_param_names))
+        d = {name: register for name, register in zip(op_param_names, b.args)}
+
+        call_obj = Callable.get(name, op_param_names, op_header_params, op_types,
+                                op_type_qs, b)
+
+        # for body_i in op.body.body:
+            # import pdb;pdb.set_trace()
+            # Comments
+            # if body_i.args.get('body') != ():
+            #     for body_j in body_i.body:
+                    # Casts
+            #         ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
+            # else:
+            #     ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
+
+        # print Kernel
+
+        cgen.printCallable(call_obj)
+
+    # import pdb;pdb.set_trace()
+
 
     from xdsl.printer import Printer
     Printer().print(call_obj.body)

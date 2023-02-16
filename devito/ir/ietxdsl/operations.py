@@ -198,6 +198,7 @@ class Callable(Operation):
     header_parameters: OpAttr[Attribute]
     types: OpAttr[Attribute]
     qualifiers: OpAttr[Attribute]
+    retval: OpAttr[Attribute]
 
     @staticmethod
     def get(name: str,
@@ -205,6 +206,7 @@ class Callable(Operation):
             header_parameters: Attribute,
             types: Attribute,
             qualifiers: Attribute,
+            retval: Attribute,
             body: Block = []):
         return Callable.build(attributes={
             "callable_name": StringAttr.from_str(name),
@@ -215,7 +217,10 @@ class Callable(Operation):
             "types":
             ArrayAttr.from_list([StringAttr.from_str(p) for p in types]),
             "qualifiers":
-            ArrayAttr.from_list([StringAttr.from_str(q) for q in qualifiers])
+            ArrayAttr.from_list([StringAttr.from_str(q) for q in qualifiers]),
+            # It should be only one though
+            "retval":
+            ArrayAttr.from_list([StringAttr.from_str(retval)])
         }, regions=[Region.from_block_list([body])])
 
 

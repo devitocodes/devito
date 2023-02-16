@@ -319,13 +319,16 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.Call):
         # Those parameters without associated types aren't printed in the Kernel header
-        call_name = node.name
-        call_args = [i._C_name for i in node.arguments]
-        call = Call.get(call_name, [call_args], 'void')
-        block.add_ops([call])
+        call_name = str(node.name)
+        call_args = [str(i._C_name) for i in node.arguments]
+        # import pdb;pdb.set_trace()
+        # call = Call.get(call_name, [call_args], 'void')
+        # block.add_ops([call])
+        print("Call placement-skipping")
         return
 
     if isinstance(node, cgen.Comment):
+        # cgen.Comment as Statement
         comment = Statement.get(node)
         block.add_ops([comment])
         return

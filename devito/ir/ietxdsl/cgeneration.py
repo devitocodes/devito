@@ -64,9 +64,11 @@ class CGeneration:
         # Assert that we only have one block in the callable_op.body
         assert len(callable_op.body.blocks) == 1
         arglist = callable_op.body.blocks[0].args
-        # print kernels and arguments
+
+        # Print kernels and arguments
         self.print('')
-        self.print("int Kernel(", end='', indent=False)
+        name = callable_op.attributes['callable_name'].data
+        self.print(f"int {name}(", end='', indent=False)
         for i, arg in enumerate(arglist):
             # IMPORTANT TOFIX? Here we print a Function like u[..][..][..]
             SSAValueNames[arg] = callable_op.attributes['parameters'].data[i].data

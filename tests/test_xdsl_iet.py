@@ -199,7 +199,7 @@ def test_callable():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
-            "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"],
+            "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"], "int",
             block0)
             ])
 
@@ -258,7 +258,7 @@ def test_example():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
-            "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"],
+            "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"], "int",
             Block.from_callable([i32], lambda u: [
                 Iteration
                 .get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
@@ -318,7 +318,7 @@ def test_devito_iet():
     iet = IET(ctx)
 
     mod = ModuleOp.from_region_or_ops([
-        Callable.get("kernel", ["u"], ["u"],["struct dataobj*"], ["restrict"],
+        Callable.get("kernel", ["u"], ["u"],["struct dataobj*"], ["restrict"], "int",
                      Block.from_callable([i32], lambda u: [
             Iteration.get(t_props, t_limits, iters[0][0].dim.name,
                 Block.from_callable([i32, i32, i32],
@@ -355,7 +355,7 @@ def test_mfe():
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
-            "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"],
+            "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"], "int",
             Block.from_callable([i32], lambda u: [
                 Iteration
                 .get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
