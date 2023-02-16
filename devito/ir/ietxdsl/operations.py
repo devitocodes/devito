@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
-                                   Float64Type, AnyIntegerAttr, FloatAttr)
+                                   Float64Type, AnyIntegerAttr, FloatAttr, f32)
 from xdsl.dialects.arith import Constant
 from xdsl.dialects.func import Return
 
@@ -92,7 +92,7 @@ class Powi(Operation):
             exponent: Union[Operation, SSAValue]):
         base = SSAValue.get(base)
         return Powi.build(operands=[base, exponent],
-                          result_types=[base.typ])
+                          result_types=[f32])
 
 
 @irdl_op_definition

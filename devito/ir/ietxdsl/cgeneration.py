@@ -264,10 +264,10 @@ class CGeneration:
             elif type == "f64":
                 type = "double"
             # TOFIX: resort to float
-            # elif type == "integer_type":
-            #     type = "const int"
+            elif type == "integer_type":
+                type = "const int"
             else:
-                # import pdb;pdb.set_trace()
+                import pdb;pdb.set_trace()
                 type = "float"
             self.print(type, indent=True, end=" ")
             assignee = operation.attributes['name'].data
