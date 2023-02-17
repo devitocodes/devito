@@ -30,45 +30,13 @@ def transform_devito_xdsl_string(op: Operator):
     iet = IET(ctx)
 
     cgen = CGeneration()
+
     # Print headers/includes/Structs
     ietxdsl_functions.printHeaders(cgen, "#define", op._headers)
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
-    # Scan an Operator
-    # Those parameters without associated types aren't printed in the Kernel header
-    op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
-    op_header_params = [i._C_name for i in list(op.parameters)]
-    op_types = [i._C_typename for i in list(op.parameters)]
-    op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
-    prefix = '-'.join(op.prefix)
-    retval = str(op.retval)
-
-    # TOFIX
-    b = Block.from_arg_types([i32] * len(op_param_names))
-    d = {name: register for name, register in zip(op_param_names, b.args)}
-
-    # Add Casts
-    for cast in FindNodes(PointerCast).visit(op.body):
-        ietxdsl_functions.myVisit(cast, block=b, ctx=d)
-
-    # Create a Callable for the main kernel
-    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
-                            op_type_qs, retval, prefix, b)
-
-    # Visit the Operator body
-    assert isinstance(op.body, CallableBody)
-    for i in op.body.body:
-        # Comments
-        # import pdb;pdb.set_trace()
-        if i.args.get('body') != ():
-            for body_j in i.body:
-                # Casts
-                ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
-        else:
-            ietxdsl_functions.myVisit(i, block=b, ctx=d)
-
-    # print Kernel
+    call_obj = visit_Operator(op)
     cgen.printCallable(call_obj)
 
     # Look for extra functions in the operator and print them out
@@ -117,3 +85,41 @@ def transform_devito_xdsl_string(op: Operator):
     Printer().print(call_obj.body)
 
     return cgen.str()
+
+
+def visit_Operator(op):
+    # Scan an Operator
+    # Those parameters without associated types aren't printed in the Kernel header
+    op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
+    op_header_params = [i._C_name for i in list(op.parameters)]
+    op_types = [i._C_typename for i in list(op.parameters)]
+    op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
+    prefix = '-'.join(op.prefix)
+    retval = str(op.retval)
+
+    # TOFIX
+    b = Block.from_arg_types([i32] * len(op_param_names))
+    d = {name: register for name, register in zip(op_param_names, b.args)}
+
+    # Add Casts
+    for cast in FindNodes(PointerCast).visit(op.body):
+        ietxdsl_functions.myVisit(cast, block=b, ctx=d)
+
+    # Create a Callable for the main kernel
+    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
+                            op_type_qs, retval, prefix, b)
+
+    # Visit the Operator body
+    assert isinstance(op.body, CallableBody)
+    for i in op.body.body:
+        # Comments
+        # import pdb;pdb.set_trace()
+        if i.args.get('body') != ():
+            for body_j in i.body:
+                # Casts
+                ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
+        else:
+            ietxdsl_functions.myVisit(i, block=b, ctx=d)
+
+    # print Kernel
+    return call_obj

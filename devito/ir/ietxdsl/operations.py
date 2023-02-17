@@ -127,7 +127,7 @@ class Idx(Operation):
     def get(array: Union[Operation, SSAValue],
             index: Union[Operation, SSAValue]):
         return Idx.build(operands=[array, index],
-                         result_types=[IntegerType.build(32)])
+                         result_types=[f32])
 
 
 @irdl_op_definition
