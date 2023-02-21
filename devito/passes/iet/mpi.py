@@ -250,15 +250,9 @@ def _mark_overlappable(iet):
         # along a non-halo Dimension
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
-                if not dep.cause:
-                    # E.g. increments
-                    # for x
-                    #   for y
-                    #     f[x, y] = f[x, y] + 1
-                    test = False
-                    break
-                elif dep.cause & hs.dimensions:
-                    # E.g. dependences across PARALLEL iterations
+                cause = dep.cause & hs.dimensions
+                if any(dep.distance_mapper[d] is S.Infinity for d in cause):
+                    # E.g., dependences across PARALLEL iterations
                     # for x
                     #   for y
                     #     ... = ... f[x, y-1] ...
