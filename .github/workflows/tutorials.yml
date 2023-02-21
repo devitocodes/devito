@@ -33,7 +33,7 @@ jobs:
 
         include:
           - name: tutos-ubuntu-gcc-py37
-            os: ubuntu-18.04
+            os: ubuntu-latest
             compiler: gcc
             language: "openmp"
 
