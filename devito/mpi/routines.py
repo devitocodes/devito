@@ -110,15 +110,10 @@ class HaloExchangeBuilder(object):
             haloupdates.append(self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 halowaits.append(self._call_halowait(halowait.name, f, hse, msg))
-        body = []
-        body.append(HaloUpdateList(body=haloupdates))
-        if callcompute is not None:
-            body.append(callcompute)
-        body.append(HaloWaitList(body=halowaits))
-        if remainder is not None:
-            body.append(self._call_remainder(remainder))
 
-        return List(body=body)
+        body = self._make_body(callcompute, remainder, haloupdates, halowaits)
+
+        return body
 
     @abc.abstractmethod
     def _make_region(self, hs, key):
@@ -252,6 +247,14 @@ class HaloExchangeBuilder(object):
         """
         Construct a Call to ``remainder``, the Callable produced by
         :meth:`_make_remainder`.
+        """
+        return
+
+    @abc.abstractmethod
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        """
+        Chain together the `compute`, `remainder`, `haloupdate`, and `halowait`
+        Calls.
         """
         return
 
@@ -446,6 +449,18 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _call_remainder(self, *args):
         return
+
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        body.append(HaloUpdateList(body=haloupdates))
+        if callcompute is not None:
+            body.append(callcompute)
+        body.append(HaloWaitList(body=halowaits))
+        if remainder is not None:
+            body.append(self._call_remainder(remainder))
+
+        return List(body=body)
 
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
@@ -811,6 +826,35 @@ class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         return remainder
 
 
+class DualHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    "Dual" of Overlap2HaloExchangeBuilder, as the "remainder" is now the first
+    thing getting computed.
+
+    Generates:
+
+        remainder()
+        compute_core()
+        haloupdate()
+        halowait()
+    """
+
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        assert remainder is not None
+        body.append(self._call_remainder(remainder))
+
+        assert callcompute is not None
+        body.append(callcompute)
+
+        body.append(HaloUpdateList(body=haloupdates))
+        body.append(HaloWaitList(body=halowaits))
+
+        return List(body=body)
+
+
 class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     """
@@ -873,7 +917,8 @@ mpi_registry = {
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
     'overlap2': Overlap2HaloExchangeBuilder,
-    'full': FullHaloExchangeBuilder
+    'full': FullHaloExchangeBuilder,
+    'dual': DualHaloExchangeBuilder
 }
 
 
