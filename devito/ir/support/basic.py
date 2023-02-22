@@ -2,6 +2,7 @@ from itertools import chain
 
 from cached_property import cached_property
 from sympy import S
+from sympy.tensor.indexed import IndexException
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
@@ -825,7 +826,10 @@ class Scope(object):
                     indices = [i if d in e.ispace else S.Infinity
                                for i, d in zip(a, a.aindices)]
                     v = self.writes.setdefault(f, [])
-                    v.append(TimedAccess(f[indices], 'W', i, e.ispace))
+                    try:
+                        v.append(TimedAccess(f[indices], 'W', i, e.ispace))
+                    except IndexException:
+                        pass
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)
