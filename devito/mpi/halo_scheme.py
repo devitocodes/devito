@@ -5,6 +5,7 @@ from operator import attrgetter
 from cached_property import cached_property
 from sympy import Max, Min
 
+from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.tools import Tag, as_tuple, filter_ordered, flatten, frozendict, is_integer
@@ -409,6 +410,15 @@ def classify(exprs, ispace):
 
         if not halo_labels:
             continue
+
+        # Modes performing the halo exchange *after* having computed the data
+        # domain need to inspect the writes as well
+        #TODO: IMPROVE ME...
+        if configuration['mpi'] in ('dual',):
+            for i in scope.writes.get(f, []):
+                for d in i.findices:
+                    if not f.grid.is_distributed(d):
+                        halo_labels[(d, i[d])].add(NONE)
 
         # Distinguish between Dimensions requiring a halo exchange and those which don't
         raw_loc_indices, halos = defaultdict(list), []

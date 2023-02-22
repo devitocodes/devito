@@ -573,7 +573,8 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
+                                (4, 'overlap2'), (4, 'diag2'), (4, 'full'),
+                                (4, 'dual')])
     def test_trivial_eq_2d(self):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -2357,9 +2358,9 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = True
+    configuration['mpi'] = 'dual'
     # TestDecomposition().test_reshape_left_right()
-    # TestOperatorSimple().test_trivial_eq_2d()
+    TestOperatorSimple().test_trivial_eq_2d()
     # TestOperatorSimple().test_num_comms('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
@@ -2368,4 +2369,4 @@ if __name__ == "__main__":
     # TestOperatorAdvanced().test_nontrivial_operator()
     # TestOperatorAdvanced().test_interpolation_dup()
     # TestOperatorAdvanced().test_injection_wodup()
-    TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    # TestIsotropicAcoustic().test_adjoint_F_no_omp()
