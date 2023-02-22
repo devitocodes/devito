@@ -13,9 +13,9 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
-from devito.symbolics import FieldFromPointer, ccode
+from devito.symbolics import DefFunction, FieldFromPointer, ccode
 from devito.tools import prod
-from devito.types import Array, Scalar, Symbol
+from devito.types import Array, Jump, Scalar, Symbol
 
 
 class TestVectorHierarchy(object):
@@ -719,6 +719,27 @@ class TestDependenceAnalysis(object):
 
         scope = Scope(exprs)
         assert len(scope.d_all) == len(scope.d_flow) == 1
+        v = scope.d_flow.pop()
+        assert v.function is f
+
+    def test_indexedbase_across_jump(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        class Foo(DefFunction, Jump):
+            pass
+
+        exprs = [Eq(f.indexed, 0),
+                 Eq(h.indexed, Foo('foo', 3)),
+                 Eq(g.indexed, f.indexed)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_flow) == 1
+        assert len(scope.d_anti) == 0
         v = scope.d_flow.pop()
         assert v.function is f
 
