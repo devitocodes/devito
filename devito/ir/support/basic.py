@@ -2,6 +2,7 @@ from itertools import chain
 
 from cached_property import cached_property
 from sympy import S
+from sympy.tensor.indexed import IndexException
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
@@ -10,7 +11,7 @@ from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routin
                               q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple
+from devito.types import Barrier, Dimension, DimensionTuple, Jump
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -89,8 +90,20 @@ class IterationInstance(LabeledVector):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
-            elif len(dims) == 1:
-                candidate = dims.pop()
+                continue
+
+            # TODO: Exploit AffineIndexAccessFunction instead of calling
+            # q_affine -- ultimately it should get quicker!
+
+            sdims = {d for d in dims if d.is_Stencil}
+            if dims == sdims:
+                candidates = sdims
+            else:
+                # E.g. `x + i0 + i1` -> `candidates = {x}`
+                candidates = dims - sdims
+
+            if len(candidates) == 1:
+                candidate = candidates.pop()
                 if fi._defines & candidate._defines:
                     if q_affine(i, candidate):
                         retval.append(AFFINE)
@@ -107,8 +120,11 @@ class IterationInstance(LabeledVector):
         retval = []
         for i, fi in zip(self, self.findices):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
-            if len(dims) == 1:
-                retval.append(dims.pop())
+            sdims = {d for d in dims if d.is_Stencil}
+            candidates = dims - sdims
+
+            if len(candidates) == 1:
+                retval.append(candidates.pop())
             elif isinstance(i, Dimension):
                 retval.append(i)
             else:
@@ -320,19 +336,77 @@ class TimedAccess(IterationInstance, AccessMode):
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
 
-            ai = sai
-            fi = self.findices[n]
+            if self.function._mem_shared:
+                # Special case: the distance between two regular, thread-shared
+                # objects fallbacks to zero, as any other value would be nonsensical.
+                ret.append(S.Zero)
 
-            if not ai or ai._defines & sit.dim._defines:
-                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)` and `ai=t`
+            elif sai and oai and sai._defines & sit.dim._defines:
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`
+                # and `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-            elif fi in sit.dim._defines:
+
+            elif not sai and not oai:
+                # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
+                if self[n] - other[n] == 0:
+                    ret.append(S.Zero)
+                else:
+                    break
+
+            elif sai in self.ispace and oai in other.ispace:
+                # E.g., `self=R<f,[x, y]>`, `sai=time`, self.itintervals=(time, x, y)
+                # with `n=0`
+                continue
+
+            elif any(d and d._defines & sit.dim._defines for d in (sai, oai)):
+                # In some cases, the distance degenerates because `self` and
+                # `other` never intersect, which essentially means there's no
+                # dependence between them. In this case, we set the distance to
+                # a dummy value (the imaginary unit). Hence, we call these
+                # "imaginary dependences". This occurs in just a small set of
+                # special cases, which we handle here
+
+                # Case 1: `sit` is an IterationInterval with statically known
+                # trip count. E.g. it ranges from 0 to 3; `other` performs a
+                # constant access at 4
+                for v in (self[n], other[n]):
+                    try:
+                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
+                            return Vector(S.ImaginaryUnit)
+                    except TypeError:
+                        pass
+
+                # Case 2: `sit` is an IterationInterval over a local SubDimension
+                # and `other` performs a constant access
+                for d0, d1 in ((sai, oai), (oai, sai)):
+                    if d0 is None and d1.is_Sub and d1.local:
+                        return Vector(S.ImaginaryUnit)
+
+                # Fallback
+                ret.append(S.Infinity)
+                break
+
+            elif self.findices[n] in sit.dim._defines:
                 # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>` and `fi=p_src` (`n=1`)
                 ret.append(S.Infinity)
                 break
+
+        if S.Infinity in ret:
+            return Vector(*ret)
+
+        # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
+        # nasty, `a[i+1, 3] -> a[i, 4]`
+        n = len(ret)
+        for i, j in zip(self[n:], other[n:]):
+            if i == j:
+                ret.append(S.Zero)
+            else:
+                v = i - j
+                if v.is_Number and v.is_finite:
+                    return Vector(S.ImaginaryUnit)
 
         return Vector(*ret)
 
@@ -531,16 +605,13 @@ class Dependence(object):
         """
         return self.source.timestamp == -1 or self.sink.timestamp == -1
 
-    @cached_property
-    def is_cross(self):
-        """
-        True if both source and sink are from the same IterationSpace, False otherwise.
-        """
-        return self.source.ispace is not self.sink.ispace
-
     @property
     def is_local(self):
         return self.function.is_Symbol
+
+    @property
+    def is_imaginary(self):
+        return S.ImaginaryUnit in self.distance
 
     @memoized_meth
     def is_const(self, dim):
@@ -744,18 +815,21 @@ class Scope(object):
                 v = self.reads.setdefault(i.function, [])
                 v.append(TimedAccess(i, 'R', -1))
 
-        # Synchronization barriers are converted into mock dependences on symbols
-        # crossing them
+        # Objects altering the control flow (e.g., synchronization barriers,
+        # break statements, ...) are converted into mock dependences
         for i, e in enumerate(exprs):
-            if e.find(Barrier):
+            if e.find(Barrier) | e.find(Jump):
                 for a in self.accesses:
                     f = a.function
+                    if not f.is_AbstractFunction:
+                        continue
                     indices = [i if d in e.ispace else S.Infinity
                                for i, d in zip(a, a.aindices)]
-                    mock = f.indexify(indices)
                     v = self.writes.setdefault(f, [])
-                    v.extend([TimedAccess(mock, 'R', i, e.ispace),
-                              TimedAccess(mock, 'W', i, e.ispace)])
+                    try:
+                        v.append(TimedAccess(f[indices], 'W', i, e.ispace))
+                    except IndexException:
+                        pass
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)
@@ -834,7 +908,8 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_flow = not r.is_read_reduction
+                        is_flow = (not dependence.is_imaginary and
+                                   not r.is_read_reduction)
                     if is_flow:
                         yield dependence
 
@@ -861,7 +936,8 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_anti = not r.is_read_reduction
+                        is_anti = (not dependence.is_imaginary and
+                                   not r.is_read_reduction)
                     if is_anti:
                         yield dependence
 
@@ -887,7 +963,7 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
-                        is_output = True
+                        is_output = not dependence.is_imaginary
                     if is_output:
                         yield dependence
 

@@ -58,6 +58,13 @@ class HaloExchangeBuilder(object):
     def regions(self):
         return [i for i in self._regions.values() if i is not None]
 
+    @property
+    def headers(self):
+        """
+        No headers needed by default
+        """
+        return {}
+
     def make(self, hs):
         """
         Construct Callables and Calls implementing distributed-memory halo
@@ -509,6 +516,14 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         halowait()
         remainder()
     """
+
+    @property
+    def headers(self):
+        """
+        Overlap Mode uses MIN/MAX that need to be defined
+        """
+        return {'headers': [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
+                            ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]}
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme

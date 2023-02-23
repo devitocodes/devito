@@ -1,17 +1,17 @@
-from collections import Counter
 from functools import singledispatch
 
 import numpy as np
 from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
 
+from devito.finite_differences import Derivative
+from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
 from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
-from devito.symbolics.search import search
-from devito.tools import as_tuple
+from devito.tools import as_tuple, prod
 
-__all__ = ['compare_ops', 'count', 'estimate_cost']
+__all__ = ['compare_ops', 'estimate_cost']
 
 
 def compare_ops(e1, e2):
@@ -56,17 +56,6 @@ def compare_ops(e1, e2):
         return False
 
 
-def count(exprs, query):
-    """
-    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
-    matching ``query`` and ``v`` is the number of its occurrences.
-    """
-    mapper = Counter()
-    for expr in as_tuple(exprs):
-        mapper.update(Counter(search(expr, query, 'all', 'bfs')))
-    return dict(mapper)
-
-
 def estimate_cost(exprs, estimate=False):
     """
     Estimate the operation count of an expression.
@@ -96,11 +85,18 @@ def estimate_cost(exprs, estimate=False):
         # Also, the routine below is *much* faster than count_ops
         flops = 0
         for expr in as_tuple(exprs):
+            # TODO: this if-then should be part of singledispatch too, but because
+            # of the annoying symbolics/ vs types/ structuring, we can't do that
+            # because of circular imports...
             if expr.is_Equality:
                 e = expr.rhs
+                if expr.is_Reduction:
+                    flops += 1
             else:
                 e = expr
+
             flops += _estimate_cost(e, estimate)[0]
+
         return flops
     except:
         warning("Cannot estimate cost of `%s`" % str(exprs))
@@ -219,4 +215,23 @@ def _(expr, estimate):
             flops += estimate_values['pow']
     else:
         flops += 1
+    return flops, False
+
+
+@_estimate_cost.register(Derivative)
+def _(expr, estimate):
+    return _estimate_cost(expr._evaluate(expand=False), estimate)
+
+
+@_estimate_cost.register(IndexDerivative)
+def _(expr, estimate):
+    flops, _ = _estimate_cost(expr.expr, estimate)
+
+    # It's an increment
+    flops += 1
+
+    # To be multiplied by the number of points this index sum implicitly
+    # iterates over
+    flops *= prod(i._size for i in expr.dimensions)
+
     return flops, False

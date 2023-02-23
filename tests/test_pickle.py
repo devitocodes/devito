@@ -680,3 +680,30 @@ def test_full_model():
     new_ricker = pickle.loads(pkl_ricker)
     assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
     # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
+
+
+def test_elemental():
+    """
+    Tests that elemental function doesn't get reconstructed differently
+    """
+    grid = Grid(shape=(101, 101))
+    time_range = TimeAxis(start=0.0, stop=1000.0, num=12)
+
+    nrec = 101
+    rec = Receiver(name='rec', grid=grid, npoint=nrec, time_range=time_range)
+
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    rec_term = rec.interpolate(expr=u)
+
+    eq = rec_term.evaluate[2]
+    eq = eq.func(eq.lhs, eq.rhs.args[0])
+
+    op = Operator(eq)
+
+    pkl_op = pickle.dumps(op)
+    new_op = pickle.loads(pkl_op)
+
+    op.cfunction
+    new_op.cfunction
+
+    assert str(op) == str(new_op)

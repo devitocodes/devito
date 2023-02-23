@@ -9,11 +9,102 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension)
+                    CustomDimension, dimensions)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
-from devito.types import Array, Symbol
+from devito.types import Array, StencilDimension, Symbol
+from devito.types.dimension import AffineIndexAccessFunction
+
+
+class TestIndexAccessFunction(object):
+
+    def test_basic(self):
+        d = Dimension(name='x')
+
+        expr = d + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sd == 0
+
+        s0 = Symbol(name='s0', dtype=np.int32)
+        s1 = Symbol(name='s1', dtype=np.int32)
+
+        expr = d + s0 + s1 + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == s0 + s1 + 1
+        assert expr.sd == 0
+
+    def test_reversed(self):
+        d = Dimension(name='x')
+
+        expr = 1 + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sd == 0
+
+        expr = d.symbolic_max + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs is d.symbolic_max
+        assert expr.sd == 0
+
+    def test_non_affine(self):
+        grid = Grid(shape=(3,))
+        x, = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+
+        expr = x + f[x]
+
+        assert expr.is_Add
+        assert not isinstance(expr, AffineIndexAccessFunction)
+
+    def test_stencil_dim(self):
+        d = Dimension(name='x')
+        sd = StencilDimension('i', 0, 1)
+
+        expr = d + sd + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.sd is sd
+        assert expr.ofs == 1
+
+        s = Symbol(name='s')
+
+        expr = sd + d + 1 + s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.sd is sd
+        assert expr.ofs == 1 + s
+
+    def test_sub(self):
+        d = Dimension(name='x')
+
+        expr = d - 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == -1
+
+        sd = StencilDimension('i', 0, 1)
+        s = Symbol(name='s')
+
+        expr = d + sd - 1 - s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.sd is sd
+        assert expr.ofs == -1 - s
 
 
 class TestBufferedDimension(object):
@@ -1434,6 +1525,27 @@ class TestConditionalDimension(object):
         op.cfunction
 
         assert_structure(op, ['t', 't,x', 't,x'], 't,x,x')
+
+    def test_array_shared_w_topofuse(self):
+        shape = (4, 4, 4)
+        dims = dimensions('i x y')
+
+        i, _, _ = dims
+        cd0 = ConditionalDimension(name='cd0', parent=i, condition=Ge(i, 2))
+
+        f = Function(name='f', dimensions=dims, shape=shape)
+        a0 = Array(name='a0', dimensions=dims, scope='shared')
+        a1 = Array(name='a1', dimensions=dims, scope='shared')
+
+        eqns = [Eq(a0, 1),
+                Eq(a0, 1, implicit_dims=(cd0,)),
+                Eq(f, a0),
+                Eq(a1, 1),
+                Eq(a1, 2, implicit_dims=(cd0,))]
+
+        op = Operator(eqns, openmp=True)
+
+        assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
 
 class TestCustomDimension(object):

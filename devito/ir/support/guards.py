@@ -4,14 +4,15 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
-from sympy import Ge, Gt, Le, Lt, Mul, true
+from sympy import And, Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
+from devito.tools import as_tuple, frozendict
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
 
 
 class Guard(object):
@@ -204,3 +205,52 @@ negations = {
     GuardOverflowGe: GuardOverflowLt,
     GuardOverflowLt: GuardOverflowGe
 }
+
+
+class Guards(frozendict):
+
+    """
+    A mapper {Dimension -> guard}.
+
+    The mapper is immutable; operations such as andg, get, ... cause the
+    construction of a new object, leaving self intact.
+    """
+
+    def get(self, d, v=true):
+        return super().get(d, v)
+
+    def andg(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        try:
+            m[d] = And(m[d], guard)
+        except KeyError:
+            m[d] = guard
+
+        return Guards(m)
+
+    def impose(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        m[d] = guard
+
+        return m
+
+    def popany(self, dims):
+        m = dict(self)
+
+        for d in as_tuple(dims):
+            m.pop(d, None)
+
+        return Guards(m)
+
+    def filter(self, key):
+        m = {d: v for d, v in self.items() if key(d)}
+
+        return Guards(m)

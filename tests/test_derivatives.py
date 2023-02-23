@@ -8,7 +8,7 @@ from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights)
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import StencilDimension
+from devito.types.dimension import StencilDimension
 
 _PRECISION = 9
 
@@ -665,7 +665,7 @@ class TestTwoStageEvaluation(object):
 
         assert idxsum.evaluate == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
 
-    def test_index_derivative_like(self):
+    def test_index_derivative(self):
         grid = Grid((10,))
         x, = grid.dimensions
 
@@ -676,9 +676,17 @@ class TestTwoStageEvaluation(object):
         ui = u.subs(x, x + i*x.spacing)
         w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
 
-        idxder = IndexDerivative(ui*w, w.dimension)
+        idxder = IndexDerivative(ui*w, {x: i})
 
         assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
+
+        # Make sure subs works as expected
+        v = Function(name="v", grid=grid, space_order=2)
+
+        vi0 = v.subs(x, x + i*x.spacing)
+        vi1 = idxder.subs(ui, vi0)
+
+        assert IndexDerivative(vi0*w, {x: i}) == vi1
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))
@@ -690,6 +698,7 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx2._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
+        assert term1.depth == 1
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
@@ -707,12 +716,21 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx.dy._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
+        assert term1.depth == 2
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
         # Through expansion and casting we also check that `term0`
         # is indeed mathematically equivalent to `term1`
         assert Add(*term0.expand().args) == term1.expand()
+
+    def test_dxdy_v2(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term1 = f.dxdy._evaluate(expand=False)
+        assert len(term1.find(IndexDerivative)) == 2
 
 
 def bypass_uneval(expr):

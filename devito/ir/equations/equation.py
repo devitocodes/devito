@@ -166,7 +166,7 @@ class LoweredEq(IREq):
                 # Use `parent`, and `root`, because a ConditionalDimension may
                 # have a SubDimension as parent
                 iterators.setdefault(d.parent, set())
-            else:
+            elif not d.is_Stencil:
                 iterators.setdefault(d, set())
 
         # Construct the IterationSpace

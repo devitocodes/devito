@@ -7,3 +7,4 @@ from .blocking import *  # noqa
 from .asynchrony import *  # noqa
 from .implicit import *  # noqa
 from .misc import *  # noqa
+from .derivatives import *  # noqa

@@ -467,6 +467,29 @@ class DAG(object):
         else:
             raise ValueError('graph is not acyclic')
 
+    def connected_components(self, enumerated=False):
+        """
+        Find all connected sub-graphs and return them as a list.
+        """
+        groups = []
+
+        for n0 in self.graph:
+            found = {n0} | set(self.all_downstreams(n0))
+            for g in groups:
+                if g.intersection(found):
+                    g.update(found)
+                    break
+            else:
+                groups.append(found)
+
+        if enumerated:
+            mapper = OrderedDict()
+            for n, g in enumerate(groups):
+                mapper.update({i: n for i in g})
+            return mapper
+        else:
+            return tuple(groups)
+
 
 class frozendict(Mapping):
     """

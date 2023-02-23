@@ -1,6 +1,6 @@
 pip>=9.0.1
 numpy>1.16
-sympy>=1.7,<1.12
+sympy>=1.9,<1.12
 scipy
 flake8>=2.1.0
 nbval
@@ -14,7 +14,7 @@ codecov
 multidict
 anytree>=2.4.3,<=2.8
 pyrevolve>=2.1.3
-distributed<2023.2
+distributed<2023.3
 pytest>=3.6,<8.0
 pytest-runner
 pytest-cov

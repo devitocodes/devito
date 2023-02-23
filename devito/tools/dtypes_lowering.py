@@ -5,13 +5,13 @@ Machinery to lower np.dtypes and ctypes into strings
 import ctypes
 
 import numpy as np
-from cgen import Struct, Value, dtype_to_ctype as cgen_dtype_to_ctype
+from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
-           'ctypes_to_cstr', 'ctypes_to_cgen', 'c_restrict_void_p',
-           'ctypes_vector_mapper', 'is_external_ctype']
+           'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
+           'is_external_ctype', 'infer_dtype']
 
 
 # *** Custom np.dtypes
@@ -131,7 +131,7 @@ for base_name, base_dtype in mapper.items():
 # *** ctypes lowering
 
 
-def ctypes_to_cstr(ctype, toarray=None, qualifiers=None):
+def ctypes_to_cstr(ctype, toarray=None):
     """Translate ctypes types into C strings."""
     if ctype in ctypes_vector_mapper.values():
         retval = ctype.__name__
@@ -186,50 +186,7 @@ def ctypes_to_cstr(ctype, toarray=None, qualifiers=None):
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         retval = ctype.__name__
 
-    # Add qualifiers, if any
-    if qualifiers:
-        retval = '%s %s' % (' '.join(qualifiers), retval)
-
     return retval
-
-
-def ctypes_to_cgen(ctype, fields=None):
-    """
-    Create a cgen.Structure off a ctypes.Struct, or (possibly nested) ctypes.Pointer
-    to ctypes.Struct; return None in all other cases.
-    """
-    if issubclass(ctype, ctypes._Pointer):
-        return ctypes_to_cgen(ctype._type_, fields=fields)
-    elif not issubclass(ctype, ctypes.Structure):
-        return None
-
-    # Sanity check
-    # If a thorough description of the struct fields was required (that is, one
-    # symbol per field, each symbol with its own qualifiers), then the number
-    # of fields much coincide with that of the `ctype`
-    if fields is None:
-        fields = (None,)*len(ctype._fields_)
-    else:
-        assert len(fields) == len(ctype._fields_)
-
-    entries = []
-    for i, (n, ct) in zip(fields, ctype._fields_):
-        try:
-            cstr = i._C_typename
-
-            # Certain qualifiers are to be removed as meaningless within a struct
-            degenerate_quals = ('const',)
-            cstr = ' '.join([j for j in cstr.split() if j not in degenerate_quals])
-        except AttributeError:
-            cstr = ctypes_to_cstr(ct)
-
-        # All struct pointers are by construction restrict
-        if ct is c_restrict_void_p:
-            cstr = '%srestrict' % cstr
-
-        entries.append(Value(cstr, n))
-
-    return Struct(ctype.__name__, entries)
 
 
 known_ctypes = {
@@ -254,3 +211,24 @@ def is_external_ctype(ctype, includes):
             return True
 
     return False
+
+
+def infer_dtype(dtypes):
+    """
+    Given a set of np.dtypes, return the "winning" dtype:
+
+        * In the case of multiple floating dtypes, return the dtype with
+          highest precision;
+        * If there's at least one floating dtype, ignore any integer dtypes.
+    """
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+
+    if len(fdtypes) > 1:
+        return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
+    elif len(fdtypes) == 1:
+        return fdtypes.pop()
+    elif len(dtypes) == 1:
+        return dtypes.pop()
+    else:
+        # E.g., mixed integer arithmetic
+        return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)

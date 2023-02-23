@@ -21,20 +21,45 @@ class Queue(object):
     then divide) the divide phase of the algorithm.
     """
 
+    # Handlers for the construction of the key used in the visit
+    # Some visitors may need a relaxed key to process together certain groups
+    # of Clusters
+    _q_ispace_in_key = True
+    _q_guards_in_key = False
+    _q_properties_in_key = False
+
     def callback(self, *args):
         raise NotImplementedError
 
     def process(self, clusters):
         return self._process_fdta(clusters, 1)
 
-    def _make_key(self, element, level):
-        ispace = element.ispace[:level]
+    def _make_key(self, cluster, level):
+        assert self._q_ispace_in_key
+        ispace = cluster.ispace[:level]
 
-        subkey = self._make_key_hook(element, level)
+        if self._q_guards_in_key:
+            try:
+                guards = tuple(cluster.guards.get(i.dim) for i in ispace)
+            except AttributeError:
+                # `cluster` is actually a ClusterGroup
+                assert len(cluster.guards) == 1
+                guards = tuple(cluster.guards[0].get(i.dim) for i in ispace)
+        else:
+            guards = None
 
-        return (ispace,) + subkey
+        if self._q_properties_in_key:
+            properties = cluster.properties.drop(cluster.ispace[level:].itdimensions)
+        else:
+            properties = None
 
-    def _make_key_hook(self, element, level):
+        prefix = Prefix(ispace, guards, properties)
+
+        subkey = self._make_key_hook(cluster, level)
+
+        return (prefix,) + subkey
+
+    def _make_key_hook(self, cluster, level):
         return ()
 
     def _process_fdta(self, clusters, level, prefix=None, **kwargs):
@@ -119,6 +144,25 @@ class QueueStateful(Queue):
             for i in prefix:
                 properties[i.dim].update(v.get(i.dim, set()))
         return properties
+
+
+class Prefix(IterationSpace):
+
+    def __init__(self, ispace, guards, properties):
+        super().__init__(ispace.intervals, ispace.sub_iterators, ispace.directions)
+
+        self.guards = guards
+        self.properties = properties
+
+    def __eq__(self, other):
+        return (isinstance(other, Prefix) and
+                super().__eq__(other) and
+                self.guards == other.guards and
+                self.properties == other.properties)
+
+    def __hash__(self):
+        return hash((self.intervals, self.sub_iterators, self.directions,
+                     self.guards, self.properties))
 
 
 class cluster_pass(object):

@@ -32,6 +32,7 @@ class Graph(object):
 
         self.includes = []
         self.headers = []
+        self.globals = []
 
     @property
     def root(self):
@@ -53,6 +54,7 @@ class Graph(object):
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
+            self.globals.extend(as_tuple(metadata.get('globals')))
 
             # Update jit-compiler if necessary
             try:
@@ -79,6 +81,7 @@ class Graph(object):
         # Uniqueness
         self.includes = filter_ordered(self.includes)
         self.headers = filter_ordered(self.headers, key=str)
+        self.globals = filter_ordered(self.globals)
 
     def visit(self, func, **kwargs):
         """

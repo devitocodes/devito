@@ -259,6 +259,8 @@ class AnalyzeSkewing(Queue):
 
 class SynthesizeBlocking(Queue):
 
+    _q_guards_in_key = True
+
     template = "%s%d_blk%s"
 
     def __init__(self, sregistry, options):
@@ -268,9 +270,6 @@ class SynthesizeBlocking(Queue):
         self.par_tile = options['par-tile']
 
         super().__init__()
-
-    def _make_key_hook(self, cluster, level):
-        return (tuple(cluster.guards.get(i.dim) for i in cluster.ispace[:level]),)
 
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any

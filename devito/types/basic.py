@@ -10,8 +10,8 @@ from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 
 from devito.data import default_allocator
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, ctypes_to_cgen,
-                          dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
+                          frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
@@ -33,16 +33,17 @@ class CodeSymbol(object):
     its type.
 
     The _mem_* properties describe the object memory allocation strategy. There
-    are three axes with a few possible values each:
+    are three axes, with a few possible values each:
 
-        *"liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
-        *"space": `_mem_local`, `_mem_mapped`, `_mem_host`
-        *"scope": `_mem_stack`, `_mem_heap`
+        * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
+        * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
+        * "scope": `_mem_stack`, `_mem_heap`, `_mem_constant`, `_mem_shared`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
     memory (but not both), and on the heap. Refer to the __doc__ of the single
-    _mem_* properties for more info.
+    _mem_* properties for more info. Obviously, not all triplets make sense
+    for a given architecture.
     """
 
     @abc.abstractmethod
@@ -75,76 +76,19 @@ class CodeSymbol(object):
     @property
     def _C_typedata(self):
         """
-        The type of the object in the generated code.
-
-        Returns
-        -------
-        str
+        The type of the object in the generated code as a `str`.
         """
         _type = self._C_ctype
         while issubclass(_type, _Pointer):
             _type = _type._type_
-
-        return ctypes_to_cstr(_type, qualifiers=self._C_typequals)
-
-    @property
-    def _C_typename(self):
-        """
-        The type used to carry around the object in the generated code.
-
-        If an object is expected to be passed by value, this will coincide
-        with `_C_typedata`.
-
-        Instead, if an object is passed via a one-dimensional pointer, then
-        `self._C_typename` will add a `*` to whatever type is returned by
-        `self._C_typedata`.
-
-        This can be customized at will by subclasses.
-
-        By default, `self._C_typename = self._C_typedata`.
-
-        Returns
-        -------
-        str
-        """
-        return ctypes_to_cstr(self._C_ctype, qualifiers=self._C_typequals)
+        return ctypes_to_cstr(_type)
 
     @abc.abstractproperty
     def _C_ctype(self):
         """
-        The `_C_typename` of the object as a `ctypes` class, necessary for
-        jumping from Python-land to C-land.
-
-        Returns
-        -------
-        ctypes type
+        The type of the object in the generated code as a `ctypes` class.
         """
         return
-
-    @cached_property
-    def _C_typequals(self):
-        """
-        The type qualifiers of the object in the generated code.
-        """
-        mapper = {
-            'is_const': 'const',
-            'is_volatile': 'volatile',
-            'is_shared': '__shared__',
-        }
-        return tuple(v for k, v in mapper.items() if getattr(self, k, False))
-
-    @property
-    def _C_typedecl(self):
-        """
-        The type declaration of the object in the generated code.
-
-        Returns
-        -------
-        cgen.Struct or None
-            None if the type of the object can be expressed with a basic type,
-            such as float or int, otherwise a cgen.Struct representing a C struct.
-        """
-        return ctypes_to_cgen(self._C_ctype, fields=getattr(self, 'fields', None))
 
     @property
     def _C_symbol(self):
@@ -230,7 +174,22 @@ class CodeSymbol(object):
     @property
     def _mem_heap(self):
         """
-        True if the associated data was/is/will be allocated on the heap,
+        True if the associated data gets allocated on the heap, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_constant(self):
+        """
+        True if the associated data gets allocated in global constant memory,
+        False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_shared(self):
+        """
+        True if the associated data gets allocated in so called shared memory,
         False otherwise.
         """
         return False

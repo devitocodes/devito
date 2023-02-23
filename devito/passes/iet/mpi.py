@@ -250,15 +250,9 @@ def _mark_overlappable(iet):
         # along a non-halo Dimension
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
-                if not dep.cause:
-                    # E.g. increments
-                    # for x
-                    #   for y
-                    #     f[x, y] = f[x, y] + 1
-                    test = False
-                    break
-                elif dep.cause & hs.dimensions:
-                    # E.g. dependences across PARALLEL iterations
+                cause = dep.cause & hs.dimensions
+                if any(dep.distance_mapper[d] is S.Infinity for d in cause):
+                    # E.g., dependences across PARALLEL iterations
                     # for x
                     #   for y
                     #     ... = ... f[x, y-1] ...
@@ -298,6 +292,7 @@ def make_mpi(iet, mpimode=None, **kwargs):
 
     efuncs = sync_heb.efuncs + user_heb.efuncs
     iet = Transformer(mapper, nested=True).visit(iet)
+    headers = user_heb.headers
 
     # Must drop the PARALLEL tag from the Iterations within which halo
     # exchanges are performed
@@ -312,8 +307,9 @@ def make_mpi(iet, mpimode=None, **kwargs):
                                for n in tree[:tree.index(i)+1]})
                 break
     iet = Transformer(mapper, nested=True).visit(iet)
+    headers.update({'includes': ['mpi.h'], 'efuncs': efuncs})
 
-    return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
+    return iet, headers
 
 
 def mpiize(graph, **kwargs):

@@ -168,9 +168,10 @@ def test_codegen_quality0():
     assert len(exprs) == 6
     assert all('const long' in str(i) for i in exprs[:-2])
 
-    # Only four access macros necessary, namely `uL0`, `bufL0`, `bufL1` (the
-    # other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
-    assert len(op._headers) == 6
+    # Only four access macros necessary, namely `uL0`, `bufL0`, `bufL1`
+    # MIN/MAX for the efunc args
+    # (the other three obviously are _POSIX_C_SOURCE, START_TIMER, STOP_TIMER)
+    assert len(op._headers) == 8
 
 
 def test_codegen_quality1():
@@ -418,6 +419,35 @@ def test_strides_forwarding3():
     assert root.body.body[2].write.name == 'y_stride0'
     assert root.body.body[2].write.dtype is np.int64
 
+    assert bar.parameters[1].name == 'y_stride0'
+
+
+def test_strides_forwarding4():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+
+    # Construct the following Calls tree
+    # foo
+    #   bar
+    call0 = Call('sin', (f[0, 0],))
+    bar = Callable('bar', call0, 'void', parameters=[f.indexed])
+    call1 = Call(bar.name, [f.indexed])
+    root = Callable('foo', call1, 'void', parameters=[f])
+
+    # Emulate what the compiler would do
+    graph = Graph(root)
+    graph.efuncs['bar'] = bar
+
+    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+              sregistry=SymbolRegistry())
+
+    root = graph.root
+    bar = graph.efuncs['bar']
+
+    assert root.body.body[0].write.name == 'y_fsz0'
+    assert root.body.body[2].write.name == 'y_stride0'
+    assert root.body.body[4].arguments[1].name == 'y_stride0'
     assert bar.parameters[1].name == 'y_stride0'
 
 

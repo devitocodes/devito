@@ -9,14 +9,14 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,  # noqa
                           double2, double3, double4, int2, int3, int4)
+from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',  # noqa
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
-           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper',
-           'BasicWrapperMixin']
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
+           'Null', 'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -294,6 +294,10 @@ class ListInitializer(sympy.Expr, Pickable):
         return "{%s}" % ", ".join(str(i) for i in self.params)
 
     __repr__ = __str__
+
+    @property
+    def is_numeric(self):
+        return all(i.is_Number for i in self.params)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -668,12 +672,6 @@ for base_name in ['int', 'float', 'double']:
 
 
 # Some other utility objects
-
-CEIL = Function('ceil')
-FLOOR = Function('floor')
-MAX = Function('MAX')
-MIN = Function('MIN')
-
 Null = Macro('NULL')
 
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
@@ -687,10 +685,10 @@ def rfunc(func, item, *args):
     Examples
     ----------
     >> rfunc(min, [a, b, c, d])
-    MIN(a, MIN(b, MIN(c, d)))
+    Min(a, Min(b, Min(c, d)))
 
     >> rfunc(max, [a, b, c, d])
-    MAX(a, MAX(b, MAX(c, d)))
+    Max(a, Max(b, Max(c, d)))
     """
 
     assert func in rfunc_mapper
@@ -699,10 +697,10 @@ def rfunc(func, item, *args):
     if len(args) == 0:
         return item
     else:
-        return rf(item, rfunc(func, *args))
+        return rf(item, rfunc(func, *args), evaluate=False)
 
 
 rfunc_mapper = {
-    min: MIN,
-    max: MAX,
+    min: Min,
+    max: Max,
 }

@@ -1,8 +1,8 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import LM, LC, Pow, Add, Mul, Min, Max
+from sympy import Pow, Add, Mul, Min, Max
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -15,9 +15,8 @@ from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'split_affine',
-           'subs_op_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
-           'evalrel']
+__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
+           'uxreplace', 'Uxmapper', 'reuse_if_untouched', 'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -50,6 +49,12 @@ def _uxreplace(expr, rule):
             return v, True
         args, eargs = split(expr.args, lambda i: i in v)
         args = [v[i] for i in args if v[i] is not None]
+        changed = True
+    elif expr.__class__ in rule:
+        # Exact type -> type substitution
+        cls = rule[expr.__class__]
+        expr = cls(*expr.args)
+        args, eargs = [], expr.args
         changed = True
     else:
         try:
@@ -223,42 +228,20 @@ def pow_to_mul(expr):
             posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
             return Pow(posexpr, -1, evaluate=False)
     else:
-        return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
+        args = [pow_to_mul(i) for i in expr.args]
 
+        # Some SymPy versions will evaluate the two-args case
+        # `(negative integer, mul)` despite the `evaluate=False`. For example,
+        # `Mul(-2, a*a, evaluate=False)` gets evaluated to `-2/a**2`. By swapping
+        # the args, the issue disappears...
+        try:
+            a0, a1 = args
+            if a0.is_Number and a0 < 0 and not q_leaf(a1):
+                args = [a1, a0]
+        except ValueError:
+            pass
 
-AffineFunction = namedtuple("AffineFunction", "var, coeff, shift")
-
-
-def split_affine(expr):
-    """
-    Split an affine scalar function into its three components, namely variable,
-    coefficient, and translation from origin.
-
-    Raises
-    ------
-    ValueError
-        If ``expr`` is non affine.
-    """
-    if expr.is_Number:
-        return AffineFunction(None, None, expr)
-
-    # Handle super-quickly the calls like `split_affine(x+1)`, which are
-    # the majority.
-    if expr.is_Add and len(expr.args) == 2:
-        if expr.args[0].is_Number and expr.args[1].is_Symbol:
-            # SymPy deterministically orders arguments -- first numbers, then symbols
-            return AffineFunction(expr.args[1], 1, expr.args[0])
-
-    # Fallback
-    poly = expr.as_poly()
-    try:
-        if not (poly.is_univariate and poly.is_linear) or not LM(poly).is_Symbol:
-            raise ValueError
-    except AttributeError:
-        # `poly` might be None
-        raise ValueError
-
-    return AffineFunction(LM(poly), LC(poly), poly.TC())
+        return expr.func(*args, evaluate=False)
 
 
 def indexify(expr):
@@ -300,8 +283,8 @@ def reuse_if_untouched(expr, args, evaluate=False):
 def evalrel(func=min, input=None, assumptions=None):
     """
     The purpose of this function is two-fold: (i) to reduce the `input` candidates of a
-    for a MIN/MAX expression based on the given `assumptions` and (ii) return the nested
-    MIN/MAX expression of the reduced-size input.
+    for a Min/Max expression based on the given `assumptions` and (ii) return the nested
+    Min/Max expression of the reduced-size input.
 
     Parameters
     ----------
@@ -324,7 +307,7 @@ def evalrel(func=min, input=None, assumptions=None):
     >>> c = Symbol('c')
     >>> d = Symbol('d')
     >>> evalrel(max, [a, b, c, d], [Le(d, a), Ge(c, b)])
-    MAX(a, c)
+    Max(a, c)
     """
     sfunc = (Min if func is min else Max)  # Choose SymPy's Min/Max
 
@@ -370,7 +353,7 @@ def evalrel(func=min, input=None, assumptions=None):
     mapper = transitive_closure(mapper)
     input = [i.subs(mapper) for i in input]
 
-    # Explore simplification opportunities that may have emerged and generate MIN/MAX
+    # Explore simplification opportunities that may have emerged and generate Min/Max
     # expression
     try:
         exp = sfunc(*input)  # Can it be evaluated or simplified?
