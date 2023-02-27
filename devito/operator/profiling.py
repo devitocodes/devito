@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from contextlib import contextmanager
 from functools import reduce
 from operator import mul
@@ -290,7 +290,10 @@ class AdvancedProfiler(Profiler):
 
             # Same as above but without setup overheads (e.g., host-device
             # data transfers)
-            reduce_over_nosetup = sum(i.time for i in summary.values())
+            mapper = defaultdict(list)
+            for (name, rank), v in summary.items():
+                mapper[name].append(v.time)
+            reduce_over_nosetup = sum(max(i) for i in mapper.values())
             if reduce_over_nosetup == 0:
                 reduce_over_nosetup = reduce_over
             summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
