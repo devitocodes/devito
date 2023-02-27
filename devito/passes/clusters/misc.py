@@ -4,6 +4,7 @@ from itertools import groupby, product
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
@@ -184,6 +185,9 @@ class Fusion(Queue):
                 mapper = frozendict(mapper)
                 key += (mapper,)
 
+        # Clusters representing HaloTouches should get merged, if possible
+        key += (c.is_halo_touch,)
+
         return key
 
     def _apply_heuristics(self, clusters):
@@ -216,6 +220,16 @@ class Fusion(Queue):
                 flag = True
             group.append(c)
         dump()
+
+        # 2) Don't group HaloTouch's
+
+        groups, processed = processed, []
+        for group in groups:
+            for flag, minigroup in groupby(group, key=lambda c: c.is_halo_touch):
+                if flag:
+                    processed.extend([(c,) for c in minigroup])
+                else:
+                    processed.append(tuple(minigroup))
 
         return processed
 

@@ -405,49 +405,6 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_imperfect_nest(blockinner):
     """
-    Test that a non-perfect Iteration nest is blocked correctly.
-    """
-    grid = Grid(shape=(4, 4, 4), dtype=np.float64)
-
-    u = TimeFunction(name='u', grid=grid, space_order=2)
-    v = TimeFunction(name='v', grid=grid, space_order=2)
-
-    eqns = [Eq(u.forward, v.laplace),
-            Eq(v.forward, u.forward.dz)]
-
-    op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner}))
-
-    # First, check the generated code
-    bns, _ = assert_blocking(op1, {'x0_blk0'})
-    trees = retrieve_iteration_tree(bns['x0_blk0'])
-    assert len(trees) == 2
-    assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4]))
-    assert trees[0][4] is not trees[1][4]
-    assert trees[0].root.dim.is_Block
-    assert trees[1].root.dim.is_Block
-    assert op1.parameters[7] is trees[0][0].step
-    assert op1.parameters[10] is trees[0][1].step
-
-    u.data[:] = 0.2
-    v.data[:] = 1.5
-    op0(time_M=0)
-
-    u1 = TimeFunction(name='u1', grid=grid, space_order=2)
-    v1 = TimeFunction(name='v1', grid=grid, space_order=2)
-
-    u1.data[:] = 0.2
-    v1.data[:] = 1.5
-    op1(u=u1, v=v1, time_M=0)
-
-    assert np.all(u.data == u1.data)
-    assert np.all(v.data == v1.data)
-
-
-@pytest.mark.parametrize("blockinner", [False, True])
-def test_cache_blocking_imperfect_nest_v2(blockinner):
-    """
     Test that a non-perfect Iteration nest is blocked correctly. This
     is slightly different than ``test_cache_blocking_imperfect_nest``
     as here only one Iteration gets blocked.
@@ -542,7 +499,7 @@ class TestNodeParallelism(object):
         # skewing-like over two Eqs
         (['Eq(t0, fc[x,y+2] + fc[x-1,y+2])', 'Eq(fc[x,y+1], t0 + 1)'],
          (False, False)),
-        # outermost parallel, innermost sequential w/ double tensor write
+        # two nests, each nest: outermost parallel, innermost sequential
         (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
          (True, False, False)),
         # outermost sequential, innermost parallel w/ mixed dimensions

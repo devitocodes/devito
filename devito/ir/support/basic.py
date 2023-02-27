@@ -136,6 +136,10 @@ class IterationInstance(LabeledVector):
         return self.labels
 
     @cached_property
+    def index_map(self):
+        return dict(zip(self.aindices, self.findices))
+
+    @cached_property
     def defined_findices_affine(self):
         ret = set()
         for fi, im in zip(self.findices, self.index_mode):
@@ -397,9 +401,17 @@ class TimedAccess(IterationInstance, AccessMode):
         if S.Infinity in ret:
             return Vector(*ret)
 
+        n = len(ret)
+
+        # It might be `a[t, ⊥] -> a[t, x+1]`, that is the source is a special
+        # Indexed representing an arbitrary access along `x`, within the `t`
+        # IterationSpace, while the sink lives within the `tx` IterationSpace
+        if len(self.itintervals[n:]) != len(other.itintervals[n:]):
+            ret.append(S.Infinity)
+            return Vector(*ret)
+
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
-        n = len(ret)
         for i, j in zip(self[n:], other[n:]):
             if i == j:
                 ret.append(S.Zero)
@@ -834,6 +846,9 @@ class Scope(object):
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
+
+        #if len(exprs) == 2 and "f[t1, x + 1], f[t0, x] + f[t0, x + 2]" in str(exprs[0]) and 'HaloTouch' in str(exprs[1]):
+        #    from IPython import embed; embed()
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
