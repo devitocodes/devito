@@ -9,6 +9,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                DataSpace, Guards, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs,
                                sdims_min, sdims_max)
+from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 
@@ -105,11 +106,11 @@ class Cluster(object):
                 raise ValueError("`exprs` provided both as arg and kwarg")
             kwargs['exprs'] = args[0]
 
-        return Cluster(exprs=kwargs.get('exprs', self.exprs),
-                       ispace=kwargs.get('ispace', self.ispace),
-                       guards=kwargs.get('guards', self.guards),
-                       properties=kwargs.get('properties', self.properties),
-                       syncs=kwargs.get('syncs', self.syncs))
+        return self.__class__(exprs=kwargs.get('exprs', self.exprs),
+                              ispace=kwargs.get('ispace', self.ispace),
+                              guards=kwargs.get('guards', self.guards),
+                              properties=kwargs.get('properties', self.properties),
+                              syncs=kwargs.get('syncs', self.syncs))
 
     @property
     def exprs(self):
@@ -211,11 +212,17 @@ class Cluster(object):
         # Fallback to legacy is_dense checks
         return (not any(e.conditionals for e in self.exprs) and
                 not any(f.is_SparseFunction for f in self.functions) and
+                not self.is_halo_touch and
                 all(a.is_regular for a in self.scope.accesses))
 
     @property
     def is_sparse(self):
         return not self.is_dense
+
+    @property
+    def is_halo_touch(self):
+        return (len(self.exprs) > 0 and
+                all(isinstance(e.rhs, HaloTouch) for e in self.exprs))
 
     @cached_property
     def dtype(self):
@@ -412,6 +419,10 @@ class ClusterGroup(tuple):
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
         return DataSpace.union(*[i.dspace.reset() for i in self])
+
+    @property
+    def is_halo_touch(self):
+        return all(i.is_halo_touch for i in self)
 
     @cached_property
     def dtype(self):

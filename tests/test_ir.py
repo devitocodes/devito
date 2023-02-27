@@ -718,8 +718,12 @@ class TestDependenceAnalysis(object):
         exprs = [LoweredEq(i) for i in exprs]
 
         scope = Scope(exprs)
-        assert len(scope.d_all) == len(scope.d_flow) == 1
+        assert len(scope.d_all) == 2
+        assert len(scope.d_flow) == 1
         v = scope.d_flow.pop()
+        assert v.function is f
+        assert len(scope.d_anti) == 1
+        v = scope.d_anti.pop()
         assert v.function is f
 
     def test_indexedbase_across_jump(self):

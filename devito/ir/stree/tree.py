@@ -124,7 +124,8 @@ class NodeHalo(ScheduleTree):
 
     is_Halo = True
 
-    def __init__(self, halo_scheme):
+    def __init__(self, halo_scheme, parent=None):
+        super().__init__(parent)
         self.halo_scheme = halo_scheme
 
     @property
