@@ -497,11 +497,13 @@ class AOMPCompiler(Compiler):
         else:
             self.cflags.append('-march=native')
 
-        # amdclang flags, used to be part of aompcc
-        self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
-        self.ldflags.extend(['-fopenmp', '-fopenmp-targets=amdgcn-amd-amdhsa',
-                             '-Xopenmp-target=amdgcn-amd-amdhsa'])
-        self.ldflags.append('-march=%s' % platform.march)
+        # Generic amd flags
+        self.ldflags.extend(['-fopenmp', '-target', 'x86_64-pc-linux-gnu'])
+        # amdclang gpu flags, used to be part of aompcc
+        if platform is AMDGPUX:
+            self.ldflags.extend(['-fopenmp-targets=amdgcn-amd-amdhsa',
+                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
+            self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
         self.CC = 'amdclang'
