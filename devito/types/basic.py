@@ -677,6 +677,16 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def doit(self, **hint):
         return self
 
+    def transpose(self, inner=True):
+        new = super().transpose()
+        if inner:
+            return new.applyfunc(lambda x: getattr(x, 'T', x))
+        return new
+
+    def adjoint(self, inner=True):
+        # Real valued adjoint is transpose
+        return self.transpose(inner=inner)
+
     def _eval_matrix_mul(self, other):
         """
         Copy paste from sympy to avoid explicit call to sympy.Add

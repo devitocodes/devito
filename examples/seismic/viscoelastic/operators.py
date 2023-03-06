@@ -48,7 +48,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     pde_v = v.dt - b * div(tau)
     u_v = Eq(v.forward, model.damp * solve(pde_v, v.forward))
     # Strain
-    e = grad(v.forward) + grad(v.forward).T
+    e = grad(v.forward) + grad(v.forward).transpose(inner=False)
 
     # Stress equations
     pde_tau = tau.dt - r.forward - l * t_ep / t_s * diag(div(v.forward)) - \
