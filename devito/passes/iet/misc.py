@@ -1,12 +1,17 @@
-import cgen
+from functools import singledispatch
 
-from devito.ir import (Any, Forward, List, Prodder, FindNodes, Transformer,
-                       filter_iterations, retrieve_iteration_tree)
+import cgen
+import sympy
+
+from devito.finite_differences import Max, Min
+from devito.ir import (Any, Forward, List, Prodder, FindApplications, FindNodes,
+                       Transformer, filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import evalrel
+from devito.symbolics import evalrel, has_integer_args
 from devito.tools import split
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
+           'generate_macros']
 
 
 @iet_pass
@@ -124,9 +129,35 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        headers = [('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),
-                   ('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))]
-    else:
-        headers = []
+    return iet, {}
+
+
+@iet_pass
+def generate_macros(iet):
+    applications = FindApplications().visit(iet)
+    headers = set().union(*[_generate_macros(i) for i in applications])
 
     return iet, {'headers': headers}
+
+
+@singledispatch
+def _generate_macros(expr):
+    return set()
+
+
+@_generate_macros.register(Min)
+@_generate_macros.register(sympy.Min)
+def _(expr):
+    if has_integer_args(*expr.args) and len(expr.args) == 2:
+        return {('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))'))}
+    else:
+        return set()
+
+
+@_generate_macros.register(Max)
+@_generate_macros.register(sympy.Max)
+def _(expr):
+    if has_integer_args(*expr.args) and len(expr.args) == 2:
+        return {('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))}
+    else:
+        return set()

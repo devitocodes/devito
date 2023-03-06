@@ -11,7 +11,7 @@ from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
 
-__all__ = ['compare_ops', 'estimate_cost']
+__all__ = ['compare_ops', 'estimate_cost', 'has_integer_args']
 
 
 def compare_ops(e1, e2):
@@ -235,3 +235,28 @@ def _(expr, estimate):
     flops *= prod(i._size for i in expr.dimensions)
 
     return flops, False
+
+
+def has_integer_args(*args):
+    """
+    True if all `args` are of integer type, False otherwise.
+    """
+    if len(args) == 0:
+        return False
+
+    if len(args) == 1:
+        try:
+            return np.issubdtype(args[0].dtype, np.integer)
+        except AttributeError:
+            return args[0].is_integer
+
+    res = True
+    for a in args:
+        try:
+            if len(a.args) > 0:
+                res = res and has_integer_args(*a.args)
+            else:
+                res = res and has_integer_args(a)
+        except AttributeError:
+            res = res and has_integer_args(a)
+    return res
