@@ -12,6 +12,7 @@ from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
 from devito.arch.compiler import AOMPCompiler
+from devito.symbolics.inspection import has_integer_args
 
 __all__ = ['ccode']
 
@@ -102,14 +103,16 @@ class CodePrinter(C99CodePrinter):
         return '%'.join(args)
 
     def _print_Min(self, expr):
-        """Print Min using devito defined header Min"""
-        func = 'MIN' if has_integer_args(*expr.args) else 'fmin'
-        return "%s(%s)" % (func, self._print(expr.args)[1:-1])
+        if has_integer_args(*expr.args) and len(expr.args) == 2:
+            return "MIN(%s)" % self._print(expr.args)[1:-1]
+        else:
+            return super()._print_Min(expr)
 
     def _print_Max(self, expr):
-        """Print Max using devito defined header Max"""
-        func = 'MAX' if has_integer_args(*expr.args) else 'fmax'
-        return "%s(%s)" % (func, self._print(expr.args)[1:-1])
+        if has_integer_args(*expr.args) and len(expr.args) == 2:
+            return "MAX(%s)" % self._print(expr.args)[1:-1]
+        else:
+            return super()._print_Max(expr)
 
     def _print_Abs(self, expr):
         """Print an absolute value. Use `abs` if can infer it is an Integer"""
@@ -258,30 +261,3 @@ def ccode(expr, **settings):
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
     setattr(sympy.printing.str.StrPrinter, '_print_Add', CodePrinter._print_Add)
-
-
-# Check arguements type
-def has_integer_args(*args):
-    """
-    Check if expression is Integer.
-    Used to choose the function printed in the c-code
-    """
-    if len(args) == 0:
-        return False
-
-    if len(args) == 1:
-        try:
-            return np.issubdtype(args[0].dtype, np.integer)
-        except AttributeError:
-            return args[0].is_integer
-
-    res = True
-    for a in args:
-        try:
-            if len(a.args) > 0:
-                res = res and has_integer_args(*a.args)
-            else:
-                res = res and has_integer_args(a)
-        except AttributeError:
-            res = res and has_integer_args(a)
-    return res

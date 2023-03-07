@@ -11,6 +11,7 @@ import ctypes
 
 import cgen as c
 from sympy import IndexedBase
+from sympy.core.function import Application
 
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
@@ -24,9 +25,9 @@ from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
-           'Uxreplace']
+__all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
+           'MapExprStmts', 'MapNodes', 'IsPerfectIteration', 'printAST', 'CGen',
+           'CInterface', 'Transformer', 'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -950,6 +951,55 @@ class FindNodes(Visitor):
             ret.append(o)
         for i in o.children:
             ret = self._visit(i, ret=ret)
+        return ret
+
+
+class FindApplications(Visitor):
+
+    """
+    Find all SymPy applied functions (aka, `Application`s). The user may refine
+    the search by supplying a different target class.
+    """
+
+    def __init__(self, cls=Application):
+        super().__init__()
+        self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
+
+    @classmethod
+    def default_retval(cls):
+        return set()
+
+    def visit_object(self, o, **kwargs):
+        return self.default_retval()
+
+    def visit_tuple(self, o, ret=None):
+        ret = ret or self.default_retval()
+        for i in o:
+            ret.update(self._visit(i, ret=ret))
+        return ret
+
+    def visit_Node(self, o, ret=None):
+        ret = ret or self.default_retval()
+        for i in o.children:
+            ret.update(self._visit(i, ret=ret))
+        return ret
+
+    def visit_Expression(self, o, **kwargs):
+        return o.expr.find(self.match)
+
+    def visit_Iteration(self, o, **kwargs):
+        ret = self._visit(o.children) or self.default_retval()
+        ret.update(o.symbolic_min.find(self.match))
+        ret.update(o.symbolic_max.find(self.match))
+        return ret
+
+    def visit_Call(self, o, **kwargs):
+        ret = self.default_retval()
+        for i in o.arguments:
+            try:
+                ret.update(i.find(self.match))
+            except (AttributeError, TypeError):
+                continue
         return ret
 
 
