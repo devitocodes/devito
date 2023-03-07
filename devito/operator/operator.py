@@ -19,7 +19,8 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, lower_index_derivatives, generate_implicit, instrument
+from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
+                           generate_macros, instrument)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -449,6 +450,9 @@ class Operator(Callable):
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
         instrument(graph, profiler=profiler, sregistry=sregistry)
+
+        # Extract the necessary macros from the symbolic objects
+        generate_macros(graph)
 
         return graph.root, graph
 

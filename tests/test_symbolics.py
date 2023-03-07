@@ -11,7 +11,7 @@ from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
                               FieldFromComposite, IntDiv, ccode, uxreplace)
-from devito.types import Array, LocalObject, Object
+from devito.types import Array, LocalObject, Object, Symbol as dSymbol
 
 
 def test_float_indices():
@@ -342,6 +342,22 @@ def test_uxreplace(expr, subs, expected):
     g = Function(name='g', grid=grid)  # noqa
 
     assert uxreplace(eval(expr), eval(subs)) == eval(expected)
+
+
+def test_minmax():
+    grid = Grid(shape=(5, 5))
+    x, y = grid.dimensions
+
+    f = Function(name="f", grid=grid)
+    s = dSymbol(name="s")
+
+    eqns = [Eq(s, 2),
+            Eq(f, Max(y, s, 4))]
+
+    op = Operator(eqns)
+
+    op.apply()
+    assert np.all(f.data == 4)
 
 
 class TestRelationsWithAssumptions(object):
