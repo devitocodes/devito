@@ -12,5 +12,5 @@ jobs:
         with:
           # Ids to cancel core/mpi/gpu/examples/tutorials
           # https://api.github.com/repos/devitocodes/devito/actions/workflows
-          workflow_id: 167582, 203470, 203471, 434862, 501517
+          workflow_id: 167582, 203470, 203471, 434862, 501517, 50473775
           access_token: ${{ github.token }}
