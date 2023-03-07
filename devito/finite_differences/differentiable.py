@@ -228,7 +228,7 @@ class Differentiable(sympy.Expr, Evaluable):
         return Mul(sympy.S.NegativeOne, self)
 
     def __eq__(self, other):
-        return super(Differentiable, self).__eq__(other) and\
+        return super(Differentiable, self).__eq__(other) is True and\
             all(getattr(self, i, None) == getattr(other, i, None)
                 for i in self.__rkwargs__)
 
