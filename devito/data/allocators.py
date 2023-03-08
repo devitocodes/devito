@@ -5,7 +5,6 @@ import mmap
 import os
 import sys
 
-import cupy as cp
 import numpy as np
 import ctypes
 from ctypes.util import find_library
@@ -13,6 +12,11 @@ from ctypes.util import find_library
 from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
+
+try:
+    import cupy as cp
+except:
+    cp = None
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -325,9 +329,12 @@ class CupyAllocator(MemoryAllocator):
     """
 
     def __init__(self):
+        if not cp:
+            raise ImportError("Couldn't find `cupy` to "
+                               "allocate memory")
         self.mempool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
         cp.cuda.set_allocator(self.mempool.malloc)
-    
+
     @classmethod
     def initialize(cls):
         pass
