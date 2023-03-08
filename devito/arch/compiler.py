@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9, GRAVITON,
-                         get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
+                         INTELGPUX, get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -528,6 +528,58 @@ class DPCPPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class OneapiCompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        language = kwargs.pop('language', configuration['language'])
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        self.cflags.append("-xHost")
+        self.cflags.append("-qopt-zmm-usage=high")
+
+        if configuration['safe-math']:
+            self.cflags.append("-fp-model=strict")
+        else:
+            self.cflags.append('-fast')
+
+        if language == 'sycl':
+            self.cflags.append('-fsycl')
+            if platform is NVIDIAX:
+                self.cflags.append('-fsycl-targets=nvptx64-cuda')
+            else:
+                self.cflags.append('-fsycl-targets=spir64')
+
+        if language == 'openmp':
+            self.cflags.append('-qopenmp')
+            if platform is NVIDIAX:
+                self.cflags.append('-fopenmp-targets=nvptx64-cuda')
+            if platform is INTELGPUX:
+                self.cflags.append('-fopenmp-targets=spir64')
+                self.cflags.append('-fopenmp-target-simd')
+
+        if platform is INTELGPUX:
+            self.cflags.remove('-g')  # -g disables some optimizations in IGC
+            self.cflags.append('-gline-tables-only')
+            self.cflags.append('-fdebug-info-for-profiling')
+
+        # Make sure the MPI compiler uses `icx` underneath -- whatever the MPI distro is
+        if kwargs.get('mpi'):
+            ver = check_output([self.MPICC, "--version"]).decode("utf-8")
+            if not ver.startswith("Intel(R) oneAPI"):
+                warning("The MPI compiler `%s` doesn't use the Intel(R) oneAPI "
+                        "DPC++/C++ compiler underneath" % self.MPICC)
+
+    def __lookup_cmds__(self):
+        # OneAPI HPC ToolKit comes with icpx, which is clang++,
+        # and icx, which is clang
+        self.CC = 'icx'
+        self.CXX = 'icpx'
+        self.MPICC = 'mpicc'
+        self.MPICXX = 'mpicxx'
+
+
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
@@ -803,6 +855,8 @@ compiler_registry = {
     'intel': IntelCompiler,
     'icpc': IntelCompiler,
     'icc': IntelCompiler,
+    'icx': OneapiCompiler,
+    'icpx': OneapiCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
     'dpcpp': DPCPPCompiler,
