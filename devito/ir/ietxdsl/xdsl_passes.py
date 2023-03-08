@@ -40,6 +40,7 @@ def transform_devito_xdsl_string(op: Operator):
     cgen.printCallable(call_obj)
 
     # Look for extra functions in the operator and print them out
+    # TODO print their definition on top of the code
     op_funcs = [value for _, value in op._func_table.items()]
 
     # After finishing kernels, now we check the rest of the functions
@@ -78,9 +79,6 @@ def transform_devito_xdsl_string(op: Operator):
 
         cgen.printCallable(call_obj)
 
-    # import pdb;pdb.set_trace()
-
-
     from xdsl.printer import Printer
     Printer().print(call_obj.body)
 
@@ -90,12 +88,18 @@ def transform_devito_xdsl_string(op: Operator):
 def visit_Operator(op):
     # Scan an Operator
     # Those parameters without associated types aren't printed in the Kernel header
-    op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
+    op_funcs = [value for _, value in op._func_table.items()]
+    # import pdb;pdb.set_trace()
+
+    op_symbols = FindSymbols('defines').visit(op)
+    op_param_names = [s._C_name for s in op_symbols]
     op_header_params = [i._C_name for i in list(op.parameters)]
     op_types = [i._C_typename for i in list(op.parameters)]
     op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
     prefix = '-'.join(op.prefix)
-    retval = str(op.retval)
+    retv = str(op.retval)
+
+    # import pdb;pdb.set_trace()
 
     # TOFIX
     b = Block.from_arg_types([i32] * len(op_param_names))
@@ -107,7 +111,7 @@ def visit_Operator(op):
 
     # Create a Callable for the main kernel
     call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
-                            op_type_qs, retval, prefix, b)
+                            op_type_qs, retv, prefix, b)
 
     # Visit the Operator body
     assert isinstance(op.body, CallableBody)

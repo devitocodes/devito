@@ -3,6 +3,7 @@ from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
 
 import devito.ir.iet.nodes as nodes
+from devito.ir.iet import MetaCall
 import devito.mpi.routines as routines  # noqa
 
 from devito import ModuloDimension, SpaceDimension
@@ -11,16 +12,17 @@ from devito.passes.iet.languages.openmp import OmpRegion
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise,
-                               StructDecl)
+                               StructDecl, Call)
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
 from xdsl.irdl import AnyOf
+from xdsl.ir import SSAValue
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
-                                   Float64Type, Builtin, i32, f32)
+                                   Float64Type, Builtin, i32, f32, StringAttr)
 
 from xdsl.dialects.arith import Muli, Addi
-from xdsl.dialects.func import Call
+from xdsl.dialects.scf import For
 
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
@@ -267,6 +269,11 @@ def myVisit(node, block=None, ctx={}):
             for p in node.pragmas:
                 prag = Statement.get(p)
                 block.add_ops([prag])
+        # import pdb;pdb.set_trace()
+        # lb = SSAValue.get(StringAttr(str(node.limits[0])))
+        # ub = SSAValue.get(node.limits[1])
+        # step = SSAValue.get(node.limits[2])
+        # iteration = For.get(lb, ub, step, [], b)
         iteration = Iteration.get(node.properties, node.limits, node.index, b)
         block.add_ops([iteration])
         return
@@ -324,19 +331,24 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.Call):
         # Those parameters without associated types aren't printed in the Kernel header
-        # call_name = str(node.name)
-        # call_args = [str(i._C_name) for i in node.arguments]
-        # import pdb;pdb.set_trace()
-        # call = Call.get(call_name, [call_args], 'void')
-        # block.add_ops([call])
-        print("Call placement-skipping")
+        call_name = str(node.name)
+        try:
+            call_args = [str(i._C_name) for i in node.arguments]
+        except:
+            return
+
+        call = Call.get(call_name, call_args, 'void')
+
+        block.add_ops([call])
+
+        print("Constructing a call")
+
         return
 
     if isinstance(node, nodes.Conditional):
         # Those parameters without associated types aren't printed in the Kernel header
         print("Conditional placement skipping")
         return
-
 
     if isinstance(node, cgen.Comment):
         # cgen.Comment as Statement

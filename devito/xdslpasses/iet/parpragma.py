@@ -40,7 +40,8 @@ class MakeSimdPattern(RewritePattern):
             return
 
         # TODO: insert additional checks
-        iteration.pragmas.data.append(StringAttr.from_str("simd-for"))
+        # toreview
+        # iteration.pragmas.data.append(StringAttr("simd-for"))
 
 
 def construct_walker() -> PatternRewriteWalker:

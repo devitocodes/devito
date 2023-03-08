@@ -107,7 +107,7 @@ class Initialise(Operation):
     def get(lhs: Union[Operation, SSAValue],
             rhs: Union[Operation, SSAValue],
             namet: str):
-        attributes = {"name": ArrayAttr.from_list([StringAttr.from_str(str(f))
+        attributes = {"name": ArrayAttr([StringAttr(str(f))
                       for f in namet])}
         res = Initialise.build(attributes=attributes,
                                operands=[rhs],
@@ -146,7 +146,7 @@ class PointerCast(Operation):
     def get(statement):
         return PointerCast.build(
             operands=[],
-            attributes={"statement": StringAttr.from_str(str(statement))},
+            attributes={"statement": StringAttr(str(statement))},
             result_types=[])
 
 
@@ -159,7 +159,7 @@ class Statement(Operation):
     def get(statement: str):
         return Statement.build(
             operands=[],
-            attributes={"statement": StringAttr.from_str(str(statement))},
+            attributes={"statement": StringAttr(str(statement))},
             result_types=[])
 
 
@@ -178,11 +178,11 @@ class StructDecl(Operation):
             operands=[],
             attributes={
                 "id":
-                StringAttr.from_str(name),
+                StringAttr(name),
                 "fields":
-                ArrayAttr.from_list([StringAttr.from_str(str(f)) for f in fields]),
+                ArrayAttr([StringAttr(str(f)) for f in fields]),
                 "declname":
-                StringAttr.from_str(str(declname)),
+                StringAttr(str(declname)),
                 "padbytes":
                 padb
             },
@@ -212,21 +212,43 @@ class Callable(Operation):
             prefix: Attribute,
             body: Block = []):
         return Callable.build(attributes={
-            "callable_name": StringAttr.from_str(name),
+            "callable_name": StringAttr(name),
             "parameters":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in parameters]),
+            ArrayAttr([StringAttr(p) for p in parameters]),
             "header_parameters":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in header_parameters]),
+            ArrayAttr([StringAttr(p) for p in header_parameters]),
             "types":
-            ArrayAttr.from_list([StringAttr.from_str(p) for p in types]),
+            ArrayAttr([StringAttr(p) for p in types]),
             "qualifiers":
-            ArrayAttr.from_list([StringAttr.from_str(q) for q in qualifiers]),
+            ArrayAttr([StringAttr(q) for q in qualifiers]),
             # It should be only one though
             "retval":
-            StringAttr.from_str(retval),
+            StringAttr(retval),
             "prefix":
-            StringAttr.from_str(prefix)
+            StringAttr(prefix)
         }, regions=[Region.from_block_list([body])])
+
+
+@irdl_op_definition
+class Call(Operation):
+    name: str = "iet.call"
+
+    call_name: OpAttr[StringAttr]
+    parargs: OpAttr[Attribute]
+    ret_type: OpAttr[Attribute]
+
+    @staticmethod
+    def get(name: str,
+            parargs: Attribute,
+            ret_type: Attribute):
+        return Call.build(attributes={
+            "callable_name": StringAttr(name),
+            "parargs":
+            ArrayAttr([StringAttr(p) for p in parargs]),
+            # It should be only one though
+            "ret_type":
+            StringAttr(ret_type)
+        })
 
 
 @irdl_op_definition
@@ -247,16 +269,16 @@ class Iteration(Operation):
             pragmas: List[str | StringAttr] = []):
         return Iteration.build(attributes={
             "limits":
-            ArrayAttr.from_list([
-                StringAttr.from_str(str(limits[0])),
-                StringAttr.from_str(str(limits[1])),
-                StringAttr.from_str(str(limits[2]))
+            ArrayAttr([
+                StringAttr(str(limits[0])),
+                StringAttr(str(limits[1])),
+                StringAttr(str(limits[2]))
             ]),
             "properties":
-            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in properties]),
+            ArrayAttr([StringAttr(str(p)) for p in properties]),
             "pragmas":
-            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in pragmas]),
-            "arg_name": StringAttr.from_str(str(arg_name))
+            ArrayAttr([StringAttr(str(p)) for p in pragmas]),
+            "arg_name": StringAttr(str(arg_name))
         }, regions=[Region.from_block_list([body])])
 
 
@@ -283,25 +305,25 @@ class IterationWithSubIndices(Operation):
             pragmas: List[str] = []):
         return IterationWithSubIndices.build(attributes={
             "limits":
-            ArrayAttr.from_list([
-                StringAttr.from_str(str(limits[0])),
-                StringAttr.from_str(str(limits[1])),
-                StringAttr.from_str(str(limits[2]))
+            ArrayAttr([
+                StringAttr(str(limits[0])),
+                StringAttr(str(limits[1])),
+                StringAttr(str(limits[2]))
             ]),
             "uindices_names":
-            ArrayAttr.from_list(
-                [StringAttr.from_str(u) for u in uindices_names]),
+            ArrayAttr(
+                [StringAttr(u) for u in uindices_names]),
             # TODO make a "ModAttr"??
             "uindices_symbmins_dividends":
-            ArrayAttr.from_list([StringAttr.from_str(str(u.args[0]))
-                                 for u in uindices_symbmins]),
+            ArrayAttr([StringAttr(str(u.args[0]))
+                       for u in uindices_symbmins]),
             "uindices_symbmins_divisors":
-                ArrayAttr.from_list([StringAttr.from_str(str(u.args[1]))
-                                     for u in uindices_symbmins]),
+                ArrayAttr([StringAttr(str(u.args[1]))
+                           for u in uindices_symbmins]),
             "properties":
-            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in properties]),
+            ArrayAttr([StringAttr(str(p)) for p in properties]),
             "pragmas":
-            ArrayAttr.from_list([StringAttr.from_str(str(p)) for p in pragmas]),
+            ArrayAttr([StringAttr(str(p)) for p in pragmas]),
             "arg_name":
-            arg
+            StringAttr(str(arg))
         }, regions=[Region.from_block_list([body])])

@@ -2,7 +2,7 @@ from devito import Grid, Function, TimeFunction, Eq, Operator, Constant
 from devito.ir.ietxdsl.xdsl_passes import transform_devito_xdsl_string
 # flake8: noqa
 
-def test_simpl_math_ops():
+def test_simple_math_ops():
 
     a = Constant(name='a', value=10)
     eq = Eq(a, a + 1)

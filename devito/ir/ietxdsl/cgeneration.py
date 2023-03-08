@@ -4,7 +4,7 @@ from typing import Dict
 from devito.ir.ietxdsl.operations import (Callable, Modi, StructDecl, Statement,
                                           Iteration, IterationWithSubIndices, Assign,
                                           PointerCast, Idx, Initialise, List,
-                                          Powi)
+                                          Powi, Call)
 from devito.tools import flatten
 
 from xdsl.ir import SSAValue, BlockArgument
@@ -99,6 +99,30 @@ class CGeneration:
             self.print("return 0;")
         self.dedent()
         self.print("}")
+        pass
+
+
+    def printCall(self, call_op: Call):
+        # Assert that we only have one block in the callable_op.body
+
+        import pdb;pdb.set_trace()
+
+
+        call_name = call_op.attributes['callable_name'].data
+        arglist = call_op.attributes['parargs'].data
+        # ret_type = call_op.attributes['ret_type'].data
+
+        self.print(f"{call_name}(", end='', indent=True)
+        for i, arg in enumerate(arglist):
+            # IMPORTANT TOFIX? Here we print a Function like u[..][..][..]
+            SSAValueNames[arg] = call_op.attributes['parargs'].data[i].data
+
+        for i, arg in enumerate(arglist): # noqa
+            self.print(arg.data, end='', indent=False)
+            if i < (len(list(arglist)) - 1):
+                self.print(",", end='', indent=False)
+
+        self.print(");", indent=False)
         pass
 
     def printIteration(self, iteration_op: Iteration):
@@ -236,6 +260,10 @@ class CGeneration:
 
         if (isinstance(operation, Callable)):
             self.printCallable(operation)
+            return
+
+        if (isinstance(operation, Call)):
+            self.printCall(operation)
             return
 
         if (isinstance(operation, IterationWithSubIndices)):
