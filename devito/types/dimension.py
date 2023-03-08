@@ -1513,7 +1513,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
     Examples
     --------
-    The AffineIndexAccessFunction `x + sd + 3`, with `sd \in [-2, 2]`, represents
+    The AffineIndexAccessFunction `x + sd + 3`, with `sd in [-2, 2]`, represents
     the index access functions `[x + 1, x + 2, x + 3, x + 4, x + 5]`
     """
 

@@ -28,7 +28,7 @@ jobs:
         name: [
            pytest-ubuntu-py39-gcc11-noomp,
            pytest-ubuntu-py38-gcc12-omp,
-           pytest-ubuntu-py36-gcc7-omp,
+           pytest-ubuntu-py39-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py38-gcc8-omp,
            pytest-ubuntu-py39-gcc9-omp,
@@ -52,8 +52,8 @@ jobs:
           language: "openmp"
           sympy: "1.10"
 
-        - name: pytest-ubuntu-py36-gcc7-omp
-          python-version: '3.6'
+        - name: pytest-ubuntu-py39-gcc7-omp
+          python-version: '3.9'
           os: ubuntu-20.04
           arch: "gcc-7"
           language: "openmp"
