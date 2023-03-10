@@ -53,7 +53,7 @@ def printStructs(cgen, struct_decs):
                            struct.pad_bytes))
 
 
-def calldefs(cgen, calldefs):
+def print_calls(cgen, calldefs):
 
     for node in calldefs:
         call_name = str(node.root.name)

@@ -2,7 +2,7 @@ from devito import Operator
 
 from devito.ir import PointerCast, FindNodes
 from devito.ir.iet import FindSymbols
-from devito.ir.iet.nodes import CallableBody, MetaCall, Definition, Dereference, Prodder
+from devito.ir.iet.nodes import CallableBody, MetaCall, Definition, Dereference, Prodder  # noqa
 
 from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
                                ietxdsl_functions, Callable)
@@ -36,14 +36,15 @@ def transform_devito_xdsl_string(op: Operator):
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
+    # Check for the existence of funcs in the operator (print devito metacalls)
     op_funcs = [value for _, value in op._func_table.items()]
-    # import pdb;pdb.set_trace()
-    ietxdsl_functions.calldefs(cgen, op_funcs)
+    # Print calls
+    ietxdsl_functions.print_calls(cgen, op_funcs)
+    # Visit and print the main kernel
     call_obj = visit_Operator(op)
     cgen.printCallable(call_obj)
 
     # Look for extra functions in the operator and print them out
-    # TODO print their definition on top of the code
     op_funcs = [value for _, value in op._func_table.items()]
 
     # After finishing kernels, now we check the rest of the functions
@@ -99,7 +100,7 @@ def transform_devito_xdsl_string(op: Operator):
 
     from xdsl.printer import Printer
     Printer().print(call_obj.body)
-
+    import pdb;pdb.set_trace()
     return cgen.str()
 
 
@@ -141,4 +142,7 @@ def visit_Operator(op):
             ietxdsl_functions.myVisit(i, block=b, ctx=d)
 
     # print Kernel
+    from xdsl.printer import Printer
+    Printer().print(call_obj.body)
+    import pdb;pdb.set_trace()
     return call_obj
