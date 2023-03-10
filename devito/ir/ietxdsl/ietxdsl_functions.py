@@ -3,10 +3,11 @@ from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
 
 import devito.ir.iet.nodes as nodes
-from devito.ir.iet import MetaCall
-import devito.mpi.routines as routines  # noqa
 
 from devito import ModuloDimension, SpaceDimension
+from devito.ir.iet import MetaCall  # noqa
+
+
 from devito.passes.iet.languages.openmp import OmpRegion
 
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
@@ -16,10 +17,11 @@ from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
+# XDSL specific imports
 from xdsl.irdl import AnyOf
 from xdsl.ir import SSAValue
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
-                                   Float64Type, Builtin, i32, f32, StringAttr)
+                                   Float64Type, Builtin, i32, f32)
 
 from xdsl.dialects.arith import Muli, Addi
 from xdsl.dialects.scf import For
