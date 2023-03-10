@@ -35,7 +35,7 @@ jobs:
           mode: start
           github-token: ${{ secrets.AWS_CI_PAT }}
           ec2-image-id: ami-0f2acee8eccac59fd
-          ec2-instance-type: c6g.xlarge
+          ec2-instance-type: c6g.4xlarge
           subnet-id: subnet-0b4c118eb6ae48d63
           security-group-id: sg-0b51f45ce1c1ad78f
           aws-resource-tags: > # optional, requires additional permissions
@@ -53,7 +53,7 @@ jobs:
       DEVITO_ARCH: "arm"
       DEVITO_PLATFORM: "graviton"
       DEVITO_LANGUAGE: "openmp"
-      OMP_NUM_THREADS: 4
+      OMP_NUM_THREADS: 2
 
     steps:
     - name: Checkout devito
@@ -67,9 +67,10 @@ jobs:
       run: |
         pip3 install --upgrade pip
         pip3 install -U -e .
+        pip3 install pytest-xdist
   
     - name: Test with pytest
-      run: pytest -k "not adjoint" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml tests/
+      run: pytest -n 8 -k "not adjoint" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml tests/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
