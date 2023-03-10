@@ -51,6 +51,33 @@ def printStructs(cgen, struct_decs):
                            struct.pad_bytes))
 
 
+def calldefs(cgen, calldefs):
+
+    for node in calldefs:
+        call_name = str(node.root.name)
+
+        """
+        (Pdb) calldefs[0].root.args['parameters']
+        [buf(x), x_size, f(t, x), otime, ox]
+        (Pdb) calldefs[0].root.args['parameters'][0]
+        buf(x)
+        (Pdb) calldefs[0].root.args['parameters'][0]._C_name
+        """
+        try:
+            C_names = [str(i._C_name) for i in node.root.args['parameters']]
+            C_typenames = [str(i._C_typename) for i in node.root.args['parameters']]
+            C_typeqs = [str(i._C_type_qualifier) for i in node.root.args['parameters']]
+            prefix = node.root.prefix[0]
+            retval = node.root.retval
+        except:
+            print("Call not translated in calldefs")
+            return
+
+        call = Call.get(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
+
+        cgen.printCall(call, True)
+
+
 def createStatement(string="", val=None):
     for t in as_tuple(val):
         string = string + " " + t
@@ -332,22 +359,35 @@ def myVisit(node, block=None, ctx={}):
     if isinstance(node, nodes.Call):
         # Those parameters without associated types aren't printed in the Kernel header
         call_name = str(node.name)
+
         try:
-            call_args = [str(i._C_name) for i in node.arguments]
+            C_names = [str(i._C_name) for i in node.arguments]
+            C_typenames = [str(i._C_typename) for i in node.arguments]
+            C_typeqs = [str(i._C_type_qualifier) for i in node.arguments]
+            prefix = ''
+            retval = ''
         except:
+            # Needs to be fixed
+            comment = Statement.get(node)
+            block.add_ops([comment])
+            print(f"Call {node.name} instance translated as comment")
             return
 
-        call = Call.get(call_name, call_args, 'void')
-
+        call = Call.get(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
         block.add_ops([call])
 
-        print("Constructing a call")
-
+        print(f"Call {node.name} translated")
         return
 
     if isinstance(node, nodes.Conditional):
         # Those parameters without associated types aren't printed in the Kernel header
         print("Conditional placement skipping")
+        return
+
+    if isinstance(node, nodes.Definition):
+        print("Translating definition")
+        comment = Statement.get(node)
+        block.add_ops([comment])
         return
 
     if isinstance(node, cgen.Comment):
@@ -365,5 +405,6 @@ def myVisit(node, block=None, ctx={}):
         comment = Statement.get(node)
         block.add_ops([comment])
         return
+
 
     raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')

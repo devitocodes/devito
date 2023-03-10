@@ -234,17 +234,29 @@ class Call(Operation):
     name: str = "iet.call"
 
     call_name: OpAttr[StringAttr]
-    parargs: OpAttr[Attribute]
+    c_names: OpAttr[Attribute]
+    c_typenames: OpAttr[Attribute]
+    c_typeqs: OpAttr[Attribute]
+    prefix: OpAttr[Attribute]
     ret_type: OpAttr[Attribute]
 
     @staticmethod
     def get(name: str,
-            parargs: Attribute,
+            c_names: Attribute,
+            c_typenames: Attribute,
+            c_typeqs: Attribute,
+            prefix: Attribute,
             ret_type: Attribute):
         return Call.build(attributes={
             "callable_name": StringAttr(name),
-            "parargs":
-            ArrayAttr([StringAttr(p) for p in parargs]),
+            "c_names":
+            ArrayAttr([StringAttr(p) for p in c_names]),
+            "c_typenames":
+            ArrayAttr([StringAttr(p) for p in c_typenames]),
+            "c_typeqs":
+            ArrayAttr([StringAttr(p) for p in c_typeqs]),
+            "prefix":
+            StringAttr(prefix),
             # It should be only one though
             "ret_type":
             StringAttr(ret_type)

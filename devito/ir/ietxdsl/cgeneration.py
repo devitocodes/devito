@@ -101,26 +101,39 @@ class CGeneration:
         self.print("}")
         pass
 
-
-    def printCall(self, call_op: Call):
+    def printCall(self, call_op: Call, calldef: bool):
         # Assert that we only have one block in the callable_op.body
 
-        import pdb;pdb.set_trace()
-
-
+        # if calldef is True we print in metacall style
+        # Can be improved
         call_name = call_op.attributes['callable_name'].data
-        arglist = call_op.attributes['parargs'].data
-        # ret_type = call_op.attributes['ret_type'].data
+        c_names = call_op.attributes['c_names'].data
+        c_typenames = call_op.attributes['c_typenames'].data
+        c_typeqs = call_op.attributes['c_typeqs'].data
+        prefix = call_op.attributes['prefix'].data
+        retval = call_op.attributes['ret_type'].data
 
-        self.print(f"{call_name}(", end='', indent=True)
-        for i, arg in enumerate(arglist):
-            # IMPORTANT TOFIX? Here we print a Function like u[..][..][..]
-            SSAValueNames[arg] = call_op.attributes['parargs'].data[i].data
+        for i, arg in enumerate(c_names):
+            SSAValueNames[arg] = call_op.attributes['c_names'].data[i].data
+            SSAValueNames[arg] = call_op.attributes['c_typenames'].data[i].data
+            SSAValueNames[arg] = call_op.attributes['c_typeqs'].data[i].data
 
-        for i, arg in enumerate(arglist): # noqa
-            self.print(arg.data, end='', indent=False)
-            if i < (len(list(arglist)) - 1):
-                self.print(",", end='', indent=False)
+        if calldef:
+            self.print(prefix, end=' ', indent=False)
+            self.print(retval, end=' ', indent=False)
+            self.print(f"{call_name}(", end='', indent=True)
+            for i, (c_name, c_typename, c_typeq) in enumerate(zip(c_names, c_typenames, c_typeqs)): # noqa
+                self.print(c_typename.data, end='', indent=False)
+                self.print(c_typeq.data, end=' ', indent=False)
+                self.print(c_name.data, end='', indent=False)
+                if i < (len(list(c_names)) - 1):
+                    self.print(", ", end='', indent=False)
+        else:
+            self.print(f"{call_name}(", end='', indent=True)
+            for i, arg in enumerate(c_names): # noqa
+                self.print(arg.data, end='', indent=False)
+                if i < (len(list(c_names)) - 1):
+                    self.print(",", end='', indent=False)
 
         self.print(");", indent=False)
         pass
@@ -263,7 +276,7 @@ class CGeneration:
             return
 
         if (isinstance(operation, Call)):
-            self.printCall(operation)
+            self.printCall(operation, False)
             return
 
         if (isinstance(operation, IterationWithSubIndices)):
@@ -300,8 +313,8 @@ class CGeneration:
                 type = "float"
             self.print(type, indent=True, end=" ")
             assignee = operation.attributes['name'].data
-            for l in assignee:
-                self.print(l.data, indent=False, end="")
+            for i in assignee:
+                self.print(i.data, indent=False, end="")
             ssa_val = operation.lhs
             SSAValueNames[ssa_val] = assignee
 

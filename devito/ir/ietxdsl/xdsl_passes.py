@@ -2,7 +2,7 @@ from devito import Operator
 
 from devito.ir import PointerCast, FindNodes
 from devito.ir.iet import FindSymbols
-from devito.ir.iet.nodes import CallableBody
+from devito.ir.iet.nodes import CallableBody, MetaCall, Definition, Dereference, Prodder
 
 from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
                                ietxdsl_functions, Callable)
@@ -36,6 +36,9 @@ def transform_devito_xdsl_string(op: Operator):
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
+    op_funcs = [value for _, value in op._func_table.items()]
+    # import pdb;pdb.set_trace()
+    ietxdsl_functions.calldefs(cgen, op_funcs)
     call_obj = visit_Operator(op)
     cgen.printCallable(call_obj)
 
@@ -55,9 +58,20 @@ def transform_devito_xdsl_string(op: Operator):
         op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
         prefix = '-'.join(op.prefix)
         retval = str(op.retval)
-
+        import pdb;pdb.set_trace()
         b = Block.from_arg_types([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
+
+        # Add Allocs
+        for op_alloc in op.body.allocs:
+            ietxdsl_functions.myVisit(op_alloc, block=b, ctx=d)
+
+        cgen.print('')
+        # Add obj defs
+        for op_obj in op.body.objs:
+            ietxdsl_functions.myVisit(op_obj, block=b, ctx=d)
+
+        import pdb;pdb.set_trace()
 
         # Add Casts
         for cast in FindNodes(PointerCast).visit(op.body):
@@ -77,6 +91,10 @@ def transform_devito_xdsl_string(op: Operator):
 
         # print Kernel
 
+        # Add frees
+        for op_free in op.body.frees:
+            ietxdsl_functions.myVisit(op_free, block=b, ctx=d)
+
         cgen.printCallable(call_obj)
 
     from xdsl.printer import Printer
@@ -88,9 +106,6 @@ def transform_devito_xdsl_string(op: Operator):
 def visit_Operator(op):
     # Scan an Operator
     # Those parameters without associated types aren't printed in the Kernel header
-    op_funcs = [value for _, value in op._func_table.items()]
-    # import pdb;pdb.set_trace()
-
     op_symbols = FindSymbols('defines').visit(op)
     op_param_names = [s._C_name for s in op_symbols]
     op_header_params = [i._C_name for i in list(op.parameters)]
