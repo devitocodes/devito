@@ -25,7 +25,7 @@ from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
                                    Float64Type, Builtin, i32, f32)
 
 from xdsl.dialects.arith import Muli, Addi
-from devito.ir import ietxdsl as iet_ssa
+from devito.ir.ietxdsl import iet_ssa
 
 from xdsl.dialects import memref, scf, arith, builtin
 
@@ -238,9 +238,8 @@ def add_to_block(expr, arg_by_expr, result):
     assert False, f'unsupported expr {expr} of type {expr.func}'
 
 
-def myVisit(node, block: Block, ctx={}):
+def myVisit(node, block: Block, ssa_vals={}):
     try:
-        print("asserted!")
         bool_node = isinstance(
             node, nodes.Node), f'Argument must be subclass of Node, found: {node}'
         comment_node = isinstance(
@@ -263,12 +262,13 @@ def myVisit(node, block: Block, ctx={}):
         expr = node.expr
         if node.init:
             expr_name = expr.args[0]
-            add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
-            # import pdb;pdb.set_trace()
+            add_to_block(expr.args[1], {Symbol(s): a for s, a in ssa_vals.items()}, r)
+
             init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
-            block.add_ops([init])
+            block.add_ops(r + [init])
+            ssa_vals[str(expr_name)] = init.lhs
         else:
-            add_to_block(expr, {Symbol(s): a for s, a in ctx.items()}, r)
+            add_to_block(expr, {Symbol(s): a for s, a in ssa_vals.items()}, r)
             block.add_ops(r)
         return
 
@@ -276,7 +276,7 @@ def myVisit(node, block: Block, ctx={}):
         assert len(node.children) == 1
         for idx in range(len(node.children[0])):
             child = node.children[0][idx]
-            myVisit(child, block, ctx)
+            myVisit(child, block, ssa_vals)
         return
 
     if isinstance(node, nodes.Iteration):
@@ -294,8 +294,8 @@ def myVisit(node, block: Block, ctx={}):
             raise ValueError("step must be int!")
 
         # get start, end ssa values
-        start_ssa_val = ctx[start.name]
-        end_ssa_val = ctx[end.name]
+        start_ssa_val = ssa_vals[start.name]
+        end_ssa_val = ssa_vals[end.name]
         
         step_op = arith.Constant.from_int_and_width(step, i32)
 
@@ -310,14 +310,14 @@ def myVisit(node, block: Block, ctx={}):
         loop = iet_ssa.For.get(start_ssa_val, end_ssa_val, step_op, subindices, props, pragmas)
 
         # extend context to include loop index
-        ctx[node.index] = loop.block.args[0]
+        ssa_vals[node.index] = loop.block.args[0]
         
         # TODO: add subindices to ctx
         for i, uindex in enumerate(node.uindices):
-            ctx[uindex.name] = loop.block.args[i+1]
+            ssa_vals[uindex.name] = loop.block.args[i+1]
 
         # visit the iteration body, adding ops to the loop body
-        myVisit(node.children[0][0], loop.block, ctx)
+        myVisit(node.children[0][0], loop.block, ssa_vals)
 
         # add loop to program
         block.add_op(loop)
@@ -331,7 +331,7 @@ def myVisit(node, block: Block, ctx={}):
                 comment = Statement.get(content)
                 block.add_ops([comment])
             else:
-                myVisit(node.children[0][0], block, ctx)
+                myVisit(node.children[0][0], block, ssa_vals)
         return
 
     if isinstance(node, nodes.HaloSpot):
@@ -341,7 +341,7 @@ def myVisit(node, block: Block, ctx={}):
         except:
             assert isinstance(node.children[0], OmpRegion)
 
-        myVisit(node.children[0], block, ctx)
+        myVisit(node.children[0], block, ssa_vals)
         return
 
     if isinstance(node, nodes.TimedList):
@@ -349,28 +349,32 @@ def myVisit(node, block: Block, ctx={}):
         assert len(node.children[0]) == 1
         header = Statement.get(node.header[0])
         block.add_ops([header])
-        myVisit(node.children[0][0], block, ctx)
+        myVisit(node.children[0][0], block, ssa_vals)
         footer = Statement.get(node.footer[0])
         block.add_ops([footer])
         return
 
     if isinstance(node, nodes.PointerCast):
         statement = node.ccode
-        pointer_cast = PointerCast.get(statement)
+        pointer_cast = PointerCast.get(
+            statement,
+            memref_type_from_indexed_data(node.obj)
+        )
         block.add_ops([pointer_cast])
+        ssa_vals[node.obj.name] = pointer_cast.result
         return
 
     if isinstance(node, nodes.List):
         # Problem: When a List is ecountered with only body, but no header or footer
         # we have a problem
         for h in node.header:
-            myVisit(h, block, ctx)
+            myVisit(h, block, ssa_vals)
 
         for b in node.body:
-            myVisit(b, block, ctx)
+            myVisit(b, block, ssa_vals)
 
         for f in node.footer:
-            myVisit(f, block, ctx)
+            myVisit(f, block, ssa_vals)
 
         return
 
@@ -427,18 +431,22 @@ def myVisit(node, block: Block, ctx={}):
     raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')
 
 
-def get_arg_types(symbols: List[Any]):
+def get_arg_types(symbols):
     processed = []
     for symbol in symbols:
         if isinstance(symbol, IndexedData):
-            stype = dtypes_to_xdsltypes[symbol.dtype]
-            new_symbol = memref.MemRefType.from_element_type_and_shape(stype, [-1]*len(symbol.shape))
-
-            processed.append(new_symbol)
+            processed.append(
+                memref_type_from_indexed_data(symbol)
+            )
         else:
+            # TODO: inspect symbol._C_ctype to gather type info
             processed.append(i32)
 
     return processed
+
+def memref_type_from_indexed_data(d: IndexedData):
+    stype = dtypes_to_xdsltypes[d.dtype]
+    return memref.MemRefType.from_element_type_and_shape(stype, [-1]*len(d.shape))
 
 
 dtypes_to_xdsltypes = {

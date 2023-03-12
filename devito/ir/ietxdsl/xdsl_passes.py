@@ -9,7 +9,7 @@ from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
 
 from devito.ir.ietxdsl.ietxdsl_functions import collectStructs, get_arg_types
 from xdsl.dialects.builtin import Builtin, i32
-from xdsl.dialects.func import FuncOp
+from xdsl.dialects import builtin
 
 
 def transform_devito_xdsl_string(op: Operator):
@@ -45,10 +45,8 @@ def transform_devito_xdsl_string(op: Operator):
     call_obj = visit_Operator(op)
     cgen.printCallable(call_obj)
 
-    # Look for extra functions in the operator and print them out
-    op_funcs = [value for _, value in op._func_table.items()]
-
     # After finishing kernels, now we check the rest of the functions
+    module = builtin.ModuleOp.from_region_or_ops([call_obj])
     for op_func in op_funcs:
         op = op_func.root
         name = op.name
@@ -66,18 +64,18 @@ def transform_devito_xdsl_string(op: Operator):
 
         # Add Allocs
         for op_alloc in op.body.allocs:
-            ietxdsl_functions.myVisit(op_alloc, block=b, ctx=d)
+            ietxdsl_functions.myVisit(op_alloc, block=b, ssa_vals=d)
 
         cgen.print('')
         # Add obj defs
         for op_obj in op.body.objs:
-            ietxdsl_functions.myVisit(op_obj, block=b, ctx=d)
+            ietxdsl_functions.myVisit(op_obj, block=b, ssa_vals=d)
 
         # import pdb;pdb.set_trace()
 
         # Add Casts
         for cast in FindNodes(PointerCast).visit(op.body):
-            ietxdsl_functions.myVisit(cast, block=b, ctx=d)
+            ietxdsl_functions.myVisit(cast, block=b, ssa_vals=d)
 
         call_obj = Callable.get(name, op_param_names, op_header_params, op_types,
                                 op_type_qs, retval, prefix, b)
@@ -87,20 +85,21 @@ def transform_devito_xdsl_string(op: Operator):
             if body_i.args.get('body') != ():
                 for body_j in body_i.body:
                     # Casts
-                    ietxdsl_functions.myVisit(body_j, block=b, ctx=d)
+                    ietxdsl_functions.myVisit(body_j, block=b, ssa_vals=d)
             else:
-                ietxdsl_functions.myVisit(body_i, block=b, ctx=d)
+                ietxdsl_functions.myVisit(body_i, block=b, ssa_vals=d)
 
         # print Kernel
 
         # Add frees
         for op_free in op.body.frees:
-            ietxdsl_functions.myVisit(op_free, block=b, ctx=d)
+            ietxdsl_functions.myVisit(op_free, block=b, ssa_vals=d)
 
         cgen.printCallable(call_obj)
+        module.regions[0].blocks[0].add_op(call_obj)
 
     from xdsl.printer import Printer
-    Printer().print(call_obj.body)
+    Printer().print(module)
     return cgen.str()
 
 
@@ -119,21 +118,18 @@ def visit_Operator(op):
     # # import pdb;pdb.set_trace()
 
     # Game is here we start a dict from op params, focus
-    processed = get_arg_types(op_symbols)
+    arg_types = get_arg_types(op.parameters)
     # b = Block.from_arg_types([i32] * len(op_param_names))
-    b = Block.from_arg_types(processed)
-    ddict = {name: register for name, register in zip(op_param_names, b.args)}
-
-    # # import pdb;pdb.set_trace()
-
+    block = Block.from_arg_types(arg_types)
+    ssa_val_dict = {param._C_name: val for param, val in zip(op.parameters, block.args)}
 
     # Add Casts
     for cast in FindNodes(PointerCast).visit(op.body):
-        ietxdsl_functions.myVisit(cast, block=b, ctx=ddict)
+        ietxdsl_functions.myVisit(cast, block=block, ssa_vals=ssa_val_dict)
 
     # Create a Callable for the main kernel
     call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
-                            op_type_qs, retv, prefix, b)
+                            op_type_qs, retv, prefix, block)
 
     # Visit the Operator body
     assert isinstance(op.body, CallableBody)
@@ -143,12 +139,66 @@ def visit_Operator(op):
         if i.args.get('body') != ():
             for body_j in i.body:
                 # Casts
-                ietxdsl_functions.myVisit(body_j, block=b, ctx=ddict)
+                ietxdsl_functions.myVisit(body_j, block=block, ssa_vals=ssa_val_dict)
         else:
-            ietxdsl_functions.myVisit(i, block=b, ctx=ddict)
+            ietxdsl_functions.myVisit(i, block=block, ssa_vals=ssa_val_dict)
 
-    # print Kernel
-    from xdsl.printer import Printer
-    Printer().print(call_obj.body)
-    # import pdb;pdb.set_trace()
     return call_obj
+
+
+def transform_devito_to_iet_ssa(op: Operator):
+    # Check for the existence of funcs in the operator (print devito metacalls)
+    op_funcs = [value for _, value in op._func_table.items()]
+    # Print calls
+    call_obj = visit_Operator(op)
+
+    # After finishing kernels, now we check the rest of the functions
+    module = builtin.ModuleOp.from_region_or_ops([call_obj])
+    for op_func in op_funcs:
+        op = op_func.root
+        name = op.name
+
+        # Those parameters without associated types aren't printed in the Kernel header
+        op_param_names = [s._C_name for s in FindSymbols('defines').visit(op)]
+        op_header_params = [i._C_name for i in list(op.parameters)]
+        op_types = [i._C_typename for i in list(op.parameters)]
+        op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
+        prefix = '-'.join(op.prefix)
+        retval = str(op.retval)
+        # import pdb;pdb.set_trace()
+        b = Block.from_arg_types([i32] * len(op_param_names))
+        d = {name: register for name, register in zip(op_param_names, b.args)}
+
+        # Add Allocs
+        for op_alloc in op.body.allocs:
+            ietxdsl_functions.myVisit(op_alloc, block=b, ssa_vals=d)
+
+        # Add obj defs
+        for op_obj in op.body.objs:
+            ietxdsl_functions.myVisit(op_obj, block=b, ssa_vals=d)
+
+        # Add Casts
+        for cast in FindNodes(PointerCast).visit(op.body):
+            ietxdsl_functions.myVisit(cast, block=b, ssa_vals=d)
+
+        call_obj = Callable.get(name, op_param_names, op_header_params, op_types,
+                                op_type_qs, retval, prefix, b)
+
+        for body_i in op.body.body:
+            # Comments
+            if body_i.args.get('body') != ():
+                for body_j in body_i.body:
+                    # Casts
+                    ietxdsl_functions.myVisit(body_j, block=b, ssa_vals=d)
+            else:
+                ietxdsl_functions.myVisit(body_i, block=b, ssa_vals=d)
+
+        # print Kernel
+
+        # Add frees
+        for op_free in op.body.frees:
+            ietxdsl_functions.myVisit(op_free, block=b, ssa_vals=d)
+
+        module.regions[0].blocks[0].add_op(call_obj)
+
+    return module

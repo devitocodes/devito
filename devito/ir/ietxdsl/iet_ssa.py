@@ -10,10 +10,10 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
 from xdsl.dialects.arith import Constant
 from xdsl.dialects.func import Return
 
-from xdsl.dialects import arith, builtin
+from xdsl.dialects import arith, builtin, memref
 
 from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion
-from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute
+from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
@@ -111,9 +111,8 @@ class Initialise(Operation):
     @staticmethod
     def get(lhs: Union[Operation, SSAValue],
             rhs: Union[Operation, SSAValue],
-            namet: str):
-        attributes = {"name": ArrayAttr([StringAttr(str(f))
-                      for f in namet])}
+            name: str):
+        attributes = {"name": StringAttr(name)}
         res = Initialise.build(attributes=attributes,
                                operands=[rhs],
                                result_types=[lhs.typ])
@@ -146,13 +145,15 @@ class Assign(Operation):
 class PointerCast(Operation):
     name: str = "iet.pointercast"
     statement: OpAttr[StringAttr]
+    
+    result: Annotated[OpResult, memref.MemRefType[Attribute]]
 
     @staticmethod
-    def get(statement):
+    def get(statement, return_type: Attribute):
         return PointerCast.build(
             operands=[],
             attributes={"statement": StringAttr(str(statement))},
-            result_types=[])
+            result_types=[return_type])
 
 
 @irdl_op_definition
@@ -394,3 +395,14 @@ class For(Operation):
             result_types=[],
             regions=[body],
         )
+
+
+IET_SSA = Dialect([
+    Statement,
+    PointerCast,
+    For,
+    Call,
+    Callable,
+    StructDecl,
+    Initialise,
+])

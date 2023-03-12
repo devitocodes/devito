@@ -1,7 +1,7 @@
 import io
 from typing import Dict
 
-from devito.ir.ietxdsl.operations import (Callable, Modi, StructDecl, Statement,
+from devito.ir.ietxdsl.iet_ssa import (Callable, Modi, StructDecl, Statement,
                                           Iteration, IterationWithSubIndices, Assign,
                                           PointerCast, Idx, Initialise, List,
                                           Powi, Call)
