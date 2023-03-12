@@ -25,8 +25,8 @@ from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
                                    Float64Type, Builtin, i32, f32)
 
 from xdsl.dialects.arith import Muli, Addi
-from xdsl.dialects.scf import For
-from xdsl.dialects import memref
+
+from xdsl.dialects import memref, scf, arith
 
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
@@ -237,7 +237,7 @@ def add_to_block(expr, arg_by_expr, result):
     assert False, f'unsupported expr {expr} of type {expr.func}'
 
 
-def myVisit(node, block=None, ctx={}):
+def myVisit(node, block: Block=None, ctx={}):
     try:
         print("asserted!")
         bool_node = isinstance(
@@ -285,48 +285,40 @@ def myVisit(node, block=None, ctx={}):
 
         # Get index variable
         dim = node.dim
-        limits = node.limits
+        assert len(node.limits) == 3, "limits should be a (min, max, step) tuple!"
 
-        index = node.index
+        start, end, step = node.limits
+        try:
+            step = int(step)
+        except:
+            raise ValueError("step must be int!")
+
+        # get start, end ssa values
+        start_ssa_val = ctx[start.name]
+        end_ssa_val = ctx[end.name]
+        
+        step_op = arith.Constant.from_int_and_width(step, i32)
+
+        block.add_op(step_op)
+
+        index: str = node.index
         b = Block.from_arg_types([i32])
+        # extend context to include loop index
         ctx = {**ctx, index: b.args[0]}
-        # check if there are subindices
-        hasSubIndices = False
 
-        # lb = SSAValue(i32)
+        # TODO: add subindices
+        assert len(node.uindices) == 0, "subindices not supported ATM"
 
-        if len(node.uindices) > 0:
-            uindices_names = []
-            uindices_symbmins = []
-            for uindex in list(node.uindices):
-                # currently only want to deal with a very specific subindex!
-                if isinstance(uindex, ModuloDimension):
-                    hasSubIndices = True
-                    uindices_names.append(uindex.name)
-                    uindices_symbmins.append(uindex.symbolic_min)
-            if hasSubIndices:
-                myVisit(node.children[0][0], b, ctx)
-                if len(node.pragmas) > 0:
-                    for p in node.pragmas:
-                        prag = Statement.get(p)
-                        block.add_ops([prag])
-                iteration = IterationWithSubIndices.get(
-                    node.properties, node.limits, uindices_names,
-                    uindices_symbmins, node.index, b)
-                block.add_ops([iteration])
-                return
+        # visit the iteration body and add to region
         myVisit(node.children[0][0], b, ctx)
-        if len(node.pragmas) > 0:
-            for p in node.pragmas:
-                prag = Statement.get(p)
-                block.add_ops([prag])
-        # # import pdb;pdb.set_trace()
-        # lb = SSAValue.get(StringAttr(str(node.limits[0])))
-        # ub = SSAValue.get(node.limits[1])
-        # step = SSAValue.get(node.limits[2])
-        # iteration = For.get(lb, ub, step, [], b)
-        iteration = Iteration.get(node.properties, node.limits, node.index, b)
-        block.add_ops([iteration])
+
+        # TODO: add pragmas
+        assert len(node.pragmas) == 0, "Pragmas unsupported ATM"
+
+        # construct scf for
+        loop = scf.For.get(start_ssa_val, end_ssa_val, step_op, [], b)
+
+        block.add_op(loop)
         return
 
     if isinstance(node, nodes.Section):
