@@ -346,12 +346,14 @@ def myVisit(node, block: Block, ssa_vals={}):
 
     if isinstance(node, nodes.PointerCast):
         statement = node.ccode
+        arg = ssa_vals[node.function._C_name]
         pointer_cast = PointerCast.get(
+            arg,
             statement,
             memref_type_from_indexed_data(node.obj)
         )
         block.add_ops([pointer_cast])
-        ssa_vals[node.obj.name] = pointer_cast.result
+        ssa_vals[node.obj._C_name] = pointer_cast.result
         return
 
     if isinstance(node, nodes.List):

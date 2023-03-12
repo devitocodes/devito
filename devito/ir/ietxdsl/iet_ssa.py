@@ -110,12 +110,13 @@ class PointerCast(Operation):
     name: str = "iet.pointercast"
     statement: OpAttr[StringAttr]
     
+    arg: Annotated[Operand, Attribute]  # TOOD: Make it Dataobj()!
     result: Annotated[OpResult, memref.MemRefType[Attribute]]
 
     @staticmethod
-    def get(statement, return_type: Attribute):
+    def get(arg: SSAValue, statement, return_type: Attribute):
         return PointerCast.build(
-            operands=[],
+            operands=[arg],
             attributes={"statement": StringAttr(str(statement))},
             result_types=[return_type])
 
