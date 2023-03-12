@@ -38,6 +38,16 @@ class IET:
         self.ctx.register_op(For)
         self.f32 = floatingPointLike
 
+@irdl_attr_definition
+class Profiler(ParametrizedAttribute):
+    name = "iet.profiler"
+
+
+# TODO: might be replacable by `llvm.LLVMStruct`?
+@irdl_attr_definition
+class Dataobj(ParametrizedAttribute):
+    name = "iet.dataobj"
+
 
 @irdl_op_definition
 class Modi(Operation):
@@ -361,4 +371,9 @@ IET_SSA = Dialect([
     Callable,
     StructDecl,
     Initialise,
+    Modi,
+    Powi
+], [
+    Profiler,
+    Dataobj
 ])
