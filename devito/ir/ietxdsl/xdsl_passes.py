@@ -37,7 +37,6 @@ def transform_devito_xdsl_string(op: Operator):
     ietxdsl_functions.printIncludes(cgen, "#include", op._includes)
     ietxdsl_functions.printStructs(cgen, collectStructs(op.parameters))
 
-    import pdb;pdb.set_trace()
     # Check for the existence of funcs in the operator (print devito metacalls)
     op_funcs = [value for _, value in op._func_table.items()]
     # Print calls
@@ -102,14 +101,13 @@ def transform_devito_xdsl_string(op: Operator):
 
     from xdsl.printer import Printer
     Printer().print(call_obj.body)
-    import pdb;pdb.set_trace()
     return cgen.str()
 
 
 def visit_Operator(op):
     # Scan an Operator
     # Those parameters without associated types aren't printed in the Kernel header
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
     op_symbols = FindSymbols('defines').visit(op)
     op_param_names = [s._C_name for s in op_symbols]
     op_header_params = [i._C_name for i in list(op.parameters)]
@@ -126,7 +124,7 @@ def visit_Operator(op):
     b = Block.from_arg_types(processed)
     ddict = {name: register for name, register in zip(op_param_names, b.args)}
 
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
 
 
     # Add Casts

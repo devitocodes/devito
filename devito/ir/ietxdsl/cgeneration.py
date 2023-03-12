@@ -9,6 +9,7 @@ from devito.tools import flatten
 
 from xdsl.ir import SSAValue, BlockArgument
 from xdsl.dialects.arith import Muli, Addi, Constant
+from xdsl.dialects import memref
 
 SSAValueNames: Dict[SSAValue, str] = {}
 
@@ -157,8 +158,7 @@ class CGeneration:
         self.print("{")
         self.indent()
         for op in iteration_op.body.ops:
-            if isinstance(op, Iteration) | isinstance(op, Statement) | \
-                    isinstance(op, Assign) | isinstance(op, Initialise):
+            if isinstance(op, (Iteration, Initialise, Statement, memref.Store)):
                 self.printOperation(op)
         self.dedent()
         self.print("}")
@@ -287,14 +287,6 @@ class CGeneration:
             self.printIteration(operation)
             return
 
-        if (isinstance(operation, Assign)):
-            self.print("", end="")
-            self.printResult(operation.lhs)
-            self.print(" = ", indent=False, end="")
-            self.printResult(operation.rhs)
-            self.print(";", indent=False)
-            return
-
         if (isinstance(operation, Initialise)):
             results = flatten(operation.results)
             assert len(results) == 1
@@ -329,6 +321,41 @@ class CGeneration:
             self.printResult(operation.index)
             self.print("]", indent=False, end="")
             return
+
+        if (isinstance(operation, memref.Load)):
+            import pdb;pdb.set_trace();
+            self.printResult(operation.memref)
+            for ind in operation.indices:
+                self.print("[", indent=False, end="")
+                self.printResult(ind)
+                self.print("]", indent=False, end="")
+            return
+
+        if (isinstance(operation, memref.Store)):
+
+            self.print("", end="")
+            self.printResult(operation.memref)
+            for ind in operation.indices:
+                self.print("[", indent=False, end="")
+                self.printResult(ind)
+                self.print("]", indent=False, end="")
+
+            self.print(" = ", indent=False, end="")
+            self.printResult(operation.value)
+            self.print(";", indent=False)
+            return
+
+
+            """
+
+            self.print
+            self.printResult(operation.memref)
+            for ind in operation.indices:
+                self.print("[", indent=False, end="")
+                self.printResult(ind)
+                self.print("]", indent=False, end="")
+            return
+            """
 
         if (isinstance(operation, (Statement))):
             self.print(operation.attributes['statement'].data)

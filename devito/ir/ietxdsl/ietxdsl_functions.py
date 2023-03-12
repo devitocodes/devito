@@ -8,14 +8,13 @@ import devito.ir.iet.nodes as nodes
 
 from devito import ModuloDimension, SpaceDimension
 from devito.ir.iet import MetaCall  # noqa
-
-
 from devito.passes.iet.languages.openmp import OmpRegion
 
 from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Idx,
                                Assign, Block, Iteration, IterationWithSubIndices,
                                Statement, PointerCast, Powi, Initialise,
                                StructDecl, Call)
+from devito.tools import as_list
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
@@ -117,7 +116,6 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, IndexedData):
-        import pdb;pdb.set_trace();
         # Only index first bit of IndexedData
         add_to_block(expr.args[0], arg_by_expr, result)
         arg_by_expr[expr] = arg_by_expr[expr.args[0]]
@@ -150,7 +148,6 @@ def add_to_block(expr, arg_by_expr, result):
         add_to_block(child_expr, arg_by_expr, result)
 
     if isinstance(expr, Add):
-        import pdb;pdb.set_trace()
         # workaround for large additions (TODO: should this be handled earlier?)
         len_args = len(expr.args)
         if len_args > 2:
@@ -208,26 +205,33 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, Indexed):
         import pdb;pdb.set_trace()
-        add_to_block(expr.args[0], arg_by_expr, result)
-        prev = arg_by_expr[expr.args[0]]
-        for child_expr in expr.args[1:]:
-            add_to_block(child_expr, arg_by_expr, result)
-            child_arg = arg_by_expr[child_expr]
-            idx = Idx.get(prev, child_arg)
-            result.append(idx)
-            prev = idx
-        arg_by_expr[expr] = prev
+        for arg in expr.args:
+            add_to_block(arg, arg_by_expr, result)
+
+        indices_list = as_list(arg_by_expr[i] for i in expr.indices)
+        idx = memref.Load.get(arg_by_expr[expr.args[0]], indices_list)
+        result.append(idx)
+        arg_by_expr[expr] = idx
         return
 
     if isinstance(expr, Eq):
         # Convert devito.ir.equations.equation.ClusterizedEq to devito.ir.ietxdsl.operations.Assign
+
         add_to_block(expr.args[0], arg_by_expr, result)
-        lhs = arg_by_expr[expr.args[0]]
+        # lhs = arg_by_expr[expr.args[0]]
         add_to_block(expr.args[1], arg_by_expr, result)
-        rhs = arg_by_expr[expr.args[1]]
-        assign = Assign.build([lhs, rhs])
-        arg_by_expr[expr] = assign
+        # rhs = arg_by_expr[expr.args[1]]
+
+        indices_list = as_list(arg_by_expr[i] for i in expr.args[0].indices)
+        load: memref.Load = arg_by_expr[expr.args[0]]
+        assign = memref.Store.get(arg_by_expr[expr.args[1]], load.memref, as_list(load.indices))
+
+        # assign = memref.Store.get(rhs, lhs)
+        # assign = Assign.build([lhs, rhs])
         result.append(assign)
+        arg_by_expr[expr] = assign
+        import pdb;pdb.set_trace()
+
         return
 
     assert False, f'unsupported expr {expr} of type {expr.func}'
@@ -276,7 +280,6 @@ def myVisit(node, block=None, ctx={}):
 
     if isinstance(node, nodes.Iteration):
         # TOFIX scf.for
-        import pdb;pdb.set_trace()
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
 
