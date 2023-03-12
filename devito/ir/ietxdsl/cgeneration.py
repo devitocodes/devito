@@ -2,8 +2,8 @@ import io
 from typing import Dict
 
 from devito.ir.ietxdsl.iet_ssa import (Callable, Modi, StructDecl, Statement,
-                                          Iteration, IterationWithSubIndices, Assign,
-                                          PointerCast, Idx, Initialise, List,
+                                          Iteration, IterationWithSubIndices,
+                                          PointerCast, Initialise, List,
                                           Powi, Call)
 from devito.tools import flatten
 
@@ -226,7 +226,7 @@ class CGeneration:
             return
         if (isinstance(operation, List)):
             for op in operation:
-                if isinstance(op, (Constant, Addi, Idx, Modi)):
+                if isinstance(op, (Constant, Addi, Modi)):
                     continue
                 self.printOperation(op)
             return
@@ -313,13 +313,6 @@ class CGeneration:
             self.print(" = ", indent=False, end="")
             self.printResult(operation.rhs)
             self.print(";", indent=False)
-            return
-
-        if (isinstance(operation, Idx)):
-            self.printResult(operation.array)
-            self.print("[", indent=False, end="")
-            self.printResult(operation.index)
-            self.print("]", indent=False, end="")
             return
 
         if (isinstance(operation, memref.Load)):

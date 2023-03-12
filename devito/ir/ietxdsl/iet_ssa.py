@@ -12,21 +12,20 @@ from xdsl.dialects.func import Return
 
 from xdsl.dialects import arith, builtin, memref
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
-
+# TODO: remove
 @dataclass
 class IET:
     ctx: MLContext
 
     def __post_init__(self):
         # TODO add all operations
-        self.ctx.register_op(FloatConstant)
         self.ctx.register_op(Powi)
         self.ctx.register_op(Modi)
         self.ctx.register_op(Iteration)
@@ -40,26 +39,6 @@ class IET:
         self.ctx.register_op(StructDecl)
         self.ctx.register_op(For)
         self.f32 = floatingPointLike
-
-
-@irdl_op_definition
-class FloatConstant(Operation):
-    name: str = "iet.floatconstant"
-    output: Annotated[OpResult, Attribute]
-    value: Annotated[Operand, Attribute]
-
-    # TODO verify that the output and value type are equal
-    def verify_(self) -> None:
-        # TODO how to force the attr to have a type? and how to query it?
-        pass
-
-    @staticmethod
-    def get(value):
-        attr = FloatAttr.from_float_and_width(value, 32)
-        res = Constant.build(operands=[],
-                             attributes={"value": attr},
-                             result_types=[Float32Type()])
-        return res
 
 
 @irdl_op_definition
@@ -117,29 +96,6 @@ class Initialise(Operation):
                                operands=[rhs],
                                result_types=[lhs.typ])
         return res
-
-
-@irdl_op_definition
-class Idx(Operation):
-    # memref load TODO
-    name: str = "iet.idx"
-    array: Annotated[Operand, signlessIntegerLike]
-    index: Annotated[Operand, signlessIntegerLike]
-    output: Annotated[OpResult, signlessIntegerLike]
-
-    @staticmethod
-    def get(array: Union[Operation, SSAValue],
-            index: Union[Operation, SSAValue]):
-        return Idx.build(operands=[array, index],
-                         result_types=[f32])
-
-
-@irdl_op_definition
-class Assign(Operation):
-    name: str = "iet.assign"
-    lhs: Annotated[Operand, signlessIntegerLike]
-    rhs: Annotated[Operand, signlessIntegerLike]
-
 
 @irdl_op_definition
 class PointerCast(Operation):
@@ -269,6 +225,7 @@ class Call(Operation):
         })
 
 
+# TODO: remove
 @irdl_op_definition
 class Iteration(Operation):
     name: str = "iet.iteration"
@@ -300,6 +257,7 @@ class Iteration(Operation):
         }, regions=[Region.from_block_list([body])])
 
 
+# TODO: remove
 @irdl_op_definition
 class IterationWithSubIndices(Operation):
     name: str = "iet.iteration_with_subindices"

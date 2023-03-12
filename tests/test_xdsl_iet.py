@@ -2,7 +2,7 @@ from devito import Grid, TimeFunction, Eq, Operator
 from devito.tools import as_tuple
 
 from devito.ir.ietxdsl import (MLContext, CGeneration, Powi, IET, Callable,
-                               Block, Iteration, Idx, Assign, Initialise,
+                               Block, Iteration, Initialise,
                                floatingPointLike)
 
 from devito.ir.iet import retrieve_iteration_tree
@@ -63,42 +63,6 @@ def test_powi():
     printer.print_op(mod)
 
 
-def test_Idx():
-    ctx = MLContext()
-    Builtin(ctx)
-    iet = IET(ctx)
-
-    mod = ModuleOp.from_region_or_ops([
-        cst1 := Constant.from_int_and_width(1, i32),
-        ut1 := Idx.get(cst1, cst1),
-        y1 := Addi.get(cst1, cst1)
-    ])
-
-    printer = Printer()
-    printer.print_op(mod)
-
-def test_assign():
-    ctx = MLContext()
-    Builtin(ctx)
-    iet = IET(ctx)
-
-    mod = ModuleOp.from_region_or_ops([
-        cst1 := Constant.from_int_and_width(1, i32),
-        x1 := Addi.get(cst1, cst1),
-        y1 := Addi.get(cst1, cst1),
-        ut0 := Idx.get(x1, cst1),
-        ut0x1 := Idx.get(ut0, x1),
-        ut0x1y1 := Idx.get(ut0x1, y1),
-        rhs := Addi.get(ut0x1y1, cst1),
-        ut1 := Idx.get(x1, cst1),
-        ut1x1 := Idx.get(ut1, x1),
-        lhs := Idx.get(ut1x1, y1),
-        Assign.build([lhs, rhs])
-    ])
-
-    printer = Printer()
-    printer.print_op(mod)
-
 def test_Iteration():
     ctx = MLContext()
     Builtin(ctx)
@@ -121,28 +85,6 @@ def test_Iteration():
     printer = Printer()
     printer.print_op(mod)
 
-
-def test_Initialise():
-    ctx = MLContext()
-    Builtin(ctx)
-    iet = IET(ctx)
-
-    mod = ModuleOp.from_region_or_ops([
-        cst1 := Constant.from_int_and_width(1, i32),
-        x1 := Addi.get(cst1, cst1),
-        y1 := Addi.get(cst1, cst1),
-        ut0 := Idx.get(x1, cst1),
-        ut0x1 := Idx.get(ut0, x1),
-        ut0x1y1 := Idx.get(ut0x1, y1),
-        rhs := Addi.get(ut0x1y1, cst1),
-        ut1 := Idx.get(x1, cst1),
-        ut1x1 := Idx.get(ut1, x1),
-        lhs := Idx.get(ut1x1, y1),
-        Assign.build([lhs, rhs])
-    ])
-
-    printer = Printer()
-    printer.print_op(mod)
 
 
 def test_blockIteration():
@@ -169,14 +111,14 @@ def test_blockIteration():
                                          cst1 := Constant.from_int_and_width(1, i32),
                                          x1 := Addi.get(x, cst1),
                                          y1 := Addi.get(y, cst1),
-                                         ut0 := Idx.get(x, t0),
-                                         ut0x1 := Idx.get(ut0, x1),
-                                         ut0x1y1 := Idx.get(ut0x1, y1),
-                                         rhs := Addi.get(ut0x1y1, cst1),
-                                         ut1 := Idx.get(x, t1),
-                                         ut1x1 := Idx.get(ut1, x1),
-                                         lhs := Idx.get(ut1x1, y1),
-                                         Assign.build([lhs, rhs])
+                                         #ut0 := Idx.get(x, t0),
+                                         #ut0x1 := Idx.get(ut0, x1),
+                                         #ut0x1y1 := Idx.get(ut0x1, y1),
+                                         #rhs := Addi.get(ut0x1y1, cst1),
+                                         #ut1 := Idx.get(x, t1),
+                                         #ut1x1 := Idx.get(ut1, x1),
+                                         #lhs := Idx.get(ut1x1, y1),
+                                         #Assign.build([lhs, rhs])
                                      ]))
                              ]))
                      ]))
@@ -279,14 +221,14 @@ def test_example():
                                          cst1 := Constant.from_int_and_width(1, i32),
                                          x1 := Addi.get(x, cst1),
                                          y1 := Addi.get(y, cst1),
-                                         ut0 := Idx.get(u, t0),
-                                         ut0x1 := Idx.get(ut0, x1),
-                                         ut0x1y1 := Idx.get(ut0x1, y1),
-                                         rhs := Addi.get(ut0x1y1, cst1),
-                                         ut1 := Idx.get(u, t1),
-                                         ut1x1 := Idx.get(ut1, x1),
-                                         lhs := Idx.get(ut1x1, y1),
-                                         Assign.build([lhs, rhs])
+                                         #ut0 := Idx.get(u, t0),
+                                         #ut0x1 := Idx.get(ut0, x1),
+                                         #ut0x1y1 := Idx.get(ut0x1, y1),
+                                         #rhs := Addi.get(ut0x1y1, cst1),
+                                         #ut1 := Idx.get(u, t1),
+                                         #ut1x1 := Idx.get(ut1, x1),
+                                         #lhs := Idx.get(ut1x1, y1),
+                                         #Assign.build([lhs, rhs])
                                      ]))
                              ]))
                      ]))
@@ -331,14 +273,14 @@ def test_devito_iet():
                         cst1    := Constant.from_int_and_width(1, i32),
                         x1      := Addi.get(x, cst1),
                         y1      := Addi.get(y, cst1),
-                        ut0     := Idx.get(u, t0),
-                        ut0x1   := Idx.get(ut0, x1),
-                        ut0x1y1 := Idx.get(ut0x1, y1),
-                        rhs     := Addi.get(ut0x1y1, cst1),
-                        ut1     := Idx.get(u, t1),
-                        ut1x1   := Idx.get(ut1, x1),
-                        lhs     := Idx.get(ut1x1, y1),
-                        Assign.build([lhs, rhs])
+                        #ut0     := Idx.get(u, t0),
+                        #ut0x1   := Idx.get(ut0, x1),
+                        #ut0x1y1 := Idx.get(ut0x1, y1),
+                        #rhs     := Addi.get(ut0x1y1, cst1),
+                        #ut1     := Idx.get(u, t1),
+                        #ut1x1   := Idx.get(ut1, x1),
+                        #lhs     := Idx.get(ut1x1, y1),
+                        #Assign.build([lhs, rhs])
                     ]))
                 ]))
             ]))
@@ -411,12 +353,12 @@ def test_mfe():
                                      Block.from_callable([i32], lambda y: [
                                          cst1 := Constant.from_int_and_width(1, i32),
                                          y1 := Addi.get(y, cst1),
-                                         ut0 := Idx.get(u, t0),
-                                         rhs := Addi.get(ut0, cst1),
-                                         ut1 := Idx.get(u, t1),
-                                         ut1x1 := Idx.get(ut1, y1),
-                                         lhs := Idx.get(ut1x1, y1),
-                                         Assign.build([lhs, rhs])
+                                         #ut0 := Idx.get(u, t0),
+                                         #rhs := Addi.get(ut0, cst1),
+                                         #ut1 := Idx.get(u, t1),
+                                         #ut1x1 := Idx.get(ut1, y1),
+                                         #lhs := Idx.get(ut1x1, y1),
+                                         #Assign.build([lhs, rhs])
                                      ]))
                              ]))
                      ]))
