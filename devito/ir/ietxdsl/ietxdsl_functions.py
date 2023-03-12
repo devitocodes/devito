@@ -111,7 +111,7 @@ def calculateAddArguments(arguments):
 
 
 def add_to_block(expr, arg_by_expr, result):
-    # import pdb;pdb.set_trace()
+    # # import pdb;pdb.set_trace()
     if expr in arg_by_expr:
         return
 
@@ -182,7 +182,7 @@ def add_to_block(expr, arg_by_expr, result):
 
     if isinstance(expr, nodes.Return):
         # Covert a Return node
-        # import pdb;pdb.set_trace()
+        # # import pdb;pdb.set_trace()
         return
 
     if isinstance(expr, Mod):
@@ -204,7 +204,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Indexed):
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         for arg in expr.args:
             add_to_block(arg, arg_by_expr, result)
 
@@ -230,7 +230,7 @@ def add_to_block(expr, arg_by_expr, result):
         # assign = Assign.build([lhs, rhs])
         result.append(assign)
         arg_by_expr[expr] = assign
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
 
         return
 
@@ -263,7 +263,7 @@ def myVisit(node, block=None, ctx={}):
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
-            import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
             init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
             block.add_ops([init])
         else:
@@ -320,7 +320,7 @@ def myVisit(node, block=None, ctx={}):
             for p in node.pragmas:
                 prag = Statement.get(p)
                 block.add_ops([prag])
-        # import pdb;pdb.set_trace()
+        # # import pdb;pdb.set_trace()
         # lb = SSAValue.get(StringAttr(str(node.limits[0])))
         # ub = SSAValue.get(node.limits[1])
         # step = SSAValue.get(node.limits[2])
@@ -439,7 +439,7 @@ def get_arg_types(symbols: List[Any]):
     for symbol in symbols:
         if isinstance(symbol, IndexedData):
             stype = dtypes_to_xdsltypes[symbol.dtype]
-            # import pdb;pdb.set_trace()
+            # # import pdb;pdb.set_trace()
             new_symbol = memref.MemRefType.from_element_type_and_shape(stype, [-1]*len(symbol.shape))
 
             processed.append(new_symbol)

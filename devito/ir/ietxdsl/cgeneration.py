@@ -298,10 +298,10 @@ class CGeneration:
                 type = "double"
             # TOFIX: resort to float
             # elif type == "integer_type":
-            #     import pdb;pdb.set_trace()
+            #     # import pdb;pdb.set_trace()
             #     type = "const int"
             else:
-                # import pdb;pdb.set_trace()
+                # # import pdb;pdb.set_trace()
                 type = "float"
             self.print(type, indent=True, end=" ")
             assignee = operation.attributes['name'].data
@@ -323,7 +323,7 @@ class CGeneration:
             return
 
         if (isinstance(operation, memref.Load)):
-            import pdb;pdb.set_trace();
+            # import pdb;pdb.set_trace();
             self.printResult(operation.memref)
             for ind in operation.indices:
                 self.print("[", indent=False, end="")

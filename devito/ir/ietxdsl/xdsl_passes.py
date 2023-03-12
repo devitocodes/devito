@@ -60,7 +60,7 @@ def transform_devito_xdsl_string(op: Operator):
         op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
         prefix = '-'.join(op.prefix)
         retval = str(op.retval)
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         b = Block.from_arg_types([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
 
@@ -73,7 +73,7 @@ def transform_devito_xdsl_string(op: Operator):
         for op_obj in op.body.objs:
             ietxdsl_functions.myVisit(op_obj, block=b, ctx=d)
 
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
 
         # Add Casts
         for cast in FindNodes(PointerCast).visit(op.body):
@@ -107,7 +107,7 @@ def transform_devito_xdsl_string(op: Operator):
 def visit_Operator(op):
     # Scan an Operator
     # Those parameters without associated types aren't printed in the Kernel header
-    # import pdb;pdb.set_trace()
+    # # import pdb;pdb.set_trace()
     op_symbols = FindSymbols('defines').visit(op)
     op_param_names = [s._C_name for s in op_symbols]
     op_header_params = [i._C_name for i in list(op.parameters)]
@@ -116,7 +116,7 @@ def visit_Operator(op):
     prefix = '-'.join(op.prefix)
     retv = str(op.retval)
 
-    # import pdb;pdb.set_trace()
+    # # import pdb;pdb.set_trace()
 
     # Game is here we start a dict from op params, focus
     processed = get_arg_types(op_symbols)
@@ -124,7 +124,7 @@ def visit_Operator(op):
     b = Block.from_arg_types(processed)
     ddict = {name: register for name, register in zip(op_param_names, b.args)}
 
-    # import pdb;pdb.set_trace()
+    # # import pdb;pdb.set_trace()
 
 
     # Add Casts
@@ -139,7 +139,7 @@ def visit_Operator(op):
     assert isinstance(op.body, CallableBody)
     for i in op.body.body:
         # Comments
-        # import pdb;pdb.set_trace()
+        # # import pdb;pdb.set_trace()
         if i.args.get('body') != ():
             for body_j in i.body:
                 # Casts
@@ -150,5 +150,5 @@ def visit_Operator(op):
     # print Kernel
     from xdsl.printer import Printer
     Printer().print(call_obj.body)
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
     return call_obj

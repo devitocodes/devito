@@ -385,7 +385,7 @@ def test_mfe_memref():
     ])
 
     printer = Printer()
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
     printer.print_op(mod)
 
 
@@ -423,7 +423,7 @@ def test_mfe():
     ])
 
     printer = Printer()
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
     printer.print_op(mod)
 
 
@@ -441,5 +441,5 @@ def test_mfe2():
     ])
 
     printer = Printer()
-    import pdb;pdb.set_trace()
+    # import pdb;pdb.set_trace()
     printer.print_op(mod)
