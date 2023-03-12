@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 from sympy import Mod
-from typing import Tuple, List, Annotated, Union
+from typing import Iterable, Tuple, List, Annotated, Union
 from dataclasses import dataclass
 
 from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
-                                   Float64Type, AnyIntegerAttr, FloatAttr, f32)
+                                   Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
 from xdsl.dialects.arith import Constant
 from xdsl.dialects.func import Return
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf
+from xdsl.dialects import arith, builtin
+
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute
 
 
@@ -34,6 +38,7 @@ class IET:
         self.ctx.register_op(PointerCast)
         self.ctx.register_op(Statement)
         self.ctx.register_op(StructDecl)
+        self.ctx.register_op(For)
         self.f32 = floatingPointLike
 
 
@@ -342,3 +347,50 @@ class IterationWithSubIndices(Operation):
 
 
 
+@irdl_op_definition
+class For(Operation):
+    name: str = "iet.for"
+
+    lb: Annotated[Operand, IndexType]
+    ub: Annotated[Operand, IndexType]
+    step: Annotated[Operand, IndexType]
+
+    body: SingleBlockRegion
+
+    subindices: OpAttr[IntAttr]
+
+    properties: OpAttr[ArrayAttr[builtin.StringAttr]]
+    pragmas: OpAttr[ArrayAttr[builtin.StringAttr]]
+
+    @property
+    def block(self) -> Block:
+        return self.body.blocks[0]
+    
+    @staticmethod
+    def get(
+        lb: SSAValue | Operation,
+        ub: SSAValue | Operation,
+        step: SSAValue | Operation,
+        subindices: int = 0,
+        properties: Iterable[str] = None,
+        pragmas: Iterable[str] = None,
+    ) -> For:
+        if subindices is None:
+            subindices = []
+        if pragmas is None:
+            pragmas = []
+
+        body = Region.from_block_list([Block.from_arg_types(
+            [builtin.i32] * (subindices + 1)
+        )])
+
+        return For.build(
+            operands=[lb, ub, step],
+            attributes={
+                'subindices': IntAttr(subindices),
+                'pragmas': ArrayAttr([StringAttr(pragma) for pragma in pragmas]),
+                'properties': ArrayAttr([StringAttr(prop) for prop in properties]),
+            },
+            result_types=[],
+            regions=[body],
+        )

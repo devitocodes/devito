@@ -25,8 +25,9 @@ from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
                                    Float64Type, Builtin, i32, f32)
 
 from xdsl.dialects.arith import Muli, Addi
+from devito.ir import ietxdsl as iet_ssa
 
-from xdsl.dialects import memref, scf, arith
+from xdsl.dialects import memref, scf, arith, builtin
 
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
@@ -237,7 +238,7 @@ def add_to_block(expr, arg_by_expr, result):
     assert False, f'unsupported expr {expr} of type {expr.func}'
 
 
-def myVisit(node, block: Block=None, ctx={}):
+def myVisit(node, block: Block, ctx={}):
     try:
         print("asserted!")
         bool_node = isinstance(
@@ -279,7 +280,6 @@ def myVisit(node, block: Block=None, ctx={}):
         return
 
     if isinstance(node, nodes.Iteration):
-        # TOFIX scf.for
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
 
@@ -301,23 +301,25 @@ def myVisit(node, block: Block=None, ctx={}):
 
         block.add_op(step_op)
 
-        index: str = node.index
-        b = Block.from_arg_types([i32])
+        props = [str(x) for x in node.properties]
+        pragmas = [str(x) for x in node.pragmas]
+
+        subindices = len(node.uindices)
+
+        # construct scf for operation
+        loop = iet_ssa.For.get(start_ssa_val, end_ssa_val, step_op, subindices, props, pragmas)
+
         # extend context to include loop index
-        ctx = {**ctx, index: b.args[0]}
+        ctx[node.index] = loop.block.args[0]
+        
+        # TODO: add subindices to ctx
+        for i, uindex in enumerate(node.uindices):
+            ctx[uindex.name] = loop.block.args[i+1]
 
-        # TODO: add subindices
-        assert len(node.uindices) == 0, "subindices not supported ATM"
+        # visit the iteration body, adding ops to the loop body
+        myVisit(node.children[0][0], loop.block, ctx)
 
-        # visit the iteration body and add to region
-        myVisit(node.children[0][0], b, ctx)
-
-        # TODO: add pragmas
-        assert len(node.pragmas) == 0, "Pragmas unsupported ATM"
-
-        # construct scf for
-        loop = scf.For.get(start_ssa_val, end_ssa_val, step_op, [], b)
-
+        # add loop to program
         block.add_op(loop)
         return
 
@@ -426,12 +428,10 @@ def myVisit(node, block: Block=None, ctx={}):
 
 
 def get_arg_types(symbols: List[Any]):
-
     processed = []
     for symbol in symbols:
         if isinstance(symbol, IndexedData):
             stype = dtypes_to_xdsltypes[symbol.dtype]
-            # # import pdb;pdb.set_trace()
             new_symbol = memref.MemRefType.from_element_type_and_shape(stype, [-1]*len(symbol.shape))
 
             processed.append(new_symbol)
@@ -442,5 +442,8 @@ def get_arg_types(symbols: List[Any]):
 
 
 dtypes_to_xdsltypes = {
-    numpy.float32: f32,
+    numpy.float32: builtin.f32,
+    numpy.float64: builtin.f64,
+    numpy.int32: builtin.i32,
+    numpy.int64: builtin.i64,
 }
