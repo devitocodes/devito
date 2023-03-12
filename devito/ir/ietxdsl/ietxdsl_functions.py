@@ -1,4 +1,6 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
+from typing import Any, List
+import numpy
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
 
@@ -25,6 +27,7 @@ from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
 
 from xdsl.dialects.arith import Muli, Addi
 from xdsl.dialects.scf import For
+from xdsl.dialects import memref
 
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
@@ -109,10 +112,12 @@ def calculateAddArguments(arguments):
 
 
 def add_to_block(expr, arg_by_expr, result):
+    # import pdb;pdb.set_trace()
     if expr in arg_by_expr:
         return
 
     if isinstance(expr, IndexedData):
+        import pdb;pdb.set_trace();
         # Only index first bit of IndexedData
         add_to_block(expr.args[0], arg_by_expr, result)
         arg_by_expr[expr] = arg_by_expr[expr.args[0]]
@@ -145,6 +150,7 @@ def add_to_block(expr, arg_by_expr, result):
         add_to_block(child_expr, arg_by_expr, result)
 
     if isinstance(expr, Add):
+        import pdb;pdb.set_trace()
         # workaround for large additions (TODO: should this be handled earlier?)
         len_args = len(expr.args)
         if len_args > 2:
@@ -171,6 +177,7 @@ def add_to_block(expr, arg_by_expr, result):
         # Convert a sympy.core.mul.Mul to xdsl.dialects.arith.Muli
         lhs = arg_by_expr[expr.args[0]]
         rhs = arg_by_expr[expr.args[1]]
+
         sum = Muli.get(lhs, rhs)
         arg_by_expr[expr] = sum
         result.append(sum)
@@ -200,6 +207,7 @@ def add_to_block(expr, arg_by_expr, result):
         return
 
     if isinstance(expr, Indexed):
+        import pdb;pdb.set_trace()
         add_to_block(expr.args[0], arg_by_expr, result)
         prev = arg_by_expr[expr.args[0]]
         for child_expr in expr.args[1:]:
@@ -251,6 +259,7 @@ def myVisit(node, block=None, ctx={}):
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ctx.items()}, r)
+            import pdb;pdb.set_trace()
             init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
             block.add_ops([init])
         else:
@@ -266,13 +275,23 @@ def myVisit(node, block=None, ctx={}):
         return
 
     if isinstance(node, nodes.Iteration):
+        # TOFIX scf.for
+        import pdb;pdb.set_trace()
         assert len(node.children) == 1
         assert len(node.children[0]) == 1
+
+        # Get index variable
+        dim = node.dim
+        limits = node.limits
+
         index = node.index
         b = Block.from_arg_types([i32])
         ctx = {**ctx, index: b.args[0]}
         # check if there are subindices
         hasSubIndices = False
+
+        # lb = SSAValue(i32)
+
         if len(node.uindices) > 0:
             uindices_names = []
             uindices_symbmins = []
@@ -408,5 +427,25 @@ def myVisit(node, block=None, ctx={}):
         block.add_ops([comment])
         return
 
-
     raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')
+
+
+def get_arg_types(symbols: List[Any]):
+
+    processed = []
+    for symbol in symbols:
+        if isinstance(symbol, IndexedData):
+            stype = dtypes_to_xdsltypes[symbol.dtype]
+            # import pdb;pdb.set_trace()
+            new_symbol = memref.MemRefType.from_element_type_and_shape(stype, [-1]*len(symbol.shape))
+
+            processed.append(new_symbol)
+        else:
+            processed.append(i32)
+
+    return processed
+
+
+dtypes_to_xdsltypes = {
+    numpy.float32: f32,
+}

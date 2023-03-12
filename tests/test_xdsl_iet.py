@@ -7,10 +7,11 @@ from devito.ir.ietxdsl import (MLContext, CGeneration, Powi, IET, Callable,
 
 from devito.ir.iet import retrieve_iteration_tree
 
-from xdsl.dialects.builtin import ModuleOp, Builtin, i32
+from xdsl.dialects.builtin import ModuleOp, Builtin, i32, f32
+
 from xdsl.printer import Printer
 from xdsl.dialects.arith import Addi, Constant, Subi
-from xdsl.dialects.memref import Load
+from xdsl.dialects import memref, arith
 from xdsl.ir import Operation, Block, Region
 
 
@@ -348,6 +349,46 @@ def test_devito_iet():
     printer.print_op(mod)
 
 
+def test_mfe_memref():
+    ctx = MLContext()
+    Builtin(ctx)
+    iet = IET(ctx)
+
+    memref_f32_rank2 = memref.MemRefType.from_element_type_and_shape(
+        f32, [-1, -1])
+
+    mod = ModuleOp.from_region_or_ops([
+        Callable.get(
+            "kernel", ["u"],["u"],["struct dataobj*"], ["restrict"], "int", "",
+            Block.from_callable([memref_f32_rank2], lambda u: [
+                Iteration
+                .get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
+                     Block.from_callable([
+                         i32, i32, i32
+                     ], lambda time, t0, t1: [
+                                 Iteration.get(
+                                     [
+                                         "affine",
+                                         "parallel", "skewable", "vector-dim"
+                                     ], ("y_m", "y_M", "1"),"y_loop",
+                                     Block.from_callable([i32], lambda y: [
+                                         cst1 := Constant.from_int_and_width(1, i32),
+                                         y1 := Addi.get(y, cst1),
+                                         ut0 := memref.Load.get(u, [t0, y1]),
+                                         # ut0 := Idx.get(u, t0),
+                                         rhs := Addi.get(ut0, cst1),
+                                         memref.Store.get(rhs, u, [t1, y1])
+                                         # Assign.build([lhs, rhs])
+                                     ]))
+                             ]))
+                     ]))
+    ])
+
+    printer = Printer()
+    import pdb;pdb.set_trace()
+    printer.print_op(mod)
+
+
 def test_mfe():
     ctx = MLContext()
     Builtin(ctx)
@@ -382,6 +423,7 @@ def test_mfe():
     ])
 
     printer = Printer()
+    import pdb;pdb.set_trace()
     printer.print_op(mod)
 
 
@@ -391,10 +433,13 @@ def test_mfe2():
     iet = IET(ctx)
 
     mod = ModuleOp.from_region_or_ops([
+        ref := memref.Alloca.get(i32, 0, [3, 3]),
         cst1 := Constant.from_int_and_width(1, i32),
-        ut1 := Idx.get(cst1, cst1),
-        y1 := Addi.get(cst1, cst1)
+        a1 := memref.Load.get(ref, [cst1, cst1]),
+        a2 := arith.Addi.get(a1, cst1),
+        memref.Store.get(a2, ref, [cst1, cst1])
     ])
 
     printer = Printer()
+    import pdb;pdb.set_trace()
     printer.print_op(mod)

@@ -20,3 +20,8 @@ def test_create_xdsl_operator():
     import pdb;pdb.set_trace()
     # TOFIX to add proper test
     # assert(str(op.ccode) == xdsl_op.ccode)
+
+    from xdsl.printer import Printer
+    printer = Printer()
+    import pdb;pdb.set_trace()
+    # printer.print_op(mod)

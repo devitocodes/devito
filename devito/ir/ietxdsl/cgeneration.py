@@ -348,4 +348,4 @@ class CGeneration:
             self.print('')
             return
 
-        self.print(f"// Operation {operation.name} not supported inprinter")
+        self.print(f"// Operation {operation.name} not supported in printer")
