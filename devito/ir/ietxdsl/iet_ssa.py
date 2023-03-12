@@ -31,8 +31,6 @@ class IET:
         self.ctx.register_op(Iteration)
         self.ctx.register_op(IterationWithSubIndices)
         self.ctx.register_op(Callable)
-        self.ctx.register_op(Idx)
-        self.ctx.register_op(Assign)
         self.ctx.register_op(Initialise)
         self.ctx.register_op(PointerCast)
         self.ctx.register_op(Statement)
