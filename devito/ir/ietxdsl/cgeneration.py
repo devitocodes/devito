@@ -69,6 +69,7 @@ class CGeneration:
 
         # Print kernels and arguments
         self.print('')
+        import pdb;pdb.set_trace()
         retval = callable_op.attributes['retval'].data
         prefix = callable_op.attributes['prefix'].data
         if prefix != '':

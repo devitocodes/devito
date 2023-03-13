@@ -253,17 +253,19 @@ def myVisit(node, block: Block, ssa_vals={}):
         b = Block.from_arg_types([i32])
         r = []
         expr = node.expr
+        import pdb;pdb.set_trace()
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ssa_vals.items()}, r)
 
-            init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
-            block.add_ops(r + [init])
-            ssa_vals[str(expr_name)] = init.lhs
+            # init = Initialise.get(r[-1].results[0], r[-1].results[0], str(expr_name))
+            block.add_ops(r)
+            ssa_vals[str(expr_name)] = r[-1].results[0]
         else:
             add_to_block(expr, {Symbol(s): a for s, a in ssa_vals.items()}, r)
             block.add_ops(r)
         return
+
 
     if isinstance(node, nodes.ExpressionBundle):
         assert len(node.children) == 1
