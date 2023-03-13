@@ -37,6 +37,11 @@ def _generate_subindices(subindices: int, block: Block, rewriter: PatternRewrite
 
 
 class LowerIetForToScfFor(RewritePattern):
+    """
+    This lowers ALL `iet.for` loops it finds to *sequential* scf.for loops
+
+    It does not care if the loop is declared "parellell".
+    """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
         body = op.body.detach_block(0)
@@ -55,6 +60,11 @@ class LowerIetForToScfFor(RewritePattern):
         
 
 class LowerIetForToScfParallel(RewritePattern):
+    """
+    This converts all loops with a "parallel" property to `scf.parallel`
+
+    It does not currently fuse together multiple nested parallel runs
+    """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
         if op.parallelism_property != 'parallel':
@@ -74,12 +84,20 @@ class LowerIetForToScfParallel(RewritePattern):
         )
 
 class DropIetComments(RewritePattern):
+    """
+    This drops all iet.comment operations
+
+    TODO: convert iet.comment ops that have timer info into their own nodes
+    """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.Statement, rewriter: PatternRewriter, /):
         rewriter.erase_matched_op()
 
 
 class LowerIetPointerCastAndDataObject(RewritePattern):
+    """
+    This pass converts the pointer cast into an `getelementptr` operation.
+    """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.PointerCast, rewriter: PatternRewriter, /):
         # TODO
@@ -90,21 +108,11 @@ class CleanupDanglingIetDatatypes(RewritePattern):
     def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter, /):
         for i, arg_typ in enumerate(op.function_type.inputs.data):
             if isinstance(arg_typ, iet_ssa.Dataobj):
-                replace_block_arg_type(
-                    op.body.blocks[0].args[i],
-                    llvm.LLVMPointerType.typed(
-                        iet_ssa.Dataobj.get_llvm_struct_type()
-                    )
+                op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.typed(
+                    iet_ssa.Dataobj.get_llvm_struct_type()
                 )
             elif isinstance(arg_typ, iet_ssa.Profiler):
-                replace_block_arg_type(
-                    op.body.blocks[0].args[i],
-                    llvm.LLVMPointerType.opaque()
-                )
-
-
-def replace_block_arg_type(arg: BlockArgument, new_type: Attribute):
-    arg.typ = new_type
+                op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.opaque()
 
 
 def iet_to_standard_mlir(module: builtin.ModuleOp):
