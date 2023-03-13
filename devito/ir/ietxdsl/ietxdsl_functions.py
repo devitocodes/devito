@@ -24,6 +24,7 @@ from xdsl.dialects.arith import Muli, Addi
 from devito.ir.ietxdsl import iet_ssa
 
 from xdsl.dialects import memref, arith, builtin, llvm
+from xdsl.dialects.experimental import math
 
 import devito.types
 
@@ -192,7 +193,7 @@ def add_to_block(expr, arg_by_expr, result):
         # Convert sympy.core.power.Pow to devito.ir.ietxdsl.operations.Powi
         base = arg_by_expr[expr.args[0]]
         exponent = arg_by_expr[expr.args[1]]
-        pow = Powi.get(base, exponent)
+        pow = math.FPowIOp.get(base, exponent)
         arg_by_expr[expr] = pow
         result.append(pow)
         return
