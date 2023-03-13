@@ -1,4 +1,5 @@
 # definitions pulled out from GenerateXDSL jupyter notebook
+import ctypes
 import numpy
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
@@ -298,7 +299,7 @@ def myVisit(node, block: Block, ssa_vals={}):
 
         subindices = len(node.uindices)
 
-        # construct scf for operation
+        # construct iet for operation
         loop = iet_ssa.For.get(start_ssa_val, end_ssa_val, step_op, subindices, props, pragmas)
 
         # extend context to include loop index
@@ -434,17 +435,16 @@ def get_arg_types(symbols):
             )
         elif isinstance(symbol, devito.types.misc.Timer):
             processed.append(
-                llvm.LLVMPointerType.typed(
-                    iet_ssa.Profiler()
-                )
+                iet_ssa.Profiler()
             )
         elif symbol._C_typedata == 'struct dataobj':
             processed.append(
-                llvm.LLVMPointerType.typed(
-                    iet_ssa.Dataobj()
-                )
+                iet_ssa.Dataobj()
             )
+        elif symbol._C_ctype == ctypes.c_float:
+            processed.append(f32)
         else:
+            assert symbol._C_ctype == ctypes.c_int
             # TODO: inspect symbol._C_ctype to gather type info
             processed.append(i32)
 
