@@ -4,12 +4,13 @@ from devito.ir import PointerCast, FindNodes
 from devito.ir.iet import FindSymbols
 from devito.ir.iet.nodes import CallableBody, MetaCall, Definition, Dereference, Prodder  # noqa
 
-from devito.ir.ietxdsl import (MLContext, IET, Block, CGeneration,
+from devito.ir.ietxdsl import (MLContext, IET, CGeneration,
                                ietxdsl_functions, Callable)
 
 from devito.ir.ietxdsl.ietxdsl_functions import collectStructs, get_arg_types
 from xdsl.dialects.builtin import Builtin, i32
-from xdsl.dialects import builtin
+from xdsl.dialects import builtin, func
+from xdsl.ir import Block, Region
 
 
 def transform_devito_xdsl_string(op: Operator):
@@ -127,10 +128,6 @@ def visit_Operator(op):
     for cast in FindNodes(PointerCast).visit(op.body):
         ietxdsl_functions.myVisit(cast, block=block, ssa_vals=ssa_val_dict)
 
-    # Create a Callable for the main kernel
-    call_obj = Callable.get(str(op.name), op_param_names, op_header_params, op_types,
-                            op_type_qs, retv, prefix, block)
-
     # Visit the Operator body
     assert isinstance(op.body, CallableBody)
     for i in op.body.body:
@@ -143,7 +140,16 @@ def visit_Operator(op):
         else:
             ietxdsl_functions.myVisit(i, block=block, ssa_vals=ssa_val_dict)
 
-    return call_obj
+    # add a trailing return
+    block.add_op(func.Return.get())
+
+    func_op = func.FuncOp.from_region(str(op.name), arg_types, [], Region.from_block_list([block]))
+
+    func_op.attributes['param_names'] = builtin.ArrayAttr([
+        builtin.StringAttr(str(param._C_name)) for param in op.parameters
+    ])
+
+    return func_op
 
 
 def transform_devito_to_iet_ssa(op: Operator):

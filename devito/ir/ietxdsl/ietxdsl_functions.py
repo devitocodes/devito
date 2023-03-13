@@ -22,7 +22,9 @@ from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
 from xdsl.dialects.arith import Muli, Addi
 from devito.ir.ietxdsl import iet_ssa
 
-from xdsl.dialects import memref, arith, builtin
+from xdsl.dialects import memref, arith, builtin, llvm
+
+import devito.types
 
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
@@ -429,6 +431,18 @@ def get_arg_types(symbols):
         if isinstance(symbol, IndexedData):
             processed.append(
                 memref_type_from_indexed_data(symbol)
+            )
+        elif isinstance(symbol, devito.types.misc.Timer):
+            processed.append(
+                llvm.LLVMPointerType.typed(
+                    iet_ssa.Profiler()
+                )
+            )
+        elif symbol._C_typedata == 'struct dataobj':
+            processed.append(
+                llvm.LLVMPointerType.typed(
+                    iet_ssa.Dataobj()
+                )
             )
         else:
             # TODO: inspect symbol._C_ctype to gather type info
