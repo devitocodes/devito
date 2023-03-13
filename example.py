@@ -1,7 +1,7 @@
 from devito.ir import ietxdsl
 from devito import Grid, Function, TimeFunction, Eq, Operator, Constant
 
-from xdsl.pattern_rewriter import PatternRewriteWalker
+from xdsl.pattern_rewriter import PatternRewriteWalker, GreedyRewritePatternApplier
 
 if __name__ == '__main__':
 
@@ -19,7 +19,11 @@ if __name__ == '__main__':
 
     print("\n\nAFTER REWRITE:\n")
 
-    walk = PatternRewriteWalker(ietxdsl.LowerIetForToScfFor())
+    walk = PatternRewriteWalker(GreedyRewritePatternApplier([
+        ietxdsl.LowerIetForToScfParallel(),
+        ietxdsl.LowerIetForToScfFor()
+    ]))
     walk.rewrite_module(module)
 
+    p = Printer(target=Printer.Target.MLIR)
     p.print(module)

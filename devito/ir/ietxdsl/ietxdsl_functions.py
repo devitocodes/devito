@@ -4,6 +4,8 @@ import numpy
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
 import cgen
 
+from typing import Any
+
 import devito.ir.iet.nodes as nodes
 
 from devito import SpaceDimension
@@ -16,7 +18,7 @@ from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
 # XDSL specific imports
-from xdsl.irdl import AnyOf
+from xdsl.irdl import AnyOf, Operation
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
                                    Float64Type, Builtin, i32, f32)
 
@@ -105,7 +107,7 @@ def calculateAddArguments(arguments):
         return Add(arguments[0], calculateAddArguments(arguments[1:len(arguments)]))
 
 
-def add_to_block(expr, arg_by_expr, result):
+def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
     # # import pdb;pdb.set_trace()
     if expr in arg_by_expr:
         return
@@ -184,7 +186,7 @@ def add_to_block(expr, arg_by_expr, result):
         # To update docstring
         lhs = arg_by_expr[expr.args[0]]
         rhs = arg_by_expr[expr.args[1]]
-        sum = Modi.get(lhs, rhs)
+        sum = arith.RemSI.get(lhs, rhs)
         arg_by_expr[expr] = sum
         result.append(sum)
         return

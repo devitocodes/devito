@@ -36,7 +36,6 @@ def _generate_subindices(subindices: int, block: Block, rewriter: PatternRewrite
         block.erase_arg(old)
 
 
-@dataclass
 class LowerIetForToScfFor(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
@@ -54,6 +53,26 @@ class LowerIetForToScfFor(RewritePattern):
             )
         )
         
+
+class LowerIetForToScfParallel(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
+        if op.parallelism_property != 'parallel':
+            return
+
+        body = op.body.detach_block(0)
+
+        _generate_subindices(op.subindices.data, body, rewriter)
+
+        rewriter.replace_matched_op(
+            scf.ParallelOp.get(
+                [op.lb],
+                [op.ub],
+                [op.step],
+                [body]
+            )
+        )
+
 
 
 
