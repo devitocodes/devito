@@ -1,6 +1,8 @@
 from devito.ir import ietxdsl
 from devito import Grid, Function, TimeFunction, Eq, Operator, Constant
 
+from xdsl.pattern_rewriter import PatternRewriteWalker
+
 if __name__ == '__main__':
 
     grid = Grid(shape=(3, 3))
@@ -12,4 +14,12 @@ if __name__ == '__main__':
     module = ietxdsl.transform_devito_to_iet_ssa(op)
 
     from xdsl.printer import Printer
-    Printer(target=Printer.Target.MLIR).print(module)
+    p = Printer(target=Printer.Target.MLIR)
+    p.print(module)
+
+    print("\n\nAFTER REWRITE:\n")
+
+    walk = PatternRewriteWalker(ietxdsl.LowerIetForToScfFor())
+    walk.rewrite_module(module)
+
+    p.print(module)

@@ -334,6 +334,17 @@ class For(Operation):
     def block(self) -> Block:
         return self.body.blocks[0]
     
+    @property
+    def parallelism_property(self) -> str | None:
+        """
+        Return either "parallel" or "sequential" (or None),
+        depending on the properties present
+        """
+        for attr in self.properties.data:
+            if attr.data in ('parallel', 'sequential'):
+                return attr.data
+        return None
+
     @staticmethod
     def get(
         lb: SSAValue | Operation,

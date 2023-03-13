@@ -104,7 +104,7 @@ def transform_devito_xdsl_string(op: Operator):
     return cgen.str()
 
 
-def _op_to_func(op):
+def _op_to_func(op: Operator):
     # Visit the Operator body
     assert isinstance(op.body, CallableBody)
 
