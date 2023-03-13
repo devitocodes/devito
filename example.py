@@ -12,4 +12,4 @@ if __name__ == '__main__':
     module = ietxdsl.transform_devito_to_iet_ssa(op)
 
     from xdsl.printer import Printer
-    Printer().print(module)
+    Printer(target=Printer.Target.MLIR).print(module)

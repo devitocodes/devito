@@ -43,7 +43,7 @@ def transform_devito_xdsl_string(op: Operator):
     # Print calls
     ietxdsl_functions.print_calls(cgen, op_funcs)
     # Visit and print the main kernel
-    call_obj = visit_Operator(op)
+    call_obj = _op_to_func(op)
     cgen.printCallable(call_obj)
 
     # After finishing kernels, now we check the rest of the functions
@@ -104,7 +104,11 @@ def transform_devito_xdsl_string(op: Operator):
     return cgen.str()
 
 
-def visit_Operator(op):
+def _op_to_func(op):
+    # Visit the Operator body
+    assert isinstance(op.body, CallableBody)
+
+
     # Scan an Operator
     # Those parameters without associated types aren't printed in the Kernel header
     # # import pdb;pdb.set_trace()
@@ -128,8 +132,6 @@ def visit_Operator(op):
     for cast in FindNodes(PointerCast).visit(op.body):
         ietxdsl_functions.myVisit(cast, block=block, ssa_vals=ssa_val_dict)
 
-    # Visit the Operator body
-    assert isinstance(op.body, CallableBody)
     for i in op.body.body:
         # Comments
         # # import pdb;pdb.set_trace()
@@ -156,7 +158,7 @@ def transform_devito_to_iet_ssa(op: Operator):
     # Check for the existence of funcs in the operator (print devito metacalls)
     op_funcs = [value for _, value in op._func_table.items()]
     # Print calls
-    call_obj = visit_Operator(op)
+    call_obj = _op_to_func(op)
 
     # After finishing kernels, now we check the rest of the functions
     module = builtin.ModuleOp.from_region_or_ops([call_obj])
