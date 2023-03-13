@@ -19,11 +19,7 @@ if __name__ == '__main__':
 
     print("\n\nAFTER REWRITE:\n")
 
-    walk = PatternRewriteWalker(GreedyRewritePatternApplier([
-        ietxdsl.LowerIetForToScfParallel(),
-        ietxdsl.LowerIetForToScfFor()
-    ]))
-    walk.rewrite_module(module)
+    ietxdsl.iet_to_standard_mlir(module)
 
     p = Printer(target=Printer.Target.MLIR)
     p.print(module)

@@ -18,7 +18,7 @@ from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
 # XDSL specific imports
-from xdsl.irdl import AnyOf, Operation
+from xdsl.irdl import AnyOf, Operation, SSAValue
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
                                    Float64Type, Builtin, i32, f32)
 
@@ -169,12 +169,28 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
 
     if isinstance(expr, Mul):
         # Convert a sympy.core.mul.Mul to xdsl.dialects.arith.Muli
-        lhs = arg_by_expr[expr.args[0]]
-        rhs = arg_by_expr[expr.args[1]]
+        lhs = SSAValue.get(arg_by_expr[expr.args[0]])
+        rhs = SSAValue.get(arg_by_expr[expr.args[1]])
 
-        sum = Muli.get(lhs, rhs)
-        arg_by_expr[expr] = sum
-        result.append(sum)
+        if rhs.typ != lhs.typ:
+            # reconcile differences
+
+            if isinstance(rhs.typ, builtin.IntegerType):
+                rhs = arith.SIToFPOp.get(rhs, lhs.typ)
+                result.append(rhs)
+            else:
+                lhs = arith.SIToFPOp.get(lhs, rhs.typ)
+                result.append(lhs)
+
+        
+        # happy path
+        if isinstance(rhs.typ, builtin.IntegerType):
+            mul = arith.Muli.get(lhs, rhs)
+        else:
+            mul = arith.Mulf.get(lhs, rhs)
+        
+        arg_by_expr[expr] = mul
+        result.append(mul)
         return
 
     if isinstance(expr, nodes.Return):
@@ -354,10 +370,23 @@ def myVisit(node, block: Block, ssa_vals={}):
 
     if isinstance(node, nodes.PointerCast):
         statement = node.ccode
+
+        assert node.defines[0]._C_name == node.obj._C_name, "This should not happen"
+
+        # We want to know the dimensions of the u_vec->data result
+        # we assume that the result will always be of dim:
+        # (u_vec->size[i]) for some i
+        # we further assume, that node.function.symbolic_shape
+        # is always (u_vec->size[0], u_vec->size[1], ... ,u_vec->size[rank])  
+        # this means that this pretty hacky way works to get the indices of the dims
+        # in `u_vec->size`
+        shape = (node.function.symbolic_shape.index(shape) for shape in node.castshape)
+
         arg = ssa_vals[node.function._C_name]
         pointer_cast = PointerCast.get(
             arg,
             statement,
+            shape,
             memref_type_from_indexed_data(node.obj)
         )
         block.add_ops([pointer_cast])

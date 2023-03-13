@@ -10,7 +10,7 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
 from xdsl.dialects.arith import Constant
 from xdsl.dialects.func import Return
 
-from xdsl.dialects import arith, builtin, memref
+from xdsl.dialects import arith, builtin, memref, llvm
 
 from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
@@ -46,7 +46,36 @@ class Profiler(ParametrizedAttribute):
 # TODO: might be replacable by `llvm.LLVMStruct`?
 @irdl_attr_definition
 class Dataobj(ParametrizedAttribute):
+    """
+    The Dataobject type represents a pointer to a struct with this layout:
+
+    struct dataobj
+    {
+        void *restrict data;
+        unsigned long * size;
+        unsigned long * npsize;
+        unsigned long * dsize;
+        int * hsize;
+        int * hofs;
+        int * oofs;
+        void * dmap;
+    };
+    """
     name = "iet.dataobj"
+
+    @staticmethod
+    def get_llvm_struct_type():
+        unsigned_long = builtin.IntegerType.from_width(32, builtin.Signedness.UNSIGNED)
+        return llvm.LLVMStructType.from_type_list([
+            llvm.LLVMPointerType.opaque(),              # data
+            llvm.LLVMPointerType.typed(unsigned_long),  # size
+            llvm.LLVMPointerType.typed(unsigned_long),  # npsize
+            llvm.LLVMPointerType.typed(unsigned_long),  # dsize
+            llvm.LLVMPointerType.typed(builtin.i32),    # hsize
+            llvm.LLVMPointerType.typed(builtin.i32),    # hofs
+            llvm.LLVMPointerType.typed(builtin.i32),    # oofs
+            llvm.LLVMPointerType.opaque(),              # dmap
+        ])
 
 
 @irdl_op_definition
@@ -109,15 +138,19 @@ class Initialise(Operation):
 class PointerCast(Operation):
     name: str = "iet.pointercast"
     statement: OpAttr[StringAttr]
+    shape_indices: OpAttr[ArrayAttr[IntAttr]]
     
-    arg: Annotated[Operand, Attribute]  # TOOD: Make it Dataobj()!
+    arg: Annotated[Operand, Dataobj]  # TOOD: Make it Dataobj()!
     result: Annotated[OpResult, memref.MemRefType[Attribute]]
 
     @staticmethod
-    def get(arg: SSAValue, statement, return_type: Attribute):
+    def get(arg: SSAValue, statement, shape: tuple[int, ...], return_type: Attribute):
         return PointerCast.build(
             operands=[arg],
-            attributes={"statement": StringAttr(str(statement))},
+            attributes={
+                "statement": StringAttr(str(statement)),
+                "shape_indices": ArrayAttr([IntAttr(x) for x in shape])
+            },
             result_types=[return_type])
 
 
