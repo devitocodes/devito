@@ -233,7 +233,8 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
 
         rewriter.replace_matched_op([
             *idx_calc_ops,
-            gep := llvm.GetElementPtrOp.get(op.memref, [], [idx]),
+            # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
+            gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648], [idx]),
             load := llvm.LoadOp.get(gep)
         ], [load.dereferenced_value])
 
@@ -248,7 +249,8 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
 
         rewriter.replace_matched_op([
             *idx_calc_ops,
-            gep := llvm.GetElementPtrOp.get(op.memref, [], [idx]),
+            # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
+            gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648], [idx]),
             store := llvm.StoreOp.get(op.value, gep)
         ], [])
 

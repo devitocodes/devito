@@ -162,7 +162,11 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
                 second_arg = tmp
         lhs = arg_by_expr[first_arg]
         rhs = arg_by_expr[second_arg]
-        sum = Addi.get(lhs, rhs)
+        if isinstance(SSAValue.get(lhs).typ, builtin.IntegerType):
+            sum = arith.Addi.get(lhs, rhs)
+        else:
+            sum = arith.Addf.get(lhs, rhs)
+
         arg_by_expr[expr] = sum
         result.append(sum)
         return
