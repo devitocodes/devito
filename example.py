@@ -15,9 +15,9 @@ if __name__ == '__main__':
 
     from xdsl.printer import Printer
     p = Printer(target=Printer.Target.MLIR)
-    p.print(module)
+    #p.print(module)
 
-    print("\n\nAFTER REWRITE:\n")
+    #print("\n\nAFTER REWRITE:\n")
 
     ietxdsl.iet_to_standard_mlir(module)
 

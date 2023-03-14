@@ -65,16 +65,16 @@ class Dataobj(ParametrizedAttribute):
 
     @staticmethod
     def get_llvm_struct_type():
-        unsigned_long = builtin.IntegerType.from_width(32, builtin.Signedness.UNSIGNED)
+        unsigned_long = builtin.IntegerType(32, builtin.Signedness.UNSIGNED)
         return llvm.LLVMStructType.from_type_list([
             llvm.LLVMPointerType.opaque(),              # data
-            llvm.LLVMPointerType.typed(unsigned_long),  # size
-            llvm.LLVMPointerType.typed(unsigned_long),  # npsize
-            llvm.LLVMPointerType.typed(unsigned_long),  # dsize
-            llvm.LLVMPointerType.typed(builtin.i32),    # hsize
-            llvm.LLVMPointerType.typed(builtin.i32),    # hofs
-            llvm.LLVMPointerType.typed(builtin.i32),    # oofs
-            llvm.LLVMPointerType.opaque(),              # dmap
+            llvm.LLVMPointerType.typed(builtin.i32),  # size
+            #llvm.LLVMPointerType.typed(builtin.i32),  # npsize
+            #llvm.LLVMPointerType.typed(builtin.i32),  # dsize
+            #llvm.LLVMPointerType.typed(builtin.i32),    # hsize
+            #llvm.LLVMPointerType.typed(builtin.i32),    # hofs
+            #llvm.LLVMPointerType.typed(builtin.i32),    # oofs
+            #llvm.LLVMPointerType.opaque(),              # dmap
         ])
 
 
