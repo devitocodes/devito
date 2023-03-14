@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from xdsl.ir import Block, Attribute, BlockArgument, SSAValue, Operation
+from xdsl.ir import Block, Attribute, BlockArgument, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, scf, arith, func, llvm, memref
 from xdsl.dialects.experimental import math
 
@@ -7,15 +7,15 @@ from devito.ir.ietxdsl import iet_ssa
 
 from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
 
-def _generate_subindices(subindices: int, block: Block, rewriter: PatternRewriter):
+
+def _generate_subindices(subindices: int, block: Block,
+                         rewriter: PatternRewriter):
     # keep track of the what argument we should replace with what
     arg_changes = []
 
     # keep track of the ops we want to insert
     modulo = arith.Constant.from_int_and_width(subindices, builtin.i32)
-    new_ops = [
-        modulo
-    ]
+    new_ops = [modulo]
 
     # generate the new indices
     for i in range(subindices):
@@ -24,10 +24,12 @@ def _generate_subindices(subindices: int, block: Block, rewriter: PatternRewrite
         index = arith.RemSI.get(index_off, modulo)
 
         new_ops += [
-            offset, index_off, index
+            offset,
+            index_off,
+            index,
         ]
         # replace block.args[i+1] with (arg0 + i) % n
-        arg_changes.append((block.args[i+1], index.result))
+        arg_changes.append((block.args[i + 1], index.result))
 
     rewriter.insert_op_at_pos(new_ops, block, 0)
 
@@ -36,9 +38,10 @@ def _generate_subindices(subindices: int, block: Block, rewriter: PatternRewrite
         block.erase_arg(old)
 
 
-class ConvertIetForArgsToIndex(RewritePattern):
+class ConvertScfForArgsToIndex(RewritePattern):
+
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
+    def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
         for val in (op.lb, op.ub, op.step):
             if isinstance(val.typ, builtin.IndexType):
                 continue
@@ -47,8 +50,21 @@ class ConvertIetForArgsToIndex(RewritePattern):
             op.replace_operand(op.operands.index(val), cast.result)
 
 
+class ConvertScfParallelArgsToIndex(RewritePattern):
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: scf.ParallelOp, rewriter: PatternRewriter,
+                          /):
+        for val in (*op.lowerBound, *op.upperBound, *op.step):
+            if isinstance(val.typ, builtin.IndexType):
+                continue
+            cast = arith.IndexCastOp.get(val, builtin.IndexType())
+            rewriter.insert_op_before_matched_op(cast)
+            op.replace_operand(op.operands.index(val), cast.result)
+
 
 class ConvertForLoopVarToIndex(RewritePattern):
+
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter, /):
         if not isinstance(op, (scf.For, scf.ParallelOp)):
             return
@@ -64,14 +80,11 @@ class ConvertForLoopVarToIndex(RewritePattern):
             rewriter.insert_op_at_pos(
                 i32_val := arith.IndexCastOp.get(loop_var, builtin.i32),
                 block,
-                0
+                0,
             )
 
             loop_var.replace_by(i32_val.result)
             i32_val.replace_operand(0, loop_var)
-
-
-
 
 
 class LowerIetForToScfFor(RewritePattern):
@@ -80,29 +93,18 @@ class LowerIetForToScfFor(RewritePattern):
 
     It does not care if the loop is declared "parellell".
     """
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
         body = op.body.detach_block(0)
 
         _generate_subindices(op.subindices.data, body, rewriter)
 
-        rewriter.insert_op_at_pos(
-            scf.Yield(),
-            body,
-            len(body.ops)
-        )
+        rewriter.insert_op_at_pos(scf.Yield(), body, len(body.ops))
 
         rewriter.replace_matched_op(
-            scf.For.get(
-                op.lb,
-                op.ub,
-                op.step,
-                [],
-                body
-            )
-        )
+            scf.For.get(op.lb, op.ub, op.step, [], body))
 
-        
 
 class LowerIetForToScfParallel(RewritePattern):
     """
@@ -110,6 +112,7 @@ class LowerIetForToScfParallel(RewritePattern):
 
     It does not currently fuse together multiple nested parallel runs
     """
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
         if op.parallelism_property != 'parallel':
@@ -119,24 +122,54 @@ class LowerIetForToScfParallel(RewritePattern):
 
         assert op.subindices.data == 0
 
-        if len(body.ops) == 2 and isinstance(body.ops[1], iet_ssa.For):
-            # TODO: fuse with next parallel
-            pass
+        lb, ub, step, new_body = self.recurse_scf_parallel([op.lb], [op.ub],
+                                                           [op.step], body,
+                                                           rewriter)
 
-        rewriter.insert_op_at_pos(
-            scf.Yield(),
-            body,
-            len(body.ops)
-        )
+        # insert scf.yield at the bacl
+        rewriter.insert_op_at_pos(scf.Yield(), new_body, len(new_body.ops))
 
         rewriter.replace_matched_op(
-            scf.ParallelOp.get(
-                [op.lb],
-                [op.ub],
-                [op.step],
-                [body]
-            )
-        )
+            scf.ParallelOp.get(lb, ub, step, [new_body]))
+
+    def recurse_scf_parallel(
+        self,
+        lbs: list[SSAValue],
+        ubs: list[SSAValue],
+        steps: list[SSAValue],
+        body: Block,
+        rewriter: PatternRewriter,
+    ):
+        if not (len(body.ops) == 2 and isinstance(body.ops[1], iet_ssa.For)
+                and body.ops[1].parallelism_property == 'parallel'):
+            return lbs, ubs, steps, body
+        inner_for = body.ops[1]
+        # re-use step
+        step = inner_for.step
+        if isinstance(inner_for.step, OpResult) and isinstance(
+                inner_for.step.op, arith.Constant):
+            if inner_for.step.op.value.value.data == steps[
+                    0].op.value.value.data:
+                step = steps[0]
+                if len(inner_for.step.uses) > 1:
+                    assert False, "TODO: move op out of loop"
+
+        steps.append(step)
+        lbs.append(inner_for.lb)
+        ubs.append(inner_for.ub)
+
+        new_body = inner_for.body.detach_block(0)
+        for arg in body.args:
+            new_body.insert_arg(arg.typ, arg.index)
+            arg.replace_by(new_body.args[arg.index])
+
+        body = new_body
+
+        lbs, ubs, steps, body = self.recurse_scf_parallel(
+            lbs, ubs, steps, body, rewriter)
+
+        return lbs, ubs, steps, body
+
 
 class DropIetComments(RewritePattern):
     """
@@ -144,20 +177,23 @@ class DropIetComments(RewritePattern):
 
     TODO: convert iet.comment ops that have timer info into their own nodes
     """
+
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.Statement, rewriter: PatternRewriter, /):
+    def match_and_rewrite(self, op: iet_ssa.Statement,
+                          rewriter: PatternRewriter, /):
         rewriter.erase_matched_op()
 
 
 @dataclass
 class LowerIetPointerCastAndDataObject(RewritePattern):
     dimensions: list[SSAValue] = field(default_factory=list)
-
     """
     This pass converts the pointer cast into an `getelementptr` operation.
     """
+
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.PointerCast, rewriter: PatternRewriter, /):
+    def match_and_rewrite(self, op: iet_ssa.PointerCast,
+                          rewriter: PatternRewriter, /):
         memref_typ = op.result.typ
         assert isinstance(memref_typ, memref.MemRefType)
 
@@ -167,45 +203,43 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
         for i in range(len(memref_typ.shape)):
             ptr = llvm.GetElementPtrOp.get(
                 op.arg,
-                [0, 1, i], # (*u_vec).data => two accesses (dereference, first element in struct)
-                result_type = llvm.LLVMPointerType.typed(
-                    builtin.i32
-                )
-            )
+                [
+                    0, 1, i
+                ],  # (*u_vec).data => two accesses (dereference, first element in struct)
+                result_type=llvm.LLVMPointerType.typed(builtin.i32))
             val = llvm.LoadOp.get(ptr)
             new_ops += [ptr, val]
             self.dimensions.append(val.dereferenced_value)
 
-        rewriter.insert_op_before_matched_op(
-            new_ops
-        )
+        rewriter.insert_op_before_matched_op(new_ops)
 
         rewriter.replace_matched_op(
             llvm.GetElementPtrOp.get(
                 op.arg,
-                [0, 0], # (*u_vec).data => two accesses (dereference, first element in struct)
-                result_type = llvm.LLVMPointerType.typed(
-                    memref_typ.element_type
-                ) # .data is a contigous array
-            )
-        )
+                [
+                    0, 0
+                ],  # (*u_vec).data => two accesses (dereference, first element in struct)
+                result_type=llvm.LLVMPointerType.typed(
+                    memref_typ.element_type)  # .data is a contigous array
+            ))
 
 
 class CleanupDanglingIetDatatypes(RewritePattern):
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter, /):
         for i, arg_typ in enumerate(op.function_type.inputs.data):
             if isinstance(arg_typ, iet_ssa.Dataobj):
                 op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.typed(
-                    iet_ssa.Dataobj.get_llvm_struct_type()
-                )
+                    iet_ssa.Dataobj.get_llvm_struct_type(), )
             elif isinstance(arg_typ, iet_ssa.Profiler):
                 op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.opaque()
-            
+
         op.attributes['function_type'] = builtin.FunctionType.from_lists(
             [arg.typ for arg in op.body.blocks[0].args],
-            op.function_type.outputs.data
+            op.function_type.outputs.data,
         )
+
 
 @dataclass
 class LowerMemrefLoadToLLvmPointer(RewritePattern):
@@ -229,14 +263,18 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: memref.Load, rewriter: PatternRewriter, /):
-        idx_calc_ops, idx = calc_index(op.indices, self.ptr_lowering.dimensions)
+        idx_calc_ops, idx = calc_index(op.indices,
+                                       self.ptr_lowering.dimensions)
 
-        rewriter.replace_matched_op([
-            *idx_calc_ops,
-            # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
-            gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648], [idx]),
-            load := llvm.LoadOp.get(gep)
-        ], [load.dereferenced_value])
+        rewriter.replace_matched_op(
+            [
+                *idx_calc_ops,
+                # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
+                gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648],
+                                                [idx]),
+                load := llvm.LoadOp.get(gep),
+            ],
+            [load.dereferenced_value])
 
 
 @dataclass
@@ -244,19 +282,24 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
     ptr_lowering: LowerIetPointerCastAndDataObject
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: memref.Store, rewriter: PatternRewriter, /):
-        idx_calc_ops, idx = calc_index(op.indices, self.ptr_lowering.dimensions)
+    def match_and_rewrite(self, op: memref.Store, rewriter: PatternRewriter,
+                          /):
+        idx_calc_ops, idx = calc_index(op.indices,
+                                       self.ptr_lowering.dimensions)
 
-        rewriter.replace_matched_op([
-            *idx_calc_ops,
-            # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
-            gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648], [idx]),
-            store := llvm.StoreOp.get(op.value, gep)
-        ], [])
+        rewriter.replace_matched_op(
+            [
+                *idx_calc_ops,
+                # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
+                gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648],
+                                                [idx]),
+                store := llvm.StoreOp.get(op.value, gep),
+            ],
+            [])
 
 
-
-def calc_index(indices: list[SSAValue], offsets: list[SSAValue]) -> list[Operation, SSAValue]:
+def calc_index(indices: list[SSAValue],
+               offsets: list[SSAValue]) -> list[Operation, SSAValue]:
     assert len(indices) == len(offsets)
     results = []
     # we have to convert the indices in the format
@@ -268,8 +311,8 @@ def calc_index(indices: list[SSAValue], offsets: list[SSAValue]) -> list[Operati
     # ]
     # we re-arrange this to minimize multiplications
     # ((x * ox) + y) * oy) + z
-    carry: SSAValue = indices[0] # x
-    
+    carry: SSAValue = indices[0]  # x
+
     for offset, index in zip(offsets[:-1], indices[1:]):
         mul = arith.Muli.get(carry, offset)
         add = arith.Addi.get(mul, index)
@@ -279,19 +322,20 @@ def calc_index(indices: list[SSAValue], offsets: list[SSAValue]) -> list[Operati
     return results, carry
 
 
-
 def iet_to_standard_mlir(module: builtin.ModuleOp):
 
-    walk = PatternRewriteWalker(GreedyRewritePatternApplier([
-        ConvertIetForArgsToIndex(),
-        LowerIetForToScfParallel(),
-        LowerIetForToScfFor(),
-        DropIetComments(),
-        ptr_lower := LowerIetPointerCastAndDataObject(),
-        LowerMemrefLoadToLLvmPointer(ptr_lower),
-        LowerMemrefStoreToLLvmPointer(ptr_lower),
-        CleanupDanglingIetDatatypes(),
-    ]))
+    walk = PatternRewriteWalker(
+        GreedyRewritePatternApplier([
+            LowerIetForToScfParallel(),
+            LowerIetForToScfFor(),
+            ConvertScfForArgsToIndex(),
+            ConvertScfParallelArgsToIndex(),
+            DropIetComments(),
+            CleanupDanglingIetDatatypes(),
+            ptr_lower := LowerIetPointerCastAndDataObject(),
+            LowerMemrefLoadToLLvmPointer(ptr_lower),
+            LowerMemrefStoreToLLvmPointer(ptr_lower),
+        ]))
 
     walk.rewrite_module(module)
     PatternRewriteWalker(ConvertForLoopVarToIndex()).rewrite_module(module)
