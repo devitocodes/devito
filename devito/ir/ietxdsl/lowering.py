@@ -194,34 +194,60 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.PointerCast,
                           rewriter: PatternRewriter, /):
+        # TODO: this can be fixed, just requires some effort.
+        # if you hit this ping anton lydike :D (I should know what to do)
+        assert len(self.dimensions) == 0, "can only convert one pointer cast!"
+
+        # grab the type the pointercast returns (memref type)
         memref_typ = op.result.typ
         assert isinstance(memref_typ, memref.MemRefType)
 
-        assert len(self.dimensions) == 0, "can only convert one pointer cast!"
+        # u_vec_size_ptr_addr : llvm.ptr<llvm.ptr<i32>>
+        u_vec_size_ptr_addr = llvm.GetElementPtrOp.get(
+            op.arg,
+            [0, 1],
+            result_type=llvm.LLVMPointerType.typed(
+                llvm.LLVMPointerType.typed(builtin.i32)),
+        )
+        # dereference the ptr ptr to get a normal pointer
+        # u_vec_size_ptr : llvm.ptr<i32>
+        u_vec_size_ptr = llvm.LoadOp.get(u_vec_size_ptr_addr)
 
-        new_ops = []
+        new_ops = [u_vec_size_ptr_addr, u_vec_size_ptr]
+
         for i in range(len(memref_typ.shape)):
-            ptr = llvm.GetElementPtrOp.get(
-                op.arg,
-                [
-                    0, 1, i
-                ],  # (*u_vec).data => two accesses (dereference, first element in struct)
-                result_type=llvm.LLVMPointerType.typed(builtin.i32))
-            val = llvm.LoadOp.get(ptr)
-            new_ops += [ptr, val]
-            self.dimensions.append(val.dereferenced_value)
+            # calculate ptr = (u_vec_size_ptr + i) : llvm.ptr<i32>
+            ptr_to_size_i = llvm.GetElementPtrOp.get(
+                u_vec_size_ptr,
+                [i],  # get the i-th element
+                result_type=llvm.LLVMPointerType.typed(builtin.i32),
+            )
+            # dereference
+            # val = *(ptr) : i32
+            load = llvm.LoadOp.get(ptr_to_size_i)
+            new_ops += [ptr_to_size_i, load]
+            self.dimensions.append(load.dereferenced_value)
 
+        # insert ops to load dimensions
         rewriter.insert_op_before_matched_op(new_ops)
 
+        # now lower the actual pointer cast
         rewriter.replace_matched_op(
-            llvm.GetElementPtrOp.get(
-                op.arg,
-                [
-                    0, 0
-                ],  # (*u_vec).data => two accesses (dereference, first element in struct)
-                result_type=llvm.LLVMPointerType.typed(
-                    memref_typ.element_type)  # .data is a contigous array
-            ))
+            [
+                # this is (u_vec + 0)
+                # the type is llvm.ptr<llvm.ptr<encapsulated type>>
+                u_vec_data_ptr_addr := llvm.GetElementPtrOp.get(
+                    op.arg,
+                    [0, 0],
+                    result_type=llvm.LLVMPointerType.typed(
+                        llvm.LLVMPointerType.typed(memref_typ.element_type)),
+                ),
+                # we dereference u_vec_data_ptr_addr to get
+                # a pointer to the data
+                u_vec_data_ptr := llvm.LoadOp.get(u_vec_data_ptr_addr),
+            ],
+            [u_vec_data_ptr.dereferenced_value],
+        )
 
 
 class CleanupDanglingIetDatatypes(RewritePattern):
@@ -270,8 +296,11 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
             [
                 *idx_calc_ops,
                 # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
-                gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648],
-                                                [idx]),
+                gep := llvm.GetElementPtrOp.get(
+                    op.memref,
+                    [-2147483648],
+                    [idx],
+                ),
                 load := llvm.LoadOp.get(gep),
             ],
             [load.dereferenced_value])
