@@ -5,7 +5,8 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import Array, CompositeObject, Lock, Indirection, Temp
+from devito.types import (Array, BlockDimension, CompositeObject, Lock,
+                          IncrDimension, Indirection, Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 
@@ -223,7 +224,7 @@ def abstract_efunc(efunc):
             - Arrays are renamed as "a0", "a1", ...
             - Objects are renamed as "o0", "o1", ...
     """
-    functions = FindSymbols().visit(efunc)
+    functions = FindSymbols('symbolics|dimensions').visit(efunc)
 
     mapper = abstract_objects(functions)
 
@@ -241,6 +242,7 @@ def abstract_objects(objects):
     # higher priority objects
     priority = {
         DiscreteFunction: 1,
+        BlockDimension: 2,
     }
 
     def key(i):
@@ -315,6 +317,42 @@ def _(i, mapper, counter):
 
     mapper[i] = v
     counter[base] += 1
+
+
+@abstract_object.register(BlockDimension)
+def _(i, mapper, counter):
+    if i._depth != 2:
+        return
+
+    p = i.parent.parent
+
+    base0 = '%s' % p
+    name0 = '%s%d' % (base0, counter[base0])
+
+    base1 = '%s_blk' % name0
+    name1 = '%s%d' % (base1, counter[base1])
+
+    bd = i.parent._rebuild(name1, p)
+    d = i._rebuild(name0, bd)
+
+    mapper.update({
+        i: d,
+        i.parent: bd
+    })
+    counter[base0] += 1
+    counter[base1] += 1
+
+
+@abstract_object.register(IncrDimension)
+def _(i, mapper, counter):
+    try:
+        p = mapper[i.parent]
+    except KeyError:
+        return
+
+    v = i._rebuild(i.name, mapper[i.parent])
+
+    mapper[i] = v
 
 
 @abstract_object.register(Indirection)
