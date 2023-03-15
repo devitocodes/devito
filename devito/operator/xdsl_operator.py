@@ -48,9 +48,9 @@ class XDSLOperator(Operator):
                     #f'tee {f}.iet.mlir |'
                     #f'cat /run/user/1000/tmp7lgpw9x1.so.iet.mlir | '
                     f'mlir-opt -cse -loop-invariant-code-motion | '
-                    f'mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm -convert-math-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | tee {f}.llv.mlir |  '
+                    f'mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm -convert-math-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | '
                     f'mlir-translate --mlir-to-llvmir | '
-                    f'steam-run clang -O3 -shared -xir - -o {self._tf.name}',
+                    f'clang -O3 -shared -xir - -o {self._tf.name}',
                     shell=True,
                     input=module_str,
                     text=True
