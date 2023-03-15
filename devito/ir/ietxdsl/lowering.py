@@ -42,9 +42,20 @@ class ConvertScfForArgsToIndex(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
+        # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
+        if isinstance(op.lb.typ, builtin.IndexType):
+            return
+        # increment upper bound
+        rewriter.insert_op_before_matched_op([
+            cst1 := arith.Constant.from_int_and_width(1, op.ub.typ),
+            new_ub := arith.Addi.get(op.ub, cst1),
+        ])
+        op.replace_operand(
+            op.operands.index(op.ub),
+            new_ub.result
+        )
+
         for val in (op.lb, op.ub, op.step):
-            if isinstance(val.typ, builtin.IndexType):
-                continue
             cast = arith.IndexCastOp.get(val, builtin.IndexType())
             rewriter.insert_op_before_matched_op(cast)
             op.replace_operand(op.operands.index(val), cast.result)
@@ -55,6 +66,20 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.ParallelOp, rewriter: PatternRewriter,
                           /):
+        # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
+        if isinstance(op.lowerBound[0].typ, builtin.IndexType):
+            return
+        # increment upper bound
+        cst1 = arith.Constant.from_int_and_width(1, builtin.i32)
+        rewriter.insert_op_before_matched_op(cst1)
+        for ub in op.upperBound:
+            new_ub = arith.Addi.get(ub, cst1)
+            rewriter.insert_op_before_matched_op(new_ub)
+            op.replace_operand(
+                op.operands.index(ub), 
+                new_ub.result,
+            )
+        
         for val in (*op.lowerBound, *op.upperBound, *op.step):
             if isinstance(val.typ, builtin.IndexType):
                 continue
@@ -217,9 +242,13 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
 
         for i in range(len(memref_typ.shape)):
             # calculate ptr = (u_vec_size_ptr + i) : llvm.ptr<i32>
+            # TODO: since the actual type of `u_vec->size` is `ptr<i64>` we skip every
+            #       second entry and only use the lower 32 bits of the size.
+            #       this is okay as long as we don't work on data with more than
+            #       2^32 cells, if each cell is 32bit long that is ~128GB of data.
             ptr_to_size_i = llvm.GetElementPtrOp.get(
                 u_vec_size_ptr,
-                [i],  # get the i-th element
+                [i*2],  # get the 2-i-th element
                 result_type=llvm.LLVMPointerType.typed(builtin.i32),
             )
             # dereference
@@ -334,17 +363,18 @@ def calc_index(indices: list[SSAValue],
     assert len(indices) == len(offsets)
     results = []
     # we have to convert the indices in the format
-    # prt[x][y][z] with the offsets ox, oy, oz into the format:
+    # prt[x][y][z] with the offsets s0, s1, s2c into the format:
     # ptr[
-    #   (x * ox * oy) +
-    #   (y * oy) +
+    #   (x * s1 * s2) +
+    #   (y * s2) +
     #   (z)
     # ]
     # we re-arrange this to minimize multiplications
-    # ((x * ox) + y) * oy) + z
+    # ((x * s1) + y) * s2) + z
+    # z + (s2 * (y + (s1 * x)))
     carry: SSAValue = indices[0]  # x
 
-    for offset, index in zip(offsets[:-1], indices[1:]):
+    for offset, index in zip(offsets[1:], indices[1:]):
         mul = arith.Muli.get(carry, offset)
         add = arith.Addi.get(mul, index)
         results += [mul, add]

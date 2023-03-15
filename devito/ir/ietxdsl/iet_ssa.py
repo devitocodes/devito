@@ -387,8 +387,6 @@ class For(Operation):
         properties: Iterable[str] = None,
         pragmas: Iterable[str] = None,
     ) -> For:
-        if subindices is None:
-            subindices = []
         if pragmas is None:
             pragmas = []
 

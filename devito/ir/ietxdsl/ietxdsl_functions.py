@@ -460,7 +460,7 @@ def myVisit(node, block: Block, ssa_vals={}):
         block.add_ops([comment])
         return
 
-    raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')
+    #raise TypeError(f'Unsupported type of node: {type(node)}, {vars(node)}')
 
 
 def get_arg_types(symbols):
