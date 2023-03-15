@@ -137,6 +137,10 @@ class Properties(frozendict):
             m[d] = set(self.get(d, [])) | set(as_tuple(properties))
         return Properties(m)
 
+    def filter(self, key):
+        m = {d: v for d, v in self.items() if key(d)}
+        return Properties(m)
+
     def drop(self, dims, properties=None):
         m = dict(self)
         for d in as_tuple(dims):
