@@ -276,7 +276,6 @@ def myVisit(node, block: Block, ssa_vals={}):
         b = Block.from_arg_types([i32])
         r = []
         expr = node.expr
-        import pdb;pdb.set_trace()
         if node.init:
             expr_name = expr.args[0]
             add_to_block(expr.args[1], {Symbol(s): a for s, a in ssa_vals.items()}, r)

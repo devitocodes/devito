@@ -303,7 +303,8 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
                 ),
                 load := llvm.LoadOp.get(gep),
             ],
-            [load.dereferenced_value])
+            [load.dereferenced_value],
+        )
 
 
 @dataclass
@@ -324,7 +325,8 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
                                                 [idx]),
                 store := llvm.StoreOp.get(op.value, gep),
             ],
-            [])
+            [],
+        )
 
 
 def calc_index(indices: list[SSAValue],
