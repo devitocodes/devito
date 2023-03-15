@@ -5,7 +5,7 @@ from sympy import And
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.symbolics import uxreplace
-from devito.tools import is_integer, timed_pass
+from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
@@ -48,7 +48,7 @@ class Tasker(Asynchronous):
         d = prefix[-1].dim
 
         locks = {}
-        waits = defaultdict(list)
+        waits = defaultdict(OrderedSet)
         tasks = defaultdict(list)
         for c0 in clusters:
             dims = self.key(c0)
@@ -111,7 +111,7 @@ class Tasker(Asynchronous):
                         if logical_index in protected[target]:
                             continue
 
-                        waits[c1].append(WaitLock(lock[index], target))
+                        waits[c1].add(WaitLock(lock[index], target))
                         protected[target].add(logical_index)
 
             # Taskify `c0`
@@ -141,7 +141,7 @@ class Tasker(Asynchronous):
         processed = []
         for c in clusters:
             if waits[c] or tasks[c]:
-                processed.append(c.rebuild(syncs={d: waits[c] + tasks[c]}))
+                processed.append(c.rebuild(syncs={d: list(waits[c]) + tasks[c]}))
             else:
                 processed.append(c)
 
