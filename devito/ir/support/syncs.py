@@ -45,7 +45,8 @@ class SyncOp(Pickable):
                 self.origin == other.origin)
 
     def __hash__(self):
-        return id(self)
+        return hash((self.__class__, self.handle, self.target, self.tindex,
+                     self.function, self.findex, self.dim, self.size, self.origin))
 
     def __repr__(self):
         return "%s<%s>" % (self.__class__.__name__, self.handle)
