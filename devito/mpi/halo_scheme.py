@@ -98,16 +98,15 @@ class HaloScheme(object):
         return "HaloScheme<%s>" % fnames
 
     def __eq__(self, other):
-        return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
+        return (isinstance(other, HaloScheme) and
+                self._mapper == other._mapper and
+                self._honored == other._honored)
 
     def __len__(self):
         return len(self._mapper)
 
     def __hash__(self):
         return (self._mapper.__hash__(), self.honored.__hash__())
-
-    def __eq__(self, other):
-        return self._mapper == other._mapper and self._honored == other._honored
 
     @classmethod
     def build(cls, fmapper, honored):

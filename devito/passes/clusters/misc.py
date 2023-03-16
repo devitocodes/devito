@@ -4,7 +4,6 @@ from itertools import groupby, product
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
-from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane

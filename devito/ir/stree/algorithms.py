@@ -4,14 +4,13 @@ from itertools import groupby
 from anytree import findall
 from sympy import And
 
-from devito.ir.clusters import Cluster, Queue
+from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import (PARALLEL_IF_ATOMIC, SEQUENTIAL, Any, Interval,
-                               IterationInterval, IterationSpace, normalize_properties)
-from devito.mpi.halo_scheme import HaloScheme, HaloSchemeException
-from devito.parameters import configuration
-from devito.tools import Bunch, DefaultOrderedDict, flatten
+                                  NodeSync, NodeExprs, NodeSection, NodeHalo)
+from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
+                               IterationSpace, normalize_properties)
+from devito.mpi.halo_scheme import HaloScheme
+from devito.tools import Bunch, DefaultOrderedDict
 from devito.types.dimension import BOTTOM
 
 __all__ = ['stree_build']

@@ -11,11 +11,11 @@ from devito.ir.support import (Any, Backward, Forward, IterationSpace,
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
-from devito.mpi.halo_scheme import HaloScheme, HaloSchemeException, HaloTouch
+from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
-from devito.tools import (DefaultOrderedDict, Reconstructable, Stamp, as_mapper,
-                          flatten, is_integer, timed_pass)
-from devito.types import Array, Eq, Indexed, Symbol
+from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
+                          is_integer, timed_pass)
+from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
