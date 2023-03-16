@@ -11,6 +11,7 @@ from xdsl.dialects.arith import Constant
 from xdsl.dialects.func import Return
 
 from xdsl.dialects import arith, builtin, memref, llvm
+from xdsl.dialects.experimental import stencil
 
 from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
@@ -386,6 +387,7 @@ class For(Operation):
         subindices: int = 0,
         properties: Iterable[str] = None,
         pragmas: Iterable[str] = None,
+        loop_var_name: str = 'time',
     ) -> For:
         if pragmas is None:
             pragmas = []
@@ -393,6 +395,10 @@ class For(Operation):
         body = Region.from_block_list([Block.from_arg_types(
             [builtin.i32] * (subindices + 1)
         )])
+        body.blocks[0].args[0].name = loop_var_name
+        for i in range(subindices):
+            body.blocks[0].args[i+1].name = loop_var_name[0] + str(i) + '_'
+
 
         return For.build(
             operands=[lb, ub, step],
@@ -404,6 +410,72 @@ class For(Operation):
             result_types=[],
             regions=[body],
         )
+
+
+@irdl_op_definition
+class Stencil(Operation):
+    """
+    Represents a cluster of expressions that should then be translated to a stencil.
+    """
+    name = "iet.stencil"
+
+    shape: OpAttr[ArrayAttr[IntAttr]]
+    """
+    shape without halo (int, int, int)
+    """
+    halo: OpAttr[ArrayAttr[ArrayAttr[IntAttr]]]
+    """
+    how far each dimension is expanded
+    ((int, int), (int, int), (int, int))
+    """
+    time_order: OpAttr[IntAttr]
+
+    body: SingleBlockRegion
+
+    @property
+    def block(self):
+        return self.body.blocks[0]
+
+    @staticmethod
+    def get(shape: list[int], halo: list[list[int]], time_order: int, names: list[str] | None = None) -> Stencil:
+        assert len(shape) == len(halo)
+        assert all(len(inner) == 2 for inner in halo)
+
+        block = Block.from_arg_types([
+            stencil.TempType.from_shape([-1] * len(shape))
+        ] * time_order)
+
+        if names is not None:
+            for i, name in enumerate(names):
+                block.args[i].name = name
+
+        return Stencil.build(
+            operands=[],
+            attributes={
+                'shape': ArrayAttr(IntAttr(x) for x in shape),
+                'halo': ArrayAttr(ArrayAttr(IntAttr(x) for x in inner) for inner in halo),
+                'time_order': IntAttr(time_order)
+            },
+            regions=[Region.from_block_list([block])]
+        )
+
+
+@irdl_op_definition
+class LoadSymbolic(Operation):
+    name = "iet.load_symbolic"
+    name: OpAttr[StringAttr]
+
+    result: OpResult
+
+    @staticmethod
+    def get(name: str, typ: Attribute):
+        op = LoadSymbolic.build(
+            attributes={'name': StringAttr(name)},
+            result_types=[typ],
+        )
+        op.result.name = name
+        return op
+
 
 
 IET_SSA = Dialect([

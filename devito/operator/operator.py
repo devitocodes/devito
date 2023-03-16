@@ -248,8 +248,17 @@ class Operator(Callable):
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
 
+        from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion
+        conv = ExtractDevitoStencilConversion(expressions)
+        module = conv.convert()
+
+        from xdsl.printer import Printer
+        p = Printer(target=Printer.Target.MLIR)
+        p.print(module)
+
+
         # [LoweredEq] -> [Clusters]
-        clusters = cls._lower_clusters(expressions, **kwargs)
+        #clusters = cls._lower_clusters(expressions, **kwargs)
 
         # [Clusters] -> ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)

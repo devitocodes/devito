@@ -11,7 +11,7 @@ from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewrite
 def _generate_subindices(subindices: int, block: Block,
                          rewriter: PatternRewriter):
     # keep track of the what argument we should replace with what
-    arg_changes = []
+    arg_changes: list[tuple[SSAValue, SSAValue]] = []
 
     # keep track of the ops we want to insert
     modulo = arith.Constant.from_int_and_width(subindices, builtin.i32)
