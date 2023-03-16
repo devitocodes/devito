@@ -5,10 +5,11 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import (Array, BlockDimension, CompositeObject, Lock,
-                          IncrDimension, Indirection, Temp)
+from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
+                          Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
+from devito.types.dimension import AbstractIncrDimension, BlockDimension
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -242,15 +243,15 @@ def abstract_objects(objects):
     # higher priority objects
     priority = {
         DiscreteFunction: 1,
-        BlockDimension: 2,
+        AbstractIncrDimension: 2,
+        BlockDimension: 3,
     }
 
     def key(i):
-        try:
-            return priority[i]
-        except (KeyError, TypeError):
-            # TypeError is for unhashable objects
-            return 0
+        for cls in sorted(priority, key=priority.get, reverse=True):
+            if isinstance(i, cls):
+                return priority[cls]
+        return 0
 
     objects = sorted(objects, key=key, reverse=True)
 
