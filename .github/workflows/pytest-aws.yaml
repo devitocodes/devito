@@ -36,11 +36,11 @@ jobs:
           github-token: ${{ secrets.AWS_CI_PAT }}
           ec2-image-id: ami-0f2acee8eccac59fd
           ec2-instance-type: c6g.4xlarge
-          subnet-id: subnet-0b4c118eb6ae48d63
+          subnet-id: subnet-05dc2df0ba04952c4 # subnet-0b4c118eb6ae48d63
           security-group-id: sg-0b51f45ce1c1ad78f
           aws-resource-tags: > # optional, requires additional permissions
             [
-              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "Name", "Value": "ec2-${{ github.run_id }}"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
 
