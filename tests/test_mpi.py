@@ -2255,7 +2255,6 @@ class TestOperatorAdvanced(object):
         eqns = [Eq(u.forward, v.laplace),
                 Eq(v.forward, u.forward.dz2)]
 
-        op0 = Operator(eqns, opt=('noop', {'openmp': True}))
         op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
 
         # First, check the generated code

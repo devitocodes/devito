@@ -350,7 +350,7 @@ def _(i, mapper, counter):
     except KeyError:
         return
 
-    v = i._rebuild(i.name, mapper[i.parent])
+    v = i._rebuild(i.name, p)
 
     mapper[i] = v
 

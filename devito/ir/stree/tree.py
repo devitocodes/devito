@@ -133,21 +133,5 @@ class NodeHalo(ScheduleTree):
         return "<Halo>"
 
 
-def insert(node, parent, children):
-    """
-    Insert ``node`` between ``parent`` and ``children``, where ``children``
-    are a subset of nodes in ``parent.children``.
-    """
-    processed = []
-    for n in list(parent.children):
-        if n in children:
-            n.parent = node
-            if node not in processed:
-                processed.append(node)
-        else:
-            processed.append(n)
-    parent.children = processed
-
-
 def render(stree):
     return RenderTree(stree, style=ContStyle()).by_attr('__repr_render__')

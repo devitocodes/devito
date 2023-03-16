@@ -847,9 +847,6 @@ class Scope(object):
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
-        #if len(exprs) == 2 and "f[t1, x + 1], f[t0, x] + f[t0, x + 2]" in str(exprs[0]) and 'HaloTouch' in str(exprs[1]):
-        #    from IPython import embed; embed()
-
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
 
