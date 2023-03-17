@@ -280,7 +280,7 @@ def _(i, mapper, counter):
     base = 'f'
     name = '%s%d' % (base, counter[base])
 
-    v = i._rebuild(name=name, initializer=None, alias=True)
+    v = i._rebuild(name=name, initializer=None, alias=i)
 
     mapper.update({
         i: v,
