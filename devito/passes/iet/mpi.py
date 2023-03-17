@@ -32,19 +32,10 @@ def _drop_halospots(iet):
     """
     Remove HaloSpots that:
 
-        * Embed SEQUENTIAL Iterations
         * Would be used to compute Increments (in which case, a halo exchange
           is actually unnecessary)
     """
     mapper = defaultdict(set)
-
-    # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
-    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
-        dmapper = as_mapper(iterations, lambda i: i.dim.root)
-        for d, v in dmapper.items():
-            if d in hs.dimensions and all(i.is_Sequential for i in v):
-                mapper[hs].update(set(hs.functions))
-                break
 
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
