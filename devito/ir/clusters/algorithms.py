@@ -358,6 +358,9 @@ class Communications(Queue):
         # Construct the mock exprs representing the halo accesses
         exprs = []
         for c in clusters:
+            if c.properties.is_sequential(d):
+                continue
+
             halo_scheme = HaloScheme(c.exprs, c.ispace)
 
             if not halo_scheme.is_void and \
