@@ -8,7 +8,7 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_mapper, generator
+from devito.tools import generator
 
 __all__ = ['mpiize']
 
@@ -262,7 +262,12 @@ def _mark_overlappable(iet):
                     break
 
         # Heuristic: avoid comp/comm overlap for sparse Iteration nests
-        test = test and all(i.is_Affine for i in FindNodes(Iteration).visit(hs))
+        if test:
+            for i in FindNodes(Iteration).visit(hs):
+                if i.dim._defines & set(hs.halo_scheme.distributed_aindices) and \
+                   not i.is_Affine:
+                    test = False
+                    break
 
         if test:
             found.append(hs)
