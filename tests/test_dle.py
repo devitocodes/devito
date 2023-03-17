@@ -820,7 +820,6 @@ class TestNodeParallelism(object):
         assert 'collapse' not in str(op1)
         assert 'atomic' not in str(op1)
 
-    @skipif('cpu64-icpx')
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
          'Inc(h1[0, 0], 1, implicit_dims=(t, x, y))'],

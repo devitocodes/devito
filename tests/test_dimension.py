@@ -1382,7 +1382,7 @@ class TestConditionalDimension(object):
         iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
         assert all(i.is_Affine for i in iterations)
 
-    # Skipping this test with icpx, as it requires safe-math
+    # Skipping this test with icx, as it requires safe-math
     @skipif('cpu64-icpx')
     def test_sparse_time_function(self):
         nt = 20

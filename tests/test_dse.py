@@ -317,7 +317,6 @@ def test_time_dependent_split(opt):
 
 class TestLifting(object):
 
-    @skipif('cpu64-icpx')
     @pytest.mark.parametrize('exprs,expected', [
         # none (different distance)
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',

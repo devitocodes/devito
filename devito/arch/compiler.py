@@ -552,7 +552,7 @@ class OneapiCompiler(Compiler):
                 self.cflags.append('-fsycl-targets=spir64')
 
         if language == 'openmp':
-            self.cflags.append('-qopenmp')
+            self.cflags.append('-fopenmp')
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
             if platform is INTELGPUX:
