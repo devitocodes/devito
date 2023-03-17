@@ -443,7 +443,7 @@ class Operator(Callable):
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
-        graph = Graph(iet)
+        graph = Graph(iet, sregistry=sregistry)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -515,7 +515,8 @@ class Operator(Callable):
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
         nodes = self.dimensions
-        edges = [(i, i.parent) for i in self.dimensions if i.is_Derived]
+        edges = [(i, i.parent) for i in self.dimensions
+                 if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
         futures = {}
         for d in reversed(toposort):

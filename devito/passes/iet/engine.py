@@ -1,10 +1,11 @@
-from collections import Counter, OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
-from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.ir.support import SymbolRegistry
+from devito.tools import DAG, as_tuple, filter_ordered, flatten, timed_pass
 from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
                           Temp)
 from devito.types.args import ArgProvider
@@ -29,8 +30,10 @@ class Graph(object):
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet):
+    def __init__(self, iet, sregistry=None):
         self.efuncs = OrderedDict([(iet.name, iet)])
+
+        self.sregistry = sregistry
 
         self.includes = []
         self.headers = []
@@ -71,7 +74,8 @@ class Graph(object):
                 continue
 
             # Minimize code size by abstracting semantically identical efuncs
-            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []))
+            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []),
+                                         self.sregistry)
 
             self.efuncs[i] = efunc
             self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
@@ -157,7 +161,7 @@ def create_call_graph(root, efuncs):
     return dag
 
 
-def reuse_efuncs(root, efuncs):
+def reuse_efuncs(root, efuncs, sregistry=None):
     """
     Generalise `efuncs` so that syntactically identical Callables may be dropped,
     thus maximizing code reuse.
@@ -212,6 +216,8 @@ def reuse_efuncs(root, efuncs):
     processed = [afunc if len(efuncs) > 1 else efuncs.pop()
                  for afunc, efuncs in mapper.values()]
 
+    processed = uniquify_input(processed, sregistry)
+
     return root, processed
 
 
@@ -235,7 +241,7 @@ def abstract_efunc(efunc):
     return efunc
 
 
-def abstract_objects(objects):
+def abstract_objects(objects, sregistry=None):
     """
     Proxy for `abstract_object`.
     """
@@ -257,15 +263,15 @@ def abstract_objects(objects):
 
     # Build abstraction mappings
     mapper = {}
-    counter = Counter()
+    sregistry = sregistry or SymbolRegistry()
     for i in objects:
-        abstract_object(i, mapper, counter)
+        abstract_object(i, mapper, sregistry)
 
     return mapper
 
 
 @singledispatch
-def abstract_object(i, mapper, counter):
+def abstract_object(i, mapper, sregistry):
     """
     Singledispatch-based implementation of object abstraction.
 
@@ -276,9 +282,8 @@ def abstract_object(i, mapper, counter):
 
 
 @abstract_object.register(DiscreteFunction)
-def _(i, mapper, counter):
-    base = 'f'
-    name = '%s%d' % (base, counter[base])
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix='f')
 
     v = i._rebuild(name=name, initializer=None, alias=i)
 
@@ -288,16 +293,14 @@ def _(i, mapper, counter):
         i.dmap: v.dmap,
         i._C_symbol: v._C_symbol,
     })
-    counter[base] += 1
 
 
 @abstract_object.register(Array)
-def _(i, mapper, counter):
+def _(i, mapper, sregistry):
     if isinstance(i, Lock):
-        base = 'lock'
+        name = sregistry.make_name(prefix='lock')
     else:
-        base = 'a'
-    name = '%s%d' % (base, counter[base])
+        name = sregistry.make_name(prefix='a')
 
     v = i._rebuild(name=name)
 
@@ -306,32 +309,27 @@ def _(i, mapper, counter):
         i.indexed: v.indexed,
         i._C_symbol: v._C_symbol,
     })
-    counter[base] += 1
 
 
 @abstract_object.register(CompositeObject)
-def _(i, mapper, counter):
-    base = 'o'
-    name = '%s%d' % (base, counter[base])
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix='o')
 
     v = i._rebuild(name)
 
     mapper[i] = v
-    counter[base] += 1
 
 
 @abstract_object.register(BlockDimension)
-def _(i, mapper, counter):
+def _(i, mapper, sregistry):
     if i._depth != 2:
         return
 
     p = i.parent.parent
 
-    base0 = '%s' % p
-    name0 = '%s%d' % (base0, counter[base0])
-
-    base1 = '%s_blk' % name0
-    name1 = '%s%d' % (base1, counter[base1])
+    name0 = p.name
+    base = sregistry.make_name(prefix=name0)
+    name1 = sregistry.make_name(prefix='%s_blk' % base)
 
     bd = i.parent._rebuild(name1, p)
     d = i._rebuild(name0, bd)
@@ -340,12 +338,10 @@ def _(i, mapper, counter):
         i: d,
         i.parent: bd
     })
-    counter[base0] += 1
-    counter[base1] += 1
 
 
 @abstract_object.register(IncrDimension)
-def _(i, mapper, counter):
+def _(i, mapper, sregistry):
     try:
         p = mapper[i.parent]
     except KeyError:
@@ -358,17 +354,36 @@ def _(i, mapper, counter):
 
 @abstract_object.register(Indirection)
 @abstract_object.register(Temp)
-def _(i, mapper, counter):
+def _(i, mapper, sregistry):
     if isinstance(i, Indirection):
-        base = 'ind'
+        name = sregistry.make_name(prefix='ind')
     else:
-        base = 'r'
-    name = '%s%d' % (base, counter[base])
+        name = sregistry.make_name(prefix='r')
 
     v = i._rebuild(name=name)
 
     mapper[i] = v
-    counter[base] += 1
+
+
+def uniquify_input(efuncs, sregistry):
+    """
+    User-input objects must be globally unique, across `root` and all `efuncs`.
+    This function ensures this rule is applied, or a renaming takes place.
+    """
+    key = lambda d: (type(d), d.name)
+
+    objects = defaultdict(list)
+    for efunc in efuncs:
+        for d in FindSymbols('dimensions').visit(efunc):
+            objects[key(d)].append(d)
+
+    objects = flatten(v for v in objects.values() if len(v) > 1)
+
+    if objects:
+        mapper = abstract_objects(objects, sregistry=sregistry)
+        efuncs = [Uxreplace(mapper).visit(efunc) for efunc in efuncs]
+
+    return efuncs
 
 
 def update_args(root, efuncs, dag):
