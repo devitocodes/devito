@@ -390,12 +390,13 @@ def classify(exprs, ispace):
             # TODO: improve me
             continue
 
-        # User attempting to specialize domain decomposition; we gonna ignore
-        # halo exchanges along Dimensions that are practically replicated
+        # In the case of custom topologies, we ignore the Dimensions that aren't
+        # practically subjected to domain decomposition
         dist = f.grid.distributor
-        if dist.is_custom_topology:
-            ignored = [d for i, d in zip(dist.topology, dist.dimensions) if i == 1]
-        else:
+        try:
+            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions)
+                       if i == 1]
+        except TypeError:
             ignored = []
 
         # For each data access, determine if (and what type of) a halo exchange
