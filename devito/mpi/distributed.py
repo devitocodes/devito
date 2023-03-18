@@ -205,13 +205,8 @@ class Distributor(AbstractDistributor):
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
                 # A custom topology may contain integers or the wildcard '*', which
-                # implies `nprocs // nstars`. If a topology dimension is 1, then
-                # the dimension is removed from the Distributor, thus obtaining
-                # a lower dimensional decomposition. This may impact code generation
-                if self._input_comm.size == 1:
-                    topology = tuple(1 for _ in topology)
-                else:
-                    topology = CustomTopology(topology, self._input_comm)
+                # implies `nprocs // nstars`
+                topology = CustomTopology(topology, self._input_comm)
 
                 self._topology = topology
 
