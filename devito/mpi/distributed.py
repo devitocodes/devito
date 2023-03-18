@@ -258,8 +258,11 @@ class Distributor(AbstractDistributor):
         return self._topology
 
     @property
-    def is_custom_topology(self):
-        return isinstance(self.topology, CustomTopology)
+    def topology_logical(self):
+        if isinstance(self.topology, CustomTopology):
+            return self.topology.logical
+        else:
+            return None
 
     @cached_property
     def is_boundary_rank(self):
@@ -571,9 +574,14 @@ class CustomTopology(tuple):
                 raise ValueError("Custom topology must be only 1 or *")
 
             v = input_comm.size // nstars
-            items = [i if i == 1 else v for i in items]
+            processed = [i if i == 1 else v for i in items]
+        else:
+            processed = items
 
-        return super().__new__(cls, items)
+        obj = super().__new__(cls, processed)
+        obj.logical = items
+
+        return obj
 
 
 def compute_dims(nprocs, ndim):
