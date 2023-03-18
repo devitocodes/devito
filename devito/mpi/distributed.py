@@ -204,6 +204,15 @@ class Distributor(AbstractDistributor):
                 # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
+                # A custom topology may contain integers or the wildcard '*', which
+                # implies `nprocs // nstars`. If a topology dimension is 1, then
+                # the dimension is removed from the Distributor, thus obtaining
+                # a lower dimensional decomposition. This may impact code generation
+                if self._input_comm.size == 1:
+                    topology = tuple(1 for _ in topology)
+                else:
+                    topology = CustomTopology(topology, self._input_comm)
+
                 self._topology = topology
 
             if self._input_comm is not input_comm:
@@ -253,9 +262,15 @@ class Distributor(AbstractDistributor):
     def topology(self):
         return self._topology
 
+    @property
+    def is_custom_topology(self):
+        return isinstance(self.topology, CustomTopology)
+
     @cached_property
     def is_boundary_rank(self):
-        """ MPI rank interfaces with the boundary of the domain. """
+        """
+        MPI rank interfaces with the boundary of the domain.
+        """
         return any([True if i == 0 or i == j-1 else False for i, j in
                    zip(self.mycoords, self.topology)])
 
@@ -548,6 +563,22 @@ class MPINeighborhood(CompositeObject):
             return grid.distributor._obj_neighborhood._arg_defaults()
         else:
             return self._arg_defaults()
+
+
+class CustomTopology(tuple):
+
+    def __new__(cls, items, input_comm):
+        nstars = len([i for i in items if i == '*'])
+        if nstars > 0:
+            if input_comm.size % nstars != 0:
+                raise ValueError("Invalid `topology` for given nprocs")
+            if any(i not in ('*', 1) for i in items):
+                raise ValueError("Custom topology must be only 1 or *")
+
+            v = input_comm.size // nstars
+            items = [i if i == 1 else v for i in items]
+
+        return super().__new__(cls, items)
 
 
 def compute_dims(nprocs, ndim):

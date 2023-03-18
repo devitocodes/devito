@@ -390,6 +390,14 @@ def classify(exprs, ispace):
             # TODO: improve me
             continue
 
+        # User attempting to specialize domain decomposition; we gonna ignore
+        # halo exchanges along Dimensions that are practically replicated
+        dist = f.grid.distributor
+        if dist.is_custom_topology:
+            ignored = [d for i, d in zip(dist.topology, dist.dimensions) if i == 1]
+        else:
+            ignored = []
+
         # For each data access, determine if (and what type of) a halo exchange
         # is required
         dims = set()
@@ -398,7 +406,10 @@ def classify(exprs, ispace):
             v = {}
             for d in i.findices:
                 if f.grid.is_distributed(d):
-                    if i.affine(d):
+                    if d in ignored:
+                        v[(d, LEFT)] = IDENTITY
+                        v[(d, RIGHT)] = IDENTITY
+                    elif i.affine(d):
                         thl, thr = i.touched_halo(d)
                         # Note: if the left-HALO is touched (i.e., `thl = True`), then
                         # the *right-HALO* is to be sent over in a halo exchange
