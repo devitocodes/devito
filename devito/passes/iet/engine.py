@@ -323,14 +323,15 @@ def _(i, mapper, sregistry):
     if i._depth != 2:
         return
 
-    p = i.parent.parent
+    p = i.parent
+    pp = i.parent.parent
 
-    name0 = p.name
+    name0 = pp.name
     base = sregistry.make_name(prefix=name0)
     name1 = sregistry.make_name(prefix='%s_blk' % base)
 
-    bd = i.parent._rebuild(name1, p)
-    d = i._rebuild(name0, bd)
+    bd = i.parent._rebuild(name1, pp)
+    d = i._rebuild(name0, bd, i._min.subs(p, bd), i._max.subs(p, bd))
 
     mapper.update({
         i: d,
