@@ -1,11 +1,11 @@
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
-from devito.tools import DAG, as_tuple, filter_ordered, flatten, timed_pass
+from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
                           Temp)
 from devito.types.args import ArgProvider
@@ -216,8 +216,6 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     processed = [afunc if len(efuncs) > 1 else efuncs.pop()
                  for afunc, efuncs in mapper.values()]
 
-    processed = uniquify_input(processed, sregistry)
-
     return root, processed
 
 
@@ -363,27 +361,6 @@ def _(i, mapper, sregistry):
     v = i._rebuild(name=name)
 
     mapper[i] = v
-
-
-def uniquify_input(efuncs, sregistry):
-    """
-    User-input objects must be globally unique, across `root` and all `efuncs`.
-    This function ensures this rule is applied, or a renaming takes place.
-    """
-    key = lambda d: (type(d), d.name)
-
-    objects = defaultdict(list)
-    for efunc in efuncs:
-        for d in FindSymbols('dimensions').visit(efunc):
-            objects[key(d)].append(d)
-
-    objects = flatten(v for v in objects.values() if len(v) > 1)
-
-    if objects:
-        mapper = abstract_objects(objects, sregistry=sregistry)
-        efuncs = [Uxreplace(mapper).visit(efunc) for efunc in efuncs]
-
-    return efuncs
 
 
 def update_args(root, efuncs, dag):
