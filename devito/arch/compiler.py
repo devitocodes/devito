@@ -12,7 +12,7 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9,
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9, GRAVITON,
                          get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
@@ -373,7 +373,7 @@ class Compiler(GCCToolchain):
 class GNUCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(GNUCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
                         '-Wno-unused-but-set-variable']
@@ -398,6 +398,17 @@ class GNUCompiler(Compiler):
         self.CXX = 'g++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
+
+
+class ArmCompiler(GNUCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        # Graviton flag
+        if platform is GRAVITON:
+            self.cflags += ['-mcpu=neoverse-n1']
 
 
 class ClangCompiler(Compiler):
@@ -486,11 +497,13 @@ class AOMPCompiler(Compiler):
         else:
             self.cflags.append('-march=native')
 
-        # amdclang flags, used to be part of aompcc
-        self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
-        self.ldflags.extend(['-fopenmp', '-fopenmp-targets=amdgcn-amd-amdhsa',
-                             '-Xopenmp-target=amdgcn-amd-amdhsa'])
-        self.ldflags.append('-march=%s' % platform.march)
+        # Generic amd flags
+        self.ldflags.extend(['-fopenmp', '-target', 'x86_64-pc-linux-gnu'])
+        # amdclang gpu flags, used to be part of aompcc
+        if platform is AMDGPUX:
+            self.ldflags.extend(['-fopenmp-targets=amdgcn-amd-amdhsa',
+                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
+            self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
         self.CC = 'amdclang'
@@ -764,6 +777,7 @@ compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
+    'arm': ArmCompiler,
     'clang': ClangCompiler,
     'cray': CrayCompiler,
     'aomp': AOMPCompiler,

@@ -41,6 +41,7 @@ export NVCOMP_EXTS_ROOT=/app/nvcomp_exts/ubuntu18.04/11.6
 export bitcomp_DIR=$NVCOMP_EXTS_ROOT/lib/
 
 export CUDA_HOME=$HPCSDK_HOME/cuda
+export NVHPC_CUDA_HOME=$HPCSDK_HOME/cuda
 export CUDA_ROOT=$HPCSDK_HOME/cuda/bin
 export PATH=$HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 export LD_LIBRARY_PATH=$HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
@@ -115,6 +116,7 @@ export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
   
 # Compiler, CUDA, and Library paths
 export CUDA_HOME=$HPCSDK_HOME/cuda
+export NVHPC_CUDA_HOME=$HPCSDK_HOME/cuda
 export CUDA_ROOT=$HPCSDK_HOME/cuda/bin
 export PATH=$HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 export LD_LIBRARY_PATH=$HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:${LD_LIBRARY_PATH}

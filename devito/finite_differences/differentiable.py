@@ -228,9 +228,12 @@ class Differentiable(sympy.Expr, Evaluable):
         return Mul(sympy.S.NegativeOne, self)
 
     def __eq__(self, other):
-        return super(Differentiable, self).__eq__(other) and\
-            all(getattr(self, i, None) == getattr(other, i, None)
-                for i in self.__rkwargs__)
+        ret = super(Differentiable, self).__eq__(other)
+        if ret is NotImplemented or not ret:
+            # Non comparable or not equal as sympy objects
+            return False
+        return all(getattr(self, i, None) == getattr(other, i, None)
+                   for i in self.__rkwargs__)
 
     @property
     def name(self):

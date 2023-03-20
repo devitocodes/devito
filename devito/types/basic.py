@@ -576,8 +576,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                  ---------------------------------
                  |                               |
           VectorFunction                 TensorTimeFunction
-                        \-------\                |
-                                 \------- VectorTimeFunction
+                        \\-------\\              |
+                                 \\------- VectorTimeFunction
 
     There are four relevant AbstractTensor sub-types: ::
 

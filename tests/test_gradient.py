@@ -161,7 +161,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func,
                          time_order):
-        """
+        r"""
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -249,7 +249,7 @@ class TestGradient(object):
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     def test_gradientJ(self, dtype, space_order, kernel, shape, spacing, time_order,
                        setup_func):
-        """
+        r"""
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::
