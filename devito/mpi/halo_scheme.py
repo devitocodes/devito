@@ -127,7 +127,11 @@ class HaloScheme(object):
             for k, v in i.fmapper.items():
                 hse = fmapper.setdefault(k, v)
 
-                if hse.loc_indices != v.loc_indices:
+                if not hse.loc_indices:
+                    loc_indices, loc_dirs = v.loc_indices, v.loc_dirs
+                elif not v.loc_indices or hse.loc_indices == v.loc_indices:
+                    loc_indices, loc_dirs = hse.loc_indices, hse.loc_dirs
+                else:
                     # The `loc_dirs` must match otherwise it'd be a symptom there's
                     # something horribly broken elsewhere!
                     assert hse.loc_dirs == v.loc_dirs
@@ -141,8 +145,6 @@ class HaloScheme(object):
                                        for d in hse.loc_indices}
                     loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                                 hse.loc_dirs)
-                else:
-                    loc_indices, loc_dirs = hse.loc_indices, hse.loc_dirs
 
                 halos = hse.halos | v.halos
                 dims = hse.dims | v.dims
@@ -377,9 +379,15 @@ class HaloScheme(object):
 
 def classify(exprs, ispace):
     """
-    Produce the mapper ``Function -> HaloSchemeEntry``, which describes the
-    necessary halo exchanges in the given Scope.
+    Produce the mapper `Function -> HaloSchemeEntry`, which describes the necessary
+    halo exchanges in the given Scope.
     """
+
+    # Some MPI modes require pulling the `loc_indices` from the reads, others
+    # from the writes. It essentially depends on whether the halo exchange is
+    # performed before (reads) or after (writes) the OWNED region is computed
+    loc_indices_from_reads = configuration['mpi'] not in ('dual',)
+
     scope = Scope(exprs)
 
     mapper = {}
@@ -419,7 +427,7 @@ def classify(exprs, ispace):
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
-                else:
+                elif loc_indices_from_reads:
                     v[(d, i[d])] = NONE
 
             # Does `i` actually require a halo exchange?
@@ -449,16 +457,14 @@ def classify(exprs, ispace):
         if not halo_labels:
             continue
 
-        # Modes performing the halo exchange *after* having computed the data
-        # domain need to inspect the writes as well
-        #TODO: IMPROVE ME...
-        if configuration['mpi'] in ('dual',):
+        # Augment `halo_labels` with `loc_indices`-related information if necessary
+        if not loc_indices_from_reads:
             for i in scope.writes.get(f, []):
                 for d in i.findices:
                     if not f.grid.is_distributed(d):
                         halo_labels[(d, i[d])].add(NONE)
 
-        # Distinguish between Dimensions requiring a halo exchange and those which don't
+        # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
             try:
@@ -469,7 +475,8 @@ def classify(exprs, ispace):
                 continue
             elif len(hl) > 1:
                 raise HaloSchemeException("Inconsistency found while building a halo "
-                                          "scheme for `%s` along Dimension `%s`" % (f, d))
+                                          "scheme for `%s` along Dimension `%s`"
+                                          % (f, d))
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             else:
@@ -477,7 +484,6 @@ def classify(exprs, ispace):
 
         loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                     ispace.directions)
-
         halos = frozenset(halos)
         dims = frozenset(dims)
 
