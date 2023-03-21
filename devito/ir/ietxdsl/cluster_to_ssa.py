@@ -299,3 +299,168 @@ def is_int(val: SSAValue):
 
 def is_float(val: SSAValue):
     return val.typ in (builtin.f32, builtin.f64)
+
+
+
+#### -------------------------------------------------------- ####
+####                                                          ####
+####           devito.stencil  ---> stencil dialect           ####
+####                                                          ####
+#### -------------------------------------------------------- ####
+
+from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
+
+from devito.ir.ietxdsl.lowering import recalc_func_type
+
+class _DevitoStencilToStencilStencil(RewritePattern):
+    """
+    This converts the `devito.stencil` op into the following:
+
+    ```
+        // we do magic here to accomodate triple buffering
+        // this will be tackled in the lowering
+        %t0_field = iet.get_stencil(%t0)
+        %t1_field = iet.get_stencil(%t1)
+        %t2_field = iet.get_stencil(%t2)
+
+        // do cast and load ops
+        %t0_w_size = stencil.cast(%t0_field) [-4, -4, -4] to [68, 68, 68]
+        %t1_w_size = stencil.cast(%t1_field) [-4, -4, -4] to [68, 68, 68]
+        %t2_w_size = stencil.cast(%t1_field) [-4, -4, -4] to [68, 68, 68]
+        // put ub - lb here (make the temp ?x?x?)
+        %t0_temp = stencil.load(%t0_w_size) : (!stencil.field<72x72x72xf64>) -> !stencil.temp<?x?x?xf64>
+        %t1_temp = stencil.load(%t1_w_size) : (!stencil.field<72x72x72xf64>) -> !stencil.temp<?x?x?xf64>
+
+        // apply with t0 and t1 data to generate t2 data
+        %t2_output = stencil.apply(%t0_temp, %t1_temp) ({
+        ^1(%t0_buff : !stencil.temp<?x?x?xf64>, %t1_buff : !stencil.temp<?x?x?xf64>):
+            ...
+            // stencil.body is placed here
+        }) : (!stencil.temp<?x?x?xf64>, !stencil.temp<?x?x?xf64>) -> !stencil.temp<?x?x?xf64>
+
+        // write generated temp back to field
+        // what are the bound notations here?
+        stencil.store(%t2_output, %t2_w_size) [0, 0, 0] : [64, 64, 64]
+    ```
+    """
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: iet_ssa.Stencil, rewriter: PatternRewriter, /):
+        field_t = stencil.FieldType.from_shape(
+            op.shape, op.field_type
+        )
+        rank = len(op.shape.data)
+
+        data = iet_ssa.LoadSymbolic.get('data', memref.MemRefType.from_element_type_and_shape(
+            stencil.FieldType.from_shape([-1] * rank, op.field_type), [op.time_buffers.value.data]
+        ))
+        lb = stencil.IndexAttr.get(*list(-halo_elm.data[0].value.data for halo_elm in op.halo.data))
+        ub = stencil.IndexAttr.get(*list(shape_elm.value.data + halo_elm.data[1].value.data for shape_elm, halo_elm in zip(op.shape.data, op.halo.data)))
+        fields = list(
+            iet_ssa.GetField.get(data, t_idx, field_t, lb, ub)
+            for t_idx in (*op.input_indices, op.output)
+        )
+        # name the resulting fields
+        for field in fields:
+            field.field.name = f"{field.t_index.name}_w_size"
+
+        loads = list(
+            stencil.LoadOp.get(field)
+            for field in fields[:-1]
+        )
+        rewriter.replace_matched_op([
+            iet_ssa.Statement.get("// get data obj"),
+            data,
+            iet_ssa.Statement.get("// get individual fields"),
+            *fields,
+            iet_ssa.Statement.get("// stencil loads"),
+            *loads,
+            out := stencil.ApplyOp.get(
+                loads, op.body.detach_block(0)
+            ),
+            stencil.StoreOp.get(out, fields[-1])
+        ])
+
+class _LowerGetField(RewritePattern):
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: iet_ssa.GetField, rewriter: PatternRewriter, /):
+        
+        rewriter.replace_matched_op([
+            idx := arith.IndexCastOp.get(op.t_index, builtin.IndexType()),
+            field := memref.Load.get(op.data, [idx]),
+            field_w_size := stencil.CastOp.get(field, op.lb, op.ub, op.field.typ)
+        ], [field_w_size.result])
+
+
+def get_containing_func(op: Operation) -> func.FuncOp | None:
+    while op is not None and not isinstance(op, func.FuncOp):
+        op = op.parent_op()
+    if op is None:
+        return None
+    return op
+
+class _LowerLoadSymbolidToFuncArgs(RewritePattern):
+    func_to_args: dict[func.FuncOp, dict[str, SSAValue]]
+
+    def __init__(self):
+        from collections import defaultdict
+        self.func_to_args = defaultdict(dict)
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: iet_ssa.LoadSymbolic, rewriter: PatternRewriter, /):
+        parent: func.FuncOp | None = get_containing_func(op)
+        assert parent is not None        
+        args = self.func_to_args[func]
+        symb_name = op.symbol_name.data
+
+        if symb_name not in args:
+            body = parent.body.blocks[0]
+            args[symb_name] = body.insert_arg(op.result.typ, 0)
+        
+        op.result.replace_by(args[symb_name])
+        rewriter.erase_matched_op()
+        recalc_func_type(parent)
+        # attach information on parameter names to func
+        parent.attributes['param_names'] = builtin.ArrayAttr([
+            builtin.StringAttr(name) for name, _ in sorted(args.items(), key=lambda tpl: tpl[1].index)
+        ])
+        
+
+
+
+
+
+
+
+
+if __name__ == '__main__':
+    import sys
+    from xdsl.parser import Parser, MLContext, Source
+    from devito.ir.ietxdsl.lowering import DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex
+    ctx = MLContext()
+    ctx.register_dialect(stencil.Stencil)
+    ctx.register_dialect(builtin.Builtin)
+    ctx.register_dialect(arith.Arith)
+    ctx.register_dialect(func.Func)
+    ctx.register_dialect(iet_ssa.DEVITO_SSA)
+    ctx.register_dialect(iet_ssa.IET_SSA)
+    ctx.register_dialect(memref.MemRef)
+    ctx.register_dialect(math.Math)
+    p = Parser(ctx, open(sys.argv[-1], "r").read(), Source.MLIR, filename=sys.argv[-1])
+
+    module = p.parse_module()
+
+    grpa = GreedyRewritePatternApplier([
+        _DevitoStencilToStencilStencil(),
+        _LowerGetField(),
+        DropIetComments(),
+        _LowerLoadSymbolidToFuncArgs(),
+        LowerIetForToScfFor(),
+        ConvertScfForArgsToIndex(),
+        ConvertForLoopVarToIndex()
+    ])
+    PatternRewriteWalker(grpa).rewrite_module(module)
+
+    from xdsl.printer import Printer
+    Printer(target=Printer.Target.MLIR).print(module)
+
+

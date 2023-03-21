@@ -4,7 +4,7 @@ from sympy import Mod
 from typing import Iterable, Tuple, List, Annotated, Union, Sequence
 from dataclasses import dataclass
 
-from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
+from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr, IntegerAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
                                    Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
 
@@ -417,21 +417,23 @@ class Stencil(Operation):
     """
     Represents a cluster of expressions that should then be translated to a stencil.
     """
-    name = "iet.stencil"
+    name = "devito.stencil"
 
     input_indices: Annotated[VarOperand, AnyIntegerAttr]
     output: Annotated[Operand, AnyIntegerAttr]
 
-    shape: OpAttr[ArrayAttr[IntAttr]]
+    shape: OpAttr[ArrayAttr[IntegerAttr]]
     """
     shape without halo (int, int, int)
     """
-    halo: OpAttr[ArrayAttr[ArrayAttr[IntAttr]]]
+    halo: OpAttr[ArrayAttr[ArrayAttr[IntegerAttr]]]
     """
     how far each dimension is expanded
     ((int, int), (int, int), (int, int))
     """
-    time_buffers: OpAttr[IntAttr]
+    time_buffers: OpAttr[IntegerAttr]
+
+    field_type: OpAttr[Attribute]
 
     body: SingleBlockRegion
 
@@ -460,9 +462,10 @@ class Stencil(Operation):
         return Stencil.build(
             operands=[inputs, output],
             attributes={
-                'shape': ArrayAttr(IntAttr(x) for x in shape),
-                'halo': ArrayAttr(ArrayAttr(IntAttr(x) for x in inner) for inner in halo),
-                'time_buffers': IntAttr(time_buffers)
+                'shape': ArrayAttr(IntegerAttr(x, 64) for x in shape),
+                'halo': ArrayAttr(ArrayAttr(IntegerAttr(x, 64) for x in inner) for inner in halo),
+                'time_buffers': IntegerAttr(time_buffers, 64),
+                'field_type': typ
             },
             regions=[Region.from_block_list([block])]
         )
@@ -470,21 +473,39 @@ class Stencil(Operation):
 
 @irdl_op_definition
 class LoadSymbolic(Operation):
-    name = "iet.load_symbolic"
-    name: OpAttr[StringAttr]
+    name = "devito.load_symbolic"
+    symbol_name: OpAttr[StringAttr]
 
     result: OpResult
 
     @staticmethod
     def get(name: str, typ: Attribute):
         op = LoadSymbolic.build(
-            attributes={'name': StringAttr(name)},
+            attributes={'symbol_name': StringAttr(name)},
             result_types=[typ],
         )
         op.result.name = name
         return op
 
 
+@irdl_op_definition
+class GetField(Operation):
+    name = "devito.get_field"
+
+    data: Annotated[Operand, memref.MemRefType[stencil.FieldType]]
+    t_index: Annotated[Operand, IntegerType]
+    field: Annotated[OpResult, stencil.FieldType]
+
+    lb: OpAttr[stencil.IndexAttr]
+    ub: OpAttr[stencil.IndexAttr]
+
+    @staticmethod
+    def get(data: SSAValue | Operation, t_idx: SSAValue | Operation, field_t: stencil.FieldType, lb: stencil.IndexAttr, ub: stencil.IndexAttr):
+        return GetField.build(
+            operands=[data, t_idx],
+            attributes={'lb': lb, 'ub': ub},
+            result_types=[field_t],
+        )
 
 IET_SSA = Dialect([
     Statement,
@@ -499,4 +520,11 @@ IET_SSA = Dialect([
 ], [
     Profiler,
     Dataobj
+])
+
+DEVITO_SSA = Dialect([
+    Stencil,
+    LoadSymbolic,
+    GetField
+], [
 ])

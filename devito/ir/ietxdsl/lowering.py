@@ -14,12 +14,12 @@ def _generate_subindices(subindices: int, block: Block,
     arg_changes: list[tuple[SSAValue, SSAValue]] = []
 
     # keep track of the ops we want to insert
-    modulo = arith.Constant.from_int_and_width(subindices, builtin.i32)
+    modulo = arith.Constant.from_int_and_width(subindices, builtin.i64)
     new_ops = [modulo]
 
     # generate the new indices
     for i in range(subindices):
-        offset = arith.Constant.from_int_and_width(i, builtin.i32)
+        offset = arith.Constant.from_int_and_width(i, builtin.i64)
         index_off = arith.Addi.get(block.args[0], offset)
         index = arith.RemSI.get(index_off, modulo)
 
@@ -70,7 +70,7 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
         if isinstance(op.lowerBound[0].typ, builtin.IndexType):
             return
         # increment upper bound
-        cst1 = arith.Constant.from_int_and_width(1, builtin.i32)
+        cst1 = arith.Constant.from_int_and_width(1, builtin.i64)
         rewriter.insert_op_before_matched_op(cst1)
         for ub in op.upperBound:
             new_ub = arith.Addi.get(ub, cst1)
@@ -95,21 +95,21 @@ class ConvertForLoopVarToIndex(RewritePattern):
             return
 
         block: Block = op.regions[0].blocks[0]
-        # change all loop vars to index and immediately cast to i32
+        # change all loop vars to index and immediately cast to i64
         for loop_var in block.args:
             if isinstance(loop_var.typ, builtin.IndexType):
                 continue
             loop_var.typ = builtin.IndexType()
-            # insert a cast from index to i32 at the start of the loop
+            # insert a cast from index to i64 at the start of the loop
 
             rewriter.insert_op_at_pos(
-                i32_val := arith.IndexCastOp.get(loop_var, builtin.i32),
+                i64_val := arith.IndexCastOp.get(loop_var, builtin.i64),
                 block,
                 0,
             )
 
-            loop_var.replace_by(i32_val.result)
-            i32_val.replace_operand(0, loop_var)
+            loop_var.replace_by(i64_val.result)
+            i64_val.replace_operand(0, loop_var)
 
 
 class LowerIetForToScfFor(RewritePattern):
@@ -227,21 +227,21 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
         memref_typ = op.result.typ
         assert isinstance(memref_typ, memref.MemRefType)
 
-        # u_vec_size_ptr_addr : llvm.ptr<llvm.ptr<i32>>
+        # u_vec_size_ptr_addr : llvm.ptr<llvm.ptr<i64>>
         u_vec_size_ptr_addr = llvm.GetElementPtrOp.get(
             op.arg,
             [0, 1],
             result_type=llvm.LLVMPointerType.typed(
-                llvm.LLVMPointerType.typed(builtin.i32)),
+                llvm.LLVMPointerType.typed(builtin.i64)),
         )
         # dereference the ptr ptr to get a normal pointer
-        # u_vec_size_ptr : llvm.ptr<i32>
+        # u_vec_size_ptr : llvm.ptr<i64>
         u_vec_size_ptr = llvm.LoadOp.get(u_vec_size_ptr_addr)
 
         new_ops = [u_vec_size_ptr_addr, u_vec_size_ptr]
 
         for i in range(len(memref_typ.shape)):
-            # calculate ptr = (u_vec_size_ptr + i) : llvm.ptr<i32>
+            # calculate ptr = (u_vec_size_ptr + i) : llvm.ptr<i64>
             # TODO: since the actual type of `u_vec->size` is `ptr<i64>` we skip every
             #       second entry and only use the lower 32 bits of the size.
             #       this is okay as long as we don't work on data with more than
@@ -249,10 +249,10 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
             ptr_to_size_i = llvm.GetElementPtrOp.get(
                 u_vec_size_ptr,
                 [i*2],  # get the 2-i-th element
-                result_type=llvm.LLVMPointerType.typed(builtin.i32),
+                result_type=llvm.LLVMPointerType.typed(builtin.i64),
             )
             # dereference
-            # val = *(ptr) : i32
+            # val = *(ptr) : i64
             load = llvm.LoadOp.get(ptr_to_size_i)
             new_ops += [ptr_to_size_i, load]
             self.dimensions.append(load.dereferenced_value)
@@ -290,11 +290,14 @@ class CleanupDanglingIetDatatypes(RewritePattern):
             elif isinstance(arg_typ, iet_ssa.Profiler):
                 op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.opaque()
 
-        op.attributes['function_type'] = builtin.FunctionType.from_lists(
-            [arg.typ for arg in op.body.blocks[0].args],
-            op.function_type.outputs.data,
-        )
+        recalc_func_type(op)
 
+
+def recalc_func_type(op: func.FuncOp):
+    op.attributes['function_type'] = builtin.FunctionType.from_lists(
+        [arg.typ for arg in op.body.blocks[0].args],
+        op.function_type.outputs.data,
+    )
 
 @dataclass
 class LowerMemrefLoadToLLvmPointer(RewritePattern):
