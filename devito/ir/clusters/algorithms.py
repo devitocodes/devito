@@ -40,11 +40,11 @@ def clusterize(exprs, **kwargs):
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters)
 
-    # Derive the necessary communications for distributed-memory parallelism
-    clusters = Communications().process(clusters)
-
     # Input normalization (e.g., SSA)
     clusters = normalize(clusters, **kwargs)
+
+    # Derive the necessary communications for distributed-memory parallelism
+    clusters = Communications().process(clusters)
 
     return ClusterGroup(clusters)
 
@@ -408,10 +408,6 @@ def normalize_nested_indexeds(cluster, sregistry):
     """
     Recursively extract nested Indexeds in to temporaries.
     """
-
-    #TODO: place Comunications AFTER normalize?????
-    if cluster.is_halo_touch:
-        return cluster
 
     def pull_indexeds(expr, subs, mapper, parent=None):
         for i in retrieve_indexed(expr):
