@@ -255,7 +255,8 @@ class Operator(Callable):
         from xdsl.printer import Printer
         p = Printer(target=Printer.Target.MLIR)
         p.print(module)
-
+        import sys
+        sys.exit(0)
 
         # [LoweredEq] -> [Clusters]
         #clusters = cls._lower_clusters(expressions, **kwargs)

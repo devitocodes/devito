@@ -27,7 +27,7 @@ from xdsl.ir import Block, Region, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, func, memref, arith
 from xdsl.dialects.experimental import stencil, math
 
-
+default_int = builtin.i64
 
 class ExtractDevitoStencilConversion:
 
@@ -50,32 +50,37 @@ class ExtractDevitoStencilConversion:
         self.block = outermost_block
 
         function = eq.lhs.function
+        mlir_type = dtypes_to_xdsltypes[function.dtype]
         grid: Grid = function.grid
         # get the halo of the space dimensions only
         halo = [function.halo[function.dimensions.index(d)] for d in grid.dimensions]
 
         # shift all time values so that for all accesses at t + n, n>=0.
-
         self.time_offs = min(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         )
-
+        # calculate the actual size of our time dimension
+        actual_time_size = max(
+            int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
+        ) - self.time_offs + 1
+        
         # build the for loop
-        self._build_iet_for(grid.stepping_dim, ['sequential'], function._time_size)
+        loop = self._build_iet_for(grid.stepping_dim, ['sequential'], actual_time_size)
 
         # build stencil
         stencil_op = iet_ssa.Stencil.get(
+            loop.subindice_ssa_vals(),
             grid.shape,
             halo,
-            function.time_order,
-            [f't_{i}_buff' for i in range(function.time_order) ]
+            actual_time_size,
+            mlir_type
         )
         self.block.add_op(stencil_op)
         self.block = stencil_op.block
 
         # dims -> ssa vals
         time_offset_to_field: dict[str, SSAValue] = {
-            i: stencil_op.block.args[i] for i in range(function.time_order)
+            i: stencil_op.block.args[i] for i in range(actual_time_size-1)
         }
 
         # reset loaded values
@@ -89,7 +94,7 @@ class ExtractDevitoStencilConversion:
 
         # emit return
         offsets = _get_dim_offsets(eq.lhs, self.time_offs)
-        assert offsets[0] == function._time_size-1, "result should be written to last time buffer"
+        assert offsets[0] == actual_time_size-1, "result should be written to last time buffer"
         assert all(o == 0 for o in offsets[1:]), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(
@@ -103,7 +108,7 @@ class ExtractDevitoStencilConversion:
             offsets = _get_dim_offsets(node, self.time_offs)
             return self.loaded_values[offsets]
         if isinstance(node, Integer):
-            cst = arith.Constant.from_int_and_width(int(node), builtin.i32)
+            cst = arith.Constant.from_int_and_width(int(node), builtin.i64)
             self.block.add_op(cst)
             return cst.result
         if isinstance(node, Float):
@@ -194,15 +199,14 @@ class ExtractDevitoStencilConversion:
             # use space offsets in the field
             access_op = stencil.AccessOp.get(
                 field,
-                space_offsets,
-                dtypes_to_xdsltypes[read.function.dtype]
+                space_offsets
             )
             self.block.add_op(access_op)
             # cache the resulting ssa value for later use
             # by the offsets (same offset = same value)
             self.loaded_values[offsets] = access_op.res
 
-    def _build_iet_for(self, dim: SteppingDimension, props: list[str], subindices: int):
+    def _build_iet_for(self, dim: SteppingDimension, props: list[str], subindices: int) -> iet_ssa.For:
         lb = iet_ssa.LoadSymbolic.get(
             str(dim.symbolic_min),
             builtin.IndexType()
@@ -222,7 +226,11 @@ class ExtractDevitoStencilConversion:
         self.block.add_ops([
             lb, ub, step, loop
         ])
+        
         self.block = loop.block
+        
+        return loop
+
 
     def convert(self) -> builtin.ModuleOp:
         return builtin.ModuleOp.from_region_or_ops(

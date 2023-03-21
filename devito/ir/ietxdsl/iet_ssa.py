@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from sympy import Mod
-from typing import Iterable, Tuple, List, Annotated, Union
+from typing import Iterable, Tuple, List, Annotated, Union, Sequence
 from dataclasses import dataclass
 
 from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
                                    Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
-from xdsl.dialects.arith import Constant
-from xdsl.dialects.func import Return
 
 from xdsl.dialects import arith, builtin, memref, llvm
 from xdsl.dialects.experimental import stencil
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand
 from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
 
 
@@ -364,6 +362,9 @@ class For(Operation):
     properties: OpAttr[ArrayAttr[builtin.StringAttr]]
     pragmas: OpAttr[ArrayAttr[builtin.StringAttr]]
 
+    def subindice_ssa_vals(self) -> tuple[SSAValue, ...]:
+        return self.block.args[1:]
+
     @property
     def block(self) -> Block:
         return self.body.blocks[0]
@@ -393,12 +394,11 @@ class For(Operation):
             pragmas = []
 
         body = Region.from_block_list([Block.from_arg_types(
-            [builtin.i32] * (subindices + 1)
+            [builtin.i64] * (subindices + 1)
         )])
         body.blocks[0].args[0].name = loop_var_name
         for i in range(subindices):
-            body.blocks[0].args[i+1].name = loop_var_name[0] + str(i) + '_'
-
+            body.blocks[0].args[i+1].name = f"{loop_var_name[0]}{i}"
 
         return For.build(
             operands=[lb, ub, step],
@@ -419,6 +419,9 @@ class Stencil(Operation):
     """
     name = "iet.stencil"
 
+    input_indices: Annotated[VarOperand, AnyIntegerAttr]
+    output: Annotated[Operand, AnyIntegerAttr]
+
     shape: OpAttr[ArrayAttr[IntAttr]]
     """
     shape without halo (int, int, int)
@@ -428,7 +431,7 @@ class Stencil(Operation):
     how far each dimension is expanded
     ((int, int), (int, int), (int, int))
     """
-    time_order: OpAttr[IntAttr]
+    time_buffers: OpAttr[IntAttr]
 
     body: SingleBlockRegion
 
@@ -437,24 +440,29 @@ class Stencil(Operation):
         return self.body.blocks[0]
 
     @staticmethod
-    def get(shape: list[int], halo: list[list[int]], time_order: int, names: list[str] | None = None) -> Stencil:
-        assert len(shape) == len(halo)
+    def get(time_indices: Sequence[SSAValue | Operation], shape: Sequence[int], halo: Sequence[Sequence[int]], time_buffers: int, typ: Attribute) -> Stencil:
+        assert len(halo) == len(shape)
         assert all(len(inner) == 2 for inner in halo)
 
-        block = Block.from_arg_types([
-            stencil.TempType.from_shape([-1] * len(shape))
-        ] * time_order)
+        *inputs, output = time_indices
+        assert len(time_indices) == time_buffers
 
-        if names is not None:
-            for i, name in enumerate(names):
-                block.args[i].name = name
+        block = Block.from_arg_types([
+            stencil.TempType.from_shape([-1] * len(inputs), typ)
+        ] * (time_buffers - 1))
+
+        for block_arg, idx_arg in zip(block.args, time_indices):
+            name = SSAValue.get(idx_arg).name
+            if name is None:
+                continue
+            block_arg.name = f"{name}_buff"
 
         return Stencil.build(
-            operands=[],
+            operands=[inputs, output],
             attributes={
                 'shape': ArrayAttr(IntAttr(x) for x in shape),
                 'halo': ArrayAttr(ArrayAttr(IntAttr(x) for x in inner) for inner in halo),
-                'time_order': IntAttr(time_order)
+                'time_buffers': IntAttr(time_buffers)
             },
             regions=[Region.from_block_list([block])]
         )
