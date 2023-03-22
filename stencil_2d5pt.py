@@ -52,17 +52,17 @@ eq0 = Eq(u.forward, stencil)
 
 xop = XDSLOperator([eq0])
 
-print(generate_launcher_base(xop._module, {
-    'time_m': 0,
-    'time_M': nt,
-    **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
-    'a': 0.1,
-    'dt': dt,
-}, u.shape_allocated[1:]))
+with open("main.mlir", "w") as f:
+    f.write(generate_launcher_base(xop._module, {
+        'time_m': 0,
+        'time_M': nt,
+        **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
+        'a': 0.1,
+        'dt': dt,
+    }, u.shape_allocated[1:]))
 
-print("\n\n################################################\n\tMain Module:\n################################################\n\n")
-
-print(xop.mlircode)
+with open("kernel.mlir", "w") as f:
+    f.write(xop.mlircode)
 
 sys.exit(0)
 # xop.apply(time_M=nt, a=0.1, dt=dt)
