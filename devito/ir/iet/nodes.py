@@ -81,6 +81,14 @@ class Node(Signer):
         handle.update(kwargs)
         return type(self)(**handle)
 
+    @property
+    def mlircode(self):
+        from xdsl.printer import Printer
+        from io import StringIO
+        file = StringIO()
+        Printer(file, target=Printer.Target.MLIR).print(self._module)
+        return file.getvalue()
+
     @cached_property
     def ccode(self):
         """

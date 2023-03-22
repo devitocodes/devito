@@ -100,8 +100,11 @@ class ExtractDevitoStencilConversion:
         self.block.add_op(
             stencil.ReturnOp.get(rhs_result)
         )
+        outermost_block.add_op(
+            func.Return()
+        )
 
-        return func.FuncOp.from_region('my-func', [], [], Region.from_block_list([outermost_block]))
+        return func.FuncOp.from_region('myfunc', [], [], Region.from_block_list([outermost_block]))
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
         if isinstance(node, Indexed):
@@ -309,6 +312,8 @@ from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewrite
 
 from devito.ir.ietxdsl.lowering import recalc_func_type, DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex
 
+from dataclasses import dataclass
+
 class _DevitoStencilToStencilStencil(RewritePattern):
     """
     This converts the `devito.stencil` op into the following:
@@ -406,6 +411,34 @@ def get_containing_func(op: Operation) -> func.FuncOp | None:
         return None
     return op
 
+@dataclass
+class _InsertSymbolicConstants(RewritePattern):
+    known_symbols: dict[str, int | float]
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: iet_ssa.LoadSymbolic, rewriter: PatternRewriter, /):
+        symb_name = op.symbol_name.data
+        if symb_name not in self.known_symbols:
+            return
+
+        if op.result.typ in (builtin.f32, builtin.f64):
+            rewriter.replace_matched_op(
+                arith.Constant.from_float_and_width(
+                    float(self.known_symbols[symb_name]), op.result.typ
+                )
+            )
+            return
+        
+        assert op.result.typ in (builtin.i32, builtin.i64, builtin.IndexType())
+
+        rewriter.replace_matched_op(
+            arith.Constant.from_int_and_width(
+                int(self.known_symbols[symb_name]), op.result.typ
+            )
+        )
+
+
+        
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):
     func_to_args: dict[func.FuncOp, dict[str, SSAValue]]
@@ -439,7 +472,6 @@ def convert_devito_stencil_to_xdsl_stencil(module):
         _DevitoStencilToStencilStencil(),
         _LowerGetField(),
         DropIetComments(),
-        _LowerLoadSymbolidToFuncArgs(),
         LowerIetForToScfFor(),
         ConvertScfForArgsToIndex(),
         ConvertForLoopVarToIndex()
@@ -469,3 +501,89 @@ if __name__ == '__main__':
     Printer(target=Printer.Target.MLIR).print(module)
 
 
+def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, int | float], dims: tuple[int]) -> str:
+    """
+    This transforms a module containing a function with symbolic loads into a function that is ready to be lowered by xdsl
+
+    It replaces all symbolics with the one in known_symbols
+    """
+    grpa = GreedyRewritePatternApplier([
+        _InsertSymbolicConstants(known_symbols),
+        _LowerLoadSymbolidToFuncArgs(),
+    ])
+    PatternRewriteWalker(grpa).rewrite_module(module)
+    f = module.ops[0]
+    assert isinstance(f, func.FuncOp)
+    dtype: str = f.function_type.inputs.data[0].element_type.element_type.name
+    
+    t_dims = f.function_type.inputs.data[0].shape.data[0].value.data
+
+    memref_type = "x".join(
+        (*(str(x) for x in dims), dtype)
+    )
+    
+    return f"""
+"builtin.module"() ({{
+    "func.func"() ({{
+        %ref = memref.alloc() : memref<{t_dims}xmemref<{memref_type}>>
+
+        %t0_init = memref.alloc() : memref<{memref_type}>
+        %t1_init = memref.alloc() : memref<{memref_type}>
+
+        %cst0 = arith.constant 0 : index
+        %cst1 = arith.constant 1 : index
+
+        "memref.store"(%t0_init, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+        "memref.store"(%t1_init, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+
+        %t0 = "memref.load"(%ref, %cst0) : (memref<{t_dims}xmemref<{memref_type}>>, index) -> memref<{memref_type}>
+        %t1 = "memref.load"(%ref, %cst1) : (memref<{t_dims}xmemref<{memref_type}>>, index) -> memref<{memref_type}>
+
+        %cst7 = arith.constant 7 : index
+        %cst8 = arith.constant 8 : index
+
+        %cst10f  = arith.constant 10.0 : f32
+        %cstm10f = arith.constant -10.0 : f32
+
+        "memref.store"(%cst10f, %t0, %cst7, %cst7) :  (f32, memref<{memref_type}>, index, index) -> ()
+        "memref.store"(%cstm10f, %t0, %cst7, %cst8) : (f32, memref<{memref_type}>, index, index) -> ()
+        "memref.store"(%cst10f, %t1, %cst7, %cst7) :  (f32, memref<{memref_type}>, index, index) -> ()
+        "memref.store"(%cstm10f, %t1, %cst7, %cst8) : (f32, memref<{memref_type}>, index, index) -> ()
+
+        func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
+
+        func.call @print_memref(%t0) : (memref<{memref_type}>) -> ()
+
+        func.call @print_time(%cst0) : (index) -> ()
+        // func.call @print_memref(%t0) : (memref<{memref_type}>) -> ()
+        // func.call @print_memref(%t1) : (memref<{memref_type}>) -> ()
+
+        func.return
+
+    }}) {{"function_type" = () -> (), "sym_name" = "main"}} : () -> ()
+
+    "func.func"() ({{
+    ^b0(%ref : memref<{memref_type}>):
+        %f0   = arith.constant 0.0 : f32
+        %cst0 = arith.constant 0 : index
+        %cst1 = arith.constant 1 : index
+        %cst2 = arith.constant 2 : index
+
+        %ni = memref.dim %ref, %cst0 : memref<{memref_type}>
+        %nj = memref.dim %ref, %cst1 : memref<{memref_type}>
+        scf.for %i = %cst0 to %ni step %cst1 {{
+            scf.for %j = %cst0 to %nj step %cst1 {{
+                %val = "memref.load"(%ref, %i, %j) : (memref<{memref_type}>, index, index) -> (f32)
+                func.call @print_idx_3(%val, %i, %j, %cst0) : (f32, index, index, index) -> ()
+                scf.yield
+            }}
+        }}
+        func.return
+    }}) {{"function_type" = (memref<{memref_type}>) -> (), "sym_name" = "print_memref"}} : () -> ()
+
+    func.func private @print_time(index) -> ()
+    func.func private @print_float(f32) -> ()
+    func.func private @print_idx_3(f32, index, index, index) -> ()
+    func.func private @myfunc(memref<{t_dims}xmemref<{memref_type}>>) -> ()
+}}) : () -> ()
+"""

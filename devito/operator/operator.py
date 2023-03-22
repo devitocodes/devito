@@ -176,7 +176,7 @@ class Operator(Callable):
         profiler = create_profile('timers')
 
         # Lower the input expressions into an IET
-        irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
+        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
@@ -189,6 +189,7 @@ class Operator(Callable):
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
+        op._module = module
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -254,14 +255,16 @@ class Operator(Callable):
 
         convert_devito_stencil_to_xdsl_stencil(module)
 
-        from xdsl.printer import Printer
-        p = Printer(target=Printer.Target.MLIR)
-        p.print(module)
-        import sys
-        sys.exit(0)
+        #from xdsl.printer import Printer
+        #p = Printer(target=Printer.Target.MLIR)
+        #p.print(module)
+        #import sys
+
+        #cls._stencil_module = module
+        #sys.exit(0)
 
         # [LoweredEq] -> [Clusters]
-        #clusters = cls._lower_clusters(expressions, **kwargs)
+        clusters = cls._lower_clusters(expressions, **kwargs)
 
         # [Clusters] -> ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)
@@ -272,7 +275,7 @@ class Operator(Callable):
         # unbounded IET -> IET
         iet, byproduct = cls._lower_iet(uiet, **kwargs)
 
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct
+        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
 
     @classmethod
     def _initialize_state(cls, **kwargs):

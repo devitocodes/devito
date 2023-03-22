@@ -1,8 +1,11 @@
 import numpy as np
+import sys
 
 from devito import (Grid, Eq, TimeFunction, Operator, norm,
                     Constant, solve, XDSLOperator)
 from devito.ir import Iteration, FindNodes
+from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
+
 import argparse
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -48,7 +51,20 @@ stencil = solve(eq, u.forward)
 eq0 = Eq(u.forward, stencil)
 
 xop = XDSLOperator([eq0])
-print(xop.ccode)
+
+print(generate_launcher_base(xop._module, {
+    'time_m': 0,
+    'time_M': nt,
+    **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
+    'a': 0.1,
+    'dt': dt,
+}, u.shape_allocated[1:]))
+
+print("\n\n################################################\n\tMain Module:\n################################################\n\n")
+
+print(xop.mlircode)
+
+sys.exit(0)
 # xop.apply(time_M=nt, a=0.1, dt=dt)
 xop.apply(time_M=nt, a=0.1, dt=dt)
 xdsl_data: np.array = u.data_with_halo.copy()
