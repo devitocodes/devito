@@ -50,10 +50,7 @@ class ConvertScfForArgsToIndex(RewritePattern):
             cst1 := arith.Constant.from_int_and_width(1, op.ub.typ),
             new_ub := arith.Addi.get(op.ub, cst1),
         ])
-        op.replace_operand(
-            op.operands.index(op.ub),
-            new_ub.result
-        )
+        op.replace_operand(op.operands.index(op.ub), new_ub.result)
 
         for val in (op.lb, op.ub, op.step):
             cast = arith.IndexCastOp.get(val, builtin.IndexType())
@@ -76,10 +73,10 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
             new_ub = arith.Addi.get(ub, cst1)
             rewriter.insert_op_before_matched_op(new_ub)
             op.replace_operand(
-                op.operands.index(ub), 
+                op.operands.index(ub),
                 new_ub.result,
             )
-        
+
         for val in (*op.lowerBound, *op.upperBound, *op.step):
             if isinstance(val.typ, builtin.IndexType):
                 continue
@@ -228,9 +225,9 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
         assert isinstance(memref_typ, memref.MemRefType)
 
         # u_vec_size_ptr_addr : llvm.ptr<llvm.ptr<i64>>
-        u_vec_size_ptr_addr = llvm.GetElementPtrOp.get(
+        u_vec_size_ptr_addr = llvm.GEPOp.get(
             op.arg,
-            [0, 1],
+            indices=[0, 1],
             result_type=llvm.LLVMPointerType.typed(
                 llvm.LLVMPointerType.typed(builtin.i64)),
         )
@@ -246,9 +243,9 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
             #       second entry and only use the lower 32 bits of the size.
             #       this is okay as long as we don't work on data with more than
             #       2^32 cells, if each cell is 32bit long that is ~128GB of data.
-            ptr_to_size_i = llvm.GetElementPtrOp.get(
+            ptr_to_size_i = llvm.GEPOp.get(
                 u_vec_size_ptr,
-                [i*2],  # get the 2-i-th element
+                indices=[i * 2],  # get the 2-i-th element
                 result_type=llvm.LLVMPointerType.typed(builtin.i64),
             )
             # dereference
@@ -265,9 +262,9 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
             [
                 # this is (u_vec + 0)
                 # the type is llvm.ptr<llvm.ptr<encapsulated type>>
-                u_vec_data_ptr_addr := llvm.GetElementPtrOp.get(
+                u_vec_data_ptr_addr := llvm.GEPOp.get(
                     op.arg,
-                    [0, 0],
+                    indices=[0, 0],
                     result_type=llvm.LLVMPointerType.typed(
                         llvm.LLVMPointerType.typed(memref_typ.element_type)),
                 ),
@@ -299,6 +296,7 @@ def recalc_func_type(op: func.FuncOp):
         op.function_type.outputs.data,
     )
 
+
 @dataclass
 class LowerMemrefLoadToLLvmPointer(RewritePattern):
     """
@@ -327,12 +325,11 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
         rewriter.replace_matched_op(
             [
                 *idx_calc_ops,
-                # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
-                gep := llvm.GetElementPtrOp.get(
-                    op.memref,
-                    [-2147483648],
-                    [idx],
-                ),
+                gep := llvm.GEPOp.get(op.memref,
+                                      indices=[llvm.GEP_USE_SSA_VAL],
+                                      ssa_indices=[idx],
+                                      result_type=llvm.LLVMPointerType.typed(
+                                          op.memref.memref.typ.element_type)),
                 load := llvm.LoadOp.get(gep),
             ],
             [load.dereferenced_value],
@@ -353,8 +350,12 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
             [
                 *idx_calc_ops,
                 # -2147483648 is INT_MIN, a magic value used in the implementation of GEP
-                gep := llvm.GetElementPtrOp.get(op.memref, [-2147483648],
-                                                [idx]),
+                gep := llvm.GEPOp.get(
+                    op.memref,
+                    indices=[llvm.GEP_USE_SSA_VAL],
+                    ssa_indices=[idx],
+                    result_type=llvm.LLVMPointerType.typed(op.memref.memref.element_type)
+                ),
                 store := llvm.StoreOp.get(op.value, gep),
             ],
             [],
