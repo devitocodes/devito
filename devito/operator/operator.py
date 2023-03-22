@@ -248,9 +248,11 @@ class Operator(Callable):
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
 
-        from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion
+        from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion, convert_devito_stencil_to_xdsl_stencil
         conv = ExtractDevitoStencilConversion(expressions)
         module = conv.convert()
+
+        convert_devito_stencil_to_xdsl_stencil(module)
 
         from xdsl.printer import Printer
         p = Printer(target=Printer.Target.MLIR)

@@ -231,7 +231,6 @@ class ExtractDevitoStencilConversion:
         
         return loop
 
-
     def convert(self) -> builtin.ModuleOp:
         return builtin.ModuleOp.from_region_or_ops(
             Region.from_block_list([
@@ -241,8 +240,6 @@ class ExtractDevitoStencilConversion:
             ])
         )
         
-            
-
     def _ensure_same_type(self, *vals: SSAValue):
         if all(isinstance(val.typ, builtin.IntegerAttr) for val in vals):
             return vals
@@ -310,7 +307,7 @@ def is_float(val: SSAValue):
 
 from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
 
-from devito.ir.ietxdsl.lowering import recalc_func_type
+from devito.ir.ietxdsl.lowering import recalc_func_type, DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex
 
 class _DevitoStencilToStencilStencil(RewritePattern):
     """
@@ -351,7 +348,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         rank = len(op.shape.data)
 
         data = iet_ssa.LoadSymbolic.get('data', memref.MemRefType.from_element_type_and_shape(
-            stencil.FieldType.from_shape([-1] * rank, op.field_type), [op.time_buffers.value.data]
+            memref.MemRefType.from_element_type_and_shape(op.field_type, [-1] * rank), [op.time_buffers.value.data]
         ))
         lb = stencil.IndexAttr.get(*list(-halo_elm.data[0].value.data for halo_elm in op.halo.data))
         ub = stencil.IndexAttr.get(*list(shape_elm.value.data + halo_elm.data[1].value.data for shape_elm, halo_elm in zip(op.shape.data, op.halo.data)))
@@ -377,18 +374,29 @@ class _DevitoStencilToStencilStencil(RewritePattern):
             out := stencil.ApplyOp.get(
                 loads, op.body.detach_block(0)
             ),
-            stencil.StoreOp.get(out, fields[-1])
+            stencil.StoreOp.get(
+                out, 
+                fields[-1],
+                stencil.IndexAttr.get(*([0] * len(op.halo))),
+                stencil.IndexAttr.get(*op.shape.data),
+            )
         ])
 
 class _LowerGetField(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.GetField, rewriter: PatternRewriter, /):
-        
         rewriter.replace_matched_op([
             idx := arith.IndexCastOp.get(op.t_index, builtin.IndexType()),
-            field := memref.Load.get(op.data, [idx]),
+            ref := memref.Load.get(op.data, [idx]),
+            field := stencil.ExternalLoadOp.get(ref, res_type=field_type_to_dynamic_shape_type(op.field.typ)),
             field_w_size := stencil.CastOp.get(field, op.lb, op.ub, op.field.typ)
         ], [field_w_size.result])
+
+
+def field_type_to_dynamic_shape_type(t: stencil.FieldType):
+    return stencil.FieldType.from_shape(
+        [-1] * len(t.shape), t.element_type
+    )
 
 
 def get_containing_func(op: Operation) -> func.FuncOp | None:
@@ -397,6 +405,7 @@ def get_containing_func(op: Operation) -> func.FuncOp | None:
     if op is None:
         return None
     return op
+
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):
     func_to_args: dict[func.FuncOp, dict[str, SSAValue]]
@@ -423,19 +432,24 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
         parent.attributes['param_names'] = builtin.ArrayAttr([
             builtin.StringAttr(name) for name, _ in sorted(args.items(), key=lambda tpl: tpl[1].index)
         ])
-        
 
 
-
-
-
-
+def convert_devito_stencil_to_xdsl_stencil(module):
+    grpa = GreedyRewritePatternApplier([
+        _DevitoStencilToStencilStencil(),
+        _LowerGetField(),
+        DropIetComments(),
+        _LowerLoadSymbolidToFuncArgs(),
+        LowerIetForToScfFor(),
+        ConvertScfForArgsToIndex(),
+        ConvertForLoopVarToIndex()
+    ])
+    PatternRewriteWalker(grpa).rewrite_module(module)
 
 
 if __name__ == '__main__':
     import sys
     from xdsl.parser import Parser, MLContext, Source
-    from devito.ir.ietxdsl.lowering import DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex
     ctx = MLContext()
     ctx.register_dialect(stencil.Stencil)
     ctx.register_dialect(builtin.Builtin)
@@ -449,16 +463,7 @@ if __name__ == '__main__':
 
     module = p.parse_module()
 
-    grpa = GreedyRewritePatternApplier([
-        _DevitoStencilToStencilStencil(),
-        _LowerGetField(),
-        DropIetComments(),
-        _LowerLoadSymbolidToFuncArgs(),
-        LowerIetForToScfFor(),
-        ConvertScfForArgsToIndex(),
-        ConvertForLoopVarToIndex()
-    ])
-    PatternRewriteWalker(grpa).rewrite_module(module)
+    convert_devito_stencil_to_xdsl_stencil(module)
 
     from xdsl.printer import Printer
     Printer(target=Printer.Target.MLIR).print(module)
