@@ -36,7 +36,7 @@ class Profiler(object):
     _default_libs = []
     _ext_calls = []
 
-    """Metadata for a profiled code section."""
+    _supports_async_sections = False
 
     def __init__(self, name):
         self.name = name
@@ -208,6 +208,8 @@ class ProfilerVerbose2(Profiler):
 
 
 class AdvancedProfiler(Profiler):
+
+    _supports_async_sections = True
 
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, args, dtype, reduce_over=None):
@@ -394,7 +396,7 @@ class PerformanceSummary(OrderedDict):
         performance data is local, that is "per-rank".
         """
         # Do not show unexecuted Sections (i.e., loop trip count was 0)
-        if ops == 0 or traffic == 0:
+        if traffic == 0:
             return
         # Do not show dynamic Sections (i.e., loop trip counts varies dynamically)
         if traffic is not None and np.isnan(traffic):
@@ -403,7 +405,7 @@ class PerformanceSummary(OrderedDict):
 
         k = PerfKey(name, rank)
 
-        if ops is None:
+        if not ops:
             self[k] = PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
         else:
             gflops = float(ops)/10**9

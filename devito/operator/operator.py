@@ -20,7 +20,7 @@ from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
-                           generate_macros, instrument)
+                           generate_macros)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -449,7 +449,7 @@ class Operator(Callable):
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        instrument(graph, profiler=profiler, sregistry=sregistry)
+        cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph)
@@ -899,10 +899,14 @@ class Operator(Callable):
         # thing that will be emitted
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
-            oi = "OI=%.2f" % fround(v.oi)
-            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [oi, gflopss, gpointss] if i is not None)
+            if v.gflopss:
+                oi = "OI=%.2f" % fround(v.oi)
+                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+                gpointss = "%.2f GPts/s" % fround(v.gpointss)
+                metrics = "[%s]" % ", ".join([oi, gflopss, gpointss])
+            else:
+                metrics = ""
+
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 itershapes = ",".join("<%s>" % i for i in itershapes)
@@ -912,7 +916,7 @@ class Operator(Callable):
                 itershapes = ""
             name = "%s%s<%s>" % (k.name, rank, itershapes)
 
-            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
+            perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
             for n, time in summary.subsections.get(k.name, {}).items():
                 perf("%s+ %s ran in %.2f s [%.2f%%]" %
                      (indent*2, n, time, fround(time/v.time*100)))
