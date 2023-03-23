@@ -1,4 +1,5 @@
-from devito.ir.iet import BusyWait, MapNodes, Section, TimedList, Transformer
+from devito.ir.iet import (BusyWait, FindNodes, FindSymbols, MapNodes, Section,
+                           TimedList, Transformer)
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
@@ -17,6 +18,7 @@ def instrument(graph, **kwargs):
     timer = Timer(profiler.name, list(profiler.all_sections))
 
     instrument_sections(graph, timer=timer, **kwargs)
+    sync_sections(graph, **kwargs)
 
 
 @iet_pass
@@ -72,3 +74,30 @@ def instrument_sections(iet, **kwargs):
     headers = [TimedList._start_timer_header(), TimedList._stop_timer_header()]
 
     return piet, {'headers': headers}
+
+
+@iet_pass
+def sync_sections(iet, lang=None, profiler=None, **kwargs):
+    """
+    Wrap sections within global barriers if deemed necessary by the profiler.
+    """
+    try:
+        sync = lang['device-wait']
+    except (KeyError, NotImplementedError):
+        return iet, {}
+
+    if not profiler._supports_async_sections:
+        return iet, {}
+
+    mapper = {}
+    for tl in FindNodes(TimedList).visit(iet):
+        symbols = FindSymbols().visit(tl)
+
+        runs_async = any(isinstance(i, lang.AsyncQueue) for i in symbols)
+        unnecessary = any(FindNodes(BusyWait).visit(tl))
+        if runs_async and not unnecessary:
+            mapper[tl] = tl._rebuild(body=tl.body + (sync,))
+
+    iet = Transformer(mapper).visit(iet)
+
+    return iet, {}
