@@ -835,8 +835,8 @@ class DualHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
     Generates:
 
         remainder()
-        compute_core()
         haloupdate()
+        compute_core()
         halowait()
     """
 
@@ -846,10 +846,11 @@ class DualHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         assert remainder is not None
         body.append(self._call_remainder(remainder))
 
+        body.append(HaloUpdateList(body=haloupdates))
+
         assert callcompute is not None
         body.append(callcompute)
 
-        body.append(HaloUpdateList(body=haloupdates))
         body.append(HaloWaitList(body=halowaits))
 
         return List(body=body)
