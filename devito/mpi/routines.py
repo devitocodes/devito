@@ -9,9 +9,10 @@ from sympy import Integer
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
-                           AugmentedExpression, Iteration, List, Prodder, Return,
-                           make_efunc, FindNodes, Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
+                           Expression, ExpressionBundle, AugmentedExpression,
+                           Iteration, List, Prodder, Return, make_efunc, FindNodes,
+                           Transformer)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
@@ -646,7 +647,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
         body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
-        return make_efunc('remainder%d' % key, body)
+        return Remainder.make('remainder%d' % key, body)
 
     def _call_remainder(self, remainder):
         efunc = remainder.make_call()
@@ -793,7 +794,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
 
-        return make_efunc('remainder%d' % key, iet)
+        return Remainder.make('remainder%d' % key, iet)
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -948,6 +949,10 @@ class HaloUpdate(MPICallable):
 
     def __init__(self, name, body, parameters):
         super(HaloUpdate, self).__init__(name, body, parameters)
+
+
+class Remainder(ElementalFunction):
+    pass
 
 
 # Call sub-hierarchy
