@@ -552,6 +552,8 @@ class OneapiCompiler(Compiler):
                 self.cflags.append('-fsycl-targets=spir64')
 
         if language == 'openmp':
+            # To be switched to `-fiopenmp` or `-qopenmp` as soon as
+            # it is fixed in the new Intel OneAPI release
             self.cflags.append('-fopenmp')
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
@@ -566,8 +568,8 @@ class OneapiCompiler(Compiler):
 
         # Make sure the MPI compiler uses `icx` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
-            ver = check_output([self.MPICC, "--version"]).decode("utf-8")
-            if not ver.startswith("Intel(R) oneAPI"):
+            mpi_distro = sniff_mpi_distro('mpiexec')
+            if not mpi_distro.startswith("Intel(R) oneAPI"):
                 warning("The MPI compiler `%s` doesn't use the Intel(R) oneAPI "
                         "DPC++/C++ compiler underneath" % self.MPICC)
 
