@@ -576,6 +576,34 @@ class TestSubDimension(object):
         assert np.all(u.data[0, thickness:] == 0)
         assert np.all(u.data[0, :, thickness+12:] == 0)
 
+    def test_subdimmiddle_subdimleft_blocked(self):
+        grid = Grid(shape=(20, 20, 20))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid)
+
+        zl = SubDimension.left(name='zl', parent=z, thickness=thickness)
+        zi = SubDimension.middle(name='zi', parent=z, thickness_left=thickness,
+                                 thickness_right=thickness)
+
+        eqns = [Eq(u[t+1, x, y, zi], u[t, x, y, zi] + 1),
+                Eq(u[t+1, x, y, zl], u[t, x, y, zl] + 1)]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expected loop blocking over x and y, with the
+        # two z loops, zi and zl, within y
+        assert_structure(op,
+                         ['t,x0_blk0,y0_blk0,x,y,zi', 't,x0_blk0,y0_blk0,x,y,zl'],
+                         't,x0_blk0,y0_blk0,x,y,zi,zl')
+
+        op.apply(time_M=0)
+        assert np.all(u.data[0] == 0)
+        assert np.all(u.data[1, :, :, :-thickness] == 1)
+        assert np.all(u.data[1, :, :, -thickness:] == 0)
+
     def test_subdim_fd(self):
         """
         Test that the FD shortcuts are handled correctly with SubDimensions
