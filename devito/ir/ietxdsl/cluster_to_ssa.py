@@ -552,9 +552,6 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
 
         func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
 
-        func.call @print_memref(%t0) : (memref<{memref_type}>) -> ()
-
-        func.call @print_time(%cst0) : (index) -> ()
         // func.call @print_memref(%t0) : (memref<{memref_type}>) -> ()
         // func.call @print_memref(%t1) : (memref<{memref_type}>) -> ()
 
