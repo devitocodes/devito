@@ -438,10 +438,11 @@ def update_args(root, efuncs, dag):
     efuncs[root.name] = root._rebuild(parameters=parameters)
 
     # Update all call sites to use the new signature
-    for n in dag.downstream(root.name):
+    call_sites = dag.downstream(root.name)
+    for n in call_sites:
         mapper = {c: c._rebuild(arguments=_filter(c.arguments))
                   for c in FindNodes(Call).visit(efuncs[n])
-                  if c.name == root.name}
+                  if c.name in [root.name] + call_sites}
         efuncs[n] = Transformer(mapper).visit(efuncs[n])
 
     return efuncs
