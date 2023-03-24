@@ -196,6 +196,11 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         if self._has_short_trip_count(d):
             return clusters
 
+        # Heuristic: if all Clusters operate on local SubDimensions, then it means
+        # that all IterationSpaces are tiny, hence we can skip
+        if all(any(i.dim.is_Sub and i.dim.local for i in c.ispace) for c in clusters):
+            return clusters
+
         processed = []
         for c in clusters:
             # PARALLEL* and AFFINE are necessary conditions
@@ -214,10 +219,6 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
 
             # Heuristic: TILABLE not worth it if not within a SEQUENTIAL Dimension
             if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
-                return clusters
-
-            # Heuristic: same as above if there's a local SubDimension
-            if any(i.dim.is_Sub and i.dim.local for i in c.ispace):
                 return clusters
 
             processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
