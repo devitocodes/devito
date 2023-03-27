@@ -898,6 +898,12 @@ class FindSymbols(Visitor):
     def visit_Node(self, o):
         return self.Retval(self._visit(o.children), self.rule(o))
 
+    def visit_ThreadedProdder(self, o):
+        # TODO: this handle required because ThreadedProdder suffers from the
+        # long-standing issue affecting all Node subclasses which rely on
+        # multiple inheritance
+        return self.Retval(self._visit(o.then_body), self.rule(o))
+
     def visit_Operator(self, o):
         ret = self._visit(o.body)
         ret.extend(flatten(self._visit(v) for v in o._func_table.values()))

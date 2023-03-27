@@ -542,11 +542,6 @@ class DefFunction(Function, Pickable):
     def arguments(self):
         return self._arguments
 
-    @property
-    def free_symbols(self):
-        return set().union(*[i.free_symbols for i in self.arguments
-                             if isinstance(i, Expr)])
-
     def __str__(self):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
 
