@@ -8,7 +8,7 @@ from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
-from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
+from devito.ir.support.basic import (Delta, IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, REGULAR, IRREGULAR)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
@@ -742,10 +742,11 @@ class TestDependenceAnalysis(object):
         exprs = [LoweredEq(i) for i in exprs]
 
         scope = Scope(exprs)
-        assert len(scope.d_all) == len(scope.d_flow) == 1
+        assert len(scope.d_all) == 3
+        assert len(scope.d_flow) == 3
         assert len(scope.d_anti) == 0
-        v = scope.d_flow.pop()
-        assert v.function is f
+        assert any(v.function is f for v in scope.d_flow)
+        assert any(v.function is Delta for v in scope.d_flow)
 
     def test_indirect_access(self):
         grid = Grid(shape=(4, 4))
