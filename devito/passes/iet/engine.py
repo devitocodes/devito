@@ -401,7 +401,6 @@ def update_args(root, efuncs, dag):
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
     new_args = derive_parameters(root)
-    new_args = [a for a in new_args if not a._mem_internal_eager]
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
@@ -438,11 +437,10 @@ def update_args(root, efuncs, dag):
     efuncs[root.name] = root._rebuild(parameters=parameters)
 
     # Update all call sites to use the new signature
-    call_sites = dag.downstream(root.name)
-    for n in call_sites:
+    for n in dag.downstream(root.name):
         mapper = {c: c._rebuild(arguments=_filter(c.arguments))
                   for c in FindNodes(Call).visit(efuncs[n])
-                  if c.name in [root.name] + call_sites}
+                  if c.name == root.name}
         efuncs[n] = Transformer(mapper).visit(efuncs[n])
 
     return efuncs
