@@ -329,15 +329,8 @@ class DeviceAwareMixin(object):
         """
         True if the IET computation is offloadable to device, False otherwise.
         """
-        for e in FindNodes(Expression).visit(iet):
-            try:
-                a = e.write.alias
-                if is_on_device(a or e.write, self.gpu_fit):
-                    break
-            except AttributeError:
-                # E.g., a Symbol
-                continue
-        else:
+        expressions = FindNodes(Expression).visit(iet)
+        if any(not is_on_device(e.write, self.gpu_fit) for e in expressions):
             return False
 
         functions = FindSymbols().visit(iet)
