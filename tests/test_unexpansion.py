@@ -1,15 +1,12 @@
 import numpy as np
 
 from conftest import assert_structure, get_params, get_arrays, check_array
-from devito import Eq, Function, TimeFunction, Grid, Operator, cos, sin
+from devito import Eq, Function, TimeFunction, Grid, Operator, cos, sin, sqrt
 
 
 class TestBasic(object):
 
     def test_v0(self):
-        """
-        Without prematurely expanding derivatives.
-        """
         grid = Grid(shape=(10, 10, 10))
 
         f = Function(name='f', grid=grid, space_order=4)
@@ -33,11 +30,19 @@ class TestBasic(object):
 
         assert np.allclose(u.data, u1.data, rtol=10e-6)
 
+    def test_fusion_after_unexpansion(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqn = Eq(u.forward, u.dx + u.dy)
+
+        op = Operator(eqn, opt=('advanced', {'expand': False}))
+
+        assert op._profiler._sections['section0'].sops == 21
+        assert_structure(op, ['t,x,y', 't,x,y,i0'], 't,x,y,i0')
+
     def test_v1(self):
-        """
-        Inspired by test_space_invariant_v5, but now try with unexpanded
-        derivatives.
-        """
         grid = Grid(shape=(10, 10, 10))
 
         f = Function(name='f', grid=grid, space_order=4)
@@ -115,17 +120,157 @@ class TestBasic(object):
         assert np.allclose(u.data, u1.data, rtol=10e-3)
         assert np.allclose(v.data, v1.data, rtol=10e-3)
 
+    def test_v4(self):
+        grid = Grid(shape=(16, 16, 16))
+        t = grid.stepping_dim
+        x, y, z = grid.dimensions
 
-class TestAdvanced(object):
+        so = 4
 
-    def test_fusion_after_unexpansion(self):
-        grid = Grid(shape=(10, 10))
+        a = Function(name='a', grid=grid, space_order=so)
+        f = Function(name='f', grid=grid, space_order=so)
+        e = Function(name='e', grid=grid, space_order=so)
+        r = Function(name='r', grid=grid, space_order=so)
+        p0 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=so)
+        m0 = TimeFunction(name='m0', grid=grid, time_order=2, space_order=so)
 
-        u = TimeFunction(name='u', grid=grid, space_order=4)
+        def g1(field, r, e):
+            return (cos(e) * cos(r) * field.dx(x0=x+x.spacing/2) +
+                    cos(e) * sin(r) * field.dy(x0=y+y.spacing/2) -
+                    sin(e) * field.dz(x0=z+z.spacing/2))
 
-        eqn = Eq(u.forward, u.dx + u.dy)
+        def g2(field, r, e):
+            return - (sin(r) * field.dx(x0=x+x.spacing/2) -
+                      cos(r) * field.dy(x0=y+y.spacing/2))
 
-        op = Operator(eqn, opt=('advanced', {'expand': False}))
+        def g3(field, r, e):
+            return (sin(e) * cos(r) * field.dx(x0=x+x.spacing/2) +
+                    sin(e) * sin(r) * field.dy(x0=y+y.spacing/2) +
+                    cos(e) * field.dz(x0=z+z.spacing/2))
 
-        assert op._profiler._sections['section0'].sops == 21
-        assert_structure(op, ['t,x,y', 't,x,y,i0'], 't,x,y,i0')
+        def g1_tilde(field, r, e):
+            return ((cos(e) * cos(r) * field).dx(x0=x-x.spacing/2) +
+                    (cos(e) * sin(r) * field).dy(x0=y-y.spacing/2) -
+                    (sin(e) * field).dz(x0=z-z.spacing/2))
+
+        def g2_tilde(field, r, e):
+            return - ((sin(r) * field).dx(x0=x-x.spacing/2) -
+                      (cos(r) * field).dy(x0=y-y.spacing/2))
+
+        def g3_tilde(field, r, e):
+            return ((sin(e) * cos(r) * field).dx(x0=x-x.spacing/2) +
+                    (sin(e) * sin(r) * field).dy(x0=y-y.spacing/2) +
+                    (cos(e) * field).dz(x0=z-z.spacing/2))
+
+        update_p = t.spacing**2 * a**2 / f * \
+            (g1_tilde(f * g1(p0, r, e), r, e) +
+             g2_tilde(f * g2(p0, r, e), r, e) +
+             g3_tilde(f * g3(p0, r, e) + f * g3(m0, r, e), r, e)) + \
+            (2 - t.spacing * a)
+
+        update_m = t.spacing**2 * a**2 / f * \
+            (g1_tilde(f * g1(m0, r, e), r, e) +
+             g2_tilde(f * g2(m0, r, e), r, e) +
+             g3_tilde(f * g3(m0, r, e) + f * g3(p0, r, e), r, e)) + \
+            (2 - t.spacing * a)
+
+        eqns = [Eq(p0.forward, update_p),
+                Eq(m0.forward, update_m)]
+
+        op = Operator(eqns, subs=grid.spacing_map,
+                      opt=('advanced', {'expand': False}))
+
+        # Check code generation
+        assert op._profiler._sections['section1'].sops == 1442
+        assert_structure(op, ['x,y,z',
+                              't,x0_blk0,y0_blk0,x,y,z',
+                              't,x0_blk0,y0_blk0,x,y,z,i1',
+                              't,x0_blk0,y0_blk0,x,y,z,i1,i0'],
+                         'x,y,z,t,x0_blk0,y0_blk0,x,y,z,i1,i0')
+
+        op.cfunction
+
+    def test_v5(self):
+        grid = Grid(shape=(16, 16, 16))
+        t = grid.stepping_dim
+        x, y, z = grid.dimensions
+
+        so = 8
+
+        b = Function(name='b', grid=grid, space_order=so)
+        f = Function(name='f', grid=grid, space_order=so)
+        vel = Function(name='vel', grid=grid, space_order=so)
+        eps = Function(name='eps', grid=grid, space_order=so)
+        eta = Function(name='eta', grid=grid, space_order=so)
+        wOverQ = Function(name='wOverQ', grid=grid, space_order=so)
+        theta = Function(name='theta', grid=grid, space_order=so)
+        phi = Function(name='phi', grid=grid, space_order=so)
+
+        p0 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=so)
+        m0 = TimeFunction(name='m0', grid=grid, time_order=2, space_order=so)
+
+        t, x, y, z = p0.dimensions
+
+        def g1(field):
+            return (cos(theta) * cos(phi) * field.dx(x0=x+x.spacing/2) +
+                    cos(theta) * sin(phi) * field.dy(x0=y+y.spacing/2) -
+                    sin(theta) * field.dz(x0=z+z.spacing/2))
+
+        def g2(field):
+            return - (sin(phi) * field.dx(x0=x+x.spacing/2) -
+                      cos(phi) * field.dy(x0=y+y.spacing/2))
+
+        def g3(field):
+            return (sin(theta) * cos(phi) * field.dx(x0=x+x.spacing/2) +
+                    sin(theta) * sin(phi) * field.dy(x0=y+y.spacing/2) +
+                    cos(theta) * field.dz(x0=z+z.spacing/2))
+
+        def g1_tilde(field):
+            return ((cos(theta) * cos(phi) * field).dx(x0=x-x.spacing/2) +
+                    (cos(theta) * sin(phi) * field).dy(x0=y-y.spacing/2) -
+                    (sin(theta) * field).dz(x0=z-z.spacing/2))
+
+        def g2_tilde(field):
+            return - ((sin(phi) * field).dx(x0=x-x.spacing/2) -
+                      (cos(phi) * field).dy(x0=y-y.spacing/2))
+
+        def g3_tilde(field):
+            return ((sin(theta) * cos(phi) * field).dx(x0=x-x.spacing/2) +
+                    (sin(theta) * sin(phi) * field).dy(x0=y-y.spacing/2) +
+                    (cos(theta) * field).dz(x0=z-z.spacing/2))
+
+        # Time update equation for quasi-P state variable p
+        update_p = t.spacing**2 * vel**2 / b * \
+            (g1_tilde(b * (1 + 2 * eps) * g1(p0)) +
+             g2_tilde(b * (1 + 2 * eps) * g2(p0)) +
+             g3_tilde(b * (1 - f * eta**2) * g3(p0) +
+                      b * f * eta * sqrt(1 - eta**2) * g3(m0))) + \
+            (2 - t.spacing * wOverQ) * p0 + \
+            (t.spacing * wOverQ - 1) * p0.backward
+
+        # Time update equation for quasi-S state variable m
+        update_m = t.spacing**2 * vel**2 / b * \
+            (g1_tilde(b * (1 - f) * g1(m0)) +
+             g2_tilde(b * (1 - f) * g2(m0)) +
+             g3_tilde(b * (1 - f + f * eta**2) * g3(m0) +
+                      b * f * eta * sqrt(1 - eta**2) * g3(p0))) + \
+            (2 - t.spacing * wOverQ) * m0 + \
+            (t.spacing * wOverQ - 1) * m0.backward
+
+        stencil_p = Eq(p0.forward, update_p)
+        stencil_m = Eq(m0.forward, update_m)
+
+        eqns = [stencil_p, stencil_m]
+
+        op = Operator(eqns, subs=grid.spacing_map,
+                      opt=('advanced', {'expand': False}))
+
+        # Check code generation
+        #assert op._profiler._sections['section1'].sops == 1442
+        #assert_structure(op, ['x,y,z',
+        #                      't,x0_blk0,y0_blk0,x,y,z',
+        #                      't,x0_blk0,y0_blk0,x,y,z,i1',
+        #                      't,x0_blk0,y0_blk0,x,y,z,i1,i0'],
+        #                 'x,y,z,t,x0_blk0,y0_blk0,x,y,z,i1,i0')
+
+        op.cfunction
