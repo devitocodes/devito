@@ -341,6 +341,11 @@ class Stepper(Queue):
 
 class Communications(Queue):
 
+    """
+    Enrich a sequence of Clusters by adding special Clusters representing data
+    communications, or "halo exchanges", for distributed parallelism.
+    """
+
     _q_guards_in_key = True
 
     B = Symbol(name='⊥')
