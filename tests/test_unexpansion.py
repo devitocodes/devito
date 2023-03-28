@@ -2,6 +2,7 @@ import numpy as np
 
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import Buffer, Eq, Function, TimeFunction, Grid, Operator, cos, sin
+from devito.types import Symbol
 
 
 class TestBasic(object):
@@ -187,5 +188,54 @@ class TestBasic(object):
                               't,x0_blk0,y0_blk0,x,y,z,i1',
                               't,x0_blk0,y0_blk0,x,y,z,i1,i0'],
                          'x,y,z,t,x0_blk0,y0_blk0,x,y,z,i1,i0')
+
+        op.cfunction
+
+    def test_v5(self):
+        grid = Grid(shape=(16, 16))
+
+        p0 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=4,
+                          save=Buffer(2))
+        m0 = TimeFunction(name='m0', grid=grid, time_order=2, space_order=4,
+                          save=Buffer(2))
+
+        eqns = [Eq(p0.forward, (p0.dx + m0.dx).dx + p0.backward),
+                Eq(m0.forward, m0.dx.dx + m0.backward)]
+
+        op = Operator(eqns, subs=grid.spacing_map,
+                      opt=('advanced', {'expand': False}))
+
+        # Check code generation
+        assert op._profiler._sections['section0'].sops == 127
+        assert_structure(op, ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0'], 't,x,y,i1,i0')
+
+        op.cfunction
+
+    def test_v6(self):
+        grid = Grid(shape=(16, 16))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=4)
+        p0 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=4,
+                          save=Buffer(2))
+        m0 = TimeFunction(name='m0', grid=grid, time_order=2, space_order=4,
+                          save=Buffer(2))
+
+        s0 = Symbol(name='s0', dtype=np.float32)
+
+        eqns = [Eq(p0.forward, (p0.dx + m0.dx).dx + p0.backward),
+                Eq(s0, 4., implicit_dims=p0.dimensions),
+                Eq(m0.forward, (m0.dx + s0).dx + f*m0.backward)]
+
+        op = Operator(eqns, subs=grid.spacing_map,
+                      opt=('advanced', {'expand': False}))
+
+        # Check code generation
+        assert op._profiler._sections['section0'].sops == 183
+        assert_structure(
+            op,
+            ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0', 't,x,y,i1', 't,x,y,i1,i0'],
+            't,x,y,i1,i0,i1,i0'
+        )
 
         op.cfunction

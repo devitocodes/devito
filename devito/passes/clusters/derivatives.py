@@ -32,15 +32,24 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
             exprs[:] = []
 
     for c in clusters:
+        # Can I reuse common IndexDerivatives popping up in different exprs
+        # within `c`?
+        # NOTE: this could be refined to rather identify groups of consecutive
+        # exprs sharing IndexDerivatives, but it's in practice an overkill, since
+        # we only end up here in artificious cases
+        unreusable = any(d.is_indep() and d.is_lex_ne for d in c.scope.d_all_gen())
 
         exprs = []
         seen = {}
         for e in c.exprs:
             expr, v = _lower_index_derivatives_core(e, c, weights, seen, sregistry)
-            if v:
+            if v and unreusable:
                 dump(exprs, c)
             exprs.append(expr)
             processed.extend(v)
+
+            if unreusable:
+                seen = {}
 
         dump(exprs, c)
 
@@ -79,7 +88,7 @@ def _lower_index_derivatives_core(expr, c, weights, seen, sregistry):
     # Have I seen this IndexDerivative already?
     try:
         return seen[expr], []
-    except KeyError:
+    except (KeyError, TypeError):
         pass
 
     dims = retrieve_dimensions(expr, deep=True)
@@ -104,7 +113,10 @@ def _lower_index_derivatives_core(expr, c, weights, seen, sregistry):
     processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
 
     # Track IndexDerivative to avoid intra-Cluster duplicates
-    seen[expr] = s
+    try:
+        seen[expr] = s
+    except TypeError:
+        pass
 
     # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
     # StencilDimensions starting points
