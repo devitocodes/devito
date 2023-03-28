@@ -563,6 +563,11 @@ class Relation(object):
         return self.source.timestamp == self.sink.timestamp
 
     @cached_property
+    def is_lex_ne(self):
+        """True if the source's and sink's timestamps differ, False otherwise."""
+        return self.source.timestamp != self.sink.timestamp
+
+    @cached_property
     def is_lex_negative(self):
         """
         True if the sink preceeds the source, False otherwise.
