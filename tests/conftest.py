@@ -1,14 +1,16 @@
 import os
+import sys
 from subprocess import check_call
 
 import pytest
-import sys
+from sympy import Add
 
 from devito import Eq, configuration  # noqa
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
-from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
+from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
+                           retrieve_iteration_tree)
 from devito.tools import as_tuple
 
 try:
@@ -332,3 +334,39 @@ opts_device_tiling = [('advanced', {'blocklevels': 1}),
                       ('advanced', {'blocklevels': 1, 'skewing': True}),
                       ('advanced',
                        {'blocklevels': 1, 'skewing': True, 'blockinner': True})]
+
+
+# More utilities for testing
+
+
+def get_params(op, *names):
+    ret = []
+    for i in names:
+        for p in op.parameters:
+            if i == p.name:
+                ret.append(p)
+    return tuple(ret)
+
+
+def get_arrays(iet):
+    return [i for i in FindSymbols().visit(iet)
+            if i.is_Array and i._mem_heap]
+
+
+def check_array(array, exp_halo, exp_shape, rotate=False):
+    assert len(array.dimensions) == len(exp_halo)
+
+    shape = []
+    for i in array.symbolic_shape:
+        if i.is_Number or i.is_Symbol:
+            shape.append(i)
+        else:
+            assert i.is_Add
+            shape.append(Add(*i.args))
+
+    if rotate:
+        exp_shape = (sum(exp_halo[0]) + 1,) + tuple(exp_shape[1:])
+        exp_halo = ((0, 0),) + tuple(exp_halo[1:])
+
+    assert tuple(array.halo) == exp_halo
+    assert tuple(shape) == tuple(exp_shape)
