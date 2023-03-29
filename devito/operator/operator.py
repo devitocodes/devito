@@ -516,7 +516,7 @@ class Operator(Callable):
         # as DerivedDimensions may depend on their parents
         nodes = self.dimensions
         edges = [(i, i.parent) for i in self.dimensions
-                 if i.is_Derived and i.parent in nodes]
+                 if i.is_Derived and i.parent in set(nodes)]
         toposort = DAG(nodes, edges).topological_sort()
         futures = {}
         for d in reversed(toposort):
