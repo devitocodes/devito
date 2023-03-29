@@ -3,11 +3,19 @@ from devito.ir.ietxdsl import transform_devito_to_iet_ssa, iet_to_standard_mlir
 from devito.logger import perf
 
 import tempfile
-
 import subprocess
 
+from collections import OrderedDict
 from io import StringIO
 
+from devito.exceptions import InvalidOperator
+from devito.logger import perf
+from devito.ir.iet import Callable, MetaCall
+from devito.ir.support import SymbolRegistry
+from devito.operator.operator import IRs
+from devito.operator.profiling import create_profile
+from devito.tools import OrderedSet, as_tuple, flatten, filter_sorted
+from devito.types import Evaluable
 
 from xdsl.printer import Printer
 
@@ -30,7 +38,7 @@ class XDSLOperator(Operator):
         """
         #ccode = transform_devito_xdsl_string(self)
         #self.ccode = ccode
-
+        return
         with self._profiler.timer_on('jit-compile'):
             
             module_obj = transform_devito_to_iet_ssa(self)
@@ -84,3 +92,113 @@ class XDSLOperator(Operator):
             self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
 
         return self._cfunction
+
+    @classmethod
+    def _lower(cls, expressions, **kwargs):
+        """
+        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
+        """
+        # Create a symbol registry
+        kwargs['sregistry'] = SymbolRegistry()
+
+        expressions = as_tuple(expressions)
+
+        # Input check
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
+
+        # Enable recursive lowering
+        # This may be used by a compilation pass that constructs a new
+        # expression for which a partial or complete lowering is desired
+        kwargs['lower'] = cls._lower
+
+        # [Eq] -> [LoweredEq]
+        expressions = cls._lower_exprs(expressions, **kwargs)
+
+        from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion, convert_devito_stencil_to_xdsl_stencil
+        conv = ExtractDevitoStencilConversion(expressions)
+        module = conv.convert()
+
+        convert_devito_stencil_to_xdsl_stencil(module)
+
+        #from xdsl.printer import Printer
+        #p = Printer(target=Printer.Target.MLIR)
+        #p.print(module)
+        #import sys
+
+        #cls._stencil_module = module
+        #sys.exit(0)
+
+        # [LoweredEq] -> [Clusters]
+        clusters = cls._lower_clusters(expressions, **kwargs)
+
+        # [Clusters] -> ScheduleTree
+        stree = cls._lower_stree(clusters, **kwargs)
+
+        # ScheduleTree -> unbounded IET
+        uiet = cls._lower_uiet(stree, **kwargs)
+
+        # unbounded IET -> IET
+        iet, byproduct = cls._lower_iet(uiet, **kwargs)
+
+        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
+
+
+    @classmethod
+    def _build(cls, expressions, **kwargs) -> Callable:
+        # Python- (i.e., compile-) and C-level (i.e., run-time) performance
+        profiler = create_profile('timers')
+
+        # Lower the input expressions into an IET
+        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+
+        # Make it an actual Operator
+        op = Callable.__new__(cls, **irs.iet.args)
+        Callable.__init__(op, **op.args)
+
+        # Header files, etc.
+        op._headers = OrderedSet(*cls._default_headers)
+        op._headers.update(byproduct.headers)
+        op._globals = OrderedSet(*cls._default_globals)
+        op._includes = OrderedSet(*cls._default_includes)
+        op._includes.update(profiler._default_includes)
+        op._includes.update(byproduct.includes)
+        op._module = module
+
+        # Required for the jit-compilation
+        op._compiler = kwargs['compiler']
+        op._lib = None
+        op._cfunction = None
+
+        # Potentially required for lazily allocated Functions
+        op._mode = kwargs['mode']
+        op._options = kwargs['options']
+        op._allocator = kwargs['allocator']
+        op._platform = kwargs['platform']
+
+        # References to local or external routines
+        op._func_table = OrderedDict()
+        op._func_table.update(OrderedDict([(i, MetaCall(None, False))
+                                           for i in profiler._ext_calls]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
+
+        # Internal mutable state to store information about previous runs, autotuning
+        # reports, etc
+        op._state = cls._initialize_state(**kwargs)
+
+        # Produced by the various compilation passes
+        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
+        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        op._dtype, op._dspace = irs.clusters.meta
+        op._profiler = profiler
+
+        return op
+
+    @property
+    def mlircode(self):
+        from xdsl.printer import Printer
+        from io import StringIO
+        file = StringIO()
+        Printer(file, target=Printer.Target.MLIR).print(self._module)
+        return file.getvalue()

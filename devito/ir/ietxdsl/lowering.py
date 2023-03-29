@@ -39,19 +39,11 @@ def _generate_subindices(subindices: int, block: Block,
 
 
 class ConvertScfForArgsToIndex(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
         # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
         if isinstance(op.lb.typ, builtin.IndexType):
             return
-        # increment upper bound
-        rewriter.insert_op_before_matched_op([
-            cst1 := arith.Constant.from_int_and_width(1, op.ub.typ),
-            new_ub := arith.Addi.get(op.ub, cst1),
-        ])
-        op.replace_operand(op.operands.index(op.ub), new_ub.result)
-
         for val in (op.lb, op.ub, op.step):
             cast = arith.IndexCastOp.get(val, builtin.IndexType())
             rewriter.insert_op_before_matched_op(cast)
@@ -59,7 +51,6 @@ class ConvertScfForArgsToIndex(RewritePattern):
 
 
 class ConvertScfParallelArgsToIndex(RewritePattern):
-
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.ParallelOp, rewriter: PatternRewriter,
                           /):
@@ -70,11 +61,9 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
         cst1 = arith.Constant.from_int_and_width(1, builtin.i64)
         rewriter.insert_op_before_matched_op(cst1)
         for ub in op.upperBound:
-            new_ub = arith.Addi.get(ub, cst1)
-            rewriter.insert_op_before_matched_op(new_ub)
             op.replace_operand(
                 op.operands.index(ub),
-                new_ub.result,
+                ub,
             )
 
         for val in (*op.lowerBound, *op.upperBound, *op.step):
@@ -86,7 +75,6 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
 
 
 class ConvertForLoopVarToIndex(RewritePattern):
-
     def match_and_rewrite(self, op: Operation, rewriter: PatternRewriter, /):
         if not isinstance(op, (scf.For, scf.ParallelOp)):
             return
@@ -124,8 +112,12 @@ class LowerIetForToScfFor(RewritePattern):
 
         rewriter.insert_op_at_pos(scf.Yield(), body, len(body.ops))
 
-        rewriter.replace_matched_op(
-            scf.For.get(op.lb, op.ub, op.step, [], body))
+        rewriter.replace_matched_op([
+            cst1   := arith.Constant.from_int_and_width(1, builtin.IndexType()),
+            new_ub := arith.Addi.get(op.ub, cst1),
+            scf.For.get(op.lb, new_ub.result, op.step, [], body)
+        ])
+        new_ub.result.name = op.ub.name
 
 
 class LowerIetForToScfParallel(RewritePattern):
@@ -152,7 +144,21 @@ class LowerIetForToScfParallel(RewritePattern):
         rewriter.insert_op_at_pos(scf.Yield(), new_body, len(new_body.ops))
 
         rewriter.replace_matched_op(
-            scf.ParallelOp.get(lb, ub, step, [new_body]))
+            par_op := scf.ParallelOp.get(lb, ub, step, [new_body])
+        )
+
+        cst1 = arith.Constant.from_int_and_width(1, builtin.IndexType())
+        rewriter.insert_op_before_matched_op(cst1)
+        for ub_val in ub:
+            rewriter.insert_op_before_matched_op(
+                new_ub := arith.Addi.get(ub_val, cst1)
+            )
+            par_op.replace_operand(
+                par_op.operands.index(ub_val),
+                new_ub.result
+            )
+
+
 
     def recurse_scf_parallel(
         self,

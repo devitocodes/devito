@@ -144,6 +144,11 @@ class Operator(Callable):
 
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
+        
+        # Terrible hack, but necessary because devito is cursed.
+        is_xdsl = 'xdsl' in cls.__name__.lower()
+        # Save _build and _lower classes
+        _build = cls._build
 
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
@@ -152,9 +157,13 @@ class Operator(Callable):
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
 
+        # Use the selected classes _build and _lower methods if not XDSL
+        if not is_xdsl:
+            _build = cls._build
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
-            op = cls._build(expressions, **kwargs)
+            op = _build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
 
         # Emit info about how long it took to perform the lowering
@@ -176,7 +185,7 @@ class Operator(Callable):
         profiler = create_profile('timers')
 
         # Lower the input expressions into an IET
-        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+        irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
@@ -189,7 +198,6 @@ class Operator(Callable):
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
-        op._module = module
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -249,20 +257,6 @@ class Operator(Callable):
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
 
-        from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion, convert_devito_stencil_to_xdsl_stencil
-        conv = ExtractDevitoStencilConversion(expressions)
-        module = conv.convert()
-
-        convert_devito_stencil_to_xdsl_stencil(module)
-
-        #from xdsl.printer import Printer
-        #p = Printer(target=Printer.Target.MLIR)
-        #p.print(module)
-        #import sys
-
-        #cls._stencil_module = module
-        #sys.exit(0)
-
         # [LoweredEq] -> [Clusters]
         clusters = cls._lower_clusters(expressions, **kwargs)
 
@@ -275,7 +269,7 @@ class Operator(Callable):
         # unbounded IET -> IET
         iet, byproduct = cls._lower_iet(uiet, **kwargs)
 
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
+        return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
     def _initialize_state(cls, **kwargs):

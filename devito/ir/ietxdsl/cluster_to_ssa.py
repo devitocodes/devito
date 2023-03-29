@@ -220,6 +220,7 @@ class ExtractDevitoStencilConversion:
         )
         try:
             step = arith.Constant.from_int_and_width(int(dim.symbolic_incr), builtin.IndexType())
+            step.result.name = "step"
         except:
             raise ValueError("step must be int!")
         
@@ -310,7 +311,7 @@ def is_float(val: SSAValue):
 
 from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
 
-from devito.ir.ietxdsl.lowering import recalc_func_type, DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex
+from devito.ir.ietxdsl.lowering import recalc_func_type, DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex, ConvertScfForArgsToIndex
 
 from dataclasses import dataclass
 
@@ -319,11 +320,13 @@ class _DevitoStencilToStencilStencil(RewritePattern):
     This converts the `devito.stencil` op into the following:
 
     ```
+        // get data object
+        %data = devito.load_symbolic() {symbol_name = "data"} : () -> memref...
         // we do magic here to accomodate triple buffering
         // this will be tackled in the lowering
-        %t0_field = iet.get_stencil(%t0)
-        %t1_field = iet.get_stencil(%t1)
-        %t2_field = iet.get_stencil(%t2)
+        %t0_field = devito.get_field(%data, %t0)
+        %t1_field = devito.get_field(%data, %t1)
+        %t2_field = devito.get_field(%data, %t2)
 
         // do cast and load ops
         %t0_w_size = stencil.cast(%t0_field) [-4, -4, -4] to [68, 68, 68]
