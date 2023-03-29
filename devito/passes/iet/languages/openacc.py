@@ -171,7 +171,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     lang = AccBB
 
-    def _make_partree(self, candidates, nthreads=None):
+    def _make_partree(self, candidates, nthreads=None, index=0):
         assert candidates
 
         root, collapsable = self._select_candidates(candidates)
@@ -183,7 +183,10 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             # TODO: still unable to exploit multiple par-tiles (one per nest)
             # This will require unconditionally applying blocking, and then infer
             # the tile clause shape from the BlockDimensions' step
-            tile = self.par_tile[0]
+            par_tile_length = len(self.par_tile)
+            idx = index if index < par_tile_length else par_tile_length - 1
+            tile = self.par_tile[idx]
+
             assert isinstance(tile, tuple)
             nremainder = (ncollapsable + 1) - len(tile)
             if nremainder >= 0:

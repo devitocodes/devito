@@ -388,14 +388,14 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_parallel(self, iet):
         mapper = {}
         parrays = {}
-        for tree in retrieve_iteration_tree(iet, mode='superset'):
+        for i, tree in enumerate(retrieve_iteration_tree(iet, mode='superset')) :
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
             if not candidates:
                 continue
 
             # Outer parallelism
-            root, partree = self._make_partree(candidates)
+            root, partree = self._make_partree(candidates, None, i)
             if partree is None or root in mapper:
                 continue
 
