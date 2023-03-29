@@ -196,6 +196,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         if self._has_short_trip_count(d):
             return clusters
 
+        # Pointless if there's no data reuse
+        if all(not self._has_data_reuse(c) for c in clusters):
+            return clusters
+
         # Heuristic: if all Clusters operate on local SubDimensions, then it means
         # that all IterationSpaces are tiny, hence we can skip
         if all(any(i.dim.is_Sub and i.dim.local for i in c.ispace) for c in clusters):
@@ -206,10 +210,6 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
                not ({PARALLEL, PARALLEL_IF_PVT} & c.properties[d]):
-                return clusters
-
-            # Pointless if there's no data reuse
-            if not self._has_data_reuse(c):
                 return clusters
 
             # Heuristic: innermost Dimensions may be ruled out a-priori

@@ -604,6 +604,24 @@ class TestSubDimension(object):
         assert np.all(u.data[1, :, :, :-thickness] == 1)
         assert np.all(u.data[1, :, :, -thickness:] == 0)
 
+    def test_subdim_blocked_w_partial_reuse(self):
+        grid = Grid(shape=(12, 12, 12))
+        x, y, z = grid.dimensions
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        zr = SubDimension.right(name='zr', parent=z, thickness=4)
+
+        eqns = [Eq(f.forward, f.dx2 + 1.),
+                Eq(f.forward, 0).subs(z, zr)]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expected loop blocking
+        assert_structure(op,
+                         ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,zr'],
+                         't,x0_blk0,y0_blk0,x,y,z,zr')
+
     def test_subdim_fd(self):
         """
         Test that the FD shortcuts are handled correctly with SubDimensions
