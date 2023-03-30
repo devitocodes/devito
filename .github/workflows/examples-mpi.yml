@@ -43,7 +43,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -e .[extras,mpi]
+        pip install -e .[extras,mpi,tests]
 
     - name: Test mpi notebooks
       run : |

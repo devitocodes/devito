@@ -42,7 +42,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -e .
+        pip install -e .[tests]
         pip install matplotlib
 
     - name: Tests in examples

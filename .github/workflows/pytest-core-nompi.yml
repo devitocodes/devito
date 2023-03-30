@@ -153,7 +153,7 @@ jobs:
       if: "!contains(matrix.name, 'docker')"
       run: |
         pip install --upgrade pip
-        pip install -e .
+        pip install -e .[tests]
         pip install sympy==${{matrix.sympy}}
 
     - name: Test with pytest
