@@ -1,11 +1,10 @@
-from devito import (VectorTimeFunction, TimeFunction, Function, NODE,
-                    DevitoCheckpoint, CheckpointOperator)
+import devito
+from devito import VectorTimeFunction, TimeFunction, Function, NODE, pyrevolve
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
 from examples.seismic.viscoacoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
-from pyrevolve import Revolver
 
 
 class ViscoacousticWaveSolver(object):
@@ -263,7 +262,7 @@ class ViscoacousticWaveSolver(object):
         # Pick vp and physical parameters from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
-        if checkpointing:
+        if checkpointing and pyrevolve is not None:
             if self.time_order == 1:
                 v = VectorTimeFunction(name="v", grid=self.model.grid,
                                        time_order=self.time_order,
@@ -278,10 +277,10 @@ class ViscoacousticWaveSolver(object):
                              space_order=self.space_order, staggered=NODE)
 
             l = [p, r] + v.values() if self.time_order == 1 else [p, r]
-            cp = DevitoCheckpoint(l)
+            cp = devito.DevitoCheckpoint(l)
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False),
-                                         src=self.geometry.src, p=p, r=r, dt=dt, **kwargs)
+            wrap_fw = devito.CheckpointOperator(self.op_fwd(save=False), p=p, r=r, dt=dt,
+                                                src=self.geometry.src, **kwargs)
 
             ra = TimeFunction(name="ra", grid=self.model.grid, time_order=self.time_order,
                               space_order=self.space_order, staggered=NODE)
@@ -295,12 +294,13 @@ class ViscoacousticWaveSolver(object):
                 kwargs.update({k.name: k for k in va})
                 kwargs['time_m'] = 0
 
-            wrap_rev = CheckpointOperator(self.op_grad(save=False), p=p, pa=pa, r=ra,
-                                          rec=rec, dt=dt, grad=grad, **kwargs)
+            wrap_rev = devito.CheckpointOperator(self.op_grad(save=False), p=p, pa=pa,
+                                                 r=ra, rec=rec, dt=dt, grad=grad,
+                                                 **kwargs)
 
             # Run forward
-            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints,
-                           rec.data.shape[0] - (1 if self.time_order == 1 else 2))
+            ntchk = rec.data.shape[0] - (1 if self.time_order == 1 else 2)
+            wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, ntchk)
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:

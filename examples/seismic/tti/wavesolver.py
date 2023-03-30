@@ -1,10 +1,10 @@
 # coding: utf-8
-from devito import Function, TimeFunction, warning, DevitoCheckpoint, CheckpointOperator
+import devito
+from devito import Function, TimeFunction, warning, pyrevolve
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from pyrevolve import Revolver
 
 
 class AnisotropicWaveSolver(object):
@@ -350,20 +350,22 @@ class AnisotropicWaveSolver(object):
         if self.model.dim < 3:
             kwargs.pop('phi', None)
 
-        if checkpointing:
+        if checkpointing and pyrevolve is not None:
             u0 = TimeFunction(name='u0', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
             v0 = TimeFunction(name='v0', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
-            cp = DevitoCheckpoint([u0, v0])
+            cp = devito.DevitoCheckpoint([u0, v0])
             n_checkpoints = None
-            wrap_fw = CheckpointOperator(self.op_fwd(save=False), src=self.geometry.src,
-                                         u=u0, v=v0, dt=dt, **kwargs)
-            wrap_rev = CheckpointOperator(self.op_jacadj(save=False), u0=u0, v0=v0,
-                                          du=du, dv=dv, rec=rec, dm=dm, dt=dt, **kwargs)
+            wrap_fw = devito.CheckpointOperator(self.op_fwd(save=False), u=u0, v=v0,
+                                                dt=dt, src=self.geometry.src, **kwargs)
+            wrap_rev = devito. CheckpointOperator(self.op_jacadj(save=False), u0=u0,
+                                                  v0=v0, du=du, dv=dv, rec=rec, dm=dm,
+                                                  dt=dt, **kwargs)
 
             # Run forward
-            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
+            wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, n_checkpoints,
+                                     rec.data.shape[0]-2)
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:

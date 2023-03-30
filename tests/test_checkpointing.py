@@ -1,11 +1,12 @@
 from functools import reduce
 
 import pytest
-from pyrevolve import Revolver
 import numpy as np
 
+from conftest import skipif
+import devito
 from devito import (Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant,
-                    DevitoCheckpoint, CheckpointOperator)
+                    pyrevolve)
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
@@ -107,6 +108,7 @@ def test_segmented_averaging():
     assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
 
+@skipif('chkpnt')
 @switchconfig(log_level='WARNING')
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
@@ -129,12 +131,12 @@ def test_forward_with_breaks(shape, kernel, space_order):
     dt = solver.model.critical_dt
 
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=space_order)
-    cp = DevitoCheckpoint([u])
-    wrap_fw = CheckpointOperator(solver.op_fwd(save=False), rec=rec,
-                                 src=solver.geometry.src, u=u, dt=dt)
-    wrap_rev = CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
+    cp = devito.DevitoCheckpoint([u])
+    wrap_fw = devito.CheckpointOperator(solver.op_fwd(save=False), rec=rec,
+                                        src=solver.geometry.src, u=u, dt=dt)
+    wrap_rev = devito.CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
 
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
+    wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
     rec1, u1, summary = solver.forward()
 
     wrp.apply_forward()
@@ -160,6 +162,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
+@skipif('chkpnt')
 def test_index_alignment():
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field
@@ -226,13 +229,13 @@ def test_index_alignment():
     # change equations to use new symbols
     fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
-    cp = DevitoCheckpoint([u_nosave])
-    wrap_fw = CheckpointOperator(fwd_op_2, constant=1)
+    cp = devito.DevitoCheckpoint([u_nosave])
+    wrap_fw = devito.CheckpointOperator(fwd_op_2, constant=1)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2])
-    wrap_rev = CheckpointOperator(comb_op_2, constant=1)
-    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt)
+    wrap_rev = devito.CheckpointOperator(comb_op_2, constant=1)
+    wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, None, nt)
 
     # Invocation 4
     wrp.apply_forward()
