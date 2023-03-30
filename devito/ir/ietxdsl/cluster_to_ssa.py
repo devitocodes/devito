@@ -503,6 +503,14 @@ if __name__ == '__main__':
     from xdsl.printer import Printer
     Printer(target=Printer.Target.MLIR).print(module)
 
+def prod(iter):
+    """
+    Calculate the product over an iterator of numbers
+    """
+    carry = 1
+    for x in iter:
+        carry *= x
+    return carry
 
 def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, int | float], dims: tuple[int]) -> str:
     """
@@ -524,66 +532,41 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
     memref_type = "x".join(
         (*(str(x) for x in dims), dtype)
     )
+
+    rank = len(dims)
+
+    size_in_bytes = prod(dims) * int(dtype[1:]) // 8
+    
+    # figure out which is the last time buffer we write to
+    last_time_m = (int(known_symbols['time_M']) + t_dims - 1) % t_dims
     
     return f"""
 "builtin.module"() ({{
     "func.func"() ({{
-        %ref = memref.alloc() : memref<{t_dims}xmemref<{memref_type}>>
-
-        %t0_init = memref.alloc() : memref<{memref_type}>
-        %t1_init = memref.alloc() : memref<{memref_type}>
+        %num_bytes = arith.constant {size_in_bytes} : index
+        %byte_ref = func.call @load_input(%num_bytes) : (index) -> memref<{size_in_bytes}xi8>
 
         %cst0 = arith.constant 0 : index
         %cst1 = arith.constant 1 : index
 
-        "memref.store"(%t0_init, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
-        "memref.store"(%t1_init, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+        %t0 = memref.view %byte_ref[%cst0][] : memref<{size_in_bytes}xi8> to memref<{memref_type}>
+        %t1 = memref.alloc() : memref<{memref_type}>
+        %ref = memref.alloc() : memref<{t_dims}xmemref<{memref_type}>>
 
-        %t0 = "memref.load"(%ref, %cst0) : (memref<{t_dims}xmemref<{memref_type}>>, index) -> memref<{memref_type}>
-        %t1 = "memref.load"(%ref, %cst1) : (memref<{t_dims}xmemref<{memref_type}>>, index) -> memref<{memref_type}>
-
-        %cst7 = arith.constant 7 : index
-        %cst8 = arith.constant 8 : index
-
-        %cst10f  = arith.constant 10.0 : f32
-        %cstm10f = arith.constant -10.0 : f32
-
-        "memref.store"(%cst10f, %t0, %cst7, %cst7) :  (f32, memref<{memref_type}>, index, index) -> ()
-        "memref.store"(%cstm10f, %t0, %cst7, %cst8) : (f32, memref<{memref_type}>, index, index) -> ()
-        "memref.store"(%cst10f, %t1, %cst7, %cst7) :  (f32, memref<{memref_type}>, index, index) -> ()
-        "memref.store"(%cstm10f, %t1, %cst7, %cst8) : (f32, memref<{memref_type}>, index, index) -> ()
-
+        "memref.store"(%t0, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+        "memref.store"(%t1, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+        
         func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
 
-        // func.call @print_memref(%t0) : (memref<{memref_type}>) -> ()
-        // func.call @print_memref(%t1) : (memref<{memref_type}>) -> ()
+        func.call @dump_memref_{dtype}_rank_{rank}(%t{last_time_m}) : (memref<{memref_type}>) -> ()
 
         func.return
 
     }}) {{"function_type" = () -> (), "sym_name" = "main"}} : () -> ()
 
-    "func.func"() ({{
-    ^b0(%ref : memref<{memref_type}>):
-        %f0   = arith.constant 0.0 : f32
-        %cst0 = arith.constant 0 : index
-        %cst1 = arith.constant 1 : index
-        %cst2 = arith.constant 2 : index
+    func.func private @dump_memref_{dtype}_rank_{rank}(memref<{memref_type}>) -> ()
+    func.func private @load_input(index) -> memref<{size_in_bytes}xi8>
 
-        %ni = memref.dim %ref, %cst0 : memref<{memref_type}>
-        %nj = memref.dim %ref, %cst1 : memref<{memref_type}>
-        scf.for %i = %cst0 to %ni step %cst1 {{
-            scf.for %j = %cst0 to %nj step %cst1 {{
-                %val = "memref.load"(%ref, %i, %j) : (memref<{memref_type}>, index, index) -> (f32)
-                func.call @print_idx_3(%val, %i, %j, %cst0) : (f32, index, index, index) -> ()
-                scf.yield
-            }}
-        }}
-        func.return
-    }}) {{"function_type" = (memref<{memref_type}>) -> (), "sym_name" = "print_memref"}} : () -> ()
-
-    func.func private @print_time(index) -> ()
-    func.func private @print_float(f32) -> ()
-    func.func private @print_idx_3(f32, index, index, index) -> ()
     func.func private @myfunc(memref<{t_dims}xmemref<{memref_type}>>) -> ()
 }}) : () -> ()
 """
