@@ -12,8 +12,4 @@ codepy>=2019.1
 click<9.0
 multidict
 anytree>=2.4.3,<=2.8
-pyrevolve>=2.1.3
-distributed<2023.5
-pytest>=7.2,<8.0
-pytest-runner
-pytest-cov
+distributed<2023.4

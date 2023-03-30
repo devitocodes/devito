@@ -9,6 +9,9 @@ with open('requirements.txt') as f:
 with open('requirements-optional.txt') as f:
     optionals = f.read().splitlines()
 
+with open('requirements-testing.txt') as f:
+    testing = f.read().splitlines()
+
 with open('requirements-mpi.txt') as f:
     mpis = f.read().splitlines()
 
@@ -24,7 +27,8 @@ for ir in required:
         reqs += [ir]
 
 extras_require = {}
-for mreqs, mode in zip([optionals, mpis, nvidias], ['extras', 'mpi', 'nvidia']):
+for mreqs, mode in (zip([optionals, mpis, nvidias, testing],
+                        ['extras', 'mpi', 'nvidia', 'tests'])):
     opt_reqs = []
     for ir in mreqs:
         # For conditionals like pytest=2.1; python == 3.6
