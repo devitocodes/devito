@@ -1,6 +1,7 @@
 from collections import Counter, defaultdict
 from itertools import groupby, product
 
+from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
@@ -187,6 +188,9 @@ class Fusion(Queue):
 
         # Clusters representing HaloTouches should get merged, if possible
         key += (c.is_halo_touch,)
+
+        # Promoting adjacency of IndexDerivatives will maximize their reuse
+        key += (any(e.find(IndexDerivative) for e in c.exprs),)
 
         return key
 

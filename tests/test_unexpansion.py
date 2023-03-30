@@ -215,7 +215,6 @@ class TestBasic(object):
         grid = Grid(shape=(16, 16))
 
         f = Function(name='f', grid=grid, space_order=4)
-        g = Function(name='g', grid=grid, space_order=4)
         p0 = TimeFunction(name='p0', grid=grid, time_order=2, space_order=4,
                           save=Buffer(2))
         m0 = TimeFunction(name='m0', grid=grid, time_order=2, space_order=4,
@@ -231,11 +230,7 @@ class TestBasic(object):
                       opt=('advanced', {'expand': False}))
 
         # Check code generation
-        assert op._profiler._sections['section0'].sops == 183
-        assert_structure(
-            op,
-            ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0', 't,x,y,i1', 't,x,y,i1,i0'],
-            't,x,y,i1,i0,i1,i0'
-        )
+        assert op._profiler._sections['section0'].sops == 133
+        assert_structure(op, ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0'], 't,x,y,i1,i0')
 
         op.cfunction
