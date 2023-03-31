@@ -4,7 +4,7 @@ main_filename = "main.mlir"
 kernel_filename = "kernel.mlir"
 c_filename = "interop.c"
 executable_name = "out"
-gpu = False
+gpu = True
 
 print("Compiling C utils:")
 c_object = c_filename + ".o"
@@ -20,8 +20,8 @@ check_call(main_object_cmd, shell=True)
 
 print(f'Compiling kernel on {"GPU" if gpu else "CPU"}:')
 kernel_object = kernel_filename + ".o"
-cpu_pipeline = '"builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
-gpu_pipeline = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
+cpu_pipeline = '"builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-openmp, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-memref-to-llvm{index-bitwidth=64}, convert-openmp-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
+gpu_pipeline = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},convert-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
 pipeline = gpu_pipeline if gpu else cpu_pipeline
 xdsl_cpu_pipeline = 'stencil-shape-inference,convert-stencil-to-ll-mlir'
 xdsl_gpu_pipeline = 'stencil-shape-inference,convert-stencil-to-gpu'
@@ -31,7 +31,7 @@ print(kernel_object_cmd)
 check_call(kernel_object_cmd, shell=True)
 
 print("Linking executable:")
-link_cmd = f'steam-run clang {main_object} {kernel_object} {c_object} {"-lmlir_cuda_runtime" if gpu else ""} -o {executable_name}'
+link_cmd = f'clang {main_object} {kernel_object} {c_object} {"-lmlir_cuda_runtime" if gpu else "-fopenmp=libomp"} -o {executable_name}'
 print(link_cmd)
 check_call(link_cmd, shell=True)
 
