@@ -100,6 +100,11 @@ jobs:
       - name: cleanup
         run: docker system prune -a -f
 
+      - name: Download base if needed for amd
+        if: contains(matrix.dockerfile, 'amd')
+        run: |
+          wget https://raw.githubusercontent.com/amd/InfinityHub-CI/main/base-gpu-mpi-rocm-docker/Dockerfile -O docker/amd-base
+
       - name: Docker image
         uses: docker/build-push-action@v3
         with:

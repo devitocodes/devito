@@ -1,66 +1,11 @@
+# syntax = edrevo/dockerfile-plus
 ##############################################################
 # This Dockerfile contains AMD compilers
 ##############################################################
 
 ARG arch="aomp"
 
-ARG ROCM_VERSION=5.4.2
-FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
-
-ENV DEBIAN_FRONTEND noninteractive
-
-ARG ROCM_VERSION
-ENV rocm=/opt/rocm-${ROCM_VERSION}
-ENV AOMP=/opt/rocm-${ROCM_VERSION}/llvm
-ENV ROCM_HOME /opt/rocm
-ENV HIP_HOME $ROCM_HOME/hip
-
-# Some utils needed
-RUN apt-get update && \
-    apt-get install -y wget git autoconf dh-autoreconf flex \
-                       python3-venv python3-dev \
-                       vim libnuma-dev tmux numactl
-
-# Install tmpi
-RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
-
-# ROCm-aware MPI. Taken from:
-# https://github.com/ROCmSoftwarePlatform/rocHPCG/blob/develop/install.sh
-# UCX. Clang does not support some of the flags such as '-dynamic-list-data' so build UCX with gcc
-RUN mkdir -p /deps && mkdir -p /opt/ucx && cd /deps && \
-    git clone --branch v1.13.0 https://github.com/openucx/ucx.git ucx && \
-    cd ucx && ./autogen.sh && \
-    mkdir build && cd build && \
-    ../contrib/configure-release --prefix=/opt/ucx/ --with-rocm=${with_rocm} \
-                             --without-cuda --without-java \
-                             --disable-params-check --disable-logging --disable-assertions --disable-debug \
-                             --enable-optimizations && \
-    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
-    make install && \
-    rm -rf /deps/ucx
-
-# OpenMPI
-# Build OpenMPI with `amdclang` so that `mpicc` links to the correct compiler
-RUN mkdir -p /opt/openmpi && cd /deps && \
-    git clone --recursive --branch v4.1.4 https://github.com/open-mpi/ompi.git openmpi && \
-    cd openmpi && ./autogen.pl && \
-    mkdir build &&  cd build && \
-    ../configure CC=$AOMP/bin/amdclang CXX=$AOMP/bin/amdclang++ FC=$AOMP/bin/amdflang \
-                 --prefix=/opt/openmpi/ --with-ucx=/opt/ucx \
-                 --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
-    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
-    make install && \
-    rm -rf /deps/openmpi
-
-# Set OpenMPI path
-ENV PATH=${PATH}:/opt/openmpi/bin:$AOMP/bin
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib:$AOMP/lib
-ENV OMPI_CC=$AOMP/bin/amdclang
-ENV OMPI_CXX=$AOMP/bin/amdclang++
-ENV OMPI_F90=$AOMP/bin/flan
-
-# Set mpiexec flags for gpu aware mpi
-RUN echo "--mca btl '^openib' -x UCX_TLS=sm,self,rocm_copy,rocm_ipc --mca pml ucx" > /opt/openmpi/etc/mpiexec.conf
+INCLUDE+ amd-base
 
 # Build mpi4py against amdclang
 RUN python3 -m venv /venv && \
