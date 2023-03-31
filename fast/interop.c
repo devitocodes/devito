@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include<time.h>
 
 typedef float f32;
 typedef double f64;
@@ -178,3 +179,17 @@ const struct i8_memref_r_1 load_memref(char* fname, size_t length) {
 struct i8_memref_r_1 load_input(size_t length) {
   return load_memref(INFILE_NAME, length);
 }
+
+
+i64 timer_start() {
+  return (i64) clock();
+}
+
+void timer_end(i64 start) {
+  i64 end = clock();
+  double time_taken = ((double) (end) - (start)) / CLOCKS_PER_SEC;
+
+  printf("time taken: %.2fs\n", time_taken);
+}
+
+

@@ -553,7 +553,11 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
         "memref.store"(%t0, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
         "memref.store"(%t1, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
         
+        %time_start = func.call @timer_start() : () -> i64
+
         func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
+
+        func.call @timer_end(%time_start) : (i64) -> ()
 
         func.call @dump_memref_{dtype}_rank_{rank}(%t{last_time_m}) : (memref<{memref_type}>) -> ()
 
@@ -563,6 +567,10 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
 
     func.func private @dump_memref_{dtype}_rank_{rank}(memref<{memref_type}>) -> ()
     func.func private @load_input(index) -> memref<{size_in_bytes}xi8>
+
+    func.func private @timer_start() -> i64
+
+    func.func private @timer_end(i64) -> ()
 
     func.func private @myfunc(memref<{t_dims}xmemref<{memref_type}>>) -> ()
 }}) : () -> ()
