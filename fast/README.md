@@ -8,7 +8,17 @@ Each benchmark has a `name`, and it's devito definition is stored in `name.py`.
 
 Running this file with `-xdsl` will generate all the stencil source files and input data.
 
+Example:
+```bash
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python fast/3d_diff.py -xdsl
+```
+
 Running it without `-xdsl` will use devito to solve the problem and save the result to `<name>.devito.data`
+
+Example:
+```bash
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python fast/3d_diff.py
+```
 
 The xDSL/MLIR compiled programs will produce a `<name>.stencil.data` file with their results.
 

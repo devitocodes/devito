@@ -3,7 +3,9 @@ import sys
 
 from devito import (Grid, Eq, TimeFunction, Operator, norm,
                     Constant, solve, XDSLOperator)
+
 from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
+from devito.logger import info, perf
 
 import argparse
 
@@ -45,7 +47,7 @@ u.data[:, :, :] = 0
 u.data[:, int(nx/2), int(nx/2)] = init_value
 u.data[:, int(nx/2), -int(nx/2)] = -init_value
 
-u.data_with_halo[0,:,:].tofile(BENCH_NAME + '.input.data')
+u.data_with_halo[0, :, :].tofile(BENCH_NAME + '.input.data')
 
 # Create an equation with second-order derivatives
 a = Constant(name='a')
@@ -56,6 +58,7 @@ eq0 = Eq(u.forward, stencil)
 xop = XDSLOperator([eq0])
 
 if args.xdsl:
+    info("Operator in " + BENCH_NAME + ".main.mlir")
     with open(BENCH_NAME + ".main.mlir", "w") as f:
         f.write(generate_launcher_base(xop._module, {
             'time_m': 0,
@@ -65,6 +68,7 @@ if args.xdsl:
             'dt': dt,
         }, u.shape_allocated[1:]))
 
+    info("Dump mlir code in  in " + BENCH_NAME + ".mlir")
     with open(BENCH_NAME + ".mlir", "w") as f:
         f.write(xop.mlircode)
 
@@ -81,8 +85,9 @@ orig_norm = norm(u)
 #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
 #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
 #  4. time_M is always nt in this example
-t1 = (nt + u._time_size - 1)%(2)
+t1 = (nt + u._time_size - 1) % (2)
 
-res_data: np.array = u.data[t1,:,:]
+res_data: np.array = u.data[t1, :, :]
 
+info("Save result data to " + BENCH_NAME + ".devito.data")
 res_data.tofile(BENCH_NAME + 'devito.data')

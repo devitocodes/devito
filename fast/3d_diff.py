@@ -5,11 +5,9 @@
 import argparse
 import numpy as np
 
-from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm
-
-from devito import (Grid, Eq, TimeFunction, Operator, norm,
+from devito import (Grid, Eq, TimeFunction, Operator,
                     Constant, solve, XDSLOperator)
-from devito.ir import Iteration, FindNodes
+from devito.logger import info, perf
 from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -28,8 +26,6 @@ parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 
 parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
 args = parser.parse_args()
-
-
 
 # Some variable declarations
 nx, ny, nz = args.shape
@@ -50,7 +46,7 @@ u = TimeFunction(name='u', grid=grid, space_order=so)
 u.data[:, :, :, :] = 0
 u.data[:, int(nx/2), :, :] = 1
 
-u.data_with_halo[0,:,:,:].tofile('input.data')
+u.data_with_halo[0, :, :, :].tofile('input.data')
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
@@ -75,8 +71,9 @@ t = grid.stepping_dim
 # plus adding boundary conditions
 # op = Operator([eq_stencil] + bc, subdomain=grid.interior)
 if args.xdsl:
+    perf("Generating XDSLOperator")
     xop = XDSLOperator([eq_stencil], subdomain=grid.interior)
-
+    info("Operator in main.mlir")
     with open("main.mlir", "w") as f:
         f.write(generate_launcher_base(xop._module, {
             'time_m': 0,
@@ -86,6 +83,7 @@ if args.xdsl:
             'dt': dt,
         }, u.shape_allocated[1:]))
 
+    info("Operator in kernel.mlir")
     with open("kernel.mlir", "w") as f:
         f.write(xop.mlircode)
 
@@ -108,4 +106,6 @@ t1 = (nt + u._time_size - 1)%(2)
 
 res_data: np.array = u.data[t1,:,:,:]
 
-res_data.tofile('devito.data')
+datafile = 'devito.data'
+info("Save result data to " + datafile)
+res_data.tofile(datafile)

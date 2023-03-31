@@ -35,6 +35,7 @@ stencil_file = bench_name + ".stencil.data"
 devito_data = np.fromfile(devito_file, dtype=dtype)
 stencil_data = np.fromfile(stencil_file, dtype=dtype)
 
+import pdb;pdb.set_trace()
 assert prod(devito_data.shape) == prod(shape)
 
 stencil_data = stencil_data.reshape(tuple(s + 8 for s in shape))
