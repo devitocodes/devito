@@ -103,10 +103,12 @@ jobs:
       - name: Download base if needed for amd
         if: contains(matrix.dockerfile, 'amd')
         run: |
-          wget https://raw.githubusercontent.com/amd/InfinityHub-CI/main/base-gpu-mpi-rocm-docker/Dockerfile -O docker/amd-base
+          wget https://raw.githubusercontent.com/amd/InfinityHub-CI/main/base-gpu-mpi-rocm-docker/Dockerfile -O amd-base
+          sed -i 's/FROM ${IMAGE}/FROM ${IMAGE} as sdk-base/g' amd-base
 
       - name: Docker image
         uses: docker/build-push-action@v3
+        if: contains(matrix.dockerfile, 'amd')
         with:
           context: .
           file: ${{ matrix.dockerfile }}
