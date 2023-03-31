@@ -72,6 +72,12 @@ jobs:
             dockerfile: './docker/Dockerfile.cpu'
             runner: ubuntu-latest 
 
+          - tag: 'devitocodes/bases:cpu-icx'
+            arch: 'arch=icx'
+            version: ''
+            dockerfile: './docker/Dockerfile.cpu'
+            runner: ubuntu-latest
+
           - tag: 'devitocodes/bases:cpu-nvc'
             arch: 'arch=nvc-host'
             version: ''
