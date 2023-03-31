@@ -1,27 +1,18 @@
-#------------- devito import -------------#
+# ------------- devito import -------------#
 
-from devito import Operator, Constant
-from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float, Expr
+from sympy import Indexed, Integer, Symbol, Add, Mod, Pow, Mul, Float, Expr
 
-from sympy.core.function import FunctionClass
-
-from devito import SpaceDimension, Grid, SteppingDimension, Dimension
+from devito import Grid, SteppingDimension
 from devito.symbolics import retrieve_indexed
 
-
-from devito.ir import PointerCast, FindNodes
 from devito.ir.clusters import Cluster
 from devito.ir.equations import LoweredEq
-
-from devito.ir.iet import FindSymbols, FindNodes
-from devito.ir.iet.nodes import CallableBody, MetaCall, Definition, Dereference, Prodder  # noqa
-
-#----------- devito ssa import -----------#
+# ----------- devito ssa import -----------#
 
 from devito.ir.ietxdsl import iet_ssa
-from devito.ir.ietxdsl.ietxdsl_functions import collectStructs, get_arg_types, dtypes_to_xdsltypes
+from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
-#-------------- xdsl import --------------#
+# -------------- xdsl import --------------#
 
 from xdsl.ir import Block, Region, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, func, memref, arith
@@ -29,11 +20,12 @@ from xdsl.dialects.experimental import stencil, math
 
 default_int = builtin.i64
 
+
 class ExtractDevitoStencilConversion:
 
     eqs: list[LoweredEq]
     block: Block
-    loaded_values: dict[tuple[int,...], SSAValue]#
+    loaded_values: dict[tuple[int, ...], SSAValue]
     time_offs: int
 
     def __init__(self, eqs: list[LoweredEq]) -> None:
@@ -42,6 +34,7 @@ class ExtractDevitoStencilConversion:
         self.time_offs = 0
 
     def _convert_eq(self, eq: LoweredEq):
+        # Convert a Devito equation
         if isinstance(eq.lhs, Symbol):
             return func.FuncOp.external(eq.lhs.name, [], [builtin.i32])
         assert isinstance(eq.lhs, Indexed)
@@ -63,7 +56,7 @@ class ExtractDevitoStencilConversion:
         actual_time_size = max(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         ) - self.time_offs + 1
-        
+
         # build the for loop
         loop = self._build_iet_for(grid.stepping_dim, ['sequential'], actual_time_size)
 
@@ -104,7 +97,8 @@ class ExtractDevitoStencilConversion:
             func.Return()
         )
 
-        return func.FuncOp.from_region('myfunc', [], [], Region.from_block_list([outermost_block]))
+        return func.FuncOp.from_region('myfunc', [], [],
+                                       Region.from_block_list([outermost_block]))
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
         if isinstance(node, Indexed):
@@ -132,7 +126,7 @@ class ExtractDevitoStencilConversion:
             raise ValueError(f"Unknown math: {node}", node)
 
         args = [self._visit_math_nodes(arg) for arg in node.args]
-            
+
         # make sure all args are the same type:
         if isinstance(node, (Add, Mul)):
             # add casts when necessary
@@ -168,17 +162,18 @@ class ExtractDevitoStencilConversion:
                     raise ValueError("Expected float or int as pow args!")
             else:
                 raise ValueError("Expected float or int as pow args!")
-            
+
             op = op_cls.get(base, ex)
             self.block.add_op(op)
             return op.result
-        
+
         if isinstance(node, Mod):
             raise ValueError("Go away, no mod here. >:(")
 
         raise ValueError("Unknown math!")
 
-    def _add_access_ops(self, reads: list[Indexed], time_offset_to_field: dict[int, SSAValue]):
+    def _add_access_ops(self, reads: list[Indexed],
+                        time_offset_to_field: dict[int, SSAValue]):
         for read in reads:
             """
             AccessOp:
@@ -209,7 +204,8 @@ class ExtractDevitoStencilConversion:
             # by the offsets (same offset = same value)
             self.loaded_values[offsets] = access_op.res
 
-    def _build_iet_for(self, dim: SteppingDimension, props: list[str], subindices: int) -> iet_ssa.For:
+    def _build_iet_for(self, dim: SteppingDimension, props: list[str],
+                       subindices: int) -> iet_ssa.For:
         lb = iet_ssa.LoadSymbolic.get(
             str(dim.symbolic_min),
             builtin.IndexType()
@@ -219,20 +215,21 @@ class ExtractDevitoStencilConversion:
             builtin.IndexType()
         )
         try:
-            step = arith.Constant.from_int_and_width(int(dim.symbolic_incr), builtin.IndexType())
+            step = arith.Constant.from_int_and_width(int(dim.symbolic_incr),
+                                                     builtin.IndexType())
             step.result.name = "step"
         except:
             raise ValueError("step must be int!")
-        
+
         loop = iet_ssa.For.get(
             lb, ub, step, subindices, props
         )
         self.block.add_ops([
             lb, ub, step, loop
         ])
-        
+
         self.block = loop.block
-        
+
         return loop
 
     def convert(self) -> builtin.ModuleOp:
@@ -243,7 +240,7 @@ class ExtractDevitoStencilConversion:
                 ])
             ])
         )
-        
+
     def _ensure_same_type(self, *vals: SSAValue):
         if all(isinstance(val.typ, builtin.IntegerAttr) for val in vals):
             return vals
@@ -257,7 +254,8 @@ class ExtractDevitoStencilConversion:
                 continue
             # if the val is the result of a arith.constant with no uses,
             # we change the type of the arith.constant to our desired type
-            if isinstance(val, OpResult) and isinstance(val.op, arith.Constant) and val.uses == 0:
+            if (isinstance(val, OpResult) and
+               isinstance(val.op, arith.Constant) and val.uses == 0):
                 val.typ = builtin.f32
                 val.op.attributes['value'] = builtin.FloatAttr(
                     float(val.op.value.value.data),
@@ -275,45 +273,45 @@ class ExtractDevitoStencilConversion:
 def _cluster_shape(cl: Cluster) -> tuple[int, ...]:
     return cl.grid.shape
 
+
 def _cluster_grid(cl: Cluster) -> Grid:
     return cl.grid
-    
+
+
 def _cluster_function(cl: Cluster):  # TODO: fix typing here
     return cl.exprs[0].args[0].function
 
 
-
 def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
-    
     # shift all time values so that for all accesses at t + n, n>=0.
-    #time_offs = min(int(i - d) for i, d in zip(idx.indices, idx.function.dimensions))
+    # time_offs = min(int(i - d) for i, d in zip(idx.indices, idx.function.dimensions))
     halo = ((t_offset, 0), *idx.function.halo[1:])
     try:
-        return tuple(int(i - d - halo_offset) for i, d, (halo_offset, _) in zip(idx.indices, idx.function.dimensions, halo))
+        return tuple(int(i - d - halo_offset) for i, d, (halo_offset, _)
+                     in zip(idx.indices, idx.function.dimensions, halo))
     except Exception as ex:
         raise ValueError("Indices must be constant offset from dimension!") from ex
-
 
 
 def is_int(val: SSAValue):
     return isinstance(val.typ, builtin.IntegerType)
 
+
 def is_float(val: SSAValue):
     return val.typ in (builtin.f32, builtin.f64)
 
-
-
-#### -------------------------------------------------------- ####
-####                                                          ####
-####           devito.stencil  ---> stencil dialect           ####
-####                                                          ####
-#### -------------------------------------------------------- ####
+# -------------------------------------------------------- ####
+#                                                          ####
+#           devito.stencil  ---> stencil dialect           ####
+#                                                          ####
+# -------------------------------------------------------- ####
 
 from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
 
 from devito.ir.ietxdsl.lowering import recalc_func_type, DropIetComments, LowerIetForToScfFor, ConvertForLoopVarToIndex, ConvertScfForArgsToIndex, ConvertScfForArgsToIndex
 
 from dataclasses import dataclass
+
 
 class _DevitoStencilToStencilStencil(RewritePattern):
     """
@@ -383,12 +381,13 @@ class _DevitoStencilToStencilStencil(RewritePattern):
                 loads, op.body.detach_block(0)
             ),
             stencil.StoreOp.get(
-                out, 
+                out,
                 fields[-1],
                 stencil.IndexAttr.get(*([0] * len(op.halo))),
                 stencil.IndexAttr.get(*op.shape.data),
             )
         ])
+
 
 class _LowerGetField(RewritePattern):
     @op_type_rewrite_pattern
@@ -431,7 +430,7 @@ class _InsertSymbolicConstants(RewritePattern):
                 )
             )
             return
-        
+
         assert op.result.typ in (builtin.i32, builtin.i64, builtin.IndexType())
 
         rewriter.replace_matched_op(
@@ -440,8 +439,6 @@ class _InsertSymbolicConstants(RewritePattern):
             )
         )
 
-
-        
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):
     func_to_args: dict[func.FuncOp, dict[str, SSAValue]]
@@ -453,14 +450,14 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.LoadSymbolic, rewriter: PatternRewriter, /):
         parent: func.FuncOp | None = get_containing_func(op)
-        assert parent is not None        
+        assert parent is not None
         args = self.func_to_args[func]
         symb_name = op.symbol_name.data
 
         if symb_name not in args:
             body = parent.body.blocks[0]
             args[symb_name] = body.insert_arg(op.result.typ, 0)
-        
+
         op.result.replace_by(args[symb_name])
         rewriter.erase_matched_op()
         recalc_func_type(parent)
@@ -518,13 +515,13 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
     f = module.ops[0]
     assert isinstance(f, func.FuncOp)
     dtype: str = f.function_type.inputs.data[0].element_type.element_type.name
-    
+
     t_dims = f.function_type.inputs.data[0].shape.data[0].value.data
 
     memref_type = "x".join(
         (*(str(x) for x in dims), dtype)
     )
-    
+
     return f"""
 "builtin.module"() ({{
     "func.func"() ({{

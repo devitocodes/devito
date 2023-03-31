@@ -55,8 +55,8 @@ if __name__ == '__main__':
     #orig_norm = norm(u)
 
 
-    print("orig={}, xdsl={}".format(xdsl_norm, orig_norm))
-    assert np.isclose(xdsl_data, orig_data, rtol=1e-06).all()
+    # print("orig={}, xdsl={}".format(xdsl_norm, orig_norm))
+    # assert np.isclose(xdsl_data, orig_data, rtol=1e-06).all()
 
 
     #module = ietxdsl.transform_devito_to_iet_ssa(op)

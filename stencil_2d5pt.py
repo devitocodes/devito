@@ -3,7 +3,6 @@ import sys
 
 from devito import (Grid, Eq, TimeFunction, Operator, norm,
                     Constant, solve, XDSLOperator)
-from devito.ir import Iteration, FindNodes
 from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
 
 import argparse
