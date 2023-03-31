@@ -413,6 +413,7 @@ def get_containing_func(op: Operation) -> func.FuncOp | None:
         return None
     return op
 
+
 @dataclass
 class _InsertSymbolicConstants(RewritePattern):
     known_symbols: dict[str, int | float]
@@ -500,6 +501,7 @@ if __name__ == '__main__':
     from xdsl.printer import Printer
     Printer(target=Printer.Target.MLIR).print(module)
 
+
 def prod(iter):
     """
     Calculate the product over an iterator of numbers
@@ -509,10 +511,13 @@ def prod(iter):
         carry *= x
     return carry
 
-def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, int | float], dims: tuple[int]) -> str:
-    """
-    This transforms a module containing a function with symbolic loads into a function that is ready to be lowered by xdsl
 
+def generate_launcher_base(module: builtin.ModuleOp,
+                           known_symbols: dict[str, int | float],
+                           dims: tuple[int]) -> str:
+    """
+    This transforms a module containing a function with symbolic
+    loads into a function that is ready to be lowered by xdsl
     It replaces all symbolics with the one in known_symbols
     """
     grpa = GreedyRewritePatternApplier([
@@ -533,10 +538,10 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
     rank = len(dims)
 
     size_in_bytes = prod(dims) * int(dtype[1:]) // 8
-    
+
     # figure out which is the last time buffer we write to
     last_time_m = (int(known_symbols['time_M']) + t_dims - 1) % t_dims
-    
+
     return f"""
 "builtin.module"() ({{
     "func.func"() ({{
@@ -552,7 +557,7 @@ def generate_launcher_base(module: builtin.ModuleOp, known_symbols: dict[str, in
 
         "memref.store"(%t0, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
         "memref.store"(%t1, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
-        
+
         func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
 
         func.call @dump_memref_{dtype}_rank_{rank}(%t{last_time_m}) : (memref<{memref_type}>) -> ()

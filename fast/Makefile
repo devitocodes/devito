@@ -1,6 +1,7 @@
 NIXOS_CLANG_PREFIX ?= 
 CC = clang
 
+# Add flags for C
 CFLAGS = -O3 
 
 # MODE decides if we want to compile for gpu or cpu
@@ -12,7 +13,7 @@ ifeq ($(MODE),gpu)
 CFLAGS += -lmlir_cuda_runtime
 endif
 
-CPU_PIPELINE := "builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"
+CPU_PIPELINE := "builtin.module(canonicalize, loop-invariant-code-motion, convert-scf-to-openmp, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"
 GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
 
 XDSL_CPU_PIPELINE := stencil-shape-inference,convert-stencil-to-ll-mlir
