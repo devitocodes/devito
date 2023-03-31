@@ -20,8 +20,10 @@ parser.add_argument("-nt", "--nt", default=10,
                     type=int, help="Simulation time in millisecond")
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
+parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
 args = parser.parse_args()
 
+BENCH_NAME = __file__.split('.')[0]
 
 nx, ny = args.shape
 nt = args.nt
@@ -44,6 +46,8 @@ u.data[:, :, :] = 0
 u.data[:, int(nx/2), int(nx/2)] = init_value
 u.data[:, int(nx/2), -int(nx/2)] = -init_value
 
+u.data_with_halo[0,:,:].tofile(BENCH_NAME + '.input.data')
+
 # Create an equation with second-order derivatives
 a = Constant(name='a')
 eq = Eq(u.dt, a*u.laplace + 0.01)
@@ -52,41 +56,34 @@ eq0 = Eq(u.forward, stencil)
 
 xop = XDSLOperator([eq0])
 
-with open("main.mlir", "w") as f:
-    f.write(generate_launcher_base(xop._module, {
-        'time_m': 0,
-        'time_M': nt,
-        **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
-        'a': 0.1,
-        'dt': dt,
-    }, u.shape_allocated[1:]))
+if args.xdsl:
+    with open(BENCH_NAME + ".main.mlir", "w") as f:
+        f.write(generate_launcher_base(xop._module, {
+            'time_m': 0,
+            'time_M': nt,
+            **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
+            'a': 0.1,
+            'dt': dt,
+        }, u.shape_allocated[1:]))
 
-with open("kernel.mlir", "w") as f:
-    f.write(xop.mlircode)
+    with open(BENCH_NAME + ".mlir", "w") as f:
+        f.write(xop.mlircode)
 
-sys.exit(0)
-# xop.apply(time_M=nt, a=0.1, dt=dt)
-xop.apply(time_M=nt, a=0.1, dt=dt)
-xdsl_data: np.array = u.data_with_halo.copy()
-xdsl_norm = norm(u)
-
-
-u.data[:, :, :] = 0
-u.data[:, 10, 10] = init_value
-u.data[:, 10, -10] = -init_value
-print(f"Original norm is {norm(u)}")
-
+    sys.exit(0)
 
 op = Operator([eq0])
 op.apply(time_M=nt, a=0.1, dt=dt)
 orig_data: np.array = u.data_with_halo.copy()
 orig_norm = norm(u)
 
-print("orig={}, xdsl={}".format(xdsl_norm, orig_norm))
-assert np.isclose(xdsl_data, orig_data, rtol=1e-06).all()
+# get final data step
+# this is cursed math, but we assume that:
+#  1. Every kernel always writes to t1
+#  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
+#  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
+#  4. time_M is always nt in this example
+t1 = (nt + u._time_size - 1)%(2)
 
+res_data: np.array = u.data[t1,:,:]
 
-from examples.cfd import plot_field
-
-print("After", nt, "timesteps")
-plot_field(u.data[0], zmax=4.5)
+res_data.tofile(BENCH_NAME + 'devito.data')

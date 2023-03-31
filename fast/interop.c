@@ -18,7 +18,13 @@ typedef int8_t i8;
   intptr_t strides[rank];                    \
 };                                           \
 
-#define OUTFILE_NAME "stencil.data"
+#ifndef OUTFILE_NAME
+#define OUTFILE_NAME "result.data"
+#endif
+
+#ifndef INFILE_NAME
+#define INFILE_NAME "input.data"
+#endif
 
 // define memref rank 1 to 3 for f32, f64, i32, i64
 // these will be named f32_memref_r_2 for example
@@ -170,5 +176,5 @@ const struct i8_memref_r_1 load_memref(char* fname, size_t length) {
 }
 
 struct i8_memref_r_1 load_input(size_t length) {
-  return load_memref("input.data", length);
+  return load_memref(INFILE_NAME, length);
 }

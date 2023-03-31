@@ -2,6 +2,16 @@
 
 This folder is where benchmarking and correctness checks will happen in.
 
+## Structure
+
+Each benchmark has a `name`, and it's devito definition is stored in `name.py`.
+
+Running this file with `-xdsl` will generate all the stencil source files and input data.
+
+Running it without `-xdsl` will use devito to solve the problem and save the result to `<name>.devito.data`
+
+The xDSL/MLIR compiled programs will produce a `<name>.stencil.data` file with their results.
+
 ## Correctness
 
 Setup:

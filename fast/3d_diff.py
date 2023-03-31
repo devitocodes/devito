@@ -26,7 +26,7 @@ parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 
-parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true', help="Plot3D")
+parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
 args = parser.parse_args()
 
 
