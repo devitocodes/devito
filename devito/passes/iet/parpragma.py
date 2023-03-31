@@ -395,7 +395,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 continue
 
             # Outer parallelism
-            root, partree = self._make_partree(candidates, None, i)
+            root, partree = self._make_partree(candidates, index=i)
             if partree is None or root in mapper:
                 continue
 
