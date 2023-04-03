@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include<time.h>
+#include <time.h>
 
 typedef float f32;
 typedef double f64;
@@ -182,13 +182,16 @@ struct i8_memref_r_1 load_input(size_t length) {
 
 
 i64 timer_start() {
-  return (i64) clock();
+  // return epoch in ms
+  struct timespec t;
+  int clock_gettime(CLOCK_MONOTONIC, &t);
+  return (t.tv_sec * 1e3) + ((i64) tv_nsec / 1e6);
 }
 
 void timer_end(i64 start) {
-  i64 end = clock();
-  double time_taken = ((double) (end) - (start)) / CLOCKS_PER_SEC;
-
+  // print time elapsed time
+  i64 end = timer_start();
+  double time_taken = ((double) end - start) * 1000.0;
   printf("time taken: %.2fs\n", time_taken);
 }
 
