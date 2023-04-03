@@ -8,6 +8,13 @@ ARG arch="aomp"
 
 INCLUDE+ amd-base
 
+# Additional utils and python3
+# Some utils needed
+RUN apt-get update && \
+    apt-get install -y wget git autoconf dh-autoreconf \
+                       python3-venv python3-dev python3-pip \
+                       vim libnuma-dev tmux numactl
+
 # Build mpi4py against amdclang
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
