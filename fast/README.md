@@ -31,31 +31,13 @@ To conclude, running the `2d5pt` example and compare the results, use:
 
 ## ToDos:
 
- - Controlling devito is currently not done in the `Makefile`
+ - Controlling devito omp flags / gpu usage is currently not done in the `Makefile`
 
+## Passing environment variables to devito/omp
+
+Prefixing the `make` command with `NAME=val` will make the variable `NAME` available to all stages in the make file.
 
 Example:
 ```bash
 DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python fast/3d_diff.py -xdsl
 ```
-
-Running it without `-xdsl` will use devito to solve the problem and save the result to `<name>.devito.data`
-
-Example:
-```bash
-DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python fast/3d_diff.py
-```
-
-The xDSL/MLIR compiled programs will produce a `<name>.stencil.data` file with their results.
-
-## Correctness
-
-Setup:
-
- 1. Make sure to write the input data (with halo!) out to `input.data` using `u.data_with_halo[0,:,:,:].tofile('input.data')`
-    This is already done in the `diffusion_3D_wBCs.py` file, so you can check there for reference
- 2. Also write the results devito computes to file (see example file as well)
- 3. Dump the xDSL code for the example with the same parameters (using the `-xdsl` flag on the diffusion example)
- 4. Compile and run the xdsl code using `compile-devito.py`
- 5. Change the shape in the `compare.py` script to match
- 6. Run `compare.py` to compare results
