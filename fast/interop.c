@@ -184,8 +184,8 @@ struct i8_memref_r_1 load_input(size_t length) {
 i64 timer_start() {
   // return epoch in ms
   struct timespec t;
-  int clock_gettime(CLOCK_MONOTONIC, &t);
-  return (t.tv_sec * 1e3) + ((i64) tv_nsec / 1e6);
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (t.tv_sec * 1e3) + ((i64) t.tv_nsec / 1e6);
 }
 
 void timer_end(i64 start) {
