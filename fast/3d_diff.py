@@ -1,6 +1,7 @@
 # A 3D heat diffusion using Devito
 # BC modelling included
 # PyVista plotting included
+import sys
 
 import argparse
 import numpy as np
@@ -27,6 +28,8 @@ parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
 args = parser.parse_args()
 
+BENCH_NAME = __file__.split('.')[0]
+
 # Some variable declarations
 nx, ny, nz = args.shape
 nt = args.nt
@@ -46,7 +49,7 @@ u = TimeFunction(name='u', grid=grid, space_order=so)
 u.data[:, :, :, :] = 0
 u.data[:, int(nx/2), :, :] = 1
 
-u.data_with_halo[0, :, :, :].tofile('input.data')
+u.data_with_halo[0, :, :, :].tofile(BENCH_NAME + '.input.data')
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
@@ -57,6 +60,8 @@ eq_stencil = Eq(u.forward, stencil)
 # Create boundary condition expressions
 x, y, z = grid.dimensions
 t = grid.stepping_dim
+
+xop = XDSLOperator([eq_stencil])
 
 # Add boundary conditions
 # bc = [Eq(u[t+1, x, y, 0], 2.)]  # bottom
@@ -70,11 +75,11 @@ t = grid.stepping_dim
 # Create an operator that updates the forward stencil point
 # plus adding boundary conditions
 # op = Operator([eq_stencil] + bc, subdomain=grid.interior)
+
 if args.xdsl:
     perf("Generating XDSLOperator")
-    xop = XDSLOperator([eq_stencil], subdomain=grid.interior)
-    info("Operator in main.mlir")
-    with open("main.mlir", "w") as f:
+    info("Operator in " + BENCH_NAME + ".main.mlir")
+    with open(BENCH_NAME + ".main.mlir", "w") as f:
         f.write(generate_launcher_base(xop._module, {
             'time_m': 0,
             'time_M': nt,
@@ -84,15 +89,14 @@ if args.xdsl:
         }, u.shape_allocated[1:]))
 
     info("Operator in kernel.mlir")
-    with open("kernel.mlir", "w") as f:
+    info("Dump mlir code in  in " + BENCH_NAME + ".mlir")
+    with open(BENCH_NAME + ".mlir", "w") as f:
         f.write(xop.mlircode)
 
-
-    import sys;sys.exit(0)
+    sys.exit(0)
 
 # No BCs
-op = Operator([eq_stencil], subdomain=grid.interior)
-
+op = Operator([eq_stencil])
 # Apply the operator for a number of timesteps
 op(time=nt, dt=dt, a=nu)
 
@@ -104,8 +108,9 @@ op(time=nt, dt=dt, a=nu)
 #  4. time_M is always nt in this example
 t1 = (nt + u._time_size - 1)%(2)
 
-res_data: np.array = u.data[t1,:,:,:]
+res_data: np.array = u.data[t1, :, :, :]
 
-datafile = 'devito.data'
-info("Save result data to " + datafile)
-res_data.tofile(datafile)
+
+datafile = '.devito.data'
+info("Save result data to " + BENCH_NAME + datafile)
+res_data.tofile(BENCH_NAME + datafile)

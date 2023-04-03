@@ -1,5 +1,5 @@
 NIXOS_CLANG_PREFIX ?= 
-CC = clang
+CC = clang-17
 
 # Add flags for C
 CFLAGS = -O3 
