@@ -18,7 +18,7 @@ RUN apt-get update && \
 # Build mpi4py against amdclang
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    CC=$AOMP/bin/amdclang CXX=$AOMP/bin/amdclang++ /venv/bin/pip install --no-cache-dir mpi4py && \
+    CC=amdclang CXX=amdclang++ /venv/bin/pip install --no-cache-dir mpi4py && \
     rm -rf ~/.cache/pip
 
 ########################################################################

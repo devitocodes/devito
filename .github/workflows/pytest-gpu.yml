@@ -66,7 +66,7 @@ jobs:
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           tags: ["self-hosted", "amdgpu"]
-          base: "devitocodes/bases:amd"
+          base: "devitocodes/bases:amd-test"
           test_drive_cmd: "rocm-smi"
           # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
           # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
@@ -77,6 +77,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Build docker image
+      if: contains(matrix.name, 'amd')
       run: |
           docker build . --rm --pull --file docker/Dockerfile.devito --tag ${{ matrix.name }} --build-arg base=${{ matrix.base }}
 
@@ -84,17 +85,21 @@ jobs:
       run: docker system prune -f
 
     - name: Test with pytest
+      if: contains(matrix.name, 'amd')
       run: |
         # Remove all existing containers for safety
         docker ps -aq | xargs -r docker rm -f
         # Run tests
         docker run ${{ matrix.flags }} ${{ matrix.name }} ${{ matrix.test_drive_cmd }}
+        docker mygpu -d gfx900 
         docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} ${{ matrix.name }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
+      if: contains(matrix.name, 'amd')
       run: |
         docker run ${{ matrix.flags }} ${{ matrix.name }} pytest ${{ matrix.test_examples }}
 
     - name: Test examples with MPI
+      if: contains(matrix.name, 'amd')
       run: |
         docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
