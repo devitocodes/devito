@@ -15,7 +15,7 @@ parser.add_argument("-nt", "--nt", default=10,
                     type=int, help="Simulation time in millisecond")
 parser.add_argument("-n", "--name", type=str, help="benchmark name")
 
-args = parser.parse_args()
+args, unknown = parser.parse_known_args()
 
 bench_name = args.name
 
@@ -35,14 +35,29 @@ stencil_file = bench_name + ".stencil.data"
 devito_data = np.fromfile(devito_file, dtype=dtype)
 stencil_data = np.fromfile(stencil_file, dtype=dtype)
 
-import pdb;pdb.set_trace()
-assert prod(devito_data.shape) == prod(shape)
+assert prod(devito_data.shape) == prod(shape), "Wrong shape specified to the compare script!"
 
-stencil_data = stencil_data.reshape(tuple(s + 8 for s in shape))
-stencil_data = stencil_data[4:-4,4:-4,4:-4]
+# find halo size:
+# this assumes that halo is equal in all directions
+ndims = len(shape)
+# number of elements that are "too many". We have to divide them equally into the halo
+total_elms = stencil_data.shape[0]
+for halo in range(0, 20, 2):
+    if total_elms >= prod(shape_elm + halo for shape_elm in shape):
+        break
 
+assert total_elms == prod(shape_elm + halo for shape_elm in shape), "Could not correctly infer halo"
+
+assert halo 
+
+# reshape into expanded form
+stencil_data = stencil_data.reshape(tuple(shape_elm + halo for shape_elm in shape))
+# cut off the halo
+stencil_data = stencil_data[(halo//2):-(halo//2),(halo//2):-(halo//2),(halo//2):-(halo//2)]
+# reshape into normal shape
 devito_data = devito_data.reshape(shape)
 
-print("Maximal error {}".format(np.absolute(devito_data - stencil_data).max()))
+print("Max error: {}".format(np.absolute(devito_data - stencil_data).max()))
+print("Max value: {}", np.maximum(devito_data, stencil_data).max())
 
 assert np.isclose(stencil_data, devito_data, rtol=1e-6).all()
