@@ -27,7 +27,7 @@ passing options to the benchmark files is done with the `BENCH_OPTS="..."` varia
 
 To conclude, running the `2d5pt` example and compare the results, use:
 
-`make 2d5pt.bench BENCH_OPTS="-d 1000 -d 1000 -nt 1000 MODE=gpu`
+`make 2d5pt.bench BENCH_OPTS="-d 1000 1000 -nt 1000" MODE=gpu`
 
 ## ToDos:
 
@@ -39,5 +39,7 @@ Prefixing the `make` command with `NAME=val` will make the variable `NAME` avail
 
 Example:
 ```bash
-DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python fast/3d_diff.py -xdsl
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 100 100 100 -nt 100 -xdsl
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 100 100 100 -nt 100
+
 ```

@@ -64,10 +64,10 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 
 # this runs the <name>.out file to get the stencil result data
 %.stencil.data: %.out %.input.data
-	./$<
+	export OMP_PLACES=threads; ./$<
 
 %.bench: %.stencil.data %.devito.data
-	python3 compare.py $(patsubst %.bench,%,$@) $(BENCH_OPTS)
+	python3 compare.py --name  $(patsubst %.bench,%,$@) $(BENCH_OPTS)
 
 #python3 compare.py $(BENCH_OPTS) --name $(patsubst %.bench,%,$@)
 
