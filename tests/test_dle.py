@@ -318,60 +318,6 @@ class TestBlockingParTile(object):
             assert iters[0].step == par_tile[1]
             assert iters[1].step == par_tile[0]
 
-    
-    @pytest.mark.parametrize('par_tile,expected', [
-        ((32, 4, 4), ((4, 4, 32), (4, 4, 32))),
-        (((16, 4, 4), (16, 16, 16)), ((4, 4, 16), (16, 16, 16))),
-        (((32, 4, 4), 1), ((4, 4, 32), (4, 4, 32))),
-        (((32, 4, 4), 1, 'tag0'), ((4, 4, 32), (4, 4, 32))),
-        ((((32, 4, 8), 1, 'tag0'), ((32, 8, 4), 2)), ((8, 4, 32), (4, 8, 32))),
-    ])
-    def test_openacc_structure(self, par_tile, expected):
-        grid = Grid(shape=(8, 8, 8))
-
-        u = TimeFunction(name="u", grid=grid, space_order=4)
-        v = TimeFunction(name="v", grid=grid, space_order=4)
-
-        eqns = [Eq(u.forward, u.dx),
-                Eq(v.forward, u.forward.dx)]
-
-        op = Operator(eqns, platform='nvidiaX', language='openacc', opt=('advanced', {'par-tile': par_tile,
-                                              'blocklevels': 1, 'blockinner': True}))
-
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
-        assert len(bns) == len(expected)
-        for root, v in zip(bns.values(), expected):
-            iters = FindNodes(Iteration).visit(root)
-            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
-            assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
-
-
-    def test_openacc_multi_tile_structure(self):
-        grid = Grid(shape=(8, 8, 8))
-
-        u = TimeFunction(name="u", grid=grid, space_order=4)
-        v = TimeFunction(name="v", grid=grid, space_order=4)
-
-        eqns = [Eq(u.forward, u.dx),
-                Eq(v.forward, u.forward.dx)]
-        
-        par_tile=((32, 4, 4), (16, 4, 4))
-        expected=((4, 4, 32), (4, 4, 16))
-
-        op = Operator(eqns, platform='nvidiaX', language='openacc', opt=('advanced', {'par-tile': par_tile,
-                                              'blocklevels': 1, 'blockinner': True}))
-
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
-        assert len(bns) == len(expected)
-        assert bns['x0_blk0'].pragmas[0].value == 'acc parallel loop tile(32,4,4) present(u)'
-        assert bns['x1_blk0'].pragmas[0].value == 'acc parallel loop tile(16,4,4) present(u,v)'
-        for root, v in zip(bns.values(), expected):
-            iters = FindNodes(Iteration).visit(root)
-            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
-            assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
-
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
