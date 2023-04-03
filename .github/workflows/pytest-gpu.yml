@@ -91,7 +91,7 @@ jobs:
         docker ps -aq | xargs -r docker rm -f
         # Run tests
         docker run ${{ matrix.flags }} ${{ matrix.name }} ${{ matrix.test_drive_cmd }}
-        docker mygpu -d gfx900 
+        docker run ${{ matrix.flags }} ${{ matrix.name }} find /opt -name 'mygpu' -type f
         docker run ${{ matrix.flags }} -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} ${{ matrix.name }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
