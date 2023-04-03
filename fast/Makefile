@@ -56,7 +56,7 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 	
 # this compiles the main file to object
 %.main.o: %.main.mlir
-	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | tee $<.llvm.mlir | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ -
+	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ -
 
 # this assembles all object files
 %.out: %.main.o %.$(MODE).o %.interop.o
@@ -71,7 +71,7 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 
 #python3 compare.py $(BENCH_OPTS) --name $(patsubst %.bench,%,$@)
 
-.PHONY: %.compare clean
+.PHONY: %.bench clean
 
 # remove all intermediates and results
 clean:
