@@ -701,7 +701,7 @@ class AmdDevice(Device):
         #     mygpu will only print values accepted by cuda clang in
         #     the clang argument --cuda-gpu-arch.
         try:
-            p1 = Popen(['mygpu', '-d', 'gfx900'], stdout=PIPE, stderr=PIPE)
+            p1 = Popen(['/opt/rocm-5.4.2/llvm/bin/offload-arch'], stdout=PIPE, stderr=PIPE)
         except OSError:
             return fallback
 
