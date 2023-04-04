@@ -185,14 +185,19 @@ i64 timer_start() {
   // return epoch in ms
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC, &t);
-  return (t.tv_sec * 1e3) + ((i64) t.tv_nsec / 1e6);
+  //return (t.tv_sec * 1e3) + ((i64) t.tv_nsec / 1e6);
+  float secs = (t.tv_sec) * (int64_t)1000000;
+  float nsecs = ((float) t.tv_nsec / 1e3);
+  printf("Timestamp is: %.2f \n", (float) (secs + nsecs)/1e6);
+  return (float)(secs + nsecs)/1e6;
 }
 
 void timer_end(i64 start) {
   // print time elapsed time
   i64 end = timer_start();
-  double time_taken = ((double) end - start) * 1000.0;
-  printf("time taken: %.2fs\n", time_taken);
+  printf("End of time is: %.2f \n", end);
+  float elapsed_time = (float)(end - start);
+  printf("Elapsed time is: %.2f secs\n", (float) elapsed_time);
 }
 
 

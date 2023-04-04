@@ -19,14 +19,15 @@ args, unknown = parser.parse_known_args()
 
 bench_name = args.name
 
+
 def prod(iter):
     carry = 1
     for x in iter:
         carry *= x
     return carry
 
-dtype = np.float32
 
+dtype = np.float32
 shape = args.shape
 
 devito_file = bench_name + ".devito.data"
@@ -35,7 +36,10 @@ stencil_file = bench_name + ".stencil.data"
 devito_data = np.fromfile(devito_file, dtype=dtype)
 stencil_data = np.fromfile(stencil_file, dtype=dtype)
 
-assert prod(devito_data.shape) == prod(shape), "Wrong shape specified to the compare script!"
+try:
+    assert prod(devito_data.shape) == prod(shape)
+except:
+    raise AssertionError("Wrong shape specified to the compare script!")
 
 # find halo size:
 # this assumes that halo is equal in all directions

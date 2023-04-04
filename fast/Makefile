@@ -29,11 +29,11 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 # it calls the example script with the bench options, meaning it runs normal devito
 %.devito.data %.input.data: CC = gcc
 %.devito.data %.input.data: %.py 
-	DEVITO_LOGGING=DEBUG python3 $< $(BENCH_OPTS)
+	DEVITO_LOGGING=DEBUG OMP_PLACES=threads python3 $< $(BENCH_OPTS)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
 %.mlir %.main.mlir: %.py
-	python3 $< $(BENCH_OPTS) -xdsl
+	OMP_PLACES=threads python3 $< $(BENCH_OPTS) -xdsl
 
 # this compiles the specific interop file to read/write the in/out files
 # it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
@@ -63,8 +63,9 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 	$(NIXOS_CLANG_PREFIX) $(CC) $(CFLAGS) $^ -o $@
 
 # this runs the <name>.out file to get the stencil result data
+# TODO: Do not forget to get thread pinning right
 %.stencil.data: %.out %.input.data
-	export OMP_PLACES=threads; ./$<
+	OMP_PLACES="{0,1,2,3,8,9,10,11}" ./$<
 
 %.bench: %.stencil.data %.devito.data
 	python3 compare.py --name  $(patsubst %.bench,%,$@) $(BENCH_OPTS)

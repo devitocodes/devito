@@ -38,8 +38,9 @@ To conclude, running the `2d5pt` example and compare the results, use:
 Prefixing the `make` command with `NAME=val` will make the variable `NAME` available to all stages in the make file.
 
 Example:
-```bash
-DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 100 100 100 -nt 100 -xdsl
-DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 100 100 100 -nt 100
 
+```bash
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 300 300 300 -nt 300 -xdsl
+DEVITO_ARCH=gcc DEVITO_LANGUAGE=openmp DEVITO_LOGGING=DEBUG python 3d_diff.py -d 300 300 300 -nt 300
+make 3d_diff.bench BENCH_OPTS="-d 300 300 300 -nt 300" MODE=cpu
 ```
