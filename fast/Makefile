@@ -17,7 +17,11 @@ endif
 
 MEMREF_TO_LLVM_PASS ?= convert-memref-to-llvm
 
+# No openmp pipeline
+# CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion,  canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
+
 CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, convert-scf-to-openmp, canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-openmp-to-llvm, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
+
 GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
 
 XDSL_CPU_PIPELINE := stencil-shape-inference,convert-stencil-to-ll-mlir
@@ -65,7 +69,7 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 # this runs the <name>.out file to get the stencil result data
 # TODO: Do not forget to get thread pinning right
 %.stencil.data: %.out %.input.data
-	OMP_PLACES="{0,1,2,3,8,9,10,11}" ./$<
+	./$<
 
 %.bench: %.stencil.data %.devito.data
 	python3 compare.py --name  $(patsubst %.bench,%,$@) $(BENCH_OPTS)
