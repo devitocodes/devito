@@ -90,4 +90,4 @@ t1 = (nt + u._time_size - 1) % (2)
 res_data: np.array = u.data[t1, :, :]
 
 info("Save result data to " + BENCH_NAME + ".devito.data")
-res_data.tofile(BENCH_NAME + 'devito.data')
+res_data.tofile(BENCH_NAME + '.devito.data')

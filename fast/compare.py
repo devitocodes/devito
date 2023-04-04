@@ -46,8 +46,9 @@ except:
 ndims = len(shape)
 # number of elements that are "too many". We have to divide them equally into the halo
 total_elms = stencil_data.shape[0]
-for halo in range(0, 20, 2):
-    if total_elms >= prod(shape_elm + halo for shape_elm in shape):
+
+for halo in range(0, 20):
+    if total_elms <= (prod(shape_elm + halo for shape_elm in shape)):
         break
 
 assert total_elms == prod(shape_elm + halo for shape_elm in shape), "Could not correctly infer halo"
@@ -57,11 +58,15 @@ assert halo
 # reshape into expanded form
 stencil_data = stencil_data.reshape(tuple(shape_elm + halo for shape_elm in shape))
 # cut off the halo
-stencil_data = stencil_data[(halo//2):-(halo//2),(halo//2):-(halo//2),(halo//2):-(halo//2)]
+if len(shape) == 2:
+    stencil_data = stencil_data[(halo//2):-(halo//2),(halo//2):-(halo//2)]
+if len(shape) == 3:
+    stencil_data = stencil_data[(halo//2):-(halo//2),(halo//2):-(halo//2),(halo//2):-(halo//2)]
 # reshape into normal shape
 devito_data = devito_data.reshape(shape)
 
 print("Max error: {}".format(np.absolute(devito_data - stencil_data).max()))
-print("Max value: {}", np.maximum(devito_data, stencil_data).max())
+abs_max = np.maximum(np.absolute(devito_data), np.absolute(stencil_data)).max()
+print("Max abs value: {}".format(abs_max))
 
 assert np.isclose(stencil_data, devito_data, rtol=1e-6).all()
