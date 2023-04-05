@@ -35,7 +35,7 @@ sigma = .25
 dt = sigma * dx * dy / nu
 
 so = args.space_order
-to = 2
+to = args.time_order
 
 # Initialise u
 init_value = 10
