@@ -341,8 +341,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        gather = Call('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
-        scatter = Call('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
+        gather = Gather('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
+        scatter = Scatter('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -545,7 +545,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Gather('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
@@ -601,7 +601,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Scatter('scatter%s' % key, [bufs] + sizes + [f] + ofss)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -708,7 +708,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
 
-        gather = Call('gather%s' % key, [cast(bufg)] + sizes + [f] + ofsg)
+        gather = Gather('gather%s' % key, [cast(bufg)] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -752,7 +752,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = Call('scatter%s' % key, [cast(bufs)] + sizes + [f] + ofss)
+        scatter = Scatter('scatter%s' % key, [cast(bufs)] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
@@ -956,6 +956,14 @@ class Remainder(ElementalFunction):
 
 
 # Call sub-hierarchy
+
+class Gather(Call):
+    pass
+
+
+class Scatter(Call):
+    pass
+
 
 class IsendCall(Call):
 
