@@ -348,9 +348,6 @@ class _DevitoStencilToStencilStencil(RewritePattern):
     """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.Stencil, rewriter: PatternRewriter, /):
-        field_t = stencil.FieldType.from_shape(
-            op.shape, op.field_type
-        )
         rank = len(op.shape.data)
 
         data = iet_ssa.LoadSymbolic.get('data', memref.MemRefType.from_element_type_and_shape(
@@ -358,6 +355,11 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         ))
         lb = stencil.IndexAttr.get(*list(-halo_elm.data[0].value.data for halo_elm in op.halo.data))
         ub = stencil.IndexAttr.get(*list(shape_elm.value.data + halo_elm.data[1].value.data for shape_elm, halo_elm in zip(op.shape.data, op.halo.data)))
+
+        field_t = stencil.FieldType.from_shape(
+            tuple(e.value.data for e in (ub - lb).array.data), op.field_type
+        )
+
         fields = list(
             iet_ssa.GetField.get(data, t_idx, field_t, lb, ub)
             for t_idx in (*op.input_indices, op.output)

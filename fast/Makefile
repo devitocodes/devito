@@ -1,5 +1,5 @@
 NIXOS_CLANG_PREFIX ?= 
-CC = clang-17
+CC = clang
 
 # Add flags for C
 CFLAGS = -O3 
@@ -19,10 +19,9 @@ MEMREF_TO_LLVM_PASS ?= convert-memref-to-llvm
 
 # No openmp pipeline
 # CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion,  canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
+CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, expand-strided-metadata,$(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
 
-CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, convert-scf-to-openmp, canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-openmp-to-llvm, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
-
-GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
+GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
 
 XDSL_CPU_PIPELINE := stencil-shape-inference,convert-stencil-to-ll-mlir
 XDSL_GPU_PIPELINE := stencil-shape-inference,convert-stencil-to-gpu
@@ -50,17 +49,17 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 %.gpu.o : PIPELINE = $(GPU_PIPELINE) 
 %.gpu.o : XDSL_PIPE = $(XDSL_GPU_PIPELINE)
 %.gpu.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ -
+	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 
 # this compiles the kernel to cpu
 %.cpu.o: PIPELINE = $(CPU_PIPELINE) 
 %.cpu.o: XDSL_PIPE = $(XDSL_CPU_PIPELINE)
 %.cpu.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ -
+	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 	
 # this compiles the main file to object
 %.main.o: %.main.mlir
-	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ -
+	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 
 # this assembles all object files
 %.out: %.main.o %.$(MODE).o %.interop.o
