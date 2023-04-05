@@ -27,6 +27,7 @@ class Queue(object):
     _q_ispace_in_key = True
     _q_guards_in_key = False
     _q_properties_in_key = False
+    _q_syncs_in_key = False
 
     def callback(self, *args):
         raise NotImplementedError
@@ -53,7 +54,17 @@ class Queue(object):
         else:
             properties = None
 
-        prefix = Prefix(ispace, guards, properties)
+        if self._q_syncs_in_key:
+            try:
+                syncs = tuple(cluster.syncs.get(i.dim) for i in ispace)
+            except AttributeError:
+                # `cluster` is actually a ClusterGroup
+                assert len(cluster.syncs) == 1
+                syncs = tuple(cluster.syncs[0].get(i.dim) for i in ispace)
+        else:
+            syncs = None
+
+        prefix = Prefix(ispace, guards, properties, syncs)
 
         subkey = self._make_key_hook(cluster, level)
 
@@ -148,21 +159,23 @@ class QueueStateful(Queue):
 
 class Prefix(IterationSpace):
 
-    def __init__(self, ispace, guards, properties):
+    def __init__(self, ispace, guards, properties, syncs):
         super().__init__(ispace.intervals, ispace.sub_iterators, ispace.directions)
 
         self.guards = guards
         self.properties = properties
+        self.syncs = syncs
 
     def __eq__(self, other):
         return (isinstance(other, Prefix) and
                 super().__eq__(other) and
                 self.guards == other.guards and
-                self.properties == other.properties)
+                self.properties == other.properties and
+                self.syncs == other.syncs)
 
     def __hash__(self):
         return hash((self.intervals, self.sub_iterators, self.directions,
-                     self.guards, self.properties))
+                     self.guards, self.properties, self.syncs))
 
 
 class cluster_pass(object):
