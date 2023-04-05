@@ -676,9 +676,11 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0] == 3.)
 
         # Also check that there are no redundant halo exchanges. Here, only
-        # two are expected before the `x` Iteration, one for `f` and one for `g`
+        # one is expected before the `x` Iteration, with two components, namely
+        # `f` and `g`
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
+        assert len(calls) == 1
+        assert calls[0].ncomps == 2
 
     @pytest.mark.parallel(mode=2)
     def test_reapply_with_different_functions(self):
@@ -1306,25 +1308,26 @@ class TestCodeGeneration(object):
 
         if configuration['mpi'] in ('basic', 'diag'):
             assert len(op._func_table) == 4  # gather, scatter, sendrecv, haloupdate
-            assert len(calls) == 2
+            assert len(calls) == 1
             assert calls[0].name == 'haloupdate0'
-            assert calls[1].name == 'haloupdate0'
+            assert calls[0].ncomps == 2
         elif configuration['mpi'] in ('overlap'):
             assert len(op._func_table) == 8
-            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert len(calls) == 4  # haloupdate, compute, halowait, remainder
             assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('overlap2'):
             assert len(op._func_table) == 6
-            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert len(calls) == 4  # haloupdate, compute, halowait, remainder
             assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('diag2'):
             assert len(op._func_table) == 4
-            assert len(calls) == 4
+            assert len(calls) == 2
             assert calls[0].name == 'haloupdate0'
-            assert calls[1].name == 'haloupdate0'
+            assert calls[0].ncomps == 2
+            assert calls[1].name == 'halowait0'
         elif configuration['mpi'] in ('full'):
             assert len(op._func_table) == 7
-            assert len(calls) == 6
+            assert len(calls) == 4
             assert 'haloupdate1' not in op._func_table
 
 
@@ -2387,10 +2390,10 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = 'basic'
+    configuration['mpi'] = 'overlap'
     # TestDecomposition().test_reshape_left_right()
-    # TestOperatorSimple().test_trivial_eq_2d()
+    TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_scatter_gather()
-    TestOperatorAdvanced().test_fission_due_to_antidep()
+    # TestOperatorAdvanced().test_fission_due_to_antidep()
     # TestIsotropicAcoustic().test_adjoint_F_no_omp()

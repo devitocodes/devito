@@ -53,6 +53,9 @@ for base_name, base_dtype in mapper.items():
 
         dtypes_vector_mapper[(base_dtype, count)] = dtype
 
+# Fallbacks
+dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
+
 
 # *** np.dtypes lowering
 

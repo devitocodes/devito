@@ -382,9 +382,6 @@ class Bundle(ArrayBasic):
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
         components = kwargs.get('components', ())
-        if len(components) <= 1:
-            raise ValueError("Expected at least two components")
-
         klss = {type(i).__base__ for i in components}
         if len(klss) != 1:
             raise ValueError("Components must be of same type")
@@ -433,6 +430,10 @@ class Bundle(ArrayBasic):
     @property
     def components(self):
         return self._components
+
+    @property
+    def ncomp(self):
+        return len(self.components)
 
     @property
     def c0(self):
