@@ -15,7 +15,7 @@ from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, Met
                            derive_parameters, iet_build)
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
-from devito.operator.profiling import create_profile
+from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
@@ -894,6 +894,16 @@ class Operator(Callable):
             indent = " "*2
         else:
             indent = ""
+
+            if isinstance(self._profiler, AdvancedProfilerVerbose):
+                metrics = []
+
+                v = summary.globals.get('fdlike-nosetup')
+                if v is not None:
+                    metrics.append("%.2f GPts/s" % fround(v.gpointss))
+
+                if metrics:
+                    perf("Global performance <w/o setup>: [%s]" % ', '.join(metrics))
 
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted

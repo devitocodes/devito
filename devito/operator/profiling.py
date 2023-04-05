@@ -317,14 +317,18 @@ class AdvancedProfiler(Profiler):
         return summary
 
 
-class AdvancedProfilerVerbose1(AdvancedProfiler):
+class AdvancedProfilerVerbose(AdvancedProfiler):
+    pass
+
+
+class AdvancedProfilerVerbose1(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
         return (MPIList, RemainderCall, BusyWait)
 
 
-class AdvancedProfilerVerbose2(AdvancedProfiler):
+class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
