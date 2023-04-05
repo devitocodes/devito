@@ -8,7 +8,7 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_mapper, generator
+from devito.tools import generator
 
 __all__ = ['mpiize']
 
@@ -32,19 +32,10 @@ def _drop_halospots(iet):
     """
     Remove HaloSpots that:
 
-        * Embed SEQUENTIAL Iterations
         * Would be used to compute Increments (in which case, a halo exchange
           is actually unnecessary)
     """
     mapper = defaultdict(set)
-
-    # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
-    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
-        dmapper = as_mapper(iterations, lambda i: i.dim.root)
-        for d, v in dmapper.items():
-            if d in hs.dimensions and all(i.is_Sequential for i in v):
-                mapper[hs].update(set(hs.functions))
-                break
 
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
@@ -262,7 +253,12 @@ def _mark_overlappable(iet):
                     break
 
         # Heuristic: avoid comp/comm overlap for sparse Iteration nests
-        test = test and all(i.is_Affine for i in FindNodes(Iteration).visit(hs))
+        if test:
+            for i in FindNodes(Iteration).visit(hs):
+                if i.dim._defines & set(hs.halo_scheme.distributed_aindices) and \
+                   not i.is_Affine:
+                    test = False
+                    break
 
         if test:
             found.append(hs)

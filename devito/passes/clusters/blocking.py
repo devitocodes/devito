@@ -2,11 +2,11 @@ from sympy import sympify
 
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
-                               SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
-                               IterationSpace, Scope)
+                               SEQUENTIAL, SKEWABLE, TILABLES, Interval,
+                               IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer
+from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer, prod
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -88,7 +88,7 @@ class AnayzeBlockingBase(Queue):
         if prefix:
             d = prefix[-1].dim
 
-            if any(TILABLE in c.properties[d] for c in clusters) and \
+            if any(c.properties.is_blockable(d) for c in clusters) and \
                len({c.ispace[:level] for c in clusters}) > 1:
                 return clusters
 
@@ -144,7 +144,7 @@ class AnalyzeBlocking(AnayzeBlockingBase):
                 return clusters
 
             # All good so far, `d` is actually TILABLE
-            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
+            processed.append(c.rebuild(properties=c.properties.block(d)))
 
         return processed
 
@@ -159,11 +159,32 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
 
-    def _has_data_reuse(self, cluster):
-        if is_on_device(cluster.functions, self.gpu_fit):
-            return True
-        else:
-            return super()._has_data_reuse(cluster)
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+        if self._has_short_trip_count(d):
+            return clusters
+
+        processed = []
+        for c in clusters:
+            if not c.properties.is_parallel_relaxed(d):
+                return clusters
+
+            if is_on_device(c.functions, self.gpu_fit):
+                if self._has_data_reuse(c):
+                    properties = c.properties.block(d)
+                else:
+                    properties = c.properties.block(d, 'small')
+            elif self._has_data_reuse(c):
+                properties = c.properties.block(d)
+            else:
+                return clusters
+
+            processed.append(c.rebuild(properties=properties))
+
+        return processed
 
 
 class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
@@ -179,11 +200,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         # Heuristic: if there aren't at least two TILABLE Dimensions, drop it
         processed = []
         for c in clusters:
-            ntilable = len([TILABLE for v in c.properties.values() if TILABLE in v])
-            if ntilable > 1:
+            if c.properties.nblockable > 1:
                 processed.append(c)
             else:
-                properties = {d: v - {TILABLE} for d, v in c.properties.items()}
+                properties = c.properties.drop(properties=TILABLES)
                 processed.append(c.rebuild(properties=properties))
 
         return processed
@@ -221,7 +241,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
                 return clusters
 
-            processed.append(c.rebuild(properties=c.properties.add(d, TILABLE)))
+            processed.append(c.rebuild(properties=c.properties.block(d)))
 
         if len(clusters) > 1:
             # Heuristic: same as above if it induces dynamic bounds
@@ -250,7 +270,7 @@ class AnalyzeSkewing(Queue):
 
         processed = []
         for c in clusters:
-            if TILABLE not in c.properties[d]:
+            if not c.properties.is_blockable(d):
                 return clusters
 
             processed.append(c.rebuild(properties=c.properties.add(d, SKEWABLE)))
@@ -275,7 +295,7 @@ class SynthesizeBlocking(Queue):
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
         if self.par_tile:
-            blk_size_gen = BlockSizeGenerator(*self.par_tile)
+            blk_size_gen = BlockSizeGenerator(self.par_tile)
         else:
             blk_size_gen = None
 
@@ -287,7 +307,7 @@ class SynthesizeBlocking(Queue):
 
         d = prefix[-1].dim
 
-        if not any(TILABLE in c.properties[d] for c in clusters):
+        if not any(c.properties.is_blockable(d) for c in clusters):
             return clusters
 
         # Create the block Dimensions (in total `self.levels` Dimensions)
@@ -297,7 +317,7 @@ class SynthesizeBlocking(Queue):
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
             try:
-                step = sympify(blk_size_gen.next(clusters))
+                step = sympify(blk_size_gen.next(clusters, d))
             except StopIteration:
                 return clusters
         else:
@@ -319,16 +339,15 @@ class SynthesizeBlocking(Queue):
 
         processed = []
         for c in clusters:
-            if TILABLE in c.properties[d]:
+            if c.properties.is_blockable(d):
                 ispace = decompose(c.ispace, d, block_dims)
 
                 # Use the innermost BlockDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
-                properties = dict(c.properties)
-                properties.pop(d)
-                properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
+                properties = c.properties.drop(d)
+                properties = properties.add(block_dims, c.properties[d] - TILABLES)
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
@@ -394,12 +413,36 @@ def decompose(ispace, d, block_dims):
     return IterationSpace(intervals, sub_iterators, directions)
 
 
-class BlockSizeGenerator(UnboundedMultiTuple):
+class BlockSizeGenerator(object):
 
-    def next(self, clusters):
+    """
+    A wrapper for several UnboundedMultiTuples.
+    """
+
+    def __init__(self, par_tile):
+        self.umt = UnboundedMultiTuple(*par_tile)
+
+        # This is for Clusters that need a small par-tile to avoid under-utilizing
+        # computational resources (e.g., kernels running over iteration spaces that
+        # are relatively small for the underlying architecture)
+        if (len(par_tile) == 1 and
+            (len(par_tile[0]) < len(par_tile.default) or
+             prod(par_tile[0]) < prod(par_tile.default))):
+            # Ignore if, e.g., user supplies a lower dimensional block shape
+            self.umt_small = self.umt
+        else:
+            self.umt_small = UnboundedMultiTuple(par_tile.default)
+
+    def next(self, clusters, d):
+        # TODO: This is for now exceptionally rudimentary
+        if all(c.properties.is_blockable_small(d) for c in clusters):
+            umt = self.umt_small
+        else:
+            umt = self.umt
+
         if not any(i.dim.is_Block for i in flatten(c.ispace for c in clusters)):
-            self.iter()
-        return super().next()
+            umt.iter()
+        return umt.next()
 
 
 class SynthesizeSkewing(Queue):

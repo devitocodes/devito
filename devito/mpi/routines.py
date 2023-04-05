@@ -9,9 +9,10 @@ from sympy import Integer
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Call, Callable, Conditional, Expression, ExpressionBundle,
-                           AugmentedExpression, Iteration, List, Prodder, Return,
-                           make_efunc, FindNodes, Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
+                           Expression, ExpressionBundle, AugmentedExpression,
+                           Iteration, List, Prodder, Return, make_efunc, FindNodes,
+                           Transformer)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
@@ -110,15 +111,10 @@ class HaloExchangeBuilder(object):
             haloupdates.append(self._call_haloupdate(haloupdate.name, f, hse, msg))
             if halowait is not None:
                 halowaits.append(self._call_halowait(halowait.name, f, hse, msg))
-        body = []
-        body.append(HaloUpdateList(body=haloupdates))
-        if callcompute is not None:
-            body.append(callcompute)
-        body.append(HaloWaitList(body=halowaits))
-        if remainder is not None:
-            body.append(self._call_remainder(remainder))
 
-        return List(body=body)
+        body = self._make_body(callcompute, remainder, haloupdates, halowaits)
+
+        return body
 
     @abc.abstractmethod
     def _make_region(self, hs, key):
@@ -255,6 +251,14 @@ class HaloExchangeBuilder(object):
         """
         return
 
+    @abc.abstractmethod
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        """
+        Chain together the `compute`, `remainder`, `haloupdate`, and `halowait`
+        Calls.
+        """
+        return
+
 
 class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
@@ -337,8 +341,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        gather = Call('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
-        scatter = Call('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
+        gather = Gather('gather%s' % key, [bufg] + list(bufg.shape) + [f] + ofsg)
+        scatter = Scatter('scatter%s' % key, [bufs] + list(bufs.shape) + [f] + ofss)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -447,6 +451,18 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     def _call_remainder(self, *args):
         return
 
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        body.append(HaloUpdateList(body=haloupdates))
+        if callcompute is not None:
+            body.append(callcompute)
+        body.append(HaloWaitList(body=halowaits))
+        if remainder is not None:
+            body.append(self._call_remainder(remainder))
+
+        return List(body=body)
+
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
@@ -529,7 +545,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
 
-        gather = Call('gather%s' % key, [bufg] + sizes + [f] + ofsg)
+        gather = Gather('gather%s' % key, [bufg] + sizes + [f] + ofsg)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
@@ -585,7 +601,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
                  for i in range(len(f._dist_dimensions))]
-        scatter = Call('scatter%s' % key, [bufs] + sizes + [f] + ofss)
+        scatter = Scatter('scatter%s' % key, [bufs] + sizes + [f] + ofss)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -631,7 +647,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
         body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
-        return make_efunc('remainder%d' % key, body)
+        return Remainder.make('remainder%d' % key, body)
 
     def _call_remainder(self, remainder):
         efunc = remainder.make_call()
@@ -692,7 +708,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
 
-        gather = Call('gather%s' % key, [cast(bufg)] + sizes + [f] + ofsg)
+        gather = Gather('gather%s' % key, [cast(bufg)] + sizes + [f] + ofsg)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -736,7 +752,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
-        scatter = Call('scatter%s' % key, [cast(bufs)] + sizes + [f] + ofss)
+        scatter = Scatter('scatter%s' % key, [cast(bufs)] + sizes + [f] + ofss)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
@@ -778,7 +794,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
 
-        return make_efunc('remainder%d' % key, iet)
+        return Remainder.make('remainder%d' % key, iet)
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -809,6 +825,36 @@ class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     def _call_remainder(self, remainder):
         return remainder
+
+
+class DualHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
+
+    """
+    "Dual" of Overlap2HaloExchangeBuilder, as the "remainder" is now the first
+    thing getting computed.
+
+    Generates:
+
+        remainder()
+        haloupdate()
+        compute_core()
+        halowait()
+    """
+
+    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
+        body = []
+
+        assert remainder is not None
+        body.append(self._call_remainder(remainder))
+
+        body.append(HaloUpdateList(body=haloupdates))
+
+        assert callcompute is not None
+        body.append(callcompute)
+
+        body.append(HaloWaitList(body=halowaits))
+
+        return List(body=body)
 
 
 class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -873,7 +919,8 @@ mpi_registry = {
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
     'overlap2': Overlap2HaloExchangeBuilder,
-    'full': FullHaloExchangeBuilder
+    'full': FullHaloExchangeBuilder,
+    'dual': DualHaloExchangeBuilder
 }
 
 
@@ -904,7 +951,19 @@ class HaloUpdate(MPICallable):
         super(HaloUpdate, self).__init__(name, body, parameters)
 
 
+class Remainder(ElementalFunction):
+    pass
+
+
 # Call sub-hierarchy
+
+class Gather(Call):
+    pass
+
+
+class Scatter(Call):
+    pass
+
 
 class IsendCall(Call):
 

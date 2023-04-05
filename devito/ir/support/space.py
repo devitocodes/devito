@@ -13,7 +13,7 @@ from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_or
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'DataSpace', 'Forward', 'Backward', 'Any']
+           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any']
 
 
 # The default Stamp, used by all new Intervals
@@ -122,7 +122,7 @@ class Interval(AbstractInterval):
 
     is_Defined = True
 
-    def __init__(self, dim, lower, upper, stamp=S0):
+    def __init__(self, dim, lower=0, upper=0, stamp=S0):
         super(Interval, self).__init__(dim, stamp)
 
         try:

@@ -15,12 +15,12 @@ from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, Met
                            derive_parameters, iet_build)
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
-from devito.operator.profiling import create_profile
+from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
-                           generate_macros, instrument)
+                           generate_macros)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -443,13 +443,13 @@ class Operator(Callable):
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
-        graph = Graph(iet)
+        graph = Graph(iet, sregistry=sregistry)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        instrument(graph, profiler=profiler, sregistry=sregistry)
+        cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph)
@@ -515,7 +515,8 @@ class Operator(Callable):
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
         nodes = self.dimensions
-        edges = [(i, i.parent) for i in self.dimensions if i.is_Derived]
+        edges = [(i, i.parent) for i in self.dimensions
+                 if i.is_Derived and i.parent in set(nodes)]
         toposort = DAG(nodes, edges).topological_sort()
         futures = {}
         for d in reversed(toposort):
@@ -894,14 +895,28 @@ class Operator(Callable):
         else:
             indent = ""
 
+            if isinstance(self._profiler, AdvancedProfilerVerbose):
+                metrics = []
+
+                v = summary.globals.get('fdlike-nosetup')
+                if v is not None:
+                    metrics.append("%.2f GPts/s" % fround(v.gpointss))
+
+                if metrics:
+                    perf("Global performance <w/o setup>: [%s]" % ', '.join(metrics))
+
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
-            oi = "OI=%.2f" % fround(v.oi)
-            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [oi, gflopss, gpointss] if i is not None)
+            if v.gflopss:
+                oi = "OI=%.2f" % fround(v.oi)
+                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+                gpointss = "%.2f GPts/s" % fround(v.gpointss)
+                metrics = "[%s]" % ", ".join([oi, gflopss, gpointss])
+            else:
+                metrics = ""
+
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 itershapes = ",".join("<%s>" % i for i in itershapes)
@@ -911,7 +926,7 @@ class Operator(Callable):
                 itershapes = ""
             name = "%s%s<%s>" % (k.name, rank, itershapes)
 
-            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
+            perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
             for n, time in summary.subsections.get(k.name, {}).items():
                 perf("%s+ %s ran in %.2f s [%.2f%%]" %
                      (indent*2, n, time, fround(time/v.time*100)))

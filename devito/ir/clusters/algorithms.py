@@ -11,6 +11,7 @@ from devito.ir.support import (Any, Backward, Forward, IterationSpace,
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, timed_pass)
@@ -41,6 +42,9 @@ def clusterize(exprs, **kwargs):
 
     # Input normalization (e.g., SSA)
     clusters = normalize(clusters, **kwargs)
+
+    # Derive the necessary communications for distributed-memory parallelism
+    clusters = Communications().process(clusters)
 
     return ClusterGroup(clusters)
 
@@ -239,9 +243,6 @@ class Stepper(Queue):
     sub-iterators induced by a SteppingDimension.
     """
 
-    def process(self, clusters):
-        return self._process_fdta(clusters, 1)
-
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -334,6 +335,65 @@ class Stepper(Queue):
                                     c.ispace.directions)
 
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+
+        return processed
+
+
+class Communications(Queue):
+
+    """
+    Enrich a sequence of Clusters by adding special Clusters representing data
+    communications, or "halo exchanges", for distributed parallelism.
+    """
+
+    _q_guards_in_key = True
+
+    B = Symbol(name='⊥')
+
+    @timed_pass(name='schedule')
+    def process(self, clusters):
+        return self._process_fatd(clusters, 1, seen=set())
+
+    def callback(self, clusters, prefix, seen=None):
+        if seen.issuperset(clusters):
+            return clusters
+
+        d = prefix[-1].dim
+
+        # Construct the mock exprs representing the halo accesses
+        exprs = []
+        for c in clusters:
+            if c.properties.is_sequential(d):
+                continue
+
+            halo_scheme = HaloScheme(c.exprs, c.ispace)
+
+            if not halo_scheme.is_void and \
+               d in halo_scheme.distributed_aindices:
+                points = set()
+                for f in halo_scheme.fmapper:
+                    for a in c.scope.getreads(f):
+                        points.add(a.access)
+
+                # We also add all written symbols to ultimately create mock WARs
+                # with `c`, which will prevent the newly created HaloTouch to ever
+                # be rescheduled after `c` upon topological sorting
+                points.update(a.access for a in c.scope.accesses if a.is_write)
+
+                rhs = HaloTouch(*points, halo_scheme=halo_scheme)
+
+                # Insert only if not redundant, to avoid useless pollution
+                if not any(rhs == e.rhs for e in exprs):
+                    exprs.append(Eq(self.B, rhs))
+
+        processed = []
+        if exprs:
+            ispace = prefix[:prefix.index(d)]
+
+            processed.append(Cluster(exprs, ispace, c.guards))
+            seen.update(clusters)
+
+        processed.extend(clusters)
 
         return processed
 

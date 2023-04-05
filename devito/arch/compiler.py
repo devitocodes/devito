@@ -105,7 +105,7 @@ def sniff_mpi_distro(mpiexec):
 
 
 @memoized_func
-def sniff_mpi_flags():
+def sniff_mpi_flags(mpicc='mpicc'):
     mpi_distro = sniff_mpi_distro('mpiexec')
     if mpi_distro != 'OpenMPI':
         raise NotImplementedError("Unable to detect MPI compile and link flags")
@@ -584,35 +584,45 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-fPIC')
         self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
 
+        if configuration['mpi']:
+            # We rather use `nvcc` to compile MPI, but for this we have to
+            # explicitly pass the flags that an `mpicc` would implicitly use
+            compile_flags, link_flags = sniff_mpi_flags('mpicxx')
+
+            try:
+                # No idea why `-pthread` would pop up among the `compile_flags`
+                compile_flags.remove('-pthread')
+            except ValueError:
+                # Just in case they fix it, we wrap it up within a try-except
+                pass
+            self.cflags.extend(compile_flags)
+
+            # Some arguments are for the host compiler
+            proc_link_flags = []
+            for i in link_flags:
+                if i == '-pthread':
+                    proc_link_flags.extend(['-Xcompiler', '-pthread'])
+                elif i.startswith('-Wl'):
+                    # E.g., `-Wl,-rpath` -> `-Xcompiler "-Wl\,-rpath"`
+                    proc_link_flags.extend([
+                        '-Xcompiler', '"%s"' % i.replace(',', r'\,')
+                    ])
+                else:
+                    proc_link_flags.append(i)
+            self.ldflags.extend(proc_link_flags)
+
+        self.cflags.append('-arch=native')
+
         # Disable `warning #1650-D: result of call is not used`
         # See `https://gist.github.com/gavinb/f2320f9eaa0e0a7efca6877a34047a9d` about
         # disabling specific warnings with nvcc
-        if configuration['mpi']:
-            # mpicc/mpicxx default to `nvc++ ...` (add `--showme` to print out the
-            # actual command line that results from expanding out the mpicc/mpicxx
-            # wrappers). However, mpicc/mpicxx also use the `'-Wl,-rpath'`
-            # GCC-specific options, which means we can't use `nvc++` as host
-            # compiler via `-ccbin=nvc++` either, as otherwise it will complain that
-            # `nvcc fatal   : Unknown option '-Wl,-rpath'`. So the simplest option
-            # for now is to avoid adding the flags below in the `else` branch as
-            # they are `nvcc` specific; `nvc++`, used by mpicc/mpicxx+, will use
-            # `nvcc` eventually (since it reads the file suffix .cu), but somehow
-            # it won't digest the options provided in this format...
+        self.cflags.extend(['-Xcudafe', '--display_error_number',
+                            '--diag-suppress', '1650'])
+        # Same as above but for the host compiler
+        self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
 
-            # Also, no need to specify the compute capability via e.g. `-gpu=cc70`,
-            # as nvc++ will automatically compile for the GPU installed in this
-            # system by default
-
-            pass
-        else:
-            self.cflags.append('-arch=native')
-            self.cflags.extend(['-Xcudafe', '--display_error_number',
-                                '--diag-suppress', '1650'])
-            # Same as above but for the host compiler
-            self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
-
-            if not configuration['safe-math']:
-                self.cflags.append('--use_fast_math')
+        if not configuration['safe-math']:
+            self.cflags.append('--use_fast_math')
 
         self.src_ext = 'cu'
 
@@ -625,8 +635,8 @@ class CudaCompiler(Compiler):
     def __lookup_cmds__(self):
         self.CC = 'nvcc'
         self.CXX = 'nvcc'
-        self.MPICC = 'mpic++'
-        self.MPICXX = 'mpicxx'
+        self.MPICC = 'nvcc'
+        self.MPICXX = 'nvcc'
 
 
 class HipCompiler(Compiler):

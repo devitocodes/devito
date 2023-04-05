@@ -4,13 +4,16 @@ from operator import attrgetter
 
 from cached_property import cached_property
 from sympy import Max, Min
+import sympy
 
+from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
-from devito.tools import Tag, as_tuple, filter_ordered, flatten, frozendict, is_integer
+from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
+                          frozendict, is_integer)
 from devito.types import Grid
 
-__all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException']
+__all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
 
 
 class HaloSchemeException(Exception):
@@ -24,7 +27,7 @@ IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
 
-HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices loc_dirs halos')
+HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices loc_dirs halos dims')
 
 Halo = namedtuple('Halo', 'dim side')
 
@@ -38,9 +41,9 @@ class HaloScheme(object):
 
         `M : Function -> HaloSchemeEntry`
 
-    Where `HaloSchemeEntry` is a (named) 3-tuple:
+    Where `HaloSchemeEntry` is a (named) 4-tuple:
 
-        `(loc_indices={}, loc_dirs={}, halos=[(Dimension, DataSide), ...])`
+        `(loc_indices={}, loc_dirs={}, halos=set(), dims=set())`
 
     `loc_indices` is a dict telling how to access/insert the halo along non-halo
     indices. For example, consider the Function `u(t, x, y)`. Assume `x` and
@@ -55,9 +58,14 @@ class HaloScheme(object):
     in `loc_indices`. This information is used to perform operations over a set
     of HaloSchemeEntries, such as computing their union.
 
-    `halos` is a list of 2-tuples `(Dimension, DataSide)`. This is metadata
+    `halos` is a set of 2-tuples `(Dimension, DataSide)`. This is metadata
     about the halo exchanges, such as the Dimensions along which a halo exchange
     is expected to be performed.
+
+    `dims` is the set of Dimensions with which the distributed Dimensions of the
+    HaloScheme are accessed. Most of the times `dims` will coincide with the set
+    of distributed Dimensions itself. However, we also support the case in which
+    arbitrary Dimensions are used in place of x/y/z, e.g. `u[t0, i]` for `u(t, x)`.
 
     Parameters
     ----------
@@ -90,7 +98,9 @@ class HaloScheme(object):
         return "HaloScheme<%s>" % fnames
 
     def __eq__(self, other):
-        return isinstance(other, HaloScheme) and self.fmapper == other.fmapper
+        return (isinstance(other, HaloScheme) and
+                self._mapper == other._mapper and
+                self._honored == other._honored)
 
     def __len__(self):
         return len(self._mapper)
@@ -117,7 +127,11 @@ class HaloScheme(object):
             for k, v in i.fmapper.items():
                 hse = fmapper.setdefault(k, v)
 
-                if hse.loc_indices != v.loc_indices:
+                if not hse.loc_indices:
+                    loc_indices, loc_dirs = v.loc_indices, v.loc_dirs
+                elif not v.loc_indices or hse.loc_indices == v.loc_indices:
+                    loc_indices, loc_dirs = hse.loc_indices, hse.loc_dirs
+                else:
                     # The `loc_dirs` must match otherwise it'd be a symptom there's
                     # something horribly broken elsewhere!
                     assert hse.loc_dirs == v.loc_dirs
@@ -131,13 +145,11 @@ class HaloScheme(object):
                                        for d in hse.loc_indices}
                     loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                                 hse.loc_dirs)
-                else:
-                    loc_indices, loc_dirs = hse.loc_indices, hse.loc_dirs
 
-                # Potentially more halo exchanges required
                 halos = hse.halos | v.halos
+                dims = hse.dims | v.dims
 
-                fmapper[k] = HaloSchemeEntry(loc_indices, loc_dirs, halos)
+                fmapper[k] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
             # Compute the `honored` union
             for d, v in i.honored.items():
@@ -337,6 +349,14 @@ class HaloScheme(object):
         return retval
 
     @cached_property
+    def distributed(self):
+        return set().union(*[f._dist_dimensions for f in self.fmapper])
+
+    @cached_property
+    def distributed_aindices(self):
+        return set().union(*[i.dims for i in self.fmapper.values()])
+
+    @cached_property
     def arguments(self):
         return self.dimensions | set(flatten(self.honored.values()))
 
@@ -359,9 +379,15 @@ class HaloScheme(object):
 
 def classify(exprs, ispace):
     """
-    Produce the mapper ``Function -> HaloSchemeEntry``, which describes the
-    necessary halo exchanges in the given Scope.
+    Produce the mapper `Function -> HaloSchemeEntry`, which describes the necessary
+    halo exchanges in the given Scope.
     """
+
+    # Some MPI modes require pulling the `loc_indices` from the reads, others
+    # from the writes. It essentially depends on whether the halo exchange is
+    # performed before (reads) or after (writes) the OWNED region is computed
+    loc_indices_from_reads = configuration['mpi'] not in ('dual',)
+
     scope = Scope(exprs)
 
     mapper = {}
@@ -372,14 +398,27 @@ def classify(exprs, ispace):
             # TODO: improve me
             continue
 
+        # In the case of custom topologies, we ignore the Dimensions that aren't
+        # practically subjected to domain decomposition
+        dist = f.grid.distributor
+        try:
+            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions)
+                       if i == 1]
+        except TypeError:
+            ignored = []
+
         # For each data access, determine if (and what type of) a halo exchange
         # is required
+        dims = set()
         halo_labels = defaultdict(set)
         for i in r:
             v = {}
             for d in i.findices:
                 if f.grid.is_distributed(d):
-                    if i.affine(d):
+                    if d in ignored:
+                        v[(d, LEFT)] = IDENTITY
+                        v[(d, RIGHT)] = IDENTITY
+                    elif i.affine(d):
                         thl, thr = i.touched_halo(d)
                         # Note: if the left-HALO is touched (i.e., `thl = True`), then
                         # the *right-HALO* is to be sent over in a halo exchange
@@ -388,7 +427,7 @@ def classify(exprs, ispace):
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
-                else:
+                elif loc_indices_from_reads:
                     v[(d, i[d])] = NONE
 
             # Does `i` actually require a halo exchange?
@@ -407,10 +446,25 @@ def classify(exprs, ispace):
             for j, hl in v.items():
                 halo_labels[j].add(hl)
 
+            # Populate `dims`
+            for ai, d in i.index_map.items():
+                if ai is not None and f.grid.is_distributed(d):
+                    if ai.is_NonlinearDerived:
+                        dims.add(ai.parent)
+                    else:
+                        dims.add(ai)
+
         if not halo_labels:
             continue
 
-        # Distinguish between Dimensions requiring a halo exchange and those which don't
+        # Augment `halo_labels` with `loc_indices`-related information if necessary
+        if not loc_indices_from_reads:
+            for i in scope.writes.get(f, []):
+                for d in i.findices:
+                    if not f.grid.is_distributed(d):
+                        halo_labels[(d, i[d])].add(NONE)
+
+        # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
             try:
@@ -421,7 +475,8 @@ def classify(exprs, ispace):
                 continue
             elif len(hl) > 1:
                 raise HaloSchemeException("Inconsistency found while building a halo "
-                                          "scheme for `%s` along Dimension `%s`" % (f, d))
+                                          "scheme for `%s` along Dimension `%s`"
+                                          % (f, d))
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             else:
@@ -429,8 +484,10 @@ def classify(exprs, ispace):
 
         loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                     ispace.directions)
+        halos = frozenset(halos)
+        dims = frozenset(dims)
 
-        mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, frozenset(halos))
+        mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
     return mapper
 
@@ -481,3 +538,34 @@ def process_loc_indices(raw_loc_indices, directions):
     loc_dirs = {d: v for d, v in directions.items() if d in known}
 
     return frozendict(loc_indices), frozendict(loc_dirs)
+
+
+class HaloTouch(sympy.Function, Reconstructable):
+
+    """
+    A SymPy object representing halo accesses through a HaloScheme.
+    """
+
+    __rargs__ = ('args',)
+    __rkwargs__ = ('halo_scheme',)
+
+    def __new__(cls, *args, halo_scheme=None, **kwargs):
+        obj = super().__new__(cls, *args)
+        obj.halo_scheme = halo_scheme
+        return obj
+
+    def __repr__(self):
+        return "HaloTouch(%s)" % ",".join(f.name for f in self.halo_scheme.fmapper)
+
+    __str__ = __repr__
+
+    def _sympystr(self, printer):
+        return str(self)
+
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other):
+        return isinstance(other, HaloTouch) and self.halo_scheme == other.halo_scheme
+
+    func = Reconstructable._rebuild

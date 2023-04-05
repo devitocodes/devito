@@ -204,6 +204,10 @@ class Distributor(AbstractDistributor):
                 # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
+                # A custom topology may contain integers or the wildcard '*', which
+                # implies `nprocs // nstars`
+                topology = CustomTopology(topology, self._input_comm)
+
                 self._topology = topology
 
             if self._input_comm is not input_comm:
@@ -253,9 +257,18 @@ class Distributor(AbstractDistributor):
     def topology(self):
         return self._topology
 
+    @property
+    def topology_logical(self):
+        if isinstance(self.topology, CustomTopology):
+            return self.topology.logical
+        else:
+            return None
+
     @cached_property
     def is_boundary_rank(self):
-        """ MPI rank interfaces with the boundary of the domain. """
+        """
+        MPI rank interfaces with the boundary of the domain.
+        """
         return any([True if i == 0 or i == j-1 else False for i, j in
                    zip(self.mycoords, self.topology)])
 
@@ -548,6 +561,61 @@ class MPINeighborhood(CompositeObject):
             return grid.distributor._obj_neighborhood._arg_defaults()
         else:
             return self._arg_defaults()
+
+
+class CustomTopology(tuple):
+
+    """
+    A CustomTopology is a mechanism to describe parametric domain decompositions.
+
+    Examples
+    --------
+    Assuming a domain consisting of three distributed Dimensions x, y, and z, and
+    an MPI communicator comprising N processes, a CustomTopology might be:
+
+    With N known, say N=4:
+
+    * `(1, 1, 4)`: the z Dimension is decomposed into 4 chunks
+    * `(2, 1, 2)`: the x Dimension is decomposed into 2 chunks; the z Dimension
+                   is decomposed into 2 chunks
+
+    With N unknown:
+
+    * `(1, '*', 1)`: the wildcard `'*'` tells the runtime to decompose the y
+                     Dimension into N chunks
+    * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both the
+                       x and y Dimensions into N / 2 chunks respectively.
+
+    Raises
+    ------
+    N must evenly divide the number of `'*'`, otherwise a ValueError exception
+    is raised.
+    If the wildcard `'*'` is used, then the CustomTopology can only contain either
+    `'*'` or 1's, otherwise a ValueError exception is raised.
+
+    Notes
+    -----
+    Users shouldn't use this class directly. It's up to the Devito runtime to
+    instantiate it based on the user input.
+    """
+
+    def __new__(cls, items, input_comm):
+        nstars = len([i for i in items if i == '*'])
+        if nstars > 0:
+            if input_comm.size % nstars != 0:
+                raise ValueError("Invalid `topology` for given nprocs")
+            if any(i not in ('*', 1) for i in items):
+                raise ValueError("Custom topology must be only 1 or *")
+
+            v = input_comm.size // nstars
+            processed = [i if i == 1 else v for i in items]
+        else:
+            processed = items
+
+        obj = super().__new__(cls, processed)
+        obj.logical = items
+
+        return obj
 
 
 def compute_dims(nprocs, ndim):

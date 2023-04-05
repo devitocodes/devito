@@ -542,7 +542,7 @@ class TestNodeParallelism(object):
         # skewing-like over two Eqs
         (['Eq(t0, fc[x,y+2] + fc[x-1,y+2])', 'Eq(fc[x,y+1], t0 + 1)'],
          (False, False)),
-        # outermost parallel, innermost sequential w/ double tensor write
+        # two nests, each nest: outermost parallel, innermost sequential
         (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
          (True, False, False)),
         # outermost sequential, innermost parallel w/ mixed dimensions

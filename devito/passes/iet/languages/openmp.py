@@ -110,7 +110,7 @@ class ThreadedProdder(Conditional, Prodder):
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
         # as it's required
-        prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
+        prod_until = Not(DefFunction(prodder.name, prodder.arguments))
         then_body = List(header=c.Comment('Entrap thread until comms have completed'),
                          body=While(prod_until))
         Conditional.__init__(self, condition, then_body)

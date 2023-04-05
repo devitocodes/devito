@@ -9,7 +9,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR)
+                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
@@ -718,8 +718,12 @@ class TestDependenceAnalysis(object):
         exprs = [LoweredEq(i) for i in exprs]
 
         scope = Scope(exprs)
-        assert len(scope.d_all) == len(scope.d_flow) == 1
+        assert len(scope.d_all) == 2
+        assert len(scope.d_flow) == 1
         v = scope.d_flow.pop()
+        assert v.function is f
+        assert len(scope.d_anti) == 1
+        v = scope.d_anti.pop()
         assert v.function is f
 
     def test_indexedbase_across_jump(self):
@@ -738,10 +742,11 @@ class TestDependenceAnalysis(object):
         exprs = [LoweredEq(i) for i in exprs]
 
         scope = Scope(exprs)
-        assert len(scope.d_all) == len(scope.d_flow) == 1
+        assert len(scope.d_all) == 3
+        assert len(scope.d_flow) == 3
         assert len(scope.d_anti) == 0
-        v = scope.d_flow.pop()
-        assert v.function is f
+        assert any(v.function is f for v in scope.d_flow)
+        assert any(v.function is mocksym for v in scope.d_flow)
 
     def test_indirect_access(self):
         grid = Grid(shape=(4, 4))

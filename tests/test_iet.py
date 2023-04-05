@@ -208,11 +208,11 @@ def test_make_cpp_parfor():
         waitcall
     ]
 
-    parfor = ElementalFunction('parallel_for', body, 'void',
-                               [first, last, func, nthreads])
+    parfor = ElementalFunction('parallel_for', body,
+                               parameters=[first, last, func, nthreads])
 
     assert str(parfor) == """\
-static inline \
+static \
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
   const int threshold = 1;
@@ -255,12 +255,12 @@ def test_make_cuda_stream():
     stream = CudaStream('stream')
 
     iet = Call('foo', stream)
-    iet = ElementalFunction('foo', iet, 'void')
+    iet = ElementalFunction('foo', iet, parameters=())
     dm = CDataManager(sregistry=None)
     iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
 
     assert str(iet) == """\
-static inline void foo()
+static void foo()
 {
   cudaStream_t stream;
   cudaStreamCreate(&(stream));

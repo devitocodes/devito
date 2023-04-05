@@ -282,7 +282,7 @@ class QueueID(Symbol):
 class Barrier(object):
 
     """
-    Mixin class for symbolic objects representing thread barriers.
+    Mixin class for symbolic objects representing synchronization barriers.
     """
 
     pass

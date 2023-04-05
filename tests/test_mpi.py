@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R, assert_blocking
+from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -2242,6 +2242,36 @@ class TestOperatorAdvanced(object):
         op.apply(time_M=0, u=u3)
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
 
+    @pytest.mark.parallel(mode=4)
+    def test_fission_due_to_antidep(self):
+        grid = Grid(shape=(16, 16, 64), dtype=np.float64)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+        v1 = TimeFunction(name='v1', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, v.laplace),
+                Eq(v.forward, u.forward.dz2)]
+
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        # First, check the generated code
+        assert_structure(op1, ['t',
+                               't,x0_blk0,y0_blk0,x,y,z',
+                               't,x0_blk0,y0_blk0,x,y,z'],
+                         't,x0_blk0,y0_blk0,x,y,z,z')
+
+        def init(f, v=1):
+            f.data[:] = np.indices(grid.shape).sum(axis=0) % (.004*v) + .01
+
+        init(u1)
+        init(v1, 2)
+        op1(u=u1, v=v1, time_M=5, h_z=20.)
+
+        assert np.isclose(norm(u1), 12445251.87, rtol=1e-7)
+        assert np.isclose(norm(v1), 147063.38, rtol=1e-7)
+
 
 def gen_serial_norms(shape, so):
     """
@@ -2357,15 +2387,10 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = True
+    configuration['mpi'] = 'basic'
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
-    # TestOperatorSimple().test_num_comms('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
     # TestFunction().test_halo_exchange_bilateral()
-    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
-    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    # TestOperatorAdvanced().test_nontrivial_operator()
-    # TestOperatorAdvanced().test_interpolation_dup()
-    # TestOperatorAdvanced().test_injection_wodup()
-    TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    TestOperatorAdvanced().test_fission_due_to_antidep()
+    # TestIsotropicAcoustic().test_adjoint_F_no_omp()

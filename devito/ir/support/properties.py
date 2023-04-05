@@ -42,6 +42,12 @@ VECTORIZED = Property('vector-dim')
 TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
 
+TILABLE_SMALL = Property('tilable*')
+"""
+Like TILABLE, but it would benefit from relatively small block, since the
+iteration space is likely to be very small.
+"""
+
 SKEWABLE = Property('skewable')
 """A fully parallel Dimension that would benefit from wavefront/skewed tiling."""
 
@@ -89,6 +95,11 @@ is used for iteration spaces that are larger than the data space.
 """
 
 
+# Bundles
+PARALLELS = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
+TILABLES = {TILABLE, TILABLE_SMALL}
+
+
 def normalize_properties(*args):
     if not args:
         return
@@ -100,7 +111,7 @@ def normalize_properties(*args):
     # to the most restrictive property, is:
     # SEQUENTIAL > PARALLEL_IF_* > PARALLEL > PARALLEL_INDEP
     if any(SEQUENTIAL in p for p in args):
-        drop = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
+        drop = PARALLELS
     elif any(PARALLEL_IF_ATOMIC in p for p in args):
         drop = {PARALLEL, PARALLEL_INDEP}
     elif any(PARALLEL_IF_PVT in p for p in args):
@@ -137,7 +148,13 @@ class Properties(frozendict):
             m[d] = set(self.get(d, [])) | set(as_tuple(properties))
         return Properties(m)
 
-    def drop(self, dims, properties=None):
+    def filter(self, key):
+        m = {d: v for d, v in self.items() if key(d)}
+        return Properties(m)
+
+    def drop(self, dims=None, properties=None):
+        if dims is None:
+            dims = list(self)
         m = dict(self)
         for d in as_tuple(dims):
             if properties is None:
@@ -167,6 +184,18 @@ class Properties(frozendict):
             m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
         return Properties(m)
 
+    def block(self, dims, kind='default'):
+        if kind == 'default':
+            p = TILABLE
+        elif kind == 'small':
+            p = TILABLE_SMALL
+        else:
+            raise ValueError
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = set(self.get(d, [])) | {p}
+        return Properties(m)
+
     def inbound(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
@@ -178,8 +207,7 @@ class Properties(frozendict):
                    for d in as_tuple(dims))
 
     def is_parallel_relaxed(self, dims):
-        items = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
-        return any(len(self[d] & items) > 0 for d in as_tuple(dims))
+        return any(len(self[d] & PARALLELS) > 0 for d in as_tuple(dims))
 
     def is_affine(self, dims):
         return any(AFFINE in self.get(d, ()) for d in as_tuple(dims))
@@ -189,3 +217,13 @@ class Properties(frozendict):
 
     def is_sequential(self, dims):
         return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))
+
+    def is_blockable(self, d):
+        return bool(self.get(d, set()) & {TILABLE, TILABLE_SMALL})
+
+    def is_blockable_small(self, d):
+        return TILABLE_SMALL in self.get(d, set())
+
+    @property
+    def nblockable(self):
+        return sum([self.is_blockable(d) for d in self])

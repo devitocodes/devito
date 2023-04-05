@@ -339,7 +339,7 @@ class ParTile(tuple, OptOption):
             if not default:
                 raise ValueError("Expected `default` value, got None")
             items = (ParTileArg(as_tuple(default)),)
-        elif isinstance(items, tuple):
+        elif isinstance(items, (list, tuple)):
             if not items:
                 raise ValueError("Expected at least one value")
 
@@ -349,6 +349,10 @@ class ParTile(tuple, OptOption):
             if is_integer(x):
                 # E.g., (32, 4, 8)
                 items = (ParTileArg(items),)
+
+            elif isinstance(x, ParTileArg):
+                # From a reconstruction
+                pass
 
             elif isinstance(x, Iterable):
                 if not x:
@@ -374,6 +378,9 @@ class ParTile(tuple, OptOption):
             else:
                 raise ValueError("Expected int or tuple, got %s instead" % type(x))
         else:
-            raise ValueError("Expected bool or tuple, got %s instead" % type(items))
+            raise ValueError("Expected bool or iterable, got %s instead" % type(items))
 
-        return super().__new__(cls, items)
+        obj = super().__new__(cls, items)
+        obj.default = as_tuple(default)
+
+        return obj

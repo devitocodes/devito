@@ -2,7 +2,6 @@ from itertools import chain
 
 from cached_property import cached_property
 from sympy import S
-from sympy.tensor.indexed import IndexException
 
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
@@ -11,7 +10,7 @@ from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routin
                               q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple, Jump
+from devito.types import Barrier, Dimension, DimensionTuple, Jump, Symbol
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope']
 
@@ -22,6 +21,11 @@ class IndexMode(Tag):
 AFFINE = IndexMode('affine')  # noqa
 REGULAR = IndexMode('regular')
 IRREGULAR = IndexMode('irregular')
+
+mocksym = Symbol(name='⋈')
+"""
+A Symbol to create mock data depdendencies.
+"""
 
 
 class IterationInstance(LabeledVector):
@@ -134,6 +138,10 @@ class IterationInstance(LabeledVector):
     @property
     def findices(self):
         return self.labels
+
+    @cached_property
+    def index_map(self):
+        return dict(zip(self.aindices, self.findices))
 
     @cached_property
     def defined_findices_affine(self):
@@ -397,9 +405,17 @@ class TimedAccess(IterationInstance, AccessMode):
         if S.Infinity in ret:
             return Vector(*ret)
 
+        n = len(ret)
+
+        # It might be `a[t, ⊥] -> a[t, x+1]`, that is the source is a special
+        # Indexed representing an arbitrary access along `x`, within the `t`
+        # IterationSpace, while the sink lives within the `tx` IterationSpace
+        if len(self.itintervals[n:]) != len(other.itintervals[n:]):
+            ret.append(S.Infinity)
+            return Vector(*ret)
+
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
-        n = len(ret)
         for i, j in zip(self[n:], other[n:]):
             if i == j:
                 ret.append(S.Zero)
@@ -819,17 +835,13 @@ class Scope(object):
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(exprs):
             if e.find(Barrier) | e.find(Jump):
-                for a in self.accesses:
-                    f = a.function
-                    if not f.is_AbstractFunction:
-                        continue
-                    indices = [i if d in e.ispace else S.Infinity
-                               for i, d in zip(a, a.aindices)]
-                    v = self.writes.setdefault(f, [])
-                    try:
-                        v.append(TimedAccess(f[indices], 'W', i, e.ispace))
-                    except IndexException:
-                        pass
+                self.writes.setdefault(mocksym, []).append(
+                    TimedAccess(mocksym, 'W', i, e.ispace)
+                )
+                self.reads.setdefault(mocksym, []).extend([
+                    TimedAccess(mocksym, 'R', max(i, 0), e.ispace),
+                    TimedAccess(mocksym, 'R', i+1, e.ispace),
+                ])
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)

@@ -898,6 +898,12 @@ class FindSymbols(Visitor):
     def visit_Node(self, o):
         return self.Retval(self._visit(o.children), self.rule(o))
 
+    def visit_ThreadedProdder(self, o):
+        # TODO: this handle required because ThreadedProdder suffers from the
+        # long-standing issue affecting all Node subclasses which rely on
+        # multiple inheritance
+        return self.Retval(self._visit(o.then_body), self.rule(o))
+
     def visit_Operator(self, o):
         ret = self._visit(o.body)
         ret.extend(flatten(self._visit(v) for v in o._func_table.values()))
@@ -1123,8 +1129,11 @@ class Uxreplace(Transformer):
 
     def visit_Iteration(self, o):
         nodes = self._visit(o.nodes)
+        dimension = uxreplace(o.dim, self.mapper)
         limits = [uxreplace(i, self.mapper) for i in o.limits]
-        return o._rebuild(nodes=nodes, limits=limits)
+        uindices = [uxreplace(i, self.mapper) for i in o.uindices]
+        return o._rebuild(nodes=nodes, dimension=dimension, limits=limits,
+                          uindices=uindices)
 
     def visit_Definition(self, o):
         try:

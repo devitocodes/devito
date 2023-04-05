@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from contextlib import contextmanager
 from functools import reduce
 from operator import mul
@@ -36,7 +36,7 @@ class Profiler(object):
     _default_libs = []
     _ext_calls = []
 
-    """Metadata for a profiled code section."""
+    _supports_async_sections = False
 
     def __init__(self, name):
         self.name = name
@@ -209,6 +209,8 @@ class ProfilerVerbose2(Profiler):
 
 class AdvancedProfiler(Profiler):
 
+    _supports_async_sections = True
+
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, args, dtype, reduce_over=None):
         grid = args.grid
@@ -290,7 +292,10 @@ class AdvancedProfiler(Profiler):
 
             # Same as above but without setup overheads (e.g., host-device
             # data transfers)
-            reduce_over_nosetup = sum(i.time for i in summary.values())
+            mapper = defaultdict(list)
+            for (name, rank), v in summary.items():
+                mapper[name].append(v.time)
+            reduce_over_nosetup = sum(max(i) for i in mapper.values())
             if reduce_over_nosetup == 0:
                 reduce_over_nosetup = reduce_over
             summary.add_glb_vanilla('vanilla-nosetup', reduce_over_nosetup)
@@ -312,14 +317,18 @@ class AdvancedProfiler(Profiler):
         return summary
 
 
-class AdvancedProfilerVerbose1(AdvancedProfiler):
+class AdvancedProfilerVerbose(AdvancedProfiler):
+    pass
+
+
+class AdvancedProfilerVerbose1(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
         return (MPIList, RemainderCall, BusyWait)
 
 
-class AdvancedProfilerVerbose2(AdvancedProfiler):
+class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
@@ -391,7 +400,7 @@ class PerformanceSummary(OrderedDict):
         performance data is local, that is "per-rank".
         """
         # Do not show unexecuted Sections (i.e., loop trip count was 0)
-        if ops == 0 or traffic == 0:
+        if traffic == 0:
             return
         # Do not show dynamic Sections (i.e., loop trip counts varies dynamically)
         if traffic is not None and np.isnan(traffic):
@@ -400,7 +409,7 @@ class PerformanceSummary(OrderedDict):
 
         k = PerfKey(name, rank)
 
-        if ops is None:
+        if not ops:
             self[k] = PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
         else:
             gflops = float(ops)/10**9

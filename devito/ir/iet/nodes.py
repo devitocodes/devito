@@ -622,7 +622,31 @@ class Iteration(Node):
         return self.dimensions
 
 
-class While(Node):
+class DoIf(Node):
+
+    """
+    An abstract Node to express computation subjected to a condition.
+    """
+
+    def __init__(self, condition):
+        self.condition = condition
+
+    @property
+    def functions(self):
+        ret = []
+        for i in self.condition.free_symbols:
+            try:
+                ret.append(i.function)
+            except AttributeError:
+                pass
+        return tuple(ret)
+
+    @property
+    def expr_symbols(self):
+        return tuple(self.condition.free_symbols)
+
+
+class While(DoIf):
 
     """
     Implement a while-loop.
@@ -640,7 +664,7 @@ class While(Node):
     _traversable = ['body']
 
     def __init__(self, condition, body=None):
-        self.condition = condition
+        super().__init__(condition)
         self.body = as_tuple(body)
 
     def __repr__(self):
@@ -759,7 +783,7 @@ class CallableBody(Node):
                  len(self.frees)))
 
 
-class Conditional(Node):
+class Conditional(DoIf):
 
     """
     A node to express if-then-else blocks.
@@ -779,7 +803,7 @@ class Conditional(Node):
     _traversable = ['then_body', 'else_body']
 
     def __init__(self, condition, then_body, else_body=None):
-        self.condition = condition
+        super().__init__(condition)
         self.then_body = as_tuple(then_body)
         self.else_body = as_tuple(else_body)
 
@@ -789,20 +813,6 @@ class Conditional(Node):
                 (ccode(self.condition), repr(self.then_body), repr(self.else_body))
         else:
             return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
-
-    @property
-    def functions(self):
-        ret = []
-        for i in self.condition.free_symbols:
-            try:
-                ret.append(i.function)
-            except AttributeError:
-                pass
-        return tuple(ret)
-
-    @property
-    def expr_symbols(self):
-        return tuple(self.condition.free_symbols)
 
 
 # Second level IET nodes

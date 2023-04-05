@@ -24,7 +24,7 @@ class ElementalFunction(Callable):
 
     is_ElementalFunction = True
 
-    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline'),
+    def __init__(self, name, body, retval='void', parameters=None, prefix=('static',),
                  dynamic_parameters=None):
         super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
 
@@ -35,6 +35,11 @@ class ElementalFunction(Callable):
                                    parameters.index(i.symbolic_max))
             else:
                 self._mapper[i] = (parameters.index(i),)
+
+    @classmethod
+    def make(cls, name, body):
+        parameters = derive_parameters(body)
+        return cls(name, body, parameters=parameters)
 
     @cached_property
     def dynamic_defaults(self):
@@ -86,8 +91,9 @@ def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static
     """
     Shortcut to create an ElementalFunction.
     """
-    return ElementalFunction(name, iet, retval, derive_parameters(iet), prefix,
-                             dynamic_parameters)
+    return ElementalFunction(name, iet, retval=retval,
+                             parameters=derive_parameters(iet), prefix=prefix,
+                             dynamic_parameters=dynamic_parameters)
 
 
 # Callable machinery

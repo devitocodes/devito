@@ -184,6 +184,9 @@ class Fusion(Queue):
                 mapper = frozendict(mapper)
                 key += (mapper,)
 
+        # Clusters representing HaloTouches should get merged, if possible
+        key += (c.is_halo_touch,)
+
         return key
 
     def _apply_heuristics(self, clusters):
@@ -216,6 +219,16 @@ class Fusion(Queue):
                 flag = True
             group.append(c)
         dump()
+
+        # 2) Don't group HaloTouch's
+
+        groups, processed = processed, []
+        for group in groups:
+            for flag, minigroup in groupby(group, key=lambda c: c.is_halo_touch):
+                if flag:
+                    processed.extend([(c,) for c in minigroup])
+                else:
+                    processed.append(tuple(minigroup))
 
         return processed
 
@@ -289,19 +302,10 @@ class Fusion(Queue):
                     break
 
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
-                # while not being its immediate successor (unless it already is),
-                # to avoid they are fused together (thus breaking the dependence)
-                # TODO: the "not being its immediate successor" part *seems* to be
-                # a work around to the fact that any two Clusters characterized
-                # by anti-dependence should have been given a different stamp,
-                # and same for guarded Clusters, but that is not the case (yet)
+                # and forbid any sort of fusion
                 elif any(scope.d_anti_gen()) or\
                         any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
-                    index = cgroups.index(cg1) - 1
-                    if index > n and self._key(cg0) == self._key(cg1):
-                        dag.add_edge(cg0, cgroups[index])
-                        dag.add_edge(cgroups[index], cg1)
 
                 # Any flow-dependences along an inner Dimension (i.e., a Dimension
                 # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
