@@ -93,6 +93,7 @@ class Fusion(Queue):
     """
 
     _q_guards_in_key = True
+    _q_syncs_in_key = True
 
     def __init__(self, toposort, options=None):
         options = options or {}
