@@ -675,28 +675,19 @@ class IntelCompiler(Compiler):
 
         self.cflags.append("-xhost")
 
-        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
         if configuration['safe-math']:
             self.cflags.append("-fp-model=strict")
         else:
-            self.cflags.append('-fast')
+            self.cflags.append('-fp-model=fast')
 
         if platform is SKX:
             # Systematically use 512-bit vectors on skylake
             self.cflags.append("-qopt-zmm-usage=high")
 
-        try:
-            if self.version >= Version("15.0.0"):
-                # Append the OpenMP flag regardless of configuration['language'],
-                # since icc15 and later versions implement OpenMP 4.0, hence
-                # they support `#pragma omp simd`
-                self.ldflags.append('-qopenmp')
-        except (TypeError, ValueError):
-            if language == 'openmp':
-                # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
-                self.ldflags.append('-fopenmp')
+        # Append the OpenMP flag regardless of configuration['language']
+        self.ldflags.append('-qopenmp')
 
         # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
