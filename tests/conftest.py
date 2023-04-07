@@ -71,12 +71,6 @@ def skipif(items, whole_module=False):
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icc+cpu64` won't work with this test"
             break
-        # Skip if it won't run with OneAPICompiler
-        if i == 'cpu64-icpx' and \
-           isinstance(configuration['compiler'], OneapiCompiler) and \
-           isinstance(configuration['platform'], Cpu64):
-            skipit = "`icpx+cpu64` won't work with this test"
-            break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):
             skipit = "Arm doesn't support x86-specific instructions"

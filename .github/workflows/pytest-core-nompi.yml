@@ -38,8 +38,8 @@ jobs:
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py37-gcc-omp,
-           pytest-docker-py37-icc-omp,
-           pytest-docker-py38-icx-omp
+           pytest-docker-py37-intel-omp,
+           pytest-docker-py38-intel-omp
         ]
         set: [base, adjoint]
         include:
@@ -99,14 +99,14 @@ jobs:
           language: "openmp"
           sympy: "1.10"
 
-        - name: pytest-docker-py37-icc-omp
+        - name: pytest-docker-py37-intel-omp
           python-version: '3.7'
           os: ubuntu-22.04
           arch: "icc"
           language: "openmp"
           sympy: "1.11"
 
-        - name: pytest-docker-py38-icx-omp
+        - name: pytest-docker-py38-intel-omp
           python-version: '3.8'
           os: ubuntu-22.04
           arch: "icx"
@@ -133,15 +133,20 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Build docker image
-      if: contains(matrix.name, 'docker')
+    - name: Build docker image for GCC variants
+      if: "contains(matrix.name, 'docker') && contains(matrix.name, 'gcc')"
       run: |
           docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
+
+    - name: Build docker image for INTEL variants
+      if: "contains(matrix.name, 'docker') && contains(matrix.name, 'intel')"
+      run: |
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-icc
 
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e DEVITO_ARCH=${{ matrix.arch }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi

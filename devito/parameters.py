@@ -241,6 +241,13 @@ class switchconfig(object):
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            # Do not switch if condition is False
+            try:
+                if not self.params.pop('condition'):
+                    return
+            except KeyError:
+                pass
+
             previous = {}
             for k, v in self.params.items():
                 previous[k] = configuration[k]

@@ -552,8 +552,8 @@ class OneapiCompiler(Compiler):
                 self.cflags.append('-fsycl-targets=spir64')
 
         if language == 'openmp':
-            # To be switched to `-fiopenmp` or `-qopenmp` as soon as
-            # it is fixed in the new Intel OneAPI release
+            # TODO: To be switched to `-fiopenmp` or `-qopenmp` as soon as
+            # it is fixed in the new Intel OneAPI release (current: 2023.0)
             self.cflags.append('-fopenmp')
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
@@ -854,11 +854,11 @@ compiler_registry = {
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
     'osx': ClangCompiler,
-    'intel': IntelCompiler,
-    'icpc': IntelCompiler,
-    'icc': IntelCompiler,
+    'intel': OneapiCompiler,
     'icx': OneapiCompiler,
     'icpx': OneapiCompiler,
+    'icc': IntelCompiler,
+    'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
     'dpcpp': DPCPPCompiler,
