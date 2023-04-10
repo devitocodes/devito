@@ -96,20 +96,23 @@ jobs:
           python-version: '3.7'
           os: ubuntu-latest
           arch: "gcc"
+          tag: "gcc"
           language: "openmp"
           sympy: "1.10"
 
-        - name: pytest-docker-py37-intel-omp
+        - name: pytest-docker-py37-icc-omp
           python-version: '3.7'
           os: ubuntu-22.04
           arch: "icc"
+          tag: "icc"
           language: "openmp"
           sympy: "1.11"
 
-        - name: pytest-docker-py38-intel-omp
+        - name: pytest-docker-py38-icx-omp
           python-version: '3.8'
           os: ubuntu-22.04
           arch: "icx"
+          tag: "icc"
           language: "openmp"
           sympy: "1.11"
 
@@ -128,20 +131,15 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: "!contains(matrix.name, 'docker')"
+      if: !contains(matrix.name, 'docker')
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Build docker image for GCC variants
-      if: "contains(matrix.name, 'docker') && contains(matrix.name, 'gcc')"
+    - name: Build docker image
+      if: contains(matrix.name, 'docker')
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
-
-    - name: Build docker image for INTEL variants
-      if: "contains(matrix.name, 'docker') && contains(matrix.name, 'intel')"
-      run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-icc
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.tag }}
 
     - name: Set run prefix
       run: |
