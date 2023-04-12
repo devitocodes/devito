@@ -370,7 +370,7 @@ class PrecomputedInterpolator(GenericInterpolator):
             lhs = self.obj.subs(self_subs)
             rhs = prod(coeffs) * _expr.subs(dim_subs)
 
-            return [Eq(lhs, lhs + rhs)]
+            return [Inc(lhs, rhs)]
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
@@ -400,6 +400,6 @@ class PrecomputedInterpolator(GenericInterpolator):
                 coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
             rhs = prod(coeffs) * _expr
             _field = _field.subs(dim_subs)
-            return [Eq(_field, _field + rhs.subs(dim_subs))]
+            return [Inc(_field, rhs.subs(dim_subs))]
 
         return Injection(field, expr, offset, self, callback)
