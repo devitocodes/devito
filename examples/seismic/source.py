@@ -199,7 +199,7 @@ class WaveletSource(PointSource):
         Firing time (defaults to 1 / f0)
     """
 
-    __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 'f0']
+    __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 't0']
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
