@@ -19,6 +19,7 @@
 - [What are the keys to fast code](#what-are-the-keys-to-fast-code)
 - [As time increases in the finite difference evolution, are wavefield arrays "swapped" as you might see in c/c++ code](#as-time-increases-in-the-finite-difference-evolution-are-wavefield-arrays-swapped-as-you-might-see-in-cc-code)
 - [What units are typically used in Devito examples](#what-units-are-typically-used-in-devito-examples)
+- [Can I subclass basic types such as TimeFunction](#can-i-subclass-basic-types-such-as-timefunction)
 - [How can I change the compilation flags (for example, I want to change the optimization level from -O3 to -O0)](#how-can-i-change-the-compilation-flags-for-example-i-want-to-change-the-optimization-level-from--o3-to--o0)
 - [Is the jitted code IEEE-compliant](#is-the-jitted-code-ieee-compliant)
 - [Can I control the MPI domain decomposition](#can-i-control-the-mpi-domain-decomposition)
@@ -478,6 +479,49 @@ Instead of swapping arrays, devito uses the modulus of a time index to map incre
 - Sampling rates: msec
 - Frequency: KHz
 - Velocity: km/sec
+
+[top](#Frequently-Asked-Questions)
+
+
+## Can I subclass basic types such as TimeFunction
+
+Yes, just like we did for our seismic examples, for example, the [PointSource class](https://github.com/devitocodes/devito/blob/master/examples/seismic/source.py). A few caveats are necessary, though.
+
+First, classes such as `Function` or `SparseTimeFunction` are inherently complex. In fact, `SparseTimeFunction` itself is a subclass of `Function`. The whole class hierarchy is modular and well-structured, but at the same time, it's depth and offers several hooks to allow specialization by subclasses -- for example, all methods starting with `__` such as `__init_finalize__` or `__shape_setup__`. It will take some time to digest it. Luckily, you will only need to learn a little of this, at least for simple subclasses. 
+
+Second, you must know that these objects are subjected to so-called reconstruction during compilation. Objects are immutable inside Devito; therefore, even a straightforward symbolic transformation such as `f[x] -> f[y]` boils down to performing a reconstruction, that is, creating a whole new object. Since `f` carries around several attributes (e.g., shape, grid, dimensions), each time Devito performs a reconstruction, we only want to specify which attributes are changing -- not all of them, as it would make the code ugly and incredibly complicated. The solution to this problem is that all the base symbolic types inherit from a common base class called `Reconstructable`; a `Reconstructable` object has two special class attributes, called `__rargs__` and `__rkwargs__`. If a subclass adds a new positional or keyword argument to its `__init_finalize__`, it must also be added to `__rargs__` or `__rkwargs__`, respectively. This will provide Devito with enough information to perform a reconstruction when it's needed during compilation. The following example should clarify:
+
+```
+class Foo(Reconstructable):
+    __rargs__ = ('a', 'b')
+    __rkwargs__ = ('c',)
+
+    def __init__(self, a, b, c=4):
+           self.a = a
+           self.b = b
+           self.c = c
+
+    def __repr__(self):
+        return "x(%d, %d, %d)" % (self.a, self.b, self.c)
+
+class Bar(Foo):
+    __rkwargs__ = Foo.__rkwargs__ + ('d',)
+
+    def __init__(self, *args, d=6, **kwargs)
+            super().__init__(*args, **kwargs)
+            self.d = d
+
+```
+
+You are unlikely to care about how reconstruction works in practice, but here are a few examples for `a = Foo(3, 5)` to give you more context.
+
+```
+a._rebuild() -> "x(3, 5, 4)" (i.e., copy of `a`).
+a._rebuild(4) -> "x(4, 5, 4)"
+a._rebuild(4, 7) -> "x(4, 7, 4)"
+a._rebuild(c=5) -> "x(3, 5, 5)"
+a._rebuild(1, c=7) -> "x(1, 5, 7)"
+```
 
 [top](#Frequently-Asked-Questions)
 
