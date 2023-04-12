@@ -12,7 +12,7 @@ import numpy as np
 from devito.ir import (Block, Call, Definition, DeviceCall, DeviceFunction,
                        DummyExpr, Return, EntryFunction, FindSymbols, MapExprStmts,
                        Transformer, make_callable)
-from devito.passes import is_on_device
+from devito.passes import is_on_device, is_device_created
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
@@ -405,6 +405,7 @@ class DeviceAwareDataManager(DataManager):
 
     def __init__(self, **kwargs):
         self.gpu_fit = kwargs['options']['gpu-fit']
+        self.devicecreate = kwargs['options']['devicecreate']
 
         super().__init__(**kwargs)
 
@@ -448,7 +449,10 @@ class DeviceAwareDataManager(DataManager):
         `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
         synchronize the host and device copies, while the latter does not.
         """
-        mmap = self.lang._map_to(obj)
+        if is_device_created(obj, self.devicecreate):
+            mmap = self.lang._map_alloc(obj)
+        else:
+            mmap = self.lang._map_to(obj)
 
         if read_only is False:
             unmap = [self.lang._map_update(obj),

@@ -73,6 +73,7 @@ class DeviceOperatorMixin(object):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+        o['devicecreate'] = as_tuple(oo.pop('devicecreate', ()))
 
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)

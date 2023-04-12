@@ -70,6 +70,7 @@ class Cpu64OperatorMixin(object):
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
         oo.pop('gpu-fit', None)
+        oo.pop('devicecreate', None)
 
         if oo:
             raise InvalidOperator("Unrecognized optimization options: [%s]"

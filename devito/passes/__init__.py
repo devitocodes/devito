@@ -39,6 +39,35 @@ def is_on_device(obj, gpu_fit):
     return all(f in gpu_fit for f in fsave)
 
 
+def is_device_created(obj, devicecreate):
+    """
+    True if the given object is created and not copied in the device memory, False otherwise.
+
+    Parameters
+    ----------
+    obj : Indexed or Function or collection of Functions
+        The target object.
+    devicecreate : list of Function
+        The Function's which are expected to be created in device memory. This
+        information is given directly by the user through the compiler option
+        `devicecreate` and is propagated down here through the various stages of lowering.
+    """
+    try:
+        functions = (obj.function,)
+    except AttributeError:
+        functions = as_tuple(obj)
+
+    fcreate = []
+    for i in functions:
+        try:
+            f = i.alias or i
+        except AttributeError:
+            f = i
+        fcreate.append(f)
+
+    return all(f in devicecreate for f in fcreate)
+
+
 # Import all compiler passes
 
 from .equations import *  # noqa
