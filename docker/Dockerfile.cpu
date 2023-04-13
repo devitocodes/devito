@@ -11,7 +11,7 @@ FROM ${pyversion} as base
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y vim wget git libnuma-dev tmux numactl
+RUN apt-get update && apt-get install -y vim wget git flex libnuma-dev tmux numactl hwloc
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -24,7 +24,20 @@ RUN apt-get install -y libgl1-mesa-glx
 ##############################################################
 FROM base as gcc
 
-RUN apt-get install -y mpich libmpich-dev
+RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
+    git clone --recursive --branch v4.1.4 https://github.com/open-mpi/ompi.git openmpi && \
+    cd openmpi && ./autogen.pl && \
+    mkdir build &&  cd build && \
+    ../configure --prefix=/opt/openmpi/ \
+                 --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
+    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make install && \
+    rm -rf /deps/openmpi
+
+# Set OpenMPI path
+ENV PATH=${PATH}:/opt/openmpi/bin
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib
+
 # Env vars defaults
 ENV DEVITO_ARCH="gcc"
 ENV DEVITO_LANGUAGE="openmp"
