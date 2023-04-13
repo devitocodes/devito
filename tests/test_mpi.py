@@ -1330,6 +1330,23 @@ class TestCodeGeneration(object):
             assert len(calls) == 4
             assert 'haloupdate1' not in op._func_table
 
+    @pytest.mark.parallel(mode=[(1, 'diag2')])
+    def test_many_functions(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        eqns = []
+        for i in ['a', 'b', 'c', 'd', 'e', 'f', 'g']:
+            w = TimeFunction(name=i, grid=grid, space_order=2)
+            eqns.append(Eq(w.forward, w.dx + 1.))
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        assert calls[0].ncomps == 7
+
 
 class TestOperatorAdvanced(object):
 

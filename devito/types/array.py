@@ -396,10 +396,12 @@ class Bundle(ArrayBasic):
         if len(dtypes) > 1:
             raise ValueError("Components must have the same dtype")
         dtype = dtypes.pop()
+        count = len(components)
         try:
-            return dtypes_vector_mapper[(dtype, len(components))]
+            return dtypes_vector_mapper[(dtype, count)]
         except KeyError:
-            raise NotImplementedError("Unsupported vector type `%s`" % dtype)
+            dtypes_vector_mapper.add_dtype('⊥', count)
+            return dtypes_vector_mapper[(dtype, count)]
 
     @classmethod
     def __indices_setup__(cls, components=(), **kwargs):
