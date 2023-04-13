@@ -108,6 +108,7 @@ class DeviceOperatorMixin(object):
                     'language': 'C' if options['par-disabled'] else 'openmp',
                     'compiler': 'custom',
                 }
+
             return rcompile(expressions, kwargs)
 
         return wrapper
@@ -209,7 +210,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph, **kwargs)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)

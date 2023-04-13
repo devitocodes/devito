@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import Array, DeviceMap, DeviceRM, Symbol
+from devito.types import Array, CustomDimension, DeviceMap, DeviceRM, Eq, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -451,8 +451,33 @@ class DeviceAwareDataManager(DataManager):
         """
         if is_device_created(obj, self.devicecreate):
             mmap = self.lang._map_alloc(obj)
+
+            cdims = []
+            for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape):
+                if d.is_NonlinearDerived:
+                    assert h0 == h1 == 0
+                    m = 0
+                    M = s - 1
+                else:
+                    m = d.symbolic_min - h0
+                    M = d.symbolic_max + h1
+                cdims.append(CustomDimension(name=d.name, parent=d,
+                                             symbolic_min=m, symbolic_max=M))
+
+            eq = Eq(obj[cdims], 0)
+
+            irs, _ = self.rcompile(eq)
+
+            init = irs.iet.body.body[0]
+
+            name = self.sregistry.make_name(prefix='init')
+            efunc = make_callable(name, init)
+            init = Call(name, efunc.parameters)
+
+            mmap = (mmap, init)
         else:
             mmap = self.lang._map_to(obj)
+            efunc = ()
 
         if read_only is False:
             unmap = [self.lang._map_update(obj),
@@ -460,7 +485,7 @@ class DeviceAwareDataManager(DataManager):
         else:
             unmap = self.lang._map_delete(obj, devicerm=devicerm)
 
-        storage.update(obj, site, maps=mmap, unmaps=unmap)
+        storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efunc)
 
     @iet_visit
     def derive_transfers(self, iet):
@@ -487,7 +512,7 @@ class DeviceAwareDataManager(DataManager):
 
         return (reads, writes)
 
-    @iet_pass
+    @iet_pass(skipif_rcompile=True)
     def place_transfers(self, iet, **kwargs):
         """
         Create a new IET with host-device data transfers. This requires mapping
@@ -550,13 +575,13 @@ class DeviceAwareDataManager(DataManager):
         """
         return iet, {}
 
-    def process(self, graph):
+    def process(self, graph, **kwargs):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
         mapper = self.derive_transfers(graph)
-        self.place_transfers(graph, mapper=mapper)
-        self.place_definitions(graph, globs=set())
-        self.place_devptr(graph)
-        self.place_bundling(graph)
-        self.place_casts(graph)
+        self.place_transfers(graph, mapper=mapper, **kwargs)
+        self.place_definitions(graph, globs=set(), **kwargs)
+        self.place_devptr(graph, **kwargs)
+        self.place_bundling(graph, **kwargs)
+        self.place_casts(graph, **kwargs)

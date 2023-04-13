@@ -267,6 +267,7 @@ class Operator(Callable):
     @classmethod
     def _rcompile_wrapper(cls, **kwargs):
         def wrapper(expressions, kwargs=kwargs):
+            kwargs['is_rcompile'] = True
             return rcompile(expressions, kwargs)
         return wrapper
 
@@ -1011,6 +1012,9 @@ def rcompile(expressions, kwargs=None):
 
     # Recursive profiling not supported -- would be a complete mess
     kwargs.pop('profiler', None)
+
+    # Mark this as a recursive compilation
+    kwargs['is_rcompile'] = True
 
     return cls._lower(expressions, **kwargs)
 
