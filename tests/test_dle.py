@@ -6,8 +6,9 @@ import pytest
 
 from conftest import assert_structure, assert_blocking, _R, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    CustomDimension, Dimension, SubDimension, Eq, Inc, ReduceMax,
-                    Operator, configuration, dimensions, info, cos)
+                    CustomDimension, Dimension, SubDimension,
+                    PrecomputedSparseTimeFunction, Eq, Inc, ReduceMax, Operator,
+                    configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree)
@@ -260,6 +261,31 @@ def test_cache_blocking_structure_optrelax_linalg(opt, expected):
     assert_structure(op0, expected)
     assert np.linalg.norm(D.data) == 32.0
     assert np.linalg.norm(F.data) == 128.0
+
+
+def test_cache_blocking_structure_optrelax_prec_inject():
+    grid = Grid(shape=(10, 10))
+    dt = grid.stepping_dim.spacing
+
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
+
+    # The values we put it don't matter, we won't run an Operator
+    points = [(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)]
+    gridpoints = [(5, 90), (1, 80), (7, 84)]
+    interpolation_coeffs = np.ndarray(shape=(3, 2, 2))
+    sf = PrecomputedSparseTimeFunction(
+        name='s', grid=grid, r=2, npoint=len(points), nt=5,
+        gridpoints=gridpoints, interpolation_coeffs=interpolation_coeffs
+    )
+
+    eqns = sf.inject(field=u.forward, expr=sf * dt**2)
+
+    op = Operator(eqns, opt=('advanced', {'blockrelax': 'device-aware',
+                                          'openmp': True,
+                                          'par-collapse-ncores': 1}))
+
+    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rx,ry'],
+                     't,p_s0_blk0,p_s,rx,ry')
 
 
 class TestBlockingParTile(object):
@@ -890,6 +916,38 @@ class TestNodeParallelism(object):
 
         op.apply()
         assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
+
+    def test_parallel_prec_inject(self):
+        grid = Grid(shape=(10, 10))
+        dt = grid.stepping_dim.spacing
+
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
+
+        # The values we put it don't matter, we won't run an Operator
+        points = [(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)]
+        gridpoints = [(5, 90), (1, 80), (7, 84)]
+        interpolation_coeffs = np.ndarray(shape=(3, 2, 2))
+        sf = PrecomputedSparseTimeFunction(
+            name='s', grid=grid, r=2, npoint=len(points), nt=5,
+            gridpoints=gridpoints, interpolation_coeffs=interpolation_coeffs
+        )
+
+        eqns = sf.inject(field=u.forward, expr=sf * dt**2)
+
+        op0 = Operator(eqns, opt=('advanced', {'openmp': True,
+                                               'par-collapse-ncores': 1}))
+        iterations = FindNodes(Iteration).visit(op0)
+        assert all(not i.pragmas for i in iterations[:2])
+        assert 'omp for collapse(2) schedule(dynamic,chunk_size)'\
+            in iterations[2].pragmas[0].value
+
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True,
+                                               'par-collapse-ncores': 1,
+                                               'par-collapse-work': 1}))
+        iterations = FindNodes(Iteration).visit(op1)
+        assert not iterations[0].pragmas
+        assert 'omp for collapse(3) schedule(dynamic,chunk_size)'\
+            in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):

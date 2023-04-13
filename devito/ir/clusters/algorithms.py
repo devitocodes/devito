@@ -347,6 +347,7 @@ class Communications(Queue):
     """
 
     _q_guards_in_key = True
+    _q_properties_in_key = True
 
     B = Symbol(name='⊥')
 
@@ -369,7 +370,7 @@ class Communications(Queue):
             halo_scheme = HaloScheme(c.exprs, c.ispace)
 
             if not halo_scheme.is_void and \
-               d in halo_scheme.distributed_aindices:
+               c.properties.is_parallel_relaxed(d):
                 points = set()
                 for f in halo_scheme.fmapper:
                     for a in c.scope.getreads(f):
@@ -389,8 +390,9 @@ class Communications(Queue):
         processed = []
         if exprs:
             ispace = prefix[:prefix.index(d)]
+            properties = prefix.properties.drop(d)
 
-            processed.append(Cluster(exprs, ispace, c.guards))
+            processed.append(Cluster(exprs, ispace, c.guards, properties))
             seen.update(clusters)
 
         processed.extend(clusters)
