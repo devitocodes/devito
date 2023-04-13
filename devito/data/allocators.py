@@ -327,24 +327,27 @@ class CupyAllocator(MemoryAllocator):
     """
     Memory allocator based on Unified Memory concept. The allocation is made using Cupy.
     """
-
-    def __init__(self):
-        if not cp:
-            raise ImportError("Couldn't find `cupy` to "
-                               "allocate memory")
-        self.mempool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
-        cp.cuda.set_allocator(self.mempool.malloc)
+    _mempool = None
 
     @classmethod
     def initialize(cls):
-        pass
+        try:
+            import cupy as cp
+            cls.lib = cp
+            cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
+            cls.lib.cuda.set_allocator(cls._mempool.malloc)
+        except:
+            cls.lib = None
 
     def _alloc_C_libcall(self, size, ctype):
+        if not self.available():
+            raise ImportError("Couldn't find `cupy` to "
+                               "allocate memory")
         mem_obj = cp.zeros(size, dtype=cp.float64)
         return mem_obj.data.ptr, (mem_obj,)
 
     def free(self, _):
-        self.mempool.free_all_blocks()
+        self._mempool.free_all_blocks()
 
 
 class ExternalAllocator(MemoryAllocator):
@@ -447,6 +450,7 @@ def default_allocator(name=None):
 
     Custom allocators may be added with `register_allocator`.
     """
+    return ALLOC_CUPY
     if name is not None:
         try:
             return custom_allocators[name]
