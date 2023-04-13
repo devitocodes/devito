@@ -487,23 +487,23 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
+        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if platform in [NVIDIAX, AMDGPUX]:
+        if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
+        elif platform is AMDGPUX:
+            self.cflags.remove('-std=c99')
+            # Add flags for OpenMP offloading
+            if language in ['C', 'openmp']:
+                self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
+                self.ldflags += ['-fopenmp']
+                self.ldflags += ['--offload-arch=%s' % platform.march]
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
             self.cflags.append('-mcpu=native')
         else:
             self.cflags.append('-march=native')
-
-        # Generic amd flags
-        self.ldflags.extend(['-fopenmp', '-target', 'x86_64-pc-linux-gnu'])
-        # amdclang gpu flags, used to be part of aompcc
-        if platform is AMDGPUX:
-            self.ldflags.extend(['-fopenmp-targets=amdgcn-amd-amdhsa',
-                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
-            self.ldflags.append('-march=%s' % platform.march)
 
     def __lookup_cmds__(self):
         self.CC = 'amdclang'
