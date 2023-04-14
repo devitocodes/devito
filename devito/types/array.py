@@ -376,7 +376,9 @@ class Bundle(ArrayBasic):
 
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('components',)
 
-    def __init__(self, *args, components=(), **kwargs):
+    def __init_finalize__(self, *args, components=(), **kwargs):
+        super().__init_finalize__(*args, components=components, **kwargs)
+
         self._components = tuple(components)
 
     @classmethod
