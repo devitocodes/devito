@@ -544,6 +544,9 @@ class CGen(Visitor):
         decls = self._args_decl(o.parameters)
         prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
         signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+        if o.templates:
+            tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
+            signature = c.Template(tparams, signature)
         return c.FunctionBody(signature, c.Block(body))
 
     def visit_CallableBody(self, o):
@@ -613,6 +616,9 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
         signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        if o.templates:
+            tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
+            signature = c.Template(tparams, signature)
         retval = [c.Line(), c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
