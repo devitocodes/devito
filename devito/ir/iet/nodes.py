@@ -1372,9 +1372,9 @@ class HaloSpot(Node):
 
     _traversable = ['body']
 
-    def __init__(self, halo_scheme, body=None):
+    def __init__(self, body, halo_scheme):
         super(HaloSpot, self).__init__()
-        self._halo_scheme = halo_scheme
+
         if isinstance(body, Node):
             self._body = body
         elif isinstance(body, (list, tuple)) and len(body) == 1:
@@ -1383,6 +1383,8 @@ class HaloSpot(Node):
             self._body = List()
         else:
             raise ValueError("`body` is expected to be a single Node")
+
+        self._halo_scheme = halo_scheme
 
     def __repr__(self):
         functions = "(%s)" % ",".join(i.name for i in self.functions)

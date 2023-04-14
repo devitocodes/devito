@@ -104,7 +104,7 @@ def _hoist_halospots(iet):
                         break
 
     # Post-process analysis
-    mapper = {i: HaloSpot(HaloScheme.union(hss), i._rebuild())
+    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
               for i, hss in imapper.items()}
     mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
                    for i, hs in hsmapper.items()})

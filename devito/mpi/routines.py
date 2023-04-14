@@ -17,7 +17,7 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
 from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype,
-                          flatten, generator)
+                          flatten, generator, split)
 from devito.types import (Array, Bundle, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
 
@@ -289,26 +289,26 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
     def _make_bundles(self, hs):
         halo_scheme = hs.halo_scheme
 
-        #TODO: keep existing Bundles (e.g. from CUDA/HIP)
-
         mapper = as_mapper(halo_scheme.fmapper, lambda i: halo_scheme.fmapper[i])
         for hse, components in mapper.items():
             # We recast everything as Bundles for simplicity -- worst case scenario
-            # all Bundles only have one component
+            # all Bundles only have one component. Existing Bundles are preserved
             halo_scheme = halo_scheme.drop(components)
+            bundles, candidates = split(tuple(components), lambda i: i.is_Bundle)
+            for b in bundles:
+                halo_scheme = halo_scheme.add(b, hse)
 
             try:
-                name = "bundle_%s" % "".join(f.name for f in components)
-                bundle = Bundle(name=name, components=components)
+                name = "bundle_%s" % "".join(f.name for f in candidates)
+                bundle = Bundle(name=name, components=candidates)
                 halo_scheme = halo_scheme.add(bundle, hse)
             except ValueError:
-                for i in components:
+                for i in candidates:
                     name = "bundle_%s" % i.name
                     bundle = Bundle(name=name, components=i)
                     halo_scheme = halo_scheme.add(bundle, hse)
 
-        #TODO: fix HaloSpot (re)construction
-        hs = hs.__class__(halo_scheme, body=hs.body)
+        hs = hs._rebuild(halo_scheme=halo_scheme)
 
         return hs
 
