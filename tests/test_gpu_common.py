@@ -1128,6 +1128,44 @@ class TestStreaming(object):
 
         assert np.all(g.data == 30)
 
+    def test_devicecreate_forward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.forward, u + usave)
+
+        op = Operator(eqn, devicecreate=u, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op.apply(time_M=nt - 2)
+
+        assert np.all(u.data[0] == 28)
+        assert np.all(u.data[1] == 36)
+
+    def test_devicecreate_backward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.backward, u + usave)
+
+        op = Operator(eqn, devicecreate=u, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op.apply(time_M=nt - 2)
+
+        assert np.all(u.data[0] == 36)
+        assert np.all(u.data[1] == 35)
+
 
 class TestAPI(object):
 

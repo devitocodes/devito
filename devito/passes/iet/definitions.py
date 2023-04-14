@@ -393,7 +393,7 @@ class DataManager(object):
 
         return iet, {}
 
-    def process(self, graph):
+    def process(self, graph, **kwargs):
         """
         Apply the `place_definitions` and `place_casts` passes.
         """

@@ -41,7 +41,8 @@ def is_on_device(obj, gpu_fit):
 
 def is_device_created(obj, devicecreate):
     """
-    True if the given object is created and not copied in the device memory, False otherwise.
+    True if the given object is created and not copied in the device memory,
+    False otherwise.
 
     Parameters
     ----------

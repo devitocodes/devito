@@ -106,6 +106,7 @@ class Graph(object):
 
 def iet_pass(*args, **kwargs):
     skipif_rcompile = kwargs.pop('skipif_rcompile', False)
+
     def decorator(func):
         if isinstance(func, tuple):
             assert len(func) == 2 and func[0] is iet_visit
@@ -130,7 +131,8 @@ def iet_pass(*args, **kwargs):
             except ValueError:
                 # Instance method case
                 self, graph = wargs
-                return maybe_timed(call(graph), func.__name__)(partial(func, self), **wkwargs)
+                return maybe_timed(call(graph), func.__name__)(partial(func, self),
+                                                               **wkwargs)
         return wrapper
 
     if len(args) == 1:
