@@ -490,7 +490,7 @@ class Relation(object):
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
-        assert source.function is sink.function
+        assert source.function == sink.function
         self.source = source
         self.sink = sink
 
