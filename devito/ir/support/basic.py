@@ -1,4 +1,4 @@
-from itertools import chain
+from itertools import chain, product
 
 from cached_property import cached_property
 from sympy import S
@@ -1030,3 +1030,28 @@ class Scope(object):
         TimedAccess objects.
         """
         return DependenceGroup(self.d_from_access_gen(accesses))
+
+    @memoized_generator
+    def r_gen(self):
+        """
+        Generate the Relations of the Scope.
+        """
+        for f in self.functions:
+            v = self.reads.get(f, []) + self.writes.get(f, [])
+
+            for a0, a1 in product(v, v):
+                if a0 is a1:
+                    continue
+
+                r = Relation(a0, a1)
+                if r.is_imaginary:
+                    continue
+
+                yield r
+
+    @cached_property
+    def r_all(self):
+        """
+        All Relations of the Scope.
+        """
+        return list(self.r_gen())
