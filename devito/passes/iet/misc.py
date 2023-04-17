@@ -4,14 +4,15 @@ import cgen
 import sympy
 
 from devito.finite_differences import Max, Min
-from devito.ir import (Any, Forward, List, Prodder, FindApplications, FindNodes,
-                       Transformer, filter_iterations, retrieve_iteration_tree)
+from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
+                       FindNodes, Transformer, Uxreplace, filter_iterations,
+                       retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import evalrel, has_integer_args
-from devito.tools import split
+from devito.tools import as_mapper, split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
-           'generate_macros']
+           'generate_macros', 'minimize_symbols']
 
 
 @iet_pass
@@ -161,3 +162,39 @@ def _(expr):
         return {('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))}
     else:
         return set()
+
+
+@iet_pass
+def minimize_symbols(iet):
+    """
+    Remove unneccesary symbols. Currently applied sub-passes:
+
+        * Remove redundant ModuloDimensions (e.g., due to using the
+          `save=Buffer(2)` API)
+    """
+    iet = remove_redundant_moddims(iet)
+
+    return iet, {}
+
+
+def remove_redundant_moddims(iet):
+    subs0 = {}
+    subs1 = {}
+    for n in FindNodes(Iteration).visit(iet):
+        mds = [d for d in n.uindices
+               if d.is_Modulo and d.origin is not None]
+        if not mds:
+            continue
+
+        mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
+        for k, v in mapper.items():
+            chosen = v.pop(0)
+            subs0.update({d: chosen for d in v})
+
+        uindices = [d for d in n.uindices if d not in subs0]
+        subs1[n] = n._rebuild(uindices=uindices)
+
+    iet = Transformer(subs1, nested=True).visit(iet)
+    iet = Uxreplace(subs0).visit(iet)
+
+    return iet

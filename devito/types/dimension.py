@@ -1502,6 +1502,9 @@ class IndexAccessFunction(sympy.Add):
     def __rsub__(self, other):
         return self.func(other, -self)
 
+    def __mod__(self, other):
+        return sympy.Mod(sympy.Add(*self.args), other)
+
 
 class AffineIndexAccessFunction(IndexAccessFunction):
     """
