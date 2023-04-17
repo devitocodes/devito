@@ -291,6 +291,15 @@ class CGen(Visitor):
                 ret.append(ccode(i))
         return ret
 
+    def _gen_signature(self, o):
+        decls = self._args_decl(o.parameters)
+        prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
+        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+        if o.templates:
+            tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
+            signature = c.Template(tparams, signature)
+        return signature
+
     def _blankline_logic(self, children):
         """
         Generate cgen blank lines in between logical units.
@@ -541,9 +550,7 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
-        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+        signature = self._gen_signature(o)
         return c.FunctionBody(signature, c.Block(body))
 
     def visit_CallableBody(self, o):
@@ -611,8 +618,7 @@ class CGen(Visitor):
     def visit_Operator(self, o, mode='all'):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        signature = self._gen_signature(o)
         retval = [c.Line(), c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
@@ -621,10 +627,7 @@ class CGen(Visitor):
         efuncs = [blankline]
         for i in o._func_table.values():
             if i.local:
-                rettype = self._gen_rettype(i.root.retval)
-                prefix = ' '.join(i.root.prefix + (rettype,))
-                esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
-                                                    self._args_decl(i.root.parameters)))
+                esigns.append(self._gen_signature(i.root))
                 efuncs.extend([self._visit(i.root), blankline])
 
         # Definitions
@@ -669,8 +672,7 @@ class CInterface(CGen):
             guarded_typedecl = c.IfNDef(guard, iflines, [])
             guarded_typedecls.extend([guarded_typedecl, blankline])
 
-        decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        signature = self._gen_signature(o)
         hcode = c.Module(guarded_typedecls + [blankline, signature, blankline])
 
         return ccode, hcode

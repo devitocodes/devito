@@ -309,3 +309,20 @@ def test_null_init():
 
     assert str(expr) == "float * u = NULL;"
     assert expr.defines == (u.indexed,)
+
+
+def test_templates():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    foo = Callable('foo', DummyExpr(u, 1), 'void', parameters=[u],
+                   templates=[x, y])
+
+    assert str(foo) == """\
+template <int x, int y>
+void foo(struct dataobj *restrict u_vec)
+{
+  u(x, y) = 1;
+}"""

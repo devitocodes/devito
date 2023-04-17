@@ -683,18 +683,21 @@ class Callable(Node):
     body : Node or list of Node
         The Callable body.
     retval : str
-        The return type of Callable.
+        The return type of the Callable.
     parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
         Qualifiers to prepend to the Callable signature. None by defaults.
+    templates : list of Basic, optional
+        The template parameters of the Callable.
     """
 
     is_Callable = True
 
     _traversable = ['body']
 
-    def __init__(self, name, body, retval, parameters=None, prefix=None):
+    def __init__(self, name, body, retval, parameters=None, prefix=None,
+                 templates=None):
         self.name = name
         if not isinstance(body, CallableBody):
             self.body = CallableBody(body)
@@ -703,6 +706,7 @@ class Callable(Node):
         self.retval = retval
         self.prefix = as_tuple(prefix)
         self.parameters = as_tuple(parameters)
+        self.templates = as_tuple(templates)
 
     def __repr__(self):
         param_types = [ctypes_to_cstr(i._C_ctype) for i in self.parameters]
@@ -710,13 +714,17 @@ class Callable(Node):
                                    ",".join(param_types))
 
     @property
+    def all_parameters(self):
+        return self.parameters + self.templates
+
+    @property
     def functions(self):
-        return tuple(i.function for i in self.parameters
+        return tuple(i.function for i in self.all_parameters
                      if isinstance(i.function, AbstractFunction))
 
     @property
     def defines(self):
-        return self.parameters
+        return self.all_parameters
 
 
 class CallableBody(Node):
