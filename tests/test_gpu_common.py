@@ -1140,7 +1140,8 @@ class TestStreaming(object):
 
         eqn = Eq(u.forward, u + usave)
 
-        op = Operator(eqn, opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
 
         language = configuration['language']
         if language == 'openacc':
@@ -1166,7 +1167,8 @@ class TestStreaming(object):
 
         eqn = Eq(u.backward, u + usave)
 
-        op = Operator(eqn, opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
 
         language = configuration['language']
         if language == 'openacc':

@@ -109,7 +109,6 @@ class DeviceOperatorMixin(object):
                     'language': 'C' if options['par-disabled'] else 'openmp',
                     'compiler': 'custom',
                 }
-
             return rcompile(expressions, kwargs)
 
         return wrapper
