@@ -64,9 +64,10 @@ def is_gpu_create(obj, gpu_create):
             f = i.alias or i
         except AttributeError:
             f = i
-        fcreate.append(f)
+        if f not in gpu_create:
+            return False
 
-    return all(f in gpu_create for f in fcreate)
+    return True
 
 
 # Import all compiler passes
