@@ -122,9 +122,10 @@ class CDE(Queue):
         self.mapper = {k: v for k, v in mapper.items() if len(v) > 1}
 
     def process(self, clusters):
-        return self._process_fdta(clusters, 1, subs={}, seen=set())
+        return self._process_fdta(clusters, 1, subs0={}, seen=set())
 
-    def callback(self, clusters, prefix, subs=None, seen=None):
+    def callback(self, clusters, prefix, subs0=None, seen=None):
+        subs = {}
         processed = []
         for c in clusters:
             if c in seen:
@@ -135,11 +136,11 @@ class CDE(Queue):
             for e in c.exprs:
                 k, v = e.args
 
-                if k in subs:
+                if k in subs0:
                     continue
 
                 try:
-                    subs[k] = subs[v]
+                    subs0[k] = subs[v]
                     continue
                 except KeyError:
                     pass
@@ -148,7 +149,7 @@ class CDE(Queue):
                     subs[v] = k
                     exprs.append(e)
                 else:
-                    exprs.append(uxreplace(e, subs))
+                    exprs.append(uxreplace(e, {**subs0, **subs}))
 
             processed.append(c.rebuild(exprs=exprs))
 
