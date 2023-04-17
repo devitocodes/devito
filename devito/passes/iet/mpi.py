@@ -270,7 +270,7 @@ def _mark_overlappable(iet):
     return iet
 
 
-@iet_pass(skipif_rcompile=True)
+@iet_pass
 def make_mpi(iet, mpimode=None, **kwargs):
     """
     Inject MPI Callables and Calls implementing halo exchanges for

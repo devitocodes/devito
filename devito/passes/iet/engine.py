@@ -104,41 +104,29 @@ class Graph(object):
         return mapper
 
 
-def iet_pass(*args, **kwargs):
-    skipif_rcompile = kwargs.pop('skipif_rcompile', False)
-
-    def decorator(func):
-        if isinstance(func, tuple):
-            assert len(func) == 2 and func[0] is iet_visit
-            call = lambda graph: graph.visit
-            func = func[1]
-        else:
-            call = lambda graph: graph.apply
-
-        @wraps(func)
-        def wrapper(*wargs, **wkwargs):
-            is_rcompile = wkwargs.get('is_rcompile', False)
-            if skipif_rcompile and is_rcompile:
-                return
-            if timed_pass.is_enabled():
-                maybe_timed = timed_pass
-            else:
-                maybe_timed = lambda func, name: func
-            try:
-                # Pure function case
-                graph, = wargs
-                return maybe_timed(call(graph), func.__name__)(func, **wkwargs)
-            except ValueError:
-                # Instance method case
-                self, graph = wargs
-                return maybe_timed(call(graph), func.__name__)(partial(func, self),
-                                                               **wkwargs)
-        return wrapper
-
-    if len(args) == 1:
-        return decorator(args[0])
+def iet_pass(func):
+    if isinstance(func, tuple):
+        assert len(func) == 2 and func[0] is iet_visit
+        call = lambda graph: graph.visit
+        func = func[1]
     else:
-        return decorator
+        call = lambda graph: graph.apply
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if timed_pass.is_enabled():
+            maybe_timed = timed_pass
+        else:
+            maybe_timed = lambda func, name: func
+        try:
+            # Pure function case
+            graph, = args
+            return maybe_timed(call(graph), func.__name__)(func, **kwargs)
+        except ValueError:
+            # Instance method case
+            self, graph = args
+            return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
+    return wrapper
 
 
 def iet_visit(func):

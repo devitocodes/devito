@@ -393,7 +393,7 @@ class DataManager(object):
 
         return iet, {}
 
-    def process(self, graph, **kwargs):
+    def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
         """
@@ -406,6 +406,7 @@ class DeviceAwareDataManager(DataManager):
     def __init__(self, **kwargs):
         self.gpu_fit = kwargs['options']['gpu-fit']
         self.gpu_create = kwargs['options']['gpu-create']
+        self.pmode = kwargs['options'].get('place-transfers')
 
         super().__init__(**kwargs)
 
@@ -503,12 +504,14 @@ class DeviceAwareDataManager(DataManager):
 
         return (reads, writes)
 
-    @iet_pass(skipif_rcompile=True)
+    @iet_pass
     def place_transfers(self, iet, **kwargs):
         """
         Create a new IET with host-device data transfers. This requires mapping
         symbols to the suitable memory spaces.
         """
+        if not self.pmode:
+            return iet, {}
 
         @singledispatch
         def _place_transfers(iet, mapper):
@@ -566,16 +569,16 @@ class DeviceAwareDataManager(DataManager):
         """
         return iet, {}
 
-    def process(self, graph, **kwargs):
+    def process(self, graph):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
         mapper = self.derive_transfers(graph)
-        self.place_transfers(graph, mapper=mapper, **kwargs)
-        self.place_definitions(graph, globs=set(), **kwargs)
-        self.place_devptr(graph, **kwargs)
-        self.place_bundling(graph, **kwargs)
-        self.place_casts(graph, **kwargs)
+        self.place_transfers(graph, mapper=mapper)
+        self.place_definitions(graph, globs=set())
+        self.place_devptr(graph)
+        self.place_bundling(graph)
+        self.place_casts(graph)
 
 
 def make_zero_init(obj):

@@ -305,7 +305,7 @@ class CustomOperator(BasicOperator):
             passes_mapper['pthreadify'](graph, sregistry=sregistry)
 
         # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph, **kwargs)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         if 'linearize' not in passes and options['linearize']:

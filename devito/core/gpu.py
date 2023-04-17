@@ -81,6 +81,7 @@ class DeviceOperatorMixin(object):
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['place-transfers'] = oo.pop('place-transfers', True)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -210,7 +211,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph, **kwargs)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)
