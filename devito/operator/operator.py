@@ -1090,14 +1090,10 @@ def parse_kwargs(**kwargs):
     else:
         openmp = kwopenmp
 
-    # `opt`, devicecreate
-    devicecreate = kwargs.get('devicecreate', options.get('devicecreate', ()))
-
     # `opt`, options
     options = dict(options)
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
-    options.setdefault('devicecreate', devicecreate)
     for k, v in configuration['opt-options'].items():
         options.setdefault(k, v)
     # Handle deprecations

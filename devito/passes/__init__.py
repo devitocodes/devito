@@ -39,16 +39,16 @@ def is_on_device(obj, gpu_fit):
     return all(f in gpu_fit for f in fsave)
 
 
-def is_device_created(obj, devicecreate):
+def is_gpu_create(obj, gpu_create):
     """
     True if the given object is created and not copied in the device memory,
-    False otherwise.
+    False otherwise. Objects created in the device memory are zero-initialised.
 
     Parameters
     ----------
     obj : Indexed or Function or collection of Functions
         The target object.
-    devicecreate : list of Function
+    gpu_create : list of Function
         The Function's which are expected to be created in device memory. This
         information is given directly by the user through the compiler option
         `devicecreate` and is propagated down here through the various stages of lowering.
@@ -66,7 +66,7 @@ def is_device_created(obj, devicecreate):
             f = i
         fcreate.append(f)
 
-    return all(f in devicecreate for f in fcreate)
+    return all(f in gpu_create for f in fcreate)
 
 
 # Import all compiler passes
