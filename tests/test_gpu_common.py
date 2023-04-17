@@ -1182,6 +1182,26 @@ class TestStreaming(object):
         assert np.all(u.data[0] == 36)
         assert np.all(u.data[1] == 35)
 
+    def test_place_transfers(self):
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = Eq(u.forward, u + 1)
+
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate', {'place-transfers': False}))
+
+        language = configuration['language']
+        if language == 'openacc':
+            assert 'copyin(u' not in str(op)
+            assert 'copyout(u' not in str(op)
+            assert 'delete(u' not in str(op)
+        elif language == 'openmp':
+            assert 'map(to: u' not in str(op)
+            assert 'update from(u' not in str(op)
+            assert 'map(release: u' not in str(op)
+
 
 class TestAPI(object):
 
