@@ -701,8 +701,12 @@ class AmdDevice(Device):
         #     mygpu will only print values accepted by cuda clang in
         #     the clang argument --cuda-gpu-arch.
         try:
-            p1 = Popen(['mygpu', '-d', 'gfx900'], stdout=PIPE, stderr=PIPE)
+            p1 = Popen(['offload-arch'], stdout=PIPE, stderr=PIPE)
         except OSError:
+            try:
+                p1 = Popen(['mygpu', '-d', fallback], stdout=PIPE, stderr=PIPE)
+            except OSError:
+                pass
             return fallback
 
         output, _ = p1.communicate()

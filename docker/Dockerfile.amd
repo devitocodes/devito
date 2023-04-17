@@ -2,10 +2,10 @@
 # This Dockerfile contains AMD compilers
 ##############################################################
 
-ARG IMAGE="rocm/dev-ubuntu-22.04:5.4.2-complete"
+ARG ROCM_VERSION=5.4.2
 ARG arch="aomp"
 
-FROM ${IMAGE} as sdk-base
+FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
 ARG UCX_BRANCH="v1.13.1"
 ARG OMPI_BRANCH="v4.1.4"
@@ -35,8 +35,10 @@ RUN rm /etc/apt/sources.list.d/* \
     gfortran \
     flex \
     hwloc \
-  && apt-get clean \
-  && ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch
+  && apt-get clean
+
+# Until rocm base has it fixed
+RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch
 
 # Requires cmake > 3.22 
 RUN mkdir -p /opt/cmake  \
@@ -45,6 +47,9 @@ RUN mkdir -p /opt/cmake  \
 ENV ROCM_HOME=/opt/rocm \
     UCX_HOME=/opt/ucx \
     OMPI_HOME=/opt/ompi
+
+# Install tmpi
+RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Adding rocm/cmake to the Environment 
 ENV PATH=$ROCM_HOME/bin:$ROCM_HOME/profiler/bin:$ROCM_HOME/opencl/bin:/opt/cmake/bin:$PATH \
@@ -73,8 +78,8 @@ RUN cd /tmp/ \
         --disable-logging \
         --disable-debug \
         --disable-examples \
-    && make -j $(nproc)  \
-    && make install
+    && make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') ))  \
+    && make install \
 
 # Install OpenMPI
 RUN cd /tmp \
@@ -90,8 +95,12 @@ RUN cd /tmp \
         --enable-mpi \
         --enable-mpi-fortran=yes \
         --disable-debug \
-    && make -j $(nproc) \
+    && make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) \
     && make install
+
+# Cleanup
+RUN rm -rf /tmp/ompi && rm -rf /tmp/ucx
+
 
 # Adding OpenMPI and UCX to Environment
 ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
@@ -131,6 +140,10 @@ RUN which mpicc && \
 # This will only trigger if arch is aomp since the final stage depends on it
 FROM sdk-base as aomp
 
+# MPI env
+ENV OMPI_CC="amdclang"
+ENV OMPI_CXX="amdclang++"
+
 # Devito env
 ENV DEVITO_ARCH="aomp"
 ENV DEVITO_PLATFORM="amdgpuX"
@@ -142,6 +155,10 @@ ENV DEVITO_LANGUAGE="openmp"
 ########################################################################
 # This will only trigger if arch is hip since the final stage depends on it
 FROM sdk-base as hip
+
+# MPI env
+ENV OMPI_CC="hipcc"
+ENV OMPI_CXX="hipcc"
 
 # Devito env
 ENV DEVITO_ARCH="hip"
