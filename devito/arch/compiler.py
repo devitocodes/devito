@@ -12,8 +12,9 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9, GRAVITON,
-                         INTELGPUX, get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
+                         IntelSkylake, get_nvidia_cc, check_cuda_runtime,
+                         get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -375,12 +376,21 @@ class GNUCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable']
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        self.cflags += ['-march=native', '-Wno-unused-result',
+                        '-Wno-unused-variable', '-Wno-unused-but-set-variable']
+
         if configuration['safe-math']:
             self.cflags.append('-fno-unsafe-math-optimizations')
         else:
             self.cflags.append('-ffast-math')
+
+        if isinstance(platform, IntelSkylake):
+            # The default is `=256` because avx512 slows down the CPU frequency;
+            # however, we empirically found that stencils generally benefit
+            # from `=512`
+            self.cflags.append('-mprefer-vector-width=512')
 
         language = kwargs.pop('language', configuration['language'])
         try:
@@ -682,7 +692,7 @@ class IntelCompiler(Compiler):
         else:
             self.cflags.append('-fp-model=fast')
 
-        if platform is SKX:
+        if isinstance(platform, IntelSkylake):
             # Systematically use 512-bit vectors on skylake
             self.cflags.append("-qopt-zmm-usage=high")
 
