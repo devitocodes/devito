@@ -185,7 +185,7 @@ RUN cd /llvm-project/build && \
     -DCLANG_OPENMP_NVPTX_DEFAULT_ARCH=sm_86 \
     -DLIBOMPTARGET_NVPTX_COMPUTE_CAPABILITIES=all \
     -DCMAKE_INSTALL_PREFIX=/llvm && \
-    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make -j ${nproc} && \
     make install
 
 # Set path
