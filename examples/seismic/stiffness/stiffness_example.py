@@ -48,7 +48,7 @@ def test_elastic_stability(shape):
 
 
 if __name__ == "__main__":
-    description = ("Example script for a set of elastic operators.")
+    description = ("Example script for a set of stiffness elastic operators.")
     args = seismic_args(description).parse_args()
     # Preset parameters
     ndim = args.ndim
