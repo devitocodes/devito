@@ -1190,7 +1190,8 @@ class TestStreaming(object):
         eqn = Eq(u.forward, u + 1)
 
         op = Operator(eqn,
-                      opt=('buffering', 'streaming', 'orchestrate', {'place-transfers': False}))
+                      opt=('buffering', 'streaming', 'orchestrate',
+                           {'place-transfers': False}))
 
         language = configuration['language']
         if language == 'openacc':

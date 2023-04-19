@@ -58,7 +58,6 @@ def is_gpu_create(obj, gpu_create):
     except AttributeError:
         functions = as_tuple(obj)
 
-    fcreate = []
     for i in functions:
         try:
             f = i.alias or i
