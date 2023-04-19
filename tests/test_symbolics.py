@@ -13,6 +13,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               INT, FieldFromComposite, IntDiv, ccode, uxreplace)
 from devito.tools import as_tuple
 from devito.types import Array, Bundle, LocalObject, Object, Symbol as dSymbol
+from devito.types import Array, Bundle, FIndexed, LocalObject, Object, Symbol as dSymbol  # noqa
 
 
 def test_float_indices():
@@ -358,6 +359,7 @@ def test_solve_time():
     ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
     ('cos(f)', '{cos: sin}', 'sin(f)'),
     ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
+    ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
 ])
 def test_uxreplace(expr, subs, expected):
     grid = Grid(shape=(4, 4))

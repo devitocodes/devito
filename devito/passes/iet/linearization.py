@@ -259,7 +259,7 @@ def _(f, indexeds, tracker, strides, sregistry):
 
         if len(i.indices) == i.function.ndim:
             v = tuple(strides.values())[-n:]
-            subs[i] = FIndexed(i, pname, strides=v)
+            subs[i] = FIndexed.from_indexed(i, pname, strides=v)
         else:
             # Honour custom indexing
             subs[i] = i.base[sum(i.indices)]
