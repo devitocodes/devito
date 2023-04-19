@@ -6,123 +6,125 @@ from devito import (
 )
 
 
-def test_issue_1725():
+class TestFissionForParallelism(object):
 
-    class ToyPMLLeft(SubDomain):
-        name = 'toypmlleft'
+    def test_issue_1725(self):
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: x, y: ('left', 2)}
+        class ToyPMLLeft(SubDomain):
+            name = 'toypmlleft'
 
-    class ToyPMLRight(SubDomain):
-        name = 'toypmlright'
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 2)}
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: x, y: ('right', 2)}
+        class ToyPMLRight(SubDomain):
+            name = 'toypmlright'
 
-    subdomains = [ToyPMLLeft(), ToyPMLRight()]
-    grid = Grid(shape=(20, 20), subdomains=subdomains)
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 2)}
 
-    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        subdomains = [ToyPMLLeft(), ToyPMLRight()]
+        grid = Grid(shape=(20, 20), subdomains=subdomains)
 
-    eqns = [Eq(u.forward, solve(u.dt2 - u.laplace, u.forward), subdomain=sd)
-            for sd in subdomains]
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
 
-    op = Operator(eqns, opt='fission')
+        eqns = [Eq(u.forward, solve(u.dt2 - u.laplace, u.forward), subdomain=sd)
+                for sd in subdomains]
 
-    # Note the `x` loop is fissioned, so now both loop nests can be collapsed
-    # for maximum parallelism
-    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,x,y')
+        op = Operator(eqns, opt='fission')
 
-
-def test_nofission_as_unprofitable():
-    """
-    Test there's no fission if no increase in number of collapsible loops.
-    """
-    grid = Grid(shape=(20, 20))
-    x, y = grid.dimensions
-    t = grid.stepping_dim
-
-    yl = SubDimension.left(name='yl', parent=y, thickness=4)
-    yr = SubDimension.right(name='yr', parent=y, thickness=4)
-
-    u = TimeFunction(name='u', grid=grid)
-
-    eqns = [Eq(u.forward, u[t + 1, x, y + 1] + 1.).subs(y, yl),
-            Eq(u.forward, u[t + 1, x, y - 1] + 1.).subs(y, yr)]
-
-    op = Operator(eqns, opt='fission')
-
-    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,y')
+        # Note the `x` loop is fissioned, so now both loop nests can be collapsed
+        # for maximum parallelism
+        assert_structure(op, ['t,x,i1y', 't,x,i2y'], 't,x,i1y,x,i2y')
 
 
-def test_nofission_as_illegal():
-    """
-    Test there's no fission if dependencies would break.
-    """
-    grid = Grid(shape=(20, 20))
-    x, y = grid.dimensions
+    def test_nofission_as_unprofitable(self):
+        """
+        Test there's no fission if not gonna increase number of collapsable loops.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
 
-    f = Function(name='f', grid=grid, dimensions=(y,), shape=(20,))
-    u = TimeFunction(name='u', grid=grid)
-    v = TimeFunction(name='v', grid=grid)
+        yl = SubDimension.left(name='yl', parent=y, thickness=4)
+        yr = SubDimension.right(name='yr', parent=y, thickness=4)
 
-    eqns = [Inc(f, v + 1.),
-            Eq(u.forward, f[y + 1] + 1.)]
+        u = TimeFunction(name='u', grid=grid)
 
-    op = Operator(eqns, opt='fission')
+        eqns = [Eq(u.forward, u[t + 1, x, y + 1] + 1.).subs(y, yl),
+                Eq(u.forward, u[t + 1, x, y - 1] + 1.).subs(y, yr)]
 
-    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,y')
+        op = Operator(eqns, opt='fission')
 
-
-def test_fission_partial():
-    """
-    Test there's no fission if no increase in number of collapsible loops.
-    """
-    grid = Grid(shape=(20, 20))
-    x, y = grid.dimensions
-    t = grid.stepping_dim
-
-    yl = SubDimension.left(name='yl', parent=y, thickness=4)
-    yr = SubDimension.right(name='yr', parent=y, thickness=4)
-
-    u = TimeFunction(name='u', grid=grid)
-
-    eqns = [Eq(u.forward, u[t + 1, x, y + 1] + 1.).subs(y, yl),
-            Eq(u.forward, u[t + 1, x, y - 1] + 1.).subs(y, yr),
-            Eq(u.forward, u[t + 1, x, y] + 1.)]
-
-    op = Operator(eqns, opt='fission')
-
-    assert_structure(op, ['t,x,y', 't,x,y', 't,x,y'], 't,x,y,y,x,y')
+        assert_structure(op, ['t,x,yl', 't,x,yr'], 't,x,yl,yr')
 
 
-def test_issue_1921():
-    space_order = 4
-    grid = Grid(shape=(8, 8), dtype=np.int32)
+    def test_nofission_as_illegal(self):
+        """
+        Test there's no fission if dependencies would break.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
 
-    f = Function(name='f', grid=grid, space_order=space_order)
-    g = TimeFunction(name='g', grid=grid, space_order=space_order)
-    g1 = TimeFunction(name='g', grid=grid, space_order=space_order)
+        f = Function(name='f', grid=grid, dimensions=(y,), shape=(20,))
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
 
-    f.data[:] = np.arange(8*8).reshape((8, 8))
+        eqns = [Inc(f, v + 1.),
+                Eq(u.forward, f[y + 1] + 1.)]
 
-    t, x, y = g.dimensions
-    ymin = y.symbolic_min
+        op = Operator(eqns, opt='fission')
 
-    eqns = []
-    eqns.append(Eq(g.forward, f + g))
-    for i in range(space_order//2):
-        eqns.append(Eq(g[t+t.spacing, x, ymin-i], g[t+t.spacing, x, ymin+i]))
+        assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,y')
 
-    op0 = Operator(eqns)
-    op1 = Operator(eqns, opt='fission')
 
-    assert_structure(op1, ['t,x,y', 't,x'], 't,x,y,x')
+    def test_fission_partial(self):
+        """
+        Test there's no fission if not gonna increase number of collapsable loops.
+        """
+        grid = Grid(shape=(20, 20))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
 
-    op0.apply(time_m=1, time_M=5)
-    op1.apply(time_m=1, time_M=5, g=g1)
+        yl = SubDimension.left(name='yl', parent=y, thickness=4)
+        yr = SubDimension.right(name='yr', parent=y, thickness=4)
 
-    assert np.all(g.data == g1.data)
+        u = TimeFunction(name='u', grid=grid)
+
+        eqns = [Eq(u.forward, u[t + 1, x, y + 1] + 1.).subs(y, yl),
+                Eq(u.forward, u[t + 1, x, y - 1] + 1.).subs(y, yr),
+                Eq(u.forward, u[t + 1, x, y] + 1.)]
+
+        op = Operator(eqns, opt='fission')
+
+        assert_structure(op, ['t,x,yl', 't,x,yr', 't,x,y'], 't,x,yl,yr,x,y')
+
+
+    def test_issue_1921(self):
+        space_order = 4
+        grid = Grid(shape=(8, 8), dtype=np.int32)
+
+        f = Function(name='f', grid=grid, space_order=space_order)
+        g = TimeFunction(name='g', grid=grid, space_order=space_order)
+        g1 = TimeFunction(name='g', grid=grid, space_order=space_order)
+
+        f.data[:] = np.arange(8*8).reshape((8, 8))
+
+        t, x, y = g.dimensions
+        ymin = y.symbolic_min
+
+        eqns = []
+        eqns.append(Eq(g.forward, f + g))
+        for i in range(space_order//2):
+            eqns.append(Eq(g[t+t.spacing, x, ymin-i], g[t+t.spacing, x, ymin+i]))
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt='fission')
+
+        assert_structure(op1, ['t,x,y', 't,x'], 't,x,y,x')
+
+        op0.apply(time_m=1, time_M=5)
+        op1.apply(time_m=1, time_M=5, g=g1)
+
+        assert np.all(g.data == g1.data)
