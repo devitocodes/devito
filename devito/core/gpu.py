@@ -115,6 +115,10 @@ class DeviceOperatorMixin:
         o['errctl'] = oo.pop('errctl', cls.ERRCTL)
         o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
+        # Recognised but unused by the GPU backend
+        oo.pop('fiss-press-ratio', None)
+        oo.pop('fiss-press-size', None)
+
         if oo:
             raise InvalidOperator(
                 f'Unsupported optimization options: [{", ".join(list(oo))}]'
@@ -219,7 +223,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = fuse(clusters, toposort=True, options=options)
 
         # Fission to increase parallelism
-        clusters = fission(clusters)
+        clusters = fission(clusters, kind='parallelism', **kwargs)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)

@@ -8,10 +8,6 @@ __all__ = ['fission']
 
 class FissionForParallelism(Queue):
 
-    """
-    Implement Clusters fission. For more info refer to fission.__doc__.
-    """
-
     def callback(self, clusters, prefix):
         if not prefix or len(clusters) == 1:
             return clusters
@@ -67,8 +63,21 @@ class FissionForParallelism(Queue):
             return (None, c.guards)
 
 
+class FissionForPressure(Queue):
+
+    def callback(self, clusters, prefix):
+        if not prefix or len(clusters) == 1:
+            return clusters
+
+        d = prefix[-1].dim
+
+        from IPython import embed; embed()
+
+        return clusters
+
+
 @timed_pass()
-def fission(clusters, mode='parallelism'):
+def fission(clusters, kind='parallelism', **kwargs):
     """
     Clusters fission.
 
@@ -84,10 +93,23 @@ def fission(clusters, mode='parallelism'):
               for y2     -->   for x
                 ..               for y2
                                    ..
-    """
-    assert mode in ('parallelism', 'pressure', 'all')
 
-    if mode in ('parallelism', 'all'):
+        * Trade off data locality for register pressure, e.g.
+
+          .. code-block::
+
+            for x                         for x
+              for y                         for y1
+                a = f(x) + g(x)                 a = f(x) + g(x)
+                b = h(x) + w(x)     -->     for y2
+                                                b = h(x) + w(x)
+    """
+    assert kind in ('parallelism', 'pressure', 'all')
+
+    if kind in ('parallelism', 'all'):
         clusters = FissionForParallelism().process(clusters)
+
+    if kind in ('pressure', 'all'):
+        clusters = FissionForPressure().process(clusters)
 
     return clusters
