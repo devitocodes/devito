@@ -127,3 +127,22 @@ class TestFissionForParallelism(object):
         op1.apply(time_m=1, time_M=5, g=g1)
 
         assert np.all(g.data == g1.data)
+
+
+class TestFissionForPressure(object):
+
+    def test_no_fission_v0(self):
+        """
+        Too few symbols around to trigger fission.
+        """
+        grid = Grid(shape=(20, 20))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(v.forward, v + 1)]
+
+        op = Operator(eqns, opt='fission')
+
+        from IPython import embed; embed()

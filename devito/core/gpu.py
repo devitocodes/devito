@@ -81,6 +81,10 @@ class DeviceOperatorMixin(object):
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
 
+        # Recognised but unused by the GPU backend
+        oo.pop('fiss-press-ratio', None)
+        oo.pop('fiss-press-size', None)
+
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
                                   % ", ".join(list(oo)))
@@ -158,7 +162,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = fuse(clusters, toposort=True, options=options)
 
         # Fission to increase parallelism
-        clusters = fission(clusters)
+        clusters = fission(clusters, kind='parallelism', **kwargs)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
