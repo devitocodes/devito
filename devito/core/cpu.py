@@ -86,8 +86,8 @@ class Cpu64OperatorMixin:
         o['dist-drop-unwritten'] = oo.pop('dist-drop-unwritten', cls.DIST_DROP_UNWRITTEN)
 
         # Fission
-        o['fiss-press-ratio'] = oo.pop('fiss-press-ratio', cls.FIS_PRESS_RATIO)
-        o['fiss-press-size'] = oo.pop('fiss-press-size', cls.FIS_PRESS_SIZE)
+        o['fiss-press-ratio'] = oo.pop('fiss-press-ratio', cls.FISS_PRESS_RATIO)
+        o['fiss-press-size'] = oo.pop('fiss-press-size', cls.FISS_PRESS_SIZE)
 
         # Code generation options for derivatives
         o['expand'] = oo.pop('expand', cls.EXPAND)
@@ -291,7 +291,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
             'factorize': factorize,
-            'fission': lambda i: fission(i, kind='pressure', **kwargs),
+            'fission': lambda i: fission(i, 'pressure', **kwargs),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),

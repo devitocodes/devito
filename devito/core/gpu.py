@@ -317,7 +317,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'tasking': lambda i: tasking(i, stream_key, sregistry),
             'streaming': lambda i: memcpy_prefetch(i, stream_key, sregistry),
             'factorize': factorize,
-            'fission': fission,
+            'fission': lambda i: fission(i, kind='parallelism', **kwargs),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
