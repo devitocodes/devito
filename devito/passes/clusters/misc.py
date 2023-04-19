@@ -2,10 +2,10 @@ from collections import Counter, defaultdict
 from itertools import groupby, product
 
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
-                               WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.ir.support import (SEPARABLE, Scope, ReleaseLock, WaitLock, WithLock,
+                               FetchUpdate, PrefetchUpdate)
 from devito.symbolics import pow_to_mul
-from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
+from devito.tools import DAG, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
 
 __all__ = ['Lift', 'fuse', 'optimize_pows', 'optimize_hyperplanes']

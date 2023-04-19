@@ -1,6 +1,7 @@
 from itertools import groupby
 
 from devito.ir import Queue, Scope
+from devito.symbolics import retrieve_terminals
 from devito.tools import Stamp, flatten, frozendict, timed_pass
 
 __all__ = ['fission']
@@ -63,21 +64,68 @@ class FissionForParallelism(Queue):
             return (None, c.guards)
 
 
-class FissionForPressure(Queue):
+def fission_for_pressure(clusters, options):
+    fiss_press_ratio = options['fiss-press-ratio']
+    fiss_press_size = options['fiss-press-size']
 
-    def callback(self, clusters, prefix):
-        if not prefix or len(clusters) == 1:
-            return clusters
+    processed = []
+    for c in clusters:
+        if not c.ispace:
+            processed.append(c)
+            continue
 
-        d = prefix[-1].dim
+        # Fission, if anything, occurs along the innermost Dimension
+        d = c.ispace[-1].dim
 
-        from IPython import embed; embed()
+        # Let `ts` ("timestamp") be our candidate split point
+        for timestamp in range(1, len(c.exprs)):
+            # Checking whether it's legal or not might be expensive, so let's
+            # first find out whether it'd be worth it
+            g0 = c.exprs[:timestamp]
+            g1 = c.exprs[timestamp:]
 
-        return clusters
+            terminals0 = retrieve_terminals(g0, mode='unique')
+            if len(terminals0) < fiss_press_size:
+                continue
+            terminals1 = retrieve_terminals(g1, mode='unique')
+            if len(terminals1) < fiss_press_size:
+                continue
+
+            functions0 = {i.function for i in terminals0 if i.is_Indexed}
+            functions1 = {i.function for i in terminals1 if i.is_Indexed}
+            functions_shared = functions0.intersection(functions1)
+
+            n0 = len(functions0)
+            n1 = len(functions1)
+            ns = len(functions_shared)
+
+            if not ns:
+                ns = .001
+
+            if not (n0 / ns >= fiss_press_ratio and n1 / ns >= fiss_press_ratio):
+                continue
+
+            # At this point we know we want to fission. But can we?
+            for dep in c.scope.d_flow.independent():
+                if dep.source.timestamp < timestamp <= dep.sink.timestamp:
+                    # Nope, we would unfortunately violate a data dependence
+                    break
+            else:
+                # Yes -- all good
+                processed.append(c.rebuild(exprs=g0))
+
+                ispace = c.ispace.lift(d)
+                processed.append(c.rebuild(exprs=g1, ispace=ispace))
+
+                break
+        else:
+            processed.append(c)
+
+    return processed
 
 
 @timed_pass()
-def fission(clusters, kind='parallelism', **kwargs):
+def fission(clusters, kind='parallelism', options=None, **kwargs):
     """
     Clusters fission.
 
@@ -103,6 +151,8 @@ def fission(clusters, kind='parallelism', **kwargs):
                 a = f(x) + g(x)                 a = f(x) + g(x)
                 b = h(x) + w(x)     -->     for y2
                                                 b = h(x) + w(x)
+
+          NOTE: this only applies to innermost Dimensions.
     """
     assert kind in ('parallelism', 'pressure', 'all')
 
@@ -110,6 +160,6 @@ def fission(clusters, kind='parallelism', **kwargs):
         clusters = FissionForParallelism().process(clusters)
 
     if kind in ('pressure', 'all'):
-        clusters = FissionForPressure().process(clusters)
+        clusters = fission_for_pressure(clusters, options)
 
     return clusters

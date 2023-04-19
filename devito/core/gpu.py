@@ -255,7 +255,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'tasking': Tasker(runs_on_host, sregistry).process,
             'streaming': Streaming(reads_if_on_host, sregistry).process,
             'factorize': factorize,
-            'fission': fission,
+            'fission': lambda i: fission(i, kind='parallelism', **kwargs),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),

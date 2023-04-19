@@ -83,13 +83,13 @@ class BasicOperator(Operator):
     than this threshold.
     """
 
-    FIS_PRESS_RATIO = 1.5
+    FISS_PRESS_RATIO = 2
     """
     A threshold that must be crossed to trigger loop fission. The ratio refers
     to the number of unique to shared arrays between any two expressions.
     """
 
-    FIS_PRESS_SIZE = 80
+    FISS_PRESS_SIZE = 80
     """
     A threshold that must be crossed to trigger loop fission. The size represents
     the total number of symbols in a group of expressions that is candidate to
