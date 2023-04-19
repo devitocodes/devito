@@ -67,7 +67,7 @@ def skipif(items, whole_module=False):
             break
         # Skip if it won't run with IntelCompiler
         if i == 'cpu64-icc' and \
-           isinstance(configuration['compiler'], IntelCompiler) and \
+           isinstance(configuration['compiler'], (IntelCompiler, OneapiCompiler)) and \
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icc+cpu64` won't work with this test"
             break

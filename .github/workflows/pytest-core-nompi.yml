@@ -38,8 +38,8 @@ jobs:
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py37-gcc-omp,
-           pytest-docker-py37-intel-omp,
-           pytest-docker-py38-intel-omp
+           pytest-docker-py37-icc-omp,
+           pytest-docker-py38-icx-omp
         ]
         set: [base, adjoint]
         include:
@@ -131,7 +131,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: !contains(matrix.name, 'docker')
+      if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
