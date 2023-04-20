@@ -111,6 +111,10 @@ update_m = t.spacing**2 * a**2 / f * \
 eqns = [Eq(p0.forward, update_p),
         Eq(m0.forward, update_m)]
 
+Operator(eqns, subs=grid.spacing_map)
+import sys
+sys.exit(0)
+
 print()
 print("Generating code version 0... [profiling ON]")
 cProfile.run("""
