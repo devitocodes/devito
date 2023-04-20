@@ -323,6 +323,13 @@ class DeviceOmpOperatorMixin(object):
 
         return kwargs
 
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        if len(oo['gpu-create']):
+            raise InvalidOperator("Unsupported gpu-create option for omp operators")
+
 
 class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):
     pass
