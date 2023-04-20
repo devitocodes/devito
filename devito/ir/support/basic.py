@@ -865,7 +865,7 @@ class Scope(object):
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(exprs):
-            if e.find(Barrier) | e.find(Jump):
+            if isinstance(e.rhs, (Barrier, Jump)):
                 self.writes.setdefault(mocksym, []).append(
                     TimedAccess(mocksym, 'W', i, e.ispace)
                 )
