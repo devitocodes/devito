@@ -4,6 +4,7 @@ from .differentiable import EvalDerivative, IndexDerivative, Weights
 from .tools import (numeric_weights, symbolic_weights, left, right,
                     generate_indices, centered, direct, transpose,
                     check_input, check_symbolic)
+from devito.tools import memoized_func
 
 __all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
            'left', 'right', 'centered', 'transpose', 'generate_indices']
@@ -207,6 +208,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                            matvec, x0, symbolic, expand)
 
 
+@memoized_func
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic, expand):
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec, x0=x0)

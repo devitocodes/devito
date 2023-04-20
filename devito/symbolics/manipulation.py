@@ -39,6 +39,8 @@ def uxreplace(expr, rule):
     `a*b*c*d` will be affected, and in particular `c` will be dropped, while `b`
     will be replaced by `e*f`, thus obtaining `a*d*e*f`.
     """
+    if not rule:
+        return expr
     return _uxreplace(expr, rule)[0]
 
 
