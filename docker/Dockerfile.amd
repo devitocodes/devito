@@ -114,20 +114,9 @@ ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
     PKG_CONFIG_PATH=$OMPI_HOME/lib/pkgconfig:$UCX_HOME/lib/pkgconfig:$PKG_CONFIG_PATH
 
 
-# Adding environment variable for Running as ROOT and set MCA pml to UCX
+# Adding environment variable for Running as ROOT
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-ENV OMPI_MCA_rmaps_base_oversubscribe=1
-ENV OMPI_MCA_btl_base_warn_component_unused=0
-ENV OMPI_MCA_hwloc_base_binding_policy=""
-ENV OMPI_MCA_pml=ucx
-# Add additional UCX environment variable
-ENV UCX_MEMTYPE_CACHE=no
-ENV UCX_NET_DEVICES=all
-ENV UCX_SHM_DEVICES=all
-ENV UCX_ACC_DEVICES=all
-ENV UCX_RNDV_THRESH=0
-ENV UCX_RNDV_SCHEME=get_zcopy
 
 ##############################################################
 # Additional Devito requirements
