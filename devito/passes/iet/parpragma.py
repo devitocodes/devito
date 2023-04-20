@@ -270,7 +270,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, nthreads=None):
+    def _make_partree(self, candidates, nthreads=None, index=None):
         assert candidates
 
         # Get the collapsable Iterations
@@ -492,7 +492,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         else:
             return super()._make_threaded_prodders(partree)
 
-    def _make_partree(self, candidates, nthreads=None):
+    def _make_partree(self, candidates, nthreads=None, index=None):
         """
         Parallelize the `candidates` Iterations. In particular:
 
