@@ -130,7 +130,7 @@ FROM sdk-base as nvc
 ADD docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
-RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -145,7 +145,7 @@ FROM sdk-base as nvcc
 ADD docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
-RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
 
 ENV DEVITO_ARCH="cuda"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -157,7 +157,7 @@ ENV DEVITO_LANGUAGE="cuda"
 FROM sdk-base as nvc-host
 
 # mpi4py
-RUN CFLAGS=-noswitcherror /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="cpu64"
