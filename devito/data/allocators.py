@@ -81,10 +81,13 @@ class MemoryAllocator(object):
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
-        # cast to 1D array of the specified size
-        ctype_1d = ctype * size
-        buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.frombuffer(buf, dtype=dtype)
+        if c_pointer:
+            # cast to 1D array of the specified size
+            ctype_1d = ctype * size
+            buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
+            pointer = np.frombuffer(buf, dtype=dtype)
+        else:
+            pointer = np.empty(shape = (0), dtype=dtype)
         # pointer.reshape should not be used here because it may introduce a copy
         # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
         # It is not always possible to change the shape of an array without copying the
@@ -450,7 +453,6 @@ def default_allocator(name=None):
 
     Custom allocators may be added with `register_allocator`.
     """
-    return ALLOC_CUPY
     if name is not None:
         try:
             return custom_allocators[name]
