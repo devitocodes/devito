@@ -178,12 +178,12 @@ class DataManager(object):
 
         ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp1), '**')
-        allocs.append(self.lang['host-alloc'](memptr, alignment, nbytes_param))
+        allocs.append(self.lang['host-alloc-pin'](memptr, alignment, nbytes_param))
 
         ffp0 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
         init = DummyExpr(ffp0, nbytes_param)
 
-        frees = [self.lang['host-free'](ffp1),
+        frees = [self.lang['host-free-pin'](ffp1),
                  self.lang['host-free'](obj._C_symbol)]
 
         # Not all backends require explicit allocation/deallocation of the

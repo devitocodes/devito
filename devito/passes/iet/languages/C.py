@@ -12,7 +12,11 @@ class CBB(LangBB):
         'header-memcpy': 'string.h',
         'host-alloc': lambda i, j, k:
             Call('posix_memalign', (i, j, k)),
+        'host-alloc-pin': lambda i, j, k:
+            Call('posix_memalign', (i, j, k)),
         'host-free': lambda i:
+            Call('free', (i,)),
+        'host-free-pin': lambda i:
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k))
