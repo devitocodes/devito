@@ -111,8 +111,9 @@ class TestCodeGeneration(object):
         # Only the AFFINE Iterations are tiled
         assert trees[3][1].pragmas[0].value ==\
             'acc parallel loop collapse(1) present(src,src_coords,u)'
-           
-    @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)), ((32, 4, 4), (8, 8, 8))])
+
+    @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
+                                          ((32, 4, 4), (8, 8, 8))])
     def test_multiple_tile_sizes(self, par_tile):
         grid = Grid(shape=(3, 3, 3))
         t = grid.stepping_dim
@@ -144,17 +145,21 @@ class TestCodeGeneration(object):
 
         eqns = [Eq(u.forward, u.dx),
                 Eq(v.forward, u.forward.dx)]
-        
-        par_tile=((32, 4, 4), (16, 4, 4))
-        expected=((4, 4, 32), (4, 4, 16))
 
-        op = Operator(eqns, platform='nvidiaX', language='openacc', opt=('advanced', {'par-tile': par_tile,
-                                              'blocklevels': 1, 'blockinner': True}))
+        par_tile = ((32, 4, 4), (16, 4, 4))
+        expected = ((4, 4, 32), (4, 4, 16))
+
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=(
+                          'advanced',
+                          {'par-tile': par_tile, 'blocklevels': 1, 'blockinner': True}))
 
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
         assert len(bns) == len(expected)
-        assert bns['x0_blk0'].pragmas[0].value == 'acc parallel loop tile(32,4,4) present(u)'
-        assert bns['x1_blk0'].pragmas[0].value == 'acc parallel loop tile(16,4,4) present(u,v)'
+        assert bns['x0_blk0'].pragmas[0].value ==\
+            'acc parallel loop tile(32,4,4) present(u)'
+        assert bns['x1_blk0'].pragmas[0].value ==\
+            'acc parallel loop tile(16,4,4) present(u,v)'
         for root, v in zip(bns.values(), expected):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]

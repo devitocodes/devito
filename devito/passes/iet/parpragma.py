@@ -388,7 +388,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_parallel(self, iet):
         mapper = {}
         parrays = {}
-        for i, tree in enumerate(retrieve_iteration_tree(iet, mode='superset')) :
+        for i, tree in enumerate(retrieve_iteration_tree(iet, mode='superset')):
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
             if not candidates:
