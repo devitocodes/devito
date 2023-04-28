@@ -182,7 +182,7 @@ class TestStreaming(object):
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 13 if configuration['language'] == 'openacc' else 12  # No `qid` w/ OMP
         assert str(exprs[b]) == 'const int deviceid = sdata->deviceid;'
-        assert str(exprs[b+1]) == 'int time = sdata->time;'
+        assert str(exprs[b+1]) == 'volatile int time = sdata->time;'
         assert str(exprs[b+2]) == 'lock0[0] = 1;'
         assert exprs[b+3].write is u
         assert exprs[b+4].write is v

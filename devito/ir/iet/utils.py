@@ -3,7 +3,8 @@ from devito.symbolics import Keyword, Macro
 from devito.tools import filter_ordered
 from devito.types import Global
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',
+           'maybe_alias']
 
 
 class IterationTree(tuple):
@@ -122,3 +123,34 @@ def derive_parameters(iet, drop_locals=False):
         parameters = [p for p in parameters if not (p.is_ArrayBasic or p.is_LocalObject)]
 
     return parameters
+
+
+def maybe_alias(obj, candidate):
+    """
+    True if `candidate` can act as an alias for `obj`, False otherwise.
+    """
+    if obj is candidate:
+        return True
+
+    # Names are unique throughout compilation, so this is another case we can handle
+    # straightforwardly. It might happen that we have an alias used in a subroutine
+    # with different type qualifiers (e.g., const vs not const, volatile vs not
+    # volatile), but if the names match, they definitely represent the same
+    # logical object
+    if obj.name == candidate.name:
+        return True
+
+    if obj.is_AbstractFunction:
+        if not candidate.is_AbstractFunction:
+            # Obv
+            return False
+
+        # E.g. TimeFunction vs SparseFunction -> False
+        if type(obj).__base__ is not type(candidate).__base__:
+            return False
+
+        # TODO: At some point we may need to introduce some logic here, but we'll
+        # also need to introduce something like __eq_weak__ that compares most of
+        # the __rkwargs__ except for e.g. the name
+
+    return False
