@@ -376,15 +376,14 @@ class Bundle(ArrayBasic):
 
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('components',)
 
-    def __init__(self, *args, components=(), **kwargs):
+    def __init_finalize__(self, *args, components=(), **kwargs):
+        super().__init_finalize__(*args, components=components, **kwargs)
+
         self._components = tuple(components)
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
         components = kwargs.get('components', ())
-        if len(components) <= 1:
-            raise ValueError("Expected at least two components")
-
         klss = {type(i).__base__ for i in components}
         if len(klss) != 1:
             raise ValueError("Components must be of same type")
@@ -399,10 +398,12 @@ class Bundle(ArrayBasic):
         if len(dtypes) > 1:
             raise ValueError("Components must have the same dtype")
         dtype = dtypes.pop()
+        count = len(components)
         try:
-            return dtypes_vector_mapper[(dtype, len(components))]
+            return dtypes_vector_mapper[(dtype, count)]
         except KeyError:
-            raise NotImplementedError("Unsupported vector type `%s`" % dtype)
+            dtypes_vector_mapper.add_dtype('⊥', count)
+            return dtypes_vector_mapper[(dtype, count)]
 
     @classmethod
     def __indices_setup__(cls, components=(), **kwargs):
@@ -433,6 +434,10 @@ class Bundle(ArrayBasic):
     @property
     def components(self):
         return self._components
+
+    @property
+    def ncomp(self):
+        return len(self.components)
 
     @property
     def c0(self):

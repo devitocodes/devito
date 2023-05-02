@@ -11,7 +11,7 @@ from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, FieldFromPointer,
                               FieldFromComposite, IntDiv, ccode, uxreplace)
-from devito.types import Array, LocalObject, Object, Symbol as dSymbol
+from devito.types import Array, Bundle, LocalObject, Object, Symbol as dSymbol
 
 
 def test_float_indices():
@@ -115,6 +115,18 @@ def test_indexed():
 
     assert ub.free_symbols == {x, y}
     assert ub.indexed.free_symbols == {ub.indexed}
+
+
+def test_bundle():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    fg = Bundle(name='fg', components=(f, g))
+
+    # Test reconstruction
+    fg._rebuild().components == fg.components
 
 
 def test_call_from_pointer():

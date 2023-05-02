@@ -24,34 +24,70 @@ mapper = {
     "double": np.float64
 }
 
+
+def build_dtypes_vector(field_names, counts):
+    ret = {}
+    for base_name, base_dtype in mapper.items():
+        for count in counts:
+            name = "%s%d" % (base_name, count)
+
+            titles = field_names[:count]
+
+            padded_count = count
+            if count == 3:
+                padded_count = 4
+
+            names = ["s%d" % i for i in range(count)]
+            while len(names) < padded_count:
+                names.append("padding%d" % (len(names) - count))
+
+            if len(titles) < len(names):
+                titles.extend((len(names) - len(titles)) * [None])
+
+            dtype = np.dtype(dict(
+                names=names,
+                formats=[base_dtype] * padded_count,
+                titles=titles))
+
+            globals()[name] = dtype
+
+            ret[(base_dtype, count)] = dtype
+
+    return ret
+
+
 field_names = ["x", "y", "z", "w"]
 counts = [2, 3, 4]
-dtypes_vector_mapper = {}
-for base_name, base_dtype in mapper.items():
-    for count in counts:
-        name = "%s%d" % (base_name, count)
 
-        titles = field_names[:count]
 
-        padded_count = count
-        if count == 3:
-            padded_count = 4
+class DTypesVectorMapper(dict):
 
-        names = ["s%d" % i for i in range(count)]
-        while len(names) < padded_count:
-            names.append("padding%d" % (len(names) - count))
+    def add_dtype(self, field_name, count):
+        """
+        Build and return a vector dtype with `count` > 4 fields, that is a
+        non-canonical vector dtype as normally encountered in e.g. float3 in
+        CUDA or HIP.
+        """
+        if not isinstance(field_name, str) or field_name in field_names:
+            raise ValueError("Expected field name different than x,y,z,w")
+        if count <= max(counts):
+            raise ValueError("Expected at least 5 fields")
 
-        if len(titles) < len(names):
-            titles.extend((len(names) - len(titles)) * [None])
+        self.update(build_dtypes_vector([field_name], [count]))
 
-        dtype = np.dtype(dict(
-            names=names,
-            formats=[base_dtype] * padded_count,
-            titles=titles))
+    def get_base_dtype(self, v):
+        for (base_dtype, count), dtype in self.items():
+            if dtype is v:
+                return base_dtype
 
-        globals()[name] = dtype
+        raise ValueError
 
-        dtypes_vector_mapper[(base_dtype, count)] = dtype
+
+dtypes_vector_mapper = DTypesVectorMapper()
+# Standard vector dtypes
+dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
+# Fallbacks
+dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
 
 
 # *** np.dtypes lowering
@@ -78,21 +114,18 @@ def dtype_to_ctype(dtype):
 
 def dtype_to_mpitype(dtype):
     """Map numpy types to MPI datatypes."""
-    return {np.ubyte: 'MPI_BYTE',
-            np.ushort: 'MPI_UNSIGNED_SHORT',
-            np.int32: 'MPI_INT',
-            int2: 'MPI_INT',  # noqa
-            int3: 'MPI_INT',  # noqa
-            int4: 'MPI_INT',  # noqa
-            np.float32: 'MPI_FLOAT',
-            float2: 'MPI_FLOAT',  # noqa
-            float3: 'MPI_FLOAT',  # noqa
-            float4: 'MPI_FLOAT',  # noqa
-            np.int64: 'MPI_LONG',
-            np.float64: 'MPI_DOUBLE',
-            double2: 'MPI_DOUBLE',  # noqa
-            double3: 'MPI_DOUBLE',  # noqa
-            double4: 'MPI_DOUBLE'}[dtype]  # noqa
+
+    # Resolve vector dtype if necessary
+    dtype = dtypes_vector_mapper.get_base_dtype(dtype)
+
+    return {
+        np.ubyte: 'MPI_BYTE',
+        np.ushort: 'MPI_UNSIGNED_SHORT',
+        np.int32: 'MPI_INT',
+        np.float32: 'MPI_FLOAT',
+        np.int64: 'MPI_LONG',
+        np.float64: 'MPI_DOUBLE'
+    }[dtype]
 
 
 def dtype_len(dtype):

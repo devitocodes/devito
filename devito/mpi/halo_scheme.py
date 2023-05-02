@@ -362,18 +362,28 @@ class HaloScheme(object):
 
     def project(self, functions):
         """
-        Create a new HaloScheme which only retains the HaloSchemeEntries corresponding
-        to the provided ``functions``.
+        Create a new HaloScheme that only retains the HaloSchemeEntries corresponding
+        to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f in as_tuple(functions)}
         return HaloScheme.build(fmapper, self.honored)
 
     def drop(self, functions):
         """
-        Create a new HaloScheme which contains all entries in ``self`` except those
-        corresponding to the provided ``functions``.
+        Create a new HaloScheme that contains all entries in `self` except those
+        corresponding to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f not in as_tuple(functions)}
+        return HaloScheme.build(fmapper, self.honored)
+
+    def add(self, f, hse):
+        """
+        Create a new HaloScheme that contains all entries in `self` plus the one
+        passed in input. If `f` already exists in `self`, the old value is
+        overridden.
+        """
+        fmapper = dict(self.fmapper.items())
+        fmapper[f] = hse
         return HaloScheme.build(fmapper, self.honored)
 
 

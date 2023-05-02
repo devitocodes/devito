@@ -40,7 +40,7 @@ def iet_build(stree):
             nsections += 1
 
         elif i.is_Halo:
-            body = HaloSpot(i.halo_scheme, body=queues.pop(i))
+            body = HaloSpot(queues.pop(i), i.halo_scheme)
 
         elif i.is_Sync:
             body = SyncSpot(i.sync_ops, body=queues.pop(i))

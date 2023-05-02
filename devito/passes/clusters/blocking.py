@@ -96,13 +96,10 @@ class AnayzeBlockingBase(Queue):
 
     def _has_data_reuse(self, cluster):
         # A sufficient condition for the existance of data reuse in `cluster`
-        # is that the same Function is accessed twice via two different Indexeds
-        seen = set()
-        for i in cluster.scope.indexeds:
-            if i.function in seen:
-                return True
-            else:
-                seen.add(i.function)
+        # is that the same Function is accessed twice at the same memory location,
+        # which translates into the existance of any Relation accross Indexeds
+        if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+            return True
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
         # might be enough

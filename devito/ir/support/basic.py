@@ -1,4 +1,4 @@
-from itertools import chain
+from itertools import chain, product
 
 from cached_property import cached_property
 from sympy import S
@@ -482,20 +482,20 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
-class Dependence(object):
+class Relation(object):
 
     """
-    A data dependence between two TimedAccess objects.
+    A relation between two TimedAccess objects.
     """
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
-        assert source.function is sink.function
+        assert source.function == sink.function
         self.source = source
         self.sink = sink
 
     def __repr__(self):
-        return "%s -> %s" % (self.source, self.sink)
+        return "%s -- %s" % (self.source, self.sink)
 
     def __eq__(self, other):
         # If the timestamps are equal in `self` (ie, an inplace dependence) then
@@ -533,6 +533,67 @@ class Dependence(object):
             for d in i._defines:
                 retval[d] = j
         return retval
+
+    @cached_property
+    def is_regular(self):
+        # NOTE: what we do below is stronger than something along the lines of
+        # `self.source.is_regular and self.sink.is_regular`
+        # `source` and `sink` may be regular in isolation, but the relation
+        # itself could be irregular, as the two TimedAccesses may stem from
+        # different iteration spaces. Instead if the distance is an integer
+        # vector, it is guaranteed that the iteration space is the same
+        return all(is_integer(i) for i in self.distance)
+
+    @cached_property
+    def is_irregular(self):
+        return not self.is_regular
+
+    @cached_property
+    def is_lex_positive(self):
+        """
+        True if the source preceeds the sink, False otherwise.
+        """
+        return self.source.timestamp < self.sink.timestamp
+
+    @cached_property
+    def is_lex_equal(self):
+        """
+        True if the source has same timestamp as the sink, False otherwise.
+        """
+        return self.source.timestamp == self.sink.timestamp
+
+    @cached_property
+    def is_lex_negative(self):
+        """
+        True if the sink preceeds the source, False otherwise.
+        """
+        return self.source.timestamp > self.sink.timestamp
+
+    @cached_property
+    def is_lex_non_stmt(self):
+        """
+        True if either the source or the sink are from non-statements,
+        False otherwise.
+        """
+        return self.source.timestamp == -1 or self.sink.timestamp == -1
+
+    @property
+    def is_local(self):
+        return self.function.is_Symbol
+
+    @property
+    def is_imaginary(self):
+        return S.ImaginaryUnit in self.distance
+
+
+class Dependence(Relation):
+
+    """
+    A data dependence between two TimedAccess objects.
+    """
+
+    def __repr__(self):
+        return "%s -> %s" % (self.source, self.sink)
 
     @cached_property
     def cause(self):
@@ -584,50 +645,6 @@ class Dependence(object):
     @cached_property
     def is_reduction(self):
         return self.source.is_reduction or self.sink.is_reduction
-
-    @cached_property
-    def is_regular(self):
-        # Note: what we do below is stronger than something along the lines of
-        # `self.source.is_regular and self.sink.is_regular`
-        # `source` and `sink` may be regular in isolation, but the dependence
-        # itself could be irregular, as the two TimedAccesses may stem from
-        # different iteration spaces. Instead if the distance is an integer
-        # vector, it is guaranteed that the iteration space is the same
-        return all(is_integer(i) for i in self.distance)
-
-    @cached_property
-    def is_irregular(self):
-        return not self.is_regular
-
-    @cached_property
-    def is_lex_positive(self):
-        """True if the source preceeds the sink, False otherwise."""
-        return self.source.timestamp < self.sink.timestamp
-
-    @cached_property
-    def is_lex_equal(self):
-        """True if the source has same timestamp as the sink, False otherwise."""
-        return self.source.timestamp == self.sink.timestamp
-
-    @cached_property
-    def is_lex_negative(self):
-        """True if the sink preceeds the source, False otherwise."""
-        return self.source.timestamp > self.sink.timestamp
-
-    @cached_property
-    def is_lex_non_stmt(self):
-        """
-        True if either the source or the sink are from non-statements, False otherwise.
-        """
-        return self.source.timestamp == -1 or self.sink.timestamp == -1
-
-    @property
-    def is_local(self):
-        return self.function.is_Symbol
-
-    @property
-    def is_imaginary(self):
-        return S.ImaginaryUnit in self.distance
 
     @memoized_meth
     def is_const(self, dim):
@@ -1013,3 +1030,28 @@ class Scope(object):
         TimedAccess objects.
         """
         return DependenceGroup(self.d_from_access_gen(accesses))
+
+    @memoized_generator
+    def r_gen(self):
+        """
+        Generate the Relations of the Scope.
+        """
+        for f in self.functions:
+            v = self.reads.get(f, []) + self.writes.get(f, [])
+
+            for a0, a1 in product(v, v):
+                if a0 is a1:
+                    continue
+
+                r = Relation(a0, a1)
+                if r.is_imaginary:
+                    continue
+
+                yield r
+
+    @cached_property
+    def r_all(self):
+        """
+        All Relations of the Scope.
+        """
+        return list(self.r_gen())
