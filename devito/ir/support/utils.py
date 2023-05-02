@@ -3,10 +3,11 @@ from collections import defaultdict
 from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
                               uxreplace)
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
-from devito.types import Dimension, Indirection, ModuloDimension, StencilDimension
+from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
+                          StencilDimension)
 
-__all__ = ['AccessMode', 'Stencil', 'detect_accesses', 'detect_io', 'pull_dims',
-           'shift_back', 'sdims_min', 'sdims_max']
+__all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
+           'pull_dims', 'shift_back', 'sdims_min', 'sdims_max']
 
 
 class AccessMode(object):
@@ -101,6 +102,15 @@ class Stencil(DefaultOrderedDict):
             for k, v in i.items():
                 output[k] |= v
         return output
+
+
+class IMask(DimensionTuple):
+
+    """
+    A mapper from Dimensions to data points or ranges.
+    """
+
+    pass
 
 
 def detect_accesses(exprs):

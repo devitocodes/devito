@@ -12,8 +12,8 @@ from sympy import IndexedBase, sympify
 from devito.data import FULL
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, COLLAPSED,
-                               Property, Forward, detect_io)
+                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, Property,
+                               Forward, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           ctypes_to_cstr)
@@ -556,13 +556,6 @@ class Iteration(Node):
     @property
     def is_Inbound(self):
         return INBOUND in self.properties
-
-    @property
-    def ncollapsed(self):
-        for i in self.properties:
-            if i.name == 'collapsed':
-                return i.val
-        return 0
 
     @property
     def symbolic_bounds(self):
@@ -1165,58 +1158,7 @@ class ParallelIteration(Iteration):
     Implement a parallel for-loop.
     """
 
-    def __init__(self, *args, **kwargs):
-        pragmas, kwargs, properties = self._make_header(**kwargs)
-        super().__init__(*args, pragmas=pragmas, properties=properties, **kwargs)
-
-    @classmethod
-    def _make_header(cls, **kwargs):
-        construct = cls._make_construct(**kwargs)
-        clauses = cls._make_clauses(**kwargs)
-        header = c.Pragma(' '.join([construct] + clauses))
-
-        # Extract the Iteration Properties
-        properties = cls._process_properties(**kwargs)
-
-        # Drop the unrecognised or unused kwargs
-        kwargs = cls._process_kwargs(**kwargs)
-
-        return (header,), kwargs, properties
-
-    @classmethod
-    def _make_construct(cls, **kwargs):
-        # To be overridden by subclasses
-        raise NotImplementedError
-
-    @classmethod
-    def _make_clauses(cls, **kwargs):
-        return []
-
-    @classmethod
-    def _process_properties(cls, **kwargs):
-        properties = as_tuple(kwargs.get('properties'))
-        properties += (COLLAPSED(kwargs.get('ncollapse', 1)),)
-
-        return properties
-
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs.pop('pragmas', None)
-        kwargs.pop('properties', None)
-
-        # Recognised clauses
-        kwargs.pop('ncollapse', None)
-        kwargs.pop('reduction', None)
-
-        return kwargs
-
-    @cached_property
-    def collapsed(self):
-        ret = [self]
-        for i in range(self.ncollapsed - 1):
-            ret.append(ret[i].nodes[0])
-        assert all(i.is_Iteration for i in ret)
-        return tuple(ret)
+    pass
 
 
 class ParallelTree(List):

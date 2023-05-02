@@ -6,16 +6,14 @@ from sympy import And, Ne, Not
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
 from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, DeviceCall, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, While,
-                       FindSymbols)
+                       ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer)
+                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
@@ -32,7 +30,7 @@ class OmpRegion(ParallelBlock):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class OmpIteration(ParallelIteration):
+class OmpIteration(PragmaIteration):
 
     @classmethod
     def _make_construct(cls, parallel=False, **kwargs):
@@ -42,11 +40,11 @@ class OmpIteration(ParallelIteration):
             return 'omp for'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
+    def _make_clauses(cls, ncollapsed=None, chunk_size=None, nthreads=None,
                       reduction=None, schedule=None, **kwargs):
         clauses = []
 
-        clauses.append('collapse(%d)' % (ncollapse or 1))
+        clauses.append('collapse(%d)' % (ncollapsed or 1))
 
         if chunk_size is not False:
             clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
@@ -56,20 +54,9 @@ class OmpIteration(ParallelIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            clauses.append(make_clause_reduction(reduction))
+            clauses.append(cls._make_clause_reduction_from_imask(reduction))
 
         return clauses
-
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('schedule', None)
-        kwargs.pop('parallel', False)
-        kwargs.pop('chunk_size', None)
-        kwargs.pop('nthreads', None)
-
-        return kwargs
 
 
 class DeviceOmpIteration(OmpIteration):

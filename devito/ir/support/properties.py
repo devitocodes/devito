@@ -33,9 +33,6 @@ A fully parallel Dimension, where all dependences have dependence distance
 equals to 0 (i.e., the distance vector is '=').
 """
 
-COLLAPSED = lambda i: Property('collapsed', i)
-"""Collapsed Dimensions."""
-
 VECTORIZED = Property('vector-dim')
 """A SIMD-vectorized Dimension."""
 
