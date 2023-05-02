@@ -6,14 +6,10 @@ from collections import defaultdict
 
 from devito.data import FULL
 from devito.tools import Pickable, filter_ordered
-from devito.types import DimensionTuple
+from .utils import IMask
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
            'normalize_syncs']
-
-
-class IMask(DimensionTuple):
-    pass
 
 
 class SyncOp(Pickable):
