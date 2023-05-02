@@ -12,7 +12,6 @@ from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLan
                                          PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
-from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
 from devito.tools import filter_ordered
 from devito.types import DeviceMap, Symbol
@@ -36,7 +35,7 @@ class DeviceAccIteration(PragmaIteration):
             clauses.append('collapse(%d)' % (ncollapsed or 1))
 
         if reduction:
-            clauses.append(make_clause_reduction(reduction))
+            clauses.append(cls._make_clause_reduction_from_imask(reduction))
 
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)

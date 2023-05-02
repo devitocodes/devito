@@ -14,7 +14,6 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
@@ -55,7 +54,7 @@ class OmpIteration(PragmaIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            clauses.append(make_clause_reduction(reduction))
+            clauses.append(cls._make_clause_reduction_from_imask(reduction))
 
         return clauses
 

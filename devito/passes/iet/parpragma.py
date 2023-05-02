@@ -8,12 +8,12 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression,
                        ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
                        ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
                        IsPerfectIteration, OpInc, filter_iterations,
-                       retrieve_iteration_tree, VECTORIZED)
+                       retrieve_iteration_tree, IMask, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         make_sections_from_imask)
 from devito.symbolics import INT, ccode
-from devito.tools import as_tuple, flatten, prod
+from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
@@ -154,6 +154,30 @@ class PragmaIteration(ParallelIteration):
     def _make_clauses(cls, **kwargs):
         return []
 
+    @classmethod
+    def _make_clause_reduction_from_imask(cls, reductions):
+        """
+        Build a string representing of a reduction clause given a list of
+        2-tuples `(symbol, ir.Operation)`.
+        """
+        args = []
+        for i, imask, r in reductions:
+            if i.is_Indexed:
+                f = i.function
+                bounds = []
+                for k, d in zip(imask, f.dimensions):
+                    if is_integer(k):
+                        bounds.append('[%s]' % k)
+                    else:
+                        assert k is FULL
+                        # Lower FULL Dimensions into a range spanning the entire
+                        # Dimension space, e.g. `reduction(+:f[0:f_vec->size[1]])`
+                        bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
+                args.append('%s%s' % (i.name, ''.join(bounds)))
+            else:
+                args.append(str(i))
+        return 'reduction(%s:%s)' % (r.name, ','.join(args))
+
     @cached_property
     def collapsed(self):
         ret = [self]
@@ -291,16 +315,22 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             return partree
 
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
-        reductions = [(i.output, i.operation) for i in exprs]
 
-        test0 = all(not i.is_Indexed for i, _ in reductions)
+        reductions = []
+        for e in exprs:
+            f = e.write
+            items = [i if i.is_Number else FULL for i in e.output.indices]
+            imask = IMask(*items, getters=f.dimensions, function=f)
+            reductions.append((e.output, imask, e.operation))
+
+        test0 = all(not i.is_Indexed for i, _, _ in reductions)
         test1 = (self._support_array_reduction(self.compiler) and
                  all(i.is_Affine for i in partree.collapsed))
 
         if test0 or test1:
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
-        elif all(i is OpInc for _, i in reductions):
+        elif all(i is OpInc for _, _, i in reductions):
             # Use atomic increments
             mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
         else:
