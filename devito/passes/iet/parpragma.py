@@ -4,9 +4,10 @@ from cached_property import cached_property
 from sympy import And, Max, true
 
 from devito.data import FULL
-from devito.ir import (Conditional, DummyEq, Dereference, Expression, ExpressionBundle,
-                       FindSymbols, FindNodes, ParallelTree, Pragma, Prodder, Transfer,
-                       List, Transformer, IsPerfectIteration, OpInc, filter_iterations,
+from devito.ir import (Conditional, DummyEq, Dereference, Expression,
+                       ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
+                       ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
+                       IsPerfectIteration, OpInc, filter_iterations,
                        retrieve_iteration_tree, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
@@ -116,6 +117,50 @@ class PragmaSimdTransformer(PragmaTransformer):
         iet = Transformer(mapper).visit(iet)
 
         return iet, {}
+
+
+class PragmaIteration(ParallelIteration):
+
+    def __init__(self, *args, parallel=None, schedule=None, chunk_size=None,
+                 nthreads=None, ncollapsed=None, reduction=None, tile=None,
+                 gpu_fit=None, **kwargs):
+
+        construct = self._make_construct(parallel=parallel)
+        clauses = self._make_clauses(
+            ncollapsed=ncollapsed, chunk_size=chunk_size, nthreads=nthreads,
+            reduction=reduction, schedule=schedule, tile=tile, gpu_fit=gpu_fit,
+            **kwargs
+        )
+        pragma = c.Pragma(' '.join([construct] + clauses))
+        kwargs['pragmas'] = pragma
+
+        super().__init__(*args, **kwargs)
+
+        self.parallel = parallel
+        self.schedule = schedule
+        self.chunk_size = chunk_size
+        self.nthreads = nthreads
+        self.ncollapsed = ncollapsed
+        self.reduction = reduction
+        self.tile = tile
+        self.gpu_fit = gpu_fit
+
+    @classmethod
+    def _make_construct(cls, **kwargs):
+        # To be overridden by subclasses
+        raise NotImplementedError
+
+    @classmethod
+    def _make_clauses(cls, **kwargs):
+        return []
+
+    @cached_property
+    def collapsed(self):
+        ret = [self]
+        for i in range(self.ncollapsed - 1):
+            ret.append(ret[i].nodes[0])
+        assert all(i.is_Iteration for i in ret)
+        return tuple(ret)
 
 
 class PragmaShmTransformer(PragmaSimdTransformer):
@@ -275,7 +320,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         # Get the collapsable Iterations
         root, collapsable = self._select_candidates(candidates)
-        ncollapse = 1 + len(collapsable)
+        ncollapsed = 1 + len(collapsable)
 
         # Prepare to build a ParallelTree
         if all(i.is_Affine for i in candidates):
@@ -288,12 +333,12 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             if nthreads is None:
                 # pragma ... for ... schedule(..., 1)
                 nthreads = self.nthreads
-                body = self.HostIteration(schedule=schedule, ncollapse=ncollapse,
+                body = self.HostIteration(schedule=schedule, ncollapsed=ncollapsed,
                                           **root.args)
             else:
                 # pragma ... parallel for ... schedule(..., 1)
                 body = self.HostIteration(schedule=schedule, parallel=True,
-                                          ncollapse=ncollapse, nthreads=nthreads,
+                                          ncollapsed=ncollapsed, nthreads=nthreads,
                                           **root.args)
             prefix = []
         else:
@@ -301,7 +346,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
-            body = self.HostIteration(ncollapse=ncollapse, chunk_size=chunk_size,
+            body = self.HostIteration(ncollapsed=ncollapsed, chunk_size=chunk_size,
                                       **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
@@ -510,7 +555,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
-                                        ncollapse=len(collapsable) + 1,
+                                        ncollapsed=len(collapsable) + 1,
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 

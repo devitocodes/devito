@@ -3,14 +3,13 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelIteration, ParallelTree, Pragma, Return,
-                       FindSymbols, make_callable)
+                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
 from devito.passes import is_on_device
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer)
+                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.passes.iet.languages.utils import make_clause_reduction
@@ -21,20 +20,20 @@ from devito.types import DeviceMap, Symbol
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
 
-class DeviceAccIteration(ParallelIteration):
+class DeviceAccIteration(PragmaIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, reduction=None, tile=None, **kwargs):
+    def _make_clauses(cls, ncollapsed=None, reduction=None, tile=None, **kwargs):
         clauses = []
 
-        if ncollapse:
-            clauses.append('collapse(%d)' % (ncollapse or 1))
-        elif tile:
+        if tile:
             clauses.append('tile(%s)' % ','.join(str(i) for i in tile))
+        elif ncollapsed:
+            clauses.append('collapse(%d)' % (ncollapsed or 1))
 
         if reduction:
             clauses.append(make_clause_reduction(reduction))
@@ -54,20 +53,6 @@ class DeviceAccIteration(ParallelIteration):
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 
         return clauses
-
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('gpu_fit', None)
-
-        kwargs.pop('schedule', None)
-        kwargs.pop('parallel', None)
-        kwargs.pop('chunk_size', None)
-        kwargs.pop('nthreads', None)
-        kwargs.pop('tile', None)
-
-        return kwargs
 
 
 class AccBB(PragmaLangBB):
@@ -191,7 +176,8 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
             else:
                 tile = tile[:ncollapsable + 1]
 
-            body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
+            body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile,
+                                        ncollapsed=ncollapsable, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 
             return root, partree
