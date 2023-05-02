@@ -3,10 +3,10 @@ import numpy as np
 import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    MatrixSparseTimeFunction, sin)
+                    Inc, MatrixSparseTimeFunction, sin)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, linearize
-from devito.types import Array, Bundle
+from devito.types import Array, Bundle, DefaultDimension
 
 
 def test_basic():
@@ -553,3 +553,41 @@ def test_bundle():
     y_stride0 = foo.body.body[2].write
     assert y_stride0.name == 'y_stride0'
     assert y_stride0 in bar.parameters
+
+
+def test_inc_w_default_dims():
+    grid = Grid(shape=(5, 6))
+    k = DefaultDimension(name="k", default_value=7)
+    x, y = grid.dimensions
+
+    f = Function(name="f", grid=grid, dimensions=(x, y, k),
+                 shape=grid.shape + (k._default_value,))
+    g = Function(name="g", grid=grid)
+
+    f.data[:] = 1
+
+    eq = Inc(g, f)
+
+    op = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    # NOTE: Eventually we compare the numerical output, but truly the most
+    # import check is implicit to op1.apply, and it's the fact that op1
+    # actually jit-compiles successfully, with the openmp reduction clause
+    # getting "linearized" just like everything else in the Operator
+    op.apply()
+
+    assert np.all(g.data == 7)
+
+    # Similar, but now reducing into a specific item along one Dimension
+    g.data[:] = 0.
+
+    eq = Inc(g[3, y], f)
+
+    op = Operator(eq, opt=('advanced', {'linearize': True}))
+
+    op.apply()
+
+    assert np.all(g.data[:3] == 0)
+    assert f.shape[0]*k._default_value == 35
+    assert np.all(g.data[3] == f.shape[0]*k._default_value)
+    assert np.all(g.data[4:] == 0)

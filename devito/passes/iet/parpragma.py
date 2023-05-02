@@ -168,11 +168,13 @@ class PragmaIteration(ParallelIteration):
                 for k, d in zip(imask, f.dimensions):
                     if is_integer(k):
                         bounds.append('[%s]' % k)
-                    else:
-                        assert k is FULL
+                    elif k is FULL:
                         # Lower FULL Dimensions into a range spanning the entire
                         # Dimension space, e.g. `reduction(+:f[0:f_vec->size[1]])`
                         bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
+                    else:
+                        assert isinstance(k, tuple) and len(k) == 2
+                        bounds.append('[%s:%s]' % k)
                 args.append('%s%s' % (i.name, ''.join(bounds)))
             else:
                 args.append(str(i))
@@ -320,7 +322,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         for e in exprs:
             f = e.write
             items = [i if i.is_Number else FULL for i in e.output.indices]
-            imask = IMask(*items, getters=f.dimensions, function=f)
+            imask = IMask(*items, getters=f.dimensions)
             reductions.append((e.output, imask, e.operation))
 
         test0 = all(not i.is_Indexed for i, _, _ in reductions)

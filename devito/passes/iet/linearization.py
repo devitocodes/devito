@@ -7,8 +7,10 @@ from sympy import Add
 
 from devito.data import FULL
 from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
-                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace)
+                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace,
+                       IMask)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.parpragma import PragmaIteration
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, filter_ordered, prod
 from devito.types import Array, Bundle, Symbol, FIndexed, Indexed, Wildcard
@@ -62,6 +64,7 @@ def linearization(iet, lmode=None, tracker=None, **kwargs):
     iet = linearize_accesses(iet, key, tracker, **kwargs)
     iet = linearize_pointers(iet, key)
     iet = linearize_transfers(iet, **kwargs)
+    iet = linearize_clauses(iet, **kwargs)
 
     # Postprocess headers
     headers = [(ccode(define), ccode(expr)) for define, expr in tracker.headers.values()]
@@ -335,6 +338,38 @@ def linearize_transfers(iet, sregistry=None, **kwargs):
             mapper[n] = List(body=exprs + [rebuilt])
         else:
             mapper[n] = rebuilt
+
+    iet = Transformer(mapper).visit(iet)
+
+    return iet
+
+
+def linearize_clauses(iet, **kwargs):
+    iters = FindNodes(PragmaIteration).visit(iet)
+    mapper = {}
+    for i in iters:
+        # Linearize reduction clauses, e.g.:
+        # `reduction(+:f[0:f_vec->size[1][0:f_vec->size[2]]])`
+        # ->
+        # `reduction(+:f[0:f_vec->size[1]*f_vec->size[2]])
+        if not i.reduction:
+            continue
+        reductions = []
+        for output, imask, op in i.reduction:
+            f = output.function
+
+            # Support partial reductions
+            try:
+                idx = imask.index(FULL)
+            except ValueError:
+                idx = len(imask)
+
+            m = np.prod(imask[:idx] or [0])
+            size = prod([f._C_get_field(FULL, d).size for d in f.dimensions[idx:]])
+
+            reductions.append((output, IMask((m*size, size)), op))
+
+        mapper[i] = i._rebuild(reduction=reductions)
 
     iet = Transformer(mapper).visit(iet)
 
