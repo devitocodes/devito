@@ -34,17 +34,21 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
 
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_elastic(dtype):
-    _, _, _, [rec1, rec2, v, tau] = run(dtype=dtype)
-    assert np.isclose(norm(rec1), 19.25636, atol=1e-3, rtol=0)
-    assert np.isclose(norm(rec2), 0.627606, atol=1e-3, rtol=0)
+def test_iso_elastic(dtype):
+    _, _, _, [rec1, rec2, rec3, v, tau] = run(dtype=dtype)
+    assert np.isclose(norm(rec1), 38.51268, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec2), 10.86042, atol=1e-3, rtol=0)
+    assert np.isclose(norm(rec3), 7.634154, atol=1e-3, rtol=0)
 
 
 @pytest.mark.parametrize('shape', [(101,), (51, 51), (16, 16, 16)])
-def test_elastic_stability(shape):
+def test_iso_elastic_stability(shape):
     spacing = tuple([20]*len(shape))
-    _, _, _, [rec1, rec2, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)
+    _, _, _, [rec1, rec2, rec3, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0,
+                                              nbl=0)
     assert np.isfinite(norm(rec1))
+    assert np.isfinite(norm(rec2))
+    assert np.isfinite(norm(rec3))
 
 
 if __name__ == "__main__":
