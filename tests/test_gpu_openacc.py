@@ -3,10 +3,10 @@ import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator,
                     norm, solve)
-from conftest import skipif, opts_device_tiling
+from conftest import skipif, assert_blocking, opts_device_tiling
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import retrieve_iteration_tree
+from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration
 from examples.seismic import TimeAxis, RickerSource, Receiver
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -111,6 +111,60 @@ class TestCodeGeneration(object):
         # Only the AFFINE Iterations are tiled
         assert trees[3][1].pragmas[0].value ==\
             'acc parallel loop collapse(1) present(src,src_coords,u)'
+
+    @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
+                                          ((32, 4, 4), (8, 8, 8))])
+    def test_multiple_tile_sizes(self, par_tile):
+        grid = Grid(shape=(3, 3, 3))
+        t = grid.stepping_dim
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)
+        src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1)
+
+        eqns = [Eq(u.forward, u + 1,),
+                Eq(u[t+1, 0, y, z], u[t, 0, y, z] + 1.)]
+        eqns += src.inject(field=u.forward, expr=src)
+
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=('advanced', {'par-tile': par_tile}))
+
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+
+        assert trees[0][1].pragmas[0].value ==\
+            'acc parallel loop tile(32,4,4) present(u)'
+        assert trees[1][1].pragmas[0].value ==\
+            'acc parallel loop tile(8,8) present(u)'
+
+    def test_multi_tile_blocking_structure(self):
+        grid = Grid(shape=(8, 8, 8))
+
+        u = TimeFunction(name="u", grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, u.dx),
+                Eq(v.forward, u.forward.dx)]
+
+        par_tile = ((32, 4, 4), (16, 4, 4))
+        expected = ((4, 4, 32), (4, 4, 16))
+
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=(
+                          'advanced',
+                          {'par-tile': par_tile, 'blocklevels': 1, 'blockinner': True}))
+
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+        assert len(bns) == len(expected)
+        assert bns['x0_blk0'].pragmas[0].value ==\
+            'acc parallel loop tile(32,4,4) present(u)'
+        assert bns['x1_blk0'].pragmas[0].value ==\
+            'acc parallel loop tile(16,4,4) present(u,v)'
+        for root, v in zip(bns.values(), expected):
+            iters = FindNodes(Iteration).visit(root)
+            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
+            assert len(iters) == len(v)
+            assert all(i.step == j for i, j in zip(iters, v))
 
 
 class TestOperator(object):
