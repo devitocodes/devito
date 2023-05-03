@@ -904,6 +904,18 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def prefix(self, key):
+        """
+        Return the IterationSpace up to and including the last Interval
+        such that `key(interval)` is True.
+        """
+        try:
+            i = self.project(key)[-1]
+        except IndexError:
+            return None
+
+        return self[:self.index(i.dim) + 1]
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions
