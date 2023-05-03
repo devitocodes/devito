@@ -73,6 +73,7 @@ class DeviceOperatorMixin(object):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+        o['gpu-create'] = as_tuple(oo.pop('gpu-create', ()))
 
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)
@@ -80,6 +81,7 @@ class DeviceOperatorMixin(object):
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['place-transfers'] = oo.pop('place-transfers', True)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -320,6 +322,13 @@ class DeviceOmpOperatorMixin(object):
         oo['openmp'] = True
 
         return kwargs
+
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        if len(oo['gpu-create']):
+            raise InvalidOperator("Unsupported gpu-create option for omp operators")
 
 
 class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):

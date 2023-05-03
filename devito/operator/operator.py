@@ -1007,6 +1007,7 @@ def rcompile(expressions, kwargs=None):
     # of `linearization`)
     options['mpi'] = False
     options['linearize'] = False  # Will be carried out later on
+    options['place-transfers'] = False
     kwargs['options'] = options
 
     # Recursive profiling not supported -- would be a complete mess

@@ -12,13 +12,13 @@ import numpy as np
 from devito.ir import (Block, Call, Definition, DeviceCall, DeviceFunction,
                        DummyExpr, Return, EntryFunction, FindSymbols, MapExprStmts,
                        Transformer, make_callable)
-from devito.passes import is_on_device
+from devito.passes import is_on_device, is_gpu_create
 from devito.passes.iet.engine import iet_pass, iet_visit
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import Array, DeviceMap, DeviceRM, Symbol
+from devito.types import Array, CustomDimension, DeviceMap, DeviceRM, Eq, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -405,6 +405,8 @@ class DeviceAwareDataManager(DataManager):
 
     def __init__(self, **kwargs):
         self.gpu_fit = kwargs['options']['gpu-fit']
+        self.gpu_create = kwargs['options']['gpu-create']
+        self.pmode = kwargs['options'].get('place-transfers')
 
         super().__init__(**kwargs)
 
@@ -448,15 +450,34 @@ class DeviceAwareDataManager(DataManager):
         `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
         synchronize the host and device copies, while the latter does not.
         """
-        mmap = self.lang._map_to(obj)
-
         if read_only is False:
+            if is_gpu_create(obj, self.gpu_create):
+                mmap = self.lang._map_alloc(obj)
+
+                cdims = make_zero_init(obj)
+                eq = Eq(obj[cdims], 0)
+
+                irs, _ = self.rcompile(eq)
+
+                init = irs.iet.body.body[0]
+
+                name = self.sregistry.make_name(prefix='init')
+                efunc = make_callable(name, init)
+                init = Call(name, efunc.parameters)
+
+                mmap = (mmap, init)
+            else:
+                mmap = self.lang._map_to(obj)
+                efunc = ()
+
             unmap = [self.lang._map_update(obj),
                      self.lang._map_release(obj, devicerm=devicerm)]
         else:
+            mmap = self.lang._map_to(obj)
+            efunc = ()
             unmap = self.lang._map_delete(obj, devicerm=devicerm)
 
-        storage.update(obj, site, maps=mmap, unmaps=unmap)
+        storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efunc)
 
     @iet_visit
     def derive_transfers(self, iet):
@@ -489,6 +510,8 @@ class DeviceAwareDataManager(DataManager):
         Create a new IET with host-device data transfers. This requires mapping
         symbols to the suitable memory spaces.
         """
+        if not self.pmode:
+            return iet, {}
 
         @singledispatch
         def _place_transfers(iet, mapper):
@@ -556,3 +579,18 @@ class DeviceAwareDataManager(DataManager):
         self.place_devptr(graph)
         self.place_bundling(graph)
         self.place_casts(graph)
+
+
+def make_zero_init(obj):
+    cdims = []
+    for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape):
+        if d.is_NonlinearDerived:
+            assert h0 == h1 == 0
+            m = 0
+            M = s - 1
+        else:
+            m = d.symbolic_min - h0
+            M = d.symbolic_max + h1
+        cdims.append(CustomDimension(name=d.name, parent=d,
+                                     symbolic_min=m, symbolic_max=M))
+    return cdims

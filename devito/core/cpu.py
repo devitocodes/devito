@@ -66,10 +66,12 @@ class Cpu64OperatorMixin(object):
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['place-transfers'] = oo.pop('place-transfers', True)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
         oo.pop('gpu-fit', None)
+        oo.pop('gpu-create', None)
 
         if oo:
             raise InvalidOperator("Unrecognized optimization options: [%s]"
