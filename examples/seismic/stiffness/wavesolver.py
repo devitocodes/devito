@@ -5,7 +5,7 @@ from examples.seismic import PointSource
 from examples.seismic.stiffness.operators import ForwardOperator, AdjointOperator
 
 
-class ISOElasticWaveSolver(object):
+class IsoElasticWaveSolver(object):
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

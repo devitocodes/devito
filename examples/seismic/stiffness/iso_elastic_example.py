@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from devito import norm
 from devito.logger import info
-from examples.seismic.stiffness import ISOElasticWaveSolver
+from examples.seismic.stiffness import IsoElasticWaveSolver
 from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
@@ -17,7 +17,7 @@ def iso_elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order
     geometry = setup_geometry(model, tn)
 
     # Create solver object to provide relevant operators
-    solver = ISOElasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
+    solver = IsoElasticWaveSolver(model, geometry, space_order=space_order, **kwargs)
     return solver
 
 
