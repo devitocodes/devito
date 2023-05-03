@@ -4,9 +4,8 @@ import pytest
 import numpy as np
 
 from conftest import skipif
-import devito
 from devito import (Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant,
-                    pyrevolve)
+                    Revolver, CheckpointOperator, DevitoCheckpoint)
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
@@ -131,12 +130,12 @@ def test_forward_with_breaks(shape, kernel, space_order):
     dt = solver.model.critical_dt
 
     u = TimeFunction(name='u', grid=grid, time_order=2, space_order=space_order)
-    cp = devito.DevitoCheckpoint([u])
-    wrap_fw = devito.CheckpointOperator(solver.op_fwd(save=False), rec=rec,
-                                        src=solver.geometry.src, u=u, dt=dt)
-    wrap_rev = devito.CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
+    cp = DevitoCheckpoint([u])
+    wrap_fw = CheckpointOperator(solver.op_fwd(save=False), rec=rec,
+                                 src=solver.geometry.src, u=u, dt=dt)
+    wrap_rev = CheckpointOperator(solver.op_grad(save=False), u=u, dt=dt, rec=rec)
 
-    wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, rec._time_range.num-time_order)
     rec1, u1, summary = solver.forward()
 
     wrp.apply_forward()
@@ -229,13 +228,13 @@ def test_index_alignment():
     # change equations to use new symbols
     fwd_eqn_2 = Eq(u_nosave.forward, u_nosave + 1.*const)
     fwd_op_2 = Operator(fwd_eqn_2)
-    cp = devito.DevitoCheckpoint([u_nosave])
-    wrap_fw = devito.CheckpointOperator(fwd_op_2, constant=1)
+    cp = DevitoCheckpoint([u_nosave])
+    wrap_fw = CheckpointOperator(fwd_op_2, constant=1)
 
     prod_eqn_2 = Eq(prod, prod + u_nosave * v)
     comb_op_2 = Operator([adj_eqn, prod_eqn_2])
-    wrap_rev = devito.CheckpointOperator(comb_op_2, constant=1)
-    wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, None, nt)
+    wrap_rev = CheckpointOperator(comb_op_2, constant=1)
+    wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt)
 
     # Invocation 4
     wrp.apply_forward()

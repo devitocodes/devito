@@ -1,5 +1,4 @@
-import devito
-from devito import Function, TimeFunction, pyrevolve
+from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
 from devito.tools import memoized_meth
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -194,20 +193,19 @@ class AcousticWaveSolver(object):
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
-        if checkpointing and pyrevolve is not None:
+        if checkpointing:
             u = TimeFunction(name='u', grid=self.model.grid,
                              time_order=2, space_order=self.space_order)
-            cp = devito.DevitoCheckpoint([u])
+            cp = DevitoCheckpoint([u])
             n_checkpoints = None
-            wrap_fw = devito.CheckpointOperator(self.op_fwd(save=False),
-                                                src=src or self.geometry.src,
-                                                u=u, dt=dt, **kwargs)
-            wrap_rev = devito.CheckpointOperator(self.op_grad(save=False), u=u, v=v,
-                                                 rec=rec, dt=dt, grad=grad, **kwargs)
+            wrap_fw = CheckpointOperator(self.op_fwd(save=False),
+                                         src=src or self.geometry.src,
+                                         u=u, dt=dt, **kwargs)
+            wrap_rev = CheckpointOperator(self.op_grad(save=False), u=u, v=v,
+                                          rec=rec, dt=dt, grad=grad, **kwargs)
 
             # Run forward
-            wrp = pyrevolve.Revolver(cp, wrap_fw, wrap_rev, n_checkpoints,
-                                     rec.data.shape[0]-2)
+            wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, rec.data.shape[0]-2)
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:

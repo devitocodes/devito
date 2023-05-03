@@ -4,8 +4,8 @@ from subprocess import check_call
 import pytest
 import sys
 
-from devito import Eq, configuration  # noqa
-from devito.checkpointing import pyrevolve
+from devito import Eq, configuration, Revolver  # noqa
+from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
@@ -73,7 +73,7 @@ def skipif(items, whole_module=False):
             skipit = "Arm doesn't support x86-specific instructions"
             break
         # Skip if pyrevolve not installed
-        if i == 'chkpnt' and pyrevolve is None:
+        if i == 'chkpnt' and Revolver is NoopRevolver:
             skipit = "pyrevolve not installed"
             break
 
