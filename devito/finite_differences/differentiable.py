@@ -556,6 +556,9 @@ class IndexSum(DifferentiableOp):
 
     __str__ = __repr__
 
+    def _sympystr(self, printer):
+        return str(self)
+
     def _hashable_content(self):
         return super()._hashable_content() + (self.dimensions,)
 
