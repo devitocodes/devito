@@ -29,6 +29,9 @@ class Bunch(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+    def __repr__(self):
+        return "Bunch(%s)" % ", ".join(["%s=%s" % i for i in self.__dict__.items()])
+
 
 class EnrichedTuple(tuple, Pickable):
 
