@@ -97,7 +97,7 @@ class ISOElasticWaveSolver(object):
         v = v or VectorTimeFunction(name='v', grid=self.model.grid, save=save_t,
                                     space_order=self.space_order, time_order=1)
         tau = tau or TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
-                                        space_order=self.space_order, time_order=1, vec=True)
+                                        space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
 
@@ -149,7 +149,7 @@ class ISOElasticWaveSolver(object):
         u = u or VectorTimeFunction(name="u", grid=self.model.grid,
                                     time_order=1, space_order=self.space_order)
         sig = sig or TensorTimeFunction(name='sig', grid=self.model.grid,
-                                        space_order=self.space_order, time_order=1, vec=True)
+                                        space_order=self.space_order, time_order=1)
         kwargs.update({k.name: k for k in u})
         kwargs.update({k.name: k for k in sig})
         kwargs['time_m'] = 0

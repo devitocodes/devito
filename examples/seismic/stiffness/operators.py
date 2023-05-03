@@ -141,7 +141,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                            space_order=space_order, time_order=1)
     tau = TensorTimeFunction(name='tau', grid=model.grid,
                              save=geometry.nt if save else None,
-                             space_order=space_order, time_order=1, vec=True)
+                             space_order=space_order, time_order=1)
 
     eqn = elastic_stencil(model, v, tau)
 
@@ -169,7 +169,7 @@ def AdjointOperator(model, geometry, space_order=4, **kwargs):
     u = VectorTimeFunction(name='u', grid=model.grid, space_order=space_order,
                            time_order=1)
     sig = TensorTimeFunction(name='sig', grid=model.grid, space_order=space_order,
-                             time_order=1, vec=True)
+                             time_order=1)
 
     eqn = elastic_stencil(model, u, sig, forward=False)
 
