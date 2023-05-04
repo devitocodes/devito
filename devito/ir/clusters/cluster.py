@@ -406,6 +406,14 @@ class ClusterGroup(tuple):
         obj._ispace = ispace
         return obj
 
+    def rebuild(self, ispace=None):
+        processed = []
+        for c in self:
+            ispace = IterationSpace.union(c.ispace, ispace)
+            processed.append(c.rebuild(ispace=ispace))
+
+        return self.__class__(processed, ispace)
+
     @classmethod
     def concatenate(cls, *cgroups):
         return list(chain(*cgroups))
