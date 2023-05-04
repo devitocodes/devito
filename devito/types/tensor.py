@@ -82,6 +82,8 @@ class TensorFunction(AbstractTensor):
 
     @property
     def vec(self):
+         if self.shape[0] != self.shape[1]:
+             raise Exception("This object is already represented by its vector form.")
          order = ([(0, 0), (1, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
              if len(self.space_dimensions) == 3 else [(0, 0), (1, 1), (0, 1)])
          comp =  [self[o[0],o[1]] for o in order]
@@ -90,7 +92,8 @@ class TensorFunction(AbstractTensor):
     
     @property
     def tensor(self):
-
+        if self.shape[0] == self.shape[1]:
+            raise Exception("This object is already represented by its tensor form.")
         ndim = len(self.space_dimensions)
         M = np.zeros((ndim, ndim), dtype = np.dtype(object))
         M[0,0] = self[0]
