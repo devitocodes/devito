@@ -36,7 +36,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt install mpich -y
         pip3 install --upgrade pip
-        pip3 install -e .[extras,mpi]
+        pip3 install -e .[extras,mpi,tests]
 
     - name: Test with pytest
       run: |

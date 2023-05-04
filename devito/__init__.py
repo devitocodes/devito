@@ -23,7 +23,13 @@ from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
 from devito.mpi import MPI  # noqa
-from devito.checkpointing import DevitoCheckpoint, CheckpointOperator  # noqa
+try:
+    from devito.checkpointing import DevitoCheckpoint, CheckpointOperator  # noqa
+    from pyrevolve import Revolver
+except ImportError:
+    from devito.checkpointing import NoopCheckpoint as DevitoCheckpoint  # noqa
+    from devito.checkpointing import NoopCheckpointOperator as CheckpointOperator  # noqa
+    from devito.checkpointing import NoopRevolver as Revolver  # noqa
 
 # Imports required to initialize Devito
 from devito.arch import compiler_registry, platform_registry

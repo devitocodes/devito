@@ -1,11 +1,10 @@
 from devito import (VectorTimeFunction, TimeFunction, Function, NODE,
-                    DevitoCheckpoint, CheckpointOperator)
+                    DevitoCheckpoint, CheckpointOperator, Revolver)
 from devito.tools import memoized_meth
 from examples.seismic import PointSource
 from examples.seismic.viscoacoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
-from pyrevolve import Revolver
 
 
 class ViscoacousticWaveSolver(object):

@@ -1,11 +1,11 @@
 from functools import reduce
 
 import pytest
-from pyrevolve import Revolver
 import numpy as np
 
+from conftest import skipif
 from devito import (Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant,
-                    DevitoCheckpoint, CheckpointOperator)
+                    Revolver, CheckpointOperator, DevitoCheckpoint)
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
@@ -107,6 +107,7 @@ def test_segmented_averaging():
     assert (f_ref.data_with_halo[1, -1] == 1.).all()
 
 
+@skipif('chkpnt')
 @switchconfig(log_level='WARNING')
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('kernel', ['OT2'])
@@ -160,6 +161,7 @@ def test_acoustic_save_and_nosave(shape=(50, 50), spacing=(15.0, 15.0), tn=500.,
     assert(np.allclose(rec.data, rec_bk))
 
 
+@skipif('chkpnt')
 def test_index_alignment():
     """ A much simpler test meant to ensure that the forward and reverse indices are
     correctly aligned (i.e. u * v , where u is the forward field and v the reverse field

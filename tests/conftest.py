@@ -4,7 +4,8 @@ from subprocess import check_call
 import pytest
 import sys
 
-from devito import Eq, configuration  # noqa
+from devito import Eq, configuration, Revolver  # noqa
+from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
 from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
 from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
@@ -23,7 +24,7 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-nvc', 'cpu64-arm'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-nvc', 'cpu64-arm', 'chkpnt'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -31,11 +32,9 @@ def skipif(items, whole_module=False):
     skipit = False
     for i in items:
         # Skip if no MPI
-        if i == 'nompi':
-            if MPI is None:
-                skipit = "mpi4py/MPI not installed"
-                break
-            continue
+        if i == 'nompi' and MPI is None:
+            skipit = "mpi4py/MPI not installed"
+            break
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
@@ -72,6 +71,10 @@ def skipif(items, whole_module=False):
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):
             skipit = "Arm doesn't support x86-specific instructions"
+            break
+        # Skip if pyrevolve not installed
+        if i == 'chkpnt' and Revolver is NoopRevolver:
+            skipit = "pyrevolve not installed"
             break
 
     if skipit is False:

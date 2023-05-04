@@ -1,10 +1,10 @@
 # coding: utf-8
-from devito import Function, TimeFunction, warning, DevitoCheckpoint, CheckpointOperator
+from devito import (Function, TimeFunction, warning,
+                    DevitoCheckpoint, CheckpointOperator, Revolver)
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from pyrevolve import Revolver
 
 
 class AnisotropicWaveSolver(object):
