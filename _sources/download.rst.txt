@@ -45,7 +45,7 @@ To install the `latest Devito release`_ along with any additional dependencies, 
 
    pip install devito
    # ...or to install additional dependencies:
-   # pip install devito[extras,mpi,nvidia]
+   # pip install devito[extras,mpi,nvidia,tests]
 
 .. _latest Devito release: https://pypi.org/project/devito/#history
 
@@ -55,11 +55,12 @@ To install the latest Devito development version, without the tutorials, follow:
 
    pip install git+https://github.com/devitocodes/devito.git
    # ...or to install additional dependencies:
-   # pip install git+https://github.com/devitocodes/devito.git#egg=project[extras,mpi,nvidia]
+   # pip install git+https://github.com/devitocodes/devito.git#egg=project[extras,mpi,nvidia,tests]
 
 Additional dependencies:
 
 - extras : optional dependencies for Jupyter notebooks, plotting, benchmarking
+- tests : optional dependencies required for testing infrastructure
 - mpi : optional dependencies for MPI (mpi4py)
 - nvidia : optional dependencies for targetting GPU deployment
 
@@ -98,7 +99,7 @@ and finally, install Devito along with any extra dependencies:
 
    pip install devito
    # ... or to install additional dependencies
-   # pip install devito[extras,mpi,nvidia]
+   # pip install devito[extras,mpi,nvidia,tests]
 
 
 For developers
@@ -117,7 +118,7 @@ and then install the requirements in your virtual environment (venv or conda):
    # Install requirements
    pip install -e .
    # ...or to install additional dependencies
-   # pip install -e .[extras,mpi,nvidia]
+   # pip install -e .[extras,mpi,nvidia,tests]
 
 
 Facing issues?

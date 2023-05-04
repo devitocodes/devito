@@ -113,18 +113,19 @@ the docker/<a class="reference external" href="https://github.com/devitocodes/de
 <p>To install the <a class="reference external" href="https://pypi.org/project/devito/#history">latest Devito release</a> along with any additional dependencies, follow:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>devito
 <span class="c1"># ...or to install additional dependencies:</span>
-<span class="c1"># pip install devito[extras,mpi,nvidia]</span>
+<span class="c1"># pip install devito[extras,mpi,nvidia,tests]</span>
 </pre></div>
 </div>
 <p>To install the latest Devito development version, without the tutorials, follow:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/devitocodes/devito.git
 <span class="c1"># ...or to install additional dependencies:</span>
-<span class="c1"># pip install git+https://github.com/devitocodes/devito.git#egg=project[extras,mpi,nvidia]</span>
+<span class="c1"># pip install git+https://github.com/devitocodes/devito.git#egg=project[extras,mpi,nvidia,tests]</span>
 </pre></div>
 </div>
 <p>Additional dependencies:</p>
 <ul class="simple">
 <li><p>extras : optional dependencies for Jupyter notebooks, plotting, benchmarking</p></li>
+<li><p>tests : optional dependencies required for testing infrastructure</p></li>
 <li><p>mpi : optional dependencies for MPI (mpi4py)</p></li>
 <li><p>nvidia : optional dependencies for targetting GPU deployment</p></li>
 </ul>
@@ -147,7 +148,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>devito
 <p>and finally, install Devito along with any extra dependencies:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>devito
 <span class="c1"># ... or to install additional dependencies</span>
-<span class="c1"># pip install devito[extras,mpi,nvidia]</span>
+<span class="c1"># pip install devito[extras,mpi,nvidia,tests]</span>
 </pre></div>
 </div>
 </section>
@@ -162,7 +163,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>devito
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install requirements</span>
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 <span class="c1"># ...or to install additional dependencies</span>
-<span class="c1"># pip install -e .[extras,mpi,nvidia]</span>
+<span class="c1"># pip install -e .[extras,mpi,nvidia,tests]</span>
 </pre></div>
 </div>
 </section>
