@@ -200,5 +200,5 @@ class XDSLOperator(Operator):
         from xdsl.printer import Printer
         from io import StringIO
         file = StringIO()
-        Printer(file, target=Printer.Target.MLIR).print(self._module)
+        Printer(file).print(self._module)
         return file.getvalue()

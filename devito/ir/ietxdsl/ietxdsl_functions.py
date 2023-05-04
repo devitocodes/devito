@@ -273,7 +273,7 @@ def myVisit(node, block: Block, ssa_vals={}):
         return
 
     if isinstance(node, nodes.Expression):
-        b = Block.from_arg_types([i32])
+        b = Block([i32])
         r = []
         expr = node.expr
         if node.init:

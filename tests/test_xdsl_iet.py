@@ -23,9 +23,9 @@ def test_ops_accessor_II():
     # Operation to add these constants
     c = Addi.get(a, b)
 
-    block0 = Block.from_ops([a, b, c])
+    block0 = Block([a, b, c])
     # Create a region to include a, b, c
-    region = Region.from_block_list([block0])
+    region = Region([block0])
 
     assert len(region.ops) == 3
     assert len(region.blocks[0].ops) == 3
@@ -138,7 +138,7 @@ def test_callable():
     # Operation to add these constants
     c = Addi.get(a, b)
 
-    block0 = Block.from_ops([a, b, c])
+    block0 = Block([a, b, c])
 
     mod = ModuleOp.from_region_or_ops([
         Callable.get(
