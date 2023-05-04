@@ -20,7 +20,7 @@ def _generate_subindices(subindices: int, block: Block,
     # generate the new indices
     for i in range(subindices):
         offset = arith.Constant.from_int_and_width(i, builtin.i64)
-        index_off = arith.Addi.get(block.args[0], offset)
+        index_off = arith.Addi(block.args[0], offset)
         index = arith.RemSI.get(index_off, modulo)
 
         new_ops += [
@@ -31,7 +31,7 @@ def _generate_subindices(subindices: int, block: Block,
         # replace block.args[i+1] with (arg0 + i) % n
         arg_changes.append((block.args[i + 1], index.result))
 
-    rewriter.insert_op_at_pos(new_ops, block, 0)
+    rewriter.insert_op_at_start(new_ops, block)
 
     for old, new in arg_changes:
         old.replace_by(new)
@@ -87,10 +87,9 @@ class ConvertForLoopVarToIndex(RewritePattern):
             loop_var.typ = builtin.IndexType()
             # insert a cast from index to i64 at the start of the loop
 
-            rewriter.insert_op_at_pos(
+            rewriter.insert_op_at_start(
                 i64_val := arith.IndexCastOp.get(loop_var, builtin.i64),
                 block,
-                0,
             )
 
             loop_var.replace_by(i64_val.result)
@@ -110,11 +109,11 @@ class LowerIetForToScfFor(RewritePattern):
 
         _generate_subindices(op.subindices.data, body, rewriter)
 
-        rewriter.insert_op_at_pos(scf.Yield(), body, len(body.ops))
+        rewriter.insert_op_at_end(scf.Yield.get(), body)
 
         rewriter.replace_matched_op([
             cst1   := arith.Constant.from_int_and_width(1, builtin.IndexType()),
-            new_ub := arith.Addi.get(op.ub, cst1),
+            new_ub := arith.Addi(op.ub, cst1),
             scf.For.get(op.lb, new_ub.result, op.step, [], body)
         ])
         new_ub.result.name = op.ub.name

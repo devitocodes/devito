@@ -39,7 +39,7 @@ class ExtractDevitoStencilConversion:
             return func.FuncOp.external(eq.lhs.name, [], [builtin.i32])
         assert isinstance(eq.lhs, Indexed)
 
-        outermost_block = Block.from_arg_types([])
+        outermost_block = Block([])
         self.block = outermost_block
 
         function = eq.lhs.function
@@ -91,14 +91,14 @@ class ExtractDevitoStencilConversion:
         assert all(o == 0 for o in offsets[1:]), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(
-            stencil.ReturnOp.get(rhs_result)
+            stencil.ReturnOp.get([rhs_result])
         )
         outermost_block.add_op(
-            func.Return()
+            func.Return.get()
         )
 
         return func.FuncOp.from_region('myfunc', [], [],
-                                       Region.from_block_list([outermost_block]))
+                                       Region([outermost_block]))
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
         if isinstance(node, Indexed):
@@ -233,9 +233,9 @@ class ExtractDevitoStencilConversion:
         return loop
 
     def convert(self) -> builtin.ModuleOp:
-        return builtin.ModuleOp.from_region_or_ops(
-            Region.from_block_list([
-                Block.from_ops([
+        return builtin.ModuleOp(
+            Region([
+                Block([
                     self._convert_eq(eq) for eq in self.eqs
                 ])
             ])
@@ -527,7 +527,7 @@ def generate_launcher_base(module: builtin.ModuleOp,
         _LowerLoadSymbolidToFuncArgs(),
     ])
     PatternRewriteWalker(grpa).rewrite_module(module)
-    f = module.ops[0]
+    f = module.ops.first
     assert isinstance(f, func.FuncOp)
     dtype: str = f.function_type.inputs.data[0].element_type.element_type.name
 

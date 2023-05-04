@@ -60,7 +60,7 @@ def transform_devito_xdsl_string(op: Operator):
         prefix = '-'.join(op.prefix)
         retval = str(op.retval)
         # import pdb;pdb.set_trace()
-        b = Block.from_arg_types([i32] * len(op_param_names))
+        b = Block([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
 
         # Add Allocs
@@ -124,8 +124,8 @@ def _op_to_func(op: Operator):
 
     # Game is here we start a dict from op params, focus
     arg_types = get_arg_types(op.parameters)
-    # b = Block.from_arg_types([i32] * len(op_param_names))
-    block = Block.from_arg_types(arg_types)
+    # b = Block([i32] * len(op_param_names))
+    block = Block(arg_types)
     ssa_val_dict = {param._C_name: val for param, val in zip(op.parameters, block.args)}
 
     # Add Casts
@@ -145,7 +145,7 @@ def _op_to_func(op: Operator):
     # add a trailing return
     block.add_op(func.Return.get())
 
-    func_op = func.FuncOp.from_region(str(op.name), arg_types, [], Region.from_block_list([block]))
+    func_op = func.FuncOp.from_region(str(op.name), arg_types, [], Region([block]))
 
     func_op.attributes['param_names'] = builtin.ArrayAttr([
         builtin.StringAttr(str(param._C_name)) for param in op.parameters
@@ -174,7 +174,7 @@ def transform_devito_to_iet_ssa(op: Operator):
         prefix = '-'.join(op.prefix)
         retval = str(op.retval)
         # import pdb;pdb.set_trace()
-        b = Block.from_arg_types([i32] * len(op_param_names))
+        b = Block([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
 
         # Add Allocs

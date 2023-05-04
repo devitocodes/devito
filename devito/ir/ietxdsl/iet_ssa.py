@@ -11,8 +11,8 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr, I
 from xdsl.dialects import arith, builtin, memref, llvm
 from xdsl.dialects.experimental import stencil
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand
-from xdsl.ir import MLContext, Operation, Block, Region, OpResult, SSAValue, Attribute, Dialect
+from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand, IRDLOperation
+from xdsl.ir import MLContext, Block, Region, OpResult, SSAValue, Attribute, Dialect
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
@@ -78,7 +78,7 @@ class Dataobj(ParametrizedAttribute):
 
 
 @irdl_op_definition
-class Modi(Operation):
+class Modi(IRDLOperation):
     name: str = "iet.modi"
     input1: Annotated[Operand, signlessIntegerLike]
     input2: Annotated[Operand, signlessIntegerLike]
@@ -97,7 +97,7 @@ class Modi(Operation):
 
 
 @irdl_op_definition
-class Powi(Operation):
+class Powi(IRDLOperation):
     name: str = "iet.Powi"
     base: Annotated[Operand, signlessIntegerLike]
     exponent: Annotated[Operand, signlessIntegerLike]
@@ -116,7 +116,7 @@ class Powi(Operation):
 
 
 @irdl_op_definition
-class Initialise(Operation):
+class Initialise(IRDLOperation):
     name: str = "iet.initialise"
 
     lhs: Annotated[OpResult, Attribute]
@@ -134,7 +134,7 @@ class Initialise(Operation):
         return res
 
 @irdl_op_definition
-class PointerCast(Operation):
+class PointerCast(IRDLOperation):
     name: str = "iet.pointercast"
     statement: OpAttr[StringAttr]
     shape_indices: OpAttr[ArrayAttr[IntAttr]]
@@ -154,7 +154,7 @@ class PointerCast(Operation):
 
 
 @irdl_op_definition
-class Statement(Operation):
+class Statement(IRDLOperation):
     name: str = "iet.comment"
     statement: OpAttr[StringAttr]
 
@@ -167,7 +167,7 @@ class Statement(Operation):
 
 
 @irdl_op_definition
-class StructDecl(Operation):
+class StructDecl(IRDLOperation):
     name: str = "iet.structdecl"
     id: OpAttr[StringAttr]
     fields: OpAttr[Attribute]
@@ -193,7 +193,7 @@ class StructDecl(Operation):
 
 
 @irdl_op_definition
-class Callable(Operation):
+class Callable(IRDLOperation):
     name: str = "iet.callable"
 
     body: Region
@@ -229,11 +229,11 @@ class Callable(Operation):
             StringAttr(retval),
             "prefix":
             StringAttr(prefix)
-        }, regions=[Region.from_block_list([body])])
+        }, regions=[Region([body])])
 
 
 @irdl_op_definition
-class Call(Operation):
+class Call(IRDLOperation):
     name: str = "iet.call"
 
     call_name: OpAttr[StringAttr]
@@ -268,7 +268,7 @@ class Call(Operation):
 
 # TODO: remove
 @irdl_op_definition
-class Iteration(Operation):
+class Iteration(IRDLOperation):
     name: str = "iet.iteration"
 
     body: Region
@@ -295,12 +295,12 @@ class Iteration(Operation):
             "pragmas":
             ArrayAttr([StringAttr(str(p)) for p in pragmas]),
             "arg_name": StringAttr(str(arg_name))
-        }, regions=[Region.from_block_list([body])])
+        }, regions=[Region([body])])
 
 
 # TODO: remove
 @irdl_op_definition
-class IterationWithSubIndices(Operation):
+class IterationWithSubIndices(IRDLOperation):
     name: str = "iet.iteration_with_subindices"
 
     arg_name: OpAttr[StringAttr]
@@ -343,12 +343,12 @@ class IterationWithSubIndices(Operation):
             ArrayAttr([StringAttr(str(p)) for p in pragmas]),
             "arg_name":
             StringAttr(str(arg))
-        }, regions=[Region.from_block_list([body])])
+        }, regions=[Region([body])])
 
 
 
 @irdl_op_definition
-class For(Operation):
+class For(IRDLOperation):
     name: str = "iet.for"
 
     lb: Annotated[Operand, IndexType]
@@ -393,8 +393,8 @@ class For(Operation):
         if pragmas is None:
             pragmas = []
 
-        body = Region.from_block_list([Block.from_arg_types(
-            [builtin.i64] * (subindices + 1)
+        body = Region([Block(
+            arg_types=[builtin.i64] * (subindices + 1)
         )])
         body.blocks[0].args[0].name = loop_var_name
         for i in range(subindices):
@@ -413,7 +413,7 @@ class For(Operation):
 
 
 @irdl_op_definition
-class Stencil(Operation):
+class Stencil(IRDLOperation):
     """
     Represents a cluster of expressions that should then be translated to a stencil.
     """
@@ -449,7 +449,8 @@ class Stencil(Operation):
         *inputs, output = time_indices
         assert len(time_indices) == time_buffers
 
-        block = Block.from_arg_types([
+        block = Block(
+            arg_types=[
             stencil.TempType.from_shape([-1] * len(inputs), typ)
         ] * (time_buffers - 1))
 
@@ -467,12 +468,12 @@ class Stencil(Operation):
                 'time_buffers': IntegerAttr(time_buffers, 64),
                 'field_type': typ
             },
-            regions=[Region.from_block_list([block])]
+            regions=[Region([block])]
         )
 
 
 @irdl_op_definition
-class LoadSymbolic(Operation):
+class LoadSymbolic(IRDLOperation):
     name = "devito.load_symbolic"
     symbol_name: OpAttr[StringAttr]
 
@@ -489,7 +490,7 @@ class LoadSymbolic(Operation):
 
 
 @irdl_op_definition
-class GetField(Operation):
+class GetField(IRDLOperation):
     name = "devito.get_field"
 
     data: Annotated[Operand, memref.MemRefType[stencil.FieldType]]
