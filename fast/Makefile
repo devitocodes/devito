@@ -42,7 +42,7 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 # it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
 # these are passed in as OUTFILE_NAME and INFILE_NAME
 %.interop.o: interop.c
-	gcc -O3 -c interop.c -o $@ -DOUTFILE_NAME='"'$(patsubst %.interop.o,%.stencil.data,$@)'"' -DINFILE_NAME='"'$(patsubst %.interop.o,%.input.data,$@)'"'
+	clang -O3 -c interop.c -o $@ -DOUTFILE_NAME='"'$(patsubst %.interop.o,%.stencil.data,$@)'"' -DINFILE_NAME='"'$(patsubst %.interop.o,%.input.data,$@)'"'
 
 # this compiles the kernel to gpu code
 # here we choose the pipeline to use
