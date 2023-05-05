@@ -180,6 +180,10 @@ struct i8_memref_r_1 load_input(size_t length) {
   return load_memref(INFILE_NAME, length);
 }
 
+void print_i32(int n)
+{
+  printf("%d\n", n);
+}
 
 i64 timer_start() {
   // return epoch in ms

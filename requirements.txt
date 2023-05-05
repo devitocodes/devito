@@ -18,5 +18,5 @@ distributed<2022.10
 pytest>=3.6,<8.0
 pytest-runner
 pytest-cov
-xdsl~=0.12
+xdsl>=0.11
 frozenlist<=1.4
