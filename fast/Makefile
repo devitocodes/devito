@@ -15,7 +15,7 @@ else
 CFLAGS += -fopenmp
 endif
 
-MEMREF_TO_LLVM_PASS ?= convert-memref-to-llvm
+MEMREF_TO_LLVM_PASS ?= finalize-memref-to-llvm
 
 # No openmp pipeline
 # CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion,  canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
