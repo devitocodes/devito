@@ -72,32 +72,3 @@ def diag(func, size=None):
     comps = [[func if i == j else 0 for i in range(dim)] for j in range(dim)]
     return tens_func(name='diag', grid=func.grid, space_order=func.space_order,
                      components=comps, time_order=to, diagonal=True)
-
-
-def S(func, shift=None):
-    """
-    Applies the transposed derivative Matrix D to the input function.
-    
-    Parameters
-    ----------
-    func : VectorTimeFunction
-    
-    """
-    try:
-        return func.S(shift=shift)
-    except AttributeError:
-        return 0
-
-def D(func, shift=None):
-    """
-    Applies the transposed derivative Matrix D to the input function.
-    
-    Parameters
-    ----------
-    func : VectorTimeFunction
-    
-    """
-    try:
-        return func.D(shift=shift)
-    except AttributeError:
-        return 0
