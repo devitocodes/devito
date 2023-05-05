@@ -34,3 +34,8 @@ def get_runtimes_for_size(size : int):
 
 
 runtimes = [get_runtimes_for_size(size) for size in sizes]
+
+with  open(f"{benchmark}_bench_grid_size.csv", "w") as f:
+    f.write("#GridSize\txDSL\tDevito\n")
+    for runtime in runtimes:
+        f.write(f"{runtime[0]},{runtime[1]},{runtime[2]}\n")
