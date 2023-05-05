@@ -52,13 +52,7 @@ class Cluster(object):
 
         # Normalize properties
         properties = Properties(properties or {})
-        for d in ispace.itdimensions:
-            properties = properties.add(d)
-        for i in properties:
-            for d in as_tuple(i):
-                if d not in ispace.itdimensions:
-                    properties = properties.drop(d)
-        self._properties = properties
+        self._properties = tailor_properties(properties, ispace)
 
         self._halo_scheme = halo_scheme
 
@@ -85,10 +79,7 @@ class Cluster(object):
 
         guards = root.guards
 
-        properties = {}
-        for c in clusters:
-            for d, v in c.properties.items():
-                properties[d] = normalize_properties(properties.get(d, v), v)
+        properties = reduce_properties(clusters)
 
         try:
             syncs = normalize_syncs(*[c.syncs for c in clusters])
@@ -431,6 +422,10 @@ class ClusterGroup(tuple):
         return self._ispace
 
     @cached_property
+    def properties(self):
+        return tailor_properties(reduce_properties(self), self.ispace)
+
+    @cached_property
     def guards(self):
         """The guards of each Cluster in self."""
         return tuple(i.guards for i in self)
@@ -473,3 +468,26 @@ class ClusterGroup(tuple):
             The data type and the data space of the ClusterGroup.
         """
         return (self.dtype, self.dspace)
+
+
+# *** Utils
+
+def reduce_properties(clusters):
+    properties = {}
+    for c in clusters:
+        for d, v in c.properties.items():
+            properties[d] = normalize_properties(properties.get(d, v), v)
+
+    return Properties(properties)
+
+
+def tailor_properties(properties, ispace):
+    for d in ispace.itdimensions:
+        properties = properties.add(d)
+
+    for i in properties:
+        for d in as_tuple(i):
+            if d not in ispace.itdimensions:
+                properties = properties.drop(d)
+
+    return properties
