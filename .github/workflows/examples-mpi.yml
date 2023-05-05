@@ -7,6 +7,10 @@ env:
   OUTPUT_PATH: ${{ github.workspace }}
   ENVHOME: "/home/devito/environments"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   # Trigger the workflow on push or pull request,
   # but only for the master branch

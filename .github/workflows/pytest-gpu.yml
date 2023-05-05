@@ -5,6 +5,10 @@
 
 name: CI-gpu
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   OUTPUT_PATH: ${{ github.workspace }}
   RESOURCE_GROUP: CI-gpu
