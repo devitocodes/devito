@@ -26,6 +26,8 @@ parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 
 parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
+parser.add_argument("-nd", "--no_dump", default=False, action='store_true')
+
 args = parser.parse_args()
 
 BENCH_NAME = __file__.split('.')[0]
@@ -112,5 +114,9 @@ res_data: np.array = u.data[t1, :, :, :]
 
 
 datafile = '.devito.data'
-info("Save result data to " + BENCH_NAME + datafile)
-res_data.tofile(BENCH_NAME + datafile)
+if(args.no_dump):
+    info("Skipping result data saving.")
+else:
+    info("Save result data to " + BENCH_NAME + ".devito.data")
+    res_data.tofile(BENCH_NAME + '.devito.data')
+

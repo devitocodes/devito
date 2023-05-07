@@ -100,11 +100,17 @@ MEMREF_STRUCT_DEF(i64, 3)
 
 // dumping memref macros:
 
+#if NODUMP
 #define DUMP_MEMREF(fname, name, dtype, rank) {\
-    FILE* f = fopen(fname,"w");\
-    fwrite(name.aligned, sizeof(dtype), 1 UNPACK_NO_COMMA_REP ## rank(* name.sizes), f);\
-    fclose(f);\
 }
+#else
+#define DUMP_MEMREF(fname, name, dtype, rank)                                         \
+  {                                                                                   \
+    FILE *f = fopen(fname, "w");                                                      \
+    fwrite(name.aligned, sizeof(dtype), 1 UNPACK_NO_COMMA_REP##rank(*name.sizes), f); \
+    fclose(f);                                                                        \
+  }
+#endif
 
 // linearized accesses:
 

@@ -22,6 +22,7 @@ parser.add_argument("-nt", "--nt", default=10,
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-xdsl", "--xdsl", default=False, action='store_true')
+parser.add_argument("-nd", "--no_dump", default=False, action='store_true')
 args = parser.parse_args()
 
 BENCH_NAME = __file__.split('.')[0]
@@ -88,6 +89,8 @@ orig_norm = norm(u)
 t1 = (nt + u._time_size - 1) % (2)
 
 res_data: np.array = u.data[t1, :, :]
-
-info("Save result data to " + BENCH_NAME + ".devito.data")
-res_data.tofile(BENCH_NAME + '.devito.data')
+if(args.no_dump):
+    info("Skipping result data saving.")
+else:
+    info("Save result data to " + BENCH_NAME + ".devito.data")
+    res_data.tofile(BENCH_NAME + '.devito.data')
