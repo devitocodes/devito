@@ -25,14 +25,20 @@ csv_name = f"{benchmark}_grid_runtimes.csv"
 
 def get_runtimes_for_size(size : tuple[int, ...]) -> tuple[tuple[int, ...], float, float]:
     print(f"Running for grid size {size} (total: {prod(size)})")
-    wrap = os.popen(f'OMP_NUM_THREADS=1 OMP_PLACES=threads make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1')
-    out = wrap.read()
-    lines = out.split("\n")
-    xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
-    devito_line = next(line for line in lines if line.startswith("Operator `Kernel` ran in"))
+    cmd = f'OMP_NUM_THREADS=1 OMP_PLACES=threads make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1'
+    try:
+        wrap = os.popen(cmd)
+        out = wrap.read()
+        lines = out.split("\n")
+        xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
+        devito_line = next(line for line in lines if line.startswith("Operator `Kernel` ran in"))
 
-    pair = (size, float(xdsl_line.split(" ")[-2]), float(devito_line.split(" ")[-2]))
-    print(f"Gridsize:  {pair[0]} : xDSL time: {pair[1]}, Devito time: {pair[2]}")
+        pair = (size, float(xdsl_line.split(" ")[-2]), float(devito_line.split(" ")[-2]))
+        print(f"Gridsize:  {pair[0]} : xDSL time: {pair[1]}, Devito time: {pair[2]}")
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
+        raise e
     return pair
 
 runtimes: list [tuple[tuple[int, ...], float, float]] = []
