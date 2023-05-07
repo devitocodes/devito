@@ -21,6 +21,7 @@ if benchmark not in dims:
     sys.exit(1)
 
 size = [init_size] * dims[benchmark]
+csv_name = f"{benchmark}_grid_runtimes.csv"
 
 def get_runtimes_for_size(size : tuple[int, ...]) -> tuple[tuple[int, ...], float, float]:
     print(f"Running for grid size {size} (total: {prod(size)})")
@@ -36,15 +37,12 @@ def get_runtimes_for_size(size : tuple[int, ...]) -> tuple[tuple[int, ...], floa
 
 runtimes: list [tuple[tuple[int, ...], float, float]] = []
 next_mul = len(size) -1
-while prod(size) <= max_size:
-    runtimes.append(get_runtimes_for_size(tuple(size)))
-    size[next_mul] *= 2
-    next_mul = (next_mul -1)%len(size)
-
-
-csv_name = f"{benchmark}_grid_runtimes.csv"
 
 with  open(csv_name, "w") as f:
     f.write("Grid Size,Devito/xDSL,Devito/GCC\n")
-    for runtime in runtimes:
+
+    while prod(size) <= max_size:
+        runtime = get_runtimes_for_size(tuple(size))
         f.write(f"{','.join(str(r) for r in runtime[0])},{runtime[1]},{runtime[2]}\n")
+        size[next_mul] *= 2
+        next_mul = (next_mul -1)%len(size)
