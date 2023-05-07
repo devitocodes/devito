@@ -25,7 +25,7 @@ csv_name = f"{benchmark}_grid_runtimes.csv"
 
 def get_runtimes_for_size(size : tuple[int, ...]) -> tuple[tuple[int, ...], float, float]:
     print(f"Running for grid size {size} (total: {prod(size)})")
-    wrap = os.popen(f'OMP_NUM_THREADS=32 OMP_PLACES=threads make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu 2>&1')
+    wrap = os.popen(f'OMP_NUM_THREADS=1 OMP_PLACES=threads make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1')
     out = wrap.read()
     lines = out.split("\n")
     xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
