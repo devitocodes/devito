@@ -568,9 +568,9 @@ def generate_launcher_base(module: builtin.ModuleOp,
 
         func.call @dump_memref_{dtype}_rank_{rank}(%t{last_time_m}) : (memref<{memref_type}>) -> ()
 
-        func.return
+        func.return %cst0 : index
 
-    }}) {{"function_type" = () -> (), "sym_name" = "main"}} : () -> ()
+    }}) {{"function_type" = () -> (index), "sym_name" = "main"}} : () -> ()
 
     func.func private @dump_memref_{dtype}_rank_{rank}(memref<{memref_type}>) -> ()
     func.func private @load_input(index) -> memref<{size_in_bytes}xi8>
