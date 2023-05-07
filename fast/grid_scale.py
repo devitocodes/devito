@@ -6,13 +6,13 @@ import sys, os
 import matplotlib.pyplot as plt
 import numpy as np
 
-if len(sys.argv) != 4:
-    print(f"usage: {sys.argv[0]} <benchmark> <initial (1D) size> <maximum (total) size>")
+if len(sys.argv) < 3 or len(sys.argv) > 4:
+    print(f"usage: {sys.argv[0]} <benchmark> <initial (1D) size> [maximum (total) size, defaulting to 2048^3]")
     sys.exit(1)
 
 benchmark = sys.argv[1]
 init_size = int(sys.argv[2])
-max_size = int(sys.argv[3])
+max_size = int(sys.argv[3]) if len(sys.argv) == 4 else 2048**3
 
 if benchmark not in dims:
     print(
