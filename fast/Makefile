@@ -24,8 +24,8 @@ MEMREF_TO_LLVM_PASS ?= finalize-memref-to-llvm
 
 # No openmp pipeline
 # CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion,  canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
-CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, convert-scf-to-cf, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, convert-func-to-llvm, convert-cf-to-llvm{index-bitwidth=64}, expand-strided-metadata,$(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, reconcile-unrealized-casts, canonicalize, cse)"
-
+CPU_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
+OPENMP_PIPELINE := "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
 GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
 
 XDSL_CPU_PIPELINE := stencil-shape-inference,convert-stencil-to-ll-mlir
@@ -37,6 +37,9 @@ PIPELINE = $(GPU_PIPELINE)
 XDSL_PIPE = $(XDSL_GPU_PIPELINE)
 else ifeq ($(MODE),cpu)
 PIPELINE = $(CPU_PIPELINE)
+XDSL_PIPE = $(XDSL_CPU_PIPELINE)
+else ifeq ($(MODE),openmp)
+PIPELINE = $(OPENMP_PIPELINE)
 XDSL_PIPE = $(XDSL_CPU_PIPELINE)
 endif
 
@@ -68,7 +71,7 @@ endif
 
 
 %.kernel.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
+	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native -mtune=native
 
 	
 # this compiles the main file to object
