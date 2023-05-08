@@ -6,14 +6,16 @@ import numpy as np
 
 dims = {"2d5pt": 2, "3d_diff": 3}
 
-if len(sys.argv) != 2:
-    print(f"usage: {sys.argv[0]} <benchmark>")
+if len(sys.argv) < 2 or len(sys.argv) > 3:
+    print(f"usage: {sys.argv[0]} <benchmark> [first]")
+    print("plot data starting from the 0-indexed [first] line, defaulting to 0.")
     sys.exit(1)
 
 benchmark = sys.argv[1]
+first = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 
 csv_name = f"{benchmark}_grid_runtimes.csv"
-svg_name = f"{benchmark}_grid_runtimes.svg"
+svg_name = f"devito_{benchmark}_probsize_cpu.svg"
 
 def human_format(number: int):
     units = ['', 'K', 'M', 'G', 'T', 'P']
@@ -35,7 +37,7 @@ try:
             runtimes = [float(t) for t in split[dims[benchmark]:]]
             return (size, runtimes)
             # runtimes = 
-        lines = list(map(split_line, lines[1:]))
+        lines = list(map(split_line, lines[1+first:]))
 
         species: list[tuple[int, ...]] = []
         values:dict[str, list[float]] = {}
@@ -64,6 +66,7 @@ try:
         ax.set_xlabel(x_label) # type: ignore
         ax.set_xticks(x + width, species)
         ax.legend(loc="upper left", ncols=3) #type: ignore
+        fig.autofmt_xdate()
 
         plt.savefig(svg_name, format="svg") #type: ignore
         plt.show() #type: ignore
