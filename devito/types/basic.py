@@ -1197,8 +1197,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
         # Indices after substitutions
-        indices = [sympy.sympify((a - o).xreplace(s)) for a, o, s in
-                   zip(self.args, self.origin, subs)]
+        indices = [sympy.sympify(a.subs(d, d - o).xreplace(s)) for a, d, o, s in
+                   zip(self.args, self.dimensions, self.origin, subs)]
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
         return self.indexed[indices]
