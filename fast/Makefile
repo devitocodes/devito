@@ -12,7 +12,7 @@ DUMP ?= 1
 # handle gpu flags for clang
 ifeq ($(MODE),gpu)
 CFLAGS += -lmlir_cuda_runtime
-else
+else ifeq ($(MODE),openmp)
 CFLAGS += -fopenmp
 endif
 
@@ -30,6 +30,15 @@ GPU_PIPELINE := "builtin.module(test-math-algebraic-simplification,scf-parallel-
 
 XDSL_CPU_PIPELINE := stencil-shape-inference,convert-stencil-to-ll-mlir
 XDSL_GPU_PIPELINE := stencil-shape-inference,convert-stencil-to-gpu
+
+# handle gpu flags for clang
+ifeq ($(MODE),gpu)
+PIPELINE = $(GPU_PIPELINE)
+XDSL_PIPE = $(XDSL_GPU_PIPELINE)
+else ifeq ($(MODE),cpu)
+PIPELINE = $(CPU_PIPELINE)
+XDSL_PIPE = $(XDSL_CPU_PIPELINE)
+endif
 
 MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"
 
@@ -56,25 +65,18 @@ endif
 %.interop.o: interop.c
 	clang -O3 -c interop.c -o $@ $(CFLAGS) -DOUTFILE_NAME='"'$(patsubst %.interop.o,%.stencil.data,$@)'"' -DINFILE_NAME='"'$(patsubst %.interop.o,%.input.data,$@)'"'
 
-# this compiles the kernel to gpu code
-# here we choose the pipeline to use
-%.gpu.o : PIPELINE = $(GPU_PIPELINE) 
-%.gpu.o : XDSL_PIPE = $(XDSL_GPU_PIPELINE)
-%.gpu.o: %.mlir 
+
+
+%.kernel.o: %.mlir 
 	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 
-# this compiles the kernel to cpu
-%.cpu.o: PIPELINE = $(CPU_PIPELINE) 
-%.cpu.o: XDSL_PIPE = $(XDSL_CPU_PIPELINE)
-%.cpu.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 	
 # this compiles the main file to object
 %.main.o: %.main.mlir
 	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 
 # this assembles all object files
-%.out: %.main.o %.$(MODE).o %.interop.o
+%.out: %.main.o %.kernel.o %.interop.o
 	$(NIXOS_CLANG_PREFIX) $(CC) $(CFLAGS) $^ -o $@
 
 # this runs the <name>.out file to get the stencil result data
