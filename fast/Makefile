@@ -8,13 +8,7 @@ CFLAGS = -O3
 # might be extended to omp and others as well
 MODE ?= cpu
 DUMP ?= 1
-
-# handle gpu flags for clang
-ifeq ($(MODE),gpu)
-CFLAGS += -lmlir_cuda_runtime
-else ifeq ($(MODE),openmp)
-CFLAGS += -fopenmp
-endif
+THREADS ?= 1
 
 ifeq ($(DUMP),0)
 CFLAGS += -DNODUMP
@@ -33,12 +27,16 @@ XDSL_GPU_PIPELINE := stencil-shape-inference,convert-stencil-to-gpu
 
 # handle gpu flags for clang
 ifeq ($(MODE),gpu)
+CFLAGS += -lmlir_cuda_runtime
 PIPELINE = $(GPU_PIPELINE)
 XDSL_PIPE = $(XDSL_GPU_PIPELINE)
 else ifeq ($(MODE),cpu)
 PIPELINE = $(CPU_PIPELINE)
 XDSL_PIPE = $(XDSL_CPU_PIPELINE)
 else ifeq ($(MODE),openmp)
+STENCIL_ENV = OMP_PLACES=threads OMP_NUM_THREADS=$(THREADS)
+DEVITO_ENV = DEVITO_LANGUAGE=openmp $(STENCIL_ENV)
+CFLAGS += -fopenmp
 PIPELINE = $(OPENMP_PIPELINE)
 XDSL_PIPE = $(XDSL_CPU_PIPELINE)
 endif
@@ -52,15 +50,16 @@ BENCH_OPTS_EXTRA = --no_dump
 endif
 
 
+
 # this creates the devito data. afaik devito requires gcc for this on my machine. Probably nixos related :S
 # it calls the example script with the bench options, meaning it runs normal devito
 %.devito.data %.input.data: CC = gcc
 %.devito.data %.input.data: %.py 
-	DEVITO_LOGGING=DEBUG OMP_PLACES=threads python3 $< $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
+	$(DEVITO_ENV) python3 $< $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
 %.mlir %.main.mlir: %.py
-	OMP_PLACES=threads python3 $< $(BENCH_OPTS) -xdsl
+	$(DEVITO_ENV) python3 $< $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
 
 # this compiles the specific interop file to read/write the in/out files
 # it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
@@ -85,7 +84,7 @@ endif
 # this runs the <name>.out file to get the stencil result data
 # TODO: Do not forget to get thread pinning right
 %.stencil.data: %.out %.input.data
-	./$<
+	$(STENCIL_ENV) ./$<
 
 ifeq ($(DUMP),0)
 %.bench: %.stencil.data %.devito.data
