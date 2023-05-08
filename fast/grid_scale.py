@@ -25,7 +25,7 @@ csv_name = f"{benchmark}_grid_runtimes.csv"
 
 def get_runtimes_for_size(size : tuple[int, ...]) -> tuple[tuple[int, ...], float, float]:
     print(f"Running for grid size {size} (total: {prod(size)})")
-    cmd = f'OMP_NUM_THREADS=1 OMP_PLACES=threads make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1'
+    cmd = f'make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1'
     try:
         wrap = os.popen(cmd)
         out = wrap.read()
