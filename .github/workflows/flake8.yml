@@ -1,5 +1,9 @@
 name: Flake8
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
    # Trigger the workflow on push or pull request,
    # but only for the master branch
