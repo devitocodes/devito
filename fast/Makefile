@@ -70,7 +70,7 @@ endif
 
 
 %.kernel.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native -mtune=native
+	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native -mtune=native $(CFLAGS)
 
 	
 # this compiles the main file to object
