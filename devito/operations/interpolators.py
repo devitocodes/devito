@@ -188,9 +188,16 @@ class LinearInterpolator(GenericInterpolator):
                 condition = sympy.And(lb, ub, evaluate=False)
                 mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
                                                  condition=condition, indirect=True)
-
+            # Apply mapper to each variable with origin correction before the
+            # dimension get replaced.
+            vmapper = {}
+            for v in variables:
+                try:
+                    vmapper[v] = v.subs({k: c - v.origin[k] for k, c in mapper.items()})
+                except KeyError:
+                    vmapper[v] = v.subs(mapper)
             # Track Indexed substitutions
-            idx_subs.append(mapper)
+            idx_subs.append(vmapper)
 
         # Temporaries for the position
         temps = [Eq(v, k, implicit_dims=implicit_dims)
