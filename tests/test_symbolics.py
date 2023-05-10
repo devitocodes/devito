@@ -9,7 +9,7 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos, Min, Max)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
-                              CallFromPointer, Cast, FieldFromPointer,
+                              CallFromPointer, Cast, FieldFromPointer, INT,
                               FieldFromComposite, IntDiv, ccode, uxreplace)
 from devito.types import Array, Bundle, LocalObject, Object, Symbol as dSymbol
 
@@ -29,6 +29,18 @@ def test_float_indices():
     indices = u.subs({x: 1.0}).indexify().indices[0]
     assert len(indices.atoms(sympy.Float)) == 0
     assert indices == 1
+
+
+def test_func_of_indices():
+    """
+    Test that origin is correctly processed with functions
+    """
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+    u = Function(name="u", grid=grid, space_order=2, staggered=x)
+    us = u.subs({u.indices[0]: INT(Abs(u.indices[0]))})
+    assert us.indices[0] == INT(Abs(x + x.spacing/2))
+    assert us.indexify().indices[0] == INT(Abs(x))
 
 
 @pytest.mark.parametrize('dtype,expected', [
