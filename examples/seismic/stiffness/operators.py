@@ -2,7 +2,7 @@ from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import div, grad, diag, solve
 from examples.seismic import PointSource, Receiver
 from examples.seismic.utils import matriz_init
-from examples.seismic.stiffness.utils import D, S
+from examples.seismic.stiffness.utils import D, S, vec
 
 def iso_elastic_tensor(model):
     def subs3D(lmbda, mu):
@@ -91,7 +91,7 @@ def elastic_stencil(model, v, tau, forward=True):
     rho = 1. / b
 
     C = iso_elastic_tensor(model)
-    tau = tau.vec
+    tau = vec(tau)
     if forward:
 
         pde_v = rho * v.dt - D(tau)

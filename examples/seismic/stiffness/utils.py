@@ -1,4 +1,5 @@
 from devito.types.tensor import tens_func
+import numpy as np
 
 def D(self, shift=None):
     """
@@ -7,7 +8,7 @@ def D(self, shift=None):
     if not self.is_TensorValued:
         raise TypeError("The object must be a Tensor object")
     
-    M = self.tensor if self.shape[0] != self.shape[1] else self
+    M = tensor(self) if self.shape[0] != self.shape[1] else self
 
     comps = []
     func = tens_func(self)
@@ -37,3 +38,37 @@ def S(self, shift=None):
     func = tens_func(self)
 
     return func._new(comp)
+
+def vec(self):
+    if not self.is_TensorValued:
+        raise TypeError("The object must be a Tensor object")
+    if self.shape[0] != self.shape[1]:
+        raise Exception("This object is already represented by its vector form.")
+
+    order = ([(0, 0), (1, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
+        if len(self.space_dimensions) == 3 else [(0, 0), (1, 1), (0, 1)])
+    comp =  [self[o[0],o[1]] for o in order]
+    func = tens_func(self)
+    return func(comp)
+
+def tensor(self):
+    if not self.is_TensorValued:
+        raise TypeError("The object must be a Tensor object")
+    if self.shape[0] == self.shape[1]:
+        raise Exception("This object is already represented by its tensor form.")
+
+    ndim = len(self.space_dimensions)
+    M = np.zeros((ndim, ndim), dtype = np.dtype(object))
+    M[0,0] = self[0]
+    M[1,1] = self[1]
+    if len(self.space_dimensions) == 3:
+        M[2,2] = self[2]
+        M[2,1] = self[3]
+        M[1,2] = self[3]
+        M[2,0] = self[4]
+        M[0,2] = self[4]
+    M[1,0] = self[-1]
+    M[0,1] = self[-1]
+
+    func = tens_func(self)
+    return func._new(M)
