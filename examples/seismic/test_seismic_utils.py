@@ -12,7 +12,6 @@ def not_bcs(bc):
 @pytest.mark.parametrize('nbl, bcs', [
     (20, ("mask", 1)), (0, ("mask", 1)),
     (20, ("damp", 0)), (0, ("damp", 0))
-
 ])
 def test_damp(nbl, bcs):
     shape = (21, 21)
