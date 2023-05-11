@@ -13,10 +13,11 @@ from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
 
-try:
-    import cupy as cp
-except:
-    cp = None
+# try:
+#     from mpi4py import MPI  # noqa
+# except ImportError:
+#     MPI = None
+
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -336,17 +337,22 @@ class CupyAllocator(MemoryAllocator):
     def initialize(cls):
         try:
             import cupy as cp
+            from mpi4py import MPI  # noqa 
+
             cls.lib = cp
             cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
             cls.lib.cuda.set_allocator(cls._mempool.malloc)
+            n_gpu = cls.lib.cuda.runtime.getDeviceCount()
+            if MPI.Is_initialized():
+                rank_local = MPI.COMM_WORLD.Split_type(MPI.COMM_TYPE_SHARED).Get_rank()
+                cls.lib.cuda.runtime.setDevice(rank_local%n_gpu)            
         except:
             cls.lib = None
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
-            raise ImportError("Couldn't find `cupy` to "
-                               "allocate memory")
-        mem_obj = cp.zeros(size, dtype=cp.float64)
+            raise ImportError("Couldn't initialize cupy or MPI elements of alocation")
+        mem_obj = self.lib.zeros(size, dtype=self.lib.float64)
         return mem_obj.data.ptr, (mem_obj,)
 
     def free(self, _):
@@ -453,6 +459,7 @@ def default_allocator(name=None):
 
     Custom allocators may be added with `register_allocator`.
     """
+    return ALLOC_CUPY
     if name is not None:
         try:
             return custom_allocators[name]
