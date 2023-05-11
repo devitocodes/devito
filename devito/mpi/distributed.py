@@ -584,12 +584,25 @@ class CustomTopology(tuple):
     * `(1, '*', 1)`: the wildcard `'*'` tells the runtime to decompose the y
                      Dimension into N chunks
     * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both the
-                       x and y Dimensions into N / 2 chunks respectively.
+                       x and y Dimensions in factors of N, prioritizing the outermost
+                       dimension
+
+    Example:
+    Assuming N=8 and requested topology is `('*', '*', 1)`,
+    since there is no integer K, so that K*K=8, we resort to the closest to
+    the nstars root (square, cubic) that satisfies that the decomposed domains
+    are correctly distributed to the number of processes.
+
+    For N=8
+    * ('*', '*', 1) gives: (3, 2, 1)
+    * ('*', 1, '*') gives: (3, 1, 2)
+    * (1, '*', '*') gives: (1, 3, 2)
+    * ('*','*','*') gives: (2, 3, 1), cubic root of 8 is an integer and thus we
+    start with equal priority.
+    TOFIX: better is (3, 2, 1)
 
     Raises
     ------
-    N must evenly divide the number of `'*'`, otherwise a ValueError exception
-    is raised.
     If the wildcard `'*'` is used, then the CustomTopology can only contain either
     `'*'` or 1's, otherwise a ValueError exception is raised.
 
@@ -608,7 +621,21 @@ class CustomTopology(tuple):
                 raise ValueError("Custom topology must be only 1 or *")
 
             v = input_comm.size // nstars
-            processed = [i if i == 1 else v for i in items]
+
+            # In case more than one stars are present, this routine
+            # will decompose the domain as evenly as possible among the
+            # `star`ed dimensions
+            remprocs = input_comm.size
+            processed = []
+            for i in items:
+                if i == 1:
+                    processed.append(i)
+                elif remprocs % v == 0:
+                    processed.append(v)
+                    remprocs = input_comm.size // v
+                else:
+                    processed.append(remprocs)
+                    remprocs = 1
         else:
             processed = items
 
