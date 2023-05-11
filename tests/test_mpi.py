@@ -180,6 +180,23 @@ class TestDistributor(object):
         assert f2.shape == expected[distributor.myrank]
         assert f2.size_global == f.size_global
 
+    @pytest.mark.parametrize('topology, dist_topology, expected', [
+        (('*', 1, 1), (4, 1, 1), [(4, 15, 15), (4, 15, 15), (4, 15, 15), (3, 15, 15)]),
+        ((1, '*', 1), (1, 4, 1), [(15, 4, 15), (15, 4, 15), (15, 4, 15), (15, 3, 15)]),
+        ((1, 1, '*'), (1, 1, 4), [(15, 15, 4), (15, 15, 4), (15, 15, 4), (15, 15, 3)]),
+        (('*', 1, '*'), (2, 1, 2), [(8, 15, 8), (8, 15, 7), (7, 15, 8), (7, 15, 7)]),
+    ])
+    @pytest.mark.parallel(mode=[4])
+    def test_custom_topology_3d(self, topology, dist_topology, expected):
+        shape = (15, 15, 15)
+
+        # Decompose using a `topology` with stars
+        grid = Grid(shape=shape, topology=topology)
+        f = Function(name='f', grid=grid)
+        distributor = grid.distributor
+        assert distributor.topology == dist_topology
+        assert f.shape == expected[distributor.myrank]
+
 
 class TestFunction(object):
 
