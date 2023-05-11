@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from itertools import combinations, product
 from functools import total_ordering
+from sympy import SympifyError, sympify
 
 from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
@@ -273,6 +274,14 @@ def calculate_nblocks(tree, blockable):
 
 
 def generate_block_shapes(blockable, args, level):
+    # Make sure all params are substitutable (ie cannot raise SympifyError)
+    rargs = {}
+    for k, v in args.items():
+        try:
+            rargs[k] = sympify(v, strict=True)
+        except SympifyError:
+            continue
+
     if not blockable:
         raise ValueError
 
@@ -283,7 +292,7 @@ def generate_block_shapes(blockable, args, level):
     # Generate level-0 block shapes
     level_0 = [d for d, v in mapper.items() if v == 0]
     # Max attemptable block shape
-    max_bs = tuple((d.step, d.symbolic_size.subs(args)) for d in level_0)
+    max_bs = tuple((d.step, d.symbolic_size.subs(rargs)) for d in level_0)
     # Defaults (basic mode)
     ret = [tuple((d.step, v) for d in level_0) for v in options['blocksize-l0']]
     # Always try the entire iteration space (degenerate block)
