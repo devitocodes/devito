@@ -588,18 +588,15 @@ class CustomTopology(tuple):
                        dimension
 
     Example:
-    Assuming N=8 and requested topology is `('*', '*', 1)`,
-    since there is no integer K, so that K*K=8, we resort to the closest to
+    Assuming N=6 and requested topology is `('*', '*', 1)`,
+    since there is no integer K, so that K*K=6, we resort to the closest to
     the nstars root (square, cubic) that satisfies that the decomposed domains
     are correctly distributed to the number of processes.
 
-    For N=8
+    For N=6
     * ('*', '*', 1) gives: (3, 2, 1)
     * ('*', 1, '*') gives: (3, 1, 2)
     * (1, '*', '*') gives: (1, 3, 2)
-    * ('*','*','*') gives: (2, 3, 1), cubic root of 8 is an integer and thus we
-    start with equal priority.
-    TOFIX: better is (3, 2, 1)
 
     Raises
     ------
