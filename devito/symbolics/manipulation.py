@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Pow, Add, Mul, Min, Max
+from sympy import Pow, Add, Mul, Min, Max, SympifyError, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -16,7 +16,8 @@ from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
-           'uxreplace', 'Uxmapper', 'reuse_if_untouched', 'evalrel']
+           'normalize_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
+           'evalrel']
 
 
 def uxreplace(expr, rule):
@@ -267,6 +268,22 @@ def subs_op_args(expr, args):
     which will be substituted into.
     """
     return expr.subs({i.name: args[i.name] for i in expr.free_symbols if i.name in args})
+
+
+def normalize_args(args):
+    """
+    Produce a new `args` dictionary in which only the actually substitutable
+    arguments are retained. This ensures that none of the subsequent substitutions
+    will throw `SympifyError` exceptions.
+    """
+    retval = {}
+    for k, v in args.items():
+        try:
+            retval[k] = sympify(v, strict=True)
+        except SympifyError:
+            continue
+
+    return retval
 
 
 def reuse_if_untouched(expr, args, evaluate=False):
