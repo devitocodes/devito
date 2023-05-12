@@ -16,6 +16,14 @@ from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
 
+class Dummy_input_comm():
+    """
+    Helper class to assist with modelling a communicator with
+    a specific size
+    """
+    def __init__(self, size):
+        self.size = size
+
 
 class TestDistributor(object):
 
@@ -217,6 +225,20 @@ class TestDistributor(object):
         distributor = grid.distributor
         assert distributor.topology == dist_topology
         assert f.shape == expected[distributor.myrank]
+
+    @pytest.mark.parametrize('comm_size, topology, dist_topology', [
+        (6, ('*', 1, '*'), (3, 1, 2)),
+        (6, ('*', '*', 1), (3, 2, 1)),
+        (6, (1, '*', '*'), (1, 3, 2)),
+        (6, ('*', '*', '*'), (2, 3, 1)),
+        (8, ('*', 1, '*'), (4, 1, 2)),
+        (8, ('*', '*', 1), (4, 2, 1)),
+        (8, (1, '*', '*'), (1, 4, 2)),
+    ])
+    def test_custom_topology_3d_dummy(self, comm_size, topology, dist_topology):
+        dummy_comm = Dummy_input_comm(comm_size)
+        custom_topology = CustomTopology(topology, dummy_comm)
+        assert custom_topology == dist_topology
 
 
 class TestFunction(object):
