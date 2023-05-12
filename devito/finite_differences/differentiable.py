@@ -455,7 +455,7 @@ class Mul(DifferentiableOp, sympy.Mul):
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
                     return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
-        except ValueError:
+        except (AttributeError, ValueError):
             pass
 
         return super().__new__(cls, *args, **kwargs)
