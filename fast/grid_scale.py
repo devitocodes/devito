@@ -37,7 +37,7 @@ def get_runtimes_for_size(
         lines = out.split("\n")
         xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
         devito_line = next(
-            line for line in lines if line.startswith("Operator `Kernel` ran in")
+            line for line in lines if line.startswith("Devito finer runtime: ")
         )
 
         pair = (

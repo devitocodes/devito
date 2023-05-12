@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 import numpy as np
 
@@ -48,8 +47,7 @@ def dump_main(grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int
         )
 
 
-def run_operator(eq: Eq, nt: int, dt: float):
-    op = Operator([eq])
+def run_operator(op: Operator, nt: int, dt: float):
     res = op.apply(time_M=nt, a=0.1, dt=dt)
     assert isinstance(res, PerformanceSummary)
     o = res[PerfKey("section0", None)]
@@ -99,21 +97,7 @@ def main(bench_name: str):
     so = args.space_order
     to = args.time_order
 
-    # Initialise u
     init_value = 10
-
-    # # Field initialization
-    # grid = Grid(shape=(nx, ny))
-    # u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
-    # u.data[:, :, :] = 0
-    # u.data[:, int(nx / 2), int(nx / 2)] = init_value
-    # u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
-
-    # # Create an equation with second-order derivatives
-    # a = Constant(name="a")
-    # eq = Eq(u.dt, a * u.laplace + 0.01)
-    # stencil = solve(eq, u.forward)
-    # eq0 = Eq(u.forward, stencil)
 
     grid, u, eq0 = equation_and_time_function(nx, ny, so, to, init_value)
 
@@ -125,19 +109,21 @@ def main(bench_name: str):
         with open(bench_name + ".mlir", "w") as f:
             f.write(xop.mlircode)
     else:
-        run_operator(eq0, nt, dt)
-        # get final data step
-        # this is cursed math, but we assume that:
-        #  1. Every kernel always writes to t1
-        #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
-        #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
-        #  4. time_M is always nt in this example
-        t1 = (nt + u._time_size - 1) % (2)
-
-        res_data: np.array = u.data[t1, :, :]
+        op = Operator([eq0])
+        rt = run_operator(op, nt, dt)
+        print(f"Devito finer runtime: {rt} s")
         if args.no_dump:
             info("Skipping result data saving.")
         else:
+            # get final data step
+            # this is cursed math, but we assume that:
+            #  1. Every kernel always writes to t1
+            #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
+            #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
+            #  4. time_M is always nt in this example
+            t1 = (nt + u._time_size - 1) % (2)
+
+            res_data: np.array = u.data[t1]
             info("Save result data to " + bench_name + ".devito.data")
             res_data.tofile(bench_name + ".devito.data")
 
