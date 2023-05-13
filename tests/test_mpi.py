@@ -16,11 +16,9 @@ from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
 
-class Dummy_input_comm():
-    """
-    Helper class to assist with modelling a communicator with
-    a specific size
-    """
+
+class DummyInputComm():
+    "Helper class for modelling a communicator with a specific size"
     def __init__(self, size):
         self.size = size
 
@@ -188,55 +186,35 @@ class TestDistributor(object):
         assert f2.shape == expected[distributor.myrank]
         assert f2.size_global == f.size_global
 
-    @pytest.mark.parametrize('topology, dist_topology, expected', [
-        (('*', 1, 1), (4, 1, 1), [(4, 15, 15), (4, 15, 15), (4, 15, 15), (3, 15, 15)]),
-        ((1, '*', 1), (1, 4, 1), [(15, 4, 15), (15, 4, 15), (15, 4, 15), (15, 3, 15)]),
-        ((1, 1, '*'), (1, 1, 4), [(15, 15, 4), (15, 15, 4), (15, 15, 4), (15, 15, 3)]),
-        (('*', 1, '*'), (2, 1, 2), [(8, 15, 8), (8, 15, 7), (7, 15, 8), (7, 15, 7)]),
-    ])
-    @pytest.mark.parallel(mode=[4])
-    def test_custom_topology_3d(self, topology, dist_topology, expected):
-        shape = (15, 15, 15)
-
-        # Decompose using a `topology` with stars
-        grid = Grid(shape=shape, topology=topology)
-        f = Function(name='f', grid=grid)
-        distributor = grid.distributor
-        assert distributor.topology == dist_topology
-        assert f.shape == expected[distributor.myrank]
-
-    @pytest.mark.parametrize('topology, dist_topology, expected', [
-        (('*', 1, '*'), (3, 1, 2),
-         [(5, 15, 8), (5, 15, 7), (5, 15, 8), (5, 15, 7), (5, 15, 8), (5, 15, 7)]),
-        (('*', '*', 1), (3, 2, 1),
-         [(5, 8, 15), (5, 7, 15), (5, 8, 15), (5, 7, 15), (5, 8, 15), (5, 7, 15)]),
-        ((1, '*', '*'), (1, 3, 2),
-         [(15, 5, 8), (15, 5, 7), (15, 5, 8), (15, 5, 7), (15, 5, 8), (15, 5, 7)]),
-        (('*', '*', '*'), (2, 3, 1),
-         [(8, 5, 15), (8, 5, 15), (8, 5, 15), (7, 5, 15), (7, 5, 15), (7, 5, 15)])
-    ])
-    @pytest.mark.parallel(mode=[6])
-    def test_custom_topology_3d_v2(self, topology, dist_topology, expected):
-        shape = (15, 15, 15)
-
-        # Decompose using a `topology` with stars
-        grid = Grid(shape=shape, topology=topology)
-        f = Function(name='f', grid=grid)
-        distributor = grid.distributor
-        assert distributor.topology == dist_topology
-        assert f.shape == expected[distributor.myrank]
-
     @pytest.mark.parametrize('comm_size, topology, dist_topology', [
+        (1, (1, '*', '*'), (1, 1, 1)),
+        (2, (1, '*', '*'), (1, 2, 1)),
+        (3, (1, '*', '*'), (1, 3, 1)),
+        (3, ('*', 1, '*'), (3, 1, 1)),
+        (3, ('*', '*', 1), (3, 1, 1)),
         (6, ('*', 1, '*'), (3, 1, 2)),
         (6, ('*', '*', 1), (3, 2, 1)),
         (6, (1, '*', '*'), (1, 3, 2)),
-        (6, ('*', '*', '*'), (2, 3, 1)),
+        (6, ('*', '*', '*'), (2, 3, 1)),  # TOFIX as (3, 2, 1)
         (8, ('*', 1, '*'), (4, 1, 2)),
         (8, ('*', '*', 1), (4, 2, 1)),
         (8, (1, '*', '*'), (1, 4, 2)),
+        (8, ('*', '*', '*'), (2, 2, 2)),
+        (9, ('*', '*', '*'), (3, 3, 1)),
+        (11, (1, '*', '*'), (1, 11, 1)),
+        (16, ('*', '*', 1), (4, 4, 1)),
+        (16, ('*', 1, '*'), (4, 1, 4)),
+        (32, ('*', '*', 1), (8, 4, 1)),
+        (64, ('*', '*', '*'), (4, 4, 4)),
+        (64, ('*', '*', 1), (8, 8, 1)),
+        (128, ('*', '*', 1), (16, 8, 1)),
+        (256, (1, '*', '*'), (1, 16, 16)),
+        (256, ('*', 1, '*'), (16, 1, 16)),
+        (256, ('*', '*', 1), (16, 16, 1)),
+        (256, ('*', '*', '*'), (8, 8, 4)),
     ])
     def test_custom_topology_3d_dummy(self, comm_size, topology, dist_topology):
-        dummy_comm = Dummy_input_comm(comm_size)
+        dummy_comm = DummyInputComm(comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
 

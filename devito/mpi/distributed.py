@@ -1,7 +1,9 @@
+from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
-from math import ceil
-from abc import ABC, abstractmethod
+from math import ceil, pow
+from sympy import root, divisors
+
 import atexit
 
 from cached_property import cached_property
@@ -583,20 +585,30 @@ class CustomTopology(tuple):
 
     * `(1, '*', 1)`: the wildcard `'*'` tells the runtime to decompose the y
                      Dimension into N chunks
-    * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both the
-                       x and y Dimensions in factors of N, prioritizing the outermost
-                       dimension
+    * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both
+                       the x and y Dimensions in `nstars` factors of N, prioritizing
+                       the outermost dimension
 
-    Example:
     Assuming N=6 and requested topology is `('*', '*', 1)`,
-    since there is no integer K, so that K*K=6, we resort to the closest to
-    the nstars root (square, cubic) that satisfies that the decomposed domains
-    are correctly distributed to the number of processes.
+    since there is no integer k, so that k*k=6, we resort to the closest factors to
+    the nstars-th root (usually square or cubic) that satisfies that the decomposed
+    domains are equal to the number of MPI processes.
+
+    For N=3
+    * `('*', '*', 1)` gives: (3, 1, 1)
+    * `('*', 1, '*')` gives: (3, 1, 1)
+    * `(1, '*', '*')` gives: (1, 3, 1)
 
     For N=6
-    * ('*', '*', 1) gives: (3, 2, 1)
-    * ('*', 1, '*') gives: (3, 1, 2)
-    * (1, '*', '*') gives: (1, 3, 2)
+    * `('*', '*', 1)` gives: (3, 2, 1)
+    * `('*', 1, '*')` gives: (3, 1, 2)
+    * `(1, '*', '*')` gives: (1, 3, 2)
+
+    For N=8
+    * `('*', '*', '*')` gives: (2, 2, 2)
+    * `('*', '*', 1)` gives: (4, 2, 1)
+    * `('*', 1, '*')` gives: (4, 1, 2)
+    * `(1, '*', '*')` gives: (1, 4, 2)
 
     Raises
     ------
@@ -611,30 +623,47 @@ class CustomTopology(tuple):
 
     def __new__(cls, items, input_comm):
         nstars = len([i for i in items if i == '*'])
-        if nstars > 0:
-            if input_comm.size % nstars != 0:
-                raise ValueError("Invalid `topology` for given nprocs")
+        processed = []
+        # If all inputs are stars, slice as evenly as possible
+        if nstars == len(items) and root(input_comm.size, nstars).is_Integer:
+            dd = root(input_comm.size, nstars)
+            processed = as_tuple([int(dd) for i in range(nstars)])
+
+        # Else if more than one stars are present decompose the domain as evenly
+        # as possible among the `star`ed dimensions
+        elif nstars > 0:
             if any(i not in ('*', 1) for i in items):
                 raise ValueError("Custom topology must be only 1 or *")
 
-            v = input_comm.size // nstars
-
-            # In case more than one stars are present, this routine
-            # will decompose the domain as evenly as possible among the
-            # `star`ed dimensions
+            # If nstars are not a perfect divisor of the communicator size
+            # size, prioritize splitting the outermost dimension
             remprocs = input_comm.size
-            processed = []
+
+            if root(input_comm.size, nstars).is_Integer:
+                v = root(input_comm.size, nstars)
+            elif remprocs == nstars:
+                v = remprocs
+            else:
+                divs = divisors(remprocs)
+                v = divs[(len(divs)) // nstars]
+
             for i in items:
                 if i == 1:
                     processed.append(i)
                 elif remprocs % v == 0:
                     processed.append(v)
-                    remprocs = input_comm.size // v
+                    remprocs = remprocs // v
                 else:
                     processed.append(remprocs)
                     remprocs = 1
         else:
             processed = items
+
+        # Final check that topology matches the communicator size
+        try:
+            assert np.prod(processed) == input_comm.size
+        except:
+            raise ValueError("Invalid `topology` for given nprocs")
 
         obj = super().__new__(cls, processed)
         obj.logical = items
