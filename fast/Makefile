@@ -54,12 +54,12 @@ endif
 # this creates the devito data. afaik devito requires gcc for this on my machine. Probably nixos related :S
 # it calls the example script with the bench options, meaning it runs normal devito
 %.devito.data %.input.data: CC = gcc
-%.devito.data %.input.data: %.py 
-	$(DEVITO_ENV) python3 $< $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
+%.devito.data %.input.data: benchmarks.py
+	$(DEVITO_ENV) python3 $< $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
-%.mlir %.main.mlir: %.py
-	$(DEVITO_ENV) python3 $< $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
+%.mlir %.main.mlir: benchmarks.py
+	$(DEVITO_ENV) python3 $< $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
 
 # this compiles the specific interop file to read/write the in/out files
 # it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
