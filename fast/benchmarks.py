@@ -1,6 +1,7 @@
 import argparse
 from functools import reduce
 from math import prod
+from subprocess import PIPE, Popen
 from typing import Any
 
 import numpy as np
@@ -12,7 +13,16 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 import sys
 
 
-def setup_benchmark(name:str, shape:tuple[int, ...], so: int, to: int, init_value: int):
+CPU_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
+OPENMP_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
+GPU_PIPELINE = "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
+
+XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
+
+MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
+
+def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: int):
     match name:
         case '2d5pt':
             nt = args.nt
@@ -58,7 +68,7 @@ def setup_benchmark(name:str, shape:tuple[int, ...], so: int, to: int, init_valu
 
 
 def dump_input(input: TimeFunction, filename: str):
-    input.data_with_halo[0, :, :].tofile(filename)
+    input.data_with_halo[0,:,:].tofile(filename)
 
 
 def dump_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
@@ -78,6 +88,35 @@ def dump_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, d
             )
         )
 
+def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
+    main = generate_launcher_base(
+        xop._module,
+        {
+            "time_m": 0,
+            "time_M": nt,
+            **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
+            "a": 0.1,
+            "dt": dt,
+        },
+        u.shape_allocated[1:],
+    )
+    cmd = f'mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - -O3 -march=native 2>&1'
+    out:str
+    try:
+        print(f"Trying to compile {bench_name}.main.o with:")
+        print(cmd)
+        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        t = mlir_opt.communicate(main.encode())
+        mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        print(out)
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(" ".join(cmd))
+        print("Output:")
+        print(out)
+        raise e
+
 
 def run_operator(op: Operator, nt: int, dt: float):
     res = op.apply(time_M=nt, a=0.1, dt=dt)
@@ -89,20 +128,24 @@ def run_operator(op: Operator, nt: int, dt: float):
 
 def main(bench_name: str, nt:int, dt:Any):
 
-    grid, u, eq0 = setup_benchmark(bench_name, args.shape, so, to, init_value)
+    grid, u, eq0 = get_equation(bench_name, args.shape, so, to, init_value)
 
     if args.xdsl:
         dump_input(u, bench_name + ".input.data")
         xop = XDSLOperator([eq0])
-        dump_main(bench_name, grid, u, xop, dt, nt)
-        info("Dump mlir code in  in " + bench_name + ".mlir")
-        with open(bench_name + ".mlir", "w") as f:
-            f.write(xop.mlircode)
+        if args.dump_main:
+            dump_main(bench_name, grid, u, xop, dt, nt)
+        compile_main(bench_name, grid, u, xop, dt, nt)
+        if args.dump_mlir:
+            info("Dump mlir code in  in " + bench_name + ".mlir")
+            with open(bench_name + ".mlir", "w") as f:
+                f.write(xop.mlircode)
+        
     else:
         op = Operator([eq0])
         rt = run_operator(op, nt, dt)
         print(f"Devito finer runtime: {rt} s")
-        if args.no_dump:
+        if args.no_output_dump:
             info("Skipping result data saving.")
         else:
             # get final data step
@@ -113,7 +156,7 @@ def main(bench_name: str, nt:int, dt:Any):
             #  4. time_M is always nt in this example
             t1 = (nt + u._time_size - 1) % (2)
 
-            res_data: np.array = u.data[t1]
+            res_data: np.array = u.data[t1,:,:]
             info("Save result data to " + bench_name + ".devito.data")
             res_data.tofile(bench_name + ".devito.data")
 
@@ -147,7 +190,10 @@ if __name__ == "__main__":
         "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
     )
     parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
-    parser.add_argument("-nd", "--no_dump", default=False, action="store_true")
+    parser.add_argument("-nod", "--no_output_dump", default=False, action="store_true")
+    parser.add_argument('--dump_mlir', default=False, action='store_true')
+    parser.add_argument('--dump_main', default=False, action='store_true')
+    
     args = parser.parse_args()
 
     benchmark_dim: int

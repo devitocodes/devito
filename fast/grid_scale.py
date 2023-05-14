@@ -2,6 +2,7 @@ dims = {"2d5pt": 2, "3d_diff": 3}
 
 import os
 import sys
+from subprocess import PIPE, Popen
 from math import prod
 
 max_size = "2048**3"
@@ -29,11 +30,11 @@ def get_runtimes_for_size(
     size: tuple[int, ...]
 ) -> tuple[tuple[int, ...], float, float]:
     print(f"Running for grid size {size} (total: {prod(size)})")
-    cmd = f'make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=cpu DUMP=0 2>&1'
+    cmd = ['make', f'BENCH_OPTS=-d {" ".join(str(s) for s in size)} -nt 100 -to 1','-B',f'{benchmark}.bench','MODE=cpu','DUMP=0','2>&1']
     out: str
     try:
-        wrap = os.popen(cmd)
-        out = wrap.read()
+        wrap = Popen(cmd, stdout=PIPE)
+        out = wrap.stdout.read().decode()
         lines = out.split("\n")
         xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
         devito_line = next(

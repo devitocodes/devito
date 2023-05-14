@@ -45,7 +45,7 @@ MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, conv
 
 .PHONY: %.bench
 ifeq ($(DUMP), 0)
-BENCH_OPTS_EXTRA = --no_dump
+BENCH_OPTS_EXTRA = --no_output_dump
 .PHONY: %.stencil.data
 endif
 
@@ -54,12 +54,12 @@ endif
 # this creates the devito data. afaik devito requires gcc for this on my machine. Probably nixos related :S
 # it calls the example script with the bench options, meaning it runs normal devito
 %.devito.data %.input.data: CC = gcc
-%.devito.data %.input.data: benchmarks.py
-	$(DEVITO_ENV) python3 $< $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
+%.devito.data %.input.data:
+	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
-%.mlir %.main.mlir: benchmarks.py
-	$(DEVITO_ENV) python3 $< $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
+%.mlir %.main.o:
+	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl --dump_main --dump_mlir
 
 # this compiles the specific interop file to read/write the in/out files
 # it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
@@ -71,11 +71,6 @@ endif
 
 %.kernel.o: %.mlir 
 	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native -mtune=native $(CFLAGS)
-
-	
-# this compiles the main file to object
-%.main.o: %.main.mlir
-	mlir-opt $< --pass-pipeline=$(MAIN_MLIR_FILE_PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native
 
 # this assembles all object files
 %.out: %.main.o %.kernel.o %.interop.o
