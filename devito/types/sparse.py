@@ -927,6 +927,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     r : int
         Number of gridpoints in each dimension to interpolate a single sparse
         point to. E.g. `r=2` for linear interpolation.
+    coordinates : np.ndarray, optional
+        The coordinates of each sparse point.
     gridpoints : np.ndarray, optional
         An array carrying the *reference* grid point corresponding to each
         sparse point.  Of all the gridpoints that one sparse point would be
@@ -980,18 +982,39 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             raise ValueError('`r` must be > 0')
         self._r = r
 
+        coordinates = kwargs.get('coordinates')
+        if isinstance(coordinates, SubFunction):
+            self._coordinates = coordinates
+        elif isinstance(coordinates, Iterable):
+            coordinates_data = coordinates
+            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
+            shape = (self.npoint, self.grid.dim)
+            self._coordinates = SubFunction(
+                name='%s_coords' % self.name, parent=self, dtype=self.dtype,
+                dimensions=dimensions, shape=shape, space_order=0,
+                initializer=coordinates_data, alias=self.alias,
+                distributor=self._distributor
+            )
+        elif coordinates is None:
+            # Unlike `gridpoints` or `interpolation_coefficients`, not
+            # strictly necessary
+            pass
+        else:
+            raise ValueError("`coordinates` must be either SubFunction or iterable "
+                             "(e.g., list, np.ndnarray)")
+
         gridpoints = kwargs.get('gridpoints')
         if isinstance(gridpoints, SubFunction):
             self._gridpoints = gridpoints
         elif isinstance(gridpoints, Iterable):
             gridpoints_data = gridpoints
-            dimensions = (self.indices[-1], Dimension(name='d'))
+            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
             shape = (self._npoint, self.grid.dim)
-            gridpoints = SubFunction(name="%s_gridpoints" % self.name,
-                                     dtype=np.int32, dimensions=dimensions,
-                                     shape=shape, space_order=0, parent=self)
-            gridpoints.data[:] = gridpoints_data
-            self._gridpoints = gridpoints
+            self._gridpoints = SubFunction(
+                name="%s_gridpoints" % self.name, parent=self, dtype=np.int32,
+                dimensions=dimensions, shape=shape, space_order=0,
+                initializer=gridpoints_data, distributor=self._distributor
+            )
         else:
             raise ValueError("`gridpoints` must be either SubFunction or iterable "
                              "(e.g., list, np.ndnarray)")
@@ -1001,15 +1024,14 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             self._interpolation_coeffs = interpolation_coeffs
         elif isinstance(interpolation_coeffs, Iterable):
             interpolation_coeffs_data = interpolation_coeffs
-            dimensions = (self.indices[-1], Dimension(name='d'),
-                          Dimension(name='i'))
+            dimensions = (self.indices[self._sparse_position],
+                          Dimension(name='d'), Dimension(name='i'))
             shape = (self.npoint, self.grid.dim, r)
-            interpolation_coeffs = SubFunction(name="%s_interp_coeffs" % self.name,
-                                               dimensions=dimensions, shape=shape,
-                                               dtype=self.dtype, space_order=0,
-                                               parent=self)
-            interpolation_coeffs.data[:] = interpolation_coeffs_data
-            self._interpolation_coeffs = interpolation_coeffs
+            self._interpolation_coeffs = SubFunction(
+                name="%s_interp_coeffs" % self.name, parent=self, dtype=self.dtype,
+                dimensions=dimensions, shape=shape, space_order=0,
+                initializer=interpolation_coeffs_data
+            )
         else:
             raise ValueError("`interpolation_coeffs` must be either SubFunction "
                              "or iterable (e.g., list, np.ndarray)")
@@ -1085,6 +1107,8 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
     r : int
         Number of gridpoints in each dimension to interpolate a single sparse
         point to. E.g. `r=2` for linear interpolation.
+    coordinates : np.ndarray, optional
+        The coordinates of each sparse point.
     gridpoints : np.ndarray, optional
         An array carrying the *reference* grid point corresponding to each
         sparse point.  Of all the gridpoints that one sparse point would be
