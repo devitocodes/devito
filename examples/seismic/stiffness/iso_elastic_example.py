@@ -7,7 +7,7 @@ from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def iso_elastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,
-                  nbl=10, constant=False, **kwargs):
+                      nbl=10, constant=False, **kwargs):
 
     preset = 'constant-elastic' if constant else 'layers-elastic'
     model = demo_model(preset, space_order=space_order, shape=shape, nbl=nbl,
@@ -25,7 +25,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
         space_order=4, nbl=40, autotune=False, constant=False, **kwargs):
 
     solver = iso_elastic_setup(shape=shape, spacing=spacing, nbl=nbl, tn=tn,
-                           space_order=space_order, constant=constant, **kwargs)
+                               space_order=space_order, constant=constant, **kwargs)
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, rec3, v, tau, summary = solver.forward(autotune=autotune)[0:6]

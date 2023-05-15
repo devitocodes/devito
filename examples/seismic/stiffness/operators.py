@@ -1,8 +1,9 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
-from devito import div, grad, diag, solve
+from devito import solve
 from examples.seismic import PointSource, Receiver
 from examples.seismic.utils import matriz_init
 from examples.seismic.stiffness.utils import D, S, vec
+
 
 def iso_elastic_tensor(model):
     def subs3D(lmbda, mu):
@@ -14,13 +15,13 @@ def iso_elastic_tensor(model):
                 'C66': mu,
                 'C12': lmbda,
                 'C13': lmbda,
-                'C23': lmbda }
+                'C23': lmbda}
 
     def subs2D(lmbda, mu):
         return {'C11': lmbda + (2*mu),
                 'C22': lmbda + (2*mu),
                 'C33': mu,
-                'C12': lmbda }
+                'C12': lmbda}
 
     matriz = matriz_init(model)
     lmbda = model.lam
@@ -28,6 +29,7 @@ def iso_elastic_tensor(model):
 
     subs = subs3D(lmbda, mu) if model.dim == 3 else subs2D(lmbda, mu)
     return matriz.subs(subs)
+
 
 def src_rec(v, tau, model, geometry, forward=True):
     """
@@ -82,6 +84,7 @@ def src_rec(v, tau, model, geometry, forward=True):
         src_expr = src.interpolate(expr=expr)
 
     return src_expr, rec_expr
+
 
 def elastic_stencil(model, v, tau, forward=True):
 
@@ -152,6 +155,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                   name="ForwardElastic", **kwargs)
     # Substitute spacing terms to reduce flops
     return op
+
 
 def AdjointOperator(model, geometry, space_order=4, **kwargs):
     """
