@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import Iterable, OrderedDict
 from itertools import product
 
 import sympy
@@ -7,6 +7,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.finite_differences.elementary import floor
+from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import (INT, cast_mapper, indexify,
@@ -925,31 +926,32 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         The computational domain from which the sparse points are sampled.
     r : int
         Number of gridpoints in each dimension to interpolate a single sparse
-        point to. E.g. ``r=2`` for linear interpolation.
+        point to. E.g. `r=2` for linear interpolation.
     gridpoints : np.ndarray, optional
-        An array carrying the *reference* grid point corresponding to each sparse point.
-        Of all the gridpoints that one sparse point would be interpolated to, this is the
-        grid point closest to the origin, i.e. the one with the lowest value of each
-        coordinate dimension. Must be a two-dimensional array of shape
-        ``(npoint, grid.ndim)``.
+        An array carrying the *reference* grid point corresponding to each
+        sparse point.  Of all the gridpoints that one sparse point would be
+        interpolated to, this is the grid point closest to the origin, i.e. the
+        one with the lowest value of each coordinate dimension. Must be a
+        two-dimensional array of shape `(npoint, grid.ndim)`.
     interpolation_coeffs : np.ndarray, optional
-        An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
-        gridpoints that each sparse point will be interpolated to. The coefficient is
-        split across the n dimensions such that the contribution of the point (i, j, k)
-        will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
-        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18
-        coefficients per sparse point (instead of potentially 216).
-        Must be a three-dimensional array of shape ``(npoint, grid.ndim, r)``.
+        An array containing the coefficient for each of the r^2 (2D) or r^3
+        (3D) gridpoints that each sparse point will be interpolated to. The
+        coefficient is split across the n dimensions such that the contribution
+        of the point (i, j, k) will be multiplied by
+        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
+        So for `r=6`, we will store 18 coefficients per sparse point (instead of
+        potentially 216).  Must be a three-dimensional array of shape
+        `(npoint, grid.ndim, r)`.
     space_order : int, optional
         Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
-        Shape of the object. Defaults to ``(npoint,)``.
+        Shape of the object. Defaults to `(npoint,)`.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
+        to `np.float32`.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
@@ -960,7 +962,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
-    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
+    uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_PrecomputedSparseFunction = True
@@ -968,15 +970,63 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     _sub_functions = ('gridpoints', 'interpolation_coeffs')
 
     def __init_finalize__(self, *args, **kwargs):
-        super(PrecomputedSparseFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Grid points per sparse point (2 in the case of bilinear and trilinear)
         r = kwargs.get('r')
-        gridpoints = kwargs.get('gridpoints')
-        interpolation_coeffs = kwargs.get('interpolation_coeffs')
+        if not is_integer(r):
+            raise TypeError('Need `r` int argument')
+        if r <= 0:
+            raise ValueError('`r` must be > 0')
+        self._r = r
 
-        self.interpolator = PrecomputedInterpolator(self, r, gridpoints,
-                                                    interpolation_coeffs)
+        gridpoints = kwargs.get('gridpoints')
+        if isinstance(gridpoints, SubFunction):
+            self._gridpoints = gridpoints
+        elif isinstance(gridpoints, Iterable):
+            gridpoints_data = gridpoints
+            dimensions = (self.indices[-1], Dimension(name='d'))
+            shape = (self._npoint, self.grid.dim)
+            gridpoints = SubFunction(name="%s_gridpoints" % self.name,
+                                     dtype=np.int32, dimensions=dimensions,
+                                     shape=shape, space_order=0, parent=self)
+            gridpoints.data[:] = gridpoints_data
+            self._gridpoints = gridpoints
+        else:
+            raise ValueError("`gridpoints` must be either SubFunction or iterable "
+                             "(e.g., list, np.ndnarray)")
+
+        interpolation_coeffs = kwargs.get('interpolation_coeffs')
+        if isinstance(interpolation_coeffs, SubFunction):
+            self._interpolation_coeffs = interpolation_coeffs
+        elif isinstance(interpolation_coeffs, Iterable):
+            interpolation_coeffs_data = interpolation_coeffs
+            dimensions = (self.indices[-1], Dimension(name='d'),
+                          Dimension(name='i'))
+            shape = (self.npoint, self.grid.dim, r)
+            interpolation_coeffs = SubFunction(name="%s_interp_coeffs" % self.name,
+                                               dimensions=dimensions, shape=shape,
+                                               dtype=self.dtype, space_order=0,
+                                               parent=self)
+            interpolation_coeffs.data[:] = interpolation_coeffs_data
+            self._interpolation_coeffs = interpolation_coeffs
+        else:
+            raise ValueError("`interpolation_coeffs` must be either SubFunction "
+                             "or iterable (e.g., list, np.ndarray)")
+
+        warning("Ensure that the provided interpolation coefficient and grid "
+                "point values are computed on the final grid that will be used "
+                "for other computations.")
+
+        self.interpolator = PrecomputedInterpolator(self)
+
+    @property
+    def _radius(self):
+        return self.r
+
+    @property
+    def r(self):
+        return self._r
 
     @property
     def gridpoints(self):
@@ -1034,33 +1084,34 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         The computational domain from which the sparse points are sampled.
     r : int
         Number of gridpoints in each dimension to interpolate a single sparse
-        point to. E.g. ``r=2`` for linear interpolation.
+        point to. E.g. `r=2` for linear interpolation.
     gridpoints : np.ndarray, optional
-        An array carrying the *reference* grid point corresponding to each sparse point.
-        Of all the gridpoints that one sparse point would be interpolated to, this is the
-        grid point closest to the origin, i.e. the one with the lowest value of each
-        coordinate dimension. Must be a two-dimensional array of shape
-        ``(npoint, grid.ndim)``.
+        An array carrying the *reference* grid point corresponding to each
+        sparse point.  Of all the gridpoints that one sparse point would be
+        interpolated to, this is the grid point closest to the origin, i.e. the
+        one with the lowest value of each coordinate dimension. Must be a
+        two-dimensional array of shape `(npoint, grid.ndim)`.
     interpolation_coeffs : np.ndarray, optional
-        An array containing the coefficient for each of the r^2 (2D) or r^3 (3D)
-        gridpoints that each sparse point will be interpolated to. The coefficient is
-        split across the n dimensions such that the contribution of the point (i, j, k)
-        will be multiplied by ``interpolation_coeffs[..., i]*interpolation_coeffs[...,
-        j]*interpolation_coeffs[...,k]``. So for ``r=6``, we will store 18 coefficients
-        per sparse point (instead of potentially 216). Must be a three-dimensional array
-        of shape ``(npoint, grid.ndim, r)``.
+        An array containing the coefficient for each of the r^2 (2D) or r^3
+        (3D) gridpoints that each sparse point will be interpolated to. The
+        coefficient is split across the n dimensions such that the contribution
+        of the point (i, j, k) will be multiplied by
+        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
+        So for `r=6`, we will store 18 coefficients per sparse point (instead of
+        potentially 216).  Must be a three-dimensional array of shape
+        `(npoint, grid.ndim, r)`.
     space_order : int, optional
         Discretisation order for space derivatives. Defaults to 0.
     time_order : int, optional
         Discretisation order for time derivatives. Default to 1.
     shape : tuple of ints, optional
-        Shape of the object. Defaults to ``(npoint,)``.
+        Shape of the object. Defaults to `(npoint,)`.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
+        to `np.float32`.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional

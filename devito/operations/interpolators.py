@@ -4,11 +4,10 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, indexify, INT
 from devito.tools import as_tuple, powerset, flatten, prod
-from devito.types import (ConditionalDimension, Dimension, DefaultDimension, Eq, Inc,
-                          Evaluable, Symbol, SubFunction)
+from devito.types import (ConditionalDimension, DefaultDimension, Eq, Inc,
+                          Evaluable, Symbol)
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
 
@@ -316,37 +315,12 @@ class LinearInterpolator(GenericInterpolator):
 
 class PrecomputedInterpolator(GenericInterpolator):
 
-    def __init__(self, obj, r, gridpoints_data, coefficients_data):
-        if not isinstance(r, int):
-            raise TypeError('Need `r` int argument')
-        if r <= 0:
-            raise ValueError('`r` must be > 0')
-        self.r = r
+    def __init__(self, obj):
         self.obj = obj
-        self._npoint = obj._npoint
-        gridpoints = SubFunction(name="%s_gridpoints" % self.obj.name, dtype=np.int32,
-                                 dimensions=(self.obj.indices[-1], Dimension(name='d')),
-                                 shape=(self._npoint, self.obj.grid.dim), space_order=0,
-                                 parent=self.obj)
 
-        assert(gridpoints_data is not None)
-        gridpoints.data[:] = gridpoints_data[:]
-        self.obj._gridpoints = gridpoints
-
-        interpolation_coeffs = SubFunction(name="%s_interpolation_coeffs" % self.obj.name,
-                                           dimensions=(self.obj.indices[-1],
-                                                       Dimension(name='d'),
-                                                       Dimension(name='i')),
-                                           shape=(self.obj.npoint, self.obj.grid.dim,
-                                                  self.r),
-                                           dtype=self.obj.dtype, space_order=0,
-                                           parent=self.obj)
-        assert(coefficients_data is not None)
-        interpolation_coeffs.data[:] = coefficients_data[:]
-        self.obj._interpolation_coeffs = interpolation_coeffs
-        warning("Ensure that the provided interpolation coefficient and grid point " +
-                "values are computed on the final grid that will be used for other " +
-                "computations.")
+    @property
+    def r(self):
+        return self.obj._r
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """
