@@ -8,7 +8,7 @@ from sympy import Symbol
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min,
+                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
                     PrecomputedSparseTimeFunction)
 from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
@@ -266,7 +266,6 @@ def test_precomputed_sparse_function():
     sf = PrecomputedSparseTimeFunction(
         name='sf', grid=grid, r=2, npoint=3, nt=5,
         coordinates=[(0., 0.), (1., 1.), (2., 2.)],
-        gridpoints=[(5, 90), (1, 80), (7, 84)],
         interpolation_coeffs=np.ndarray(shape=(3, 2, 2)),
     )
     sf.data[2, 1] = 5.
@@ -278,7 +277,6 @@ def test_precomputed_sparse_function():
     assert new_sf.data[2, 1] == 5.
 
     # gridpoints and interpolation coefficients must have been pickled
-    assert np.all(sf.gridpoints.data == new_sf.gridpoints.data)
     assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
 
     # coordinates, since they were given, should also have been pickled

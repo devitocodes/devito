@@ -320,7 +320,7 @@ class PrecomputedInterpolator(GenericInterpolator):
 
     @property
     def r(self):
-        return self.obj._r
+        return self.obj.r
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={}):
         """

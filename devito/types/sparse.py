@@ -1,4 +1,9 @@
-from collections import Iterable, OrderedDict
+from collections import OrderedDict
+try:
+    from collections import Iterable
+except ImportError:
+    # After python 3.10
+    from collections.abc import Iterable
 from itertools import product
 
 import sympy
@@ -94,6 +99,45 @@ class AbstractSparseFunction(DiscreteFunction):
             kwargs['grid'].distributor
         )
 
+    def __subfunc_setup__(self, key='coordinates', ndim=2, allow_empty=False, **kwargs):
+        """
+        Setup SubFunction for a SparseFunction.
+        """
+        coordinates = kwargs.get(key, kwargs.get('%s_data' % key))
+        # In case only number of points is specified
+        npoint = kwargs.get('npoint', None)
+        if npoint is not None and coordinates is None:
+            coordinates = np.zeros((npoint, self.grid.dim))
+        # Check if already a pre-setup SubFunction
+        if isinstance(coordinates, Function):
+            setattr(self, '_%s' % key, coordinates)
+        # Setup the subfunction
+        elif isinstance(coordinates, Iterable):
+            dimensions = (self.indices[self._sparse_position], Dimension(name='d'),
+                          Dimension(name='i'))[:ndim]
+            shape = (self.npoint, self.grid.dim, self.r)[:ndim]
+            # Only retain the local data region
+            if coordinates is not None:
+                coordinates = np.array(coordinates)
+            coords = SubFunction(
+                name='%s_%s' % (self.name, key[:5]), parent=self, dtype=self.dtype,
+                dimensions=dimensions, shape=shape,
+                space_order=0, initializer=coordinates, alias=self.alias,
+                distributor=self._distributor
+            )
+            if self.npoint == 0:
+                # This is a corner case -- we might get here, for example, when
+                # running with MPI and some processes get 0-size arrays after
+                # domain decomposition. We "touch" the data anyway to avoid the
+                # case ``self._data is None``
+                coords.data
+            setattr(self, '_%s' % key, coords)
+        elif allow_empty:
+            setattr(self, '_%s' % key, None)
+        else:
+            raise ValueError("`%s` must be either SubFunction "
+                             "or iterable (e.g., list, np.ndarray)" % key)
+
     def _halo_exchange(self):
         # no-op for SparseFunctions
         return
@@ -117,6 +161,10 @@ class AbstractSparseFunction(DiscreteFunction):
     def space_order(self):
         """The space order."""
         return self._space_order
+
+    @property
+    def r(self):
+        return self._radius
 
     @property
     def _sparse_dim(self):
@@ -488,26 +536,7 @@ class SparseFunction(AbstractSparseFunction):
         self.interpolator = LinearInterpolator(self)
 
         # Set up sparse point coordinates
-        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
-        if isinstance(coordinates, Function):
-            self._coordinates = coordinates
-        else:
-            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
-            # Only retain the local data region
-            if coordinates is not None:
-                coordinates = np.array(coordinates)
-            self._coordinates = SubFunction(
-                name='%s_coords' % self.name, parent=self, dtype=self.dtype,
-                dimensions=dimensions, shape=(self.npoint, self.grid.dim),
-                space_order=0, initializer=coordinates, alias=self.alias,
-                distributor=self._distributor
-            )
-            if self.npoint == 0:
-                # This is a corner case -- we might get here, for example, when
-                # running with MPI and some processes get 0-size arrays after
-                # domain decomposition. We "touch" the data anyway to avoid the
-                # case ``self._data is None``
-                self.coordinates.data
+        self.__subfunc_setup__(**kwargs)
 
     @property
     def coordinates(self):
@@ -983,77 +1012,19 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             raise TypeError('Need `r` int argument')
         if r <= 0:
             raise ValueError('`r` must be > 0')
-        self._r = r
+        self._radius = r
 
-        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
-        if isinstance(coordinates, SubFunction):
-            self._coordinates = coordinates
-        elif isinstance(coordinates, Iterable):
-            coordinates_data = coordinates
-            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
-            shape = (self.npoint, self.grid.dim)
-            self._coordinates = SubFunction(
-                name='%s_coords' % self.name, parent=self, dtype=self.dtype,
-                dimensions=dimensions, shape=shape, space_order=0,
-                initializer=coordinates_data, alias=self.alias,
-                distributor=self._distributor
-            )
-        elif coordinates is None:
-            # Unlike `gridpoints` or `interpolation_coeffs`, not strictly necessary
-            self._coordinates = None
-        else:
-            raise ValueError("`coordinates` must be either SubFunction or iterable "
-                             "(e.g., list, np.ndnarray)")
+        self.__subfunc_setup__(allow_empty=True, **kwargs)
+        if self.coordinates is None:
+            self.__subfunc_setup__(key='gridpoints', **kwargs)
 
-        gridpoints = kwargs.get('gridpoints')
-        gridpoints = kwargs.get('gridpoints', kwargs.get('gridpoints_data'))
-        if isinstance(gridpoints, SubFunction):
-            self._gridpoints = gridpoints
-        elif isinstance(gridpoints, Iterable):
-            gridpoints_data = gridpoints
-            dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
-            shape = (self.npoint, self.grid.dim)
-            self._gridpoints = SubFunction(
-                name="%s_gridpoints" % self.name, parent=self, dtype=np.int32,
-                dimensions=dimensions, shape=shape, space_order=0,
-                initializer=gridpoints_data, alias=self.alias,
-                distributor=self._distributor,
-            )
-        else:
-            raise ValueError("`gridpoints` must be either SubFunction or iterable "
-                             "(e.g., list, np.ndnarray)")
-
-        interpolation_coeffs = kwargs.get('interpolation_coeffs',
-                                          kwargs.get('interpolation_coeffs_data'))
-        if isinstance(interpolation_coeffs, SubFunction):
-            self._interpolation_coeffs = interpolation_coeffs
-        elif isinstance(interpolation_coeffs, Iterable):
-            interpolation_coeffs_data = interpolation_coeffs
-            dimensions = (self.indices[self._sparse_position],
-                          Dimension(name='d'), Dimension(name='i'))
-            shape = (self.npoint, self.grid.dim, r)
-            self._interpolation_coeffs = SubFunction(
-                name="%s_interp_coeffs" % self.name, parent=self, dtype=self.dtype,
-                dimensions=dimensions, shape=shape, space_order=0,
-                initializer=interpolation_coeffs_data, alias=self.alias
-            )
-        else:
-            raise ValueError("`interpolation_coeffs` must be either SubFunction "
-                             "or iterable (e.g., list, np.ndarray)")
+        self.__subfunc_setup__(key='interpolation_coeffs', ndim=3, **kwargs)
 
         warning("Ensure that the provided interpolation coefficient and grid "
                 "point values are computed on the final grid that will be used "
                 "for other computations.")
 
         self.interpolator = PrecomputedInterpolator(self)
-
-    @property
-    def _radius(self):
-        return self.r
-
-    @property
-    def r(self):
-        return self._r
 
     @property
     def coordinates(self):
@@ -1077,7 +1048,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     @property
     def gridpoints_data(self):
-        return self.gridpoints.data.view(np.ndarray)
+        try:
+            return self.gridpoints.data.view(np.ndarray)
+        except AttributeError:
+            return None
 
     @property
     def interpolation_coeffs_data(self):
@@ -1539,10 +1513,6 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 *['coefficients_%s' % d.name for d in self.grid.dimensions],
                 'mrow', 'mcol', 'mval', 'par_dim_to_nnz_map',
                 'par_dim_to_nnz_m', 'par_dim_to_nnz_M')
-
-    @property
-    def r(self):
-        return self._radius
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None):
         """Creates a :class:`sympy.Eq` equation for the interpolation
