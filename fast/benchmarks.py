@@ -1,6 +1,7 @@
 import argparse
 from functools import reduce
 from math import prod
+import pathlib
 from subprocess import PIPE, Popen
 from typing import Any
 
@@ -12,6 +13,8 @@ from devito.logger import info
 from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 import sys
 
+
+CFLAGS = '-O3 -march=native -mtune=native' 
 
 CPU_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
 OPENMP_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
@@ -100,7 +103,7 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
         },
         u.shape_allocated[1:],
     )
-    cmd = f'mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - -O3 -march=native 2>&1'
+    cmd = f'mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
     out:str
     try:
         print(f"Trying to compile {bench_name}.main.o with:")
@@ -112,7 +115,25 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
         print(out)
     except Exception as e:
         print("something went wrong... Used command:")
-        print(" ".join(cmd))
+        print(cmd)
+        print("Output:")
+        print(out)
+        raise e
+
+def compile_interop(bench_name: str):
+    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
+    out:str
+    try:
+        print(f"Trying to compile {bench_name}.main.o with:")
+        print(cmd)
+        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        t = mlir_opt.communicate()
+        mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        print(out)
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
         print("Output:")
         print(out)
         raise e
@@ -136,6 +157,7 @@ def main(bench_name: str, nt:int, dt:Any):
         if args.dump_main:
             dump_main(bench_name, grid, u, xop, dt, nt)
         compile_main(bench_name, grid, u, xop, dt, nt)
+        compile_interop(bench_name)
         if args.dump_mlir:
             info("Dump mlir code in  in " + bench_name + ".mlir")
             with open(bench_name + ".mlir", "w") as f:

@@ -58,14 +58,9 @@ endif
 	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
-%.mlir %.main.o:
-	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl --dump_main --dump_mlir
+%.mlir %.main.o %.interop.o:
+	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl --dump_mlir
 
-# this compiles the specific interop file to read/write the in/out files
-# it must be re-compiled for each testcase, as it has the paths it reads/writes as comptime constants
-# these are passed in as OUTFILE_NAME and INFILE_NAME
-%.interop.o: interop.c
-	clang -O3 -c interop.c -o $@ $(CFLAGS) -DOUTFILE_NAME='"'$(patsubst %.interop.o,%.stencil.data,$@)'"' -DINFILE_NAME='"'$(patsubst %.interop.o,%.input.data,$@)'"'
 
 
 
