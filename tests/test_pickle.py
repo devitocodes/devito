@@ -7,6 +7,7 @@ from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, MPI, Min)
+from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
@@ -249,6 +250,18 @@ def test_shared_data():
     new_indexed = pickle.loads(pkl_indexed)
 
     assert indexed.name == new_indexed.name
+
+
+def test_guard_factor():
+    d = Dimension(name='d')
+    cd = ConditionalDimension(name='cd', parent=d, factor=4)
+
+    gf = GuardFactor(cd)
+
+    pkl_gf = pickle.dumps(gf)
+    new_gf = pickle.loads(pkl_gf)
+
+    assert gf == new_gf
 
 
 def test_receiver():
