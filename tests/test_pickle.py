@@ -6,7 +6,8 @@ import pickle
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min)
+                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve)
+from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
@@ -249,6 +250,18 @@ def test_shared_data():
     new_indexed = pickle.loads(pkl_indexed)
 
     assert indexed.name == new_indexed.name
+
+
+def test_guard_factor():
+    d = Dimension(name='d')
+    cd = ConditionalDimension(name='cd', parent=d, factor=4)
+
+    gf = GuardFactor(cd)
+
+    pkl_gf = pickle.dumps(gf)
+    new_gf = pickle.loads(pkl_gf)
+
+    assert gf == new_gf
 
 
 def test_receiver():
@@ -680,6 +693,35 @@ def test_full_model():
     new_ricker = pickle.loads(pkl_ricker)
     assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
     # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
+
+
+def test_usave_sampled():
+    grid = Grid(shape=(10, 10, 10))
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=8)
+
+    time_range = TimeAxis(start=0, stop=1000, step=1)
+
+    factor = Constant(name="factor", value=10, dtype=np.int32)
+    time_sub = ConditionalDimension(name="time_sub", parent=grid.time_dim,
+                                    factor=factor)
+
+    u0_save = TimeFunction(name="u0_save", grid=grid, time_dim=time_sub)
+    src = RickerSource(name="src", grid=grid, time_range=time_range, f0=10)
+
+    pde = u.dt2 - u.laplace
+    stencil = Eq(u.forward, solve(pde, u.forward))
+
+    src_term = src.inject(field=u.forward, expr=src)
+
+    eqn = [stencil] + src_term
+    eqn += [Eq(u0_save, u)]
+    op_fwd = Operator(eqn)
+
+    tmp_pickle_op_fn = "tmp_operator.pickle"
+    pickle.dump(op_fwd, open(tmp_pickle_op_fn, "wb"))
+    op_new = pickle.load(open(tmp_pickle_op_fn, "rb"))
+
+    assert str(op_fwd) == str(op_new)
 
 
 def test_elemental():

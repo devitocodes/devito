@@ -1754,7 +1754,7 @@ class TestAliases(object):
         op = Operator(eq)
 
         assert op._profiler._sections['section0'].sops == 1
-        assert op.body.body[-1].body[0].body[0].expr.rhs == s0**-s1
+        assert str(op.body.body[-1].body[0].body[0].expr.rhs) == str(s0**-s1)
 
     @pytest.mark.parametrize('rotate', [False, True])
     def test_drop_redundants_after_fusion(self, rotate):

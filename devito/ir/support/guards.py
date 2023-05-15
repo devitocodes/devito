@@ -8,7 +8,7 @@ from sympy import And, Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_tuple, frozendict
+from devito.tools import Pickable, as_tuple, frozendict
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
@@ -33,7 +33,7 @@ class Guard(object):
 # *** GuardFactor
 
 
-class GuardFactor(Guard, CondEq):
+class GuardFactor(Guard, CondEq, Pickable):
 
     """
     A guard for factor-based ConditionalDimensions.
@@ -41,6 +41,8 @@ class GuardFactor(Guard, CondEq):
     Given the ConditionalDimension `d` with factor `k`, create the
     symbolic relational `d.parent % k == 0`.
     """
+
+    __rargs__ = ('d',)
 
     def __new__(cls, d, **kwargs):
         assert d.is_Conditional
