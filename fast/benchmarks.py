@@ -16,9 +16,9 @@ import sys
 
 CFLAGS = '-O3 -march=native -mtune=native' 
 
-CPU_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
-OPENMP_PIPELINE = "builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"
-GPU_PIPELINE = "builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"
+CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
+OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
+GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
@@ -137,6 +137,42 @@ def compile_interop(bench_name: str):
         print("Output:")
         print(out)
         raise e
+    
+def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str):
+    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}'
+    out:str
+    try:
+        print(f"Trying to compile {bench_name}.main.o with:")
+        print(cmd)
+        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        t = mlir_opt.communicate(mlir_code.encode())
+        mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        print(out)
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
+        print("Output:")
+        print(out)
+        raise e
+
+def link_kernel(bench_name:str):
+    cmd = f'clang {CFLAGS} {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out'
+    out:str
+    try:
+        print(f"Trying to compile {bench_name}.out with:")
+        print(cmd)
+        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        t = mlir_opt.communicate()
+        mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        print(out)
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
+        print("Output:")
+        print(out)
+        raise e
 
 
 def run_operator(op: Operator, nt: int, dt: float):
@@ -158,10 +194,13 @@ def main(bench_name: str, nt:int, dt:Any):
             dump_main(bench_name, grid, u, xop, dt, nt)
         compile_main(bench_name, grid, u, xop, dt, nt)
         compile_interop(bench_name)
+        mlir_code = xop.mlircode
+        compile_kernel(bench_name, mlir_code, XDSL_CPU_PIPELINE, CPU_PIPELINE)
+        link_kernel(bench_name)
         if args.dump_mlir:
             info("Dump mlir code in  in " + bench_name + ".mlir")
             with open(bench_name + ".mlir", "w") as f:
-                f.write(xop.mlircode)
+                f.write(mlir_code)
         
     else:
         op = Operator([eq0])

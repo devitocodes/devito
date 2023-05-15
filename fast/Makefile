@@ -58,18 +58,8 @@ endif
 	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
-%.mlir %.main.o %.interop.o:
-	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl --dump_mlir
-
-
-
-
-%.kernel.o: %.mlir 
-	xdsl-opt $< -t mlir -p $(XDSL_PIPE) | mlir-opt --pass-pipeline=$(PIPELINE) | mlir-translate --mlir-to-llvmir | $(CC) -x ir -c -o $@ - -O3 -march=native -mtune=native $(CFLAGS)
-
-# this assembles all object files
-%.out: %.main.o %.kernel.o %.interop.o
-	$(NIXOS_CLANG_PREFIX) $(CC) $(CFLAGS) $^ -o $@
+%.mlir %.main.o %.interop.o %.kernel.o %.out:
+	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
 
 # this runs the <name>.out file to get the stencil result data
 # TODO: Do not forget to get thread pinning right
