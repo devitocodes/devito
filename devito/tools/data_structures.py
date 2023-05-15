@@ -66,6 +66,9 @@ class EnrichedTuple(tuple, Pickable):
         # objects with varying number of attributes
         return (tuple(self), dict(self.__dict__))
 
+    def get(self, key, val):
+        return self._getters.get(key, val)
+
 
 class ReducerMap(MultiDict):
 

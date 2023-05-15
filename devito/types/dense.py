@@ -1059,7 +1059,7 @@ class Function(DiscreteFunction):
             mapper = {d: d for d in dimensions}
             for s in as_tuple(staggered):
                 c, s = s.as_coeff_Mul()
-                mapper.update({s: s + c * s.spacing/2})
+                mapper.update({s: s + c * s.spacing / 2})
             staggered_indices = mapper.values()
 
         return tuple(dimensions), tuple(staggered_indices)
