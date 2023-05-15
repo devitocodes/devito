@@ -8,7 +8,8 @@ from sympy import Symbol
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve)
+                    TimeDimension, SteppingDimension, Operator, MPI, Min,
+                    PrecomputedSparseTimeFunction)
 from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
@@ -259,7 +260,43 @@ class TestBasic(object):
         assert sdata.cfields == new_sdata.cfields
         assert sdata.ncfields == new_sdata.ncfields
 
-        ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+def test_precomputed_sparse_function():
+    grid = Grid(shape=(10, 10))
+
+    sf = PrecomputedSparseTimeFunction(
+        name='sf', grid=grid, r=2, npoint=3, nt=5,
+        coordinates=[(0., 0.), (1., 1.), (2., 2.)],
+        gridpoints=[(5, 90), (1, 80), (7, 84)],
+        interpolation_coeffs=np.ndarray(shape=(3, 2, 2)),
+    )
+    sf.data[2, 1] = 5.
+
+    pkl_sf = pickle.dumps(sf)
+    new_sf = pickle.loads(pkl_sf)
+
+    # .data is initialized, so it should have been pickled too
+    assert new_sf.data[2, 1] == 5.
+
+    # gridpoints and interpolation coefficients must have been pickled
+    assert np.all(sf.gridpoints.data == new_sf.gridpoints.data)
+    assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
+
+    # coordinates, since they were given, should also have been pickled
+    assert np.all(sf.coordinates.data == new_sf.coordinates.data)
+
+    assert sf._radius == new_sf._radius == 2
+    assert sf.space_order == new_sf.space_order
+    assert sf.time_order == new_sf.time_order
+    assert sf.dtype == new_sf.dtype
+    assert sf.npoint == new_sf.npoint == 3
+
+
+def test_internal_symbols():
+    s = dSymbol(name='s', dtype=np.float32)
+    pkl_s = pickle.dumps(s)
+    new_s = pickle.loads(pkl_s)
+    assert new_s.name == s.name
+    assert new_s.dtype is np.float32
 
         pkl_ffp = pickle.dumps(ffp)
         new_ffp = pickle.loads(pkl_ffp)

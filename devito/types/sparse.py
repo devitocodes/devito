@@ -83,6 +83,17 @@ class AbstractSparseFunction(DiscreteFunction):
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
 
+    def __distributor_setup__(self, **kwargs):
+        """
+        A `SparseDistributor` handles the SparseFunction decomposition based on
+        physical ownership, and allows to convert between global and local indices.
+        """
+        return SparseDistributor(
+            kwargs.get('npoint', kwargs.get('npoint_global')),
+            self._sparse_dim,
+            kwargs['grid'].distributor
+        )
+
     def _halo_exchange(self):
         # no-op for SparseFunctions
         return
@@ -475,6 +486,7 @@ class SparseFunction(AbstractSparseFunction):
     def __init_finalize__(self, *args, **kwargs):
         super(SparseFunction, self).__init_finalize__(*args, **kwargs)
         self.interpolator = LinearInterpolator(self)
+
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         if isinstance(coordinates, Function):
@@ -496,17 +508,6 @@ class SparseFunction(AbstractSparseFunction):
                 # domain decomposition. We "touch" the data anyway to avoid the
                 # case ``self._data is None``
                 self.coordinates.data
-
-    def __distributor_setup__(self, **kwargs):
-        """
-        A `SparseDistributor` handles the SparseFunction decomposition based on
-        physical ownership, and allows to convert between global and local indices.
-        """
-        return SparseDistributor(
-            kwargs.get('npoint', kwargs.get('npoint_global')),
-            self._sparse_dim,
-            kwargs['grid'].distributor
-        )
 
     @property
     def coordinates(self):
@@ -940,7 +941,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         (3D) gridpoints that each sparse point will be interpolated to. The
         coefficient is split across the n dimensions such that the contribution
         of the point (i, j, k) will be multiplied by
-        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
+        `interp_coeffs[..., i]*interp_coeffs[...,j]*interp_coeffs[...,k]`.
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
@@ -967,9 +968,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
-    is_PrecomputedSparseFunction = True
-
     _sub_functions = ('gridpoints', 'interpolation_coeffs')
+
+    __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
+                   ('r', 'coordinates_data', 'gridpoints_data',
+                    'interpolation_coeffs_data'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -982,7 +985,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             raise ValueError('`r` must be > 0')
         self._r = r
 
-        coordinates = kwargs.get('coordinates')
+        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         if isinstance(coordinates, SubFunction):
             self._coordinates = coordinates
         elif isinstance(coordinates, Iterable):
@@ -996,30 +999,32 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 distributor=self._distributor
             )
         elif coordinates is None:
-            # Unlike `gridpoints` or `interpolation_coefficients`, not
-            # strictly necessary
-            pass
+            # Unlike `gridpoints` or `interpolation_coeffs`, not strictly necessary
+            self._coordinates = None
         else:
             raise ValueError("`coordinates` must be either SubFunction or iterable "
                              "(e.g., list, np.ndnarray)")
 
         gridpoints = kwargs.get('gridpoints')
+        gridpoints = kwargs.get('gridpoints', kwargs.get('gridpoints_data'))
         if isinstance(gridpoints, SubFunction):
             self._gridpoints = gridpoints
         elif isinstance(gridpoints, Iterable):
             gridpoints_data = gridpoints
             dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
-            shape = (self._npoint, self.grid.dim)
+            shape = (self.npoint, self.grid.dim)
             self._gridpoints = SubFunction(
                 name="%s_gridpoints" % self.name, parent=self, dtype=np.int32,
                 dimensions=dimensions, shape=shape, space_order=0,
-                initializer=gridpoints_data, distributor=self._distributor
+                initializer=gridpoints_data, alias=self.alias,
+                distributor=self._distributor,
             )
         else:
             raise ValueError("`gridpoints` must be either SubFunction or iterable "
                              "(e.g., list, np.ndnarray)")
 
-        interpolation_coeffs = kwargs.get('interpolation_coeffs')
+        interpolation_coeffs = kwargs.get('interpolation_coeffs',
+                                          kwargs.get('interpolation_coeffs_data'))
         if isinstance(interpolation_coeffs, SubFunction):
             self._interpolation_coeffs = interpolation_coeffs
         elif isinstance(interpolation_coeffs, Iterable):
@@ -1030,7 +1035,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             self._interpolation_coeffs = SubFunction(
                 name="%s_interp_coeffs" % self.name, parent=self, dtype=self.dtype,
                 dimensions=dimensions, shape=shape, space_order=0,
-                initializer=interpolation_coeffs_data
+                initializer=interpolation_coeffs_data, alias=self.alias
             )
         else:
             raise ValueError("`interpolation_coeffs` must be either SubFunction "
@@ -1051,6 +1056,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         return self._r
 
     @property
+    def coordinates(self):
+        return self._coordinates
+
+    @property
     def gridpoints(self):
         return self._gridpoints
 
@@ -1058,6 +1067,21 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def interpolation_coeffs(self):
         """ The Precomputed interpolation coefficients."""
         return self._interpolation_coeffs
+
+    @property
+    def coordinates_data(self):
+        try:
+            return self.coordinates.data.view(np.ndarray)
+        except AttributeError:
+            return None
+
+    @property
+    def gridpoints_data(self):
+        return self.gridpoints.data.view(np.ndarray)
+
+    @property
+    def interpolation_coeffs_data(self):
+        return self.interpolation_coeffs.data.view(np.ndarray)
 
     def _dist_scatter(self, data=None):
         data = data if data is not None else self.data
@@ -1120,7 +1144,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         (3D) gridpoints that each sparse point will be interpolated to. The
         coefficient is split across the n dimensions such that the contribution
         of the point (i, j, k) will be multiplied by
-        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
+        `interp_coeffs[..., i]*interp_coeffs[...,j]*interp_coeffs[...,k]`.
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
@@ -1149,7 +1173,8 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
     uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
     """
 
-    is_PrecomputedSparseTimeFunction = True
+    __rkwargs__ = tuple(filter_ordered(AbstractSparseTimeFunction.__rkwargs__ +
+                                       PrecomputedSparseFunction.__rkwargs__))
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
