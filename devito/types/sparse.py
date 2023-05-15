@@ -12,6 +12,7 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.finite_differences.elementary import floor
+from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
 from devito.symbolics import (INT, cast_mapper, indexify,
@@ -1039,7 +1040,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
         Shape of the object. Defaults to `(npoint,)`.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
@@ -1189,9 +1190,9 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
     interpolation_coeffs : np.ndarray, optional
         An array containing the coefficient for each of the r^2 (2D) or r^3
         (3D) gridpoints that each sparse point will be interpolated to. The
-        coefficient is split across the n Dimensions such that the contribution
+        coefficient is split across the n dimensions such that the contribution
         of the point (i, j, k) will be multiplied by
-        `interp_coeffs[..., i]*interp_coeffs[...,j]*interp_coeffs[...,k]`.
+        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
@@ -1201,7 +1202,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         Discretisation order for time derivatives. Default to 1.
     shape : tuple of ints, optional
         Shape of the object. Defaults to `(npoint,)`.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
