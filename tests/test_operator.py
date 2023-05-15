@@ -1612,8 +1612,10 @@ class TestLoopScheduling(object):
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
         assert outer[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq0.rhs))
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq1.rhs))
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq2.rhs))
+        assert (str(middle[-1].nodes[0].exprs[0].expr.rhs) ==
+                str(diff2sympy(indexify(eq1.rhs))))
+        assert (str(inner[-1].nodes[0].exprs[0].expr.rhs) ==
+                str(diff2sympy(indexify(eq2.rhs))))
 
     def test_equations_emulate_bc(self):
         """
@@ -1647,8 +1649,8 @@ class TestLoopScheduling(object):
         op = Operator([eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
+        assert str(trees[0][-1].nodes[0].exprs[0].expr.rhs) == str(eq1.rhs)
+        assert str(trees[1][-1].nodes[0].exprs[0].expr.rhs) == str(eq2.rhs)
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1673,8 +1675,8 @@ class TestLoopScheduling(object):
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
+        assert str(trees[0][-1].nodes[0].exprs[0].expr.rhs) == str(eqs[0].rhs)
+        assert str(trees[1][-1].nodes[0].exprs[0].expr.rhs) == str(eqs[1].rhs)
 
     @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
     def test_equations_mixed_functions(self, shape):
