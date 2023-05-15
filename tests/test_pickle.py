@@ -8,7 +8,7 @@ from sympy import Symbol
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min,
+                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
                     PrecomputedSparseTimeFunction)
 from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
@@ -312,12 +312,6 @@ class TestBasic(object):
 
     def test_findexed(self, pickle):
         grid = Grid(shape=(3, 3, 3))
-        f = Function(name='f', grid=grid)
-
-        fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
-
-        pkl_fi = pickle.dumps(fi)
-        new_fi = pickle.loads(pkl_fi)
 
         assert new_fi.name == fi.name
         assert new_fi.pname == fi.pname
