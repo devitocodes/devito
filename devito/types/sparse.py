@@ -1065,6 +1065,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                    ('r', 'gridpoints_data', 'coordinates_data',
                     'interpolation_coeffs_data'))
 
+    __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
+                   ('r', 'coordinates_data', 'gridpoints_data',
+                    'interpolation_coeffs_data'))
+
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
@@ -1192,7 +1196,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         (3D) gridpoints that each sparse point will be interpolated to. The
         coefficient is split across the n dimensions such that the contribution
         of the point (i, j, k) will be multiplied by
-        `interp_coeffs[..., i]*interpo_coeffs[...,j]*interp_coeffs[...,k]`.
+        `interp_coeffs[..., i]*interp_coeffs[...,j]*interp_coeffs[...,k]`.
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
