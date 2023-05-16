@@ -37,9 +37,9 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
             # Field initialization
             grid = Grid(shape=shape)
             u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
-            u.data[:, :, :] = 0
-            u.data[:, int(nx / 2), int(ny / 2)] = init_value
-            u.data[:, int(nx / 2), -int(ny / 2)] = -init_value
+            u.data[...] = 0
+            u.data[..., int(nx / 2), int(ny / 2)] = init_value
+            u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
 
             # Create an equation with second-order derivatives
             a = Constant(name="a")
@@ -51,8 +51,8 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
             grid = Grid(shape=shape, extent=(2., 2., 2.))
             u = TimeFunction(name='u', grid=grid, space_order=so)
             # init_hat(field=u.data[0], dx=dx, dy=dy, value=2.)
-            u.data[:, :, :, :] = 0
-            u.data[:, int(nx/2), :, :] = 1
+            u.data[...] = 0
+            u.data[:, int(nx/2), ...] = 1
 
             a = Constant(name='a')
             # Create an equation with second-order derivatives
@@ -66,7 +66,7 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
 
 
 def dump_input(input: TimeFunction, bench_name: str):
-    input.data_with_halo[0,:,:].tofile(f'{bench_name}.input.data')
+    input.data_with_halo[0,...].tofile(f'{bench_name}.input.data')
 
 
 def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
@@ -238,7 +238,7 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
             #  4. time_M is always nt in this example
             t1 = (nt + u._time_size - 1) % (2)
 
-            res_data: np.array = u.data[t1,:,:]
+            res_data: np.array = u.data[t1,...]
             info("Save result data to " + bench_name + ".devito.data")
             res_data.tofile(bench_name + ".devito.data")
 
