@@ -31,7 +31,7 @@ bench_name = args.benchmark_name
 init_threads = args.init_threads
 max_threads = args.max_threads
 points = args.points
-csv_name = f"{bench_name}_grid_runtimes.csv"
+csv_name = f"{bench_name}_thread_runtimes.csv"
 
 
 
@@ -65,11 +65,11 @@ fast_benchmarks.link_kernel(bench_name)
 
 
 with open(csv_name, "w") as f:
-    f.write("Grid Size,Devito/xDSL,Devito/GCC\n")
+    f.write("Threads,Devito/xDSL,Devito\n")
     f.flush()
 
     while threads <= max_threads:
         runtime = get_runtimes_for_threads(threads, eq0)
-        f.write(f"{threads},{runtime[1]},{runtime[2]}\n")
+        f.write(f"{runtime}\n")
         f.flush()
         threads *= 2

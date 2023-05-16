@@ -1,4 +1,5 @@
 
+from ast import literal_eval
 from math import floor, log
 import sys
 import matplotlib.pyplot as plt
@@ -15,7 +16,7 @@ benchmark = sys.argv[1]
 first = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 
 csv_name = f"{benchmark}_thread_runtimes.csv"
-svg_name = f"devito_{benchmark}_nthreads_cpu.svg"
+svg_name = f"devito_{benchmark}_nthreads_cpu.pdf"
 
 def human_format(number: int):
     units = ['', 'K', 'M', 'G', 'T', 'P']
@@ -37,19 +38,21 @@ try:
             runtimes = [float(t) for t in split[1:]]
             return (size, runtimes)
             # runtimes = 
-        lines = list(map(split_line, lines[1+first:]))
+        lines = list(map(literal_eval, lines[1+first:]))
 
-        species: list[tuple[int, ...]] = []
+        nthreads: list[int] = []
         values:dict[str, list[float]] = {}
         for label in labels:
             values[label] = []
         for line in lines:
-            species.append(line[0])
+            nthreads.append(line[0])
             for i, label in enumerate(labels):
                 print(f"line {line} i {i}")
-                values[label].append(line[1][i])
+                # line[i+1] is the list of runtimes (Here for Devito/xDSL then Devito.)
+                # Here I'm just plotting the average!
+                values[label].append(sum(line[i+1])/len(line[i+1]))
 
-        x = np.arange(len(species))  #type: ignore
+        x = np.arange(len(nthreads))  #type: ignore
         width = 0.25  # the width of the bars
         multiplier = 0
 
@@ -64,12 +67,12 @@ try:
         # Add some text for labels, title and custom x-axis tick labels, etc.
         ax.set_ylabel("Time (s)") #type: ignore
         ax.set_xlabel(x_label) # type: ignore
-        ax.set_xticks(x + width, species)
+        ax.set_xticks(x + width, nthreads)
         ax.legend(loc="upper left", ncols=3) #type: ignore
         fig.autofmt_xdate()
 
         print(f"saving to {svg_name}")
-        plt.savefig(svg_name, format="svg") #type: ignore
+        plt.savefig(svg_name, format="pdf") #type: ignore
         plt.show() #type: ignore
 except FileNotFoundError:
     print(f'{csv_name} not found! Try running "python grid_scale.py {sys.argv[1]}" to generate it." ')

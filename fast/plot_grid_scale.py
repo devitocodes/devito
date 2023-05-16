@@ -1,4 +1,5 @@
 
+from ast import literal_eval
 from math import floor, log
 import sys
 import matplotlib.pyplot as plt
@@ -15,7 +16,7 @@ benchmark = sys.argv[1]
 first = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 
 csv_name = f"{benchmark}_grid_runtimes.csv"
-svg_name = f"devito_{benchmark}_probsize_cpu.svg"
+pdf_name = f"devito_{benchmark}_probsize_cpu.pdf"
 
 def human_format(number: int):
     units = ['', 'K', 'M', 'G', 'T', 'P']
@@ -31,25 +32,19 @@ try:
         x_label = header_line[0]
         labels = header_line[1:]
 
-        def split_line(line: str):
-            split = line.split(",")
-            size = tuple(int(s) for s in split[0:dims[benchmark]])
-            runtimes = [float(t) for t in split[dims[benchmark]:]]
-            return (size, runtimes)
-            # runtimes = 
-        lines = list(map(split_line, lines[1+first:]))
+        lines = list(map(literal_eval, lines[1+first:]))
 
-        species: list[tuple[int, ...]] = []
+        grid_size: list[tuple[int, ...]] = []
         values:dict[str, list[float]] = {}
         for label in labels:
             values[label] = []
         for line in lines:
-            species.append(line[0])
+            grid_size.append(line[0])
             for i, label in enumerate(labels):
                 print(f"line {line} i {i}")
-                values[label].append(line[1][i])
+                values[label].append(sum(line[i+1])/len(line[i+1]))
 
-        x = np.arange(len(species))  #type: ignore
+        x = np.arange(len(grid_size))  #type: ignore
         width = 0.25  # the width of the bars
         multiplier = 0
 
@@ -64,11 +59,11 @@ try:
         # Add some text for labels, title and custom x-axis tick labels, etc.
         ax.set_ylabel("Time (s)") #type: ignore
         ax.set_xlabel(x_label) # type: ignore
-        ax.set_xticks(x + width, species)
+        ax.set_xticks(x + width, grid_size)
         ax.legend(loc="upper left", ncols=3) #type: ignore
         fig.autofmt_xdate()
 
-        plt.savefig(svg_name, format="svg") #type: ignore
+        plt.savefig(pdf_name, format="pdf") #type: ignore
         plt.show() #type: ignore
 except FileNotFoundError:
     print(f'{csv_name} not found! Try running "python grid_scale.py {sys.argv[1]}" to generate it." ')

@@ -44,12 +44,12 @@ fast_benchmarks.compile_interop(bench_name, True)
 
 with open(csv_name, "w") as f:
     
-    f.write("Grid Size,Devito/xDSL,Devito/GCC\n")
+    f.write("Grid Size,Devito/xDSL,Devito\n")
     f.flush()
 
     while prod(size) <= max_size:
         runtime = get_runtimes_for_size(size)
-        f.write(f"{','.join(str(r) for r in runtime[0])},{runtime[1]},{runtime[2]}\n")
+        f.write(f"{runtime}\n")
         f.flush()
         size = list(size)
         size[next_mul] *= 2
