@@ -65,8 +65,8 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
     return (grid, u, eq0, dt)
 
 
-def dump_input(input: TimeFunction, filename: str):
-    input.data_with_halo[0,:,:].tofile(filename)
+def dump_input(input: TimeFunction, bench_name: str):
+    input.data_with_halo[0,:,:].tofile(f'{bench_name}.input.data')
 
 
 def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
@@ -205,7 +205,7 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
     if args.xdsl:
-        dump_input(u, bench_name + ".input.data")
+        dump_input(u, bench_name)
         xop = XDSLOperator([eq0])
         if dump_main:
             dump_main_mlir(bench_name, grid, u, xop, dt, nt)

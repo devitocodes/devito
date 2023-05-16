@@ -26,6 +26,7 @@ def get_runtimes_for_size(
     size: tuple[int, ...]
 ) -> tuple[tuple[int, ...], list[float], list[float]]:
     grid, u, eq0, dt = fast_benchmarks.get_equation(bench_name, size, 2, 1, 10)
+    fast_benchmarks.dump_input(u, bench_name)
     xop = XDSLOperator([eq0])
     nt = 100
     fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt)
