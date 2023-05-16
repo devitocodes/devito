@@ -1058,12 +1058,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     The parameters must always be given as keyword arguments, since SymPy
     uses `*args` to (re-)create the Dimension arguments of the symbolic object.
     """
-
-    _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
-
-    __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
-                   ('r', 'gridpoints_data', 'coordinates_data',
-                    'interpolation_coeffs_data'))
+     _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
                    ('r', 'coordinates_data', 'gridpoints_data',
