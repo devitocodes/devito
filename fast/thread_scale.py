@@ -1,74 +1,75 @@
 dims = {"2d5pt": 2, "3d_diff": 3}
 
-import multiprocessing as mp
-import os
-import sys
-from math import prod
+import argparse
+import os, sys
+from devito.operator.operator import Operator
+from devito.operator.xdsl_operator import XDSLOperator
+from devito.parameters import configuration
+from devito.types.equation import Eq
+import fast_benchmarks
 
-benchmark = sys.argv[1]
-if benchmark not in dims:
-    print(
-        f"{benchmark} is not handled! Handled banchmarks are {', '.join(dims.keys())}"
+
+parser = argparse.ArgumentParser(description="Process arguments.")
+
+parser.add_argument('benchmark_name', choices=["2d5pt", "3d_diff"])
+parser.add_argument('-i', '--init_threads', type=int, default=1, help="Initial (lowest) number of threads")
+parser.add_argument('-m', '--max_threads', type=int, default=os.cpu_count(), help=f"Maximum number of threads. Defaults to the detected {os.cpu_count()}")
+parser.add_argument(
+        "-d",
+        "--shape",
+        default=(4096, 4096),
+        type=int,
+        nargs="+",
+        help="Number of grid points along each axis",
     )
-    sys.exit(1)
+parser.add_argument('-p', '--points', type=int, default=10, help="Number of measurements to make for each number of threads.")
 
-max_size = "2048**3"
-if len(sys.argv) < 2 + dims[benchmark] or len(sys.argv) > 4 + dims[benchmark]:
-    print(
-        f"usage: {sys.argv[0]} <benchmark> <size, e.g 2 2 for 2d>[initial threads] [maximum threads]"
-    )
-    print(f"Initial thread number defaults to 1.")
-    print(f"Max thread number defaults to thread count (here {mp.cpu_count()}).")
-    sys.exit(1)
+args = parser.parse_args()
 
-size = tuple(map(lambda s: int(s), sys.argv[2 : 2 + dims[benchmark]]))
-init_threads = (
-    int(sys.argv[2 + dims[benchmark]]) if len(sys.argv) >= 3 + dims[benchmark] else 1
-)
-max_threads = (
-    int(sys.argv[3 + dims[benchmark]])
-    if len(sys.argv) >= 4 + dims[benchmark]
-    else mp.cpu_count()
-)
-
-print(sys.argv)
-print(f"Running with threads from {init_threads} to {max_threads}")
-
-csv_name = f"{benchmark}_thread_runtimes.csv"
+size = args.shape
+bench_name = args.benchmark_name
+init_threads = args.init_threads
+max_threads = args.max_threads
+points = args.points
+csv_name = f"{bench_name}_grid_runtimes.csv"
 
 
-def get_runtimes_for_threads(threads: int) -> tuple[int, float, float]:
+
+def get_runtimes_for_threads(threads: int, eq: Eq) -> tuple[int, list[float], list[float]]:
     print(f"Running for {threads} threads")
-    cmd = f'make BENCH_OPTS="-d {" ".join(str(s) for s in size)} -nt 100 -to 1" -B {benchmark}.bench MODE=openmp THREADS={threads} DUMP=0 2>&1'
-    out: str
-    try:
-        wrap = os.popen(cmd)
-        out = wrap.read()
-        lines = out.split("\n")
-        xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
-        devito_line = next(
-            line for line in lines if line.startswith("Operator `Kernel` ran in")
-        )
+    os.environ["OMP_NUM_THREADS"] = str(threads)
+    grid, u, eq0, dt = fast_benchmarks.get_equation(bench_name, size, 2, 1, 10)
+    op = Operator([eq0])
+    xdsl_runs = [fast_benchmarks.run_kernel(bench_name) for _ in range(points)]
+    devito_runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(points)]
+    return (threads, xdsl_runs, devito_runs)
 
-        pair = (
-            threads,
-            float(xdsl_line.split(" ")[-2]),
-            float(devito_line.split(" ")[-2]),
-        )
-        print(f"Threads:  {pair[0]} : xDSL time: {pair[1]}, Devito time: {pair[2]}")
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
-    return pair
+
+
+os.environ["OMP_PLACES"] = "threads"
+configuration['language'] = 'openmp'
+
+
+threads = init_threads
+
+grid, u, eq0, dt = fast_benchmarks.get_equation(bench_name, size, 2, 1, 10)
+xop = XDSLOperator([eq0])
+nt = 100
+
+fast_benchmarks.compile_interop(bench_name, True)
+fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt)
+fast_benchmarks.compile_kernel(bench_name, xop.mlircode, fast_benchmarks.XDSL_CPU_PIPELINE, fast_benchmarks.OPENMP_PIPELINE)
+fast_benchmarks.link_kernel(bench_name)
+
+
 
 
 with open(csv_name, "w") as f:
     f.write("Grid Size,Devito/xDSL,Devito/GCC\n")
-    threads = init_threads
+    f.flush()
+
     while threads <= max_threads:
-        runtime = get_runtimes_for_threads(threads)
+        runtime = get_runtimes_for_threads(threads, eq0)
         f.write(f"{threads},{runtime[1]},{runtime[2]}\n")
+        f.flush()
         threads *= 2

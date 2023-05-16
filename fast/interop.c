@@ -101,9 +101,11 @@ MEMREF_STRUCT_DEF(i64, 3)
 // dumping memref macros:
 
 #if NODUMP
-#define DUMP_MEMREF(fname, name, dtype, rank) {\
-}
-#else
+#define DUMP_MEMREF(fname, name, dtype, rank) \
+  {                                           \
+    printf("Skipping output dumping!\n");     \
+  }                                           
+#else 
 #define DUMP_MEMREF(fname, name, dtype, rank)                                         \
   {                                                                                   \
     FILE *f = fopen(fname, "w");                                                      \

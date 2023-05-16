@@ -1,6 +1,7 @@
 import argparse
 from functools import reduce
 from math import prod
+import os
 import pathlib
 from subprocess import PIPE, Popen
 from typing import Any
@@ -14,7 +15,7 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 import sys
 
 
-CFLAGS = '-O3 -march=native -mtune=native' 
+CFLAGS = '-O3 -march=native -mtune=native -fopenmp' 
 
 CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
@@ -26,17 +27,15 @@ XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
 MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
 
 def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: int):
+    d = (2.0 / (n - 1) for n in shape)
+    nu = .5
+    sigma = .25
+    dt = sigma * reduce(lambda a,b: a*b, d) / nu
     match name:
         case '2d5pt':
-            nt = args.nt
             nx, ny = shape
-            nu = 0.5
-            dx = 2.0 / (nx - 1)
-            dy = 2.0 / (ny - 1)
-            sigma = 0.25
-            dt = sigma * dx * dy / nu
             # Field initialization
-            grid = Grid(shape=(nx, ny))
+            grid = Grid(shape=shape)
             u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
             u.data[:, :, :] = 0
             u.data[:, int(nx / 2), int(nx / 2)] = init_value
@@ -48,12 +47,8 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
             stencil = solve(eq, u.forward)
             eq0 = Eq(u.forward, stencil)
         case '3d_diff':
-            nx, ny, nz = shape
-            nu = .5
-            dx = 2. / (nx - 1)
-            dy = 2. / (ny - 1)
-            sigma = .25
-            grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
+            nx, _, _ = shape
+            grid = Grid(shape=shape, extent=(2., 2., 2.))
             u = TimeFunction(name='u', grid=grid, space_order=so)
             # init_hat(field=u.data[0], dx=dx, dy=dy, value=2.)
             u.data[:, :, :, :] = 0
@@ -67,15 +62,15 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
         case _:
             raise Exception("Unknown benchamark!")
 
-    return (grid, u, eq0)
+    return (grid, u, eq0, dt)
 
 
 def dump_input(input: TimeFunction, filename: str):
     input.data_with_halo[0,:,:].tofile(filename)
 
 
-def dump_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
-    info("Operator in " + bench_name + ".main.mlir")
+def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
+    info("Main function " + bench_name + ".main.mlir")
     with open(bench_name + ".main.mlir", "w") as f:
         f.write(
             generate_launcher_base(
@@ -108,7 +103,7 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
     try:
         print(f"Trying to compile {bench_name}.main.o with:")
         print(cmd)
-        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate(main.encode())
         mlir_opt.wait()
         out = t[0].decode() + "\n" + t[1].decode()
@@ -120,13 +115,13 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
         print(out)
         raise e
 
-def compile_interop(bench_name: str):
-    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
+def compile_interop(bench_name: str, nodump:bool):
+    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} {"-DNODUMP" if nodump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
     out:str
     try:
-        print(f"Trying to compile {bench_name}.main.o with:")
+        print(f"Trying to compile {bench_name}.interop.o with:")
         print(cmd)
-        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
         mlir_opt.wait()
         out = t[0].decode() + "\n" + t[1].decode()
@@ -142,9 +137,9 @@ def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str)
     cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}'
     out:str
     try:
-        print(f"Trying to compile {bench_name}.main.o with:")
+        print(f"Trying to compile {bench_name}.kernel.o with:")
         print(cmd)
-        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True)
+        mlir_opt = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate(mlir_code.encode())
         mlir_opt.wait()
         out = t[0].decode() + "\n" + t[1].decode()
@@ -162,7 +157,7 @@ def link_kernel(bench_name:str):
     try:
         print(f"Trying to compile {bench_name}.out with:")
         print(cmd)
-        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True)
+        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
         mlir_opt.wait()
         out = t[0].decode() + "\n" + t[1].decode()
@@ -174,8 +169,30 @@ def link_kernel(bench_name:str):
         print(out)
         raise e
 
+def run_kernel(bench_name:str, env:dict[str, Any] = {}) -> float:
 
-def run_operator(op: Operator, nt: int, dt: float):
+    env_str = " ".join(k+'='+str(v) for k,v in env.items())
+    cmd = f'{env_str} ./{bench_name}.out'
+    out:str
+    try:
+        print(cmd)
+        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
+        t = mlir_opt.communicate()
+        mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        print(out)
+        xdsl_line = next(line for line in out.split("\n") if line.startswith("Elapsed time is: "))
+        return float(xdsl_line.split(" ")[-2])
+
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
+        print("Output:")
+        print(out)
+        raise e
+
+
+def run_operator(op: Operator, nt: int, dt: float) -> float:
     res = op.apply(time_M=nt, a=0.1, dt=dt)
     assert isinstance(res, PerformanceSummary)
     o = res[PerfKey("section0", None)]
@@ -183,24 +200,28 @@ def run_operator(op: Operator, nt: int, dt: float):
     return o.time
 
 
-def main(bench_name: str, nt:int, dt:Any):
+def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
 
-    grid, u, eq0 = get_equation(bench_name, args.shape, so, to, init_value)
+    grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
     if args.xdsl:
         dump_input(u, bench_name + ".input.data")
         xop = XDSLOperator([eq0])
-        if args.dump_main:
-            dump_main(bench_name, grid, u, xop, dt, nt)
+        if dump_main:
+            dump_main_mlir(bench_name, grid, u, xop, dt, nt)
+        else:
+            print("nope?")
         compile_main(bench_name, grid, u, xop, dt, nt)
-        compile_interop(bench_name)
+        compile_interop(bench_name, args.no_output_dump)
         mlir_code = xop.mlircode
-        compile_kernel(bench_name, mlir_code, XDSL_CPU_PIPELINE, CPU_PIPELINE)
-        link_kernel(bench_name)
-        if args.dump_mlir:
+        if dump_mlir:
             info("Dump mlir code in  in " + bench_name + ".mlir")
             with open(bench_name + ".mlir", "w") as f:
                 f.write(mlir_code)
+        compile_kernel(bench_name, mlir_code, XDSL_CPU_PIPELINE, CPU_PIPELINE)
+        link_kernel(bench_name)
+        rt = run_kernel(bench_name)
+        
         
     else:
         op = Operator([eq0])
@@ -263,15 +284,12 @@ if __name__ == "__main__":
             benchmark_dim = 2
         case '3d_diff':
             benchmark_dim = 3
+        case _:
+            raise Exception("Unhandled benchmark?")
     
     if len(args.shape) != benchmark_dim:
         print(f"Expected {benchmark_dim}d shape for this benchmark, got {args.shape}")
         sys.exit(1)
-
-    d = (2.0 / (n - 1) for n in args.shape)
-    nu = .5
-    sigma = .25
-    dt = sigma * reduce(lambda a,b: a*b, d) / nu
     
 
     so = args.space_order
@@ -280,4 +298,5 @@ if __name__ == "__main__":
     init_value = 10
     main(args.benchmark_name,
          args.nt,
-         dt)
+         args.dump_main,
+         args.dump_mlir)

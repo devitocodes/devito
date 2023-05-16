@@ -1,69 +1,57 @@
 dims = {"2d5pt": 2, "3d_diff": 3}
 
-import os
-import sys
-from subprocess import PIPE, Popen
+import argparse
 from math import prod
+from devito.operator.operator import Operator
+from devito.operator.xdsl_operator import XDSLOperator
+import fast_benchmarks
 
-max_size = "2048**3"
-if len(sys.argv) < 3 or len(sys.argv) > 4:
-    print(f"usage: {sys.argv[0]} <benchmark> <initial size> [maximum size]")
-    print(f"First grid size will be (<initial size>)*kernel's dim.")
-    print(f"maximum size defaults to {max_size}={eval(max_size)}")
-    sys.exit(1)
 
-benchmark = sys.argv[1]
-init_size = int(sys.argv[2])
-max_size = int(sys.argv[3]) if len(sys.argv) == 4 else eval(max_size)
+parser = argparse.ArgumentParser(description="Process arguments.")
 
-if benchmark not in dims:
-    print(
-        f"{benchmark} is not handled! Handled banchmarks are {', '.join(dims.keys())}"
-    )
-    sys.exit(1)
+parser.add_argument('benchmark_name', choices=["2d5pt", "3d_diff"])
+parser.add_argument('-i', '--init_size', type=int, default=128)
+parser.add_argument('-m', '--max_total_size', type=int, default=2048**3)
 
-size = [init_size] * dims[benchmark]
-csv_name = f"{benchmark}_grid_runtimes.csv"
+args = parser.parse_args()
+
+bench_name = args.benchmark_name
+init_size = args.init_size
+max_size = args.max_total_size
+size = tuple([init_size] * dims[bench_name])
+csv_name = f"{bench_name}_grid_runtimes.csv"
 
 
 def get_runtimes_for_size(
     size: tuple[int, ...]
-) -> tuple[tuple[int, ...], float, float]:
-    print(f"Running for grid size {size} (total: {prod(size)})")
-    cmd = ['make', f'BENCH_OPTS=-d {" ".join(str(s) for s in size)} -nt 100 -to 1','-B',f'{benchmark}.bench','MODE=cpu','DUMP=0','2>&1']
-    out: str
-    try:
-        wrap = Popen(cmd, stdout=PIPE)
-        out = wrap.stdout.read().decode()
-        lines = out.split("\n")
-        xdsl_line = next(line for line in lines if line.startswith("Elapsed time is: "))
-        devito_line = next(
-            line for line in lines if line.startswith("Devito finer runtime: ")
-        )
+) -> tuple[tuple[int, ...], list[float], list[float]]:
+    grid, u, eq0, dt = fast_benchmarks.get_equation(bench_name, size, 2, 1, 10)
+    xop = XDSLOperator([eq0])
+    nt = 100
+    fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt)
+    fast_benchmarks.compile_kernel(bench_name, xop.mlircode, fast_benchmarks.XDSL_CPU_PIPELINE, fast_benchmarks.CPU_PIPELINE)
+    fast_benchmarks.link_kernel(bench_name)
+    xdsl_runs = [fast_benchmarks.run_kernel(bench_name) for _ in range(10)]
 
-        pair = (
-            size,
-            float(xdsl_line.split(" ")[-2]),
-            float(devito_line.split(" ")[-2]),
-        )
-        print(f"Gridsize:  {pair[0]} : xDSL time: {pair[1]}, Devito time: {pair[2]}")
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
-    return pair
+    op = Operator([eq0])
+    devito_runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(10)]
 
+    return (size, xdsl_runs, devito_runs)
 
-runtimes: list[tuple[tuple[int, ...], float, float]] = []
 next_mul = len(size) - 1
 
+fast_benchmarks.compile_interop(bench_name, True)
+
 with open(csv_name, "w") as f:
+    
     f.write("Grid Size,Devito/xDSL,Devito/GCC\n")
+    f.flush()
 
     while prod(size) <= max_size:
-        runtime = get_runtimes_for_size(tuple(size))
+        runtime = get_runtimes_for_size(size)
         f.write(f"{','.join(str(r) for r in runtime[0])},{runtime[1]},{runtime[2]}\n")
+        f.flush()
+        size = list(size)
         size[next_mul] *= 2
+        size = tuple(size)
         next_mul = (next_mul - 1) % len(size)

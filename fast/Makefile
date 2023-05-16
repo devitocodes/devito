@@ -55,16 +55,11 @@ endif
 # it calls the example script with the bench options, meaning it runs normal devito
 %.devito.data %.input.data: CC = gcc
 %.devito.data %.input.data:
-	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
+	$(DEVITO_ENV) python3 fast_benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)
 
 # this calls the example file with the `-xdsl` flag so it dumps the mlir files
-%.mlir %.main.o %.interop.o %.kernel.o %.out:
-	$(DEVITO_ENV) python3 benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
-
-# this runs the <name>.out file to get the stencil result data
-# TODO: Do not forget to get thread pinning right
-%.stencil.data: %.out %.input.data
-	$(STENCIL_ENV) ./$<
+%.mlir %.main.o %.interop.o %.kernel.o %.out %.stencil.data: %.input.data
+	$(DEVITO_ENV) python3 fast_benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA) -xdsl
 
 ifeq ($(DUMP),0)
 %.bench: %.stencil.data %.devito.data
