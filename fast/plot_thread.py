@@ -1,10 +1,8 @@
 
 from ast import literal_eval
-from math import floor, log
 import sys
 import matplotlib.pyplot as plt
 import numpy as np
-import thread_scale
 
 dims = {"2d5pt": 2, "3d_diff": 3}
 
@@ -19,11 +17,13 @@ first = int(sys.argv[2]) if len(sys.argv) > 2 else 0
 
 pdf_name = f"devito_{benchmark}_nthreads_cpu.pdf"
 
+modes = ["xdsl", "devito"]
+
 labels:list[str] = []
 nthreads: set[int] | list[int] = set()
 x_label = "Threads"
 values:dict[str, list[float]] = {}
-for mode in thread_scale.modes:
+for mode in modes:
     csv_name = f"{benchmark}_threads_{mode}.csv"
     try:
         with open(csv_name, "r") as f:
