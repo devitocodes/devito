@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
 from math import ceil, pow
-from sympy import root, divisors
+from sympy import root, divisors, primefactors
 
 import atexit
 
@@ -195,8 +195,8 @@ class Distributor(AbstractDistributor):
             # Note: the cloned communicator doesn't need to be explicitly freed;
             # mpi4py takes care of that when the object gets out of scope
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
-
             if topology is None:
+                # import pdb;pdb.set_trace()
                 # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
                 # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
                 # * topology[0] >= topology[1] >= topology[2]
@@ -206,8 +206,7 @@ class Distributor(AbstractDistributor):
                 # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
-                # A custom topology may contain integers or the wildcard '*', which
-                # implies `nprocs // nstars`
+                # A custom topology may contain integers or the wildcard '*'
                 topology = CustomTopology(topology, self._input_comm)
 
                 self._topology = topology
@@ -610,11 +609,6 @@ class CustomTopology(tuple):
     * `('*', 1, '*')` gives: (4, 1, 2)
     * `(1, '*', '*')` gives: (1, 4, 2)
 
-    Raises
-    ------
-    If the wildcard `'*'` is used, then the CustomTopology can only contain either
-    `'*'` or 1's, otherwise a ValueError exception is raised.
-
     Notes
     -----
     Users shouldn't use this class directly. It's up to the Devito runtime to
@@ -622,37 +616,39 @@ class CustomTopology(tuple):
     """
 
     def __new__(cls, items, input_comm):
+        # Keep track of nstars and already defined decompositions
         nstars = len([i for i in items if i == '*'])
+        alloc_procs = np.prod([i for i in items if i != '*'])
+        remprocs = int(input_comm.size // alloc_procs)
+
         processed = []
-        # If all inputs are stars, slice as evenly as possible
-        if nstars == len(items) and root(input_comm.size, nstars).is_Integer:
-            dd = root(input_comm.size, nstars)
+        # If all inputs are stars, and nstars root exists slice as evenly as possible
+        if nstars == len(items) and root(remprocs, nstars).is_Integer:
+            dd = root(remprocs, nstars)
             processed = as_tuple([int(dd) for i in range(nstars)])
 
-        # Else if more than one stars are present decompose the domain as evenly
-        # as possible among the `star`ed dimensions
+        # Else decompose the domain as evenly as possible among the `star`ed dimensions
         elif nstars > 0:
-            if any(i not in ('*', 1) for i in items):
-                raise ValueError("Custom topology must be only 1 or *")
-
-            # If nstars are not a perfect divisor of the communicator size
-            # size, prioritize splitting the outermost dimension
-            remprocs = input_comm.size
-
-            if root(input_comm.size, nstars).is_Integer:
-                v = root(input_comm.size, nstars)
-            elif remprocs == nstars:
-                v = remprocs
+            # If nstars root is an integer decompose remprocs evenly
+            if root(remprocs, nstars).is_Integer:
+                dd = root(remprocs, nstars)
+            # Otherwise prioritize splitting the outermost dimension
             else:
-                divs = divisors(remprocs)
-                v = divs[(len(divs)) // nstars]
+                # If we cannot decompose to even number of slices per dimension,
+                # decompose the outermost with the prime factor
+                prime_factors = primefactors(remprocs)
+                if max(prime_factors) > 2:
+                    dd = max(prime_factors)
+                else:
+                    divs = divisors(remprocs)
+                    dd = divs[(len(divs)) // nstars]
 
             for i in items:
-                if i == 1:
+                if isinstance(i, int):
                     processed.append(i)
-                elif remprocs % v == 0:
-                    processed.append(v)
-                    remprocs = remprocs // v
+                elif remprocs % dd == 0:
+                    processed.append(dd)
+                    remprocs = remprocs // dd
                 else:
                     processed.append(remprocs)
                     remprocs = 1
@@ -663,7 +659,8 @@ class CustomTopology(tuple):
         try:
             assert np.prod(processed) == input_comm.size
         except:
-            raise ValueError("Invalid `topology` for given nprocs")
+            raise ValueError("Invalid `topology`", processed, " for given nprocs:",
+                             input_comm.size)
 
         obj = super().__new__(cls, processed)
         obj.logical = items
