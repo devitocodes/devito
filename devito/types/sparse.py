@@ -99,44 +99,55 @@ class AbstractSparseFunction(DiscreteFunction):
             kwargs['grid'].distributor
         )
 
-    def __subfunc_setup__(self, key='coordinates', ndim=2, allow_empty=False, **kwargs):
-        """
-        Setup SubFunction for a SparseFunction.
-        """
-        coordinates = kwargs.get(key, kwargs.get('%s_data' % key))
-        # In case only number of points is specified
-        npoint = kwargs.get('npoint', None)
-        if npoint is not None and coordinates is None:
-            coordinates = np.zeros((npoint, self.grid.dim))
-        # Check if already a pre-setup SubFunction
-        if isinstance(coordinates, Function):
-            setattr(self, '_%s' % key, coordinates)
-        # Setup the subfunction
-        elif isinstance(coordinates, Iterable):
-            dimensions = (self.indices[self._sparse_position], Dimension(name='d'),
-                          Dimension(name='i'))[:ndim]
-            shape = (self.npoint, self.grid.dim, self.r)[:ndim]
-            # Only retain the local data region
-            if coordinates is not None:
-                coordinates = np.array(coordinates)
-            coords = SubFunction(
-                name='%s_%s' % (self.name, key[:5]), parent=self, dtype=self.dtype,
-                dimensions=dimensions, shape=shape,
-                space_order=0, initializer=coordinates, alias=self.alias,
-                distributor=self._distributor
-            )
-            if self.npoint == 0:
-                # This is a corner case -- we might get here, for example, when
-                # running with MPI and some processes get 0-size arrays after
-                # domain decomposition. We "touch" the data anyway to avoid the
-                # case ``self._data is None``
-                coords.data
-            setattr(self, '_%s' % key, coords)
-        elif allow_empty:
-            setattr(self, '_%s' % key, None)
-        else:
+    def __subfunc_setup__(self, key, suffix):
+        if isinstance(key, SubFunction):
+            return key
+        elif key is not None and not isinstance(key, Iterable):
             raise ValueError("`%s` must be either SubFunction "
                              "or iterable (e.g., list, np.ndarray)" % key)
+
+        name = '%s_%s' % (self.name, suffix)
+        dimensions = (self.indices[self._sparse_position],
+                      Dimension(name='d'),
+                      Dimension(name='i'))
+        shape = (self.npoint, self.grid.dim, self.r)
+
+        if key is None:
+            # Fallback to default behaviour
+            n = 2  # (Sparse points, Grid Dimensions)
+            dtype = self.dtype
+        else:
+            if not isinstance(key, np.ndarray):
+                key = np.array(key)
+
+            n = key.ndim
+            if shape[:n] != key.shape:
+                raise ValueError("Incompatible shape `%s`; expected `%s`" %
+                                 (shape[:n], key.shape))
+
+            # Infer dtype
+            if np.issubdtype(key.dtype.type, np.integer):
+                dtype = np.int32
+            else:
+                dtype = self.dtype
+
+        dimensions = dimensions[:n]
+        shape = shape[:n]
+
+        sf = SubFunction(
+            name=name, parent=self, dtype=dtype, dimensions=dimensions,
+            shape=shape, space_order=0, initializer=key, alias=self.alias,
+            distributor=self._distributor
+        )
+
+        if self.npoint == 0:
+            # This is a corner case -- we might get here, for example, when
+            # running with MPI and some processes get 0-size arrays after
+            # domain decomposition. We "touch" the data anyway to avoid the
+            # case ``self._data is None``
+            sf.data
+
+        return sf
 
     def _halo_exchange(self):
         # no-op for SparseFunctions
@@ -313,7 +324,11 @@ class AbstractSparseFunction(DiscreteFunction):
     def _arg_defaults(self, alias=None):
         key = alias or self
         mapper = {self: key}
-        mapper.update({getattr(self, i): getattr(key, i) for i in self._sub_functions})
+        for i in self._sub_functions:
+            f = getattr(key, i)
+            if f is not None:
+                mapper[getattr(self, i)] = f
+
         args = ReducerMap()
 
         # Add in the sparse data (as well as any SubFunction data) belonging to
@@ -536,7 +551,8 @@ class SparseFunction(AbstractSparseFunction):
         self.interpolator = LinearInterpolator(self)
 
         # Set up sparse point coordinates
-        self.__subfunc_setup__(**kwargs)
+        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
+        self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
 
     @property
     def coordinates(self):
@@ -997,7 +1013,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
-    _sub_functions = ('gridpoints', 'interpolation_coeffs')
+    _sub_functions = ('coordinates', 'gridpoints', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
                    ('r', 'coordinates_data', 'gridpoints_data',
@@ -1014,11 +1030,31 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             raise ValueError('`r` must be > 0')
         self._radius = r
 
-        self.__subfunc_setup__(allow_empty=True, **kwargs)
-        if self.coordinates is None:
-            self.__subfunc_setup__(key='gridpoints', **kwargs)
+        coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
+        gridpoints = kwargs.get('gridpoints', kwargs.get('gridpoints_data'))
+        if coordinates is not None and gridpoints is not None:
+            raise ValueError("Either `coordinates` or `gridpoints` must be "
+                             "provided, but not both")
 
-        self.__subfunc_setup__(key='interpolation_coeffs', ndim=3, **kwargs)
+        # Specifying only `npoints` is acceptable; this will require the user
+        # to setup the coordinates data later on
+        npoint = kwargs.get('npoint', None)
+        if self.npoint and coordinates is None and gridpoints is None:
+            coordinates = np.zeros((npoint, self.grid.dim))
+
+        if coordinates is not None:
+            self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
+            self._gridpoints = None
+        else:
+            assert gridpoints is not None
+            self._coordinates = None
+            self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints')
+
+        # Setup the interpolation coefficients. These are compulsory
+        interpolation_coeffs = kwargs.get('interpolation_coeffs',
+                                          kwargs.get('interpolation_coeffs_data'))
+        self._interpolation_coeffs = \
+            self.__subfunc_setup__(interpolation_coeffs, 'interp_coeffs')
 
         warning("Ensure that the provided interpolation coefficient and grid "
                 "point values are computed on the final grid that will be used "
