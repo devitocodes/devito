@@ -38,8 +38,8 @@ def get_equation(name:str, shape:tuple[int, ...], so: int, to: int, init_value: 
             grid = Grid(shape=shape)
             u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
             u.data[:, :, :] = 0
-            u.data[:, int(nx / 2), int(nx / 2)] = init_value
-            u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
+            u.data[:, int(nx / 2), int(ny / 2)] = init_value
+            u.data[:, int(nx / 2), -int(ny / 2)] = -init_value
 
             # Create an equation with second-order derivatives
             a = Constant(name="a")
