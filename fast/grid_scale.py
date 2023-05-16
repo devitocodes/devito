@@ -12,12 +12,14 @@ parser = argparse.ArgumentParser(description="Process arguments.")
 parser.add_argument('benchmark_name', choices=["2d5pt", "3d_diff"])
 parser.add_argument('-i', '--init_size', type=int, default=128)
 parser.add_argument('-m', '--max_total_size', type=int, default=2048**3)
+parser.add_argument('-p', '--points', type=int, default=10, help="Number of measurements to make for each number of threads.")
 
 args = parser.parse_args()
 
 bench_name = args.benchmark_name
 init_size = args.init_size
 max_size = args.max_total_size
+points = args.points
 size = tuple([init_size] * dims[bench_name])
 csv_name = f"{bench_name}_grid_runtimes.csv"
 
@@ -32,10 +34,10 @@ def get_runtimes_for_size(
     fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt)
     fast_benchmarks.compile_kernel(bench_name, xop.mlircode, fast_benchmarks.XDSL_CPU_PIPELINE, fast_benchmarks.CPU_PIPELINE)
     fast_benchmarks.link_kernel(bench_name)
-    xdsl_runs = [fast_benchmarks.run_kernel(bench_name) for _ in range(10)]
+    xdsl_runs = [fast_benchmarks.run_kernel(bench_name) for _ in range(points)]
 
     op = Operator([eq0])
-    devito_runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(10)]
+    devito_runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(points)]
 
     return (size, xdsl_runs, devito_runs)
 
