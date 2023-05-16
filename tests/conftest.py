@@ -27,7 +27,8 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-nvc', 'cpu64-arm' 'cpu64-icpx', 'chkpnt'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc', 'cpu64-arm',
+                     'cpu64-icpx', 'chkpnt'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -67,9 +68,15 @@ def skipif(items, whole_module=False):
             break
         # Skip if it won't run with IntelCompiler
         if i == 'cpu64-icc' and \
-           isinstance(configuration['compiler'], (IntelCompiler, OneapiCompiler)) and \
+           isinstance(configuration['compiler'], IntelCompiler) and \
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icc+cpu64` won't work with this test"
+            break
+        # Skip if it won't run with OneAPICompiler
+        if i == 'cpu64-icx' and \
+           isinstance(configuration['compiler'], OneapiCompiler) and \
+           isinstance(configuration['platform'], Cpu64):
+            skipit = "`icx+cpu64` won't work with this test"
             break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):

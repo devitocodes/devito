@@ -701,7 +701,6 @@ def test_everything():
     assert np.all(u.data == u1.data)
 
 
-@skipif('cpu64-icc')
 @pytest.mark.parametrize('subdomain', ['domain', 'interior'])
 def test_stencil_issue_1915(subdomain):
     nt = 5
