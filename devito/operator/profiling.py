@@ -12,7 +12,7 @@ import numpy as np
 from sympy import S
 
 from devito.ir.iet import (BusyWait, ExpressionBundle, List, TimedList, Section,
-                           Iteration, FindNodes, Transformer)
+                           Iteration, FindNodes, Transformer, ElementalCall)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
 from devito.mpi import MPI
@@ -116,9 +116,21 @@ class Profiler(object):
                 n = i.name
                 assert n in timer.fields
                 mapper[i] = i._rebuild(body=TimedList(timer=timer, lname=n, body=i.body))
-            return Transformer(mapper, nested=True).visit(iet)
-        else:
-            return iet
+
+            iet = Transformer(mapper, nested=True).visit(iet)
+
+        # Search for ElementalCalls *not* nested within other timer fields
+        if iet.name not in timer.fields:
+            elemental_calls = FindNodes(ElementalCall).visit(iet)
+            if elemental_calls:
+                for i in elemental_calls:
+                    n = i.name
+                    assert n in timer.fields
+                    mapper[i] = i._rebuild(TimedList(timer=timer, lname=n, body=i))
+
+                iet = Transformer(mapper, nested=False).visit(iet)
+
+        return iet
 
     @contextmanager
     def timer_on(self, name, comm=None):
@@ -332,7 +344,7 @@ class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
-        return (MPICall, BusyWait)
+        return (MPICall, BusyWait, ElementalCall)
 
 
 class AdvisorProfiler(AdvancedProfiler):
