@@ -633,7 +633,7 @@ class TestMultiSubDomain(object):
 
 class TestSubDomain_w_condition(object):
 
-    def test_condition_w_subdomain(self):
+    def test_condition_w_subdomain_v0(self):
 
         shape = (10, )
         grid = Grid(shape=shape)
@@ -664,7 +664,7 @@ class TestSubDomain_w_condition(object):
 
         assert_structure(op, ['i1x'], 'i1x')
 
-    def test_condition_w_subdomain_II(self):
+    def test_condition_w_subdomain_v1(self):
 
         shape = (10, 10)
         grid = Grid(shape=shape)
@@ -696,7 +696,7 @@ class TestSubDomain_w_condition(object):
 
         assert_structure(op, ['xi1y'], 'xi1y')
 
-    def test_condition_w_subdomain_III(self):
+    def test_condition_w_subdomain_v2(self):
 
         shape = (10, 10)
         grid = Grid(shape=shape)

@@ -209,14 +209,8 @@ def guard(clusters):
                 if cd._factor is not None:
                     k = d
                 else:
-                    dims = pull_dims(cd.condition)
-                    # If `cd` uses more dimensions than the ispace,
-                    # stay under parent
-                    if (not dims.issubset(set(c.ispace.dimensions)) and
-                       cd.parent in dims):
-                        k = cd.parent
-                    else:
-                        k = max(dims, default=d, key=lambda i: c.ispace.index(i))
+                    dims = pull_dims(cd.condition, flag=False)
+                    k = max(dims, default=d, key=lambda i: c.ispace.index(i))
 
                 # Pull `cd` from any expr
                 condition = guards.setdefault(k, [])
