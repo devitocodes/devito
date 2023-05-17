@@ -40,11 +40,12 @@ class OmpIteration(PragmaIteration):
             return 'omp for'
 
     @classmethod
-    def _make_clauses(cls, ncollapsed=None, chunk_size=None, nthreads=None,
+    def _make_clauses(cls, ncollapsed=0, chunk_size=None, nthreads=None,
                       reduction=None, schedule=None, **kwargs):
         clauses = []
 
-        clauses.append('collapse(%d)' % (ncollapsed or 1))
+        if ncollapsed > 1:
+            clauses.append('collapse(%d)' % ncollapsed)
 
         if chunk_size is not False:
             clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
