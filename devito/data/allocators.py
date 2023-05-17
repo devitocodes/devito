@@ -335,19 +335,31 @@ class CupyAllocator(MemoryAllocator):
 
     @classmethod
     def initialize(cls):
+
         try:
             import cupy as cp
-            from mpi4py import MPI  # noqa 
-
             cls.lib = cp
-            cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
-            cls.lib.cuda.set_allocator(cls._mempool.malloc)
-            n_gpu = cls.lib.cuda.runtime.getDeviceCount()
-            if MPI.Is_initialized():
-                rank_local = MPI.COMM_WORLD.Split_type(MPI.COMM_TYPE_SHARED).Get_rank()
-                cls.lib.cuda.runtime.setDevice(rank_local%n_gpu)            
+            cls._initialize_shared_memory()
+            try:
+                from mpi4py import MPI
+                cls.MPI = MPI
+                cls._set_device_for_mpi()   
+            except:
+                cls.MPI = None
         except:
             cls.lib = None
+        
+    @classmethod
+    def _initialize_shared_memory(cls):
+        cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
+        cls.lib.cuda.set_allocator(cls._mempool.malloc)
+
+    @classmethod
+    def _set_device_for_mpi(cls):
+        if cls.MPI.Is_initialized():
+            n_gpu = cls.lib.cuda.runtime.getDeviceCount()
+            rank_local = cls.MPI.COMM_WORLD.Split_type(cls.MPI.COMM_TYPE_SHARED).Get_rank()
+            cls.lib.cuda.runtime.setDevice(rank_local % n_gpu)
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
@@ -459,7 +471,6 @@ def default_allocator(name=None):
 
     Custom allocators may be added with `register_allocator`.
     """
-    return ALLOC_CUPY
     if name is not None:
         try:
             return custom_allocators[name]
