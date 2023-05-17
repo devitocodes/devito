@@ -88,7 +88,7 @@ class MemoryAllocator(object):
             buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
             pointer = np.frombuffer(buf, dtype=dtype)
         else:
-            pointer = np.empty(shape = (0), dtype=dtype)
+            pointer = np.empty(shape=(0), dtype=dtype)
         # pointer.reshape should not be used here because it may introduce a copy
         # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
         # It is not always possible to change the shape of an array without copying the
@@ -343,12 +343,12 @@ class CupyAllocator(MemoryAllocator):
             try:
                 from mpi4py import MPI
                 cls.MPI = MPI
-                cls._set_device_for_mpi()   
+                cls._set_device_for_mpi()
             except:
                 cls.MPI = None
         except:
             cls.lib = None
-        
+
     @classmethod
     def _initialize_shared_memory(cls):
         cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
@@ -358,8 +358,8 @@ class CupyAllocator(MemoryAllocator):
     def _set_device_for_mpi(cls):
         if cls.MPI.Is_initialized():
             n_gpu = cls.lib.cuda.runtime.getDeviceCount()
-            rank_local = cls.MPI.COMM_WORLD.Split_type(cls.MPI.COMM_TYPE_SHARED).Get_rank()
-            cls.lib.cuda.runtime.setDevice(rank_local % n_gpu)
+            rank_l = cls.MPI.COMM_WORLD.Split_type(cls.MPI.COMM_TYPE_SHARED).Get_rank()
+            cls.lib.cuda.runtime.setDevice(rank_l % n_gpu)
 
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():

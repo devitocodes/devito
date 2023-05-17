@@ -3,7 +3,8 @@ import numpy as np
 import cupy as cp
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, ALLOC_CUPY, configuration, switchconfig)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, ALLOC_CUPY,
+                    configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -1483,13 +1484,13 @@ class TestAllocators(object):
         nt = 5
         grid = Grid(shape=(4, 4, 4))
 
-        u = Function(name='u', grid=grid, allocator=ALLOC_CUPY )
+        u = Function(name='u', grid=grid, allocator=ALLOC_CUPY)
         u.data[:] = 5
         address = u.data.ctypes.data
         pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
         assert pointerAttr.devicePointer == pointerAttr.hostPointer
 
-        v = TimeFunction(name='v', grid=grid, save=nt, allocator=ALLOC_CUPY )
+        v = TimeFunction(name='v', grid=grid, save=nt, allocator=ALLOC_CUPY)
         v.data[:] = 5
         address = v.data.ctypes.data
         pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
@@ -1501,7 +1502,7 @@ class TestAllocators(object):
         numpy_array = np.ones(shape, dtype=np.float32)
         g = Grid(shape)
         f = Function(name='f', space_order=space_order, grid=g,
-                    allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+                     allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
 
         # Ensure the two arrays have the same value
         assert(np.array_equal(f.data, numpy_array))
