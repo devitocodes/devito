@@ -139,12 +139,12 @@ class AbstractSparseFunction(DiscreteFunction):
             distributor=self._distributor
         )
 
-        if self.npoint == 0:
-            # This is a corner case -- we might get here, for example, when
-            # running with MPI and some processes get 0-size arrays after
-            # domain decomposition. We "touch" the data anyway to avoid the
-            # case ``self._data is None``
-            sf.data
+        # if self.npoint == 0:
+        #     # This is a corner case -- we might get here, for example, when
+        #     # running with MPI and some processes get 0-size arrays after
+        #     # domain decomposition. We "touch" the data anyway to avoid the
+        #     # case ``self._data is None``
+        sf.data
 
         return sf
 
