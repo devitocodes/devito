@@ -1,5 +1,5 @@
 from devito.ir.iet import (BusyWait, FindNodes, FindSymbols, MapNodes, Section,
-                           TimedList, Transformer)
+                           TimedList, Transformer, ElementalCall)
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall)
 from devito.passes.iet.engine import iet_pass
@@ -16,7 +16,6 @@ def instrument(graph, **kwargs):
     if profiler is None:
         return
     timer = Timer(profiler.name, list(profiler.all_sections))
-
     instrument_sections(graph, timer=timer, **kwargs)
     sync_sections(graph, **kwargs)
 
@@ -36,6 +35,7 @@ def track_subsections(iet, **kwargs):
         HaloUpdateCall: 'haloupdate',
         HaloWaitCall: 'halowait',
         RemainderCall: 'remainder',
+        ElementalCall: 'compute',
         HaloUpdateList: 'haloupdate',
         HaloWaitList: 'halowait',
         BusyWait: 'busywait'
@@ -43,7 +43,7 @@ def track_subsections(iet, **kwargs):
 
     mapper = {}
 
-    for NodeType in [MPIList, MPICall, BusyWait]:
+    for NodeType in [MPIList, MPICall, BusyWait, ElementalCall]:
         for k, v in MapNodes(Section, NodeType).visit(iet).items():
             for i in v:
                 if i in mapper or not any(issubclass(i.__class__, n)
