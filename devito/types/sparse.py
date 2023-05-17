@@ -19,7 +19,7 @@ from devito.symbolics import (INT, cast_mapper, indexify,
                               retrieve_function_carriers)
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           memoized_meth, is_integer)
-from devito.types.dense import DiscreteFunction, Function, SubFunction
+from devito.types.dense import DiscreteFunction, SubFunction
 from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDimension,
                                     DynamicDimension)
 from devito.types.basic import Symbol
@@ -121,9 +121,9 @@ class AbstractSparseFunction(DiscreteFunction):
                 key = np.array(key)
 
             n = key.ndim
-            if shape[:n] != key.shape:
-                raise ValueError("Incompatible shape `%s`; expected `%s`" %
-                                 (shape[:n], key.shape))
+            # if shape[:n] != key.shape:
+            #     raise ValueError("Incompatible shape `%s`; expected `%s`" %
+            #                      (shape[:n], key.shape))
 
             # Infer dtype
             if np.issubdtype(key.dtype.type, np.integer):
@@ -140,12 +140,12 @@ class AbstractSparseFunction(DiscreteFunction):
             distributor=self._distributor
         )
 
-        if self.npoint == 0:
-            # This is a corner case -- we might get here, for example, when
-            # running with MPI and some processes get 0-size arrays after
-            # domain decomposition. We "touch" the data anyway to avoid the
-            # case ``self._data is None``
-            sf.data
+        # if self.npoint == 0:
+        #     # This is a corner case -- we might get here, for example, when
+        #     # running with MPI and some processes get 0-size arrays after
+        #     # domain decomposition. We "touch" the data anyway to avoid the
+        #     # case ``self._data is None``
+        sf.data
 
         return sf
 
@@ -180,6 +180,18 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
+
+    @property
+    def _mpitype(self):
+        return MPI._typedict[np.dtype(self.dtype).char]
+
+    @property
+    def comm(self):
+        return self.grid.distributor.comm
+
+    @property
+    def distributor(self):
+        return self.grid.distributor
 
     @property
     def gridpoints(self):
@@ -226,7 +238,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        return self.grid.distributor.glb_to_rank(self._support) or {}
+        return self.distributor.glb_to_rank(self._support) or {}
 
     def _dist_scatter_mask(self, dmap=None):
         """
@@ -306,20 +318,148 @@ class AbstractSparseFunction(DiscreteFunction):
 
         return sshape, scount, sdisp, rshape, rcount, rdisp
 
-    def _dist_subfunc_alltoall(self, dmap=None):
+    def _dist_subfunc_alltoall(self, subfunc, dmap=None):
         """
         The metadata necessary to perform an ``MPI_Alltoallv`` distributing
         self's SubFunction values across the MPI ranks needing them.
         """
-        raise NotImplementedError
+        dmap = dmap or self._dist_datamap
+        ssparse, rsparse = self._dist_count(dmap=dmap)
 
-    def _dist_scatter(self):
+        # Per-rank shape of send/recv `coordinates`
+        shape = subfunc.shape[1:]
+        sshape = [(i, *shape) for i in ssparse]
+        rshape = [(i, *shape) for i in rsparse]
+
+        # Per-rank count of send/recv `coordinates`
+        scount = [prod(i) for i in sshape]
+        rcount = [prod(i) for i in rshape]
+
+        # Per-rank displacement of send/recv `coordinates` (it's actually all
+        # contiguous, but the Alltoallv needs this information anyway)
+        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
+        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
+
+        # Total shape of send/recv `coordinates`
+        sshape = list(subfunc.shape)
+        sshape[0] = sum(ssparse)
+        rshape = list(subfunc.shape)
+        rshape[0] = sum(rsparse)
+
+        return sshape, scount, sdisp, rshape, rcount, rdisp
+
+    def _dist_data_scatter(self, data=None):
         """
         A ``numpy.ndarray`` containing up-to-date data values belonging
         to the calling MPI rank. A data value belongs to a given MPI rank R
         if its coordinates fall within R's local domain.
         """
-        raise NotImplementedError
+        data = data if data is not None else self.data._local
+
+        # If not using MPI, don't waste time
+        if self.distributor.nprocs == 1:
+            return data
+
+        # Compute dist map only once
+        dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
+
+        # Pack sparse data values so that they can be sent out via an Alltoallv
+        data = data[mask]
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
+
+        # Send out the sparse point values
+        _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall(dmap=dmap)
+        scattered = np.empty(shape=rshape, dtype=self.dtype)
+        self.comm.Alltoallv([data, scount, sdisp, self._mpitype],
+                            [scattered, rcount, rdisp, self._mpitype])
+
+        # Unpack data values so that they follow the expected storage layout
+        return np.ascontiguousarray(np.transpose(scattered, self._dist_reorder_mask))
+
+    def _dist_subfunc_scatter(self, subfunc):
+        # If not using MPI, don't waste time
+        if self.distributor.nprocs == 1:
+            return {subfunc: subfunc.data}
+
+        # Compute dist map only once
+        dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
+
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        sfuncd = subfunc.data._local[mask[self._sparse_position]]
+
+        # Send out the sparse point coordinates
+        _, scount, sdisp, rshape, rcount, rdisp = \
+            self._dist_subfunc_alltoall(subfunc, dmap=dmap)
+        scattered = np.empty(shape=rshape, dtype=subfunc.dtype)
+        self.comm.Alltoallv([sfuncd, scount, sdisp, self._mpitype],
+                            [scattered, rcount, rdisp, self._mpitype])
+        sfuncd = scattered
+
+        # Translate global coordinates into local coordinates
+        if self.dist_origin[subfunc] is not None:
+            sfuncd = sfuncd - np.array(self.dist_origin[subfunc], dtype=self.dtype)
+
+        return {subfunc: sfuncd}
+
+    def _dist_data_gather(self, data):
+        # If not using MPI, don't waste time
+        if self.distributor.nprocs == 1:
+            return
+
+        # Compute dist map only once
+        dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
+
+        # Pack sparse data values so that they can be sent out via an Alltoallv
+        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
+        # Send back the sparse point values
+        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall(dmap=dmap)
+        gathered = np.empty(shape=sshape, dtype=self.dtype)
+        self.comm.Alltoallv([data, rcount, rdisp, self._mpitype],
+                            [gathered, scount, sdisp, self._mpitype])
+        # Unpack data values so that they follow the expected storage layout
+        gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
+        self.data
+        self._data[mask] = gathered[:]
+
+    def _dist_subfunc_gather(self, sfuncd, sfunc):
+        if np.sum([sfuncd._obj.size[i] for i in range(self.ndim)]) > 0:
+            sfuncd = sfunc._C_as_ndarray(sfuncd)
+        # If not using MPI, don't waste time
+        if self.distributor.nprocs == 1:
+            return
+
+        # Compute dist map only once
+        dmap = self._dist_datamap
+        mask = self._dist_scatter_mask(dmap=dmap)
+        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
+        if self.dist_origin[sfunc] is not None:
+            sfuncd = sfuncd + np.array(self.dist_origin[sfunc], dtype=self.dtype)
+        # Send out the sparse point coordinates
+        sshape, scount, sdisp, _, rcount, rdisp = \
+            self._dist_subfunc_alltoall(sfunc, dmap=dmap)
+        gathered = np.empty(shape=sshape, dtype=sfunc.dtype)
+        self.comm.Alltoallv([sfuncd, rcount, rdisp, self._mpitype],
+                            [gathered, scount, sdisp, self._mpitype])
+        sfunc.data._local[mask[self._sparse_position]] = gathered[:]
+
+        # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
+        # in `_dist_scatter` is here received; a sparse point that is received in
+        # `_dist_scatter` is here sent.
+
+    def _dist_scatter(self, data=None):
+        mapper = {self: self._dist_data_scatter(data=data)}
+        for i in self._sub_functions:
+            if getattr(self, i) is not None:
+                mapper.update(self._dist_subfunc_scatter(getattr(self, i)))
+        return mapper
+
+    def _dist_gather(self, data, *subfunc):
+        self._dist_data_gather(data)
+        for (sg, s) in zip(subfunc, self._sub_functions):
+            self._dist_subfunc_gather(sg, getattr(self, s))
 
     def _arg_defaults(self, alias=None):
         key = alias or self
@@ -364,16 +504,11 @@ class AbstractSparseFunction(DiscreteFunction):
 
         return values
 
-    def _arg_apply(self, dataobj, coordsobj, alias=None):
+    def _arg_apply(self, dataobj, *subfunc, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            # Coords may be None if the coordinates are not used in the Operator
-            if coordsobj is None:
-                pass
-            elif np.sum([coordsobj._obj.size[i] for i in range(self.ndim)]) > 0:
-                coordsobj = self.coordinates._C_as_ndarray(coordsobj)
-            key._dist_gather(self._C_as_ndarray(dataobj), coordsobj)
+            key._dist_gather(self._C_as_ndarray(dataobj), *subfunc)
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
@@ -553,6 +688,7 @@ class SparseFunction(AbstractSparseFunction):
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
+        self._dist_origin = {self._coordinates: self.grid.origin_offset}
 
     @property
     def coordinates(self):
@@ -565,6 +701,10 @@ class SparseFunction(AbstractSparseFunction):
             return self.coordinates.data.view(np.ndarray)
         except AttributeError:
             return None
+
+    @property
+    def dist_origin(self):
+        return self._dist_origin
 
     @cached_property
     def _point_symbols(self):
@@ -699,116 +839,6 @@ class SparseFunction(AbstractSparseFunction):
     def _decomposition(self):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
-
-    def _dist_subfunc_alltoall(self, dmap=None):
-        dmap = dmap or self._dist_datamap
-        ssparse, rsparse = self._dist_count(dmap=dmap)
-
-        # Per-rank shape of send/recv `coordinates`
-        sshape = [(i, self.grid.dim) for i in ssparse]
-        rshape = [(i, self.grid.dim) for i in rsparse]
-
-        # Per-rank count of send/recv `coordinates`
-        scount = [prod(i) for i in sshape]
-        rcount = [prod(i) for i in rshape]
-
-        # Per-rank displacement of send/recv `coordinates` (it's actually all
-        # contiguous, but the Alltoallv needs this information anyway)
-        sdisp = np.concatenate([[0], np.cumsum(scount)[:-1]])
-        rdisp = np.concatenate([[0], tuple(np.cumsum(rcount))[:-1]])
-
-        # Total shape of send/recv `coordinates`
-        sshape = list(self.coordinates.shape)
-        sshape[0] = sum(ssparse)
-        rshape = list(self.coordinates.shape)
-        rshape[0] = sum(rsparse)
-
-        return sshape, scount, sdisp, rshape, rcount, rdisp
-
-    def _dist_scatter(self, data=None):
-        data = data if data is not None else self.data._local
-        distributor = self.grid.distributor
-
-        # If not using MPI, don't waste time
-        if distributor.nprocs == 1:
-            return {self: data, self.coordinates: self.coordinates.data}
-
-        comm = distributor.comm
-        mpitype = MPI._typedict[np.dtype(self.dtype).char]
-
-        # Compute dist map only once
-        dmap = self._dist_datamap
-        mask = self._dist_scatter_mask(dmap=dmap)
-
-        # Pack sparse data values so that they can be sent out via an Alltoallv
-        data = data[mask]
-        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
-
-        # Send out the sparse point values
-        _, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall(dmap=dmap)
-        scattered = np.empty(shape=rshape, dtype=self.dtype)
-        comm.Alltoallv([data, scount, sdisp, mpitype],
-                       [scattered, rcount, rdisp, mpitype])
-        data = scattered
-
-        # Unpack data values so that they follow the expected storage layout
-        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
-
-        # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-        coords = self.coordinates.data._local[mask[self._sparse_position]]
-
-        # Send out the sparse point coordinates
-        _, scount, sdisp, rshape, rcount, rdisp = self._dist_subfunc_alltoall(dmap=dmap)
-        scattered = np.empty(shape=rshape, dtype=self.coordinates.dtype)
-        comm.Alltoallv([coords, scount, sdisp, mpitype],
-                       [scattered, rcount, rdisp, mpitype])
-        coords = scattered
-
-        # Translate global coordinates into local coordinates
-        coords = coords - np.array(self.grid.origin_offset, dtype=self.dtype)
-
-        return {self: data, self.coordinates: coords}
-
-    def _dist_gather(self, data, coords):
-        distributor = self.grid.distributor
-
-        # If not using MPI, don't waste time
-        if distributor.nprocs == 1:
-            return
-
-        comm = distributor.comm
-
-        # Compute dist map only once
-        dmap = self._dist_datamap
-        mask = self._dist_scatter_mask(dmap=dmap)
-
-        # Pack sparse data values so that they can be sent out via an Alltoallv
-        data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
-        # Send back the sparse point values
-        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall(dmap=dmap)
-        gathered = np.empty(shape=sshape, dtype=self.dtype)
-        mpitype = MPI._typedict[np.dtype(self.dtype).char]
-        comm.Alltoallv([data, rcount, rdisp, mpitype],
-                       [gathered, scount, sdisp, mpitype])
-        # Unpack data values so that they follow the expected storage layout
-        gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
-        self._data[mask] = gathered[:]
-
-        if coords is not None:
-            # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
-            coords = coords + np.array(self.grid.origin_offset, dtype=self.dtype)
-            # Send out the sparse point coordinates
-            sshape, scount, sdisp, _, rcount, rdisp = \
-                self._dist_subfunc_alltoall(dmap=dmap)
-            gathered = np.empty(shape=sshape, dtype=self.coordinates.dtype)
-            mpitype = MPI._typedict[np.dtype(self.coordinates.dtype).char]
-            comm.Alltoallv([coords, rcount, rdisp, mpitype],
-                           [gathered, scount, sdisp, mpitype])
-            self._coordinates.data._local[mask[self._sparse_position]] = gathered[:]
-
-        # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
-        # in `_dist_scatter` is here received; a sparse point that is received in
-        # `_dist_scatter` is here sent.
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
@@ -1028,6 +1058,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             raise TypeError('Need `r` int argument')
         if r <= 0:
             raise ValueError('`r` must be > 0')
+
         self._radius = r
 
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
@@ -1045,16 +1076,24 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         if coordinates is not None:
             self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
             self._gridpoints = None
+            self._dist_origin = {self._coordinates: self.grid.origin_offset}
         else:
             assert gridpoints is not None
             self._coordinates = None
             self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints')
+            self._dist_origin = {self._coordinates: self.grid.origin_ioffset}
 
         # Setup the interpolation coefficients. These are compulsory
         interpolation_coeffs = kwargs.get('interpolation_coeffs',
                                           kwargs.get('interpolation_coeffs_data'))
         self._interpolation_coeffs = \
             self.__subfunc_setup__(interpolation_coeffs, 'interp_coeffs')
+        self._dist_origin.update({self._interpolation_coeffs: None})
+        # Make sure it matches the radius
+        if self._interpolation_coeffs.shape[-1] != r:
+            nr = self._interpolation_coeffs.shape[-1]
+            raise ValueError("Interpolation coefficients shape %d do "
+                             "not match specified radius %d" % (r, nr))
 
         warning("Ensure that the provided interpolation coefficient and grid "
                 "point values are computed on the final grid that will be used "
@@ -1068,7 +1107,14 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     @property
     def gridpoints(self):
+        if self._gripoints is None:
+            coord = self.coordinates.data._local - self.grid.origin
+            return (np.floor(coord) / self.grid.spacing).astype(int)
         return self._gridpoints
+
+    @property
+    def dist_origin(self):
+        return self._dist_origin
 
     @property
     def interpolation_coeffs(self):
@@ -1089,38 +1135,23 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         except AttributeError:
             return None
 
+    @cached_property
+    def coords_or_points(self):
+        if self.gridpoints is None:
+            return self.coordinates
+        else:
+            return self.gridpoints
+
+    @cached_property
+    def coord_origin(self):
+        if self.gridpoints is None:
+            return self.grid.origin_offset
+        else:
+            return self.grid.grid_origin
+
     @property
     def interpolation_coeffs_data(self):
         return self.interpolation_coeffs.data.view(np.ndarray)
-
-    def _dist_scatter(self, data=None):
-        data = data if data is not None else self.data
-        distributor = self.grid.distributor
-
-        # If not using MPI, don't waste time
-        if distributor.nprocs == 1:
-            return {self: data, self.gridpoints: self.gridpoints.data,
-                    self._interpolation_coeffs: self._interpolation_coeffs.data}
-
-        raise NotImplementedError
-
-    def _dist_gather(self, data):
-        distributor = self.grid.distributor
-
-        # If not using MPI, don't waste time
-        if distributor.nprocs == 1:
-            return
-
-        raise NotImplementedError
-
-    def _arg_apply(self, *args, **kwargs):
-        distributor = self.grid.distributor
-
-        # If not using MPI, don't waste time
-        if distributor.nprocs == 1:
-            return
-
-        raise NotImplementedError
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
