@@ -816,7 +816,8 @@ class TestNodeParallelism(object):
         # Now only `x` is parallelized
         op1 = Operator([Eq(v[t, x, 0, 0], v[t, x, 0, 0] + 1), Inc(uf, 1)],
                        opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
-        assert 'collapse(1)' in str(op1)
+        assert 'omp for' in str(op1)
+        assert 'collapse' not in str(op1)
         assert 'atomic' not in str(op1)
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
@@ -879,18 +880,22 @@ class TestNodeParallelism(object):
         for i, e in enumerate(list(exprs)):
             exprs[i] = eval(e)
 
-        op = Operator(exprs, opt=('advanced', {'openmp': True}))
+        op = Operator(exprs, opt=('advanced', {'openmp': True,
+                                               'par-collapse-ncores': 1}))
 
         iterations = FindNodes(Iteration).visit(op)
+        parallel = [i for i in iterations if i.is_Parallel]
         try:
-            assert 'omp for collapse' in iterations[0].pragmas[0].value
+            assert 'omp for' in iterations[0].pragmas[0].value
+            if len(parallel) > 1 and simd_level is not None and simd_level > 1:
+                assert 'collapse' in iterations[0].pragmas[0].value
             if simd_level:
                 assert 'omp simd' in iterations[simd_level].pragmas[0].value
         except:
             # E.g. gcc-5 doesn't support array reductions, so the compiler will
             # generate different legal code
             assert not Ompizer._support_array_reduction(configuration['compiler'])
-            assert any('omp for collapse' in i.pragmas[0].value
+            assert any('omp for' in i.pragmas[0].value
                        for i in iterations if i.pragmas)
 
         op.apply()
@@ -910,7 +915,7 @@ class TestNodeParallelism(object):
         op = Operator(eq, opt=('advanced', {'openmp': True}))
         iterations = FindNodes(Iteration).visit(op)
 
-        assert 'omp for collapse(1) schedule(static,1)' in iterations[0].pragmas[0].value
+        assert 'omp for schedule(static,1)' in iterations[0].pragmas[0].value
         assert 'omp simd' in iterations[1].pragmas[0].value
         assert 'omp simd' in iterations[3].pragmas[0].value
 
@@ -979,8 +984,8 @@ class TestNestedParallelism(object):
         bns, _ = assert_blocking(op, {'x0_blk0'})
 
         iterations = FindNodes(Iteration).visit(bns['x0_blk0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(1) schedule(dynamic,1)'
-        assert iterations[2].pragmas[0].value == ('omp parallel for collapse(1) '
+        assert iterations[0].pragmas[0].value == 'omp for schedule(dynamic,1)'
+        assert iterations[2].pragmas[0].value == ('omp parallel for '
                                                   'schedule(dynamic,1) '
                                                   'num_threads(nthreads_nested)')
 
@@ -1073,11 +1078,11 @@ class TestNestedParallelism(object):
             'omp for collapse(2) schedule(dynamic,1)'
         assert not trees[0][2].pragmas
         assert not trees[0][3].pragmas
-        assert trees[0][4].pragmas[0].value == ('omp parallel for collapse(1) '
+        assert trees[0][4].pragmas[0].value == ('omp parallel for '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
         assert not trees[1][2].pragmas
-        assert trees[1][3].pragmas[0].value == ('omp parallel for collapse(1) '
+        assert trees[1][3].pragmas[0].value == ('omp parallel for '
                                                 'schedule(dynamic,1) '
                                                 'num_threads(nthreads_nested)')
 

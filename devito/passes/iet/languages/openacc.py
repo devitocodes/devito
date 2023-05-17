@@ -26,13 +26,13 @@ class DeviceAccIteration(PragmaIteration):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, ncollapsed=None, reduction=None, tile=None, **kwargs):
+    def _make_clauses(cls, ncollapsed=0, reduction=None, tile=None, **kwargs):
         clauses = []
 
         if tile:
             clauses.append('tile(%s)' % ','.join(str(i) for i in tile))
-        elif ncollapsed:
-            clauses.append('collapse(%d)' % (ncollapsed or 1))
+        elif ncollapsed > 1:
+            clauses.append('collapse(%d)' % ncollapsed)
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
