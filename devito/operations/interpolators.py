@@ -4,10 +4,9 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
-from devito.symbolics import retrieve_function_carriers, indexify, INT
+from devito.symbolics import retrieve_function_carriers
 from devito.tools import as_tuple, powerset, flatten, prod
-from devito.types import (ConditionalDimension, DefaultDimension, Eq, Inc,
-                          Evaluable, Symbol)
+from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol)
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
 
@@ -315,7 +314,8 @@ class LinearInterpolator(GenericInterpolator):
             )
 
             # Substitute coordinate base symbols into the interpolation coefficients
-            eqns = self.subs_coords_eq(field, _expr, *idx_subs, implicit_dims=implicit_dims)
+            eqns = self.subs_coords_eq(field, _expr, *idx_subs,
+                                       implicit_dims=implicit_dims)
 
             return temps + eqns
 
@@ -331,7 +331,6 @@ class PrecomputedInterpolator(LinearInterpolator):
     def r(self):
         return self.obj.r
 
-
     def _interpolation_indices(self, variables, offset=0, field_offset=0,
                                implicit_dims=None):
         """
@@ -340,26 +339,26 @@ class PrecomputedInterpolator(LinearInterpolator):
         if self.sfunction.gridpoints is None:
             return super()._interpolation_indices(variables, offset=offset,
                                                   field_offset=field_offset,
-                                 
                                                   implicit_dims=implicit_dims)
 
-        index_matrix, points = self.sfunction._index_matrix(offset)
+        index_matrix, points, shifts = self.sfunction._index_matrix(offset)
 
         idx_subs = []
+        coeffs = self._interpolation_coeffs
+        dt, it = coeffs.dimensions[1:]
         for i, idx in enumerate(index_matrix):
             # Introduce ConditionalDimension so that we don't go OOB
             mapper = {}
-            for j, d in zip(idx, self.grid.dimensions):
+            for j, (di, d) in zip(idx, enumerate(self.grid.dimensions)):
                 p = points[j]
-                lb = sympy.And(p >= d.symbolic_min - self.sfunction._radius,
+                lb = sympy.And(p >= d.symbolic_min - self.sfunction.r // 2,
                                evaluate=False)
-                ub = sympy.And(p\
-                <= d.symbolic_max + self.sfunction._radius,
+                ub = sympy.And(p <= d.symbolic_max + self.sfunction.r // 2,
                                evaluate=False)
                 condition = sympy.And(lb, ub, evaluate=False)
                 mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
                                                  condition=condition, indirect=True)
-
+                mapper[coeffs._subs(dt, di)] = coeffs.subs({dt: di, it: shifts[i][di]})
             # Track Indexed substitutions
             idx_subs.append(mapper)
 
@@ -368,79 +367,21 @@ class PrecomputedInterpolator(LinearInterpolator):
 
         return idx_subs, temps
 
-    def implicit_dims(self, implicit_dims):
-        return as_tuple(implicit_dims) + self.sfunction.interpolation_coeffs.dimensions
-
     @property
     def _interpolation_coeffs(self):
         return self.sfunction.interpolation_coeffs
 
+    @property
+    def _interpolation_coeffsp(self):
+        d = self.sfunction.interpolation_coeffs.dimensions[1]
+        return prod([self.sfunction.interpolation_coeffs._subs(d, i)
+                     for (i, _) in enumerate(self.sfunction.grid.dimensions)])
+
     def subs_coords(self, _expr, *idx_subs):
-        b = self._interpolation_coeffs
-        return [_expr.xreplace(v_sub) * b for v_sub in idx_subs]
+        b = self._interpolation_coeffsp
+        return [_expr.xreplace(v_sub) * b.xreplace(v_sub) for v_sub in idx_subs]
 
     def subs_coords_eq(self, field, _expr, *idx_subs, implicit_dims=None):
-        b = self._interpolation_coeffs
-        return [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
+        b = self._interpolation_coeffsp
+        return [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b.xreplace(vsub),
                     implicit_dims=implicit_dims) for vsub in idx_subs]
-    
-    # def interpolate(self, expr, offset=0, increment=False, self_subs={}):
-    #     """
-    #     Generate equations interpolating an arbitrary expression into ``self``.
-
-    #     Parameters
-    #     ----------
-    #     expr : expr-like
-    #         Input expression to interpolate.
-    #     offset : int, optional
-    #         Additional offset from the boundary.
-    #     increment: bool, optional
-    #         If True, generate increments (Inc) rather than assignments (Eq).
-    #     """
-    #     def callback():
-    #         _expr = indexify(expr)
-
-    #         p, _, _ = self.obj.interpolation_coeffs.indices
-    #         dim_subs = []
-    #         coeffs = []
-    #         for i, d in enumerate(self.obj.grid.dimensions):
-    #             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-    #             dim_subs.append((d, INT(rd + self.obj.gridpoints_data[p, i])))
-    #             coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
-    #         # Apply optional time symbol substitutions to lhs of assignment
-    #         lhs = self.obj.subs(self_subs)
-    #         rhs = prod(coeffs) * _expr.subs(dim_subs)
-
-    #         return [Inc(lhs, rhs)]
-
-    #     return Interpolation(expr, offset, increment, self_subs, self, callback)
-
-    # def inject(self, field, expr, offset=0):
-    #     """
-    #     Generate equations injecting an arbitrary expression into a field.
-
-    #     Parameters
-    #     ----------
-    #     field : Function
-    #         Input field into which the injection is performed.
-    #     expr : expr-like
-    #         Injected expression.
-    #     offset : int, optional
-    #         Additional offset from the boundary.
-    #     """
-    #     def callback():
-    #         _expr = indexify(expr)
-    #         _field = indexify(field)
-
-    #         p, _ = self.obj.gridpoints.indices
-    #         dim_subs = []
-    #         coeffs = []
-    #         for i, d in enumerate(self.obj.grid.dimensions):
-    #             rd = DefaultDimension(name="r%s" % d.name, default_value=self.r)
-    #             dim_subs.append((d, INT(rd + self.obj.gridpoints[p, i])))
-    #             coeffs.append(self.obj.interpolation_coeffs[p, i, rd])
-    #         rhs = prod(coeffs) * _expr
-    #         _field = _field.subs(dim_subs)
-    #         return [Inc(_field, rhs.subs(dim_subs))]
-
-    #     return Injection(field, expr, offset, self, callback)
