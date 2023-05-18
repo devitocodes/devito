@@ -1220,7 +1220,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         p_dim = self.indices[self._sparse_position]
         if self._gridpoints is None:
             return tuple([self.coordinates.indexify((p_dim, i))
-                        for i in range(self.grid.dim)])
+                          for i in range(self.grid.dim)])
         else:
             return tuple([self.gridpoints.indexify((p_dim, i)) * d
                           for (i, d) in enumerate(self.grid.spacing_symbols)])
@@ -1234,19 +1234,21 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         # List of indirection indices for all adjacent grid points
         if self._gridpoints is None:
-            index_matrix = [tuple(idx + ii + offset for ii, idx
-                                in zip(inc, self._coordinate_indices))
+            index_matrix = [tuple(idx + ii + offset
+                                  for ii, idx in zip(inc, self._coordinate_indices))
                             for inc in self._point_increments]
         else:
-            index_matrix = [tuple(self._gridpoints + ii + offset for ii in inc)
+            ddim = self._gridpoints.dimensions[1]
+            index_matrix = [tuple(self._gridpoints._subs(ddim, d) + ii + offset
+                                  for (ii, d) in zip(inc, range(self.grid.dim)))
                             for inc in self._point_increments]
-
+        shifts = [tuple(ii + offset for ii in inc)
+                  for inc in self._point_increments]
         # A unique symbol for each indirection index
         indices = filter_ordered(flatten(index_matrix))
         points = OrderedDict([(p, Symbol(name='ii_%s_%d' % (self.name, i)))
                               for i, p in enumerate(indices)])
-    
-        return index_matrix, points
+        return index_matrix, points, shifts
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
