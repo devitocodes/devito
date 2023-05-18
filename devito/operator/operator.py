@@ -963,6 +963,11 @@ class Operator(Callable):
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
+
+        # In case 'MPI0' is selected for logging, restrict result printing to one rank
+        if configuration['mpi']:
+            set_log_level(configuration['log-level'], comm=args.comm)
+
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
