@@ -8,7 +8,7 @@ import ctypes
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
-from devito.logger import debug, info, perf, warning, is_log_enabled_for
+from devito.logger import debug, info, perf, warning, is_log_enabled_for, set_log_level
 from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
@@ -894,6 +894,11 @@ class Operator(Callable):
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
+
+        # In case 'MPI0' is selected for logging, restrict result printing to one rank
+        if configuration['mpi']:
+            set_log_level(configuration['log-level'], comm=args.comm)
+
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
