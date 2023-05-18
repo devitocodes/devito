@@ -195,6 +195,18 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
+    def subs_coords(self, _expr, *idx_subs):
+        return [_expr.xreplace(v_sub) * b.xreplace(v_sub)
+                for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
+
+    def subs_coords_eq(self, field, _expr, *idx_subs, implicit_dims=None):
+        return [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
+                    implicit_dims=implicit_dims)
+                for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
+
+    def implicit_dims(self, implicit_dims):
+        return as_tuple(implicit_dims) + self.sfunction.dimensions
+
     def interpolate(self, expr, offset=0, increment=False, self_subs={},
                     implicit_dims=None):
         """
