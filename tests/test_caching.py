@@ -631,6 +631,7 @@ class TestCaching(object):
         # With the legacy caching model also u, u(inds), u_coords, and
         # u_coords(inds) would have been added to the cache; not anymore!
         ncreated = 4
+
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
         cur_cache_size = len(_SymbolCache)

@@ -392,3 +392,7 @@ class TestMatrixSparseTimeFunction(object):
 
         if grid.distributor.myrank == 0:
             assert sf.data[0, 0] == -3.0  # 1 * (1 * 1) * 1 + (-1) * (2 * 2) * 1
+
+
+if __name__ == "__main__":
+    TestMatrixSparseTimeFunction().test_mpi()

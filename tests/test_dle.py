@@ -284,8 +284,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rx,ry'],
-                     't,p_s0_blk0,p_s,rx,ry')
+    assert_structure(op, ['t', 't,p_s0_blk0,p_s'], 't,p_s0_blk0,p_s')
 
 
 class TestBlockingParTile(object):
@@ -942,16 +941,16 @@ class TestNodeParallelism(object):
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1}))
         iterations = FindNodes(Iteration).visit(op0)
-        assert all(not i.pragmas for i in iterations[:2])
-        assert 'omp for collapse(2) schedule(dynamic,chunk_size)'\
-            in iterations[2].pragmas[0].value
+        assert not iterations[0].pragmas
+        assert 'omp for collapse(1) schedule(dynamic,chunk_size)'\
+            in iterations[1].pragmas[0].value
 
         op1 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1,
                                                'par-collapse-work': 1}))
         iterations = FindNodes(Iteration).visit(op1)
         assert not iterations[0].pragmas
-        assert 'omp for collapse(3) schedule(dynamic,chunk_size)'\
+        assert 'omp for collapse(1) schedule(dynamic,chunk_size)'\
             in iterations[1].pragmas[0].value
 
 
