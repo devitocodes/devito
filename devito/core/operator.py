@@ -83,6 +83,19 @@ class BasicOperator(Operator):
     than this threshold.
     """
 
+    FISS_PRESS_RATIO = 2
+    """
+    A threshold that must be crossed to trigger loop fission. The ratio refers
+    to the number of unique to shared arrays between any two expressions.
+    """
+
+    FISS_PRESS_SIZE = 80
+    """
+    A threshold that must be crossed to trigger loop fission. The size represents
+    the total number of symbols in a group of expressions that is candidate to
+    be fissioned.
+    """
+
     MAPIFY_REDUCE = False
     """
     Vector-expand all scalar reductions to turn them into explicit map-reductions,

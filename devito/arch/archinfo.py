@@ -16,12 +16,17 @@ from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
-           'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
-           'NvidiaDevice', 'AmdDevice', 'IntelDevice',
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
-           'AMD', 'ARM', 'M1', 'GRAVITON',  # ARM
-           'POWER8', 'POWER9',  # Other loosely supported CPU architectures
-           'AMDGPUX', 'NVIDIAX', 'INTELGPUX']  # GPUs
+           'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
+           'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+           # Intel
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
+           'SKX', 'KLX', 'CLX', 'CLK',
+           # ARM
+           'AMD', 'ARM', 'M1', 'GRAVITON',
+           # Other loosely supported CPU architectures
+           'POWER8', 'POWER9',
+           # GPUs
+           'AMDGPUX', 'NVIDIAX', 'INTELGPUX']
 
 
 @memoized_func
@@ -494,7 +499,7 @@ def get_platform():
             if 'phi' in brand:
                 # Intel Xeon Phi?
                 return platform_registry['knl']
-            # Unknown Xeon ? May happen on some virtualizes systems...
+            # Unknown Xeon ? May happen on some virtualized systems...
             return platform_registry['intel64']
         elif 'intel' in brand:
             # Most likely a desktop i3/i5/i7
@@ -605,6 +610,14 @@ class Cpu64(Platform):
 class Intel64(Cpu64):
 
     known_isas = ('cpp', 'sse', 'avx', 'avx2', 'avx512')
+
+
+class IntelSkylake(Intel64):
+    pass
+
+
+class IntelGoldenCode(Intel64):
+    pass
 
 
 class Arm(Cpu64):
@@ -725,11 +738,12 @@ SNB = Intel64('snb')
 IVB = Intel64('ivb')
 HSW = Intel64('hsw')
 BDW = Intel64('bdw', isa='avx2')
-SKX = Intel64('skx')
-KLX = Intel64('klx')
-CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
+SKX = IntelSkylake('skx')
+KLX = IntelSkylake('klx')
+CLX = IntelSkylake('clx')
+CLK = IntelSkylake('clk')
 
 ARM = Arm('arm')
 GRAVITON = Arm('graviton')
@@ -756,6 +770,7 @@ platform_registry = {
     'skx': SKX,  # Skylake
     'klx': KLX,  # Kaby Lake
     'clx': CLX,  # Coffee Lake
+    'clk': CLK,  # Cascade Lake
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,  # Generic ARM CPU

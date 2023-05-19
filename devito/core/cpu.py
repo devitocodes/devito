@@ -60,6 +60,10 @@ class Cpu64OperatorMixin(object):
         o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
+        # Fission
+        o['fiss-press-ratio'] = oo.pop('fiss-press-ratio', cls.FISS_PRESS_RATIO)
+        o['fiss-press-size'] = oo.pop('fiss-press-size', cls.FISS_PRESS_SIZE)
+
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)
         o['optcomms'] = oo.pop('optcomms', True)
@@ -236,7 +240,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
             'factorize': factorize,
-            'fission': fission,
+            'fission': lambda i: fission(i, 'pressure', **kwargs),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),

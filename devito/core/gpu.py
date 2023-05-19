@@ -83,6 +83,10 @@ class DeviceOperatorMixin(object):
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
 
+        # Recognised but unused by the GPU backend
+        oo.pop('fiss-press-ratio', None)
+        oo.pop('fiss-press-size', None)
+
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
                                   % ", ".join(list(oo)))
@@ -160,7 +164,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = fuse(clusters, toposort=True, options=options)
 
         # Fission to increase parallelism
-        clusters = fission(clusters)
+        clusters = fission(clusters, kind='parallelism', **kwargs)
 
         # Hoist and optimize Dimension-invariant sub-expressions
         clusters = cire(clusters, 'invariants', sregistry, options, platform)
@@ -253,7 +257,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'tasking': Tasker(runs_on_host, sregistry).process,
             'streaming': Streaming(reads_if_on_host, sregistry).process,
             'factorize': factorize,
-            'fission': fission,
+            'fission': lambda i: fission(i, kind='parallelism', **kwargs),
             'fuse': lambda i: fuse(i, options=options),
             'lift': lambda i: Lift().process(cire(i, 'invariants', sregistry,
                                                   options, platform)),
