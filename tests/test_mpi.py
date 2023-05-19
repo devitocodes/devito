@@ -2523,10 +2523,10 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = 'overlap'
+    # configuration['mpi'] = 'overlap'
     # TestDecomposition().test_reshape_left_right()
-    TestOperatorSimple().test_trivial_eq_2d()
+    # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
     # TestSparseFunction().test_scatter_gather()
     # TestOperatorAdvanced().test_fission_due_to_antidep()
-    # TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    TestIsotropicAcoustic().test_adjoint_F(1)

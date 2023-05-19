@@ -632,9 +632,10 @@ class Operator(Callable):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
             try:
-                p._arg_apply(args[p.name], args[p.coordinates.name], kwargs.get(p.name))
+                subfuncs = (args[s] for s in p._subfunc_names)
+                p._arg_apply(args[p.name], *subfuncs, alias=kwargs.get(p.name))
             except AttributeError:
-                p._arg_apply(args[p.name], kwargs.get(p.name))
+                p._arg_apply(args[p.name], alias=kwargs.get(p.name))
 
     @cached_property
     def _known_arguments(self):

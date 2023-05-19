@@ -195,6 +195,16 @@ class AbstractSparseFunction(DiscreteFunction):
     def distributor(self):
         return self.grid.distributor
 
+    @property
+    def _subfunc_names(self):
+        names = []
+        for s in self._sub_functions:
+            try:
+                names.append(getattr(self, s).name)
+            except AttributeError:
+                pass
+        return tuple(names)
+
     @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
@@ -477,10 +487,10 @@ class AbstractSparseFunction(DiscreteFunction):
         self._data[mask] = gathered[:]
 
     def _dist_subfunc_gather(self, sfuncd, sfunc):
-        if sfuncd is None:
-            pass
-        elif np.sum([sfuncd._obj.size[i] for i in range(self.ndim)]) > 0:
+        try:
             sfuncd = sfunc._C_as_ndarray(sfuncd)
+        except AttributeError:
+            pass
         # If not using MPI, don't waste time
         if self.distributor.nprocs == 1:
             return
