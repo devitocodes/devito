@@ -226,7 +226,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Offset index of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
-        return grid_origin
+        return tuple(grid_origin)
 
     @property
     def origin_offset(self):

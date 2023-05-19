@@ -136,6 +136,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
         dimensions = dimensions[:n]
         shape = shape[:n]
+
         sf = SubFunction(
             name=name, parent=self, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
@@ -186,6 +187,11 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def _mpitype(self):
         return MPI._typedict[np.dtype(self.dtype).char]
+
+    @property
+    def _smpitype(self):
+        sfuncs = [getattr(self, s) for s in self._sub_functions]
+        return {s: MPI._typedict[np.dtype(s.dtype).char] for s in sfuncs}
 
     @property
     def comm(self):
@@ -292,7 +298,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
         minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self.gridpoints + s) for s in self._point_support],
+        return np.stack([minmax(self.gridpoints_data + s) for s in self._point_support],
                         axis=2)
 
     @property
@@ -455,14 +461,13 @@ class AbstractSparseFunction(DiscreteFunction):
         _, scount, sdisp, rshape, rcount, rdisp = \
             self._dist_subfunc_alltoall(subfunc, dmap=dmap)
         scattered = np.empty(shape=rshape, dtype=subfunc.dtype)
-        self.comm.Alltoallv([sfuncd, scount, sdisp, self._mpitype],
-                            [scattered, rcount, rdisp, self._mpitype])
+        self.comm.Alltoallv([sfuncd, scount, sdisp, self._smpitype[subfunc]],
+                            [scattered, rcount, rdisp, self._smpitype[subfunc]])
         sfuncd = scattered
 
         # Translate global coordinates into local coordinates
         if self.dist_origin[subfunc] is not None:
-            sfuncd = sfuncd - np.array(self.dist_origin[subfunc], dtype=self.dtype)
-
+            sfuncd = sfuncd - np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
         return {subfunc: sfuncd}
 
     def _dist_data_gather(self, data):
@@ -500,13 +505,13 @@ class AbstractSparseFunction(DiscreteFunction):
         mask = self._dist_scatter_mask(dmap=dmap)
         # Pack (reordered) coordinates so that they can be sent out via an Alltoallv
         if self.dist_origin[sfunc] is not None:
-            sfuncd = sfuncd + np.array(self.dist_origin[sfunc], dtype=self.dtype)
+            sfuncd = sfuncd + np.array(self.dist_origin[sfunc], dtype=sfunc.dtype)
         # Send out the sparse point coordinates
         sshape, scount, sdisp, _, rcount, rdisp = \
             self._dist_subfunc_alltoall(sfunc, dmap=dmap)
         gathered = np.empty(shape=sshape, dtype=sfunc.dtype)
-        self.comm.Alltoallv([sfuncd, rcount, rdisp, self._mpitype],
-                            [gathered, scount, sdisp, self._mpitype])
+        self.comm.Alltoallv([sfuncd, rcount, rdisp, self._smpitype[sfunc]],
+                            [gathered, scount, sdisp, self._smpitype[sfunc]])
         sfunc.data._local[mask[self._sparse_position]] = gathered[:]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
@@ -523,7 +528,8 @@ class AbstractSparseFunction(DiscreteFunction):
     def _dist_gather(self, data, *subfunc):
         self._dist_data_gather(data)
         for (sg, s) in zip(subfunc, self._sub_functions):
-            self._dist_subfunc_gather(sg, getattr(self, s))
+            if getattr(self, s) is not None:
+                self._dist_subfunc_gather(sg, getattr(self, s))
 
     def _arg_defaults(self, alias=None):
         key = alias or self
@@ -802,7 +808,9 @@ class SparseFunction(AbstractSparseFunction):
             raise ValueError("No coordinates attached to this SparseFunction")
         return (
             np.floor(self.coordinates.data._local - self.grid.origin) / self.grid.spacing
-        ).astype(int)
+        ).astype(np.int32)
+
+    gridpoints_data = gridpoints
 
     def guard(self, expr=None, offset=0):
         """
@@ -1057,11 +1065,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
-    _sub_functions = ('coordinates', 'gridpoints', 'interpolation_coeffs')
+    _sub_functions = ('gridpoints', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
-                   ('r', 'coordinates_data', 'gridpoints_data',
-                    'interpolation_coeffs_data'))
+                   ('r', 'gridpoints_data', 'interpolation_coeffs_data'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -1083,19 +1090,19 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         # Specifying only `npoints` is acceptable; this will require the user
         # to setup the coordinates data later on
-        npoint = kwargs.get('npoint', None)
         if self.npoint and coordinates is None and gridpoints is None:
-            coordinates = np.zeros((npoint, self.grid.dim))
+            gridpoints = np.zeros((self.npoint, self.grid.dim))
 
         if coordinates is not None:
-            self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
-            self._gridpoints = None
-            self._dist_origin = {self._coordinates: self.grid.origin_offset}
+            # Convert to gridpoints
+            if isinstance(coordinates, SubFunction):
+                raise ValueError("`coordinates` only accepted as array")
+            loc = np.floor((coordinates - self.grid.origin) / self.grid.spacing)
+            self._gridpoints = self.__subfunc_setup__(loc.astype(int), 'gridpoints')
         else:
             assert gridpoints is not None
-            self._coordinates = None
             self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints')
-            self._dist_origin = {self._coordinates: self.grid.origin_ioffset}
+        self._dist_origin = {self._gridpoints: self.grid.origin_ioffset}
 
         # Setup the interpolation coefficients. These are compulsory
         interpolation_coeffs = kwargs.get('interpolation_coeffs',
@@ -1120,13 +1127,18 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         """Index increments in each dimension for each point symbol."""
         return tuple(product(range(-self.r//2+1, self.r//2+1), repeat=self.grid.dim))
 
-    @property
-    def coordinates(self):
-        return self._coordinates
+    @cached_property
+    def _point_support(self):
+        return np.array(tuple(product(range(-self.r // 2 + 1, self.r // 2 + 1),
+                                      repeat=self.grid.dim)))
 
     @property
     def gridpoints(self):
         return self._gridpoints
+
+    @property
+    def gridpoints_data(self):
+        return self.gridpoints.data._local
 
     @property
     def dist_origin(self):
@@ -1138,40 +1150,15 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         return self._interpolation_coeffs
 
     @property
-    def coordinates_data(self):
-        try:
-            return self.coordinates.data.view(np.ndarray)
-        except AttributeError:
-            return None
-
-    @property
-    def gridpoints_data(self):
-        try:
-            return self._gridpoints.data.view(np.ndarray)
-        except AttributeError:
-            return None
-
-    @cached_property
-    def coords_or_points(self):
-        if self.gridpoints is None:
-            return self.coordinates
-        else:
-            return self.gridpoints
-
-    @property
     def interpolation_coeffs_data(self):
-        return self.interpolation_coeffs.data.view(np.ndarray)
+        return self.interpolation_coeffs.data._local
 
     @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension."""
         p_dim = self.indices[self._sparse_position]
-        if self._gridpoints is None:
-            return tuple([self.coordinates.indexify((p_dim, i))
-                          for i in range(self.grid.dim)])
-        else:
-            return tuple([self.gridpoints.indexify((p_dim, i)) * d
-                          for (i, d) in enumerate(self.grid.spacing_symbols)])
+        return tuple([self.coordinates.indexify((p_dim, i))
+                      for i in range(self.grid.dim)])
 
     @memoized_meth
     def _index_matrix(self, offset):
@@ -1181,21 +1168,17 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         # ConditionalDimensions for a given set of indirection indices
 
         # List of indirection indices for all adjacent grid points
-        if self._gridpoints is None:
-            index_matrix = [tuple(idx + ii + offset
-                                  for ii, idx in zip(inc, self._coordinate_indices))
-                            for inc in self._point_increments]
-        else:
-            ddim = self._gridpoints.dimensions[1]
-            index_matrix = [tuple(self._gridpoints._subs(ddim, d) + ii + offset
-                                  for (ii, d) in zip(inc, range(self.grid.dim)))
-                            for inc in self._point_increments]
+        ddim = self._gridpoints.dimensions[1]
+        index_matrix = [tuple(self._gridpoints._subs(ddim, d) + ii + offset
+                              for (ii, d) in zip(inc, range(self.grid.dim)))
+                        for inc in self._point_increments]
         shifts = [tuple(ii + offset for ii in inc)
                   for inc in self._point_increments]
         # A unique symbol for each indirection index
         indices = filter_ordered(flatten(index_matrix))
         points = OrderedDict([(p, Symbol(name='ii_%s_%d' % (self.name, i)))
                               for i, p in enumerate(indices)])
+
         return index_matrix, points, shifts
 
 
