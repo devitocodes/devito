@@ -632,7 +632,7 @@ class Operator(Callable):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
             try:
-                subfuncs = (args[s.name] for s in p._sub_functions)
+                subfuncs = (args[s] for s in p._sub_functions)
                 p._arg_apply(args[p.name], *subfuncs, alias=kwargs.get(p.name))
             except AttributeError:
                 p._arg_apply(args[p.name], alias=kwargs.get(p.name))

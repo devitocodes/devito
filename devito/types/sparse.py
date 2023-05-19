@@ -206,6 +206,16 @@ class AbstractSparseFunction(DiscreteFunction):
                 np.floor(self.coordinates_data - self.grid.origin) / self.grid.spacing
             ).astype(np.int32)
 
+    @property
+    def _subfunc_names(self):
+        names = []
+        for s in self._sub_functions:
+            try:
+                names.append(getattr(self, s).name)
+            except AttributeError:
+                pass
+        return tuple(names)
+
     @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
