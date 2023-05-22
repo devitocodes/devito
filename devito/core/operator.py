@@ -300,16 +300,16 @@ class CustomOperator(BasicOperator):
         if 'init' not in passes:
             passes_mapper['init'](graph)
 
-        # Enforce pthreads if CPU-GPU orchestration requested
-        if 'orchestrate' in passes and 'pthreadify' not in passes:
-            passes_mapper['pthreadify'](graph, sregistry=sregistry)
-
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         if 'linearize' not in passes and options['linearize']:
             passes_mapper['linearize'](graph)
+
+        # Enforce pthreads if CPU-GPU orchestration requested
+        if 'orchestrate' in passes and 'pthreadify' not in passes:
+            passes_mapper['pthreadify'](graph, sregistry=sregistry)
 
         return graph
 

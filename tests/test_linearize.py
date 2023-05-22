@@ -298,9 +298,9 @@ def test_strides_forwarding0():
     foo = graph.root
     bar = graph.efuncs['bar']
 
-    assert foo.body.body[0].write.name == 'y_fsz0'
-    assert foo.body.body[2].write.name == 'y_stride0'
-    assert len(foo.body.body[4].arguments) == 2
+    assert foo.body.strides[0].write.name == 'y_fsz0'
+    assert foo.body.strides[2].write.name == 'y_stride0'
+    assert len(foo.body.body[0].arguments) == 2
 
     assert len(bar.parameters) == 2
     assert bar.parameters[1].name == 'y_stride0'
@@ -333,9 +333,10 @@ def test_strides_forwarding1():
     assert len(foo.body.body) == 1
     assert foo.body.body[0].is_Call
 
-    assert len(bar.body.body) == 5
-    assert bar.body.body[0].write.name == 'y_fsz0'
-    assert bar.body.body[2].write.name == 'y_stride0'
+    assert len(bar.body.body) == 1
+    assert len(bar.body.strides) == 3
+    assert bar.body.strides[0].write.name == 'y_fsz0'
+    assert bar.body.strides[2].write.name == 'y_stride0'
 
 
 def test_strides_forwarding2():
@@ -380,9 +381,9 @@ def test_strides_forwarding2():
     assert all(i.is_Call for i in root.body.body)
 
     for foo in [foo0, foo1]:
-        assert foo.body.body[0].write.name == 'y_fsz0'
-        assert foo.body.body[2].write.name == 'y_stride0'
-        assert len(foo.body.body[4].arguments) == 2
+        assert foo.body.strides[0].write.name == 'y_fsz0'
+        assert foo.body.strides[2].write.name == 'y_stride0'
+        assert len(foo.body.body[0].arguments) == 2
 
     for bar in [bar0, bar1]:
         assert len(bar.parameters) == 2
@@ -414,10 +415,10 @@ def test_strides_forwarding3():
     root = graph.root
     bar = graph.efuncs['bar']
 
-    assert root.body.body[0].write.name == 'y_fsz0'
-    assert root.body.body[0].write.dtype is np.int64
-    assert root.body.body[2].write.name == 'y_stride0'
-    assert root.body.body[2].write.dtype is np.int64
+    assert root.body.strides[0].write.name == 'y_fsz0'
+    assert root.body.strides[0].write.dtype is np.int64
+    assert root.body.strides[2].write.name == 'y_stride0'
+    assert root.body.strides[2].write.dtype is np.int64
 
     assert bar.parameters[1].name == 'y_stride0'
 
@@ -445,9 +446,9 @@ def test_strides_forwarding4():
     root = graph.root
     bar = graph.efuncs['bar']
 
-    assert root.body.body[0].write.name == 'y_fsz0'
-    assert root.body.body[2].write.name == 'y_stride0'
-    assert root.body.body[4].arguments[1].name == 'y_stride0'
+    assert root.body.strides[0].write.name == 'y_fsz0'
+    assert root.body.strides[2].write.name == 'y_stride0'
+    assert root.body.body[0].arguments[1].name == 'y_stride0'
     assert bar.parameters[1].name == 'y_stride0'
 
 
@@ -518,8 +519,8 @@ def test_call_retval_indexed():
 
     foo = graph.root
 
-    assert foo.body.body[0].write.name == 'y_fsz0'
-    assert foo.body.body[2].write.name == 'y_stride0'
+    assert foo.body.strides[0].write.name == 'y_fsz0'
+    assert foo.body.strides[2].write.name == 'y_stride0'
     assert str(foo.body.body[-1]) == 'vL0(x, y) = bar(f);'
 
 
@@ -549,8 +550,8 @@ def test_bundle():
     assert f not in bar.parameters
     assert g not in bar.parameters
 
-    assert foo.body.body[0].write.name == 'y_fsz0'
-    y_stride0 = foo.body.body[2].write
+    assert foo.body.strides[0].write.name == 'y_fsz0'
+    y_stride0 = foo.body.strides[2].write
     assert y_stride0.name == 'y_stride0'
     assert y_stride0 in bar.parameters
 
