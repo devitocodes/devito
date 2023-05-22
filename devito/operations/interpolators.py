@@ -204,8 +204,47 @@ class WeightedInterpolator(GenericInterpolator):
                     implicit_dims=implicit_dims)
                 for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
 
-    def implicit_dims(self, implicit_dims):
-        return as_tuple(implicit_dims) + self.sfunction.dimensions
+    def _interpolation_indices(self, variables, offset=0, field_offset=0,
+                               implicit_dims=None):
+        """
+        Generate interpolation indices for the DiscreteFunctions in ``variables``.
+        """
+        idx_subs = []
+        points = {d: [] for d in self._gdim}
+        mapper = {d: [] for d in self._gdim}
+
+        # Positon map and temporaries for it
+        pmap = self.sfunction._coordinate_indices
+
+        # Temporaries for the position
+        temps = self._positions(implicit_dims)
+
+        # Coefficient symbol expression
+        temps.extend(self._coeff_temps(implicit_dims))
+
+        # Create positions and indices temporaries/indirections
+        for ((di, d), pos) in zip(enumerate(self._gdim), pmap):
+            for (ri, r) in enumerate(self._interp_points):
+                p = Symbol(name='ii_%s_%s_%d' % (self.sfunction.name, d.name, ri))
+                points[d].append(p)
+                # Conditionals to avoid OOB
+                lb = sympy.And(p >= d.symbolic_min - self.r, evaluate=False)
+                ub = sympy.And(p <= d.symbolic_max + self.r, evaluate=False)
+                condition = sympy.And(lb, ub, evaluate=False)
+                mapper[d].append(ConditionalDimension(p.name, self.sfunction._sparse_dim,
+                                                      condition=condition, indirect=True))
+                temps.extend([Eq(p, pos + r, implicit_dims=implicit_dims)])
+
+        # Substitution mapper
+        for p in self._nd_points:
+            # Apply mapper to each variable with origin correction before the
+            # Dimensions get replaced
+            subs = {v: v.subs({k: c[pi] - v.origin.get(k, 0)
+                              for ((k, c), pi) in zip(mapper.items(), p)})
+                    for v in variables}
+            idx_subs.append(subs)
+
+        return idx_subs, temps
 
     def interpolate(self, expr, offset=0, increment=False, self_subs={},
                     implicit_dims=None):
