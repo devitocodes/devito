@@ -2,11 +2,11 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Pow, Add, Mul, Min, Max, SympifyError, sympify
+from sympy import Pow, Add, Mul, Min, Max, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.symbolics.extended_sympy import rfunc
+from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
@@ -22,7 +22,7 @@ __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
 
 def uxreplace(expr, rule):
     """
-    An alternative to SymPy's ``xreplace`` for when the caller can guarantee
+    An alternative to SymPy's `xreplace` for when the caller can guarantee
     that no re-evaluations are necessary or when re-evaluations should indeed
     be avoided at all costs (e.g., to prevent SymPy from unpicking Devito
     transformations, such as factorization).
@@ -33,14 +33,21 @@ def uxreplace(expr, rule):
     By avoiding re-evaluations, this function is typically much quicker than
     SymPy's xreplace.
 
-    A further feature of ``uxreplace`` consists of enabling the substitution
-    of compound nodes. Consider the expression `a*b*c*d`; if one wants to replace
-    `b*c` with say `e*f`, then the following mapper may be passed:
-    `{a*b*c*d: {b: e*f, c: None}}`. This way, only the `b` and `c` pertaining to
-    `a*b*c*d` will be affected, and in particular `c` will be dropped, while `b`
-    will be replaced by `e*f`, thus obtaining `a*d*e*f`.
+    A further feature of `uxreplace` is the support for compound nodes.
+    Consider the expression `a*b*c*d`; if one wants to replace `b*c` with say
+    `e*f`, then the following mapper may be passed: `{a*b*c*d: {b: e*f, c: None}}`.
+    This way, only the `b` and `c` pertaining to `a*b*c*d` will be affected, and
+    in particular `c` will be dropped, while `b` will be replaced by `e*f`, thus
+    obtaining `a*d*e*f`.
+
+    Finally, `uxreplace` supports Reconstructable objects, that is, it searches
+    for replacement opportunities inside the Reconstructable's `__rkwargs__`.
     """
     return _uxreplace(expr, rule)[0]
+
+
+# TODO: `uxreplace` doesn't support all possible Reconstructables yet
+supported_reconsts = (ComponentAccess, Eq, DefFunction)
 
 
 def _uxreplace(expr, rule):
@@ -66,35 +73,73 @@ def _uxreplace(expr, rule):
         changed = False
 
     if rule:
-        for a in eargs:
-            try:
-                ax, flag = _uxreplace(a, rule)
-                args.append(ax)
-                changed |= flag
-            except AttributeError:
-                # E.g., un-sympified numbers
-                args.append(a)
+        eargs, flag = _uxreplace_dispatch(eargs, rule)
+        args.extend(eargs)
+        changed |= flag
+
+        # If a Reconstructable object, we need to parse the kwargs as well
+        if isinstance(expr, supported_reconsts):
+            v = {i: getattr(expr, i) for i in expr.__rkwargs__}
+            kwargs, flag = _uxreplace_dispatch(v, rule)
+        else:
+            kwargs, flag = {}, False
+        changed |= flag
+
         if changed:
-            return _uxreplace_handle(expr, args), True
+            return _uxreplace_handle(expr, args, kwargs), True
 
     return expr, False
 
 
 @singledispatch
-def _uxreplace_handle(expr, args):
+def _uxreplace_dispatch(unknown, rule):
+    return unknown, False
+
+
+@_uxreplace_dispatch.register(Basic)
+def _(expr, rule):
+    return _uxreplace(expr, rule)
+
+
+@_uxreplace_dispatch.register(tuple)
+@_uxreplace_dispatch.register(Tuple)
+@_uxreplace_dispatch.register(list)
+def _(iterable, rule):
+    ret = []
+    changed = False
+    for a in iterable:
+        ax, flag = _uxreplace(a, rule)
+        ret.append(ax)
+        changed |= flag
+    return iterable.__class__(ret), changed
+
+
+@_uxreplace_dispatch.register(dict)
+def _(mapper, rule):
+    ret = {}
+    changed = False
+    for k, v in mapper.items():
+        vx, flag = _uxreplace_dispatch(v, rule)
+        ret[k] = vx
+        changed |= flag
+    return ret, changed
+
+
+@singledispatch
+def _uxreplace_handle(expr, args, kwargs):
     return expr.func(*args)
 
 
 @_uxreplace_handle.register(Min)
 @_uxreplace_handle.register(Max)
 @_uxreplace_handle.register(Pow)
-def _(expr, args):
+def _(expr, args, kwargs):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)
 
 
 @_uxreplace_handle.register(Add)
-def _(expr, args):
+def _(expr, args, kwargs):
     if all(i.is_commutative for i in args):
         _addsort(args)
         _eval_numbers(expr, args)
@@ -104,7 +149,7 @@ def _(expr, args):
 
 
 @_uxreplace_handle.register(Mul)
-def _(expr, args):
+def _(expr, args, kwargs):
     if all(i.is_commutative for i in args):
         _mulsort(args)
         _eval_numbers(expr, args)
@@ -113,12 +158,10 @@ def _(expr, args):
         return expr._new_rawargs(*args)
 
 
-@_uxreplace_handle.register(ComponentAccess)
-@_uxreplace_handle.register(Eq)
-def _(expr, args):
-    # Handler for all other Reconstructable objects
-    kwargs = {i: getattr(expr, i) for i in expr.__rkwargs__}
+def _uxreplace_handle_reconstructables(expr, args, kwargs):
     return expr.func(*args, **kwargs)
+for cls in supported_reconsts:  # noqa
+    _uxreplace_handle.register(cls, _uxreplace_handle_reconstructables)
 
 
 def _eval_numbers(expr, args):

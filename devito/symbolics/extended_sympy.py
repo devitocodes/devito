@@ -513,8 +513,7 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    __rargs__ = ('name',)
-    __rkwargs__ = ('arguments',)
+    __rargs__ = ('name', 'arguments')
 
     def __new__(cls, name, arguments=None, **kwargs):
         _arguments = []
@@ -549,6 +548,8 @@ class DefFunction(Function, Pickable):
 
     def _sympystr(self, printer):
         return str(self)
+
+    func = Pickable._rebuild
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
