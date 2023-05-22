@@ -1054,7 +1054,7 @@ class TestConditionalDimension(object):
         indices = [(i, i+radius) for i in sf._coordinate_indices]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
-        eqs = []
+        eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
             args.extend([j < k for j, k in zip(i, bounds)])

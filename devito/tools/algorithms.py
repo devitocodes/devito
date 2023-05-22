@@ -72,4 +72,5 @@ def toposort(data):
                               if item not in ordered])
     if len(processed) != len(set(flatten(data) + flatten(data.values()))):
         raise ValueError("A cyclic dependency exists amongst %r" % data)
+
     return processed

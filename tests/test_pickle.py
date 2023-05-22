@@ -260,13 +260,19 @@ class TestBasic(object):
         assert sdata.cfields == new_sdata.cfields
         assert sdata.ncfields == new_sdata.ncfields
 
-def test_precomputed_sparse_function():
-    grid = Grid(shape=(10, 10))
+@pytest.mark.parametrize('mode', ['coordinates', 'gridpoints'])
+def test_precomputed_sparse_function(mode):
+    grid = Grid(shape=(11, 11))
+
+    coords = [(0., 0.), (.5, .5), (.7, .2)]
+    gridpoints = [(0, 0), (6, 6), (8, 3)]
+    keys = {'coordinates': coords, 'gridpoints': gridpoints}
+    kw = {mode: keys[mode]}
+    othermode = 'coordinates' if mode == 'gridpoints' else 'gridpoints'
 
     sf = PrecomputedSparseTimeFunction(
         name='sf', grid=grid, r=2, npoint=3, nt=5,
-        coordinates=[(0., 0.), (1., 1.), (2., 2.)],
-        interpolation_coeffs=np.ndarray(shape=(3, 2, 2)),
+        interpolation_coeffs=np.ndarray(shape=(3, 2, 2)), **kw
     )
     sf.data[2, 1] = 5.
 
@@ -280,7 +286,9 @@ def test_precomputed_sparse_function():
     assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
 
     # coordinates, since they were given, should also have been pickled
-    assert np.all(sf.coordinates.data == new_sf.coordinates.data)
+    assert np.all(getattr(sf, mode).data == getattr(new_sf, mode).data)
+    assert getattr(sf, othermode) is None
+    assert getattr(new_sf, othermode) is None
 
     assert sf._radius == new_sf._radius == 2
     assert sf.space_order == new_sf.space_order

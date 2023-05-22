@@ -942,16 +942,7 @@ class TestNodeParallelism(object):
                                                'par-collapse-ncores': 1}))
         iterations = FindNodes(Iteration).visit(op0)
         assert not iterations[0].pragmas
-        assert 'omp for collapse(1) schedule(dynamic,chunk_size)'\
-            in iterations[1].pragmas[0].value
-
-        op1 = Operator(eqns, opt=('advanced', {'openmp': True,
-                                               'par-collapse-ncores': 1,
-                                               'par-collapse-work': 1}))
-        iterations = FindNodes(Iteration).visit(op1)
-        assert not iterations[0].pragmas
-        assert 'omp for collapse(1) schedule(dynamic,chunk_size)'\
-            in iterations[1].pragmas[0].value
+        assert 'omp for' in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):

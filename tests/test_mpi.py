@@ -572,16 +572,15 @@ class TestSparseFunction(object):
 
         assert sf1.npoint == 1
         assert sf2.npoint == 1
-        assert np.all(sf1.gridpoints.data.shape == (1, 2))
+        assert np.all(sf1.coordinates.data.shape == (1, 2))
         assert np.all(sf2.gridpoints.data.shape == (1, 2))
-        assert np.all(sf1.gridpoints_data == sf2.gridpoints_data)
+        assert np.all(sf1._coords_indices == sf2.gridpoints_data)
         assert np.all(sf1.interpolation_coeffs.shape == (1, 2, r))
         assert np.all(sf2.interpolation_coeffs.shape == (1, 2, r))
 
         u = Function(name="u", grid=grid, space_order=r)
         u._data_with_outhalo[:] = 1
         Operator(sf2.interpolate(u))()
-        print(sf2.data)
         assert np.all(sf2.data == 4)
         Operator(sf1.interpolate(u))()
         assert np.all(sf1.data == 4)

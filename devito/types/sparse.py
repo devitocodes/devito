@@ -24,7 +24,7 @@ from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDime
                                     DynamicDimension)
 from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
-from devito.types.utils import IgnoreDimSort
+from devito.types.utils import IgnoreDimSort, DimensionTuple
 
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -110,7 +110,7 @@ class AbstractSparseFunction(DiscreteFunction):
         dimensions = (self.indices[self._sparse_position],
                       Dimension(name='d'),
                       Dimension(name='i'))
-        shape = (self.npoint, self.grid.dim, self.r)
+        shape = (self.npoint, self.grid.dim, self._radius)
 
         if key is None:
             # Fallback to default behaviour
@@ -190,7 +190,8 @@ class AbstractSparseFunction(DiscreteFunction):
 
     @property
     def _smpitype(self):
-        sfuncs = [getattr(self, s) for s in self._sub_functions]
+        sfuncs = [getattr(self, s) for s in self._sub_functions
+                  if getattr(self, s) is not None]
         return {s: MPI._typedict[np.dtype(s.dtype).char] for s in sfuncs}
 
     @property
@@ -214,14 +215,26 @@ class AbstractSparseFunction(DiscreteFunction):
     @cached_property
     def _point_symbols(self):
         """Symbol for coordinate value in each dimension of the point."""
-        return tuple(Symbol(name='p%s' % d, dtype=self.dtype)
-                     for d in self.grid.dimensions)
+        return DimensionTuple(*(Symbol(name='p%s' % d, dtype=self.dtype)
+                                for d in self.grid.dimensions),
+                              getters=self.grid.dimensions)
 
     @cached_property
     def _position_map(self):
         """
-        Symbols map for the position of the sparse points relative to the grid
+        Symbols map for the physical position of the sparse points relative to the grid
         origin.
+        """
+        symbols = [Symbol(name='pos%s' % d, dtype=self.dtype)
+                   for d in self.grid.dimensions]
+        return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
+                                                          self._coordinate_symbols,
+                                                          self.grid.origin_symbols)])
+
+    @cached_property
+    def _coordinate_indices(self):
+        """
+        Symbol for each grid index according to the coordinates.
 
         Notes
         -----
@@ -233,24 +246,9 @@ class AbstractSparseFunction(DiscreteFunction):
         the position. We mitigate this problem by computing the positions
         individually (hence the need for a position map).
         """
-        symbols = [Symbol(name='pos%s' % d, dtype=self.dtype)
-                   for d in self.grid.dimensions]
-        return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
-                                                          self._coordinate_symbols,
-                                                          self.grid.origin_symbols)])
-
-    @cached_property
-    def _point_increments(self):
-        """Index increments in each dimension for each point symbol."""
-        return tuple(product(range(self.r+1), repeat=self.grid.dim))
-
-    @cached_property
-    def _coordinate_indices(self):
-        """Symbol for each grid index according to the coordinates."""
-        return tuple([INT(floor((c - o) / i.spacing))
-                      for c, o, i in zip(self._coordinate_symbols,
-                                         self.grid.origin_symbols,
-                                         self.grid.dimensions[:self.grid.dim])])
+        return tuple([INT(floor(p / i.spacing))
+                      for p, i in zip(self._position_map.values(),
+                                      self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
         """Symbol for the base coordinates of the reference grid point."""
@@ -286,9 +284,13 @@ class AbstractSparseFunction(DiscreteFunction):
         return self.interpolator.inject(*args, **kwargs)
 
     @cached_property
+    def _point_increments(self):
+        """Index increments in each dimension for each point symbol."""
+        return tuple(product(range(self.r+1), repeat=self.grid.dim))
+
+    @cached_property
     def _point_support(self):
-        return np.array(tuple(product(range(-self._radius + 1, self._radius + 1),
-                                      repeat=self.grid.dim)))
+        return np.array(self._point_increments)
 
     @property
     def _support(self):
@@ -298,7 +300,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
         minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self.gridpoints_data + s) for s in self._point_support],
+        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
                         axis=2)
 
     @property
@@ -803,14 +805,14 @@ class SparseFunction(AbstractSparseFunction):
         return self._dist_origin
 
     @property
-    def gridpoints(self):
+    def _coords_indices(self):
         if self.coordinates.data is None:
             raise ValueError("No coordinates attached to this SparseFunction")
         return (
             np.floor(self.coordinates.data._local - self.grid.origin) / self.grid.spacing
         ).astype(np.int32)
 
-    gridpoints_data = gridpoints
+    gridpoints = _coords_indices
 
     def guard(self, expr=None, offset=0):
         """
@@ -1065,10 +1067,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
-    _sub_functions = ('gridpoints', 'interpolation_coeffs')
+    _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
-                   ('r', 'gridpoints_data', 'interpolation_coeffs_data'))
+                   ('r', 'gridpoints_data', 'coordinates_data',
+                    'interpolation_coeffs_data'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -1090,19 +1093,19 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         # Specifying only `npoints` is acceptable; this will require the user
         # to setup the coordinates data later on
+        npoint = kwargs.get('npoint', None)
         if self.npoint and coordinates is None and gridpoints is None:
-            gridpoints = np.zeros((self.npoint, self.grid.dim))
+            coordinates = np.zeros((npoint, self.grid.dim))
 
         if coordinates is not None:
-            # Convert to gridpoints
-            if isinstance(coordinates, SubFunction):
-                raise ValueError("`coordinates` only accepted as array")
-            loc = np.floor((coordinates - self.grid.origin) / self.grid.spacing)
-            self._gridpoints = self.__subfunc_setup__(loc.astype(int), 'gridpoints')
+            self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
+            self._gridpoints = None
+            self._dist_origin = {self._coordinates: self.grid.origin_offset}
         else:
             assert gridpoints is not None
+            self._coordinates = None
             self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints')
-        self._dist_origin = {self._gridpoints: self.grid.origin_ioffset}
+            self._dist_origin = {self._gridpoints: self.grid.origin_ioffset}
 
         # Setup the interpolation coefficients. These are compulsory
         interpolation_coeffs = kwargs.get('interpolation_coeffs',
@@ -1122,6 +1125,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
         self.interpolator = PrecomputedInterpolator(self)
 
+    @property
+    def r(self):
+        return self._radius
+
     @cached_property
     def _point_increments(self):
         """Index increments in each dimension for each point symbol."""
@@ -1129,8 +1136,16 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     @cached_property
     def _point_support(self):
-        return np.array(tuple(product(range(-self.r // 2 + 1, self.r // 2 + 1),
-                                      repeat=self.grid.dim)))
+        return np.array(self._point_increments)
+
+    @property
+    def _coords_indices(self):
+        if self.gridpoints is not None:
+            return self.gridpoints.data._local
+        else:
+            return (
+                np.floor(self.coordinates_data - self.grid.origin) / self.grid.spacing
+            ).astype(np.int32)
 
     @property
     def gridpoints(self):
@@ -1138,7 +1153,21 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
 
     @property
     def gridpoints_data(self):
-        return self.gridpoints.data._local
+        try:
+            return self.gridpoints.data._local
+        except AttributeError:
+            return None
+
+    @property
+    def coordinates(self):
+        return self._coordinates
+
+    @property
+    def coordinates_data(self):
+        try:
+            return self.coordinates.data._local
+        except AttributeError:
+            return None
 
     @property
     def dist_origin(self):
@@ -1157,29 +1186,35 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension."""
         p_dim = self.indices[self._sparse_position]
+        if self.gridpoints is not None:
+            return tuple([self.gridpoints.indexify((p_dim, di)) * d.spacing + o
+                          for ((di, d), o) in zip(enumerate(self.grid.dimensions),
+                                                  self.grid.origin)])
+
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
-    @memoized_meth
-    def _index_matrix(self, offset):
-        # Note about the use of *memoization*
-        # Since this method is called by `_interpolation_indices`, using
-        # memoization avoids a proliferation of symbolically identical
-        # ConditionalDimensions for a given set of indirection indices
+    @cached_property
+    def _coordinate_indices(self):
+        """
+        Symbol for each grid index according to the coordinates.
 
-        # List of indirection indices for all adjacent grid points
-        ddim = self._gridpoints.dimensions[1]
-        index_matrix = [tuple(self._gridpoints._subs(ddim, d) + ii + offset
-                              for (ii, d) in zip(inc, range(self.grid.dim)))
-                        for inc in self._point_increments]
-        shifts = [tuple(ii + offset for ii in inc)
-                  for inc in self._point_increments]
-        # A unique symbol for each indirection index
-        indices = filter_ordered(flatten(index_matrix))
-        points = OrderedDict([(p, Symbol(name='ii_%s_%d' % (self.name, i)))
-                              for i, p in enumerate(indices)])
-
-        return index_matrix, points, shifts
+        Notes
+        -----
+        The expression `(coord - origin)/spacing` could also be computed in the
+        mathematically equivalent expanded form `coord/spacing -
+        origin/spacing`. This particular form is problematic when a sparse
+        point is in close proximity of the grid origin, since due to a larger
+        machine precision error it may cause a +-1 error in the computation of
+        the position. We mitigate this problem by computing the positions
+        individually (hence the need for a position map).
+        """
+        if self.gridpoints is not None:
+            ddim = self.gridpoints.dimensions[-1]
+            return tuple([self.gridpoints._subs(ddim, di) for di in range(self.grid.dim)])
+        return tuple([INT(floor(p / i.spacing))
+                      for p, i in zip(self._position_map.keys(),
+                                      self.grid.dimensions[:self.grid.dim])])
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
@@ -2175,11 +2210,11 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
     # The implementation in AbstractSparseFunction now relies on us
     # having a .coordinates property, which we don't have.
-    def _arg_apply(self, dataobj, alias=None):
+    def _arg_apply(self, *dataobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(self._C_as_ndarray(dataobj))
+            key._dist_gather(self._C_as_ndarray(dataobj[0]))
         elif self.grid.distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
