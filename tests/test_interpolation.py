@@ -203,6 +203,41 @@ def test_precomputed_injection():
     assert np.allclose(m.data[indices], result, rtol=1.e-5)
 
 
+def test_precomputed_injection_time():
+    """Test injection with PrecomputedSparseFunction which accepts
+       precomputed values for interpolation coefficients
+    """
+    shape = (11, 11)
+    coords = [(.05, .95), (.45, .45)]
+    origin = (0, 0)
+    result = 0.25
+    nt = 20
+
+    # Constant for linear interpolation
+    # because we interpolate across 2 neighbouring points in each dimension
+    r = 2
+
+    m = unit_box_time(shape=shape)
+    m.data[:] = 0.
+
+    gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
+                                                                       m.grid, origin)
+
+    sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
+                                       gridpoints=gridpoints, nt=nt,
+                                       interpolation_coeffs=interpolation_coeffs)
+
+    expr = sf.inject(m, Float(1.))
+
+    Operator(expr)()
+    for ti in range(2):
+        indices = [slice(0, 2, 1), slice(9, 11, 1)]
+        assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
+
+        indices = [slice(4, 6, 1) for _ in coords]
+        assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
+
+
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
