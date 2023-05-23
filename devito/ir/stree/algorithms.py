@@ -11,7 +11,6 @@ from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
                                IterationSpace, normalize_properties)
 from devito.mpi.halo_scheme import HaloScheme
 from devito.tools import Bunch, DefaultOrderedDict
-from devito.types.dimension import BOTTOM
 
 __all__ = ['stree_build']
 
@@ -25,19 +24,18 @@ def stree_build(clusters, profiler=None, **kwargs):
     stree = ScheduleTree()
     section = None
 
-    base = IterationInterval(Interval(BOTTOM), [], Any)
     prev = Cluster(None)
 
-    mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
-    mapper[base] = Bunch(top=stree, bottom=stree)
+    mapper = DefaultOrderedDict(lambda: Bunch(top=None, middle=None, bottom=None))
+    mapper[base] = Bunch(top=stree, middle=stree, bottom=stree)
 
     for c in clusters:
-        if reuse_subtree(c, prev):
+        if reuse_whole_subtree(c, prev):
             tip = mapper[base].bottom
             maybe_reusable = prev.itintervals
         else:
             # Add any guards/Syncs outside of the outermost Iteration
-            tip = augment_subtree(c, None, stree)
+            tip = augment_whole_subtree(c, stree, mapper, base)
             maybe_reusable = []
 
         # Is there a HaloTouch to attach?
@@ -66,12 +64,15 @@ def stree_build(clusters, profiler=None, **kwargs):
                 mapper[it0].top.properties, c.properties[it0.dim]
             )
 
-            if reuse_subtree(c, prev, d):
+            if reuse_whole_subtree(c, prev, d):
                 tip = mapper[it0].bottom
+            elif reuse_partial_subtree(c, prev, d):
+                tip = mapper[it0].middle
+                tip = augment_partial_subtree(c, tip, mapper, it0)
+                break
             else:
                 tip = mapper[it0].top
-                tip = augment_subtree(c, d, tip)
-                mapper[it0].bottom = tip
+                tip = augment_whole_subtree(c, tip, mapper, it0)
                 break
 
         # Nested sub-trees, instead, will not be used anymore
@@ -84,8 +85,7 @@ def stree_build(clusters, profiler=None, **kwargs):
             d = it.dim
             tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d, ()))
             mapper[it].top = tip
-            tip = augment_subtree(c, d, tip)
-            mapper[it].bottom = tip
+            tip = augment_whole_subtree(c, tip, mapper, it)
 
         # Attach NodeHalo if necessary
         for it, v in mapper.items():
@@ -132,7 +132,9 @@ def stree_build(clusters, profiler=None, **kwargs):
     return stree
 
 
-# *** Utility functions to construct the ScheduleTree
+# *** Utilities to construct the ScheduleTree
+
+base = IterationInterval(Interval(None), [], Any)
 
 
 def preprocess(clusters):
@@ -163,21 +165,39 @@ def preprocess(clusters):
     return processed, hsmap
 
 
-def reuse_subtree(c0, c1, d=None):
+def reuse_partial_subtree(c0, c1, d=None):
+    return c0.guards.get(d) == c1.guards.get(d)
+
+
+def reuse_whole_subtree(c0, c1, d=None):
     return (c0.guards.get(d) == c1.guards.get(d) and
             c0.syncs.get(d) == c1.syncs.get(d))
 
 
-def augment_subtree(cluster, d, tip):
-    if d in cluster.guards:
-        tip = NodeConditional(cluster.guards[d], tip)
+def augment_partial_subtree(cluster, tip, mapper, it=None):
+    d = it.dim
+
     if d in cluster.syncs:
         tip = NodeSync(cluster.syncs[d], tip)
+
+    mapper[it].bottom = tip
+
     return tip
 
 
+def augment_whole_subtree(cluster, tip, mapper, it):
+    d = it.dim
+
+    if d in cluster.guards:
+        tip = NodeConditional(cluster.guards[d], tip)
+
+    mapper[it].middle = mapper[it].bottom = tip
+
+    return augment_partial_subtree(cluster, tip, mapper, it)
+
+
 def needs_nodehalo(d, hs):
-    return hs and d._defines.intersection(hs.distributed_aindices)
+    return d and hs and d._defines.intersection(hs.distributed_aindices)
 
 
 def reuse_section(candidate, section):
