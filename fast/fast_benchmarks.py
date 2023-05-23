@@ -23,6 +23,7 @@ GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
+XDSL_MPI_PIPELINE = "dmp-decompose-2d{slices=4},stencil-shape-inference,convert-stencil-to-ll-mlir,dmp-to-mpi{slices=4},lower-mpi"
 
 MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
 
@@ -133,8 +134,9 @@ def compile_interop(bench_name: str, nodump:bool):
         print(out)
         raise e
     
-def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str):
-    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}'
+def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str, mpi: bool = False):
+    lomp = ' -lomp ' if mpi else ''
+    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS + lomp}'
     out:str
     try:
         print(f"Trying to compile {bench_name}.kernel.o with:")
@@ -218,7 +220,8 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
             info("Dump mlir code in  in " + bench_name + ".mlir")
             with open(bench_name + ".mlir", "w") as f:
                 f.write(mlir_code)
-        compile_kernel(bench_name, mlir_code, XDSL_CPU_PIPELINE, CPU_PIPELINE)
+        xdsl_pipeline = XDSL_MPI_PIPELINE if args.mpi else XDSL_CPU_PIPELINE
+        compile_kernel(bench_name, mlir_code, xdsl_pipeline, CPU_PIPELINE, mpi=args.mpi)
         link_kernel(bench_name)
         rt = run_kernel(bench_name)
         
@@ -275,6 +278,8 @@ if __name__ == "__main__":
     parser.add_argument("-nod", "--no_output_dump", default=False, action="store_true")
     parser.add_argument('--dump_mlir', default=False, action='store_true')
     parser.add_argument('--dump_main', default=False, action='store_true')
+    parser.add_argument('--mpi', default=False, action='store_true')
+
     
     args = parser.parse_args()
 
