@@ -290,7 +290,7 @@ def test_precomputed_sparse_function(mode):
     assert getattr(sf, othermode) is None
     assert getattr(new_sf, othermode) is None
 
-    assert sf._radius == new_sf._radius == 2
+    assert sf._radius == new_sf._radius == 1
     assert sf.space_order == new_sf.space_order
     assert sf.time_order == new_sf.time_order
     assert sf.dtype == new_sf.dtype

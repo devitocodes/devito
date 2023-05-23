@@ -107,18 +107,18 @@ class GenericInterpolator(ABC):
         pass
 
 
-class WeightedInterpolation(GenericInterpolator):
+class WeightedInterpolator(GenericInterpolator):
 
     """
     Represent an Interpolation operation on a SparseFunction that is separable
-    in space, meaning hte coefficient are defined for each Dimension separately
+    in space, meaning the coefficients are defined for each Dimension separately
     and multiplied at a given point: `w[x, y] = wx[x] * wy[y]`
     """
 
     def __init__(self, sfunction):
         self.sfunction = sfunction
 
-    @property
+    @cached_property
     def grid(self):
         return self.sfunction.grid
 
@@ -126,18 +126,18 @@ class WeightedInterpolation(GenericInterpolator):
     def _weights(self):
         raise NotImplementedError
 
-    @property
+    @cached_property
     def _psym(self):
         return self.sfunction._point_symbols
 
-    @property
+    @cached_property
     def _gdim(self):
         return self.grid.dimensions
 
     def implicit_dims(self, implicit_dims):
         return as_tuple(implicit_dims) + self.sfunction.dimensions
 
-    @property
+    @cached_property
     def r(self):
         return self.sfunction.r
 
@@ -313,10 +313,9 @@ class WeightedInterpolation(GenericInterpolator):
         return Injection(field, expr, offset, self, callback)
 
 
-class LinearInterpolator(WeightedInterpolation):
-
+class LinearInterpolator(WeightedInterpolator):
     """
-    Concrete implementation of GenericInterpolator implementing a Linear interpolation
+    Concrete implementation of WeightedInterpolator implementing a Linear interpolation
     scheme, i.e. Bilinear for 2D and Trilinear for 3D problems.
 
     Parameters
@@ -324,7 +323,7 @@ class LinearInterpolator(WeightedInterpolation):
     sfunction: The SparseFunction that this Interpolator operates on.
     """
 
-    @cached_property
+    @property
     def _weights(self):
         return {d: [1 - p/d.spacing, p/d.spacing]
                 for (d, p) in zip(self._gdim, self._psym)}
@@ -336,7 +335,16 @@ class LinearInterpolator(WeightedInterpolation):
                 for (d, pos) in zip(self._gdim, pmap)]
 
 
-class PrecomputedInterpolator(WeightedInterpolation):
+class PrecomputedInterpolator(WeightedInterpolator):
+    """
+    Concrete implementation of WeightedInterpolator implementing a Precomputed
+    interpolation scheme, i.e. an interpolation with user provided precomputed
+    weigths/coefficients.
+
+    Parameters
+    ----------
+    sfunction: The SparseFunction that this Interpolator operates on.
+    """
 
     def _positions(self, implicit_dims):
         if self.sfunction.gridpoints is None:
@@ -346,23 +354,12 @@ class PrecomputedInterpolator(WeightedInterpolation):
         return []
 
     @property
-    def _interp_points(self):
-        return range(-self.r//2 + 1, self.r//2 + 1)
-
-    @property
-    def _icoeffs(self):
+    def interpolation_coeffs(self):
         return self.sfunction.interpolation_coeffs
 
     @property
-    def _idim(self):
-        return self.sfunction.interpolation_coeffs.dimensions[-1]
-
-    @property
-    def _ddim(self):
-        return self.sfunction.interpolation_coeffs.dimensions[1]
-
-    @cached_property
     def _weights(self):
-        return {d: [self._icoeffs.subs({self._ddim: di, self._idim: k})
+        ddim, cdim = self.interpolation_coeffs.dimensions[1:]
+        return {d: [self.interpolation_coeffs.subs({ddim: di, cdim: k})
                     for k in self._interp_points]
                 for (di, d) in enumerate(self._gdim)}

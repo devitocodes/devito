@@ -140,7 +140,7 @@ class Data(np.ndarray):
     @property
     def _local(self):
         """A view of ``self`` with global indexing disabled."""
-        ret = self.view()
+        ret = self.view(np.ndarray)
         ret._is_distributed = False
         return ret
 
