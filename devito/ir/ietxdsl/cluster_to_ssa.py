@@ -17,12 +17,12 @@ from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 from xdsl.ir import Block, Region, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, func, memref, arith
 from xdsl.dialects.experimental import stencil, math
+from xdsl.dialects import stencil as stencil_nexp
 
 default_int = builtin.i64
 
 
 class ExtractDevitoStencilConversion:
-
     eqs: list[LoweredEq]
     block: Block
     loaded_values: dict[tuple[int, ...], SSAValue]
@@ -217,7 +217,7 @@ class ExtractDevitoStencilConversion:
         try:
             step = arith.Constant.from_int_and_width(int(dim.symbolic_incr),
                                                      builtin.IndexType())
-            step.result.name = "step"
+            step.result.name_hint = "step"
         except:
             raise ValueError("step must be int!")
 
@@ -356,8 +356,8 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         lb = stencil.IndexAttr.get(*list(-halo_elm.data[0].value.data for halo_elm in op.halo.data))
         ub = stencil.IndexAttr.get(*list(shape_elm.value.data + halo_elm.data[1].value.data for shape_elm, halo_elm in zip(op.shape.data, op.halo.data)))
 
-        field_t = stencil.FieldType.from_shape(
-            tuple(e.value.data for e in (ub - lb).array.data), op.field_type
+        field_t = stencil.FieldType(
+            (ub - lb), op.field_type
         )
 
         fields = list(
@@ -366,7 +366,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         )
         # name the resulting fields
         for field in fields:
-            field.field.name = f"{field.t_index.name}_w_size"
+            field.field.name_hint = f"{field.t_index.name}_w_size"
 
         loads = list(
             stencil.LoadOp.get(field)
@@ -380,13 +380,13 @@ class _DevitoStencilToStencilStencil(RewritePattern):
             iet_ssa.Statement.get("// stencil loads"),
             *loads,
             out := stencil.ApplyOp.get(
-                loads, op.body.detach_block(0)
+                loads, op.body.detach_block(0), result_types=[stencil.TempType([-1] * rank, op.field_type)]
             ),
             stencil.StoreOp.get(
                 out,
                 fields[-1],
                 stencil.IndexAttr.get(*([0] * len(op.halo))),
-                stencil.IndexAttr.get(*op.shape.data),
+                stencil.IndexAttr.get(*[x.value.data for x in op.shape.data]),
             )
         ])
 
@@ -398,12 +398,12 @@ class _LowerGetField(RewritePattern):
             idx := arith.IndexCastOp.get(op.t_index, builtin.IndexType()),
             ref := memref.Load.get(op.data, [idx]),
             field := stencil.ExternalLoadOp.get(ref, res_type=field_type_to_dynamic_shape_type(op.field.typ)),
-            field_w_size := stencil.CastOp.get(field, op.lb, op.ub, op.field.typ)
+            field_w_size := stencil_nexp.CastOp.get(field, op.lb, op.ub, op.field.typ)
         ], [field_w_size.result])
 
 
 def field_type_to_dynamic_shape_type(t: stencil.FieldType):
-    return stencil.FieldType.from_shape(
+    return stencil.FieldType(
         [-1] * len(t.shape), t.element_type
     )
 

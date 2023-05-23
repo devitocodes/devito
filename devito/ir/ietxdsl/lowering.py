@@ -116,7 +116,7 @@ class LowerIetForToScfFor(RewritePattern):
             new_ub := arith.Addi(op.ub, cst1),
             scf.For.get(op.lb, new_ub.result, op.step, [], body)
         ])
-        new_ub.result.name = op.ub.name
+        new_ub.result.name_hint = op.ub.name
 
 
 class LowerIetForToScfParallel(RewritePattern):

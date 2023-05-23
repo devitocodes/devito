@@ -396,9 +396,9 @@ class For(IRDLOperation):
         body = Region([Block(
             arg_types=[builtin.i64] * (subindices + 1)
         )])
-        body.blocks[0].args[0].name = loop_var_name
+        body.blocks[0].args[0].name_hint = loop_var_name
         for i in range(subindices):
-            body.blocks[0].args[i+1].name = f"{loop_var_name[0]}{i}"
+            body.blocks[0].args[i+1].name_hint = f"{loop_var_name[0]}{i}"
 
         return For.build(
             operands=[lb, ub, step],
@@ -451,14 +451,14 @@ class Stencil(IRDLOperation):
 
         block = Block(
             arg_types=[
-            stencil.TempType.from_shape([-1] * len(inputs), typ)
+            stencil.TempType([-1] * len(shape), typ)
         ] * (time_buffers - 1))
 
         for block_arg, idx_arg in zip(block.args, time_indices):
-            name = SSAValue.get(idx_arg).name
+            name = SSAValue.get(idx_arg).name_hint
             if name is None:
                 continue
-            block_arg.name = f"{name}_buff"
+            block_arg.name_hint = f"{name}_buff"
 
         return Stencil.build(
             operands=[inputs, output],
@@ -485,7 +485,7 @@ class LoadSymbolic(IRDLOperation):
             attributes={'symbol_name': StringAttr(name)},
             result_types=[typ],
         )
-        op.result.name = name
+        op.result.name_hint = name
         return op
 
 
