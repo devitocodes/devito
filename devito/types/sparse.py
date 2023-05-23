@@ -223,7 +223,7 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def _coords_indices(self):
         if self.gridpoints_data is not None:
-            return self.gridpoints_data._local
+            return self.gridpoints_data
         else:
             if self.coordinates_data is None:
                 raise ValueError("No coordinates or gridpoints attached"
@@ -242,7 +242,7 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def gridpoints_data(self):
         try:
-            return self._gridpoints.data._local
+            return self._gridpoints.data._local.view(np.ndarray)
         except AttributeError:
             return None
 
@@ -256,7 +256,7 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def coordinates_data(self):
         try:
-            return self.coordinates.data._local
+            return self.coordinates.data._local.view(np.ndarray)
         except AttributeError:
             return None
 
