@@ -120,7 +120,7 @@ class WeightedInterpolator(GenericInterpolator):
     def __init__(self, sfunction):
         self.sfunction = sfunction
 
-    @property
+    @cached_property
     def grid(self):
         return self.sfunction.grid
 
@@ -128,11 +128,11 @@ class WeightedInterpolator(GenericInterpolator):
     def _weights(self):
         raise NotImplementedError
 
-    @property
+    @cached_property
     def _psym(self):
         return self.sfunction._point_symbols
 
-    @property
+    @cached_property
     def _gdim(self):
         return self.grid.dimensions
 
