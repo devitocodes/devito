@@ -101,11 +101,22 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
                 return None
     assert callable(callback)
 
+    v0 = kwargs.get('opt_init_onread', True)
+    if callable(v0):
+        init_onread = v0
+    else:
+        init_onread = lambda f: v0
+    v1 = kwargs.get('opt_init_onwrite', False)
+    if callable(v1):
+        init_onwrite = v1
+    else:
+        init_onwrite = lambda f: v1
+
     options = {
         'buf-async-degree': options['buf-async-degree'],
         'buf-fuse-tasks': options['fuse-tasks'],
-        'buf-init-onread': kwargs.get('opt_init_onread', True),
-        'buf-init-onwrite': kwargs.get('opt_init_onwrite', False),
+        'buf-init-onread': init_onread,
+        'buf-init-onwrite': init_onwrite,
         'buf-callback': kwargs.get('opt_buffer'),
     }
 
@@ -161,8 +172,8 @@ class Buffering(Queue):
 
         # Create Eqs to initialize buffers. Note: a buffer needs to be initialized
         # only if the buffered Function is read in at least one place or in the case
-        # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
-        # into the buffered Function
+        # of non-uniform SubDimensions, to avoid uninitialized values to be
+        # copied-back into the buffered Function
         init_onread = self.options['buf-init-onread']
         init_onwrite = self.options['buf-init-onwrite']
         init = []
@@ -170,14 +181,14 @@ class Buffering(Queue):
             if b.is_read or not b.has_uniform_subdims:
                 # Special case: avoid initialization if not strictly necessary
                 # See docstring for more info about what this implies
-                if b.size == 1 and not init_onread:
+                if b.size == 1 and not init_onread(b.function):
                     continue
 
                 dims = b.function.dimensions
                 lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
                 rhs = b.function[[b.initmap.get(d, Map(d, d)).f for d in dims]]
 
-            elif b.is_write and init_onwrite:
+            elif b.is_write and init_onwrite(b.function):
                 dims = b.buffer.dimensions
                 lhs = b.buffer.indexify()
                 rhs = 0
