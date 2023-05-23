@@ -8,7 +8,7 @@ from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo)
 from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
-                               IterationSpace, normalize_properties)
+                               IterationSpace, normalize_properties, normalize_syncs)
 from devito.mpi.halo_scheme import HaloScheme
 from devito.tools import Bunch, DefaultOrderedDict
 
@@ -149,16 +149,22 @@ def preprocess(clusters):
 
     for c in clusters:
         if c.is_halo_touch:
-            queue.append(HaloScheme.union(e.rhs.halo_scheme for e in c.exprs))
+            queue.append(c)
         else:
             dims = set(c.ispace.promote(lambda d: d.is_Block).itdimensions)
 
-            for hs in list(queue):
+            mapper = {}
+            for c1 in list(queue):
+                hs = HaloScheme.union(e.rhs.halo_scheme for e in c1.exprs)
                 if hs.distributed_aindices & dims:
-                    queue.remove(hs)
-                    hsmap[c].append(hs)
+                    mapper[c1] = hs
+                    queue.remove(c1)
 
-            processed.append(c)
+            syncs = normalize_syncs(c.syncs, *[c1.syncs for c1 in mapper])
+            c1 = c.rebuild(syncs=syncs)
+
+            hsmap[c1].extend(mapper.values())
+            processed.append(c1)
 
     hsmap = {c: HaloScheme.union(hss) for c, hss in hsmap.items()}
 
