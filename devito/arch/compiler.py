@@ -773,7 +773,7 @@ class OneapiCompiler(IntelCompiler):
             mpi_distro = sniff_mpi_distro('mpiexec')
             if mpi_distro != 'IntelMPI':
                 warning("The MPI compiler `%s` doesn't use the Intel(R) oneAPI "
-                        "DPC++/C++ compiler underneath" % self.MPICC)
+                        "`%s` compiler underneath" % self.MPICC, self.CXX)
 
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,

@@ -235,14 +235,14 @@ class switchconfig(object):
     Decorator to temporarily change `configuration` parameters.
     """
 
-    def __init__(self, **params):
-        params.pop('condition', None)
+    def __init__(self, condition=None, **params):
+        self.condition = condition
         self.params = {k.replace('_', '-'): v for k, v in params.items()}
 
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
-        def wrapper(*args, condition=None, **kwargs):
-            if condition is False:
+        def wrapper(*args, **kwargs):
+            if self.condition is False:
                 return
 
             previous = {}
