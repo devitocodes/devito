@@ -1,4 +1,3 @@
-from collections import defaultdict
 from itertools import groupby
 
 from anytree import findall
@@ -19,7 +18,7 @@ def stree_build(clusters, profiler=None, **kwargs):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
-    clusters, hsmap = preprocess(clusters)
+    clusters = preprocess(clusters)
 
     stree = ScheduleTree()
     section = None
@@ -38,19 +37,13 @@ def stree_build(clusters, profiler=None, **kwargs):
             tip = augment_whole_subtree(c, stree, mapper, base)
             maybe_reusable = []
 
-        # Is there a HaloTouch to attach?
-        try:
-            hs = hsmap[c]
-        except KeyError:
-            hs = None
-
         index = 0
         for it0, it1 in zip(c.itintervals, maybe_reusable):
             if it0 != it1:
                 break
 
             d = it0.dim
-            if needs_nodehalo(d, hs):
+            if needs_nodehalo(d, c.halo_scheme):
                 break
 
             index += 1
@@ -89,8 +82,8 @@ def stree_build(clusters, profiler=None, **kwargs):
 
         # Attach NodeHalo if necessary
         for it, v in mapper.items():
-            if needs_nodehalo(it.dim, hs):
-                v.bottom.parent = NodeHalo(hs, v.bottom.parent)
+            if needs_nodehalo(it.dim, c.halo_scheme):
+                v.bottom.parent = NodeHalo(c.halo_scheme, v.bottom.parent)
                 break
 
         # Add in NodeExprs
@@ -139,36 +132,30 @@ base = IterationInterval(Interval(None), [], Any)
 
 def preprocess(clusters):
     """
-    Remove the HaloTouches from `clusters` and create a mapping associating
+    Remove the HaloTouch's from `clusters` and create a mapping associating
     each removed HaloTouch to the first Cluster necessitating it.
     """
-    processed = []
-    hsmap = defaultdict(list)
-
     queue = []
-
+    processed = []
     for c in clusters:
         if c.is_halo_touch:
-            queue.append(c)
+            hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
+            queue.append(c.rebuild(halo_scheme=hs))
         else:
             dims = set(c.ispace.promote(lambda d: d.is_Block).itdimensions)
 
-            mapper = {}
+            found = []
             for c1 in list(queue):
-                hs = HaloScheme.union(e.rhs.halo_scheme for e in c1.exprs)
-                if hs.distributed_aindices & dims:
-                    mapper[c1] = hs
+                if c1.halo_scheme.distributed_aindices & dims:
+                    found.append(c1)
                     queue.remove(c1)
 
-            syncs = normalize_syncs(c.syncs, *[c1.syncs for c1 in mapper])
-            c1 = c.rebuild(syncs=syncs)
+            syncs = normalize_syncs(c.syncs, *[c1.syncs for c1 in found])
+            halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
 
-            hsmap[c1].extend(mapper.values())
-            processed.append(c1)
+            processed.append(c.rebuild(syncs=syncs, halo_scheme=halo_scheme))
 
-    hsmap = {c: HaloScheme.union(hss) for c, hss in hsmap.items()}
-
-    return processed, hsmap
+    return processed
 
 
 def reuse_partial_subtree(c0, c1, d=None):

@@ -9,7 +9,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                DataSpace, Guards, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs,
                                sdims_min, sdims_max)
-from devito.mpi.halo_scheme import HaloTouch
+from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 
@@ -26,7 +26,7 @@ class Cluster(object):
     exprs : expr-like or list of expr-like
         An ordered sequence of expressions computing a tensor.
     ispace : IterationSpace, optional
-        The cluster iteration space.
+        The Cluster iteration space.
     guards : dict, optional
         Mapper from Dimensions to expr-like, representing the conditions under
         which the Cluster should be computed.
@@ -37,9 +37,12 @@ class Cluster(object):
         Mapper from Dimensions to lists of SyncOps, that is ordered sequences of
         synchronization operations that must be performed in order to compute the
         Cluster asynchronously.
+    halo_scheme : HaloScheme, optional
+        The halo exchanges required by the Cluster.
     """
 
-    def __init__(self, exprs, ispace=None, guards=None, properties=None, syncs=None):
+    def __init__(self, exprs, ispace=None, guards=None, properties=None, syncs=None,
+                 halo_scheme=None):
         ispace = ispace or IterationSpace([])
 
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
@@ -56,6 +59,8 @@ class Cluster(object):
                 if d not in ispace.itdimensions:
                     properties = properties.drop(d)
         self._properties = properties
+
+        self._halo_scheme = halo_scheme
 
     def __repr__(self):
         return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
@@ -91,7 +96,9 @@ class Cluster(object):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-compatible synchronization operations")
 
-        return Cluster(exprs, ispace, guards, properties, syncs)
+        halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
+
+        return Cluster(exprs, ispace, guards, properties, syncs, halo_scheme)
 
     def rebuild(self, *args, **kwargs):
         """
@@ -110,7 +117,8 @@ class Cluster(object):
                               ispace=kwargs.get('ispace', self.ispace),
                               guards=kwargs.get('guards', self.guards),
                               properties=kwargs.get('properties', self.properties),
-                              syncs=kwargs.get('syncs', self.syncs))
+                              syncs=kwargs.get('syncs', self.syncs),
+                              halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
 
     @property
     def exprs(self):
@@ -143,6 +151,10 @@ class Cluster(object):
     @property
     def syncs(self):
         return self._syncs
+
+    @property
+    def halo_scheme(self):
+        return self._halo_scheme
 
     @cached_property
     def free_symbols(self):
