@@ -109,6 +109,14 @@ class Profiler(object):
         """
         Instrument the given IET for C-level performance profiling.
         """
+        iet = self.instrument_sections(iet, timer)
+
+        return iet
+
+    def instrument_sections(self, iet, timer):
+        """
+        Instrument the given IET's sections for C-level performance profiling.
+        """
         sections = FindNodes(Section).visit(iet)
         if sections:
             mapper = {}
@@ -118,17 +126,6 @@ class Profiler(object):
                 mapper[i] = i._rebuild(body=TimedList(timer=timer, lname=n, body=i.body))
 
             iet = Transformer(mapper, nested=True).visit(iet)
-
-        # Search for ElementalCalls *not* nested within other timer fields
-        if iet.name not in timer.fields:
-            elemental_calls = FindNodes(ElementalCall).visit(iet)
-            if elemental_calls:
-                for i in elemental_calls:
-                    n = i.name
-                    assert n in timer.fields
-                    mapper[i] = i._rebuild(TimedList(timer=timer, lname=n, body=i))
-
-                iet = Transformer(mapper, nested=False).visit(iet)
 
         return iet
 
@@ -341,6 +338,33 @@ class AdvancedProfilerVerbose1(AdvancedProfilerVerbose):
 
 
 class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
+
+    def instrument(self, iet, timer):
+        """
+        Instrument the given IET for C-level performance profiling.
+        """
+        iet = self.instrument_sections(iet, timer)
+        iet = self.instrument_ecalls(iet, timer)
+
+        return iet
+
+    def instrument_ecalls(self, iet, timer):
+        """
+        Instrument the given IET's elemental_calls for C-level performance profiling.
+        """
+        # Search for ElementalCalls *not* nested within other timer fields
+        if iet.name not in timer.fields:
+            elemental_calls = FindNodes(ElementalCall).visit(iet)
+            if elemental_calls:
+                mapper = {}
+                for i in elemental_calls:
+                    n = i.name
+                    assert n in timer.fields
+                    mapper[i] = i._rebuild(TimedList(timer=timer, lname=n, body=i))
+
+                iet = Transformer(mapper, nested=False).visit(iet)
+
+        return iet
 
     @property
     def trackable_subsections(self):
