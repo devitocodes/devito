@@ -15,9 +15,9 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 import sys
 
 
-CFLAGS = '-O3 -march=native -mtune=native -fopenmp' 
+CFLAGS = '-O3 -march=native -mtune=native'
 
-CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
+CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
 
@@ -134,9 +134,8 @@ def compile_interop(bench_name: str, nodump:bool):
         print(out)
         raise e
     
-def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str, mpi: bool = False):
-    lmpi = ' -lmpi ' if mpi else ''
-    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS + lmpi}'
+def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str):
+    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}'
     out:str
     try:
         print(f"Trying to compile {bench_name}.kernel.o with:")
@@ -153,9 +152,8 @@ def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str,
         print(out)
         raise e
 
-def link_kernel(bench_name:str, mpi: bool):
-    lmpi = ' -lmpi' if mpi else ''
-    cmd = f'clang {CFLAGS + lmpi} {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out'
+def link_kernel(bench_name:str):
+    cmd = f'clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {CFLAGS}'
     out:str
     try:
         print(f"Trying to compile {bench_name}.out with:")
@@ -204,8 +202,13 @@ def run_operator(op: Operator, nt: int, dt: float) -> float:
 
 
 def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
-
+    global CFLAGS
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
+
+    if args.openmp:
+        CFLAGS += ' -fopenmp'
+    if args.mpi:
+        CFLAGS += ' -lmpi'
 
     if args.xdsl:
         dump_input(u, bench_name)
@@ -220,10 +223,9 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
             with open(bench_name + ".mlir", "w") as f:
                 f.write(mlir_code)
         xdsl_pipeline = XDSL_MPI_PIPELINE if args.mpi else XDSL_CPU_PIPELINE
-        compile_kernel(bench_name, mlir_code, xdsl_pipeline, CPU_PIPELINE, mpi=args.mpi)
-        link_kernel(bench_name, mpi=args.mpi)
+        compile_kernel(bench_name, mlir_code, xdsl_pipeline, CPU_PIPELINE)
+        link_kernel(bench_name)
         rt = run_kernel(bench_name)
-        
         
     else:
         op = Operator([eq0])
@@ -278,6 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--dump_mlir', default=False, action='store_true')
     parser.add_argument('--dump_main', default=False, action='store_true')
     parser.add_argument('--mpi', default=False, action='store_true')
+    parser.add_argument('--openmp', default=False, action='store_true')
 
     
     args = parser.parse_args()
