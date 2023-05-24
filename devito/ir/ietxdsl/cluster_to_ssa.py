@@ -366,7 +366,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         )
         # name the resulting fields
         for field in fields:
-            field.field.name_hint = f"{field.t_index.name}_w_size"
+            field.field.name_hint = f"{field.t_index.name_hint}_w_size"
 
         loads = list(
             stencil.LoadOp.get(field)
