@@ -135,8 +135,8 @@ def compile_interop(bench_name: str, nodump:bool):
         raise e
     
 def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str, mpi: bool = False):
-    lomp = ' -lomp ' if mpi else ''
-    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS + lomp}'
+    lmpi = ' -lmpi ' if mpi else ''
+    cmd = f'xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS + lmpi}'
     out:str
     try:
         print(f"Trying to compile {bench_name}.kernel.o with:")
@@ -153,8 +153,9 @@ def compile_kernel(bench_name: str, mlir_code:str, xdsl_pipe:str, mlir_pipe:str,
         print(out)
         raise e
 
-def link_kernel(bench_name:str):
-    cmd = f'clang {CFLAGS} {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out'
+def link_kernel(bench_name:str, mpi: bool):
+    lmpi = ' -lmpi' if mpi else ''
+    cmd = f'clang {CFLAGS + lmpi} {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out'
     out:str
     try:
         print(f"Trying to compile {bench_name}.out with:")
@@ -211,8 +212,6 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
         xop = XDSLOperator([eq0])
         if dump_main:
             dump_main_mlir(bench_name, grid, u, xop, dt, nt)
-        else:
-            print("nope?")
         compile_main(bench_name, grid, u, xop, dt, nt)
         compile_interop(bench_name, args.no_output_dump)
         mlir_code = xop.mlircode
@@ -222,7 +221,7 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
                 f.write(mlir_code)
         xdsl_pipeline = XDSL_MPI_PIPELINE if args.mpi else XDSL_CPU_PIPELINE
         compile_kernel(bench_name, mlir_code, xdsl_pipeline, CPU_PIPELINE, mpi=args.mpi)
-        link_kernel(bench_name)
+        link_kernel(bench_name, mpi=args.mpi)
         rt = run_kernel(bench_name)
         
         
