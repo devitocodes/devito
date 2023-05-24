@@ -66,7 +66,8 @@ class ExtractDevitoStencilConversion:
             grid.shape,
             halo,
             actual_time_size,
-            mlir_type
+            mlir_type,
+            eq.lhs.function._C_name,
         )
         self.block.add_op(stencil_op)
         self.block = stencil_op.block
@@ -140,7 +141,7 @@ class ExtractDevitoStencilConversion:
                 op_cls = arith.Addf if isinstance(node, Add) else arith.Mulf
 
             for arg in args:
-                op = op_cls.get(carry, arg)
+                op = op_cls(carry, arg)
                 self.block.add_op(op)
                 carry = op.result
             return carry

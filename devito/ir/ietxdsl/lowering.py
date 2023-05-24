@@ -21,7 +21,7 @@ def _generate_subindices(subindices: int, block: Block,
     for i in range(subindices):
         offset = arith.Constant.from_int_and_width(i, builtin.i64)
         index_off = arith.Addi(block.args[0], offset)
-        index = arith.RemSI.get(index_off, modulo)
+        index = arith.RemSI(index_off, modulo)
 
         new_ops += [
             offset,

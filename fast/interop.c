@@ -206,7 +206,6 @@ i64 timer_start() {
 void timer_end(i64 start) {
   // print time elapsed time
   i64 end = timer_start();
-  printf("End of time is: %.2f \n", end * 1e-3);
   i64 elapsed_time = (end - start);
   printf("Elapsed time is: %.17f secs\n", elapsed_time * 1e-3);
 }

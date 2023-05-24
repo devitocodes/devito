@@ -435,6 +435,8 @@ class Stencil(IRDLOperation):
 
     field_type: OpAttr[Attribute]
 
+    grid_name: OpAttr[StringAttr]
+
     body: SingleBlockRegion
 
     @property
@@ -442,7 +444,14 @@ class Stencil(IRDLOperation):
         return self.body.blocks[0]
 
     @staticmethod
-    def get(time_indices: Sequence[SSAValue | Operation], shape: Sequence[int], halo: Sequence[Sequence[int]], time_buffers: int, typ: Attribute) -> Stencil:
+    def get(
+        time_indices: Sequence[SSAValue | Operation], 
+        shape: Sequence[int], 
+        halo: Sequence[Sequence[int]], 
+        time_buffers: int, 
+        typ: Attribute,
+        grid_name: str
+    ) -> Stencil:
         assert len(halo) == len(shape)
         assert all(len(inner) == 2 for inner in halo)
 
@@ -466,7 +475,8 @@ class Stencil(IRDLOperation):
                 'shape': ArrayAttr(IntegerAttr(x, 64) for x in shape),
                 'halo': ArrayAttr(ArrayAttr(IntegerAttr(x, 64) for x in inner) for inner in halo),
                 'time_buffers': IntegerAttr(time_buffers, 64),
-                'field_type': typ
+                'field_type': typ,
+                'grid_name': StringAttr(grid_name)
             },
             regions=[Region([block])]
         )
