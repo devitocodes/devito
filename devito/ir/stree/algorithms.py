@@ -18,7 +18,7 @@ def stree_build(clusters, profiler=None, **kwargs):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
-    clusters = preprocess(clusters)
+    clusters = preprocess(clusters, **kwargs)
 
     stree = ScheduleTree()
     section = None
@@ -130,7 +130,7 @@ def stree_build(clusters, profiler=None, **kwargs):
 base = IterationInterval(Interval(None), [], Any)
 
 
-def preprocess(clusters):
+def preprocess(clusters, options=None, **kwargs):
     """
     Remove the HaloTouch's from `clusters` and create a mapping associating
     each removed HaloTouch to the first Cluster necessitating it.
@@ -146,7 +146,13 @@ def preprocess(clusters):
 
             found = []
             for c1 in list(queue):
-                if c1.halo_scheme.distributed_aindices & dims:
+                distributed_aindices = c1.halo_scheme.distributed_aindices
+
+                diff = dims - distributed_aindices
+                intersection = dims & distributed_aindices
+
+                if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
+                   len(intersection) > 0:
                     found.append(c1)
                     queue.remove(c1)
 
@@ -154,6 +160,13 @@ def preprocess(clusters):
             halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
 
             processed.append(c.rebuild(syncs=syncs, halo_scheme=halo_scheme))
+
+    # Sanity check!
+    try:
+        assert not queue
+    except AssertionError:
+        if options['mpi']:
+            raise RuntimeError("Unsupported MPI for the given equations")
 
     return processed
 
