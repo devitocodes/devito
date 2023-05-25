@@ -5,7 +5,8 @@ import scipy.sparse
 from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration)
+                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration,
+                    switchconfig)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -1095,6 +1096,36 @@ class TestStreaming(object):
 
         assert np.all(u.data[0] == u1.data[0])
         assert np.all(u.data[1] == u1.data[1])
+
+    @pytest.mark.skip(reason="Unsupported MPI + .dx when streaming backwards")
+    @pytest.mark.parallel(mode=4)
+    @switchconfig(safe_math=True)  # Or NVC will crash
+    def test_streaming_w_mpi(self):
+        nt = 5
+        grid = Grid(shape=(16, 16))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt, space_order=4)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+        vsave1 = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+
+        eqns = [Eq(u.backward, u + 1.),
+                Eq(vsave, usave.dx2)]
+
+        key = lambda f: f is not usave
+
+        op0 = Operator(eqns, opt='noop')
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate',
+                                  {'dist-drop-unwritten': key,
+                                   'gpu-fit': [vsave]}))
+
+        for i in range(nt):
+            usave.data[i] = i
+
+        op0.apply()
+        op1.apply(vsave=vsave1)
+
+        assert np.all(vsave.data, vsave1.data, rtol=1.e-5)
 
     @pytest.mark.parametrize('opt,opt_options,gpu_fit', [
         (('buffering', 'streaming', 'orchestrate'), {}, False),

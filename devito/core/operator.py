@@ -100,6 +100,12 @@ class BasicOperator(Operator):
     The supported MPI modes.
     """
 
+    DIST_DROP_UNWRITTEN = True
+    """
+    Drop halo exchanges for read-only Function, even in presence of
+    stencil-like data accesses.
+    """
+
     INDEX_MODE = "int64"
     """
     The type of the expression used to compute array indices. Either `int64`
@@ -281,7 +287,7 @@ class CustomOperator(BasicOperator):
         # from HaloSpot optimization)
         # Note that if MPI is disabled then this pass will act as a no-op
         if 'mpi' not in passes:
-            passes_mapper['mpi'](graph)
+            passes_mapper['mpi'](graph, **kwargs)
 
         # Run passes
         applied = []

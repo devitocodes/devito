@@ -75,6 +75,9 @@ class DeviceOperatorMixin(object):
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
         o['gpu-create'] = as_tuple(oo.pop('gpu-create', ()))
 
+        # Distributed parallelism
+        o['dist-drop-unwritten'] = oo.pop('dist-drop-unwritten', cls.DIST_DROP_UNWRITTEN)
+
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)
         o['optcomms'] = oo.pop('optcomms', True)

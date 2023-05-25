@@ -1347,6 +1347,26 @@ class TestCodeGeneration(object):
         assert len(calls) == 2
         assert calls[0].ncomps == 7
 
+    @pytest.mark.parallel(mode=1)
+    def test_enforce_haloupdate_if_unwritten_function(self):
+        grid = Grid(shape=(16, 16))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        w = TimeFunction(name='w', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=10, space_order=4)
+
+        eqns = [Eq(w.forward, v.forward.dx + w + 1., subdomain=grid.interior),
+                Eq(u.forward, u + 1.),
+                Eq(v.forward, u.forward + usave.dx4, subdomain=grid.interior)]
+
+        key = lambda f: f is not usave
+
+        op = Operator(eqns, opt=('advanced', {'dist-drop-unwritten': key}))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2   # One for `v` and one for `usave`
+
 
 class TestOperatorAdvanced(object):
 
