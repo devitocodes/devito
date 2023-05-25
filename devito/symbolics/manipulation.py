@@ -46,10 +46,6 @@ def uxreplace(expr, rule):
     return _uxreplace(expr, rule)[0]
 
 
-# TODO: `uxreplace` doesn't support all possible Reconstructables yet
-supported_reconsts = (ComponentAccess, Eq, DefFunction)
-
-
 def _uxreplace(expr, rule):
     if expr in rule:
         v = rule[expr]
@@ -78,7 +74,7 @@ def _uxreplace(expr, rule):
         changed |= flag
 
         # If a Reconstructable object, we need to parse the kwargs as well
-        if isinstance(expr, supported_reconsts):
+        if _uxreplace_registry.dispatchable(expr):
             v = {i: getattr(expr, i) for i in expr.__rkwargs__}
             kwargs, flag = _uxreplace_dispatch(v, rule)
         else:
@@ -158,19 +154,39 @@ def _(expr, args, kwargs):
         return expr._new_rawargs(*args)
 
 
-def _uxreplace_handle_reconstructables(expr, args, kwargs):
+def _uxreplace_handle_reconstructable(expr, args, kwargs):
     return expr.func(*args, **kwargs)
-for cls in supported_reconsts:  # noqa
-    _uxreplace_handle.register(cls, _uxreplace_handle_reconstructables)
 
 
-def _eval_numbers(expr, args):
+class UxreplaceRegistry(list):
+
     """
-    Helper function for in-place reduction of the expr arguments.
+    A registry used by `uxreplace` to handle Reconstructable objects. These
+    may differ from canonincal SymPy objects since:
+
+        * They carry one or more fields (the so called "__rkwargs__") in addition
+          to the classic SymPy arguments.
+        * An `__rkwargs__`, in turn, may or may not be a SymPy object.
+
+    The user may then use this registry to register callbacks to be used when
+    one such Reconstructable object is encountered.
     """
-    numbers, others = split(args, lambda i: i.is_Number)
-    if len(numbers) > 1:
-        args[:] = [expr.func(*numbers)] + others
+
+    def register(self, cls, rkwargs_callback_mapper=None):
+        self.append(cls)
+        _uxreplace_handle.register(cls, _uxreplace_handle_reconstructable)
+
+        for kls, callback in (rkwargs_callback_mapper or {}).items():
+            _uxreplace_dispatch.register(kls, callback)
+
+    def dispatchable(self, obj):
+        return isinstance(obj, tuple(self))
+
+
+_uxreplace_registry = UxreplaceRegistry()
+_uxreplace_registry.register(Eq)
+_uxreplace_registry.register(DefFunction)
+_uxreplace_registry.register(ComponentAccess)
 
 
 class Uxmapper(dict):
@@ -244,6 +260,15 @@ def xreplace_indices(exprs, mapper, key=None):
     mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
     replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]
+
+
+def _eval_numbers(expr, args):
+    """
+    Helper function for in-place reduction of the expr arguments.
+    """
+    numbers, others = split(args, lambda i: i.is_Number)
+    if len(numbers) > 1:
+        args[:] = [expr.func(*numbers)] + others
 
 
 def pow_to_mul(expr):
