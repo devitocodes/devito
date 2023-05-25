@@ -1330,6 +1330,23 @@ class TestCodeGeneration(object):
             assert len(calls) == 4
             assert 'haloupdate1' not in op._func_table
 
+    @switchconfig(profiling='advanced2')
+    @pytest.mark.parallel(mode=[
+        (1, 'full'),
+    ])
+    def test_profiled_regions(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        g = TimeFunction(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(f.forward, f.dx2 + 1.),
+                Eq(g.forward, g.dx2 + 1.)]
+
+        op = Operator(eqns)
+        assert op._profiler.all_sections == ['section0', 'haloupdate0', 'halowait0',
+                                             'remainder0', 'compute0']
+
     @pytest.mark.parallel(mode=[(1, 'diag2')])
     def test_many_functions(self):
         grid = Grid(shape=(10, 10, 10))
