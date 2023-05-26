@@ -361,16 +361,16 @@ class Buffer(object):
             else:
                 size = async_degree
 
-        # Create `bd` -- a contraction Dimension for `dim`
+        # Create `xd` -- a contraction Dimension for `dim`
         try:
-            bd = sregistry.get('bds', (dim, size))
+            xd = sregistry.get('xds', (dim, size))
         except KeyError:
             name = sregistry.make_name(prefix='db')
             v = CustomDimension(name, 0, size-1, size, dim)
-            bd = sregistry.setdefault('bds', (dim, size), v)
-        self.bd = dims[dims.index(dim)] = bd
+            xd = sregistry.setdefault('xds', (dim, size), v)
+        self.xd = dims[dims.index(dim)] = xd
 
-        # Finally create the ModuloDimensions as children of `bd`
+        # Finally create the ModuloDimensions as children of `xd`
         if size > 1:
             # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
             # follows SymPy's index ordering (time, time-1, time+1) after modulo
@@ -381,11 +381,11 @@ class Buffer(object):
                              key=lambda i: -np.inf if i - p == 0 else (i - p))
             for i in indices:
                 try:
-                    md = sregistry.get('mds', (bd, i))
+                    md = sregistry.get('mds', (xd, i))
                 except KeyError:
                     name = sregistry.make_name(prefix='sb')
-                    v = ModuloDimension(name, bd, i, size)
-                    md = sregistry.setdefault('mds', (bd, i), v)
+                    v = ModuloDimension(name, xd, i, size)
+                    md = sregistry.setdefault('mds', (xd, i), v)
                 self.index_mapper[i] = md
                 self.sub_iterators[d.root].append(md)
         else:
@@ -448,11 +448,11 @@ class Buffer(object):
                 self.buffer = cache[function] = Array(**kwargs)
 
     def __repr__(self):
-        return "Buffer[%s,<%s>]" % (self.buffer.name, self.bd)
+        return "Buffer[%s,<%s>]" % (self.buffer.name, self.xd)
 
     @property
     def size(self):
-        return self.bd.symbolic_size
+        return self.xd.symbolic_size
 
     @property
     def firstread(self):
@@ -502,7 +502,7 @@ class Buffer(object):
                 # in principle this could be accessed through a stencil
                 interval = interval.translate(v0=-h.left, v1=h.right)
             except KeyError:
-                assert d is self.bd
+                assert d is self.xd
                 interval, si, direction = Interval(d, 0, 0), (), Forward
             intervals.append(interval)
             sub_iterators[d] = si
@@ -546,8 +546,8 @@ class Buffer(object):
         The `readfrom` IterationSpace, that is the iteration space that must be
         iterated over to update the buffer with the buffered Function values.
         """
-        ispace0 = self.written.project(lambda d: d in self.bd._defines)
-        ispace1 = self.writeto.project(lambda d: d not in self.bd._defines)
+        ispace0 = self.written.project(lambda d: d in self.xd._defines)
+        ispace1 = self.writeto.project(lambda d: d not in self.xd._defines)
 
         extra = (ispace0.itdimensions + ispace1.itdimensions,)
         ispace = IterationSpace.union(ispace0, ispace1, relations=extra)
@@ -584,11 +584,11 @@ class Buffer(object):
         p, offset = offset_from_centre(self.dim, list(self.index_mapper))
 
         if self.written[self.dim].direction is Forward:
-            v = p.subs(self.dim.root, self.dim.root.symbolic_min) - offset + self.bd
+            v = p.subs(self.dim.root, self.dim.root.symbolic_min) - offset + self.xd
         else:
-            v = p.subs(self.dim.root, self.dim.root.symbolic_max) - offset + self.bd
+            v = p.subs(self.dim.root, self.dim.root.symbolic_max) - offset + self.xd
 
-        return Map(v % self.bd.symbolic_size, v)
+        return Map(v % self.xd.symbolic_size, v)
 
 
 class AccessValue(object):
