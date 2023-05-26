@@ -288,10 +288,13 @@ class Call(ExprStmt, Node):
                             retval.append(s.function)
                     except AttributeError:
                         continue
+
         if self.base is not None:
             retval.append(self.base.function)
+
         if self.retobj is not None:
             retval.append(self.retobj.function)
+
         return tuple(filter_ordered(retval))
 
     @cached_property
@@ -309,10 +312,15 @@ class Call(ExprStmt, Node):
                     retval.extend(i.free_symbols)
                 except AttributeError:
                     pass
+
         if self.base is not None:
             retval.append(self.base)
-        if self.retobj is not None:
+
+        if isinstance(self.retobj, Indexed):
+            retval.extend(self.retobj.free_symbols)
+        elif self.retobj is not None:
             retval.append(self.retobj)
+
         return tuple(filter_ordered(retval))
 
     @property
@@ -1203,6 +1211,10 @@ class ParallelTree(List):
 
     @property
     def functions(self):
+        return as_tuple(self.nthreads)
+
+    @property
+    def expr_symbols(self):
         return as_tuple(self.nthreads)
 
     @property
