@@ -57,7 +57,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('grid', 'staggered', 'initializer')
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'initializer')
 
     def __init_finalize__(self, *args, **kwargs):
         # A `Distributor` to handle domain decomposition (only relevant for MPI)
@@ -69,9 +69,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
         super(DiscreteFunction, self).__init_finalize__(*args, **kwargs)
-
-        # There may or may not be a `Grid` attached to the DiscreteFunction
-        self._grid = kwargs.get('grid')
 
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', 'standard')
@@ -199,11 +196,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @property
     def _mem_external(self):
         return True
-
-    @property
-    def grid(self):
-        """The Grid on which the discretization occurred."""
-        return self._grid
 
     @property
     def staggered(self):
@@ -651,13 +643,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     def space_dimensions(self):
         """Tuple of Dimensions defining the physical space."""
         return tuple(d for d in self.dimensions if d.is_Space)
-
-    @cached_property
-    def _dist_dimensions(self):
-        """Tuple of MPI-distributed Dimensions."""
-        if self._distributor is None:
-            return ()
-        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @property
     def initializer(self):

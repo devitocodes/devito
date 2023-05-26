@@ -792,7 +792,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     True if data is allocated as a single, contiguous chunk of memory.
     """
 
-    __rkwargs__ = ('name', 'dtype', 'halo', 'padding', 'alias')
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'alias')
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
@@ -869,6 +869,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
+
+        # There may or may not be a `Grid`
+        self._grid = kwargs.get('grid')
 
         # Symbol properties
         # "Aliasing" another DiscreteFunction means that `self` logically
@@ -1002,6 +1005,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return self._shape
 
     @property
+    def grid(self):
+        """The Grid on which the discretization occurred."""
+        return self._grid
+
+    @property
     def dtype(self):
         return self._dtype
 
@@ -1102,6 +1110,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _make_pointer(self):
         """Generate a symbolic pointer to self."""
         raise NotImplementedError
+
+    @cached_property
+    def _dist_dimensions(self):
+        """The Dimensions decomposed for distributed-parallelism."""
+        if self._distributor is None:
+            return ()
+        else:
+            return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @cached_property
     def _size_domain(self):

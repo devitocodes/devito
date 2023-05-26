@@ -79,6 +79,11 @@ class Array(ArrayBasic):
         architecture doesn't have something akin to constant memory, the Array
         falls back to a global, const, static array in a C/C++ sense.
         Note that not all scopes make sense for a given space.
+    grid : Grid, optional
+        Only necessary for distributed-memory parallelism; a Grid contains
+        information about the distributed Dimensions, hence it is necessary
+        if (and only if) an Operator requires to perform a halo exchange on
+        an Array.
     initvalue : array-like, optional
         The initial content of the Array. Must be None if `scope='heap'`.
 
@@ -205,6 +210,13 @@ class Array(ArrayBasic):
     @property
     def _mem_constant(self):
         return self._scope == 'constant'
+
+    @property
+    def _distributor(self):
+        try:
+            return self.grid.distributor
+        except AttributeError:
+            return None
 
     @property
     def initvalue(self):
@@ -422,6 +434,11 @@ class Bundle(ArrayBasic):
             raise ValueError("Components must have the same halo")
         return halos.pop()
 
+    @property
+    def c0(self):
+        # Shortcut for self.components[0]
+        return self.components[0]
+
     # Class attributes overrides
 
     @property
@@ -432,6 +449,10 @@ class Bundle(ArrayBasic):
     def is_TimeFunction(self):
         return self.c0.is_TimeFunction
 
+    @property
+    def grid(self):
+        return self.c0.grid
+
     # Other properties and methods
 
     @property
@@ -441,18 +462,6 @@ class Bundle(ArrayBasic):
     @property
     def ncomp(self):
         return len(self.components)
-
-    @property
-    def c0(self):
-        # Shortcut for self.components[0]
-        return self.components[0]
-
-    @property
-    def grid(self):
-        if self.is_DiscreteFunction:
-            return self.c0.grid
-        else:
-            return None
 
     @property
     def symbolic_shape(self):
