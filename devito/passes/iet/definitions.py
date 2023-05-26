@@ -326,7 +326,7 @@ class DataManager(object):
         # Process all other definitions, essentially all temporary objects
         # created by the compiler up to this point (Array, LocalObject, etc.)
         storage = Storage()
-        defines = FindSymbols('defines-aliases').visit(iet)
+        defines = FindSymbols('defines-aliases|globals').visit(iet)
 
         for i in FindSymbols().visit(iet):
             if i in defines:
@@ -343,7 +343,7 @@ class DataManager(object):
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 elif i._mem_stack:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
-                else:
+                elif globs is not None:
                     # Track, to be handled by the EntryFunction being a global obj!
                     globs.add(i)
             elif i.is_ObjectArray:
