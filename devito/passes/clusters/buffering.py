@@ -174,8 +174,8 @@ class Buffering(Queue):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.indexed[dims].subs(dim, b.initidx.b)
-                rhs = b.function[dims].subs(dim, b.initidx.f)
+                lhs = b.indexed[dims]._subs(dim, b.firstidx.b)
+                rhs = b.function[dims]._subs(dim, b.firstidx.f)
 
             elif b.is_write and init_onwrite(b.function):
                 dims = b.buffer.dimensions
@@ -219,8 +219,8 @@ class Buffering(Queue):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.indexed[dims].subs(b.dim, b.lastidx.b)
-                rhs = b.function[dims].subs(b.dim, b.lastidx.f)
+                lhs = b.indexed[dims]._subs(b.dim, b.lastidx.b)
+                rhs = b.function[dims]._subs(b.dim, b.lastidx.f)
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.readfrom
@@ -251,8 +251,8 @@ class Buffering(Queue):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.function[dims].subs(b.dim, b.lastidx.f)
-                rhs = b.indexed[dims].subs(b.dim, b.lastidx.b)
+                lhs = b.function[dims]._subs(b.dim, b.lastidx.f)
+                rhs = b.indexed[dims]._subs(b.dim, b.lastidx.b)
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
@@ -571,7 +571,7 @@ class Buffer(object):
         return Map(self.index_mapper[v], v)
 
     @cached_property
-    def initidx(self):
+    def firstidx(self):
         """
         A 2-tuple of indices representing the min points for buffer initialization.
         For example, in the case of a forward-propagating `time` Dimension, we
@@ -584,9 +584,9 @@ class Buffer(object):
         p, offset = offset_from_centre(self.dim, list(self.index_mapper))
 
         if self.written[self.dim].direction is Forward:
-            v = p.subs(self.dim.root, self.dim.root.symbolic_min) - offset + self.xd
+            v = p._subs(self.dim.root, self.dim.root.symbolic_min) - offset + self.xd
         else:
-            v = p.subs(self.dim.root, self.dim.root.symbolic_max) - offset + self.xd
+            v = p._subs(self.dim.root, self.dim.root.symbolic_max) - offset + self.xd
 
         return Map(v % self.xd.symbolic_size, v)
 
