@@ -31,11 +31,14 @@ class ArrayBasic(AbstractFunction):
         else:
             return super()._C_name
 
-    @property
+    @cached_property
     def shape(self):
-        return self.symbolic_shape
+        ret = [i.symbolic_size for i in self.dimensions]
+        return DimensionTuple(*ret, getters=self.dimensions)
 
-    shape_allocated = shape
+    @property
+    def shape_allocated(self):
+        return self.symbolic_shape
 
 
 class Array(ArrayBasic):
