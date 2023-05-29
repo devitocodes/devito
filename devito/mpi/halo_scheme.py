@@ -609,7 +609,8 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     loc_dirs[d1] = hse0.loc_dirs[d0]
                     break
             else:
-                raise ValueError("Unable to perform HaloTouch replacement")
+                loc_indices[d0] = loc_index
+                loc_dirs[d0] = hse0.loc_dirs[d0]
 
         hse = HaloSchemeEntry(frozendict(loc_indices), frozendict(loc_dirs),
                               hse0.halos, hse0.dims)
