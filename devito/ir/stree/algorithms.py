@@ -7,7 +7,8 @@ from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
                                   NodeSync, NodeExprs, NodeSection, NodeHalo)
 from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
-                               IterationSpace, normalize_properties, normalize_syncs)
+                               IterationSpace, WaitLock, normalize_properties,
+                               normalize_syncs)
 from devito.mpi.halo_scheme import HaloScheme
 from devito.tools import Bunch, DefaultOrderedDict
 
@@ -176,15 +177,34 @@ def reuse_partial_subtree(c0, c1, d=None):
 
 
 def reuse_whole_subtree(c0, c1, d=None):
-    return (c0.guards.get(d) == c1.guards.get(d) and
-            c0.syncs.get(d) == c1.syncs.get(d))
+    if not reuse_partial_subtree(c0, c1, d):
+        return False
+
+    syncs0 = c0.syncs.get(d, [])
+    syncs1 = c1.syncs.get(d, [])
+
+    if syncs0 == syncs1:
+        return True
+    elif not syncs0 and all(isinstance(s, WaitLock) for s in syncs1):
+        return True
+
+    return False
 
 
 def augment_partial_subtree(cluster, tip, mapper, it=None):
     d = it.dim
 
-    if d in cluster.syncs:
-        tip = NodeSync(cluster.syncs[d], tip)
+    try:
+        syncs = cluster.syncs[d]
+        if all(isinstance(s, WaitLock) for s in syncs):
+            # Unlike all other SyncOps, a WaitLock "floats" in the stree, in that
+            # it doesn't need to wrap any subtree. Thus, a WaitLock acts like
+            # a barrier to what follows inside `d`
+            NodeSync(syncs, tip)
+        else:
+            tip = NodeSync(syncs, tip)
+    except KeyError:
+        pass
 
     mapper[it].bottom = tip
 
