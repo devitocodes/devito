@@ -338,21 +338,24 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_copy(self, f, hse, key, swap=False):
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        ofs = [Symbol(name='o%s' % d.root, is_const=True) for d in f.dimensions]
 
-        f_offsets = []
-        f_indices = []
-        for d, h in zip(f.dimensions, f._size_nodomain.left):
-            offset = Symbol(name='o%s' % d.root, is_const=True)
-            f_offsets.append(offset)
-            offset_nohalo = offset - h
-            f_indices.append(offset_nohalo + (d.root if d not in hse.loc_indices else 0))
+        bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
+        bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
+                 for d, s in zip(dims, bshape)]
 
         eqns = []
-        eqns.extend([Eq(d.symbolic_min, 0) for d in dims])
-        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in dims])
+        eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
+        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in bdims])
 
-        bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
-        buf = Array(name='buf', dimensions=bdims, dtype=f.c0.dtype, padding=0)
+        vd = CustomDimension(name='vd', symbolic_size=f.ncomp)
+        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
+                    padding=0)
+
+        mapper = dict(zip(dims, bdims))
+        findices = [o - h + mapper.get(d.root, 0)
+                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
+
         if swap is False:
             swap = lambda i, j: (i, j)
             name = 'gather%s' % key
@@ -360,13 +363,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             swap = lambda i, j: (j, i)
             name = 'scatter%s' % key
         for i, c in enumerate(f.components):
-            eqns.append(Eq(*swap(buf[[i] + dims], c[f_indices])))
+            eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
 
         # Compile `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(eqns)
 
-        shape = [d.symbolic_size for d in dims]
-        parameters = [buf] + shape + list(f.components) + f_offsets
+        parameters = [buf] + bshape + list(f.components) + ofs
 
         return CopyBuffer(name, irs.uiet, parameters)
 
