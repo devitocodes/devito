@@ -202,10 +202,6 @@ class Buffering(Queue):
         # Substitution rules to replace buffered Functions with buffers
         subs = {}
         for b in buffers:
-            # Enough information to apply uxreplace to a HaloTouch, if necessary
-            subs[b.function] = b.buffer
-
-            # All other Indexeds
             for a in b.accessv.accesses:
                 subs[a] = b.indexed[[b.index_mapper.get(i, i) for i in a.indices]]
 

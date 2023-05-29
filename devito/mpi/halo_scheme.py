@@ -590,33 +590,41 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
     changed = False
     hs = hs0
     for f, hse0 in hs0.fmapper.items():
-        try:
-            b = rule[f]
-        except KeyError:
-            continue
+        # Is it an attempt to replace `f`?
+        for i, v in rule.items():
+            loc_indices = {}
+            loc_dirs = {}
 
-        # Infer `loc_indices` and `loc_dirs` from context
-        loc_indices = {}
-        loc_dirs = {}
-        for d0, loc_index in hse0.loc_indices.items():
-            for i, v in rule.items():
-                if not (i.is_Indexed and i.function is f and v.is_Indexed):
-                    continue
-                if i.indices[d0] == loc_index:
-                    # Found!
-                    d1 = b.indices[d0]
-                    loc_indices[d1] = v.indices[d0]
-                    loc_dirs[d1] = hse0.loc_dirs[d0]
-                    break
+            if i is f:
+                # Yes!
+                g = v
+                hse = hse0
+
+            elif i.is_Indexed and i.function is f and v.is_Indexed:
+                # Yes, but through an Indexed, hence the `loc_indices` may now
+                # differ; let's infer them from the context
+                g = v.function
+
+                for d0, loc_index in hse0.loc_indices.items():
+                    if i.indices[d0] == loc_index:
+                        # They indeed do change
+                        d1 = g.indices[d0]
+                        loc_indices[d1] = v.indices[d0]
+                        loc_dirs[d1] = hse0.loc_dirs[d0]
+                    else:
+                        loc_indices[d0] = loc_index
+                        loc_dirs[d0] = hse0.loc_dirs[d0]
+
+                hse = HaloSchemeEntry(frozendict(loc_indices),
+                                      frozendict(loc_dirs),
+                                      hse0.halos, hse0.dims)
             else:
-                loc_indices[d0] = loc_index
-                loc_dirs[d0] = hse0.loc_dirs[d0]
+                continue
 
-        hse = HaloSchemeEntry(frozendict(loc_indices), frozendict(loc_dirs),
-                              hse0.halos, hse0.dims)
+            hs = hs.drop(f).add(g, hse)
+            changed |= True
 
-        hs = hs.drop(f).add(b.function, hse)
-        changed |= True
+            break
 
     return hs, changed
 
