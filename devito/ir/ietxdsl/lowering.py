@@ -107,16 +107,27 @@ class LowerIetForToScfFor(RewritePattern):
     def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
         body = op.body.detach_block(0)
 
-        _generate_subindices(op.subindices.data, body, rewriter)
+        field_name = op.attributes['index_owner'].data
 
-        rewriter.insert_op_at_end(scf.Yield.get(), body)
+        subindice_vals = [
+            iet_ssa.LoadSymbolic.get(
+                f"{field_name}_{i}",
+                body.args[i+1].typ,
+            ) for i in range(op.subindices.data)
+        ]
+        rewriter.insert_op_before_matched_op(subindice_vals)
 
         rewriter.replace_matched_op([
-            cst1   := arith.Constant.from_int_and_width(1, builtin.IndexType()),
-            new_ub := arith.Addi(op.ub, cst1),
-            scf.For.get(op.lb, new_ub.result, op.step, [], body)
-        ])
-        new_ub.result.name_hint = op.ub.name_hint
+            cst1    := arith.Constant.from_int_and_width(1, builtin.IndexType()),
+            new_ub  := arith.Addi(op.ub, cst1),
+            scf_for :=scf.For.get(op.lb, new_ub.result, op.step, subindice_vals, body),
+        ], [scf_for.results[0]])
+
+        for use in scf_for.results[0].uses:
+            if isinstance(use.operation, func.Return):
+                assert isinstance(use.operation.parent_op(), func.FuncOp)
+                use.operation.parent_op().update_function_type()
+
 
 
 class LowerIetForToScfParallel(RewritePattern):

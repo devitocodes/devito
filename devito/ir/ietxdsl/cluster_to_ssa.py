@@ -15,7 +15,7 @@ from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 # -------------- xdsl import --------------#
 
 from xdsl.ir import Block, Region, SSAValue, Operation, OpResult
-from xdsl.dialects import builtin, func, memref, arith
+from xdsl.dialects import builtin, func, memref, arith, scf
 from xdsl.dialects.experimental import stencil, math
 from xdsl.dialects import stencil as stencil_nexp
 
@@ -34,7 +34,9 @@ class ExtractDevitoStencilConversion:
         self.time_offs = 0
 
     def _convert_eq(self, eq: LoweredEq):
-        # Convert a Devito equation
+        # Convert a Devito equation to a func.func op
+        # an equation may look like this:
+        #  u[x+1,y+1,z] = (u[x,y,z+1] + u[x+2,y+2,z+1]) / 2
         if isinstance(eq.lhs, Symbol):
             return func.FuncOp.external(eq.lhs.name, [], [builtin.i32])
         assert isinstance(eq.lhs, Indexed)
@@ -95,10 +97,10 @@ class ExtractDevitoStencilConversion:
             stencil.ReturnOp.get([rhs_result])
         )
         outermost_block.add_op(
-            func.Return.get()
+            func.Return.get(loop.result)
         )
 
-        return func.FuncOp.from_region('myfunc', [], [],
+        return func.FuncOp.from_region('myfunc', [], [loop.result.typ],
                                        Region([outermost_block]))
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
@@ -153,7 +155,7 @@ class ExtractDevitoStencilConversion:
                 if is_int(ex):
                     op_cls = math.IpowIOP
                 else:
-                    raise ValueError("no IPowFop yet!")
+                    raise ValueError("no IPowFOp yet!")
             elif is_float(base):
                 if is_float(ex):
                     op_cls = math.PowFOp
@@ -208,11 +210,11 @@ class ExtractDevitoStencilConversion:
     def _build_iet_for(self, dim: SteppingDimension, props: list[str],
                        subindices: int) -> iet_ssa.For:
         lb = iet_ssa.LoadSymbolic.get(
-            str(dim.symbolic_min),
+            dim.symbolic_min._C_name,
             builtin.IndexType()
         )
         ub = iet_ssa.LoadSymbolic.get(
-            str(dim.symbolic_max),
+            dim.symbolic_max._C_name,
             builtin.IndexType()
         )
         try:
@@ -318,78 +320,63 @@ class _DevitoStencilToStencilStencil(RewritePattern):
     """
     This converts the `devito.stencil` op into the following:
 
+    1. change type of %t0, %t1 to stencil.field()
+    2. attach info to iet.for where t0, t1 come from
+    3. generate the following instructions
     ```
-        // get data object
-        %data = devito.load_symbolic() {symbol_name = "data"} : () -> memref...
-        // we do magic here to accomodate triple buffering
-        // this will be tackled in the lowering
-        %t0_field = devito.get_field(%data, %t0)
-        %t1_field = devito.get_field(%data, %t1)
-        %t2_field = devito.get_field(%data, %t2)
-
-        // do cast and load ops
-        %t0_w_size = stencil.cast(%t0_field) [-4, -4, -4] to [68, 68, 68]
-        %t1_w_size = stencil.cast(%t1_field) [-4, -4, -4] to [68, 68, 68]
-        %t2_w_size = stencil.cast(%t1_field) [-4, -4, -4] to [68, 68, 68]
-        // put ub - lb here (make the temp ?x?x?)
-        %t0_temp = stencil.load(%t0_w_size) : (!stencil.field<72x72x72xf64>) -> !stencil.temp<?x?x?xf64>
-        %t1_temp = stencil.load(%t1_w_size) : (!stencil.field<72x72x72xf64>) -> !stencil.temp<?x?x?xf64>
+        %t0_temp = stencil.load(%t0) : (!stencil.field<72x72x72xf64>) -> !stencil.temp<?x?x?xf64>
 
         // apply with t0 and t1 data to generate t2 data
-        %t2_output = stencil.apply(%t0_temp, %t1_temp) ({
-        ^1(%t0_buff : !stencil.temp<?x?x?xf64>, %t1_buff : !stencil.temp<?x?x?xf64>):
+        %t1_result = stencil.apply(%t0_temp) ({
+        ^1(%t0_buff : !stencil.temp<?x?x?xf64>):
             ...
             // stencil.body is placed here
-        }) : (!stencil.temp<?x?x?xf64>, !stencil.temp<?x?x?xf64>) -> !stencil.temp<?x?x?xf64>
+        }) : (!stencil.temp<?x?x?xf64>) -> !stencil.temp<?x?x?xf64>
 
         // write generated temp back to field
-        // what are the bound notations here?
-        stencil.store(%t2_output, %t2_w_size) [0, 0, 0] : [64, 64, 64]
+        stencil.store(%t1_result, %t1) [0, 0, 0] : [64, 64, 64]
     ```
     """
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.Stencil, rewriter: PatternRewriter, /):
-        rank = len(op.shape.data)
+        rank = len(op.shape)
 
-        data = iet_ssa.LoadSymbolic.get('data', memref.MemRefType.from_element_type_and_shape(
-            memref.MemRefType.from_element_type_and_shape(op.field_type, [-1] * rank), [op.time_buffers.value.data]
-        ))
-        lb = stencil.IndexAttr.get(*list(-halo_elm.data[0].value.data for halo_elm in op.halo.data))
-        ub = stencil.IndexAttr.get(*list(shape_elm.value.data + halo_elm.data[1].value.data for shape_elm, halo_elm in zip(op.shape.data, op.halo.data)))
+        lb = list(-halo_elm.data[0].data for halo_elm in op.halo)
+        ub = list(shape_elm.data + halo_elm.data[1].data for shape_elm, halo_elm in zip(op.shape, op.halo))
 
-        field_t = stencil.FieldType(
-            (ub - lb), op.field_type
-        )
+        field_t = stencil.FieldType(zip(lb, ub), typ=op.field_type)
 
-        fields = list(
-            iet_ssa.GetField.get(data, t_idx, field_t, lb, ub)
-            for t_idx in (*op.input_indices, op.output)
-        )
-        # name the resulting fields
-        for field in fields:
-            field.field.name_hint = f"{field.t_index.name_hint}_w_size"
+        # change type of iet.for iteration variables to stencil.field
+        for val in (*op.input_indices, op.output):
+            assert isinstance(val.owner, Block)
+            loop = val.owner.parent_op()
+            assert isinstance(loop, iet_ssa.For)
+            val.typ = field_t
+            loop.attributes['index_owner'] = op.grid_name
 
-        loads = list(
-            stencil.LoadOp.get(field)
-            for field in fields[:-1]
-        )
+        input_temps = []
+
+        for field in op.input_indices:
+            rewriter.insert_op_before_matched_op(
+                load_op := stencil.LoadOp.get(field)
+            )
+            input_temps.append(load_op.res)
+            load_op.res.name_hint = field.name_hint + '_temp'
+
         rewriter.replace_matched_op([
-            iet_ssa.Statement.get("// get data obj"),
-            data,
-            iet_ssa.Statement.get("// get individual fields"),
-            *fields,
-            iet_ssa.Statement.get("// stencil loads"),
-            *loads,
             out := stencil.ApplyOp.get(
-                loads, op.body.detach_block(0), result_types=[stencil.TempType([-1] * rank, op.field_type)]
+                input_temps, op.body.detach_block(0), result_types=[stencil.TempType(rank, typ=op.field_type)]
             ),
             stencil.StoreOp.get(
                 out,
-                fields[-1],
-                stencil.IndexAttr.get(*([0] * len(op.halo))),
-                stencil.IndexAttr.get(*[x.value.data for x in op.shape.data]),
-            )
+                op.output,
+                stencil.IndexAttr.get(*([0] * rank)),
+                stencil.IndexAttr.get(*op.shape),
+            ),
+            scf.Yield.get(op.output, *op.input_indices)
         ])
+
+        out.res[0].name_hint = op.output.name_hint + '_result'
 
 
 class _LowerGetField(RewritePattern):
@@ -460,11 +447,11 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
 
         if symb_name not in args:
             body = parent.body.blocks[0]
-            args[symb_name] = body.insert_arg(op.result.typ, 0)
+            args[symb_name] = body.insert_arg(op.result.typ, len(body.args))
 
         op.result.replace_by(args[symb_name])
         rewriter.erase_matched_op()
-        recalc_func_type(parent)
+        parent.update_function_type()
         # attach information on parameter names to func
         parent.attributes['param_names'] = builtin.ArrayAttr([
             builtin.StringAttr(name) for name, _ in sorted(args.items(), key=lambda tpl: tpl[1].index)
@@ -474,35 +461,9 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
 def convert_devito_stencil_to_xdsl_stencil(module):
     grpa = GreedyRewritePatternApplier([
         _DevitoStencilToStencilStencil(),
-        _LowerGetField(),
-        DropIetComments(),
         LowerIetForToScfFor(),
-        ConvertScfForArgsToIndex(),
-        ConvertForLoopVarToIndex()
     ])
-    PatternRewriteWalker(grpa).rewrite_module(module)
-
-
-if __name__ == '__main__':
-    import sys
-    from xdsl.parser import Parser, MLContext, Source
-    ctx = MLContext()
-    ctx.register_dialect(stencil.Stencil)
-    ctx.register_dialect(builtin.Builtin)
-    ctx.register_dialect(arith.Arith)
-    ctx.register_dialect(func.Func)
-    ctx.register_dialect(iet_ssa.DEVITO_SSA)
-    ctx.register_dialect(iet_ssa.IET_SSA)
-    ctx.register_dialect(memref.MemRef)
-    ctx.register_dialect(math.Math)
-    p = Parser(ctx, open(sys.argv[-1], "r").read(), Source.MLIR, filename=sys.argv[-1])
-
-    module = p.parse_module()
-
-    convert_devito_stencil_to_xdsl_stencil(module)
-
-    from xdsl.printer import Printer
-    Printer(target=Printer.Target.MLIR).print(module)
+    PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
 def prod(iter):
@@ -529,7 +490,9 @@ def generate_launcher_base(module: builtin.ModuleOp,
     ])
     PatternRewriteWalker(grpa).rewrite_module(module)
     f = module.ops.first
+
     assert isinstance(f, func.FuncOp)
+    print(str(f))
     dtype: str = f.function_type.inputs.data[0].element_type.element_type.name
 
     t_dims = f.function_type.inputs.data[0].shape.data[0].value.data

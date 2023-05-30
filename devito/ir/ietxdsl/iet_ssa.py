@@ -12,7 +12,7 @@ from xdsl.dialects import arith, builtin, memref, llvm
 from xdsl.dialects.experimental import stencil
 
 from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand, IRDLOperation
-from xdsl.ir import MLContext, Block, Region, OpResult, SSAValue, Attribute, Dialect
+from xdsl.ir import MLContext, Block, Region, OpResult, SSAValue, Attribute, Dialect, Operation
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
@@ -355,12 +355,15 @@ class For(IRDLOperation):
     ub: Annotated[Operand, IndexType]
     step: Annotated[Operand, IndexType]
 
+    result: Annotated[OpResult, IndexType]
+
     body: SingleBlockRegion
 
     subindices: OpAttr[IntAttr]
 
     properties: OpAttr[ArrayAttr[builtin.StringAttr]]
     pragmas: OpAttr[ArrayAttr[builtin.StringAttr]]
+
 
     def subindice_ssa_vals(self) -> tuple[SSAValue, ...]:
         return self.block.args[1:]
@@ -394,7 +397,7 @@ class For(IRDLOperation):
             pragmas = []
 
         body = Region([Block(
-            arg_types=[builtin.i64] * (subindices + 1)
+            arg_types=[builtin.IndexType()] * (subindices + 1)
         )])
         body.blocks[0].args[0].name_hint = loop_var_name
         for i in range(subindices):
@@ -407,7 +410,7 @@ class For(IRDLOperation):
                 'pragmas': ArrayAttr([StringAttr(pragma) for pragma in pragmas]),
                 'properties': ArrayAttr([StringAttr(prop) for prop in properties]),
             },
-            result_types=[],
+            result_types=[IndexType()],
             regions=[body],
         )
 
@@ -422,16 +425,15 @@ class Stencil(IRDLOperation):
     input_indices: Annotated[VarOperand, AnyIntegerAttr]
     output: Annotated[Operand, AnyIntegerAttr]
 
-    shape: OpAttr[ArrayAttr[IntegerAttr]]
+    shape: OpAttr[ArrayAttr[IntAttr]]
     """
     shape without halo (int, int, int)
     """
-    halo: OpAttr[ArrayAttr[ArrayAttr[IntegerAttr]]]
+    halo: OpAttr[ArrayAttr[ArrayAttr[IntAttr]]]
     """
     how far each dimension is expanded
     ((int, int), (int, int), (int, int))
     """
-    time_buffers: OpAttr[IntegerAttr]
 
     field_type: OpAttr[Attribute]
 
@@ -460,7 +462,7 @@ class Stencil(IRDLOperation):
 
         block = Block(
             arg_types=[
-            stencil.TempType([-1] * len(shape), typ)
+            stencil.TempType(len(shape), typ)
         ] * (time_buffers - 1))
 
         for block_arg, idx_arg in zip(block.args, time_indices):
@@ -472,9 +474,8 @@ class Stencil(IRDLOperation):
         return Stencil.build(
             operands=[inputs, output],
             attributes={
-                'shape': ArrayAttr(IntegerAttr(x, 64) for x in shape),
-                'halo': ArrayAttr(ArrayAttr(IntegerAttr(x, 64) for x in inner) for inner in halo),
-                'time_buffers': IntegerAttr(time_buffers, 64),
+                'shape': ArrayAttr(IntAttr(x) for x in shape),
+                'halo': ArrayAttr(ArrayAttr(IntAttr(x) for x in inner) for inner in halo),
                 'field_type': typ,
                 'grid_name': StringAttr(grid_name)
             },
