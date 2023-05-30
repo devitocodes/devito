@@ -516,7 +516,6 @@ def generate_launcher_base(module: builtin.ModuleOp,
     f = module.ops.first
 
     assert isinstance(f, func.FuncOp)
-    print(str(f))
 
     input_types, result_types = translate_signature(f.function_type)
 

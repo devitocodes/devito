@@ -23,7 +23,7 @@ GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
-XDSL_MPI_PIPELINE = "dmp-decompose-2d{slices=4},stencil-shape-inference,convert-stencil-to-ll-mlir,dmp-to-mpi{slices=4},lower-mpi"
+XDSL_MPI_PIPELINE = "dmp-decompose-2d{slices=4},convert-stencil-to-ll-mlir,dmp-to-mpi,lower-mpi"
 
 MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
 

@@ -118,12 +118,7 @@ class XDSLOperator(Operator):
         from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion, convert_devito_stencil_to_xdsl_stencil
         conv = ExtractDevitoStencilConversion(expressions)
         module = conv.convert()
-        print("==============================")
-        print(str(module))
-        print("==============================")
         convert_devito_stencil_to_xdsl_stencil(module)
-        print(str(module))
-        print("==============================")
 
         #from xdsl.printer import Printer
         #p = Printer(target=Printer.Target.MLIR)
