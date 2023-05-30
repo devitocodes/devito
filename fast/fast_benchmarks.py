@@ -99,7 +99,7 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
         },
         u.shape_allocated[1:],
     )
-    cmd = f'mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
+    cmd = f'tee main.mlir | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
     out:str
     try:
         print(f"Trying to compile {bench_name}.main.o with:")

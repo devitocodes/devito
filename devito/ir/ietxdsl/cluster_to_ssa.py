@@ -14,7 +14,7 @@ from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
 # -------------- xdsl import --------------#
 
-from xdsl.ir import Block, Region, SSAValue, Operation, OpResult
+from xdsl.ir import Block, Region, SSAValue, Operation, OpResult, Attribute
 from xdsl.dialects import builtin, func, memref, arith, scf
 from xdsl.dialects.experimental import stencil, math
 from xdsl.dialects import stencil as stencil_nexp
@@ -100,7 +100,7 @@ class ExtractDevitoStencilConversion:
             func.Return.get(loop.result)
         )
 
-        return func.FuncOp.from_region('myfunc', [], [loop.result.typ],
+        return func.FuncOp.from_region('apply_kernel', [], [loop.result.typ],
                                        Region([outermost_block]))
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
@@ -475,6 +475,30 @@ def prod(iter):
         carry *= x
     return carry
 
+def translate_signature(t: func.FunctionType) -> tuple[list[Attribute], list[Attribute]]:
+    inputs = []
+    outputs = []
+    for i in t.inputs:
+        if not isinstance(i, stencil.FieldType):
+            inputs.append(i)
+            break
+        inputs.append(
+            memref.MemRefType.from_element_type_and_shape(
+                i.element_type, i.get_shape()
+            )
+        )
+
+    for o in t.outputs:
+        if not isinstance(o, stencil.FieldType):
+            outputs.append(o)
+            break
+        outputs.append(
+            memref.MemRefType.from_element_type_and_shape(
+                o.element_type, o.get_shape()
+            )
+        )
+    return inputs, outputs
+
 
 def generate_launcher_base(module: builtin.ModuleOp,
                            known_symbols: dict[str, int | float],
@@ -493,20 +517,33 @@ def generate_launcher_base(module: builtin.ModuleOp,
 
     assert isinstance(f, func.FuncOp)
     print(str(f))
-    dtype: str = f.function_type.inputs.data[0].element_type.element_type.name
 
-    t_dims = f.function_type.inputs.data[0].shape.data[0].value.data
+    input_types, result_types = translate_signature(f.function_type)
 
-    memref_type = "x".join(
-        (*(str(x) for x in dims), dtype)
-    )
+    # grab the signature of the kernel
+    ext_func_decl = func.FuncOp.external(f.sym_name.data, input_types, result_types)
+    kernel_signature = str(ext_func_decl)
+
+    dtype: str = input_types[0].element_type.name
+
+    memref_type = str(input_types[0])
+
+    dims = input_types[0].get_shape()
 
     rank = len(dims)
 
     size_in_bytes = prod(dims) * int(dtype[1:]) // 8
 
-    # figure out which is the last time buffer we write to
-    last_time_m = (int(known_symbols['time_M']) + t_dims - 1) % t_dims
+    func_args = ['%t0']
+    alloc_lines = []
+
+    for i, t in enumerate(input_types[1:]):
+        alloc_lines.append(
+            f"        %t{i+1} = memref.alloc() : {str(t)}"
+        )
+        func_args.append(f"%t{i+1}")
+
+    alloc_lines = '\n'.join(alloc_lines)
 
     return f"""
 "builtin.module"() ({{
@@ -517,32 +554,28 @@ def generate_launcher_base(module: builtin.ModuleOp,
         %cst0 = arith.constant 0 : index
         %cst1 = arith.constant 1 : index
 
-        %t0 = memref.view %byte_ref[%cst0][] : memref<{size_in_bytes}xi8> to memref<{memref_type}>
-        %t1 = memref.alloc() : memref<{memref_type}>
-        %ref = memref.alloc() : memref<{t_dims}xmemref<{memref_type}>>
-
-        "memref.store"(%t0, %ref, %cst0) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
-        "memref.store"(%t1, %ref, %cst1) : (memref<{memref_type}>, memref<2xmemref<{memref_type}>>, index) -> ()
+        %t0 = memref.view %byte_ref[%cst0][] : memref<{size_in_bytes}xi8> to {memref_type}
+{alloc_lines}
 
         %time_start = func.call @timer_start() : () -> i64
 
-        func.call @myfunc(%ref) : (memref<{t_dims}xmemref<{memref_type}>>) -> ()
+        %res = func.call @{f.sym_name.data}({', '.join(func_args)}) : {str(ext_func_decl.function_type)}
 
         func.call @timer_end(%time_start) : (i64) -> ()
 
-        func.call @dump_memref_{dtype}_rank_{rank}(%t{last_time_m}) : (memref<{memref_type}>) -> ()
+        func.call @dump_memref_{dtype}_rank_{rank}(%res) : ({memref_type}) -> ()
 
         func.return %cst0 : index
 
     }}) {{"function_type" = () -> (index), "sym_name" = "main"}} : () -> ()
 
-    func.func private @dump_memref_{dtype}_rank_{rank}(memref<{memref_type}>) -> ()
+    func.func private @dump_memref_{dtype}_rank_{rank}({memref_type}) -> ()
     func.func private @load_input(index) -> memref<{size_in_bytes}xi8>
 
     func.func private @timer_start() -> i64
 
     func.func private @timer_end(i64) -> ()
 
-    func.func private @myfunc(memref<{t_dims}xmemref<{memref_type}>>) -> ()
+    {kernel_signature}
 }}) : () -> ()
 """
