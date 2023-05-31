@@ -7,6 +7,7 @@ from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
                        Conditional, Dereference, DummyExpr, FindNodes, FindSymbols,
                        Iteration, List, PointerCast, Return, ThreadCallable,
                        Transformer, While, maybe_alias)
+from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Null)
@@ -22,6 +23,7 @@ def pthreadify(graph, **kwargs):
 
     lower_async_callables(graph, track=track, root=graph.root, **kwargs)
     lower_async_calls(graph, track=track, **kwargs)
+    DataManager(**kwargs).place_definitions(graph)
 
 
 @iet_pass
@@ -45,10 +47,11 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     # The `cfields` are the constant fields, that is the fields whose value
     # definitely never changes across different executions of `ìet`; the
     # `ncfields` are instead the non-constant fields, that is the fields whose
-    # value may or may not change across different calls to `iet`
+    # value may or may not change across different calls to `iet`. Clearly objects
+    # passed by pointer don't really matter
     fields = iet.parameters
     defines = FindSymbols('defines').visit(root.body)
-    ncfields, cfields = split(fields, lambda i: i in defines)
+    ncfields, cfields = split(fields, lambda i: i in defines and i.is_Symbol)
 
     # Postprocess `ncfields`
     ncfields = sanitize_ncfields(ncfields)

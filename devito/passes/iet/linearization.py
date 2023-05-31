@@ -186,8 +186,8 @@ def linearize_accesses(iet, key0, tracker=None, sregistry=None, options=None,
     # 5) Attach `stmts0` and `stmts1` to `iet`
     if stmts0:
         assert len(stmts1) > 0
-        stmts = filter_ordered(stmts0) + [BlankLine] + stmts1 + [BlankLine]
-        body = iet.body._rebuild(body=tuple(stmts) + iet.body.body)
+        stmts = filter_ordered(stmts0) + [BlankLine] + stmts1
+        body = iet.body._rebuild(strides=stmts)
         iet = iet._rebuild(body=body)
     else:
         assert len(stmts1) == 0

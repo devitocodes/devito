@@ -471,6 +471,11 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             if not candidates:
                 continue
 
+            # Ignore if already a ParallelIteration (e.g., by-product of
+            # recursive compilation)
+            if any(isinstance(n, ParallelIteration) for n in candidates):
+                continue
+
             # Outer parallelism
             root, partree = self._make_partree(candidates, index=i)
             if partree is None or root in mapper:

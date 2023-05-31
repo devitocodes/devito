@@ -407,6 +407,11 @@ def update_args(root, efuncs, dag):
     defines = FindSymbols('defines').visit(root.body)
     drop_args = [a for a in root.parameters if a in defines]
 
+    # 3) removed a symbol that was previously necessary (e.g., `x_size` after
+    # linearization)
+    symbols = FindSymbols('basics').visit(root.body)
+    drop_args.extend(a for a in root.parameters if a.is_Symbol and a not in symbols)
+
     if not (new_args or drop_args):
         return efuncs
 

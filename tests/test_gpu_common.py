@@ -2,12 +2,15 @@ import pytest
 import numpy as np
 import scipy.sparse
 
+from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration)
+                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration,
+                    switchconfig)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
-from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
+from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
+                       retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray
 
@@ -1094,6 +1097,36 @@ class TestStreaming(object):
         assert np.all(u.data[0] == u1.data[0])
         assert np.all(u.data[1] == u1.data[1])
 
+    @pytest.mark.skip(reason="Unsupported MPI + .dx when streaming backwards")
+    @pytest.mark.parallel(mode=4)
+    @switchconfig(safe_math=True)  # Or NVC will crash
+    def test_streaming_w_mpi(self):
+        nt = 5
+        grid = Grid(shape=(16, 16))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt, space_order=4)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+        vsave1 = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+
+        eqns = [Eq(u.backward, u + 1.),
+                Eq(vsave, usave.dx2)]
+
+        key = lambda f: f is not usave
+
+        op0 = Operator(eqns, opt='noop')
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate',
+                                  {'dist-drop-unwritten': key,
+                                   'gpu-fit': [vsave]}))
+
+        for i in range(nt):
+            usave.data[i] = i
+
+        op0.apply()
+        op1.apply(vsave=vsave1)
+
+        assert np.all(vsave.data, vsave1.data, rtol=1.e-5)
+
     @pytest.mark.parametrize('opt,opt_options,gpu_fit', [
         (('buffering', 'streaming', 'orchestrate'), {}, False),
         (('buffering', 'streaming', 'orchestrate'), {'linearize': True}, False)
@@ -1207,6 +1240,40 @@ class TestStreaming(object):
             assert 'map(to: u' not in str(op)
             assert 'update from(u' not in str(op)
             assert 'map(release: u' not in str(op)
+
+    def test_fuse_compatible_guards(self):
+        nt = 10
+        grid = Grid(shape=(8, 8))
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        f = TimeFunction(name='f', grid=grid)
+        fsave = TimeFunction(name='fsave', grid=grid,
+                             save=int(nt//factor.data), time_dim=time_sub)
+        gsave = TimeFunction(name='gsave', grid=grid,
+                             save=int(nt//factor.data), time_dim=time_sub)
+
+        eqns = [Eq(f.forward, f + 1.),
+                Eq(fsave, f.forward),
+                Eq(gsave, f.forward)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate',
+                                 {'gpu-fit': [gsave]}))
+
+        op.apply(time_M=nt-1)
+
+        assert all(np.all(fsave.data[i] == 2*i + 1) for i in range(fsave.save))
+        assert all(np.all(gsave.data[i] == 2*i + 1) for i in range(gsave.save))
+
+        # Check generated code
+        assert_structure(op, ['t,x,y', 't', 't,x,y', 't,x,y'],
+                         't,x,y,x,y,x,y')
+        nodes = FindNodes(Conditional).visit(op)
+        assert len(nodes) == 2
+        assert len(nodes[1].then_body) == 3
+        assert len(retrieve_iteration_tree(nodes[1])) == 2
 
 
 class TestAPI(object):

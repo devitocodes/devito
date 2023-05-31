@@ -101,11 +101,22 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
                 return None
     assert callable(callback)
 
+    v0 = kwargs.get('opt_init_onread', True)
+    if callable(v0):
+        init_onread = v0
+    else:
+        init_onread = lambda f: v0
+    v1 = kwargs.get('opt_init_onwrite', False)
+    if callable(v1):
+        init_onwrite = v1
+    else:
+        init_onwrite = lambda f: v1
+
     options = {
         'buf-async-degree': options['buf-async-degree'],
         'buf-fuse-tasks': options['fuse-tasks'],
-        'buf-init-onread': kwargs.get('opt_init_onread', True),
-        'buf-init-onwrite': kwargs.get('opt_init_onwrite', False),
+        'buf-init-onread': init_onread,
+        'buf-init-onwrite': init_onwrite,
         'buf-callback': kwargs.get('opt_buffer'),
     }
 
@@ -133,71 +144,66 @@ class Buffering(Queue):
             return clusters
 
         d = prefix[-1].dim
-
-        # Locate all Function accesses within the provided `clusters`
-        accessmap = AccessMapper(clusters)
-
-        # Create the buffers
-        buffers = BufferBatch()
-        for f, accessv in accessmap.items():
-            # Has a buffer already been produced for `f`?
-            if f in cache:
-                continue
-
-            # Is `f` really a buffering candidate?
-            dim = self.callback0(f)
-            if dim is None or d not in dim._defines:
-                continue
-
-            b = cache[f] = buffers.make(f, dim, accessv, self.options, self.sregistry)
-
-        if not buffers:
-            return clusters
-
         try:
             pd = prefix[-2].dim
         except IndexError:
             pd = None
 
-        # Create Eqs to initialize buffers. Note: a buffer needs to be initialized
-        # only if the buffered Function is read in at least one place or in the case
-        # of non-uniform SubDimensions, to avoid uninitialized values to be copied-back
-        # into the buffered Function
+        # Locate all Function accesses within the provided `clusters`
+        accessmap = AccessMapper(clusters)
+
         init_onread = self.options['buf-init-onread']
         init_onwrite = self.options['buf-init-onwrite']
+
+        # Create and initialize buffers
         init = []
-        for b in buffers:
+        buffers = []
+        for f, accessv in accessmap.items():
+            # Is `f` really a buffering candidate?
+            dim = self.callback0(f)
+            if dim is None or not d._defines & dim._defines:
+                continue
+
+            b = Buffer(f, dim, d, accessv, cache, self.options, self.sregistry)
+            buffers.append(b)
+
             if b.is_read or not b.has_uniform_subdims:
                 # Special case: avoid initialization if not strictly necessary
                 # See docstring for more info about what this implies
-                if b.size == 1 and not init_onread:
+                if b.size == 1 and not init_onread(b.function):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.indexed[[b.initmap.get(d, Map(d, d)).b for d in dims]]
-                rhs = b.function[[b.initmap.get(d, Map(d, d)).f for d in dims]]
+                lhs = b.indexed[dims]._subs(dim, b.firstidx.b)
+                rhs = b.function[dims]._subs(dim, b.firstidx.f)
 
-            elif b.is_write and init_onwrite:
+            elif b.is_write and init_onwrite(b.function):
                 dims = b.buffer.dimensions
                 lhs = b.buffer.indexify()
                 rhs = 0
 
             else:
+                # NOTE: a buffer must be initialized only if the buffered
+                # Function is read in at least one place or in the case of
+                # non-uniform SubDimensions, to avoid uninitialized values to
+                # be copied-back into the buffered Function
                 continue
 
             expr = lower_exprs(Eq(lhs, rhs))
             ispace = b.writeto
-            guards = {pd: GuardBound(d.root.symbolic_min, d.root.symbolic_max)
-                      for d in b.contraction_mapper}
+            guards = {pd: GuardBound(dim.root.symbolic_min, dim.root.symbolic_max)}
             properties = {d: {AFFINE, PARALLEL} for d in ispace.itdimensions}
 
             init.append(Cluster(expr, ispace, guards=guards, properties=properties))
+
+        if not buffers:
+            return clusters
 
         # Substitution rules to replace buffered Functions with buffers
         subs = {}
         for b in buffers:
             for a in b.accessv.accesses:
-                subs[a] = b.indexed[[b.index_mapper_flat.get(i, i) for i in a.indices]]
+                subs[a] = b.indexed[[b.index_mapper.get(i, i) for i in a.indices]]
 
         processed = []
         for c in clusters:
@@ -213,8 +219,8 @@ class Buffering(Queue):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.indexed[[b.lastmap.get(d, Map(d, d)).b for d in dims]]
-                rhs = b.function[[b.lastmap.get(d, Map(d, d)).f for d in dims]]
+                lhs = b.indexed[dims]._subs(b.dim, b.lastidx.b)
+                rhs = b.function[dims]._subs(b.dim, b.lastidx.f)
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.readfrom
@@ -245,8 +251,8 @@ class Buffering(Queue):
                     continue
 
                 dims = b.function.dimensions
-                lhs = b.function[[b.lastmap.get(d, Map(d, d)).f for d in dims]]
-                rhs = b.indexed[[b.lastmap.get(d, Map(d, d)).b for d in dims]]
+                lhs = b.function[dims]._subs(b.dim, b.lastidx.f)
+                rhs = b.indexed[dims]._subs(b.dim, b.lastidx.b)
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
@@ -276,12 +282,10 @@ class Buffering(Queue):
             else:
                 continue
 
-            contracted = set().union(*[d._defines for d in b.contraction_mapper])
-
             processed1 = []
             for c in processed:
                 if b.buffer in c.functions:
-                    key1 = lambda d: d not in contracted
+                    key1 = lambda d: d not in b.dim._defines
                     dims = c.ispace.project(key1).itdimensions
                     ispace = c.ispace.lift(dims, key0())
                     processed1.append(c.rebuild(ispace=ispace))
@@ -290,24 +294,6 @@ class Buffering(Queue):
             processed = processed1
 
         return init + processed
-
-
-class BufferBatch(list):
-
-    def __init__(self):
-        super().__init__()
-
-    def make(self, *args):
-        """
-        Create a Buffer. See Buffer.__doc__.
-        """
-        b = Buffer(*args)
-        self.append(b)
-        return b
-
-    @property
-    def functions(self):
-        return {b.function for b in self}
 
 
 class Buffer(object):
@@ -319,27 +305,31 @@ class Buffer(object):
     ----------
     function : DiscreteFunction
         The object for which the buffer is created.
+    dim : Dimension
+        The Dimension in `function` to be replaced with a ModuloDimension.
     d : Dimension
-        The Dimension in `function` to be contracted, that is to be replaced
-        with a ModuloDimension.
+        The iteration Dimension from which `function` was extracted.
     accessv : AccessValue
         All accesses involving `function`.
+    cache : dict
+        Mapper between buffered Functions and previously created Buffers.
     options : dict, optional
         The compilation options. See `buffering.__doc__`.
     sregistry : SymbolRegistry
         The symbol registry, to create unique names for buffers and Dimensions.
     """
 
-    def __init__(self, function, d, accessv, options, sregistry):
+    def __init__(self, function, dim, d, accessv, cache, options, sregistry):
         # Parse compilation options
         async_degree = options['buf-async-degree']
         callback = options['buf-callback']
 
         self.function = function
+        self.dim = dim
+        self.d = d
         self.accessv = accessv
 
-        self.contraction_mapper = {}
-        self.index_mapper = defaultdict(dict)
+        self.index_mapper = {}
         self.sub_iterators = defaultdict(list)
         self.subdims_mapper = DefaultOrderedDict(set)
 
@@ -347,12 +337,12 @@ class Buffer(object):
         # E.g., `u[time,x] + u[time+1,x] -> `ub[sb0,x] + ub[sb1,x]`, where `sb0`
         # and `sb1` are ModuloDimensions starting at `time` and `time+1` respectively
         dims = list(function.dimensions)
-        assert d in function.dimensions
+        assert dim in function.dimensions
 
         # Determine the buffer size, and therefore the span of the ModuloDimension,
         # along the contracting Dimension `d`
-        indices = filter_ordered(i.indices[d] for i in accessv.accesses)
-        slots = [i.subs({d: 0, d.spacing: 1}) for i in indices]
+        indices = filter_ordered(i.indices[dim] for i in accessv.accesses)
+        slots = [i.subs({dim: 0, dim.spacing: 1}) for i in indices]
         try:
             size = max(slots) - min(slots) + 1
         except TypeError:
@@ -371,16 +361,16 @@ class Buffer(object):
             else:
                 size = async_degree
 
-        # Replace `d` with a suitable CustomDimension `bd`
+        # Create `xd` -- a contraction Dimension for `dim`
         try:
-            bd = sregistry.get('bds', (d, size))
+            xd = sregistry.get('xds', (dim, size))
         except KeyError:
             name = sregistry.make_name(prefix='db')
-            v = CustomDimension(name, 0, size-1, size, d)
-            bd = sregistry.setdefault('bds', (d, size), v)
-        self.contraction_mapper[d] = dims[dims.index(d)] = bd
+            v = CustomDimension(name, 0, size-1, size, dim)
+            xd = sregistry.setdefault('xds', (dim, size), v)
+        self.xd = dims[dims.index(dim)] = xd
 
-        # Finally create the ModuloDimensions as children of `bd`
+        # Finally create the ModuloDimensions as children of `xd`
         if size > 1:
             # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
             # follows SymPy's index ordering (time, time-1, time+1) after modulo
@@ -391,37 +381,38 @@ class Buffer(object):
                              key=lambda i: -np.inf if i - p == 0 else (i - p))
             for i in indices:
                 try:
-                    md = sregistry.get('mds', (bd, i))
+                    md = sregistry.get('mds', (xd, i))
                 except KeyError:
                     name = sregistry.make_name(prefix='sb')
-                    v = ModuloDimension(name, bd, i, size)
-                    md = sregistry.setdefault('mds', (bd, i), v)
-                self.index_mapper[d][i] = md
+                    v = ModuloDimension(name, xd, i, size)
+                    md = sregistry.setdefault('mds', (xd, i), v)
+                self.index_mapper[i] = md
                 self.sub_iterators[d.root].append(md)
         else:
             assert len(indices) == 1
-            self.index_mapper[d][indices[0]] = 0
+            self.index_mapper[indices[0]] = 0
 
         # Track the SubDimensions used to index into `function`
         for e in accessv.mapper:
             m = {i.root: i for i in e.free_symbols
                  if isinstance(i, Dimension) and (i.is_Sub or not i.is_Derived)}
-            for d, v in m.items():
-                self.subdims_mapper[d].add(v)
+            for d0, d1 in m.items():
+                self.subdims_mapper[d0].add(d1)
         if any(len(v) > 1 for v in self.subdims_mapper.values()):
             # Non-uniform SubDimensions. At this point we're going to raise
             # an exception. It's either illegal or still unsupported
             for v in self.subdims_mapper.values():
                 for d0, d1 in combinations(v, 2):
                     if d0.overlap(d1):
-                        raise InvalidOperator("Cannot apply `buffering` to `%s` as it "
-                                              "is accessed over the overlapping "
-                                              " SubDimensions `<%s, %s>`" %
-                                              (function, d0, d1))
+                        raise InvalidOperator(
+                            "Cannot apply `buffering` to `%s` as it is accessed "
+                            "over the overlapping SubDimensions `<%s, %s>`" %
+                            (function, d0, d1))
             raise NotImplementedError("`buffering` does not support multiple "
                                       "non-overlapping SubDimensions yet.")
         else:
-            self.subdims_mapper = {d: v.pop() for d, v in self.subdims_mapper.items()}
+            self.subdims_mapper = {d0: v.pop()
+                                   for d0, v in self.subdims_mapper.items()}
 
         # Build and sanity-check the buffer IterationIntervals
         self.itintervals_mapper = {}
@@ -429,37 +420,39 @@ class Buffer(object):
             for i in e.ispace.itintervals:
                 v = self.itintervals_mapper.setdefault(i.dim, i.args)
                 if v != self.itintervals_mapper[i.dim]:
-                    raise NotImplementedError("Cannot apply `buffering` as the buffered "
-                                              "function `%s` is accessed over multiple, "
-                                              "non-compatible iteration spaces along the "
-                                              "Dimension `%s`" % (function.name, i.dim))
+                    raise NotImplementedError(
+                        "Cannot apply `buffering` as the buffered function `%s` is "
+                        "accessed over multiple, non-compatible iteration spaces "
+                        "along the Dimension `%s`" % (function.name, i.dim))
         # Also add IterationIntervals for initialization along `x`, should `xi` be
         # the only written Dimension in the `x` hierarchy
-        for d, (interval, _, _) in list(self.itintervals_mapper.items()):
-            for i in d._defines:
+        for d0, (interval, _, _) in list(self.itintervals_mapper.items()):
+            for i in d0._defines:
                 self.itintervals_mapper.setdefault(i, (interval.relaxed, (), Forward))
 
         # Finally create the actual buffer
-        kwargs = {
-            'name': sregistry.make_name(prefix='%sb' % function.name),
-            'dimensions': dims,
-            'dtype': function.dtype,
-            'halo': function.halo,
-            'space': 'mapped',
-            'mapped': function
-        }
-        try:
-            self.buffer = callback(function, **kwargs)
-        except TypeError:
-            self.buffer = Array(**kwargs)
+        if function in cache:
+            self.buffer = cache[function]
+        else:
+            kwargs = {
+                'name': sregistry.make_name(prefix='%sb' % function.name),
+                'dimensions': dims,
+                'dtype': function.dtype,
+                'halo': function.halo,
+                'space': 'mapped',
+                'mapped': function
+            }
+            try:
+                self.buffer = cache[function] = callback(function, **kwargs)
+            except TypeError:
+                self.buffer = cache[function] = Array(**kwargs)
 
     def __repr__(self):
-        return "Buffer[%s,<%s>]" % (self.buffer.name,
-                                    ','.join(str(i) for i in self.contraction_mapper))
+        return "Buffer[%s,<%s>]" % (self.buffer.name, self.xd)
 
     @property
     def size(self):
-        return np.prod([v.symbolic_size for v in self.contraction_mapper.values()])
+        return self.xd.symbolic_size
 
     @property
     def firstread(self):
@@ -494,13 +487,6 @@ class Buffer(object):
         return self.buffer.indexed
 
     @cached_property
-    def index_mapper_flat(self):
-        ret = {}
-        for mapper in self.index_mapper.values():
-            ret.update(mapper)
-        return ret
-
-    @cached_property
     def writeto(self):
         """
         The `writeto` IterationSpace, that is the iteration space that must be
@@ -516,8 +502,7 @@ class Buffer(object):
                 # in principle this could be accessed through a stencil
                 interval = interval.translate(v0=-h.left, v1=h.right)
             except KeyError:
-                # E.g., the contraction Dimension `db0`
-                assert d in self.contraction_mapper.values()
+                assert d is self.xd
                 interval, si, direction = Interval(d, 0, 0), (), Forward
             intervals.append(interval)
             sub_iterators[d] = si
@@ -537,13 +522,13 @@ class Buffer(object):
         intervals = []
         sub_iterators = {}
         directions = {}
-        for dd in self.function.dimensions:
+        for dd in self.buffer.dimensions:
             d = dd.xreplace(self.subdims_mapper)
             try:
                 interval, si, direction = self.itintervals_mapper[d]
             except KeyError:
                 # E.g., d=time_sub
-                assert d.is_NonlinearDerived
+                assert d.is_NonlinearDerived or d.is_Custom
                 d = d.root
                 interval, si, direction = self.itintervals_mapper[d]
             intervals.append(interval)
@@ -561,11 +546,8 @@ class Buffer(object):
         The `readfrom` IterationSpace, that is the iteration space that must be
         iterated over to update the buffer with the buffered Function values.
         """
-        cdims = set().union(*[d._defines
-                              for d in flatten(self.contraction_mapper.items())])
-
-        ispace0 = self.written.project(lambda d: d in cdims)
-        ispace1 = self.writeto.project(lambda d: d not in cdims)
+        ispace0 = self.written.project(lambda d: d in self.xd._defines)
+        ispace1 = self.writeto.project(lambda d: d not in self.xd._defines)
 
         extra = (ispace0.itdimensions + ispace1.itdimensions,)
         ispace = IterationSpace.union(ispace0, ispace1, relations=extra)
@@ -573,49 +555,40 @@ class Buffer(object):
         return ispace
 
     @cached_property
-    def lastmap(self):
+    def lastidx(self):
         """
-        A mapper from contracted Dimensions to a 2-tuple of indices representing,
-        respectively, the "last" write to the buffer and the "last" read from the
-        buffered Function. For example, `{time: (sb1, time+1)}`.
+        A 2-tuple of indices representing, respectively, the "last" write to the
+        buffer and the "last" read from the buffered Function. For example,
+        `(sb1, time+1)` in the case of a forward-propagating `time` Dimension.
         """
-        mapper = {}
-        for d, m in self.index_mapper.items():
-            try:
-                func = max if self.written.directions[d.root] is Forward else min
-                v = func(m)
-            except TypeError:
-                func = vmax if self.written.directions[d.root] is Forward else vmin
-                v = func(*[Vector(i) for i in m])[0]
-            mapper[d] = Map(m[v], v)
+        try:
+            func = max if self.written[self.d].direction is Forward else min
+            v = func(self.index_mapper)
+        except TypeError:
+            func = vmax if self.written[self.d].direction is Forward else vmin
+            v = func(*[Vector(i) for i in self.index_mapper])[0]
 
-        return mapper
+        return Map(self.index_mapper[v], v)
 
     @cached_property
-    def initmap(self):
+    def firstidx(self):
         """
-        A mapper from contracted Dimensions to indices representing the min points
-        for buffer initialization. For example, in the case of a forward-propagating
-        `time` Dimension, we could have `{time: (time_m + db0) % 2, (time_m + db0)}`;
-        likewise, for backwards, `{time: (time_M - 2 + db0) % 4, time_M - 2 + db0}`.
+        A 2-tuple of indices representing the min points for buffer initialization.
+        For example, in the case of a forward-propagating `time` Dimension, we
+        could have `((time_m + db0) % 2, (time_m + db0))`; likewise, for
+        backwards, `((time_M - 2 + db0) % 4, time_M - 2 + db0)`.
         """
-        mapper = {}
-        for d, bd in self.contraction_mapper.items():
-            indices = list(self.index_mapper[d])
+        # The buffer is initialized at `d_m(d_M) - offset`. E.g., a buffer with
+        # six slots, used to replace a buffered Function accessed at `d-3`, `d`
+        # and `d + 2`, will have `offset = 3`
+        p, offset = offset_from_centre(self.dim, list(self.index_mapper))
 
-            # The buffer is initialized at `d_m(d_M) - offset`. E.g., a buffer with
-            # six slots, used to replace a buffered Function accessed at `d-3`, `d`
-            # and `d + 2`, will have `offset = 3`
-            p, offset = offset_from_centre(d, indices)
+        if self.written[self.dim].direction is Forward:
+            v = p._subs(self.dim.root, self.dim.root.symbolic_min) - offset + self.xd
+        else:
+            v = p._subs(self.dim.root, self.dim.root.symbolic_max) - offset + self.xd
 
-            if self.written.directions[d.root] is Forward:
-                v = p.subs(d.root, d.root.symbolic_min) - offset + bd
-            else:
-                v = p.subs(d.root, d.root.symbolic_max) - offset + bd
-
-            mapper[d] = Map(v % bd.symbolic_size, v)
-
-        return mapper
+        return Map(v % self.xd.symbolic_size, v)
 
 
 class AccessValue(object):

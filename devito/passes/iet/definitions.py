@@ -326,7 +326,7 @@ class DataManager(object):
         # Process all other definitions, essentially all temporary objects
         # created by the compiler up to this point (Array, LocalObject, etc.)
         storage = Storage()
-        defines = FindSymbols('defines-aliases').visit(iet)
+        defines = FindSymbols('defines-aliases|globals').visit(iet)
 
         for i in FindSymbols().visit(iet):
             if i in defines:
@@ -343,7 +343,7 @@ class DataManager(object):
                         self._alloc_mapped_array_on_high_bw_mem(iet, i, storage)
                 elif i._mem_stack:
                     self._alloc_array_on_low_lat_mem(iet, i, storage)
-                else:
+                elif globs is not None:
                     # Track, to be handled by the EntryFunction being a global obj!
                     globs.add(i)
             elif i.is_ObjectArray:
@@ -384,10 +384,15 @@ class DataManager(object):
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines|globals').visit(iet))
         bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
+
+        # Some objects don't distinguish their _C_symbol because they are known,
+        # by construction, not to require it, thus making the generated code
+        # cleaner. These objects don't need a cast
+        bases = [i for i in bases if i.name != i.function._C_name]
+
+        # Create and attach the type casts
         casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
                       if i not in defines)
-
-        # Incorporate the newly created casts
         if casts:
             iet = iet._rebuild(body=iet.body._rebuild(casts=casts + iet.body.casts))
 

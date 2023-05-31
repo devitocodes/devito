@@ -100,6 +100,12 @@ class BasicOperator(Operator):
     The supported MPI modes.
     """
 
+    DIST_DROP_UNWRITTEN = True
+    """
+    Drop halo exchanges for read-only Function, even in presence of
+    stencil-like data accesses.
+    """
+
     INDEX_MODE = "int64"
     """
     The type of the expression used to compute array indices. Either `int64`
@@ -281,7 +287,7 @@ class CustomOperator(BasicOperator):
         # from HaloSpot optimization)
         # Note that if MPI is disabled then this pass will act as a no-op
         if 'mpi' not in passes:
-            passes_mapper['mpi'](graph)
+            passes_mapper['mpi'](graph, **kwargs)
 
         # Run passes
         applied = []
@@ -300,16 +306,16 @@ class CustomOperator(BasicOperator):
         if 'init' not in passes:
             passes_mapper['init'](graph)
 
-        # Enforce pthreads if CPU-GPU orchestration requested
-        if 'orchestrate' in passes and 'pthreadify' not in passes:
-            passes_mapper['pthreadify'](graph, sregistry=sregistry)
-
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         if 'linearize' not in passes and options['linearize']:
             passes_mapper['linearize'](graph)
+
+        # Enforce pthreads if CPU-GPU orchestration requested
+        if 'orchestrate' in passes and 'pthreadify' not in passes:
+            passes_mapper['pthreadify'](graph, sregistry=sregistry)
 
         return graph
 

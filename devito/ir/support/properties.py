@@ -175,7 +175,9 @@ class Properties(frozendict):
             m[d] = set(self.get(d, [])) | {AFFINE}
         return Properties(m)
 
-    def sequentialize(self, dims):
+    def sequentialize(self, dims=None):
+        if dims is None:
+            dims = list(self)
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})

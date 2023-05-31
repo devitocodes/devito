@@ -288,10 +288,13 @@ class Call(ExprStmt, Node):
                             retval.append(s.function)
                     except AttributeError:
                         continue
+
         if self.base is not None:
             retval.append(self.base.function)
+
         if self.retobj is not None:
             retval.append(self.retobj.function)
+
         return tuple(filter_ordered(retval))
 
     @cached_property
@@ -309,10 +312,15 @@ class Call(ExprStmt, Node):
                     retval.extend(i.free_symbols)
                 except AttributeError:
                     pass
+
         if self.base is not None:
             retval.append(self.base)
-        if self.retobj is not None:
+
+        if isinstance(self.retobj, Indexed):
+            retval.extend(self.retobj.free_symbols)
+        elif self.retobj is not None:
             retval.append(self.retobj)
+
         return tuple(filter_ordered(retval))
 
     @property
@@ -744,6 +752,8 @@ class CallableBody(Node):
     maps : Transfer or list of Transfer, optional
         Data maps for `body` (a data map may e.g. trigger a data transfer from
         host to device).
+    strides : list of Nodes, optional
+        Statements defining symbols used to access linearized arrays.
     objs : list of Definitions, optional
         Object definitions for `body`.
     unmaps : Transfer or list of Transfer, optional
@@ -756,19 +766,21 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps', 'objs',
-                    'body', 'unmaps', 'unbundles', 'frees']
+    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps',
+                    'strides', 'objs', 'body', 'unmaps', 'unbundles', 'frees']
 
-    def __init__(self, body, init=(), unpacks=(), allocs=(), casts=(),
+    def __init__(self, body, init=(), unpacks=(), strides=(), allocs=(), casts=(),
                  bundles=(), objs=(), maps=(), unmaps=(), unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
         self.body = as_tuple(body)
-        self.init = as_tuple(init)
+
         self.unpacks = as_tuple(unpacks)
+        self.init = as_tuple(init)
         self.allocs = as_tuple(allocs)
         self.casts = as_tuple(casts)
+        self.strides = as_tuple(strides)
         self.bundles = as_tuple(bundles)
         self.maps = as_tuple(maps)
         self.objs = as_tuple(objs)
@@ -1199,6 +1211,10 @@ class ParallelTree(List):
 
     @property
     def functions(self):
+        return as_tuple(self.nthreads)
+
+    @property
+    def expr_symbols(self):
         return as_tuple(self.nthreads)
 
     @property
