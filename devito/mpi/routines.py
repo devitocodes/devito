@@ -1164,11 +1164,11 @@ class MPIMsg(CompositeObject):
         sanity checks to ensure we get a Symbol iff the Msg is for an Array.
         """
         if is_integer(v):
-            return v
+            return int(v)
         else:
             assert self.target.c0.is_Array
             assert args is not None
-            return v.subs(args)
+            return int(v.subs(args))
 
     def _arg_defaults(self, allocator, alias, args=None):
         # Lazy initialization if `allocator` is necessary as the `allocator`
