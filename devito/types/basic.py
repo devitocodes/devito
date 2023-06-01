@@ -1326,6 +1326,8 @@ class BoundSymbol(AbstractSymbol):
     BoundSymbol will also become a garbage collector candidate.
     """
 
+    __rkwargs__ = AbstractSymbol.__rkwargs__ + ('function',)
+
     def __new__(cls, *args, function=None, **kwargs):
         obj = AbstractSymbol.__new__(cls, *args, **kwargs)
         obj._function = function

@@ -14,7 +14,8 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, NPThreads, ThreadID, TempFunction)
+                          DeviceID, NPThreads, ThreadID, TempFunction, Indirection)
+from devito.types.basic import BoundSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               CallFromPointer, DefFunction)
@@ -115,6 +116,35 @@ def test_internal_symbols():
     new_s = pickle.loads(pkl_s)
     assert new_s.name == s.name
     assert new_s.assumptions0['nonnegative'] is True
+
+
+def test_bound_symbol():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    bs = f._C_symbol
+    pkl_bs = pickle.dumps(bs)
+    new_bs = pickle.loads(pkl_bs)
+
+    assert isinstance(new_bs, BoundSymbol)
+    assert new_bs.name == bs.name
+    assert isinstance(new_bs.function, Function)
+    assert str(new_bs.function) == str(bs.function)
+
+
+def test_indirection():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    ind = Indirection(name='ofs', mapped=f)
+
+    pkl_ind = pickle.dumps(ind)
+    new_ind = pickle.loads(pkl_ind)
+
+    assert new_ind.name == ind.name
+    assert isinstance(new_ind.mapped, Function)
+    assert str(new_ind.mapped) == str(ind.mapped) == str(f)
+    assert new_ind.dtype == ind.dtype
 
 
 def test_array():
