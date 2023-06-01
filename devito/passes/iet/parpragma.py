@@ -527,7 +527,9 @@ class PragmaTransfer(Pragma, Transfer):
     def imask(self):
         return self._imask
 
-    @cached_property
+    # TODO: cached_property here will break our pickling tests for reasons that
+    # are still mysterious after considerable investigation
+    @property
     def sections(self):
         return make_sections_from_imask(self.function, self.imask)
 

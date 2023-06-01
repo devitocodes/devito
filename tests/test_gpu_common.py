@@ -1,3 +1,5 @@
+import cloudpickle as pickle
+
 import pytest
 import numpy as np
 import scipy.sparse
@@ -1346,6 +1348,25 @@ class TestAPI(object):
         # Cannot provide a value larger than the thread pool size
         with pytest.raises(InvalidArgument):
             assert op.arguments(time_M=2, npthreads0=5)
+
+
+class TestMisc(object):
+
+    def test_pickling(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name="usave", grid=grid, save=10)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+
+        op = Operator(eqns)
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        assert str(op) == str(new_op)
 
 
 class TestEdgeCases(object):
