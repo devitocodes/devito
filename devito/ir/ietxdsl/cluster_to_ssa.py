@@ -573,7 +573,7 @@ def generate_launcher_base(module: builtin.ModuleOp,
         "dmp.gather"(%res, %rank_idx) ({{
         ^bb0(%global_data: {memref_type}):
             "func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-        }}) {{ "root_rank" = 1, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
+        }}) {{ "root_rank" = 0, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
 
         "mpi.finalize"() : () -> ()
 """
