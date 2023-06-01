@@ -96,7 +96,6 @@ jobs:
           python-version: '3.7'
           os: ubuntu-latest
           arch: "gcc"
-          tag: "gcc"
           language: "openmp"
           sympy: "1.10"
 
@@ -104,7 +103,6 @@ jobs:
           python-version: '3.7'
           os: ubuntu-22.04
           arch: "icc"
-          tag: "icc"
           language: "openmp"
           sympy: "1.11"
 
@@ -112,7 +110,6 @@ jobs:
           python-version: '3.8'
           os: ubuntu-22.04
           arch: "icx"
-          tag: "icc"
           language: "openmp"
           sympy: "1.11"
 
@@ -139,7 +136,7 @@ jobs:
     - name: Build docker image
       if: contains(matrix.name, 'docker')
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.tag }}
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
 
     - name: Set run prefix
       run: |

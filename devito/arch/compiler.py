@@ -424,7 +424,7 @@ class ArmCompiler(GNUCompiler):
 class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(ClangCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -491,7 +491,7 @@ class AOMPCompiler(Compiler):
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
 
     def __init__(self, *args, **kwargs):
-        super(AOMPCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -541,7 +541,7 @@ class DPCPPCompiler(Compiler):
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(PGICompiler, self).__init__(*args, cpp=True, **kwargs)
+        super().__init__(*args, cpp=True, **kwargs)
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
@@ -681,7 +681,7 @@ class HipCompiler(Compiler):
 class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags.append("-xHost")
         platform = kwargs.pop('platform', configuration['platform'])
@@ -728,7 +728,7 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelKNLCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags.append('-xMIC-AVX512')
 
@@ -741,7 +741,7 @@ class IntelKNLCompiler(IntelCompiler):
 class OneapiCompiler(IntelCompiler):
 
     def __init__(self, *args, **kwargs):
-        super(OneapiCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
