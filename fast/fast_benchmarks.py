@@ -70,7 +70,7 @@ def dump_input(input: TimeFunction, bench_name: str):
     input.data_with_halo[0,...].tofile(f'{bench_name}.input.data')
 
 
-def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
+def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int, mpi: bool):
     info("Main function " + bench_name + ".main.mlir")
     with open(bench_name + ".main.mlir", "w") as f:
         f.write(
@@ -84,10 +84,11 @@ def dump_main_mlir(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperat
                     "dt": dt,
                 },
                 u.shape_allocated[1:],
+                mpi,
             )
         )
 
-def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
+def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int, mpi: bool):
     main = generate_launcher_base(
         xop._module,
         {
@@ -98,6 +99,7 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
             "dt": dt,
         },
         u.shape_allocated[1:],
+        mpi,
     )
     cmd = f'tee main.mlir | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
     out:str
@@ -214,8 +216,8 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
         dump_input(u, bench_name)
         xop = XDSLOperator([eq0])
         if dump_main:
-            dump_main_mlir(bench_name, grid, u, xop, dt, nt)
-        compile_main(bench_name, grid, u, xop, dt, nt)
+            dump_main_mlir(bench_name, grid, u, xop, dt, nt, args.mpi)
+        compile_main(bench_name, grid, u, xop, dt, nt, args.mpi)
         compile_interop(bench_name, args.no_output_dump)
         mlir_code = xop.mlircode
         if dump_mlir:

@@ -16,7 +16,7 @@ from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
 from xdsl.ir import Block, Region, SSAValue, Operation, OpResult, Attribute
 from xdsl.dialects import builtin, func, memref, arith, scf
-from xdsl.dialects.experimental import stencil, math
+from xdsl.dialects.experimental import stencil, math, dmp
 from xdsl.dialects import stencil as stencil_nexp
 
 default_int = builtin.i64
@@ -502,7 +502,8 @@ def translate_signature(t: func.FunctionType) -> tuple[list[Attribute], list[Att
 
 def generate_launcher_base(module: builtin.ModuleOp,
                            known_symbols: dict[str, int | float],
-                           dims: tuple[int]) -> str:
+                           dims: tuple[int],
+                           mpi: bool = False) -> str:
     """
     This transforms a module containing a function with symbolic
     loads into a function that is ready to be lowered by xdsl
@@ -538,33 +539,68 @@ def generate_launcher_base(module: builtin.ModuleOp,
 
     for i, t in enumerate(input_types[1:]):
         alloc_lines.append(
-            f"        %t{i+1} = memref.alloc() : {str(t)}"
+            f'        %t{i+1} = "memref.alloc"() {{"operand_segment_sizes" = array<i32: 0, 0>}} : () -> {str(t)}'
         )
         func_args.append(f"%t{i+1}")
 
     alloc_lines = '\n'.join(alloc_lines)
 
+    # grab the field type with allocated bounds
+    field_type: stencil.FieldType = f.function_type.inputs.data[0]
+    assert isinstance(field_type, stencil.FieldType)
+    assert isinstance(field_type.bounds, stencil.StencilBoundsAttr)
+
+    bounds = field_type.bounds
+
+    global_shape = dmp.HaloShapeInformation.from_index_attrs(
+        buff_lb=bounds.lb,
+        buff_ub=bounds.ub,
+        core_lb=stencil.IndexAttr.get(*([0] * len(bounds.lb))),
+        core_ub=(bounds.ub + bounds.lb),
+    )
+
+    mpi_setup = f"""
+        "mpi.init"() : () -> ()
+
+        %rank = "mpi.comm.rank"() : () -> i32
+        %rank_idx = "arith.index_cast"(%rank) : (i32) -> index
+
+        "dmp.scatter"(%t0, %rank_idx) {{ "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
+"""
+
+    mpi_teardown = f"""
+        // hack that only works on even number of timesteps
+        "dmp.gather"(%res, %rank_idx) ({{
+        ^bb0(%global_data: {memref_type}):
+            "func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
+        }}) {{ "root_rank" = 1, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
+
+        "mpi.finalize"() : () -> ()
+"""
+
+    if not mpi:
+        mpi_setup = ""
+        mpi_teardown = ""
+
     return f"""
 "builtin.module"() ({{
     "func.func"() ({{
-        %num_bytes = arith.constant {size_in_bytes} : index
-        %byte_ref = func.call @load_input(%num_bytes) : (index) -> memref<{size_in_bytes}xi8>
+        %num_bytes = "arith.constant"() {{"value" = {size_in_bytes} : index}} : () -> index
+        %byte_ref = "func.call"(%num_bytes) {{"callee" = @load_input}} : (index) -> memref<{size_in_bytes}xi8>
 
-        %cst0 = arith.constant 0 : index
-        %cst1 = arith.constant 1 : index
+        %cst0 = "arith.constant"() {{"value" = 0 : index}} : () -> index
+        %cst1 = "arith.constant"() {{"value" = 1 : index}} : () -> index
 
-        %t0 = memref.view %byte_ref[%cst0][] : memref<{size_in_bytes}xi8> to {memref_type}
+        %t0 = "memref.view"(%byte_ref, %cst0) : (memref<{size_in_bytes}xi8>, index) -> {memref_type}
 {alloc_lines}
+{mpi_setup}
+        %time_start = "func.call"() {{"callee" = @timer_start}} : () -> i64
 
-        %time_start = func.call @timer_start() : () -> i64
+        %res = "func.call"({', '.join(func_args)}) {{"callee" = @{f.sym_name.data}}}  : {str(ext_func_decl.function_type)}
 
-        %res = func.call @{f.sym_name.data}({', '.join(func_args)}) : {str(ext_func_decl.function_type)}
-
-        func.call @timer_end(%time_start) : (i64) -> ()
-
-        func.call @dump_memref_{dtype}_rank_{rank}(%res) : ({memref_type}) -> ()
-
-        func.return %cst0 : index
+        "func.call"(%time_start) {{"callee" = @timer_end}} : (i64) -> ()
+{mpi_teardown}
+        "func.return" (%cst0) : (index) -> ()
 
     }}) {{"function_type" = () -> (index), "sym_name" = "main"}} : () -> ()
 
