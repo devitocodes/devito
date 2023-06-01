@@ -14,7 +14,8 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
                                  MPIRegion)
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, NPThreads, ThreadID, TempFunction, Indirection)
+                          DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
+                          FIndexed)
 from devito.types.basic import BoundSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
@@ -280,6 +281,20 @@ def test_shared_data():
     new_indexed = pickle.loads(pkl_indexed)
 
     assert indexed.name == new_indexed.name
+
+
+def test_findexed():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+
+    pkl_fi = pickle.dumps(fi)
+    new_fi = pickle.loads(pkl_fi)
+
+    assert new_fi.name == fi.name
+    assert new_fi.pname == fi.pname
+    assert new_fi.strides == fi.strides
 
 
 def test_guard_factor():

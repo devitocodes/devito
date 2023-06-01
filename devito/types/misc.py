@@ -109,6 +109,8 @@ class FIndexed(Indexed, Pickable):
         return (super().free_symbols |
                 set().union(*[i.free_symbols for i in self.strides]))
 
+    func = Pickable._rebuild
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
