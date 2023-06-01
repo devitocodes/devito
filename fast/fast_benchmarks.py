@@ -21,9 +21,12 @@ CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, c
 OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=1024,1,1}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},${MEMREF_TO_LLVM_PASS}{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
 
+
+decomp = "{strategy=2d-horizontal slices=2}"
+
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-gpu"
-XDSL_MPI_PIPELINE = "dmp-decompose-2d{slices=4},convert-stencil-to-ll-mlir,dmp-to-mpi,lower-mpi"
+XDSL_MPI_PIPELINE = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
 
 MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
 
@@ -101,7 +104,13 @@ def compile_main(bench_name: str, grid: Grid, u: TimeFunction, xop: XDSLOperator
         u.shape_allocated[1:],
         mpi,
     )
-    cmd = f'tee main.mlir | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
+
+    if mpi:
+        xdsl_pass = f'"dmp-setup-and-teardown{decomp},lower-mpi"'
+    else:
+        xdsl_pass = '""'
+
+    cmd = f'tee main.mlir | xdsl-opt --allow-unregistered-dialect -p {xdsl_pass} | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1'
     out:str
     try:
         print(f"Trying to compile {bench_name}.main.o with:")
@@ -172,10 +181,12 @@ def link_kernel(bench_name:str):
         print(out)
         raise e
 
-def run_kernel(bench_name:str, env:dict[str, Any] = {}) -> float:
+def run_kernel(bench_name:str, mpi: bool, env:dict[str, Any] = {}) -> float:
 
     env_str = " ".join(k+'='+str(v) for k,v in env.items())
     cmd = f'{env_str} ./{bench_name}.out'
+    if mpi:
+        cmd = 'mpirun -n 2 ' + cmd
     out:str
     try:
         print(cmd)
@@ -227,7 +238,7 @@ def main(bench_name: str, nt:int, dump_main:bool, dump_mlir:bool):
         xdsl_pipeline = XDSL_MPI_PIPELINE if args.mpi else XDSL_CPU_PIPELINE
         compile_kernel(bench_name, mlir_code, xdsl_pipeline, CPU_PIPELINE)
         link_kernel(bench_name)
-        rt = run_kernel(bench_name)
+        rt = run_kernel(bench_name, args.mpi)
         
     else:
         op = Operator([eq0])
