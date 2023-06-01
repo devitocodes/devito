@@ -10,7 +10,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
                     CustomDimension, dimensions, configuration)
-from devito.arch.compiler import OneapiCompiler
+from devito.arch.compiler import IntelCompiler, OneapiCompiler
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv
@@ -1384,7 +1384,7 @@ class TestConditionalDimension(object):
         assert all(i.is_Affine for i in iterations)
 
     @switchconfig(condition=isinstance(configuration['compiler'],
-                  OneapiCompiler), safe_math=True)
+                  (IntelCompiler, OneapiCompiler)), safe_math=True)
     def test_sparse_time_function(self):
         nt = 20
 
