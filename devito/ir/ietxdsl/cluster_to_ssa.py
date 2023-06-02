@@ -580,7 +580,7 @@ def generate_launcher_base(module: builtin.ModuleOp,
 
     if not mpi:
         mpi_setup = ""
-        mpi_teardown = ""
+        mpi_teardown = f'"func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()'
 
     return f"""
 "builtin.module"() ({{
