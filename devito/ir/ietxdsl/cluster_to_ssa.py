@@ -569,7 +569,6 @@ def generate_launcher_base(module: builtin.ModuleOp,
 """
 
     mpi_teardown = f"""
-        // hack that only works on even number of timesteps
         "dmp.gather"(%res, %rank_idx) ({{
         ^bb0(%global_data: {memref_type}):
             "func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
