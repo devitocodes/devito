@@ -193,22 +193,22 @@ void print_i32(int n)
   printf("%d\n", n);
 }
 
-extern int MPI_Comm_rank(int comm, int *rank);
+// extern int MPI_Comm_rank(int comm, int *rank);
 
-void print_halo_send_info(int dest, int ex, i64 x0, i64 y0, i64 h, i64 w) {
-  int rank;
-  MPI_Comm_rank(1140850688, &rank);
-  i64 x1 = x0 + h;
-  i64 y1 = y0 + w;
-  printf("MPI send ex%i [%li:%li,%li:%li] %i -> %i\n",ex, x0, y0, x1, y1,  rank, dest);
-}
-void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
-  int rank;
-  MPI_Comm_rank(1140850688, &rank);
-  i64 x1 = x0 + h;
-  i64 y1 = y0 + w;
-  printf("MPI recv ex%i [%li:%li,%li:%li] %i <- %i\n",ex, x0, y0, x1, y1, rank, src);
-}
+// void print_halo_send_info(int dest, int ex, i64 x0, i64 y0, i64 h, i64 w) {
+//   int rank;
+//   MPI_Comm_rank(1140850688, &rank);
+//   i64 x1 = x0 + h-1;
+//   i64 y1 = y0 + w-1;
+//   printf("MPI send ex%i [%li:%li,%li:%li] %i -> %i\n",ex, x0, x1, y0, y1,  rank, dest);
+// }
+// void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
+//   int rank;
+//   MPI_Comm_rank(1140850688, &rank);
+//   i64 x1 = x0 + h-1;
+//   i64 y1 = y0 + w-1;
+//   printf("MPI recv ex%i [%li:%li,%li:%li] %i <- %i\n",ex, x0, x1, y0, y1, rank, src);
+// }
 
 i64 timer_start() {
   // return epoch in ms
