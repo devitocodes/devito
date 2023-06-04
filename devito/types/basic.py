@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, _Pointer
+from ctypes import POINTER, _Pointer, c_char_p, c_char
 from functools import reduce
 from operator import mul
 
@@ -81,6 +81,11 @@ class CodeSymbol(object):
         _type = self._C_ctype
         while issubclass(_type, _Pointer):
             _type = _type._type_
+
+        # `ctypes` treats C strings specially
+        if _type is c_char_p:
+            _type = c_char
+
         return ctypes_to_cstr(_type)
 
     @abc.abstractproperty
