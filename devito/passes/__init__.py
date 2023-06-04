@@ -23,14 +23,8 @@ def is_on_device(obj, gpu_fit):
     except AttributeError:
         functions = as_tuple(obj)
 
-    fsave = []
-    for i in functions:
-        try:
-            f = i.alias or i
-        except AttributeError:
-            f = i
-        if isinstance(f, TimeFunction) and is_integer(f.save):
-            fsave.append(f)
+    fsave = [f for f in functions
+             if isinstance(f, TimeFunction) and is_integer(f.save)]
 
     if 'all-fallback' in gpu_fit and fsave:
         warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
