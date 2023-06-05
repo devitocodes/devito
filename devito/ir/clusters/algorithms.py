@@ -281,7 +281,7 @@ class Stepper(Queue):
                 mapper[size][si].add(iaf)
 
         # Construct the ModuloDimensions
-        mds = OrderedDict()
+        mds = []
         for size, v in mapper.items():
             for si, iafs in list(v.items()):
                 # Offsets are sorted so that the semantic order (t0, t1, t2) follows
@@ -290,15 +290,10 @@ class Stepper(Queue):
                 # sorting offsets {-1, 0, 1} as {0, -1, 1} assigning -inf to 0
                 siafs = sorted(iafs, key=lambda i: -np.inf if i - si == 0 else (i - si))
 
-                # Create the ModuloDimensions. Note that if `size < len(iafs)` then
-                # the same ModuloDimension may be used for multiple offsets
-                for iaf in siafs[:size]:
+                for iaf in siafs:
                     name = '%s%d' % (si.name, len(mds))
                     offset = uxreplace(iaf, {si: d.root})
-                    md = ModuloDimension(name, si, offset, size, origin=iaf)
-
-                    key = lambda i: i.subs(si, 0) % size
-                    mds[md] = [i for i in siafs if key(i) == key(iaf)]
+                    mds.append(ModuloDimension(name, si, offset, size, origin=iaf))
 
         # Replacement rule for ModuloDimensions
         def rule(size, e):
@@ -320,11 +315,8 @@ class Stepper(Queue):
             exprs = c.exprs
             groups = as_mapper(mds, lambda d: d.modulo)
             for size, v in groups.items():
-                mapper = {}
-                for md in v:
-                    mapper.update({i: md for i in mds[md]})
-
-                func = partial(xreplace_indices, mapper=mapper, key=partial(rule, size))
+                subs = {md.origin: md for md in v}
+                func = partial(xreplace_indices, mapper=subs, key=partial(rule, size))
                 exprs = [e.apply(func) for e in exprs]
 
             # Augment IterationSpace

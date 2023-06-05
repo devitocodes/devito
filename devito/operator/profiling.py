@@ -225,7 +225,7 @@ class AdvancedProfiler(Profiler):
             # Number of FLOPs performed
             try:
                 ops = int(subs_op_args(data.ops, args))
-            except TypeError:
+            except (AttributeError, TypeError):
                 # E.g., a section comprising just function calls, or at least
                 # a sequence of unrecognized or non-conventional expr statements
                 ops = np.nan
@@ -236,7 +236,7 @@ class AdvancedProfiler(Profiler):
 
                 # Compulsory traffic
                 traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
-            except TypeError:
+            except (AttributeError, TypeError):
                 # E.g., the section has a dynamic loop size
                 points = np.nan
 

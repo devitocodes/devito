@@ -120,6 +120,10 @@ class HaloScheme(object):
         """
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
+        halo_schemes = [hs for hs in halo_schemes if hs is not None]
+        if not halo_schemes:
+            return None
+
         fmapper = {}
         honored = {}
         for i in as_tuple(halo_schemes):

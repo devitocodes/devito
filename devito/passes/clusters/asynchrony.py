@@ -323,7 +323,7 @@ class Actions(object):
 
 def is_memcpy(cluster):
     """
-    True if `cluster` emulates a memcpy involving a mapped Array, False otherwise.
+    True if `cluster` emulates a memcpy involving an Array, False otherwise.
     """
     if len(cluster.exprs) != 1:
         return False
@@ -333,5 +333,4 @@ def is_memcpy(cluster):
     if not (a.is_Indexed and b.is_Indexed):
         return False
 
-    return ((a.function.is_Array and a.function._mem_mapped) or
-            (b.function.is_Array and b.function._mem_mapped))
+    return a.function.is_Array or b.function.is_Array

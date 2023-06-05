@@ -1,6 +1,7 @@
 from collections import Counter, defaultdict
 from itertools import groupby, product
 
+from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
@@ -145,19 +146,34 @@ class Fusion(Queue):
         else:
             return [ClusterGroup(processed, prefix)]
 
+    class Key(tuple):
+
+        """
+        A fusion Key for a Cluster (ClusterGroup) is a hashable tuple such that
+        two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
+        identical.
+
+        A Key contains several elements that can logically be split into two
+        groups -- the `strict` and the `weak` components of the Key.
+        Two Clusters (ClusterGroups) having same `strict` but different `weak` parts
+        are, as by definition, not fusible; however, since at least their `strict`
+        parts match, they can at least be topologically reordered.
+        """
+
+        def __new__(cls, strict, weak):
+            obj = super().__new__(cls, strict + weak)
+            obj.strict = tuple(strict)
+            obj.weak = tuple(weak)
+
+            return obj
+
     def _key(self, c):
-        # Two Clusters/ClusterGroups are fusion candidates if their key is identical
+        strict = []
 
-        key = (frozenset(c.ispace.itintervals),)
-
-        # If there are writes to thread-shared object, make it part of the key.
-        # This will promote fusion of non-adjacent Clusters writing to (some form of)
-        # shared memory, which in turn will minimize the number of necessary barriers
-        key += (any(f._mem_shared for f in c.scope.writes),)
-        # Same story for reads from thread-shared objects
-        key += (any(f._mem_shared for f in c.scope.reads),)
-
-        key += (c.guards if any(c.guards) else None,)
+        strict.extend([
+            frozenset(c.ispace.itintervals),
+            c.guards if any(c.guards) else None
+        ])
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
@@ -180,13 +196,28 @@ class Fusion(Queue):
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)
-                mapper[k] = frozenset(mapper[k])
-            if any(mapper.values()):
-                mapper = frozendict(mapper)
-                key += (mapper,)
+                if k in mapper:
+                    mapper[k] = frozenset(mapper[k])
+            strict.append(frozendict(mapper))
+
+        weak = []
 
         # Clusters representing HaloTouches should get merged, if possible
-        key += (c.is_halo_touch,)
+        weak.append(c.is_halo_touch)
+
+        # If there are writes to thread-shared object, make it part of the key.
+        # This will promote fusion of non-adjacent Clusters writing to (some form of)
+        # shared memory, which in turn will minimize the number of necessary barriers
+        # Same story for reads from thread-shared objects
+        weak.extend([
+            any(f._mem_shared for f in c.scope.writes),
+            any(f._mem_shared for f in c.scope.reads)
+        ])
+
+        # Promoting adjacency of IndexDerivatives will maximize their reuse
+        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
+
+        key = self.Key(strict, weak)
 
         return key
 
@@ -236,7 +267,7 @@ class Fusion(Queue):
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If
         # not, do not waste time computing a new topological ordering
-        counter = Counter(self._key(cg) for cg in cgroups)
+        counter = Counter(self._key(cg).strict for cg in cgroups)
         if not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups, prefix)
 

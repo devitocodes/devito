@@ -14,7 +14,7 @@ __all__ = ['mpiize']
 
 
 @iet_pass
-def optimize_halospots(iet):
+def optimize_halospots(iet, **kwargs):
     """
     Optimize the HaloSpots in ``iet``. HaloSpots may be dropped, merged and moved
     around in order to improve the halo exchange performance.
@@ -22,7 +22,7 @@ def optimize_halospots(iet):
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
     iet = _merge_halospots(iet)
-    iet = _drop_if_unwritten(iet)
+    iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
 
     return iet, {}
@@ -39,9 +39,9 @@ def _drop_halospots(iet):
 
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
-        for f in hs.fmapper:
-            scope = Scope([i.expr for i in expressions])
-            if all(i.is_reduction for i in scope.reads.get(f, [])):
+        scope = Scope([i.expr for i in expressions])
+        for f, v in scope.reads.items():
+            if f in hs.fmapper and all(i.is_reduction for i in v):
                 mapper[hs].add(f)
 
     # Transform the IET introducing the "reduced" HaloSpots
@@ -73,7 +73,7 @@ def _hoist_halospots(iet):
         # A reduction isn't a stopper to hoisting
         return dep.write is not None and dep.write.is_reduction
 
-    hoist_rules = [rule0, rule1]
+    rules = [rule0, rule1]
 
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
@@ -92,13 +92,16 @@ def _hoist_halospots(iet):
                 for n, i in enumerate(iters):
                     candidates = [i.dim._defines for i in iters[n:]]
 
-                    test = True
+                    all_candidates = set().union(*candidates)
+                    reads = scopes[i].getreads(f)
+                    if any(set(a.ispace.dimensions) & all_candidates
+                           for a in reads):
+                        continue
+
                     for dep in scopes[i].d_flow.project(f):
-                        if any(rule(dep, candidates, loc_dims) for rule in hoist_rules):
-                            continue
-                        test = False
-                        break
-                    if test:
+                        if not any(r(dep, candidates, loc_dims) for r in rules):
+                            break
+                    else:
                         hsmapper[hs] = hsmapper[hs].drop(f)
                         imapper[i].append(hs.halo_scheme.project(f))
                         break
@@ -148,7 +151,7 @@ def _merge_halospots(iet):
         return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
-    merge_rules = [rule0, rule1, rule2]
+    rules = [rule0, rule1, rule2]
 
     # Analysis
     mapper = {}
@@ -165,13 +168,10 @@ def _merge_halospots(iet):
             mapper[hs] = hs.halo_scheme
 
             for f, v in hs.fmapper.items():
-                test = True
                 for dep in scope.d_flow.project(f):
-                    if any(rule(dep, hs, v.loc_indices) for rule in merge_rules):
-                        continue
-                    test = False
-                    break
-                if test:
+                    if not any(r(dep, hs, v.loc_indices) for r in rules):
+                        break
+                else:
                     try:
                         mapper[hs0] = HaloScheme.union([mapper[hs0],
                                                         hs.halo_scheme.project(f)])
@@ -191,21 +191,27 @@ def _merge_halospots(iet):
     return iet
 
 
-def _drop_if_unwritten(iet):
+def _drop_if_unwritten(iet, options=None, **kwargs):
     """
     Drop HaloSpots for unwritten Functions.
 
     Notes
     -----
-    This may be relaxed if Devito+MPI were to be used within existing
-    legacy codes, which would call the generated library directly.
+    This may be relaxed if Devito were to be used within existing legacy codes,
+    which would call the generated library directly.
     """
+    drop_unwritten = options['dist-drop-unwritten']
+    if not callable(drop_unwritten):
+        key = lambda f: drop_unwritten
+    else:
+        key = drop_unwritten
+
     # Analysis
     writes = {i.write for i in FindNodes(Expression).visit(iet)}
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         for f in hs.fmapper:
-            if f not in writes:
+            if f not in writes and key(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
     # Post-process analysis
@@ -321,7 +327,7 @@ def mpiize(graph, **kwargs):
     options = kwargs['options']
 
     if options['optcomms']:
-        optimize_halospots(graph)
+        optimize_halospots(graph, **kwargs)
 
     mpimode = options['mpi']
     if mpimode:

@@ -68,19 +68,20 @@ class FIndexed(Indexed, Pickable):
     `uX[x*ny + y]`, where `X` is a string provided by the caller.
     """
 
-    __rargs__ = ('indexed', 'pname')
+    __rargs__ = ('base', '*indices')
     __rkwargs__ = ('strides',)
 
-    def __new__(cls, indexed, pname, strides=None):
-        plabel = Symbol(name=pname, dtype=indexed.dtype)
-        base = IndexedData(plabel, None, function=indexed.function)
-        obj = super().__new__(cls, base, *indexed.indices)
-
-        obj.indexed = indexed
-        obj.pname = pname
+    def __new__(cls, base, *args, strides=None):
+        obj = super().__new__(cls, base, *args)
         obj.strides = as_tuple(strides)
 
         return obj
+
+    @classmethod
+    def from_indexed(cls, indexed, pname, strides=None):
+        label = Symbol(name=pname, dtype=indexed.dtype)
+        base = IndexedData(label, None, function=indexed.function)
+        return FIndexed(base, *indexed.indices, strides=strides)
 
     def __repr__(self):
         return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
@@ -90,9 +91,15 @@ class FIndexed(Indexed, Pickable):
     def _hashable_content(self):
         return super()._hashable_content() + (self.strides,)
 
+    func = Pickable._rebuild
+
     @property
     def name(self):
         return self.function.name
+
+    @property
+    def pname(self):
+        return self.base.name
 
     @property
     def free_symbols(self):
