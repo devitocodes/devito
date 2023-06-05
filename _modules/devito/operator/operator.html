@@ -271,6 +271,7 @@
 
         <span class="c1"># Required for the jit-compilation</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span>
+        <span class="n">op</span><span class="o">.</span><span class="n">_language</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">]</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">op</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -1115,6 +1116,8 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">allocator</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_allocator</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_platform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">language</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_language</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_compiler</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">options</span> <span class="o">=</span> <span class="n">op</span><span class="o">.</span><span class="n">_options</span>
 
     <span class="nd">@property</span>
