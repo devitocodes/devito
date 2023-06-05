@@ -130,7 +130,11 @@ def test_precomputed_interpolation():
                                    interpolation_coeffs=interpolation_coeffs)
     eqn = sf.interpolate(m)
     op = Operator(eqn)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op()
     expected_values = [sin(point[0]) + sin(point[1]) for point in points]
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
@@ -164,7 +168,11 @@ def test_precomputed_interpolation_time():
 
     eqn = sf.interpolate(u)
     op = Operator(eqn)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(time_m=0, time_M=4)
 
     for it in range(5):
@@ -197,7 +205,11 @@ def test_precomputed_injection():
     expr = sf.inject(m, Float(1.))
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op()
     indices = [slice(0, 2, 1), slice(9, 11, 1)]
     assert np.allclose(m.data[indices], result, rtol=1.e-5)
@@ -233,7 +245,11 @@ def test_precomputed_injection_time():
     expr = sf.inject(m, Float(1.))
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op()
     for ti in range(2):
         indices = [slice(0, 2, 1), slice(9, 11, 1)]
@@ -257,7 +273,11 @@ def test_interpolate(shape, coords, npoints=20):
 
     expr = p.interpolate(a)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
@@ -278,7 +298,11 @@ def test_interpolate_cumm(shape, coords, npoints=20):
     p.data[:] = 1.
     expr = p.interpolate(a, increment=True)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
@@ -300,7 +324,11 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     p.data[:] = 1.
     expr = p.interpolate(a, u_t=a.indices[0]+1)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
@@ -308,7 +336,11 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     p.data[:] = 1.
     expr = p.interpolate(a, p_t=p.indices[0]+1)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
@@ -317,7 +349,11 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
     expr = p.interpolate(a, u_t=a.indices[0]+1,
                          p_t=p.indices[0]+1)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
@@ -337,7 +373,11 @@ def test_interpolate_array(shape, coords, npoints=20):
 
     expr = p.interpolate(a)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, points=p.data[:])
 
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
@@ -358,7 +398,11 @@ def test_interpolate_custom(shape, coords, npoints=20):
     p.data[:] = 1.
     expr = p.interpolate(a * p.indices[0])
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
@@ -376,7 +420,7 @@ def test_interpolation_dx():
     sf1.coordinates.data[0, :] = (0.5, 0.5)
 
     op = Operator(sf1.interpolate(u.dx))
-
+    print(op)
     assert sf1.data.shape == (1,)
     u.data[:] = 0.0
     u.data[5, 5] = 4.0
@@ -404,7 +448,11 @@ def test_interpolate_indexed(shape, coords, npoints=20):
     p.data[:] = 1.
     expr = p.interpolate(a[a.grid.dimensions] * p.indices[0])
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
@@ -427,7 +475,11 @@ def test_inject(shape, coords, result, npoints=19):
     expr = p.inject(a, Float(1.))
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a)
 
     indices = [slice(4, 6, 1) for _ in coords]
@@ -451,7 +503,11 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     expr = p.inject(a, Float(1.), u_t=a.indices[0]+1)
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, time=1)
 
     indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
@@ -462,7 +518,11 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     expr = p.inject(a, Float(1.), p_t=p.indices[0]+1)
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, time=1)
 
     indices = [slice(0, 0, 1)] + [slice(4, 6, 1) for _ in coords]
@@ -473,7 +533,11 @@ def test_inject_time_shift(shape, coords, result, npoints=19):
     expr = p.inject(a, Float(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, time=1)
 
     indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
@@ -497,7 +561,11 @@ def test_inject_array(shape, coords, result, npoints=19):
     expr = p.inject(a, p)
 
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, points=p2.data[:])
 
     indices = [slice(4, 6, 1) for _ in coords]
@@ -521,7 +589,11 @@ def test_inject_from_field(shape, coords, result, npoints=19):
 
     expr = p.inject(field=a, expr=b)
     op = Operator(expr)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op(a=a, b=b)
 
     indices = [slice(4, 6, 1) for _ in coords]
@@ -595,7 +667,11 @@ def test_edge_sparse():
     expr = sf1.interpolate(u)
     subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing)}
     op = Operator(expr, subs=subs)
+<<<<<<< HEAD
 
+=======
+    print(op)
+>>>>>>> 98cb40d85 (operations: remove unused points and cleanup  weights)
     op()
     assert sf1.data[0] == 0
 
@@ -689,6 +765,7 @@ def test_sparse_first():
     # No time dependence so need the implicit dim
     rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
     op = Operator(eqs + rec)
+    print(op)
 
     op(time_M=10)
     expected = 10*11/2  # n (n+1)/2

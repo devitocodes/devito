@@ -8,7 +8,7 @@ from devito.finite_differences.elementary import floor
 from devito.symbolics import retrieve_function_carriers
 from devito.tools import as_tuple, flatten, prod
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension)
+                          CustomDimension, Function)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
@@ -217,7 +217,8 @@ class WeightedInterpolator(GenericInterpolator):
         pmap = self.sfunction._coordinate_indices
 
         # Temporaries for the position
-        temps = self._positions(implicit_dims)
+        # temps = self._positions(implicit_dims)
+        temps = []
 
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
@@ -230,20 +231,17 @@ class WeightedInterpolator(GenericInterpolator):
         # Create positions and indices temporaries/indirections
         for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
             p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
-            temps.extend([Eq(p, pos._subs(pdim, di) + rd,
-                             implicit_dims=implicit_dims)])
+            temps.extend([Eq(p, pos.subs({pdim: di}), implicit_dims=implicit_dims)])
 
             # Add conditional
             lb = sympy.And(p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(p <= d.symbolic_max + self.r, evaluate=False)
             condition = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                             condition=condition, indirect=True)
-            points[d] = p
+                                             condition=condition, indirect=True) + rd
 
         # Substitution mapper for variables
-        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0)
-                               for ((k, c), pi) in zip(mapper.items(), points)})
+        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})
                     for v in variables}
 
         return idx_subs, temps
