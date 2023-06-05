@@ -37,11 +37,11 @@ class Data(np.ndarray):
     -----
     NumPy array subclassing is described at: ::
 
-        https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
+        https://numpy.org/doc/stable/user/basics.subclassing.html
 
     Any view or copy created from ``self``, for instance via a slice operation
     or a universal function ("ufunc" in NumPy jargon), will still be of type
-    Data.
+    `Data`.
     """
 
     def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT,
@@ -224,7 +224,7 @@ class Data(np.ndarray):
                     glb_shape = self._distributor.glb_shape
                 retval = np.zeros(glb_shape, dtype=self.dtype.type)
                 start, stop, step = 0, 0, 1
-                for i, s in enumerate(sendcounts):
+                for i, _ in enumerate(sendcounts):
                     if i > 0:
                         start += sendcounts[i-1]
                     stop += sendcounts[i]

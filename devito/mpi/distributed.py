@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
 from math import ceil, pow
-from sympy import root, primefactors
+from sympy import primefactors
 
 import atexit
 
@@ -618,26 +618,22 @@ class CustomTopology(tuple):
     def __new__(cls, items, input_comm):
         # Keep track of nstars and already defined decompositions
         nstars = len([i for i in items if i == '*'])
-        alloc_procs = np.prod([i for i in items if i != '*'])
-        remprocs = int(input_comm.size // alloc_procs)
 
         # If no stars exist we are ready
         if nstars == 0:
             processed = items
-        # If all inputs are stars, and nstars root exists slice as evenly as possible
-        elif nstars == len(items) and root(remprocs, nstars).is_Integer:
-            dd = root(remprocs, nstars)
-            processed = as_tuple([int(dd) for i in range(nstars)])
-        # Process nstars > 0
         else:
+            # Init decomposition list
             processed = [1] * len(items)
 
-            # Get star and ints positions
+            # Get star and integer indices
             int_pos = [i for i, item in enumerate(items) if isinstance(item, int)]
             int_vals = [item for item in items if isinstance(item, int)]
             star_pos = [i for i, item in enumerate(items) if not isinstance(item, int)]
 
             # Decompose the processes remaining for allocation to prime factors
+            alloc_procs = np.prod([i for i in items if i != '*'])
+            remprocs = int(input_comm.size // alloc_procs)
             prime_factors = primefactors(remprocs)
 
             star_i = -1
