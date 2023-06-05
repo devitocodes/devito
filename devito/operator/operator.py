@@ -194,6 +194,7 @@ class Operator(Callable):
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
+        op._language = kwargs['language']
         op._lib = None
         op._cfunction = None
 
@@ -1035,6 +1036,8 @@ class ArgumentsMap(dict):
 
         self.allocator = op._allocator
         self.platform = op._platform
+        self.language = op._language
+        self.compiler = op._compiler
         self.options = op._options
 
     @property
