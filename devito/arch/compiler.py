@@ -683,9 +683,9 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.cflags.append("-xHost")
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
+        self.cflags.append("-xHost")
 
         if configuration['safe-math']:
             self.cflags.append("-fp-model=strict")
@@ -703,8 +703,8 @@ class IntelCompiler(Compiler):
         if kwargs.get('mpi'):
             mpi_distro = sniff_mpi_distro('mpiexec')
             if mpi_distro != 'IntelMPI':
-                warning("The MPI compiler `%s` doesn't use the Intel "
-                        "C/C++ compiler underneath" % self.MPICC)
+                warning("Expected Intel MPI distribution with `%s`, but found `%s`"
+                        % (self.__class__.__name__, mpi_distro))
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
@@ -767,13 +767,6 @@ class OneapiCompiler(IntelCompiler):
             self.cflags.remove('-g')  # -g disables some optimizations in IGC
             self.cflags.append('-gline-tables-only')
             self.cflags.append('-fdebug-info-for-profiling')
-
-        # Make sure the MPI compiler uses `icx` underneath -- whatever the MPI distro is
-        if kwargs.get('mpi'):
-            mpi_distro = sniff_mpi_distro('mpiexec')
-            if mpi_distro != 'IntelMPI':
-                warning("The MPI compiler `%s` doesn't use the Intel(R) oneAPI "
-                        "`%s` compiler underneath" % self.MPICC, self.CXX)
 
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,
