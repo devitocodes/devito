@@ -70,6 +70,7 @@ def toposort(data):
             processed = sorted(ordered) + processed
         mapper = OrderedDict([(item, (dep - ordered)) for item, dep in mapper.items()
                               if item not in ordered])
+
     if len(processed) != len(set(flatten(data) + flatten(data.values()))):
         raise ValueError("A cyclic dependency exists amongst %r" % data)
 

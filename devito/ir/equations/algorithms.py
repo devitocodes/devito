@@ -5,7 +5,7 @@ from sympy import sympify
 
 from devito.symbolics import retrieve_indexed, uxreplace
 from devito.tools import PartialOrderTuple, as_tuple, filter_sorted, flatten
-from devito.types import Dimension, IgnoreDimSort
+from devito.types import Dimension, IgnoreDimSort, ConditionalDimension
 from devito.types.basic import AbstractFunction
 
 __all__ = ['dimension_sort', 'lower_exprs']
@@ -33,8 +33,14 @@ def dimension_sort(expr):
 
                 # Fallback: Just insert all the Dimensions we find, regardless of
                 # what the user is attempting to do
-                relation.extend([d for d in filter_sorted(i.free_symbols)
-                                 if isinstance(d, Dimension)])
+                rels = []
+                for d in filter_sorted(i.free_symbols):
+                    if isinstance(d, ConditionalDimension) and d.indirect:
+                        continue
+                    elif isinstance(d, Dimension):
+                        rels.append(d)
+
+                relation.extend(rels)
 
         # StencilDimensions are lowered subsequently through special compiler
         # passes, so they can be ignored here
