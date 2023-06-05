@@ -130,7 +130,11 @@ class Reconstructable(object):
             * `a._rebuild(c=5) -> x(3, 5, 5)`
             * `a._rebuild(1, c=7) -> x(1, 5, 7)`
         """
-        args += tuple(getattr(self, i) for i in self.__rargs__[len(args):])
+        for i in self.__rargs__[len(args):]:
+            if i.startswith('*'):
+                args += tuple(getattr(self, i[1:]))
+            else:
+                args += (getattr(self, i),)
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
 
         # Should we use a constum reconstructor?

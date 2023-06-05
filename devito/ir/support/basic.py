@@ -411,8 +411,12 @@ class TimedAccess(IterationInstance, AccessMode):
         # Indexed representing an arbitrary access along `x`, within the `t`
         # IterationSpace, while the sink lives within the `tx` IterationSpace
         if len(self.itintervals[n:]) != len(other.itintervals[n:]):
-            ret.append(S.Infinity)
-            return Vector(*ret)
+            v = Vector(*ret)
+            if v != 0:
+                return v
+            else:
+                ret.append(S.Infinity)
+                return Vector(*ret)
 
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
@@ -561,6 +565,11 @@ class Relation(object):
         True if the source has same timestamp as the sink, False otherwise.
         """
         return self.source.timestamp == self.sink.timestamp
+
+    @cached_property
+    def is_lex_ne(self):
+        """True if the source's and sink's timestamps differ, False otherwise."""
+        return self.source.timestamp != self.sink.timestamp
 
     @cached_property
     def is_lex_negative(self):
