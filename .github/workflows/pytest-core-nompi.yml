@@ -38,7 +38,8 @@ jobs:
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py37-gcc-omp,
-           pytest-docker-py37-icc-omp
+           pytest-docker-py37-icc-omp,
+           pytest-docker-py38-icx-omp
         ]
         set: [base, adjoint]
         include:
@@ -105,6 +106,13 @@ jobs:
           language: "openmp"
           sympy: "1.11"
 
+        - name: pytest-docker-py38-icx-omp
+          python-version: '3.8'
+          os: ubuntu-22.04
+          arch: "icx"
+          language: "openmp"
+          sympy: "1.11"
+
         - set: base
           test-set: 'not adjoint'
 
@@ -133,13 +141,13 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e DEVITO_ARCH=${{ matrix.arch }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi
       id: set-run
 
-    - name: Install GCC ${{ matrix.arch }}
+    - name: Install ${{ matrix.arch }} compiler
       if: "runner.os == 'linux' && !contains(matrix.name, 'docker')"
       run : |
         sudo apt-get install -y ${{ matrix.arch }}

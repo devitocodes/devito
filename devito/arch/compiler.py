@@ -12,8 +12,9 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, SKX, POWER8, POWER9, GRAVITON,
-                         get_nvidia_cc, check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
+                         INTELGPUX, IntelSkylake, get_nvidia_cc, check_cuda_runtime,
+                         get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
@@ -375,12 +376,21 @@ class GNUCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable']
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        self.cflags += ['-march=native', '-Wno-unused-result',
+                        '-Wno-unused-variable', '-Wno-unused-but-set-variable']
+
         if configuration['safe-math']:
             self.cflags.append('-fno-unsafe-math-optimizations')
         else:
             self.cflags.append('-ffast-math')
+
+        if isinstance(platform, IntelSkylake):
+            # The default is `=256` because avx512 slows down the CPU frequency;
+            # however, we empirically found that stencils generally benefit
+            # from `=512`
+            self.cflags.append('-mprefer-vector-width=512')
 
         language = kwargs.pop('language', configuration['language'])
         try:
@@ -414,7 +424,7 @@ class ArmCompiler(GNUCompiler):
 class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(ClangCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -481,7 +491,7 @@ class AOMPCompiler(Compiler):
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
 
     def __init__(self, *args, **kwargs):
-        super(AOMPCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -531,7 +541,7 @@ class DPCPPCompiler(Compiler):
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(PGICompiler, self).__init__(*args, cpp=True, **kwargs)
+        super().__init__(*args, cpp=True, **kwargs)
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
@@ -671,39 +681,30 @@ class HipCompiler(Compiler):
 class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.cflags.append("-xhost")
-
-        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+        self.cflags.append("-xHost")
 
         if configuration['safe-math']:
             self.cflags.append("-fp-model=strict")
         else:
-            self.cflags.append('-fast')
+            self.cflags.append('-fp-model=fast')
 
-        if platform is SKX:
+        if isinstance(platform, IntelSkylake):
             # Systematically use 512-bit vectors on skylake
             self.cflags.append("-qopt-zmm-usage=high")
 
-        try:
-            if self.version >= Version("15.0.0"):
-                # Append the OpenMP flag regardless of configuration['language'],
-                # since icc15 and later versions implement OpenMP 4.0, hence
-                # they support `#pragma omp simd`
-                self.ldflags.append('-qopenmp')
-        except (TypeError, ValueError):
-            if language == 'openmp':
-                # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
-                self.ldflags.append('-fopenmp')
+        if language == 'openmp':
+            self.ldflags.append('-qopenmp')
 
         # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
-            ver = check_output([self.MPICC, "--version"]).decode("utf-8")
-            if not ver.startswith("icc"):
-                warning("The MPI compiler `%s` doesn't use the Intel "
-                        "C/C++ compiler underneath" % self.MPICC)
+            mpi_distro = sniff_mpi_distro('mpiexec')
+            if mpi_distro != 'IntelMPI':
+                warning("Expected Intel MPI distribution with `%s`, but found `%s`"
+                        % (self.__class__.__name__, mpi_distro))
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
@@ -727,14 +728,53 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelKNLCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.cflags += ["-xMIC-AVX512"]
+        self.cflags.append('-xMIC-AVX512')
 
         language = kwargs.pop('language', configuration['language'])
 
         if language != 'openmp':
             warning("Running on Intel KNL without OpenMP is highly discouraged")
+
+
+class OneapiCompiler(IntelCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+
+        if language == 'openmp':
+            self.ldflags.remove('-qopenmp')
+            self.ldflags.append('-fopenmp')
+
+        if language == 'sycl':
+            self.cflags.append('-fsycl')
+            if platform is NVIDIAX:
+                self.cflags.append('-fsycl-targets=nvptx64-cuda')
+            else:
+                self.cflags.append('-fsycl-targets=spir64')
+
+            if platform is NVIDIAX:
+                self.cflags.append('-fopenmp-targets=nvptx64-cuda')
+            if platform is INTELGPUX:
+                self.cflags.append('-fopenmp-targets=spir64')
+                self.cflags.append('-fopenmp-target-simd')
+
+        if platform is INTELGPUX:
+            self.cflags.remove('-g')  # -g disables some optimizations in IGC
+            self.cflags.append('-gline-tables-only')
+            self.cflags.append('-fdebug-info-for-profiling')
+
+    def __lookup_cmds__(self):
+        # OneAPI HPC ToolKit comes with icpx, which is clang++,
+        # and icx, which is clang
+        self.CC = 'icx'
+        self.CXX = 'icpx'
+        self.MPICC = 'mpicc'
+        self.MPICX = 'mpicx'
 
 
 class CustomCompiler(Compiler):
@@ -800,9 +840,11 @@ compiler_registry = {
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
     'osx': ClangCompiler,
-    'intel': IntelCompiler,
-    'icpc': IntelCompiler,
+    'intel': OneapiCompiler,
+    'icx': OneapiCompiler,
+    'icpx': OneapiCompiler,
     'icc': IntelCompiler,
+    'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
     'dpcpp': DPCPPCompiler,
