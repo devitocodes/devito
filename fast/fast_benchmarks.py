@@ -109,7 +109,7 @@ def compile_main(
     xop: XDSLOperator,
     dt: float,
     nt: int,
-    mpi: bool,
+    args: argparse.Namespace,
 ):
     main = generate_launcher_base(
         xop._module,
@@ -121,11 +121,11 @@ def compile_main(
             "dt": dt,
         },
         u.shape_allocated[1:],
-        mpi,
+        args.mpi,
         args.gpu,
     )
 
-    if mpi:
+    if args.mpi:
         xdsl_pass = f'"dmp-setup-and-teardown{decomp},lower-mpi"'
     else:
         xdsl_pass = '""'
@@ -150,8 +150,8 @@ def compile_main(
         raise e
 
 
-def compile_interop(bench_name: str, nodump: bool):
-    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} {"-DNODUMP" if nodump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
+def compile_interop(bench_name: str, args: argparse.Namespace):
+    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
     out: str
     try:
         print(f"Trying to compile {bench_name}.interop.o with:")
@@ -169,7 +169,19 @@ def compile_interop(bench_name: str, nodump: bool):
         raise e
 
 
-def compile_kernel(bench_name: str, mlir_code: str, xdsl_pipe: str, mlir_pipe: str):
+def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
+    if args.openmp:
+        xdsl_pipe = XDSL_CPU_PIPELINE
+        mlir_pipe = MLIR_OPENMP_PIPELINE
+    elif args.mpi:
+        xdsl_pipe = XDSL_MPI_PIPELINE
+        mlir_pipe = MLIR_CPU_PIPELINE
+    elif args.gpu:
+        xdsl_pipe = XDSL_GPU_PIPELINE
+        mlir_pipe = MLIR_GPU_PIPELINE
+    else:
+        xdsl_pipe = XDSL_CPU_PIPELINE
+        mlir_pipe = MLIR_CPU_PIPELINE
     cmd = f"xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}"
     out: str
     try:
@@ -259,26 +271,14 @@ def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
         xop = XDSLOperator([eq0])
         if dump_main:
             dump_main_mlir(bench_name, grid, u, xop, dt, nt, args.mpi)
-        compile_main(bench_name, grid, u, xop, dt, nt, args.mpi)
-        compile_interop(bench_name, args.no_output_dump)
+        compile_main(bench_name, grid, u, xop, dt, nt, args)
+        compile_interop(bench_name, args)
         mlir_code = xop.mlircode
         if dump_mlir:
             info("Dump mlir code in  in " + bench_name + ".mlir")
             with open(bench_name + ".mlir", "w") as f:
                 f.write(mlir_code)
-        if args.openmp:
-            xdsl_pipeline = XDSL_CPU_PIPELINE
-            mlir_pipeline = MLIR_OPENMP_PIPELINE
-        elif args.mpi:
-            xdsl_pipeline = XDSL_MPI_PIPELINE
-            mlir_pipeline = MLIR_CPU_PIPELINE
-        elif args.gpu:
-            xdsl_pipeline = XDSL_GPU_PIPELINE
-            mlir_pipeline = MLIR_GPU_PIPELINE
-        else:
-            xdsl_pipeline = XDSL_CPU_PIPELINE
-            mlir_pipeline = MLIR_CPU_PIPELINE
-        compile_kernel(bench_name, mlir_code, xdsl_pipeline, mlir_pipeline)
+        compile_kernel(bench_name, mlir_code, args)
         link_kernel(bench_name)
         rt = run_kernel(bench_name, args.mpi)
 
