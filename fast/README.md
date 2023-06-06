@@ -25,13 +25,13 @@ Finally, the `<name>.bench` will run both devito and the stencil version and com
 
 passing options to the benchmark files is done with the `BENCH_OPTS="..."` variable for make.
 
-To conclude, running the `2d5pt` example and compare the results, use:
+To conclude, running the `2d5pt` example on `gpu` and compare the results, use:
 
 `make 2d5pt.bench BENCH_OPTS="-d 1000 1000 -nt 1000" MODE=gpu`
 
 ## ToDos:
 
- - Controlling devito omp flags / gpu usage is currently not done in the `Makefile`
+- Controlling devito omp flags / gpu usage is currently not done in the `Makefile`
 
 ## Passing environment variables to devito/omp
 
