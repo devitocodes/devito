@@ -111,6 +111,8 @@ def compile_main(
     nt: int,
     args: argparse.Namespace,
 ):
+    print("Compiling main with options:")
+    print({"mpi": args.mpi, "gpu": args.gpu})
     main = generate_launcher_base(
         xop._module,
         {
@@ -130,7 +132,14 @@ def compile_main(
     else:
         xdsl_pass = '""'
 
-    cmd = f"tee main.mlir | xdsl-opt --allow-unregistered-dialect -p {xdsl_pass} | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {CFLAGS} 2>&1"
+    main_CFLAGS = CFLAGS
+
+    if args.mpi:
+        main_CFLAGS += " -lmpi"
+    if args.gpu:
+        main_CFLAGS += " -lmlir_cuda_runtime"
+
+    cmd = f"tee main.mlir | xdsl-opt --allow-unregistered-dialect -p {xdsl_pass} | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {main_CFLAGS} 2>&1"
     out: str
     try:
         print(f"Trying to compile {bench_name}.main.o with:")
@@ -170,6 +179,9 @@ def compile_interop(bench_name: str, args: argparse.Namespace):
 
 
 def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
+    print("Compiling kernel with options:")
+    print({"openmp": args.openmp, "mpi": args.mpi, "gpu": args.gpu})
+
     if args.openmp:
         xdsl_pipe = XDSL_CPU_PIPELINE
         mlir_pipe = MLIR_OPENMP_PIPELINE
@@ -182,7 +194,17 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
     else:
         xdsl_pipe = XDSL_CPU_PIPELINE
         mlir_pipe = MLIR_CPU_PIPELINE
-    cmd = f"xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {CFLAGS}"
+
+    kernel_CFLAGS = CFLAGS
+
+    if args.openmp:
+        kernel_CFLAGS += " -fopenmp"
+    if args.mpi:
+        kernel_CFLAGS += " -lmpi"
+    if args.gpu:
+        kernel_CFLAGS += " -lmlir_cuda_runtime"
+
+    cmd = f"xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {kernel_CFLAGS}"
     out: str
     try:
         print(f"Trying to compile {bench_name}.kernel.o with:")
@@ -202,8 +224,16 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
         raise e
 
 
-def link_kernel(bench_name: str):
-    cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {CFLAGS}"
+def link_kernel(bench_name: str, args: argparse.Namespace):
+    link_CFLAGS = CFLAGS
+
+    if args.openmp:
+        link_CFLAGS += " -fopenmp"
+    if args.mpi:
+        link_CFLAGS += " -lmpi"
+    if args.gpu:
+        link_CFLAGS += " -lmlir_cuda_runtime"
+    cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS}"
     out: str
     try:
         print(f"Trying to compile {bench_name}.out with:")
@@ -259,13 +289,6 @@ def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
     global CFLAGS
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
-    if args.openmp:
-        CFLAGS += " -fopenmp"
-    if args.mpi:
-        CFLAGS += " -lmpi"
-    if args.gpu:
-        CFLAGS += " -lmlir_cuda_runtime"
-
     if args.xdsl:
         dump_input(u, bench_name)
         xop = XDSLOperator([eq0])
@@ -279,7 +302,7 @@ def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
             with open(bench_name + ".mlir", "w") as f:
                 f.write(mlir_code)
         compile_kernel(bench_name, mlir_code, args)
-        link_kernel(bench_name)
+        link_kernel(bench_name, args)
         rt = run_kernel(bench_name, args.mpi)
 
     else:
