@@ -28,7 +28,7 @@ XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu}"
 XDSL_MPI_PIPELINE = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
 
-MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, func.func(gpu-async-region), gpu-to-llvm, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
+MAIN_MLIR_FILE_PIPELINE = '"builtin.module(canonicalize, func.func(gpu-async-region), convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, gpu-to-llvm, convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"'
 
 
 def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value: int):
@@ -162,7 +162,7 @@ def compile_main(
 def compile_interop(bench_name: str, args: argparse.Namespace):
     flags = CFLAGS
     if args.mpi:
-        flags += ' -DMPI_ENABLE=1 '
+        flags += " -DMPI_ENABLE=1 "
 
     cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {flags} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
     out: str
