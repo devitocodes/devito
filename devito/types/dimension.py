@@ -1239,10 +1239,10 @@ class CustomDimension(BasicDimension):
 
     @property
     def bound_symbols(self):
+        ret = {self.symbolic_min, self.symbolic_max, self.symbolic_size}
         if self.is_Derived:
-            return self.parent.bound_symbols
-        else:
-            return frozenset()
+            ret.update(self.parent.bound_symbols)
+        return frozenset(i for i in ret if i.is_Symbol)
 
     @cached_property
     def _defines(self):

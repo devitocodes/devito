@@ -17,7 +17,7 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
 from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype,
-                          flatten, generator, split)
+                          flatten, generator, is_integer, split)
 from devito.types import (Array, Bundle, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
 
@@ -338,21 +338,24 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_copy(self, f, hse, key, swap=False):
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
+        ofs = [Symbol(name='o%s' % d.root, is_const=True) for d in f.dimensions]
 
-        f_offsets = []
-        f_indices = []
-        for d, h in zip(f.dimensions, f._size_nodomain.left):
-            offset = Symbol(name='o%s' % d.root, is_const=True)
-            f_offsets.append(offset)
-            offset_nohalo = offset - h
-            f_indices.append(offset_nohalo + (d.root if d not in hse.loc_indices else 0))
+        bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
+        bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
+                 for d, s in zip(dims, bshape)]
 
         eqns = []
-        eqns.extend([Eq(d.symbolic_min, 0) for d in dims])
-        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in dims])
+        eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
+        eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in bdims])
 
-        bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
-        buf = Array(name='buf', dimensions=bdims, dtype=f.c0.dtype, padding=0)
+        vd = CustomDimension(name='vd', symbolic_size=f.ncomp)
+        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
+                    padding=0)
+
+        mapper = dict(zip(dims, bdims))
+        findices = [o - h + mapper.get(d.root, 0)
+                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
+
         if swap is False:
             swap = lambda i, j: (i, j)
             name = 'gather%s' % key
@@ -360,13 +363,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             swap = lambda i, j: (j, i)
             name = 'scatter%s' % key
         for i, c in enumerate(f.components):
-            eqns.append(Eq(*swap(buf[[i] + dims], c[f_indices])))
+            eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
 
         # Compile `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(eqns)
 
-        shape = [d.symbolic_size for d in dims]
-        parameters = [buf] + shape + list(f.components) + f_offsets
+        parameters = [buf] + bshape + list(f.components) + ofs
 
         return CopyBuffer(name, irs.uiet, parameters)
 
@@ -1156,7 +1158,19 @@ class MPIMsg(CompositeObject):
     def npeers(self):
         return len(self._halos)
 
-    def _arg_defaults(self, allocator, alias):
+    def _as_number(self, v, args):
+        """
+        Turn a sympy.Symbol into a number. In doing so, perform a number of
+        sanity checks to ensure we get a Symbol iff the Msg is for an Array.
+        """
+        if is_integer(v):
+            return int(v)
+        else:
+            assert self.target.c0.is_Array
+            assert args is not None
+            return int(v.subs(args))
+
+    def _arg_defaults(self, allocator, alias, args=None):
         # Lazy initialization if `allocator` is necessary as the `allocator`
         # type isn't really known until an Operator is constructed
         self._allocator = allocator
@@ -1165,14 +1179,14 @@ class MPIMsg(CompositeObject):
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
 
-            # Buffer size for this peer
+            # Buffer shape for this peer
             shape = []
             for dim, side in zip(*halo):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
                 except AttributeError:
                     assert side is CENTER
-                    shape.append(f._size_domain[dim])
+                    shape.append(self._as_number(f._size_domain[dim], args))
             entry.sizes = (c_int*len(shape))(*shape)
 
             # Allocate the send/recv buffers
@@ -1181,8 +1195,8 @@ class MPIMsg(CompositeObject):
             entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
 
-            # The `memfree_args` will be used to deallocate the buffer upon returning
-            # from C-land
+            # The `memfree_args` will be used to deallocate the buffer upon
+            # returning from C-land
             self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
 
         return {self.name: self.value}
@@ -1198,7 +1212,7 @@ class MPIMsg(CompositeObject):
         else:
             alias = f
 
-        return self._arg_defaults(args.allocator, alias=alias)
+        return self._arg_defaults(args.allocator, alias=alias, args=args)
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
@@ -1218,30 +1232,34 @@ class MPIMsgEnriched(MPIMsg):
         (_C_field_to, c_int)
     ]
 
-    def _arg_defaults(self, allocator, alias=None):
-        super()._arg_defaults(allocator, alias)
+    def _arg_defaults(self, allocator, alias=None, args=None):
+        super()._arg_defaults(allocator, alias, args=args)
 
         f = alias or self.target.c0
         neighborhood = f.grid.distributor.neighborhood
 
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
+
             # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
             ofsg = []
             for dim, side in zip(*halo):
                 try:
-                    ofsg.append(getattr(f._offset_owned[dim], side.name))
+                    v = getattr(f._offset_owned[dim], side.name)
+                    ofsg.append(self._as_number(v, args))
                 except AttributeError:
                     assert side is CENTER
                     ofsg.append(f._offset_owned[dim].left)
             entry.ofsg = (c_int*len(ofsg))(*ofsg)
+
             # `fromrank` peer + scatter offsets
             entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
             ofss = []
             for dim, side in zip(*halo):
                 try:
-                    ofss.append(getattr(f._offset_halo[dim], side.flip().name))
+                    v = getattr(f._offset_halo[dim], side.flip().name)
+                    ofss.append(self._as_number(v, args))
                 except AttributeError:
                     assert side is CENTER
                     # Note `_offset_owned`, and not `_offset_halo`, is *not* a bug

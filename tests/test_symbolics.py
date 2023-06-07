@@ -12,8 +12,8 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, ccode, uxreplace)
 from devito.tools import as_tuple
-from devito.types import Array, Bundle, LocalObject, Object, Symbol as dSymbol
-from devito.types import Array, Bundle, FIndexed, LocalObject, Object, Symbol as dSymbol  # noqa
+from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
+                          Symbol as dSymbol)
 
 
 def test_float_indices():
@@ -302,6 +302,18 @@ def test_symbolic_printing():
 
     lo = MyLocalObject(name='lo')
     assert str(lo + 2) == '2 + lo'
+
+
+def test_findexed():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+    new_fi = fi.func(strides=(3, 4))
+
+    assert new_fi.name == fi.name == 'f'
+    assert new_fi.indices == fi.indices
+    assert new_fi.strides == (3, 4)
 
 
 def test_is_on_grid():

@@ -11,7 +11,7 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall, MPICall
+from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -1188,6 +1188,33 @@ class TestCodeGeneration(object):
         # No halo update here because the `x` Iteration is SEQUENTIAL
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
+
+    @pytest.mark.parallel(mode=1)
+    def test_conditional_dimension_v2(self):
+        """
+        Make sure optimizations don't move around halo exchanges if embedded
+        within conditionals.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        h = TimeFunction(name='h', grid=grid, space_order=2)
+
+        cd0 = ConditionalDimension(name='cd0', parent=time, condition=time <= 2)
+        cd1 = ConditionalDimension(name='cd1', parent=time, condition=time > 2)
+
+        eqns = [Eq(f.forward, f.dx2 + 1, implicit_dims=cd0),
+                Eq(h.forward, h.dx2 + 1, implicit_dims=cd1)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 2
+        assert all(isinstance(i.then_body[0].body[0].body[0].body[0],
+                              HaloUpdateList) for i in conds)
 
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),

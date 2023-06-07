@@ -26,8 +26,8 @@ from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
-           'MapExprStmts', 'MapNodes', 'IsPerfectIteration', 'printAST', 'CGen',
-           'CInterface', 'Transformer', 'Uxreplace']
+           'MapExprStmts', 'MapHaloSpots', 'MapNodes', 'IsPerfectIteration',
+           'printAST', 'CGen', 'CInterface', 'Transformer', 'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -737,14 +737,17 @@ class FindSections(Visitor):
         return ret
 
 
-class MapExprStmts(FindSections):
+class MapKind(FindSections):
 
     """
-    Construct a mapper from ExprStmts, i.e. expression statements such as Calls
-    and Expressions, to their enclosing block (e.g., Iteration, Block).
+    Base class to construct mappers from Nodes of given type to their enclosing
+    scope of Nodes.
     """
 
-    def visit_ExprStmt(self, o, ret=None, queue=None):
+    # NOTE: Ideally, we would use a metaclass that dynamically constructs mappers
+    # for the kind supplied by the caller, but it'd be overkill at the moment
+
+    def visit_dummy(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
@@ -752,6 +755,14 @@ class MapExprStmts(FindSections):
 
     visit_Conditional = FindSections.visit_Iteration
     visit_Block = FindSections.visit_Iteration
+
+
+class MapExprStmts(MapKind):
+    visit_ExprStmt = MapKind.visit_dummy
+
+
+class MapHaloSpots(MapKind):
+    visit_HaloSpot = MapKind.visit_dummy
 
 
 class MapNodes(Visitor):

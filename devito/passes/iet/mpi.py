@@ -3,7 +3,8 @@ from collections import defaultdict
 from sympy import S
 
 from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
-                           MapNodes, Transformer, retrieve_iteration_tree)
+                           MapNodes, MapHaloSpots, Transformer,
+                           retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
@@ -154,8 +155,14 @@ def _merge_halospots(iet):
     rules = [rule0, rule1, rule2]
 
     # Analysis
+    cond_mapper = MapHaloSpots().visit(iet)
+    cond_mapper = {hs: {i for i in v if i.is_Conditional}
+                   for hs, v in cond_mapper.items()}
+
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+
     mapper = {}
-    for i, halo_spots in MapNodes(Iteration, HaloSpot, 'immediate').visit(iet).items():
+    for i, halo_spots in iter_mapper.items():
         if i is None or len(halo_spots) <= 1:
             continue
 
@@ -164,20 +171,26 @@ def _merge_halospots(iet):
         hs0 = halo_spots[0]
         mapper[hs0] = hs0.halo_scheme
 
-        for hs in halo_spots[1:]:
-            mapper[hs] = hs.halo_scheme
+        for hs1 in halo_spots[1:]:
+            mapper[hs1] = hs1.halo_scheme
 
-            for f, v in hs.fmapper.items():
+            # If there are Conditionals involved, both `hs0` and `hs1` must be
+            # within the same Conditional, otherwise we would break the control
+            # flow semantics
+            if cond_mapper.get(hs0) != cond_mapper.get(hs1):
+                continue
+
+            for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
-                    if not any(r(dep, hs, v.loc_indices) for r in rules):
+                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
                         break
                 else:
                     try:
-                        mapper[hs0] = HaloScheme.union([mapper[hs0],
-                                                        hs.halo_scheme.project(f)])
-                        mapper[hs] = mapper[hs].drop(f)
+                        hs = hs1.halo_scheme.project(f)
+                        mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                        mapper[hs1] = mapper[hs1].drop(f)
                     except ValueError:
-                        # `hs.loc_indices=<frozendict {t: t1}` and
+                        # `hs1.loc_indices=<frozendict {t: t1}` and
                         # `hs0.loc_indices=<frozendict {t: t0}`
                         pass
 

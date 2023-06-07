@@ -9,6 +9,7 @@ import sympy
 from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
+from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
                           frozendict, is_integer)
 from devito.types import Grid
@@ -583,3 +584,51 @@ class HaloTouch(sympy.Function, Reconstructable):
         return isinstance(other, HaloTouch) and self.halo_scheme == other.halo_scheme
 
     func = Reconstructable._rebuild
+
+
+def _uxreplace_dispatch_haloscheme(hs0, rule):
+    changed = False
+    hs = hs0
+    for f, hse0 in hs0.fmapper.items():
+        # Is it an attempt to replace `f`?
+        for i, v in rule.items():
+            if i is f:
+                # Yes!
+                g = v
+                hse = hse0
+
+            elif i.is_Indexed and i.function is f and v.is_Indexed:
+                # Yes, but through an Indexed, hence the `loc_indices` may now
+                # differ; let's infer them from the context
+                g = v.function
+
+                loc_indices = {}
+                loc_dirs = {}
+                for d0, loc_index in hse0.loc_indices.items():
+                    if i.indices[d0] == loc_index:
+                        # They indeed do change
+                        d1 = g.indices[d0]
+                        loc_indices[d1] = v.indices[d0]
+                        loc_dirs[d1] = hse0.loc_dirs[d0]
+
+                if len(loc_indices) != len(hse0.loc_indices):
+                    # Nope, let's try with the next Indexed, if any
+                    continue
+
+                hse = HaloSchemeEntry(frozendict(loc_indices),
+                                      frozendict(loc_dirs),
+                                      hse0.halos, hse0.dims)
+
+            else:
+                continue
+
+            hs = hs.drop(f).add(g, hse)
+            changed |= True
+
+            break
+
+    return hs, changed
+
+
+_uxreplace_registry.register(HaloTouch,
+                             {HaloScheme: _uxreplace_dispatch_haloscheme})

@@ -1,6 +1,6 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, _Pointer
+from ctypes import POINTER, _Pointer, c_char_p, c_char
 from functools import reduce
 from operator import mul
 
@@ -81,6 +81,11 @@ class CodeSymbol(object):
         _type = self._C_ctype
         while issubclass(_type, _Pointer):
             _type = _type._type_
+
+        # `ctypes` treats C strings specially
+        if _type is c_char_p:
+            _type = c_char
+
         return ctypes_to_cstr(_type)
 
     @abc.abstractproperty
@@ -792,7 +797,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     True if data is allocated as a single, contiguous chunk of memory.
     """
 
-    __rkwargs__ = ('name', 'dtype', 'halo', 'padding', 'alias')
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'alias')
 
     @classmethod
     def _cache_key(cls, *args, **kwargs):
@@ -870,6 +875,12 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
 
+        # There may or may not be a `Grid`
+        self._grid = kwargs.get('grid')
+
+        # A `Distributor` to handle domain decomposition
+        self._distributor = self.__distributor_setup__(**kwargs)
+
         # Symbol properties
         # "Aliasing" another DiscreteFunction means that `self` logically
         # represents another object. For example, `self` might be used as the
@@ -912,6 +923,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def __padding_setup__(self, **kwargs):
         padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __distributor_setup__(self, **kwargs):
+        # There may or may not be a `Distributor`. In the latter case, the
+        # AbstractFunction is to be considered "local" to each MPI rank
+        try:
+            return kwargs.get('grid').distributor
+        except AttributeError:
+            return kwargs.get('distributor')
 
     @cached_property
     def _honors_autopadding(self):
@@ -1000,6 +1019,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def shape(self):
         """The shape of the object."""
         return self._shape
+
+    @property
+    def grid(self):
+        """The Grid on which the discretization occurred."""
+        return self._grid
 
     @property
     def dtype(self):
@@ -1102,6 +1126,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def _make_pointer(self):
         """Generate a symbolic pointer to self."""
         raise NotImplementedError
+
+    @cached_property
+    def _dist_dimensions(self):
+        """The Dimensions decomposed for distributed-parallelism."""
+        if self._distributor is None:
+            return ()
+        else:
+            return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @cached_property
     def _size_domain(self):
@@ -1309,6 +1341,8 @@ class BoundSymbol(AbstractSymbol):
     is tied to a specific Function; once the Function gets out of scope, the
     BoundSymbol will also become a garbage collector candidate.
     """
+
+    __rkwargs__ = AbstractSymbol.__rkwargs__ + ('function',)
 
     def __new__(cls, *args, function=None, **kwargs):
         obj = AbstractSymbol.__new__(cls, *args, **kwargs)

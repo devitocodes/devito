@@ -231,8 +231,16 @@ class Pickable(Reconstructable):
             )
 
     def __getnewargs_ex__(self):
-        return (tuple(getattr(self, i) for i in self._pickle_rargs),
-                {i: getattr(self, i) for i in self._pickle_rkwargs})
+        args = []
+        for i in self._pickle_rargs:
+            if i.startswith('*'):
+                args.extend(getattr(self, i[1:]))
+            else:
+                args.append(getattr(self, i))
+
+        kwargs = {i: getattr(self, i) for i in self._pickle_rkwargs}
+
+        return (tuple(args), kwargs)
 
 
 class Singleton(type):

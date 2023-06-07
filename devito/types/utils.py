@@ -59,6 +59,13 @@ class HierarchyLayer(object):
     def __repr__(self):
         return "Layer<%s>" % self.suffix
 
+    def __eq__(self, other):
+        return (isinstance(other, HierarchyLayer) and
+                self.suffix == other.suffix)
+
+    def __hash__(self):
+        return hash(self.suffix)
+
 
 class HostLayer(HierarchyLayer):
     pass

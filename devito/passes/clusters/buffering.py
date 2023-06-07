@@ -438,6 +438,7 @@ class Buffer(object):
                 'name': sregistry.make_name(prefix='%sb' % function.name),
                 'dimensions': dims,
                 'dtype': function.dtype,
+                'grid': function.grid,
                 'halo': function.halo,
                 'space': 'mapped',
                 'mapped': function
@@ -497,13 +498,13 @@ class Buffer(object):
         directions = {}
         for d, h in zip(self.buffer.dimensions, self.buffer._size_halo):
             try:
-                interval, si, direction = self.itintervals_mapper[d]
+                i, si, direction = self.itintervals_mapper[d]
                 # The initialization must comprise the halo region as well, since
                 # in principle this could be accessed through a stencil
-                interval = interval.translate(v0=-h.left, v1=h.right)
+                interval = Interval(i.dim, -h.left, h.right, i.stamp)
             except KeyError:
                 assert d is self.xd
-                interval, si, direction = Interval(d, 0, 0), (), Forward
+                interval, si, direction = Interval(d), (), Forward
             intervals.append(interval)
             sub_iterators[d] = si
             directions[d] = direction

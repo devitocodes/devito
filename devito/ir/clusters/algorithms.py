@@ -373,6 +373,11 @@ class Communications(Queue):
                 # be rescheduled after `c` upon topological sorting
                 points.update(a.access for a in c.scope.accesses if a.is_write)
 
+                # Sort for determinism
+                # NOTE: not sorting might impact code generation. The order of
+                # the args is important because that's what search functions honor!
+                points = sorted(points, key=str)
+
                 rhs = HaloTouch(*points, halo_scheme=halo_scheme)
 
                 # Insert only if not redundant, to avoid useless pollution

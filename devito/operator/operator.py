@@ -995,6 +995,19 @@ class Operator(Callable):
             self._lib.name = soname
 
 
+# Default action (perform or bypass) for selected compilation passes upon
+# recursive compilation
+# NOTE: it may not only be pointless to apply the following passes recursively
+# (because once, during the main compilation phase, is simply enough), but also
+# dangerous as some of them (the minority) might break in some circumstances
+# if applied in cascade (e.g., `linearization` on top of `linearization`)
+rcompile_registry = {
+    'mpi': False,
+    'linearize': False,
+    'place-transfers': False
+}
+
+
 def rcompile(expressions, kwargs=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
@@ -1008,14 +1021,7 @@ def rcompile(expressions, kwargs=None):
 
     # Tweak the compilation kwargs
     options = dict(kwargs['options'])
-    # NOTE: it is not only pointless to apply the following passes recursively
-    # (because once, during the main compilation phase, is simply enough), but
-    # also dangerous as a handful of compiler passes, the minority, might break
-    # in some circumstances if applied in cascade (e.g., `linearization` on top
-    # of `linearization`)
-    options['mpi'] = False
-    options['linearize'] = False  # Will be carried out later on
-    options['place-transfers'] = False
+    options.update(rcompile_registry)
     kwargs['options'] = options
 
     # Recursive profiling not supported -- would be a complete mess

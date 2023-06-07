@@ -109,6 +109,8 @@ class FIndexed(Indexed, Pickable):
         return (super().free_symbols |
                 set().union(*[i.free_symbols for i in self.strides]))
 
+    func = Pickable._rebuild
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
@@ -161,8 +163,10 @@ class Indirection(Symbol):
 
     __rkwargs__ = Symbol.__rkwargs__ + ('mapped',)
 
-    def __new__(cls, name=None, mapped=None, dtype=np.uint64, is_const=True):
-        obj = super().__new__(cls, name=name, dtype=dtype, is_const=is_const)
+    def __new__(cls, name=None, mapped=None, dtype=np.uint64, is_const=True,
+                **kwargs):
+        obj = super().__new__(cls, name=name, dtype=dtype, is_const=is_const,
+                              **kwargs)
         obj.mapped = mapped
 
         return obj

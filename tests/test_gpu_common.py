@@ -1,3 +1,5 @@
+import cloudpickle as pickle
+
 import pytest
 import numpy as np
 import scipy.sparse
@@ -143,12 +145,13 @@ class TestStreaming(object):
         op = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 3
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 3
-        assert str(sections[0].body[0].body[0].body[0].body[0]) == 'while(lock0[0] == 0);'
-        body = sections[2].body[0].body[0]
+        assert len(sections) == 2
+        assert str(trees[0].root.nodes[0].body[0]) == 'while(lock0[0] == 0);'
+        body = sections[1].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
         body = body.body[2]
@@ -217,11 +220,12 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 3
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1 + 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
-        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
+        assert (str(trees[0].root.nodes[1].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
@@ -268,11 +272,12 @@ class TestStreaming(object):
                                  {'fuse-tasks': True, 'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 3
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
-        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
+        assert (str(trees[0].root.nodes[1].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2) | Ne(lock1[0], 2)'
@@ -337,12 +342,12 @@ class TestStreaming(object):
         op1 = Operator(eqns, opt=('tasking', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 4
+        trees = retrieve_iteration_tree(op1)
+        assert len(trees) == 4
         assert len([i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]) == 1
+        assert str(trees[1].root.nodes[0].body[0]) == 'while(lock0[t2] == 0);'
         sections = FindNodes(Section).visit(op1)
         assert len(sections) == 2
-        assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
-            'while(lock0[t2] == 0);'
         for i in range(3):
             assert 'lock0[t' in str(sections[1].body[0].body[0].body[1 + i])  # Set-lock
         assert str(sections[1].body[0].body[0].body[4].body[-1]) ==\
@@ -374,13 +379,13 @@ class TestStreaming(object):
         op = Operator(eqns, opt=('tasking', 'orchestrate'))
 
         # Check generated code -- the wait-lock is expected in section1
-        assert len(retrieve_iteration_tree(op)) == 5
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 5
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
         assert sections[0].body[0].body[0].body[0].is_Iteration
-        assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
-            'while(lock0[t1] == 0);'
+        assert str(trees[1].root.nodes[1].body[0]) == 'while(lock0[t1] == 0);'
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 2),
@@ -812,11 +817,12 @@ class TestStreaming(object):
 
         # Check generated code
         for op in [op1, op2]:
-            assert len(retrieve_iteration_tree(op)) == 5
+            trees = retrieve_iteration_tree(op)
+            assert len(trees) == 5
             assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
             sections = FindNodes(Section).visit(op)
             assert len(sections) == 3
-            assert 'while(lock0[t1] == 0)' in str(sections[1].body[0].body[0].body[0])
+            assert 'while(lock0[t1] == 0)' in str(trees[1].root.nodes[1].body[0])
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, usave=usave1)
@@ -1272,7 +1278,8 @@ class TestStreaming(object):
                          't,x,y,x,y,x,y')
         nodes = FindNodes(Conditional).visit(op)
         assert len(nodes) == 2
-        assert len(nodes[1].then_body) == 3
+        assert len(nodes[1].then_body) == 4
+        assert str(nodes[1].then_body[0].body[0]) == 'while(lock0[0] == 0);'
         assert len(retrieve_iteration_tree(nodes[1])) == 2
 
 
@@ -1341,6 +1348,25 @@ class TestAPI(object):
         # Cannot provide a value larger than the thread pool size
         with pytest.raises(InvalidArgument):
             assert op.arguments(time_M=2, npthreads0=5)
+
+
+class TestMisc(object):
+
+    def test_pickling(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name="usave", grid=grid, save=10)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+
+        op = Operator(eqns)
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        assert str(op) == str(new_op)
 
 
 class TestEdgeCases(object):
