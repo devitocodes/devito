@@ -60,9 +60,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'initializer')
 
     def __init_finalize__(self, *args, **kwargs):
-        # A `Distributor` to handle domain decomposition (only relevant for MPI)
-        self._distributor = self.__distributor_setup__(**kwargs)
-
         # Staggering metadata
         self._staggered = self.__staggered_setup__(**kwargs)
 
@@ -170,12 +167,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if staggered is CELL:
             staggered = self.dimensions
         return staggered
-
-    def __distributor_setup__(self, **kwargs):
-        grid = kwargs.get('grid')
-        # There may or may not be a `Distributor`. In the latter case, the
-        # DiscreteFunction is to be considered "local" to each MPI rank
-        return kwargs.get('distributor') if grid is None else grid.distributor
 
     @cached_property
     def _functions(self):

@@ -212,13 +212,6 @@ class Array(ArrayBasic):
         return self._scope == 'constant'
 
     @property
-    def _distributor(self):
-        try:
-            return self.grid.distributor
-        except AttributeError:
-            return None
-
-    @property
     def initvalue(self):
         return self._initvalue
 

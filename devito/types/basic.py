@@ -878,6 +878,9 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # There may or may not be a `Grid`
         self._grid = kwargs.get('grid')
 
+        # A `Distributor` to handle domain decomposition
+        self._distributor = self.__distributor_setup__(**kwargs)
+
         # Symbol properties
         # "Aliasing" another DiscreteFunction means that `self` logically
         # represents another object. For example, `self` might be used as the
@@ -920,6 +923,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def __padding_setup__(self, **kwargs):
         padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __distributor_setup__(self, **kwargs):
+        # There may or may not be a `Distributor`. In the latter case, the
+        # AbstractFunction is to be considered "local" to each MPI rank
+        try:
+            return kwargs.get('grid').distributor
+        except AttributeError:
+            return kwargs.get('distributor')
 
     @cached_property
     def _honors_autopadding(self):
