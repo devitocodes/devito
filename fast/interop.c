@@ -174,7 +174,7 @@ The output file will be outfile
 
 const struct i8_memref_r_1 load_memref(char* fname, size_t length) {
   void* ptr = aligned_alloc(64, length);
-  struct i8_memref_r_1 ref = {ptr, ptr, 1, length, 1};
+  struct i8_memref_r_1 ref = {ptr, ptr, 0, length, 1};
   FILE* f = fopen(fname,"r");
   size_t num = fread(ptr, 1, length, f);
   if (num != length) {
@@ -193,23 +193,6 @@ void print_i32(int n)
   printf("%d\n", n);
 }
 
-// extern int MPI_Comm_rank(int comm, int *rank);
-
-// void print_halo_send_info(int dest, int ex, i64 x0, i64 y0, i64 h, i64 w) {
-//   int rank;
-//   MPI_Comm_rank(1140850688, &rank);
-//   i64 x1 = x0 + h-1;
-//   i64 y1 = y0 + w-1;
-//   printf("MPI send ex%i [%li:%li,%li:%li] %i -> %i\n",ex, x0, x1, y0, y1,  rank, dest);
-// }
-// void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
-//   int rank;
-//   MPI_Comm_rank(1140850688, &rank);
-//   i64 x1 = x0 + h-1;
-//   i64 y1 = y0 + w-1;
-//   printf("MPI recv ex%i [%li:%li,%li:%li] %i <- %i\n",ex, x0, x1, y0, y1, rank, src);
-// }
-
 i64 timer_start() {
   // return epoch in ms
   struct timespec t;
@@ -227,4 +210,32 @@ void timer_end(i64 start) {
   printf("Elapsed time is: %.17f secs\n", elapsed_time * 1e-3);
 }
 
+#ifdef MPI_ENABLE
 
+extern int MPI_Comm_rank(int comm, int *rank);
+
+void print_halo_send_info(int dest, int ex, i64 x0, i64 y0, i64 h, i64 w) {
+  int rank;
+  MPI_Comm_rank(1140850688, &rank);
+  i64 x1 = x0 + h-1;
+  i64 y1 = y0 + w-1;
+  printf("MPI send ex%i [%li:%li,%li:%li] %i -> %i\n",ex, x0, x1, y0, y1,  rank, dest);
+}
+
+void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
+  int rank;
+  MPI_Comm_rank(1140850688, &rank);
+  i64 x1 = x0 + h-1;
+  i64 y1 = y0 + w-1;
+  printf("MPI recv ex%i [%li:%li,%li:%li] %i <- %i\n",ex, x0, x1, y0, y1, rank, src);
+}
+
+void dump_memref_per_rank(MEMREF_AS_ARGS_DEF(my, f32, 2), i32 index) {
+  char name[512];
+  int rank;
+  MPI_Comm_rank(1140850688, &rank);
+  sprintf(name, "result-rank-%i-node-%i.data", rank, index);
+  DUMP_MEMREF(name, my_memref, f32, 2)
+}
+
+#endif

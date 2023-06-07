@@ -160,7 +160,11 @@ def compile_main(
 
 
 def compile_interop(bench_name: str, args: argparse.Namespace):
-    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {CFLAGS} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
+    flags = CFLAGS
+    if args.mpi:
+        flags += ' -DMPI_ENABLE=1 '
+
+    cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {flags} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
     out: str
     try:
         print(f"Trying to compile {bench_name}.interop.o with:")
