@@ -416,6 +416,7 @@ class ArmCompiler(GNUCompiler):
         super().__init__(*args, **kwargs)
 
         platform = kwargs.pop('platform', configuration['platform'])
+
         # Graviton flag
         if platform is GRAVITON:
             self.cflags += ['-mcpu=neoverse-n1']
@@ -493,12 +494,12 @@ class AOMPCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        language = kwargs.pop('language', configuration['language'])
+        platform = kwargs.pop('platform', configuration['platform'])
+
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
-
-        language = kwargs.pop('language', configuration['language'])
-        platform = kwargs.pop('platform', configuration['platform'])
 
         if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
@@ -685,6 +686,7 @@ class IntelCompiler(Compiler):
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
+
         self.cflags.append("-xHost")
 
         if configuration['safe-math']:
@@ -730,9 +732,9 @@ class IntelKNLCompiler(IntelCompiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.cflags.append('-xMIC-AVX512')
-
         language = kwargs.pop('language', configuration['language'])
+
+        self.cflags.append('-xMIC-AVX512')
 
         if language != 'openmp':
             warning("Running on Intel KNL without OpenMP is highly discouraged")
