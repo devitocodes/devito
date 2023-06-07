@@ -231,6 +231,7 @@ void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
 }
 
 void dump_memref_per_rank(MEMREF_AS_ARGS_DEF(my, f32, 2), i32 index) {
+  COLLECT_MEMREF_ARGS_INTO(my, f32, 2, my_memref);
   char name[512];
   int rank;
   MPI_Comm_rank(1140850688, &rank);
