@@ -9,6 +9,56 @@ from typing import Any
 
 import numpy as np
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process arguments.")
+
+    parser.add_argument("benchmark_name", choices=["2d5pt", "3d_diff"])
+    parser.add_argument(
+        "-d",
+        "--shape",
+        default=(11, 11),
+        type=int,
+        nargs="+",
+        help="Number of grid points along each axis",
+    )
+    parser.add_argument(
+        "-so",
+        "--space_order",
+        default=2,
+        type=int,
+        help="Space order of the simulation",
+    )
+    parser.add_argument(
+        "-to", "--time_order", default=1, type=int, help="Time order of the simulation"
+    )
+    parser.add_argument(
+        "-nt", "--nt", default=10, type=int, help="Simulation time in millisecond"
+    )
+    parser.add_argument(
+        "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
+    )
+    parser.add_argument("--dump_mlir", default=False, action="store_true")
+    parser.add_argument("--dump_main", default=False, action="store_true")
+    parser.add_argument("--mpi", default=False, action="store_true")
+    local_group = parser.add_mutually_exclusive_group()
+    local_group.add_argument("--openmp", default=False, action="store_true")
+    local_group.add_argument("--gpu", default=False, action="store_true")
+
+    # This main-specific ones
+    parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
+    parser.add_argument("-nod", "--no_output_dump", default=False, action="store_true")
+
+    args = parser.parse_args()
+
+    if args.gpu:
+        os.environ["DEVITO_LANGUAGE"] = "openacc"
+        os.environ["DEVITO_PLATFORM"] = "nvidiaX"
+        os.environ["DEVITO_ARCH"] = "nvc++"
+    if args.openmp:
+        os.environ["DEVITO_LANGUAGE"] = "openmp"
+# Doing this here because Devito does config at import time
+
+
 from devito import Constant, Eq, Grid, Operator, TimeFunction, XDSLOperator, solve
 from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
 from devito.logger import info
@@ -108,7 +158,6 @@ def compile_main(
     u: TimeFunction,
     xop: XDSLOperator,
     dt: float,
-    nt: int,
     args: argparse.Namespace,
 ):
     print("Compiling main with options:")
@@ -117,7 +166,7 @@ def compile_main(
         xop._module,
         {
             "time_m": 0,
-            "time_M": nt,
+            "time_M": args.nt,
             **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
             "a": 0.1,
             "dt": dt,
@@ -298,7 +347,7 @@ def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
         xop = XDSLOperator([eq0])
         if dump_main:
             dump_main_mlir(bench_name, grid, u, xop, dt, nt, args.mpi)
-        compile_main(bench_name, grid, u, xop, dt, nt, args)
+        compile_main(bench_name, grid, u, xop, dt, args)
         compile_interop(bench_name, args)
         mlir_code = xop.mlircode
         if dump_mlir:
@@ -330,43 +379,6 @@ def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process arguments.")
-
-    parser.add_argument("benchmark_name", choices=["2d5pt", "3d_diff"])
-    parser.add_argument(
-        "-d",
-        "--shape",
-        default=(11, 11),
-        type=int,
-        nargs="+",
-        help="Number of grid points along each axis",
-    )
-    parser.add_argument(
-        "-so",
-        "--space_order",
-        default=2,
-        type=int,
-        help="Space order of the simulation",
-    )
-    parser.add_argument(
-        "-to", "--time_order", default=1, type=int, help="Time order of the simulation"
-    )
-    parser.add_argument(
-        "-nt", "--nt", default=10, type=int, help="Simulation time in millisecond"
-    )
-    parser.add_argument(
-        "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
-    )
-    parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
-    parser.add_argument("-nod", "--no_output_dump", default=False, action="store_true")
-    parser.add_argument("--dump_mlir", default=False, action="store_true")
-    parser.add_argument("--dump_main", default=False, action="store_true")
-    parser.add_argument("--mpi", default=False, action="store_true")
-    parser.add_argument("--openmp", default=False, action="store_true")
-    parser.add_argument("--gpu", default=False, action="store_true")
-
-    args = parser.parse_args()
-
     benchmark_dim: int
     match args.benchmark_name:
         case "2d5pt":

@@ -3,19 +3,43 @@ dims = {"2d5pt": 2, "3d_diff": 3}
 import argparse
 from math import prod
 
-import fast_benchmarks
-
-from devito.operator.operator import Operator
-from devito.operator.xdsl_operator import XDSLOperator
-
 parser = argparse.ArgumentParser(description="Process arguments.")
-
+parser = argparse.ArgumentParser(description="Process arguments.")
+# Generic args
 parser.add_argument("benchmark_name", choices=["2d5pt", "3d_diff"])
+# parser.add_argument(
+#     "-d",
+#     "--shape",
+#     default=(11, 11),
+#     type=int,
+#     nargs="+",
+#     help="Number of grid points along each axis",
+# )
+parser.add_argument(
+    "-so",
+    "--space_order",
+    default=2,
+    type=int,
+    help="Space order of the simulation",
+)
+parser.add_argument(
+    "-to", "--time_order", default=1, type=int, help="Time order of the simulation"
+)
+parser.add_argument(
+    "-nt", "--nt", default=10, type=int, help="Simulation time in millisecond"
+)
+parser.add_argument(
+    "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
+)
+parser.add_argument("--dump_mlir", default=False, action="store_true")
+parser.add_argument("--dump_main", default=False, action="store_true")
+parser.add_argument("--mpi", default=False, action="store_true")
+local_group = parser.add_mutually_exclusive_group()
+local_group.add_argument("--openmp", default=False, action="store_true")
+local_group.add_argument("--gpu", default=False, action="store_true")
+# Benchmark specific args
 parser.add_argument("-i", "--init_size", type=int, default=128)
 parser.add_argument("-m", "--max_total_size", type=int, default=2048**3)
-parser.add_argument("--gpu", default=False, action="store_true")
-parser.add_argument("--mpi", default=False, action="store_true")
-parser.add_argument("--openmp", default=False, action="store_true")
 parser.add_argument(
     "-p",
     "--points",
@@ -26,6 +50,11 @@ parser.add_argument(
 
 args = parser.parse_args()
 args.no_output_dump = True
+
+import fast_benchmarks
+
+from devito.operator.operator import Operator
+from devito.operator.xdsl_operator import XDSLOperator
 
 bench_name = args.benchmark_name
 init_size = args.init_size
@@ -42,7 +71,7 @@ def get_runtimes_for_size(
     fast_benchmarks.dump_input(u, bench_name)
     xop = XDSLOperator([eq0])
     nt = 100
-    fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt, args)
+    fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, args)
     fast_benchmarks.compile_kernel(bench_name, xop.mlircode, args)
     fast_benchmarks.link_kernel(bench_name, args)
     xdsl_runs = [
@@ -50,7 +79,7 @@ def get_runtimes_for_size(
     ]
 
     op = Operator([eq0])
-    devito_runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(points)]
+    devito_runs = [fast_benchmarks.run_operator(op, args.nt, dt) for _ in range(points)]
 
     return (size, xdsl_runs, devito_runs)
 

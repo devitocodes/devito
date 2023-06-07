@@ -3,19 +3,38 @@ dims = {"2d5pt": 2, "3d_diff": 3}
 import argparse
 import os
 
-import fast_benchmarks
-
-from devito.operator.operator import Operator
-from devito.operator.xdsl_operator import XDSLOperator
-from devito.parameters import configuration
-from devito.types.equation import Eq
-
 parser = argparse.ArgumentParser(description="Process arguments.")
 
-
+# Generic args
 parser.add_argument("benchmark_name", choices=["2d5pt", "3d_diff"])
-modes = ["xdsl", "devito"]
-parser.add_argument("benchmark_mode", choices=modes)
+parser.add_argument(
+    "-d",
+    "--shape",
+    default=(11, 11),
+    type=int,
+    nargs="+",
+    help="Number of grid points along each axis",
+)
+parser.add_argument(
+    "-so",
+    "--space_order",
+    default=2,
+    type=int,
+    help="Space order of the simulation",
+)
+parser.add_argument(
+    "-to", "--time_order", default=1, type=int, help="Time order of the simulation"
+)
+parser.add_argument(
+    "-nt", "--nt", default=10, type=int, help="Simulation time in millisecond"
+)
+parser.add_argument(
+    "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
+)
+parser.add_argument("--dump_mlir", default=False, action="store_true")
+parser.add_argument("--dump_main", default=False, action="store_true")
+parser.add_argument("--mpi", default=False, action="store_true")
+# Script-specific args
 parser.add_argument(
     "-i",
     "--init_threads",
@@ -31,28 +50,28 @@ parser.add_argument(
     help=f"Maximum number of threads. Defaults to the detected {os.cpu_count()}",
 )
 parser.add_argument(
-    "-d",
-    "--shape",
-    default=(4096, 4096),
-    type=int,
-    nargs="+",
-    help="Number of grid points along each axis",
-)
-parser.add_argument(
     "-p",
     "--points",
     type=int,
     default=10,
     help="Number of measurements to make for each number of threads.",
 )
-parser.add_argument("--gpu", default=False, action="store_true")
-parser.add_argument("--mpi", default=False, action="store_true")
+parser.add_argument("benchmark_mode", choices=["xdsl", "devito"])
+args = parser.parse_args()
+args.no_output_dump = True
+
+args.openmp = True
+args.gpu = False
+os.environ["DEVITO_LANGUAGE"] = "openmp"
+
+import fast_benchmarks
+
+from devito.operator.operator import Operator
+from devito.operator.xdsl_operator import XDSLOperator
+from devito.parameters import configuration
+from devito.types.equation import Eq
 
 if __name__ == "__main__":
-    args = parser.parse_args()
-    args.no_output_dump = True
-    args.openmp = True
-
     size = args.shape
     bench_name = args.benchmark_name
     init_threads = args.init_threads
@@ -75,7 +94,9 @@ if __name__ == "__main__":
                     bench_name, size, 2, 1, 10
                 )
                 op = Operator([eq0])
-                runs = [fast_benchmarks.run_operator(op, nt, dt) for _ in range(points)]
+                runs = [
+                    fast_benchmarks.run_operator(op, args.nt, dt) for _ in range(points)
+                ]
             case _:
                 raise Exception("Unknown mode!")
         return (threads, runs)
@@ -91,7 +112,7 @@ if __name__ == "__main__":
     nt = 100
 
     fast_benchmarks.compile_interop(bench_name, args)
-    fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, nt, args)
+    fast_benchmarks.compile_main(bench_name, grid, u, xop, dt, args)
     fast_benchmarks.compile_kernel(bench_name, xop.mlircode, args)
     fast_benchmarks.link_kernel(bench_name, args)
 
