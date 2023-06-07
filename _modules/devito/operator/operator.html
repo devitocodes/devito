@@ -1072,6 +1072,19 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">soname</span></div>
 
 
+<span class="c1"># Default action (perform or bypass) for selected compilation passes upon</span>
+<span class="c1"># recursive compilation</span>
+<span class="c1"># NOTE: it may not only be pointless to apply the following passes recursively</span>
+<span class="c1"># (because once, during the main compilation phase, is simply enough), but also</span>
+<span class="c1"># dangerous as some of them (the minority) might break in some circumstances</span>
+<span class="c1"># if applied in cascade (e.g., `linearization` on top of `linearization`)</span>
+<span class="n">rcompile_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;mpi&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;linearize&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s1">&#39;place-transfers&#39;</span><span class="p">:</span> <span class="kc">False</span>
+<span class="p">}</span>
+
+
 <span class="k">def</span> <span class="nf">rcompile</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Perform recursive compilation on an ordered sequence of symbolic expressions.</span>
@@ -1085,14 +1098,7 @@
 
     <span class="c1"># Tweak the compilation kwargs</span>
     <span class="n">options</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">])</span>
-    <span class="c1"># NOTE: it is not only pointless to apply the following passes recursively</span>
-    <span class="c1"># (because once, during the main compilation phase, is simply enough), but</span>
-    <span class="c1"># also dangerous as a handful of compiler passes, the minority, might break</span>
-    <span class="c1"># in some circumstances if applied in cascade (e.g., `linearization` on top</span>
-    <span class="c1"># of `linearization`)</span>
-    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;mpi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;linearize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Will be carried out later on</span>
-    <span class="n">options</span><span class="p">[</span><span class="s1">&#39;place-transfers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">options</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rcompile_registry</span><span class="p">)</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;options&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span>
 
     <span class="c1"># Recursive profiling not supported -- would be a complete mess</span>
