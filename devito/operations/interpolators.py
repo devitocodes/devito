@@ -212,33 +212,30 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs = []
         points = {d: [] for d in self._gdim}
         mapper = {d: [] for d in self._gdim}
-
+        pdim = self.sfunction._sparse_dim
+    
         # Positon map and temporaries for it
         pmap = self.sfunction._coordinate_indices
 
         # Temporaries for the position
-        # temps = self._positions(implicit_dims)
-        temps = []
-
+        temps = self._positions(implicit_dims)
+    
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-
-        try:
-            pdim = self.sfunction.coordinates.dimensions[-1]
-        except AttributeError:
-            pdim = self.sfunction.gridpoints.dimensions[-1]
-
+    
         # Create positions and indices temporaries/indirections
+        pr = []
         for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
             p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
-            temps.extend([Eq(p, pos.subs({pdim: di}), implicit_dims=implicit_dims)])
+            temps.extend([Eq(p, pos + rd, implicit_dims=implicit_dims + tuple(pr))])
 
             # Add conditional
-            lb = sympy.And(p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_max + self.r, evaluate=False)
+            lb = sympy.And(p >= d.symbolic_min-self.r, evaluate=False)
+            ub = sympy.And(p <= d.symbolic_max+self.r, evaluate=False)
             condition = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                             condition=condition, indirect=True) + rd
+                                             condition=condition, indirect=True)
+            pr.append(rd)
 
         # Substitution mapper for variables
         idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})

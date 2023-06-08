@@ -56,7 +56,9 @@ def dimension_sort(expr):
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    extra.update(set().union(*[set(i.function.dimensions) for i in indexeds]))
+    for i in indexeds:
+        expl_dims = {d for (d, e) in zip(i.function.dimensions, i.indices) if e.is_integer}
+        extra.update(expl_dims)
 
     # Enforce determinism
     extra = filter_sorted(extra)
@@ -68,6 +70,7 @@ def dimension_sort(expr):
     # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
     implicit_relations = {(d.parent, d) for d in extra if d.is_Derived}
+
     # 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension
     # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we
     # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering

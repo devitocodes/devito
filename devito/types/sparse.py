@@ -304,7 +304,7 @@ class AbstractSparseFunction(DiscreteFunction):
         individually (hence the need for a position map).
         """
         return tuple([INT(floor(p / i.spacing))
-                      for p, i in zip(self._position_map,
+                      for p, i in zip(self._position_map.values(),
                                       self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
