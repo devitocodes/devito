@@ -43,7 +43,7 @@ def iet_build(stree):
             body = HaloSpot(queues.pop(i), i.halo_scheme)
 
         elif i.is_Sync:
-            body = SyncSpot(i.sync_ops, body=queues.pop(i, None))
+            body = SyncSpot(i.sync_ops, body=queues.pop(i))
 
         queues.setdefault(i.parent, []).append(body)
 
