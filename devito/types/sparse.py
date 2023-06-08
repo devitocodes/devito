@@ -108,7 +108,7 @@ class AbstractSparseFunction(DiscreteFunction):
                              "or iterable (e.g., list, np.ndarray)" % key)
 
         name = '%s_%s' % (self.name, suffix)
-        dimensions = (self.indices[self._sparse_position], Dimension(name='d'))
+        dimensions = (self._sparse_dim, Dimension(name='d'))
         shape = (self.npoint, self.grid.dim)
 
         if key is None:
@@ -296,7 +296,7 @@ class AbstractSparseFunction(DiscreteFunction):
         individually (hence the need for a position map).
         """
         return tuple([INT(floor(p / i.spacing))
-                      for p, i in zip(self._position_map,
+                      for p, i in zip(self._position_map.values(),
                                       self.grid.dimensions[:self.grid.dim])])
 
     def _coordinate_bases(self, field_offset):
@@ -1171,7 +1171,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             return tuple([self.gridpoints._subs(ddim, di) for di in range(self.grid.dim)])
         else:
             return tuple([INT(floor(p / i.spacing))
-                          for p, i in zip(self._position_map,
+                          for p, i in zip(self._position_map.values(),
                                           self.grid.dimensions[:self.grid.dim])])
 
 

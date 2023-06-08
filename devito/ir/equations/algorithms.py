@@ -3,8 +3,8 @@ from operator import attrgetter
 
 from sympy import sympify
 
-from devito.symbolics import retrieve_indexed, uxreplace
-from devito.tools import PartialOrderTuple, as_tuple, filter_sorted, flatten
+from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
+from devito.tools import PartialOrderTuple, as_tuple, filter_ordered, flatten, filter_sorted
 from devito.types import Dimension, IgnoreDimSort, ConditionalDimension
 from devito.types.basic import AbstractFunction
 
@@ -33,14 +33,8 @@ def dimension_sort(expr):
 
                 # Fallback: Just insert all the Dimensions we find, regardless of
                 # what the user is attempting to do
-                rels = []
-                for d in filter_sorted(i.free_symbols):
-                    if isinstance(d, ConditionalDimension) and d.indirect:
-                        continue
-                    elif isinstance(d, Dimension):
-                        rels.append(d)
-
-                relation.extend(rels)
+                relation.extend(filter_sorted([d for d in i.free_symbols
+                                               if isinstance(d, Dimension)]))
 
         # StencilDimensions are lowered subsequently through special compiler
         # passes, so they can be ignored here
@@ -56,16 +50,18 @@ def dimension_sort(expr):
     # Add in any implicit dimension (typical of scalar temporaries, or Step)
     relations.add(expr.implicit_dims)
 
-    # Add in leftover free dimensions (not an Indexed' index)
-    extra = set([i for i in expr.free_symbols if isinstance(i, Dimension)])
+    # Add in leftover free dimensions (not an Indexed' index if used purely as expr)
+    extra = set(retrieve_dimensions(expr))
 
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    extra.update(set().union(*[set(i.function.dimensions) for i in indexeds]))
+    for i in indexeds:
+        expl_dims = {d for (d, e) in zip(i.function.dimensions, i.indices) if e.is_integer}
+        extra.update(expl_dims)
 
     # Enforce determinism
-    extra = filter_sorted(extra, key=attrgetter('name'))
+    extra = filter_sorted(extra)
 
     # Add in implicit relations for parent dimensions
     # -----------------------------------------------
@@ -74,11 +70,12 @@ def dimension_sort(expr):
     # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
     implicit_relations = {(d.parent, d) for d in extra if d.is_Derived}
+
     # 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension
     # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we
     # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering
     # `(x, time, xi)` might be returned instead, which would be non-sense
-    implicit_relations.update({tuple(d.root for d in i) for i in relations})
+    implicit_relations.update({tuple(filter_ordered(d.root for d in i)) for i in relations})
 
     ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
 

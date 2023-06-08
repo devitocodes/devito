@@ -10,10 +10,10 @@ __all__ = ['toposort']
 
 def build_dependence_lists(elements):
     """
-    Given an iterable of dependences, return the dependence lists as a
+    Given an iterable of dependencies, return the dependence lists as a
     mapper suitable for graph-like algorithms. A dependence is an iterable of
-    elements ``[a, b, c, ...]``, meaning that ``a`` preceeds ``b`` and ``c``,
-    ``b`` preceeds ``c``, and so on.
+    elements ``[a, b, c, ...]``, meaning that ``a`` precedes ``b`` and ``c``,
+    ``b`` precedes ``c``, and so on.
     """
     mapper = OrderedDict()
     for element in elements:
@@ -35,7 +35,7 @@ def toposort(data):
           dependent items. The dictionary may contain self-dependencies
           (which are ignored), and dependent items that are not also
           dict keys.
-        * An iterable of dependences as expected by :func:`build_dependence_lists`.
+        * An iterable of dependencies as expected by :func:`build_dependence_lists`.
 
     Readapted from: ::
 

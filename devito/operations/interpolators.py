@@ -141,7 +141,6 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
-
         dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
                                 -self.r+1, self.r, len(range(-self.r+1, self.r+1)))
                 for d in self._gdim]
@@ -149,7 +148,6 @@ class WeightedInterpolator(GenericInterpolator):
         return DimensionTuple(*dims, getters=self._gdim)
 
     def implicit_dims(self, implicit_dims):
-
         return as_tuple(implicit_dims) + self.sfunction.dimensions
 
     def _coeff_temps(self, implicit_dims):
@@ -166,33 +164,30 @@ class WeightedInterpolator(GenericInterpolator):
         """
         idx_subs = []
         mapper = {d: [] for d in self._gdim}
-
+        pdim = self.sfunction._sparse_dim
+    
         # Positon map and temporaries for it
         pmap = self.sfunction._coordinate_indices
 
         # Temporaries for the position
-        # temps = self._positions(implicit_dims)
-        temps = []
-
+        temps = self._positions(implicit_dims)
+    
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-
-        try:
-            pdim = self.sfunction.coordinates.dimensions[-1]
-        except AttributeError:
-            pdim = self.sfunction.gridpoints.dimensions[-1]
-
+    
         # Create positions and indices temporaries/indirections
+        pr = []
         for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
             p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
-            temps.extend([Eq(p, pos.subs({pdim: di}), implicit_dims=implicit_dims)])
+            temps.extend([Eq(p, pos + rd, implicit_dims=implicit_dims + tuple(pr))])
 
             # Add conditional
-            lb = sympy.And(p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_max + self.r, evaluate=False)
+            lb = sympy.And(p >= d.symbolic_min-self.r, evaluate=False)
+            ub = sympy.And(p <= d.symbolic_max+self.r, evaluate=False)
             condition = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                             condition=condition, indirect=True) + rd
+                                             condition=condition, indirect=True)
+            pr.append(rd)
 
         # Substitution mapper for variables
         idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})
@@ -231,7 +226,7 @@ class WeightedInterpolator(GenericInterpolator):
             variables = list(retrieve_function_carriers(_expr))
 
             # Need to get origin of the field in case it is staggered
-            # TODO: handle each variable staggereing spearately
+            # TODO: handle each variable staggering separately
             field_offset = variables[0].origin
             # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interpolation_indices(
@@ -242,14 +237,14 @@ class WeightedInterpolator(GenericInterpolator):
             summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
             # Substitute coordinate base symbols into the interpolation coefficients
             summands.extend([Inc(rhs, _expr.xreplace(idx_subs) * self._weights,
-                                 implicit_dims=implicit_dims + self._rdim)])
+                                 implicit_dims=implicit_dims)])
 
             # Write/Incr `self`
             lhs = self.sfunction.subs(self_subs)
             ecls = Inc if increment else Eq
             last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
 
-            return temps + summands + last
+            return [summands[0]] + temps + summands[1:] + last
 
         return Interpolation(expr, offset, increment, self_subs, self, callback)
 
@@ -292,7 +287,7 @@ class WeightedInterpolator(GenericInterpolator):
             # Substitute coordinate base symbols into the interpolation coefficients
             eqns = [Inc(field.xreplace(idx_subs),
                         _expr.xreplace(idx_subs) * self._weights,
-                        implicit_dims=implicit_dims + self._rdim)]
+                        implicit_dims=implicit_dims)]
 
             return temps + eqns
 
@@ -308,29 +303,19 @@ class LinearInterpolator(WeightedInterpolator):
     ----------
     sfunction: The SparseFunction that this Interpolator operates on.
     """
-
-    @cached_property
-    def _csym(self):
-        return [Function(name='c_%s_%s' % (self.sfunction.name, d.name),
-                         dimensions=(r,), shape=(self.r,), space_order=0)
-                for (d, r) in zip(self._gdim, self._rdim)]
-
     @property
     def _weights(self):
-        return prod(self._csym)
+        c = [(1 - p) * (1 - rd) + rd * p
+             for (p, d, rd) in zip(self._psym, self._gdim, self._rdim)]
+        return prod(c)
 
     def _coeff_temps(self, implicit_dims):
         # Positions
         pmap = self.sfunction._position_map
-        poseq = [Eq(self._psym[d], pos - d.spacing*INT(floor(pos/d.spacing)),
+        poseq = [Eq(self._psym[d], pos/d.spacing - floor(pos/d.spacing),
                     implicit_dims=implicit_dims)
-                 for (d, pos) in zip(self._gdim, pmap)]
-        # Coeffs
-        ceq = [eq for (c, d, p) in zip(self._csym, self._gdim, self._psym)
-               for eq in [Eq(c[0], (1 - p/d.spacing), implicit_dims=implicit_dims),
-                          Eq(c[1], p/d.spacing, implicit_dims=implicit_dims)]]
-
-        return poseq + ceq
+                 for (d, pos) in zip(self._gdim, pmap.values())]
+        return poseq
 
 
 class PrecomputedInterpolator(WeightedInterpolator):
