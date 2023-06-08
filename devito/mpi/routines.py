@@ -1168,7 +1168,7 @@ class MPIMsg(CompositeObject):
         else:
             assert self.target.c0.is_Array
             assert args is not None
-            return int(v.subs(args))
+            return int(subs_op_args(v, args))
 
     def _arg_defaults(self, allocator, alias, args=None):
         # Lazy initialization if `allocator` is necessary as the `allocator`
