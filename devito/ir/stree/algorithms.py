@@ -156,10 +156,13 @@ def preprocess(clusters, options=None, **kwargs):
                     found.append(c1)
                     queue.remove(c1)
 
-            syncs = normalize_syncs(c.syncs, *[c1.syncs for c1 in found])
-            halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
+            syncs = normalize_syncs(*[c1.syncs for c1 in found])
+            if syncs:
+                ispace = c.ispace.project(syncs)
+                processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
-            processed.append(c.rebuild(syncs=syncs, halo_scheme=halo_scheme))
+            halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
+            processed.append(c.rebuild(halo_scheme=halo_scheme))
 
     # Sanity check!
     try:
