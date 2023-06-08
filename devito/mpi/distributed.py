@@ -567,31 +567,29 @@ class MPINeighborhood(CompositeObject):
 class CustomTopology(tuple):
 
     """
-    A CustomTopology is a mechanism to describe parametric domain decompositions.
+    The CustomTopology class provides a mechanism to describe parametric domain
+    decompositions. It allows users to specify how the dimensions of a domain are
+    decomposed into chunks based on certain parameters.
 
     Examples
     --------
-    Assuming a domain consisting of three distributed Dimensions x, y, and z, and
-    an MPI communicator comprising N processes, a CustomTopology might be:
+    For example, let's consider a domain with three distributed dimensions: x, y, and z,
+    and an MPI communicator with N processes. Here are a few examples of CustomTopology:
 
     With N known, say N=4:
-
     * `(1, 1, 4)`: the z Dimension is decomposed into 4 chunks
-    * `(2, 1, 2)`: the x Dimension is decomposed into 2 chunks; the z Dimension
+    * `(2, 1, 2)`: the x Dimension is decomposed into 2 chunks and the z Dimension
                    is decomposed into 2 chunks
 
     With N unknown:
-
-    * `(1, '*', 1)`: the wildcard `'*'` tells the runtime to decompose the y
+    * `(1, '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose the y
                      Dimension into N chunks
-    * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both
+    * `('*', '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose both
                        the x and y Dimensions in `nstars` factors of N, prioritizing
                        the outermost dimension
 
-    Assuming N=6 and requested topology is `('*', '*', 1)`,
-    since there is no integer k, so that k*k=6, we resort to the closest factors to
-    the nstars-th root (usually square or cubic) that satisfies that the decomposed
-    domains are equal to the number of MPI processes.
+    Assuming that the number of ranks `N` cannot evenly be decomposed to the requested
+    stars=6 we decompose as evenly as possible by prioritising the outermost dimension
 
     For N=3
     * `('*', '*', 1)` gives: (3, 1, 1)
@@ -611,58 +609,48 @@ class CustomTopology(tuple):
 
     Notes
     -----
-    Users shouldn't use this class directly. It's up to the Devito runtime to
-    instantiate it based on the user input.
+    Users should not directly use the CustomTopology class. It is instantiated
+    by the Devito runtime based on user input.
     """
 
     def __new__(cls, items, input_comm):
         # Keep track of nstars and already defined decompositions
-        nstars = len([i for i in items if i == '*'])
+        nstars = items.count('*')
 
         # If no stars exist we are ready
         if nstars == 0:
             processed = items
         else:
-            # Init decomposition list
+            # Init decomposition list and track star positions
             processed = [1] * len(items)
+            star_pos = []
+            for i, item in enumerate(items):
+                if isinstance(item, int):
+                    processed[i] = item
+                else:
+                    star_pos.append(i)
 
-            # Get star and integer indices
-            int_pos = [i for i, item in enumerate(items) if isinstance(item, int)]
-            int_vals = [item for item in items if isinstance(item, int)]
-            star_pos = [i for i, item in enumerate(items) if not isinstance(item, int)]
-
-            # Decompose the processes remaining for allocation to prime factors
+            # Compute the remaining procs to be allocated
             alloc_procs = np.prod([i for i in items if i != '*'])
-            remprocs = int(input_comm.size // alloc_procs)
-            prime_factors = primefactors(remprocs)
-
-            star_i = -1
-            dd_list = [1] * nstars
+            rem_procs = int(input_comm.size // alloc_procs)
 
             # Start by using the max prime factor at the first starred position,
-            # then cyclically-iteratively decompose as evenly as possible until
-            # decomposing to the number of `remprocs`
-            while remprocs != 1:
-                star_i = star_i + 1
-                star_i = star_i % nstars
-                prime_factors = primefactors(remprocs)
-                dd_list[star_i] = dd_list[star_i]*max(prime_factors)
-                remprocs = remprocs // max(prime_factors)
+            # then iteratively decompose as evenly as possible until decomposing
+            # to the number of `rem_procs`
+            star_vals = [1] * len(items)
+            star_i = 0
+            while rem_procs > 1:
+                prime_factors = primefactors(rem_procs)
+                rem_procs //= max(prime_factors)
+                star_vals[star_i] *= max(prime_factors)
+                star_i = (star_i + 1) % nstars
 
-            if int_pos:
-                for index, value in zip(int_pos, int_vals):
-                    processed[index] = value
-
-            if dd_list:
-                for index, value in zip(star_pos, dd_list):
-                    processed[index] = value
+            # Apply computed star values to the processed
+            for index, value in zip(star_pos, star_vals):
+                processed[index] = value
 
         # Final check that topology matches the communicator size
-        try:
-            assert np.prod(processed) == input_comm.size
-        except:
-            raise ValueError("Invalid `topology`", processed, " for given nprocs:",
-                             input_comm.size)
+        assert np.prod(processed) == input_comm.size
 
         obj = super().__new__(cls, processed)
         obj.logical = items

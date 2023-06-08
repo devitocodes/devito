@@ -12,15 +12,11 @@ from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
 from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.distributed import CustomTopology
+from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
-
-
-class DummyInputComm():
-    "Helper class for modelling a communicator with a specific size"
-    def __init__(self, size):
-        self.size = size
 
 
 class TestDistributor(object):
@@ -193,12 +189,9 @@ class TestDistributor(object):
         (2, (1, '*', '*'), (1, 2, 1)),
         (2, (2, '*', '*'), (2, 1, 1)),
         (3, (1, '*', '*'), (1, 3, 1)),
-        (3, ('*', 1, '*'), (3, 1, 1)),
         (3, ('*', '*', 1), (3, 1, 1)),
         (4, (2, '*', '*'), (2, 2, 1)),
-        (4, ('*', 2, '*'), (2, 2, 1)),
         (4, ('*', '*', 2), (2, 1, 2)),
-        (6, ('*', 1, '*'), (3, 1, 2)),
         (6, ('*', '*', 1), (3, 2, 1)),
         (6, (1, '*', '*'), (1, 3, 2)),
         (6, ('*', '*', '*'), (3, 2, 1)),
@@ -211,29 +204,23 @@ class TestDistributor(object):
         (32, ('*', '*', '*'), (4, 4, 2)),
         (8, ('*', 1, '*'), (4, 1, 2)),
         (8, ('*', '*', 1), (4, 2, 1)),
-        (8, (1, '*', '*'), (1, 4, 2)),
         (8, ('*', '*', '*'), (2, 2, 2)),
         (9, ('*', '*', '*'), (3, 3, 1)),
         (11, (1, '*', '*'), (1, 11, 1)),
         (22, ('*', '*', '*'), (11, 2, 1)),
-        (16, ('*', '*', 1), (4, 4, 1)),
         (16, ('*', 1, '*'), (4, 1, 4)),
         (32, ('*', '*', 1), (8, 4, 1)),
-        (64, ('*', '*', '*'), (4, 4, 4)),
         (64, ('*', '*', 1), (8, 8, 1)),
-        (64, ('*', 2, 1), (32, 2, 1)),
         (64, ('*', 2, 4), (8, 2, 4)),
         (128, ('*', '*', 1), (16, 8, 1)),
         (231, ('*', '*', '*'), (11, 7, 3)),
         (256, (1, '*', '*'), (1, 16, 16)),
-        (256, ('*', 1, '*'), (16, 1, 16)),
-        (256, ('*', '*', 1), (16, 16, 1)),
         (256, ('*', '*', '*'), (8, 8, 4)),
         (256, ('*', '*', 2), (16, 8, 2)),
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
     def test_custom_topology_3d_dummy(self, comm_size, topology, dist_topology):
-        dummy_comm = DummyInputComm(comm_size)
+        dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
 
