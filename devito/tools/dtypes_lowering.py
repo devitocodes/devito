@@ -104,6 +104,7 @@ def dtype_to_ctype(dtype):
         return ctypes_vector_mapper[dtype]
     except KeyError:
         pass
+
     if issubclass(dtype, ctypes._SimpleCData):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`

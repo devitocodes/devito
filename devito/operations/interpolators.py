@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 
 import sympy
 from cached_property import cached_property
 
 from devito.finite_differences.elementary import floor
-from devito.symbolics import retrieve_function_carriers, INT
+from devito.symbolics import retrieve_function_carriers
 from devito.tools import as_tuple, flatten, prod
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, Function)
+                          CustomDimension)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
@@ -135,7 +136,7 @@ class WeightedInterpolator(GenericInterpolator):
     def _gdim(self):
         return self.grid.dimensions
 
-    @cached_property
+    @property
     def r(self):
         return self.sfunction.r
 
@@ -147,7 +148,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return DimensionTuple(*dims, getters=self._gdim)
 
-    def implicit_dims(self, implicit_dims):
+    def _augment_implicit_dims(self, implicit_dims):
         return as_tuple(implicit_dims) + self.sfunction.dimensions
 
     def _coeff_temps(self, implicit_dims):
@@ -163,27 +164,26 @@ class WeightedInterpolator(GenericInterpolator):
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
         idx_subs = []
-        mapper = {d: [] for d in self._gdim}
-        pdim = self.sfunction._sparse_dim
-    
+        mapper = defaultdict(list)
+
         # Positon map and temporaries for it
         pmap = self.sfunction._coordinate_indices
 
         # Temporaries for the position
         temps = self._positions(implicit_dims)
-    
+
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-    
+
         # Create positions and indices temporaries/indirections
         pr = []
         for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
             p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
             temps.extend([Eq(p, pos + rd, implicit_dims=implicit_dims + tuple(pr))])
 
-            # Add conditional
-            lb = sympy.And(p >= d.symbolic_min-self.r, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_max+self.r, evaluate=False)
+            # Add conditional to avoid OOB
+            lb = sympy.And(p >= d.symbolic_min, evaluate=False)
+            ub = sympy.And(p <= d.symbolic_max, evaluate=False)
             condition = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
                                              condition=condition, indirect=True)
@@ -213,7 +213,7 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self.implicit_dims(implicit_dims)
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses
@@ -265,7 +265,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self.implicit_dims(implicit_dims)
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         def callback():
             # Derivatives must be evaluated before the introduction of indirect accesses

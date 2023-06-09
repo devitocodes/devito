@@ -1466,13 +1466,6 @@ class SubFunction(Function):
     def _halo_exchange(self):
         return
 
-    @property
-    def origin(self):
-        """
-        SubFunction have zero origin
-        """
-        return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
-
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
@@ -1483,6 +1476,13 @@ class SubFunction(Function):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def origin(self):
+        """
+        SubFunction have zero origin
+        """
+        return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
 
 
 class TempFunction(DiscreteFunction):

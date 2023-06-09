@@ -8,8 +8,7 @@ from sympy import Symbol
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction)
+                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve)
 from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
@@ -18,7 +17,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
                           DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed)
+                          FIndexed, PrecomputedSparseTimeFunction)
 from devito.types.basic import BoundSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
@@ -98,6 +97,42 @@ class TestBasic(object):
         assert sf.space_order == new_sf.space_order
         assert sf.dtype == new_sf.dtype
         assert sf.npoint == new_sf.npoint
+
+    @pytest.mark.parametrize('mode', ['coordinates', 'gridpoints'])
+    def test_precomputed_sparse_function(self, mode, pickle):
+        grid = Grid(shape=(11, 11))
+
+        coords = [(0., 0.), (.5, .5), (.7, .2)]
+        gridpoints = [(0, 0), (6, 6), (8, 3)]
+        keys = {'coordinates': coords, 'gridpoints': gridpoints}
+        kw = {mode: keys[mode]}
+        othermode = 'coordinates' if mode == 'gridpoints' else 'gridpoints'
+
+        sf = PrecomputedSparseTimeFunction(
+            name='sf', grid=grid, r=2, npoint=3, nt=5,
+            interpolation_coeffs=np.ndarray(shape=(3, 2, 2)), **kw
+        )
+        sf.data[2, 1] = 5.
+
+        pkl_sf = pickle.dumps(sf)
+        new_sf = pickle.loads(pkl_sf)
+
+        # .data is initialized, so it should have been pickled too
+        assert new_sf.data[2, 1] == 5.
+
+        # gridpoints and interpolation coefficients must have been pickled
+        assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
+
+        # coordinates, since they were given, should also have been pickled
+        assert np.all(getattr(sf, mode).data == getattr(new_sf, mode).data)
+        assert getattr(sf, othermode) is None
+        assert getattr(new_sf, othermode) is None
+
+        assert sf._radius == new_sf._radius == 1
+        assert sf.space_order == new_sf.space_order
+        assert sf.time_order == new_sf.time_order
+        assert sf.dtype == new_sf.dtype
+        assert sf.npoint == new_sf.npoint == 3
 
     def test_internal_symbols(self, pickle):
         s = dSymbol(name='s', dtype=np.float32)
@@ -260,49 +295,7 @@ class TestBasic(object):
         assert sdata.cfields == new_sdata.cfields
         assert sdata.ncfields == new_sdata.ncfields
 
-@pytest.mark.parametrize('mode', ['coordinates', 'gridpoints'])
-def test_precomputed_sparse_function(mode):
-    grid = Grid(shape=(11, 11))
-
-    coords = [(0., 0.), (.5, .5), (.7, .2)]
-    gridpoints = [(0, 0), (6, 6), (8, 3)]
-    keys = {'coordinates': coords, 'gridpoints': gridpoints}
-    kw = {mode: keys[mode]}
-    othermode = 'coordinates' if mode == 'gridpoints' else 'gridpoints'
-
-    sf = PrecomputedSparseTimeFunction(
-        name='sf', grid=grid, r=2, npoint=3, nt=5,
-        interpolation_coeffs=np.ndarray(shape=(3, 2, 2)), **kw
-    )
-    sf.data[2, 1] = 5.
-
-    pkl_sf = pickle.dumps(sf)
-    new_sf = pickle.loads(pkl_sf)
-
-    # .data is initialized, so it should have been pickled too
-    assert new_sf.data[2, 1] == 5.
-
-    # gridpoints and interpolation coefficients must have been pickled
-    assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
-
-    # coordinates, since they were given, should also have been pickled
-    assert np.all(getattr(sf, mode).data == getattr(new_sf, mode).data)
-    assert getattr(sf, othermode) is None
-    assert getattr(new_sf, othermode) is None
-
-    assert sf._radius == new_sf._radius == 1
-    assert sf.space_order == new_sf.space_order
-    assert sf.time_order == new_sf.time_order
-    assert sf.dtype == new_sf.dtype
-    assert sf.npoint == new_sf.npoint == 3
-
-
-def test_internal_symbols():
-    s = dSymbol(name='s', dtype=np.float32)
-    pkl_s = pickle.dumps(s)
-    new_s = pickle.loads(pkl_s)
-    assert new_s.name == s.name
-    assert new_s.dtype is np.float32
+        ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
 
         pkl_ffp = pickle.dumps(ffp)
         new_ffp = pickle.loads(pkl_ffp)

@@ -10,8 +10,9 @@ from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
+from devito.tools.dtypes_lowering import infer_dtype
 
-__all__ = ['compare_ops', 'estimate_cost', 'has_integer_args']
+__all__ = ['compare_ops', 'estimate_cost', 'has_integer_args', 'sympy_dtype']
 
 
 def compare_ops(e1, e2):
@@ -260,3 +261,21 @@ def has_integer_args(*args):
         except AttributeError:
             res = res and has_integer_args(a)
     return res
+
+
+def sympy_dtype(expr, default):
+    """
+    Try to infer the data type of the expression
+    returns the default if non is found
+    """
+    args = expr.args
+
+    # Symbol/... without argument, check its dtype
+    if len(args) == 0:
+        try:
+            return expr.dtype
+        except AttributeError:
+            return default
+    else:
+        # Infer expression dtype from its arguments
+        return infer_dtype([sympy_dtype(a, default) for a in expr.args])

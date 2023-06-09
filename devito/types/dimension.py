@@ -1581,9 +1581,12 @@ class AffineIndexAccessFunction(IndexAccessFunction):
             return None
 
 
-def dimensions(names):
-    assert type(names) is str
-    return tuple(Dimension(i) for i in names.split())
+def dimensions(names, n=1):
+    if n > 1:
+        return tuple(Dimension('%s%s' % (names, i)) for i in range(n))
+    else:
+        assert type(names) is str
+        return tuple(Dimension(i) for i in names.split())
 
 
 BOTTOM = Dimension(name='⊥')
