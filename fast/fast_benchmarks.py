@@ -197,7 +197,7 @@ def compile_main(
             cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ
         )
         t = mlir_opt.communicate(main.encode())
-        mlir_opt.wait()
+        assert mlir_opt.wait() == 0
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
     except Exception as e:
@@ -220,7 +220,7 @@ def compile_interop(bench_name: str, args: argparse.Namespace):
         print(cmd)
         mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
-        mlir_opt.wait()
+        assert mlir_opt.wait() == 0
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
     except Exception as e:
@@ -266,7 +266,7 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
             cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ
         )
         t = mlir_opt.communicate(mlir_code.encode())
-        mlir_opt.wait()
+        assert mlir_opt.wait() == 0
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
     except Exception as e:
@@ -293,7 +293,7 @@ def link_kernel(bench_name: str, args: argparse.Namespace):
         print(cmd)
         mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
-        mlir_opt.wait()
+        assert mlir_opt.wait() == 0
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
     except Exception as e:
@@ -314,7 +314,7 @@ def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
         print(cmd)
         mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
-        mlir_opt.wait()
+        assert mlir_opt.wait() == 0
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
         xdsl_line = next(
