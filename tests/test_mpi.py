@@ -11,9 +11,10 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall, ComputeCall
 from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
+
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -1400,6 +1401,7 @@ class TestCodeGeneration(object):
             assert len(op._func_table) == 7
             assert len(calls) == 4
             assert 'haloupdate1' not in op._func_table
+            assert len(FindNodes(ComputeCall).visit(op)) == 1
 
     @pytest.mark.parallel(mode=[(1, 'diag2')])
     def test_many_functions(self):
