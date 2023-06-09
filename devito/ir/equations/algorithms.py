@@ -57,7 +57,8 @@ def dimension_sort(expr):
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
     for i in indexeds:
-        expl_dims = {d for (d, e) in zip(i.function.dimensions, i.indices) if e.is_integer}
+        expl_dims = {d for (d, e) in zip(i.function.dimensions, i.indices)
+                     if e.is_integer}
         extra.update(expl_dims)
 
     # Enforce determinism

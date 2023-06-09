@@ -12,13 +12,11 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.finite_differences.elementary import floor
-from devito.logger import warning
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
-from devito.symbolics import (INT, cast_mapper, indexify,
-                              retrieve_function_carriers)
+from devito.symbolics import INT, indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
-                          memoized_meth, is_integer, dtype_to_mpidtype)
+                          is_integer, dtype_to_mpidtype)
 from devito.types.dense import DiscreteFunction, SubFunction
 from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDimension,
                                     DynamicDimension)
@@ -260,6 +258,24 @@ class AbstractSparseFunction(DiscreteFunction):
         except AttributeError:
             return None
 
+    @property
+    def _support(self):
+        """
+        The grid points surrounding each sparse point within the radius of self's
+        injection/interpolation operators.
+        """
+        max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
+        minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
+        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
+                        axis=2)
+
+    @property
+    def _dist_datamap(self):
+        """
+        Mapper ``M : MPI rank -> required sparse data``.
+        """
+        return self._distributor.glb_to_rank(self._support) or {}
+
     @cached_property
     def _point_increments(self):
         """Index increments in each Dimension for each point symbol."""
@@ -307,14 +323,14 @@ class AbstractSparseFunction(DiscreteFunction):
                       for p, i in zip(self._position_map.values(),
                                       self.grid.dimensions[:self.grid.dim])])
 
-    def _coordinate_bases(self, field_offset):
-        """Symbol for the base coordinates of the reference grid point."""
-        return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
-                      for c, o, idx, i, of in zip(self._coordinate_symbols,
-                                                  self.grid.origin_symbols,
-                                                  self._coordinate_indices,
-                                                  self.grid.dimensions[:self.grid.dim],
-                                                  field_offset)])
+    @cached_property
+    def _dist_reorder_mask(self):
+        """
+        An ordering mask that puts ``self._sparse_position`` at the front.
+        """
+        ret = (self._sparse_position,)
+        ret += tuple(i for i, d in enumerate(self.indices) if d is not self._sparse_dim)
+        return ret
 
     @property
     def gridpoints(self):
@@ -344,21 +360,18 @@ class AbstractSparseFunction(DiscreteFunction):
         except AttributeError:
             return None
 
-    @property
-    def _support(self):
+    def guard(self, expr=None):
         """
-        The grid points surrounding each sparse point within the radius of self's
-        injection/interpolation operators.
-        """
-        max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
-        minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
-                        axis=2)
+        Generate guarded expressions, that is expressions that are evaluated
+        by an Operator only if certain conditions are met.  The introduced
+        condition, here, is that all grid points in the support of a sparse
+        value must fall within the grid domain (i.e., *not* on the halo).
 
-    @property
-    def _dist_datamap(self):
-        """
-        Mapper ``M : MPI rank -> required sparse data``.
+        Parameters
+        ----------
+        expr : expr-like, optional
+            Input expression, from which the guarded expression is derived.
+            If not specified, defaults to ``self``.
         """
         return self.grid._distributor.glb_to_rank(self._support) or {}
 
@@ -897,70 +910,6 @@ class SparseFunction(AbstractSparseFunction):
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.grid.dim)])
 
-    @memoized_meth
-    def _index_matrix(self, offset):
-        # Note about the use of *memoization*
-        # Since this method is called by `_interpolation_indices`, using
-        # memoization avoids a proliferation of symbolically identical
-        # ConditionalDimensions for a given set of indirection indices
-
-        # List of indirection indices for all adjacent grid points
-        index_matrix = [tuple(idx + ii + offset for ii, idx
-                              in zip(inc, self._coordinate_indices))
-                        for inc in self._point_increments]
-
-        # A unique symbol for each indirection index
-        indices = filter_ordered(flatten(index_matrix))
-        points = OrderedDict([(p, Symbol(name='ii_%s_%d' % (self.name, i)))
-                              for i, p in enumerate(indices)])
-
-        return index_matrix, points
-
-    def guard(self, expr=None, offset=0):
-        """
-        Generate guarded expressions, that is expressions that are evaluated
-        by an Operator only if certain conditions are met.  The introduced
-        condition, here, is that all grid points in the support of a sparse
-        value must fall within the grid domain (i.e., *not* on the halo).
-
-        Parameters
-        ----------
-        expr : expr-like, optional
-            Input expression, from which the guarded expression is derived.
-            If not specified, defaults to ``self``.
-        offset : int, optional
-            Relax the guard condition by introducing a tolerance offset.
-        """
-        _, points = self._index_matrix(offset)
-
-        # Guard through ConditionalDimension
-        conditions = {}
-        for d, idx in zip(self.grid.dimensions, self._coordinate_indices):
-            p = points[idx]
-            lb = sympy.And(p >= d.symbolic_min - offset, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_max + offset, evaluate=False)
-            conditions[p] = sympy.And(lb, ub, evaluate=False)
-        condition = sympy.And(*conditions.values(), evaluate=False)
-        cd = ConditionalDimension(self._sparse_dim.name, self._sparse_dim,
-                                  condition=condition, indirect=True)
-
-        if expr is None:
-            out = self.indexify().xreplace({self._sparse_dim: cd})
-        else:
-            functions = {f for f in retrieve_function_carriers(expr)
-                         if f.is_SparseFunction}
-            out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
-
-        # Temporaries for the position
-        temps = [Eq(v, k, implicit_dims=self.dimensions)
-                 for k, v in self._position_map.items()]
-        # Temporaries for the indirection Dimensions
-        temps.extend([Eq(v, k.subs(self._position_map),
-                         implicit_dims=self.dimensions)
-                      for k, v in points.items() if v in conditions])
-
-        return out, temps
-
     @cached_property
     def _decomposition(self):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
@@ -1051,7 +1000,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     __rkwargs__ = tuple(filter_ordered(AbstractSparseTimeFunction.__rkwargs__ +
                                        SparseFunction.__rkwargs__))
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
+    def interpolate(self, expr, u_t=None, p_t=None, increment=False):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -1059,8 +1008,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         ----------
         expr : expr-like
             Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
         u_t : expr-like, optional
             Time index at which the interpolation is performed.
         p_t : expr-like, optional
@@ -1078,11 +1025,10 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             subs = {self.time_dim: p_t}
 
-        return super(SparseTimeFunction, self).interpolate(expr, offset=offset,
-                                                           increment=increment,
+        return super(SparseTimeFunction, self).interpolate(expr, increment=increment,
                                                            self_subs=subs)
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None, implicit_dims=None):
+    def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -1092,8 +1038,6 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             Input field into which the injection is performed.
         expr : expr-like
             Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
         u_t : expr-like, optional
             Time index at which the interpolation is performed.
         p_t : expr-like, optional
@@ -1109,7 +1053,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             expr = expr.subs({self.time_dim: p_t})
 
-        return super().inject(field, expr, offset=offset, implicit_dims=implicit_dims)
+        return super().inject(field, expr, implicit_dims=implicit_dims)
 
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
@@ -1376,64 +1320,6 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
 
     __rkwargs__ = tuple(filter_ordered(AbstractSparseTimeFunction.__rkwargs__ +
                                        PrecomputedSparseFunction.__rkwargs__))
-
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
-        """
-        Generate equations interpolating an arbitrary expression into ``self``.
-
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
-        u_t : expr-like, optional
-            Time index at which the interpolation is performed.
-        p_t : expr-like, optional
-            Time index at which the result of the interpolation is stored.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        """
-        subs = {}
-        if u_t is not None:
-            time = self.grid.time_dim
-            t = self.grid.stepping_dim
-            expr = expr.subs({time: u_t, t: u_t})
-
-        if p_t is not None:
-            subs = {self.time_dim: p_t}
-
-        return super().interpolate(expr, offset=offset,
-                                   increment=increment, self_subs=subs)
-
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None, implicit_dims=None):
-        """
-        Generate equations injecting an arbitrary expression into a field.
-
-        Parameters
-        ----------
-        field : Function
-            Input field into which the injection is performed.
-        expr : expr-like
-            Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
-        u_t : expr-like, optional
-            Time index at which the interpolation is performed.
-        p_t : expr-like, optional
-            Time index at which the result of the interpolation is stored.
-        implicit_dims : Dimension or list of Dimension, optional
-            An ordered list of Dimensions that do not explicitly appear in the
-            injection expression, but that should be honored when constructing
-            the operator.
-        """
-        # Apply optional time symbol substitutions to field and expr
-        if u_t is not None:
-            field = field.subs({field.time_dim: u_t})
-        if p_t is not None:
-            expr = expr.subs({self.time_dim: p_t})
-
-        return super().inject(field, expr, offset=offset, implicit_dims=implicit_dims)
 
 
 class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
@@ -1770,13 +1656,11 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 'mrow', 'mcol', 'mval', 'par_dim_to_nnz_map',
                 'par_dim_to_nnz_m', 'par_dim_to_nnz_M')
 
-    def interpolate(self, expr, offset=0, u_t=None, p_t=None):
+    def interpolate(self, expr, u_t=None, p_t=None):
         """Creates a :class:`sympy.Eq` equation for the interpolation
         of an expression onto this sparse point collection.
 
         :param expr: The expression to interpolate.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
         :param u_t: (Optional) time index to use for indexing into
                     field data in `expr`.
         :param p_t: (Optional) time index to use for indexing into
@@ -1822,13 +1706,11 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         return [Eq(self, 0), Inc(lhs, rhs)]
 
-    def inject(self, field, expr, offset=0, u_t=None, p_t=None):
+    def inject(self, field, expr, u_t=None, p_t=None):
         """Symbol for injection of an expression onto a grid
 
         :param field: The grid field into which we inject.
         :param expr: The expression to inject.
-        :param offset: Additional offset from the boundary for
-                       absorbing boundary conditions.
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """

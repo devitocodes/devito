@@ -8,7 +8,7 @@ from devito.finite_differences.elementary import floor
 from devito.symbolics import retrieve_function_carriers
 from devito.tools import as_tuple, flatten, prod
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, Function)
+                          CustomDimension)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
@@ -57,12 +57,11 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, expr, offset, increment, self_subs, interpolator, callback):
+    def __new__(cls, expr, increment, self_subs, interpolator, callback):
         obj = super().__new__(cls, interpolator, callback)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.expr = expr
-        obj.offset = offset
         obj.increment = increment
         obj.self_subs = self_subs
 
@@ -80,13 +79,12 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, field, expr, offset, interpolator, callback):
+    def __new__(cls, field, expr, interpolator, callback):
         obj = super().__new__(cls, interpolator, callback)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
-        obj.offset = offset
 
         return obj
 
@@ -142,9 +140,15 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
-        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
-                                -self.r+1, self.r, len(range(-self.r+1, self.r+1)))
-                for d in self._gdim]
+        dims = []
+        # Enforce ordering
+        prevdim = self.sfunction._sparse_dim
+        for d in self._gdim:
+            rd = CustomDimension("r%s%s" % (self.sfunction.name, d.name),
+                                 -self.r+1, self.r, len(range(-self.r+1, self.r+1)),
+                                 prevdim)
+            prevdim = rd
+            dims.append(rd)
 
         return DimensionTuple(*dims, getters=self._gdim)
 
@@ -158,8 +162,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, k, implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interpolation_indices(self, variables, offset=0, field_offset=0,
-                               implicit_dims=None):
+    def _interp_idx(self, variables, implicit_dims=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -219,17 +222,17 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Temporaries for the position
         temps = self._positions(implicit_dims)
-    
+
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-    
+
         # Create positions and indices temporaries/indirections
         pr = []
         for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
             p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
             temps.extend([Eq(p, pos + rd, implicit_dims=implicit_dims + tuple(pr))])
 
-            # Add conditional
+            # Add conditional to avoid OOB
             lb = sympy.And(p >= d.symbolic_min-self.r, evaluate=False)
             ub = sympy.And(p <= d.symbolic_max+self.r, evaluate=False)
             condition = sympy.And(lb, ub, evaluate=False)
@@ -243,8 +246,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
-    def interpolate(self, expr, offset=0, increment=False, self_subs={},
-                    implicit_dims=None):
+    def interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -252,8 +254,6 @@ class WeightedInterpolator(GenericInterpolator):
         ----------
         expr : expr-like
             Input expression to interpolate.
-        offset : int, optional
-            Additional offset from the boundary.
         increment: bool, optional
             If True, generate increments (Inc) rather than assignments (Eq).
         implicit_dims : Dimension or list of Dimension, optional
@@ -273,13 +273,9 @@ class WeightedInterpolator(GenericInterpolator):
 
             variables = list(retrieve_function_carriers(_expr))
 
-            # Need to get origin of the field in case it is staggered
-            # TODO: handle each variable staggering separately
-            field_offset = variables[0].origin
             # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interpolation_indices(
-                variables, offset, field_offset=field_offset, implicit_dims=implicit_dims
-            )
+            idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+
             # Accumulate point-wise contributions into a temporary
             rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
             summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
@@ -294,9 +290,9 @@ class WeightedInterpolator(GenericInterpolator):
 
             return [summands[0]] + temps + summands[1:] + last
 
-        return Interpolation(expr, offset, increment, self_subs, self, callback)
+        return Interpolation(expr, increment, self_subs, self, callback)
 
-    def inject(self, field, expr, offset=0, implicit_dims=None):
+    def inject(self, field, expr, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -306,8 +302,6 @@ class WeightedInterpolator(GenericInterpolator):
             Input field into which the injection is performed.
         expr : expr-like
             Injected expression.
-        offset : int, optional
-            Additional offset from the boundary.
         implicit_dims : Dimension or list of Dimension, optional
             An ordered list of Dimensions that do not explicitly appear in the
             injection expression, but that should be honored when constructing
@@ -325,12 +319,8 @@ class WeightedInterpolator(GenericInterpolator):
 
             variables = list(retrieve_function_carriers(_expr)) + [field]
 
-            # Need to get origin of the field in case it is staggered
-            field_offset = field.origin
             # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interpolation_indices(
-                variables, offset, field_offset=field_offset, implicit_dims=implicit_dims
-            )
+            idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
 
             # Substitute coordinate base symbols into the interpolation coefficients
             eqns = [Inc(field.xreplace(idx_subs),
@@ -339,7 +329,7 @@ class WeightedInterpolator(GenericInterpolator):
 
             return temps + eqns
 
-        return Injection(field, expr, offset, self, callback)
+        return Injection(field, expr, self, callback)
 
 
 class LinearInterpolator(WeightedInterpolator):

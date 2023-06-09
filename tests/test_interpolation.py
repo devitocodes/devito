@@ -300,7 +300,7 @@ def test_interpolate(shape, coords, npoints=20):
 >>>>>>> 6ff72c157 (compiler: fix dimension_sort to avoid missing indirect conditionals)
 
     op(a=a)
-    from IPython import embed; embed()
+
     assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
 
@@ -790,8 +790,11 @@ def test_msf_interpolate():
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
 >>>>>>> 6ff72c157 (compiler: fix dimension_sort to avoid missing indirect conditionals)
 
+=======
+>>>>>>> 66bf5974f (compiler: fix dtype of aliases)
     sf.manual_scatter()
     op(time_m=0, time_M=4)
     sf.manual_gather()
@@ -846,7 +849,7 @@ def test_sparse_first():
     # No time dependence so need the implicit dim
     rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
     op = Operator(eqs + rec)
-    print(op)
+
     op(time_M=10)
     expected = 10*11/2  # n (n+1)/2
     assert np.allclose(s.data, expected)
