@@ -586,6 +586,44 @@ def generate_launcher_base(
 
     alloc_lines = "\n".join(alloc_lines)
 
+
+    # set all allocated memref values to 0
+
+    ubs_def = '\n        '.join(
+        f'%loop_ub_{i} = "arith.constant"() {{"value" = {val} : index}} : () -> index' for i, val in enumerate(dims)
+    )
+    ubs = [
+        f'%loop_ub_{i}' for i in range(rank)
+    ]
+    lbs = [
+        '%loop_lb' for _ in range(rank)
+    ]
+    step = [
+        '%loop_step' for _ in range(rank)
+    ]
+    
+    stores = "\n            ".join(
+        '"memref.store"(%init_val, {}, {}) : (f32, {}, {}) -> ()'.format(
+            ref, 
+            ", ".join(f"%i{i}" for i in range(rank)),
+            str(memref_type),
+            ", ".join(f"index" for _ in range(rank)),
+        ) for ref in func_args[1:]
+    )
+
+    alloc_lines += f"""
+        %init_val = "arith.constant"() {{"value" = 0.0 : f32}} : () -> f32
+        %loop_lb = "arith.constant"() {{"value" = 0 : index}} : () -> index
+        %loop_step = "arith.constant"() {{"value" = 1 : index}} : () -> index
+        {ubs_def}
+
+        "scf.parallel"({", ".join(lbs)}, {", ".join(ubs)}, {", ".join(step)}) ({{
+            ^init_loop_body({', '.join(f'%i{i} : index' for i in range(rank))}):
+                {stores}
+                "scf.yield"() : () -> ()
+        }}) {{"operand_segment_sizes" = array<i32: {rank}, {rank}, {rank}, 0>}} : ({', '.join(['index'] * (3 * rank))}) -> ()
+    """
+
     # grab the field type with allocated bounds
     field_type: stencil.FieldType = f.function_type.inputs.data[0]
     assert isinstance(field_type, stencil.FieldType)
@@ -600,27 +638,30 @@ def generate_launcher_base(
         core_ub=(bounds.ub + bounds.lb),
     )
 
-    mpi_setup = f"""
+    teardown = f'"func.call"(%res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()'
+
+    setup = ""
+
+    if mpi:
+        setup += f"""
         "mpi.init"() : () -> ()
 
         %rank = "mpi.comm.rank"() : () -> i32
         %rank_idx = "arith.index_cast"(%rank) : (i32) -> index
 
         "dmp.scatter"(%t0, %rank_idx) {{ "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
-"""
-
-    mpi_teardown = f"""
+        """
+        teardown = f"""
         "dmp.gather"(%res, %rank_idx) ({{
         ^bb0(%global_data: {memref_type}):
             "func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
         }}) {{ "root_rank" = 0, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
 
         "mpi.finalize"() : () -> ()
-"""
 
-    if not mpi:
-        mpi_setup = ""
-        mpi_teardown = f'"func.call"(%res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()'
+        {teardown}
+        """
+        
 
     if gpu:
         gpu_deallocs = [
@@ -630,13 +671,15 @@ def generate_launcher_base(
             for fa in func_args
         ]
         gpu_deallocs = "\n".join(gpu_deallocs)
-        mpi_setup = ""
-        mpi_teardown = f"""
+        #setup = ""
+        teardown = f"""
         %cpu_res = "memref.alloc"() {{"operand_segment_sizes" = array<i32: 0, 0>}} : () -> {str(t)}
         "gpu.memcpy"(%cpu_res, %res) {{"operand_segment_sizes" = array<i32: 0, 1, 1>}} : ({str(t)}, {str(t)}) -> ()
         {gpu_deallocs}
         "func.call"(%cpu_res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-        """
+
+        {teardown}
+        """ 
 
     return f"""
 "builtin.module"() ({{
@@ -649,13 +692,13 @@ def generate_launcher_base(
 
         %t0 = "memref.view"(%byte_ref, %cst0) : (memref<{size_in_bytes}xi8>, index) -> {memref_type}
 {alloc_lines}
-{mpi_setup}
+{setup}
         %time_start = "func.call"() {{"callee" = @timer_start}} : () -> i64
 
         %res = "func.call"({', '.join(func_args)}) {{"callee" = @{f.sym_name.data}}}  : {str(ext_func_decl.function_type)}
 
         "func.call"(%time_start) {{"callee" = @timer_end}} : (i64) -> ()
-{mpi_teardown}
+{teardown}
         "func.return" (%cst0) : (index) -> ()
 
     }}) {{"function_type" = () -> (index), "sym_name" = "main"}} : () -> ()

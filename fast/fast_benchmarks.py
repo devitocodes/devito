@@ -9,6 +9,27 @@ from typing import Any
 
 import numpy as np
 
+
+def run_subprocess(cmd: str, stdin: bytes | None = None):
+    out = ""
+    try:
+        print(cmd)
+        mlir_opt = Popen(
+            cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ
+        )
+        t = mlir_opt.communicate(stdin)
+        code = mlir_opt.wait()
+        out = t[0].decode() + "\n" + t[1].decode()
+        assert code == 0
+        print(out)
+        return out
+    except Exception as e:
+        print("something went wrong... Used command:")
+        print(cmd)
+        print("Output:")
+        print(out)
+        raise e
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process arguments.")
 
@@ -189,23 +210,9 @@ def compile_main(
         main_CFLAGS += " -lmlir_cuda_runtime"
 
     cmd = f"tee main.mlir | xdsl-opt --allow-unregistered-dialect -p {xdsl_pass} | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {main_CFLAGS} 2>&1"
-    out: str
-    try:
-        print(f"Trying to compile {bench_name}.main.o with:")
-        print(cmd)
-        mlir_opt = Popen(
-            cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ
-        )
-        t = mlir_opt.communicate(main.encode())
-        assert mlir_opt.wait() == 0
-        out = t[0].decode() + "\n" + t[1].decode()
-        print(out)
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
+    print(f"Trying to compile {bench_name}.main.o with:")
+    run_subprocess(cmd, main.encode())
+    
 
 
 def compile_interop(bench_name: str, args: argparse.Namespace):
@@ -214,22 +221,9 @@ def compile_interop(bench_name: str, args: argparse.Namespace):
         flags += " -DMPI_ENABLE=1 "
 
     cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {flags} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
-    out: str
-    try:
-        print(f"Trying to compile {bench_name}.interop.o with:")
-        print(cmd)
-        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
-        t = mlir_opt.communicate()
-        assert mlir_opt.wait() == 0
-        out = t[0].decode() + "\n" + t[1].decode()
-        print(out)
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
-
+    print(f"Trying to compile {bench_name}.interop.o with:")
+    run_subprocess(cmd)
+    
 
 def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
     print("Compiling kernel with options:")
@@ -258,23 +252,8 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
         kernel_CFLAGS += " -lmlir_cuda_runtime"
 
     cmd = f"xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {kernel_CFLAGS}"
-    out: str
-    try:
-        print(f"Trying to compile {bench_name}.kernel.o with:")
-        print(cmd)
-        mlir_opt = Popen(
-            cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ
-        )
-        t = mlir_opt.communicate(mlir_code.encode())
-        assert mlir_opt.wait() == 0
-        out = t[0].decode() + "\n" + t[1].decode()
-        print(out)
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
+    print(f"Trying to compile {bench_name}.kernel.o with:")
+    run_subprocess(cmd, mlir_code.encode())
 
 
 def link_kernel(bench_name: str, args: argparse.Namespace):
@@ -287,21 +266,7 @@ def link_kernel(bench_name: str, args: argparse.Namespace):
     if args.gpu:
         link_CFLAGS += " -lmlir_cuda_runtime"
     cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS}"
-    out: str
-    try:
-        print(f"Trying to compile {bench_name}.out with:")
-        print(cmd)
-        mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
-        t = mlir_opt.communicate()
-        assert mlir_opt.wait() == 0
-        out = t[0].decode() + "\n" + t[1].decode()
-        print(out)
-    except Exception as e:
-        print("something went wrong... Used command:")
-        print(cmd)
-        print("Output:")
-        print(out)
-        raise e
+    run_subprocess(cmd)
 
 
 def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
@@ -309,17 +274,18 @@ def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
     cmd = f"{env_str} ./{bench_name}.out"
     if mpi:
         cmd = "mpirun -n 2 " + cmd
-    out: str
+    out: str = ""
     try:
         print(cmd)
         mlir_opt = Popen(cmd, stdout=PIPE, stderr=PIPE, shell=True, env=os.environ)
         t = mlir_opt.communicate()
-        assert mlir_opt.wait() == 0
+        code = mlir_opt.wait()
         out = t[0].decode() + "\n" + t[1].decode()
         print(out)
         xdsl_line = next(
             line for line in out.split("\n") if line.startswith("Elapsed time is: ")
         )
+        assert code == 0
         return float(xdsl_line.split(" ")[-2])
 
     except Exception as e:
@@ -397,3 +363,5 @@ if __name__ == "__main__":
 
     init_value = 10
     main(args.benchmark_name, args.nt, args.dump_main, args.dump_mlir)
+
+
