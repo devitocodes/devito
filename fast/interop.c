@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <inttypes.h>
 
 typedef float f32;
 typedef double f64;
@@ -230,12 +231,12 @@ void print_halo_recv_info(int src, int ex, i64 x0, i64 y0, i64 h, i64 w) {
   printf("MPI recv ex%i [%li:%li,%li:%li] %i <- %i\n",ex, x0, x1, y0, y1, rank, src);
 }
 
-void dump_memref_per_rank(MEMREF_AS_ARGS_DEF(my, f32, 2), i32 index) {
+void dump_memref_per_rank(MEMREF_AS_ARGS_DEF(my, f32, 2), i64 index) {
   COLLECT_MEMREF_ARGS_INTO(my, f32, 2, my_memref);
   char name[512];
   int rank;
   MPI_Comm_rank(1140850688, &rank);
-  sprintf(name, "result-rank-%i-node-%i.data", rank, index);
+  sprintf(name, "result-rank-%i-buff-%" PRId64 ".data", rank, index);
   DUMP_MEMREF(name, my_memref, f32, 2)
 }
 
