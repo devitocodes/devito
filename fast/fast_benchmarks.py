@@ -265,7 +265,12 @@ def link_kernel(bench_name: str, args: argparse.Namespace):
         link_CFLAGS += " -lmpi"
     if args.gpu:
         link_CFLAGS += " -lmlir_cuda_runtime"
-    cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS}"
+
+    ld_flags = ""
+    if "LD_LIBRARY_PATH" in os.environ.keys() and (ld_lib_path := os.environ["LD_LIBRARY_PATH"]) != "":
+        ld_flags = " ".join(map(lambda p : f"-L{p}",ld_lib_path.split(":")))
+
+    cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS} {ld_flags}"
     run_subprocess(cmd)
 
 
