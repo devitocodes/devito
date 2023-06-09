@@ -401,6 +401,24 @@ class DAG(object):
         """Return a list of all predecessors of the given node."""
         return [key for key in self.graph if node in self.graph[key]]
 
+    def all_predecessors(self, node):
+        """
+        Return a list of all nodes ultimately predecessors of the given node
+        in the dependency graph, in topological order.
+        """
+        found = set()
+
+        def _all_predecessors(n):
+            if n in found:
+                return
+            found.add(n)
+            for predecessor in self.predecessors(n):
+                _all_predecessors(predecessor)
+
+        _all_predecessors(node)
+
+        return found
+
     def downstream(self, node):
         """Return a list of all nodes this node has edges towards."""
         if node not in self.graph:
