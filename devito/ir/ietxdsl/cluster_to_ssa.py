@@ -658,8 +658,6 @@ def generate_launcher_base(
         }}) {{ "root_rank" = 0, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
 
         "mpi.finalize"() : () -> ()
-
-        {teardown}
         """
         
 
@@ -677,8 +675,6 @@ def generate_launcher_base(
         "gpu.memcpy"(%cpu_res, %res) {{"operand_segment_sizes" = array<i32: 0, 1, 1>}} : ({str(t)}, {str(t)}) -> ()
         {gpu_deallocs}
         "func.call"(%cpu_res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-
-        {teardown}
         """ 
 
     return f"""
