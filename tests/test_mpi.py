@@ -219,7 +219,7 @@ class TestDistributor(object):
         (256, ('*', '*', 2), (16, 8, 2)),
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
-    def test_custom_topology_3d_dummy(self, comm_size, topology, dist_topology):
+    def test_custom_topology_v2(self, comm_size, topology, dist_topology):
         dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
