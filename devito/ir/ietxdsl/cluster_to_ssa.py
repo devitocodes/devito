@@ -23,6 +23,10 @@ default_int = builtin.i64
 
 
 class ExtractDevitoStencilConversion:
+    """
+    Lower Devito equations to the stencil dialect
+    
+    """
     eqs: list[LoweredEq]
     block: Block
     loaded_values: dict[tuple[int, ...], SSAValue]
@@ -44,10 +48,13 @@ class ExtractDevitoStencilConversion:
         outermost_block = Block([])
         self.block = outermost_block
 
+        # u(t, x, y)
         function = eq.lhs.function
         mlir_type = dtypes_to_xdsltypes[function.dtype]
         grid: Grid = function.grid
-        # get the halo of the space dimensions only
+        # get the halo of the space dimensions only e.g [(2, 2), (2, 2)] for the 2d case
+        # Do not forget the issue with Devito adding an extra point!
+        # (for derivative regions)
         halo = [function.halo[function.dimensions.index(d)] for d in grid.dimensions]
 
         # shift all time values so that for all accesses at t + n, n>=0.
@@ -211,6 +218,7 @@ class ExtractDevitoStencilConversion:
     def _build_iet_for(
         self, dim: SteppingDimension, props: list[str], subindices: int
     ) -> iet_ssa.For:
+        # Build a for loop in the custom iet_ssa.py using lower-upper bound and step
         lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
         ub = iet_ssa.LoadSymbolic.get(dim.symbolic_max._C_name, builtin.IndexType())
         try:
@@ -222,8 +230,8 @@ class ExtractDevitoStencilConversion:
             raise ValueError("step must be int!")
 
         loop = iet_ssa.For.get(lb, ub, step, subindices, props)
-        self.block.add_ops([lb, ub, step, loop])
 
+        self.block.add_ops([lb, ub, step, loop])
         self.block = loop.block
 
         return loop
@@ -418,8 +426,6 @@ def field_type_to_dynamic_shape_type(t: stencil.FieldType):
 def get_containing_func(op: Operation) -> func.FuncOp | None:
     while op is not None and not isinstance(op, func.FuncOp):
         op = op.parent_op()
-    if op is None:
-        return None
     return op
 
 

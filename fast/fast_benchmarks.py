@@ -2,12 +2,11 @@ import argparse
 import os
 import pathlib
 import sys
+import numpy as np
+
 from functools import reduce
-from math import prod
 from subprocess import PIPE, Popen
 from typing import Any
-
-import numpy as np
 
 
 def run_subprocess(cmd: str, stdin: bytes | None = None):
@@ -62,6 +61,8 @@ if __name__ == "__main__":
     parser.add_argument("--dump_mlir", default=False, action="store_true")
     parser.add_argument("--dump_main", default=False, action="store_true")
     parser.add_argument("--mpi", default=False, action="store_true")
+    
+    # Local group
     local_group = parser.add_mutually_exclusive_group()
     local_group.add_argument("--openmp", default=False, action="store_true")
     local_group.add_argument("--gpu", default=False, action="store_true")
@@ -79,7 +80,6 @@ if __name__ == "__main__":
     if args.openmp:
         os.environ["DEVITO_LANGUAGE"] = "openmp"
 # Doing this here because Devito does config at import time
-
 
 from devito import Constant, Eq, Grid, Operator, TimeFunction, XDSLOperator, solve
 from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base

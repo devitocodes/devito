@@ -247,7 +247,6 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
         # assign = Assign.build([lhs, rhs])
         result.append(assign)
         arg_by_expr[expr] = assign
-        # import pdb;pdb.set_trace()
 
         return
 

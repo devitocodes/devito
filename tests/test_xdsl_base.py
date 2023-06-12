@@ -25,7 +25,6 @@ def test_create_xdsl_operator():
     printer = Printer(target=Printer.Target.MLIR)
     printer.print_op(xdsl_op)
     assert False
-    # import pdb;pdb.set_trace()
     # printer.print_op(mod)
 
 

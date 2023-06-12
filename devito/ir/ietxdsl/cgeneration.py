@@ -69,7 +69,6 @@ class CGeneration:
 
         # Print kernels and arguments
         self.print('')
-        import pdb;pdb.set_trace()
         retval = callable_op.attributes['retval'].data
         prefix = callable_op.attributes['prefix'].data
         if prefix != '':
@@ -299,10 +298,8 @@ class CGeneration:
                 type = "double"
             # TOFIX: resort to float
             # elif type == "integer_type":
-            #     # import pdb;pdb.set_trace()
             #     type = "const int"
             else:
-                # # import pdb;pdb.set_trace()
                 type = "float"
             self.print(type, indent=True, end=" ")
             assignee = operation.attributes['name'].data
@@ -317,7 +314,6 @@ class CGeneration:
             return
 
         if (isinstance(operation, memref.Load)):
-            # import pdb;pdb.set_trace();
             self.printResult(operation.memref)
             for ind in operation.indices:
                 self.print("[", indent=False, end="")

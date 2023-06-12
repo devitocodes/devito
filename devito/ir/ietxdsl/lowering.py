@@ -99,8 +99,7 @@ class ConvertForLoopVarToIndex(RewritePattern):
 class LowerIetForToScfFor(RewritePattern):
     """
     This lowers ALL `iet.for` loops it finds to *sequential* scf.for loops
-
-    It does not care if the loop is declared "parellell".
+    regardless of whether the loop is declared "parallel".
     """
 
     @op_type_rewrite_pattern
@@ -120,14 +119,13 @@ class LowerIetForToScfFor(RewritePattern):
         rewriter.replace_matched_op([
             cst1    := arith.Constant.from_int_and_width(1, builtin.IndexType()),
             new_ub  := arith.Addi(op.ub, cst1),
-            scf_for :=scf.For.get(op.lb, new_ub.result, op.step, subindice_vals, body),
+            scf_for := scf.For.get(op.lb, new_ub.result, op.step, subindice_vals, body),
         ], [scf_for.results[0]])
 
         for use in scf_for.results[0].uses:
             if isinstance(use.operation, func.Return):
                 assert isinstance(use.operation.parent_op(), func.FuncOp)
                 use.operation.parent_op().update_function_type()
-
 
 
 class LowerIetForToScfParallel(RewritePattern):
@@ -167,8 +165,6 @@ class LowerIetForToScfParallel(RewritePattern):
                 par_op.operands.index(ub_val),
                 new_ub.result
             )
-
-
 
     def recurse_scf_parallel(
         self,

@@ -33,9 +33,9 @@ BENCH_OPTS_EXTRA = --no_output_dump
 endif
 
 
-
 # this creates the devito data. afaik devito requires gcc for this on my machine. Probably nixos related :S
 # it calls the example script with the bench options, meaning it runs normal devito
+# Can just do DEVITO_ARCH=gcc or DEVITO_ARCH=clang to pick up compiler
 %.devito.data %.input.data: CC = gcc
 %.devito.data %.input.data:
 	$(DEVITO_ENV) python3 fast_benchmarks.py $* $(BENCH_OPTS) $(BENCH_OPTS_EXTRA)

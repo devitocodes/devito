@@ -173,7 +173,6 @@ def transform_devito_to_iet_ssa(op: Operator):
         op_type_qs = [i._C_type_qualifier for i in list(op.parameters)]
         prefix = '-'.join(op.prefix)
         retval = str(op.retval)
-        # import pdb;pdb.set_trace()
         b = Block([i32] * len(op_param_names))
         d = {name: register for name, register in zip(op_param_names, b.args)}
 

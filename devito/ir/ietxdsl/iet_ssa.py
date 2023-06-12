@@ -4,8 +4,8 @@ from sympy import Mod
 from typing import Iterable, Tuple, List, Annotated, Union, Sequence
 from dataclasses import dataclass
 
-from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr, IntegerAttr,
-                                   ContainerOf, IndexType, Float16Type, Float32Type,
+from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr, Float32Type,
+                                   ContainerOf, IndexType, Float16Type, IntegerAttr,
                                    Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
 
 from xdsl.dialects import arith, builtin, memref, llvm
@@ -364,7 +364,6 @@ class For(IRDLOperation):
     properties: OpAttr[ArrayAttr[builtin.StringAttr]]
     pragmas: OpAttr[ArrayAttr[builtin.StringAttr]]
 
-
     def subindice_ssa_vals(self) -> tuple[SSAValue, ...]:
         return self.block.args[1:]
 
@@ -518,6 +517,7 @@ class GetField(IRDLOperation):
             attributes={'lb': lb, 'ub': ub},
             result_types=[field_t],
         )
+
 
 IET_SSA = Dialect([
     Statement,

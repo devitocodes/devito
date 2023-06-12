@@ -6,7 +6,7 @@ This folder is where benchmarking and correctness checks will happen in.
 
 Each benchmark has a `name`, and it's devito definition is stored in `name.py`.
 
-All intermediate files discussed in this section are valid `make` targets, to enable partial compialtion and result inspection.
+All intermediate files discussed in this section are valid `make` targets, to enable partial compilation and result inspection.
 
 Running this file with `-xdsl` will generate all the stencil source files and input data.
 The initial data will be stored in `<name>.input.data`, the stencil source in `<name>.main.mlir` and the "driver" file containing the main and timers in `<name>.mlir`.
@@ -23,7 +23,11 @@ Finally, the `<name>.bench` will run both devito and the stencil version and com
 
 ## Usage
 
-passing options to the benchmark files is done with the `BENCH_OPTS="..."` variable for make.
+Passing options to the benchmark files is done with the `BENCH_OPTS="..."` variable for make.
+
+`make -B 2d5pt.bench BENCH_OPTS="-d 100 100 -nt 100" MODE=CPU`
+`make -B 3d_diff.bench BENCH_OPTS="-d 100 100 100 -nt 100" MODE=CPU`
+
 
 To conclude, running the `2d5pt` example on `gpu` and compare the results, use:
 
