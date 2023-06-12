@@ -8,7 +8,6 @@ CFLAGS = -O3
 # might be extended to omp and others as well
 MODE ?= cpu
 DUMP ?= 1
-THREADS ?= 1
 
 ifeq ($(DUMP),0)
 CFLAGS += -DNODUMP
@@ -20,8 +19,9 @@ CFLAGS += -lmlir_cuda_runtime
 BENCH_OPTS_EXTRA += --gpu
 else ifeq ($(MODE),cpu)
 else ifeq ($(MODE),openmp)
-STENCIL_ENV = OMP_PLACES=threads OMP_NUM_THREADS=$(THREADS)
-DEVITO_ENV = DEVITO_LANGUAGE=openmp $(STENCIL_ENV)
+BENCH_OPTS_EXTRA += --openmp
+else ifeq ($(MODE),mpi)
+BENCH_OPTS_EXTRA += --mpi
 endif
 
 MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"
