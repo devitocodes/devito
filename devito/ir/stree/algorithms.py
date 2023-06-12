@@ -155,6 +155,9 @@ def preprocess(clusters, options=None, **kwargs):
                    len(intersection) > 0:
                     found.append(c1)
                     queue.remove(c1)
+                elif c1.is_halo_touch and len(intersection) == 0 and \
+                        distributed_aindices == set():
+                    queue.remove(c1)
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:

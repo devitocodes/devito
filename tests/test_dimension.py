@@ -5,7 +5,7 @@ from sympy import And, Or
 import pytest
 
 from conftest import assert_blocking, assert_structure, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
@@ -13,7 +13,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
 from devito.arch.compiler import IntelCompiler, OneapiCompiler
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
-from devito.symbolics import indexify, retrieve_functions, IntDiv
+from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.dimension import AffineIndexAccessFunction
 
@@ -1051,7 +1051,8 @@ class TestConditionalDimension(object):
         # 0 --- 0 --- 0 --- 0
 
         radius = 1
-        indices = [(i, i+radius) for i in sf._coordinate_indices]
+        indices = [(INT(floor(i)), INT(floor(i))+radius)
+                   for i in sf._position_map.keys()]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
         eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]

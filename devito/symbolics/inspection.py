@@ -1,7 +1,7 @@
 from functools import singledispatch
 
 import numpy as np
-from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
+from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple, Add
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -269,6 +269,11 @@ def sympy_dtype(expr, default):
     returns the default if non is found
     """
     args = expr.args
+    # We can only infer the dtype for addition/multiplication or Symbols
+    # For other case the epxression function may modify the infered dtype
+    if not (isinstance(expr.func, Add) or isinstance(expr.func, Add)) or \
+            not expr.is_Symbol:
+        return default
 
     # Symbol/... without argument, check its dtype
     if len(args) == 0:

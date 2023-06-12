@@ -61,6 +61,8 @@ def dimension_sort(expr):
                      if e.is_integer}
         extra.update(expl_dims)
 
+    # Remove all parents with the same name as its DerivedDimension to preserve conditions
+    extra = extra - {d.parent for d in extra if d.is_Derived and d.indirect}
     # Enforce determinism
     extra = filter_sorted(extra)
 
@@ -70,7 +72,7 @@ def dimension_sort(expr):
     # wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now
     # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
-    implicit_relations = {(d.parent, d) for d in extra if d.is_Derived}
+    implicit_relations = {(d.parent, d) for d in extra if d.is_Derived and not d.indirect}
 
     # 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension
     # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we

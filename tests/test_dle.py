@@ -187,12 +187,19 @@ def test_cache_blocking_structure_optrelax():
 
     op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
 
-    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
+    bns, _ = assert_blocking(op, {'p_src0_blk0', 'x0_blk0', 'p_src1_blk0'})
 
     iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
     assert len(iters) == 2
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
+
+    iters = FindNodes(Iteration).visit(bns['p_src1_blk0'])
+    assert len(iters) == 5
+    assert iters[0].dim.is_Block
+    assert iters[1].dim.is_Block
+    for i in range(2, 5):
+        assert not iters[i].dim.is_Block
 
 
 def test_cache_blocking_structure_optrelax_customdim():
@@ -284,7 +291,8 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t', 't,p_s0_blk0,p_s'], 't,p_s0_blk0,p_s')
+    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
+                     't,p_s0_blk0,p_s,rsx,rsy')
 
 
 class TestBlockingParTile(object):
@@ -717,7 +725,7 @@ class TestNodeParallelism(object):
         op = Operator(eqns, opt=('openmp', {'par-dynamic-work': 0}))
 
         iterations = FindNodes(Iteration).visit(op)
-        assert len(iterations) == 4
+        assert len(iterations) == 6
         assert iterations[1].is_Affine
         assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
         assert not iterations[3].is_Affine
@@ -941,8 +949,9 @@ class TestNodeParallelism(object):
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1}))
         iterations = FindNodes(Iteration).visit(op0)
+
         assert not iterations[0].pragmas
-        assert 'omp for' in iterations[1].pragmas[0].value
+        assert 'omp for' in iterations[2].pragmas[0].value
 
 
 class TestNestedParallelism(object):

@@ -1463,3 +1463,17 @@ class Indexed(sympy.Indexed):
             if c:
                 return c
         return 0
+
+    def _subs(self, old, new, **hints):
+        # Wrap in a try to make sure no substitution happens when
+        # old is an Indexed as only checkink `old is new` would lead to
+        # incorrect substitution of `old.base` by `new`
+        try:
+            if old.is_Indexed:
+                if old.base == self.base and old.indices == self.indices:
+                    return new
+                else:
+                    return self
+        except AttributeError:
+            pass
+        return super()._subs(old, new, **hints)

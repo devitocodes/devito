@@ -11,10 +11,9 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
-from devito.finite_differences.elementary import floor
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import LinearInterpolator, PrecomputedInterpolator
-from devito.symbolics import INT, indexify, retrieve_function_carriers
+from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           is_integer, dtype_to_mpidtype)
 from devito.types.dense import DiscreteFunction, SubFunction
@@ -23,7 +22,7 @@ from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDime
 from devito.types.dimension import dimensions as mkdims
 from devito.types.basic import Symbol
 from devito.types.equation import Eq, Inc
-from devito.types.utils import IgnoreDimSort, DimensionTuple
+from devito.types.utils import IgnoreDimSort
 
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
@@ -98,7 +97,7 @@ class AbstractSparseFunction(DiscreteFunction):
             kwargs['grid'].distributor
         )
 
-    def __subfunc_setup__(self, key, suffix):
+    def __subfunc_setup__(self, key, suffix, dtype=None):
         if isinstance(key, SubFunction):
             return key
         elif key is not None and not isinstance(key, Iterable):
@@ -111,7 +110,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
         if key is None:
             # Fallback to default behaviour
-            dtype = self.dtype
+            dtype = dtype or self.dtype
         else:
             if not isinstance(key, np.ndarray):
                 key = np.array(key)
@@ -123,9 +122,9 @@ class AbstractSparseFunction(DiscreteFunction):
 
             # Infer dtype
             if np.issubdtype(key.dtype.type, np.integer):
-                dtype = np.int32
+                dtype = dtype or np.int32
             else:
-                dtype = self.dtype
+                dtype = dtype or self.dtype
 
         if key is not None and key.ndim > 2:
             shape = (*shape, *key.shape[2:])
@@ -376,6 +375,11 @@ class AbstractSparseFunction(DiscreteFunction):
         return self.grid._distributor.glb_to_rank(self._support) or {}
 
     @cached_property
+    def _pos_symbols(self):
+        return [Symbol(name='pos%s' % d, dtype=np.int32)
+                for d in self.grid.dimensions]
+
+    @cached_property
     def _point_increments(self):
         """Index increments in each Dimension for each point symbol."""
         return tuple(product(range(-self.r+1, self.r+1), repeat=self.grid.dim))
@@ -385,42 +389,16 @@ class AbstractSparseFunction(DiscreteFunction):
         return np.array(self._point_increments)
 
     @cached_property
-    def _point_symbols(self):
-        """Symbol for coordinate value in each Dimension of the point."""
-        return DimensionTuple(*(Symbol(name='p%s' % d, dtype=self.dtype)
-                                for d in self.grid.dimensions),
-                              getters=self.grid.dimensions)
-
-    @cached_property
     def _position_map(self):
         """
         Symbols map for the physical position of the sparse points relative to the grid
         origin.
         """
-        symbols = [Symbol(name='pos%s' % d, dtype=self.dtype)
-                   for d in self.grid.dimensions]
-        return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
-                                                          self._coordinate_symbols,
-                                                          self.grid.origin_symbols)])
-
-    @cached_property
-    def _coordinate_indices(self):
-        """
-        Symbol for each grid index according to the coordinates.
-
-        Notes
-        -----
-        The expression `(coord - origin)/spacing` could also be computed in the
-        mathematically equivalent expanded form `coord/spacing -
-        origin/spacing`. This particular form is problematic when a sparse
-        point is in close proximity of the grid origin, since due to a larger
-        machine precision error it may cause a +-1 error in the computation of
-        the position. We mitigate this problem by computing the positions
-        individually (hence the need for a position map).
-        """
-        return tuple([INT(floor(p / i.spacing))
-                      for p, i in zip(self._position_map.values(),
-                                      self.grid.dimensions[:self.grid.dim])])
+        return OrderedDict([((c - o)/d.spacing, p)
+                            for p, c, d, o in zip(self._pos_symbols,
+                                                  self._coordinate_symbols,
+                                                  self.grid.dimensions,
+                                                  self.grid.origin_symbols)])
 
     @cached_property
     def _dist_reorder_mask(self):
@@ -1159,7 +1137,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         else:
             assert gridpoints is not None
             self._coordinates = None
-            self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints')
+            self._gridpoints = self.__subfunc_setup__(gridpoints, 'gridpoints',
+                                                      dtype=np.int32)
             self._dist_origin = {self._gridpoints: self.grid.origin_ioffset}
 
         # Setup the interpolation coefficients. These are compulsory
@@ -1200,7 +1179,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                           for i in range(self.grid.dim)])
 
     @cached_property
-    def _coordinate_indices(self):
+    def _position_map(self):
         """
         Symbol for each grid index according to the coordinates.
 
@@ -1216,11 +1195,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         """
         if self.gridpoints is not None:
             ddim = self.gridpoints.dimensions[-1]
-            return tuple([self.gridpoints._subs(ddim, di) for di in range(self.grid.dim)])
+            return OrderedDict((self.gridpoints._subs(ddim, di), p)
+                               for (di, p) in zip(range(self.grid.dim),
+                                                  self._pos_symbols))
         else:
-            return tuple([INT(floor(p / i.spacing))
-                          for p, i in zip(self._position_map.values(),
-                                          self.grid.dimensions[:self.grid.dim])])
+            return super()._position_map
 
     @cached_property
     def _coordinate_symbols(self):

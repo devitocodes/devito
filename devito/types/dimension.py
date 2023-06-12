@@ -454,6 +454,7 @@ class DerivedDimension(BasicDimension):
     """
 
     is_Derived = True
+    indirect = False
 
     __rargs__ = Dimension.__rargs__ + ('parent',)
     __rkwargs__ = ()
@@ -1205,6 +1206,7 @@ class CustomDimension(BasicDimension):
     """
 
     is_Custom = True
+    indirect = False
 
     __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent')
 
