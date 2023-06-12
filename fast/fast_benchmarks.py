@@ -30,6 +30,7 @@ def run_subprocess(cmd: str, stdin: bytes | None = None):
         print(out)
         raise e
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process arguments.")
 
@@ -204,15 +205,12 @@ def compile_main(
 
     main_CFLAGS = CFLAGS
 
-    if args.mpi:
-        main_CFLAGS += " -lmpi"
     if args.gpu:
         main_CFLAGS += " -lmlir_cuda_runtime"
 
     cmd = f"tee main.mlir | xdsl-opt --allow-unregistered-dialect -p {xdsl_pass} | mlir-opt --pass-pipeline={MAIN_MLIR_FILE_PIPELINE} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.main.o - {main_CFLAGS} 2>&1"
     print(f"Trying to compile {bench_name}.main.o with:")
     run_subprocess(cmd, main.encode())
-    
 
 
 def compile_interop(bench_name: str, args: argparse.Namespace):
@@ -223,7 +221,7 @@ def compile_interop(bench_name: str, args: argparse.Namespace):
     cmd = f'clang -O3 -c interop.c -o {bench_name}.interop.o {flags} {"-DNODUMP" if args.no_output_dump else ""} -DOUTFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.stencil.data\\"" -DINFILE_NAME="\\"{pathlib.Path(__file__).parent.resolve()}/{bench_name}.input.data\\""'
     print(f"Trying to compile {bench_name}.interop.o with:")
     run_subprocess(cmd)
-    
+
 
 def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
     print("Compiling kernel with options:")
@@ -246,8 +244,6 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
 
     if args.openmp:
         kernel_CFLAGS += " -fopenmp"
-    if args.mpi:
-        kernel_CFLAGS += " -lmpi"
     if args.gpu:
         kernel_CFLAGS += " -lmlir_cuda_runtime"
 
@@ -258,19 +254,23 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
 
 def link_kernel(bench_name: str, args: argparse.Namespace):
     link_CFLAGS = CFLAGS
+    cc = "clang"
 
     if args.openmp:
         link_CFLAGS += " -fopenmp"
     if args.mpi:
-        link_CFLAGS += " -lmpi"
+        cc = "mpicc"
     if args.gpu:
         link_CFLAGS += " -lmlir_cuda_runtime"
 
     ld_flags = ""
-    if "LD_LIBRARY_PATH" in os.environ.keys() and (ld_lib_path := os.environ["LD_LIBRARY_PATH"]) != "":
-        ld_flags = " ".join(map(lambda p : f"-L{p}",ld_lib_path.split(":")))
+    if (
+        "LD_LIBRARY_PATH" in os.environ.keys()
+        and (ld_lib_path := os.environ["LD_LIBRARY_PATH"]) != ""
+    ):
+        ld_flags = " ".join(map(lambda p: f"-L{p}", ld_lib_path.split(":")))
 
-    cmd = f"clang {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS} {ld_flags}"
+    cmd = f"{cc} {bench_name}.main.o {bench_name}.kernel.o {bench_name}.interop.o -o {bench_name}.out {link_CFLAGS} {ld_flags}"
     run_subprocess(cmd)
 
 
@@ -368,5 +368,3 @@ if __name__ == "__main__":
 
     init_value = 10
     main(args.benchmark_name, args.nt, args.dump_main, args.dump_mlir)
-
-
