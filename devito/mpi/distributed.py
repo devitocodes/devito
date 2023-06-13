@@ -229,6 +229,8 @@ class Distributor(AbstractDistributor):
             # mpi4py takes care of that when the object gets out of scope
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
+            topology = ('*', '*', 1)
+
             if topology is None:
                 # `MPI.Compute_dims` sets the dimension sizes to be as close to
                 # each other as possible, using an appropriate divisibility
