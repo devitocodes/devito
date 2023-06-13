@@ -50,6 +50,12 @@ parser.add_argument(
 
 args = parser.parse_args()
 args.no_output_dump = True
+if args.gpu:
+    os.environ["DEVITO_LANGUAGE"] = "openacc"
+    os.environ["DEVITO_PLATFORM"] = "nvidiaX"
+    os.environ["DEVITO_ARCH"] = "nvc++"
+if args.openmp:
+    os.environ["DEVITO_LANGUAGE"] = "openmp"
 
 import fast_benchmarks
 
