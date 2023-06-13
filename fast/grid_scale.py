@@ -1,6 +1,7 @@
 dims = {"2d5pt": 2, "3d_diff": 3}
 
 import argparse
+import os
 from math import prod
 
 parser = argparse.ArgumentParser(description="Process arguments.")
