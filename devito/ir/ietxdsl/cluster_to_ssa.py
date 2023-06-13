@@ -2,8 +2,8 @@
 
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 from xdsl.dialects import arith, builtin, func, memref, scf
-from xdsl.dialects import stencil as stencil_nexp
-from xdsl.dialects.experimental import dmp, math, stencil
+from xdsl.dialects import stencil
+from xdsl.dialects.experimental import dmp, math
 from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 
 from devito import Grid, SteppingDimension
@@ -192,9 +192,9 @@ class ExtractDevitoStencilConversion:
             """
             AccessOp:
                 name: str = "stencil.access"
-                temp: Annotated[Operand, TempType]
-                offset: OpAttr[IndexAttr]
-                res: Annotated[OpResult, Attribute]
+                temp: Operand = operand_def(TempType)
+                offset: IndexAttr = attr_def(IndexAttr)
+                res: OpResult = result_def(Attribute)
             """
             # get the compile time constant offsets for this read
             offsets = _get_dim_offsets(read, self.time_offs)

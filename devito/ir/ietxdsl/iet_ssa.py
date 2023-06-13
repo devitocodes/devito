@@ -4,14 +4,14 @@ from sympy import Mod
 from typing import Iterable, Tuple, List, Annotated, Union, Sequence
 from dataclasses import dataclass
 
-from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, OpAttr, Float32Type,
-                                   ContainerOf, IndexType, Float16Type, IntegerAttr,
+from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, IntegerAttr,
+                                   ContainerOf, IndexType, Float16Type, Float32Type,
                                    Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
 
 from xdsl.dialects import arith, builtin, memref, llvm
-from xdsl.dialects.experimental import stencil
+from xdsl.dialects import stencil
 
-from xdsl.irdl import irdl_op_definition, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand, IRDLOperation
+from xdsl.irdl import irdl_op_definition, operand_def, result_def, attr_def, region_def, var_operand_def, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand, IRDLOperation
 from xdsl.ir import MLContext, Block, Region, OpResult, SSAValue, Attribute, Dialect, Operation
 
 
@@ -80,9 +80,9 @@ class Dataobj(ParametrizedAttribute):
 @irdl_op_definition
 class Modi(IRDLOperation):
     name: str = "iet.modi"
-    input1: Annotated[Operand, signlessIntegerLike]
-    input2: Annotated[Operand, signlessIntegerLike]
-    output: Annotated[OpResult, signlessIntegerLike]
+    input1: Operand = operand_def(signlessIntegerLike)
+    input2: Operand = operand_def(signlessIntegerLike)
+    output: OpResult = result_def(signlessIntegerLike)
 
     def verify_(self) -> None:
         if self.input1.typ != self.input2.typ or self.input2.typ != self.output.typ:
@@ -99,9 +99,9 @@ class Modi(IRDLOperation):
 @irdl_op_definition
 class Powi(IRDLOperation):
     name: str = "iet.Powi"
-    base: Annotated[Operand, signlessIntegerLike]
-    exponent: Annotated[Operand, signlessIntegerLike]
-    result: Annotated[OpResult, signlessIntegerLike]
+    base: Operand = operand_def(signlessIntegerLike)
+    exponent: Operand = operand_def(signlessIntegerLike)
+    result: OpResult = result_def(signlessIntegerLike)
 
     def verify_(self) -> None:
         if self.base.typ != self.exp.typ or self.exp.typ != self.result.typ:
@@ -119,9 +119,9 @@ class Powi(IRDLOperation):
 class Initialise(IRDLOperation):
     name: str = "iet.initialise"
 
-    lhs: Annotated[OpResult, Attribute]
-    rhs: Annotated[Operand, Attribute]
-    namet: OpAttr[StringAttr]
+    lhs: OpResult = result_def(Attribute)
+    rhs: Operand = operand_def(Attribute)
+    namet: StringAttr = attr_def(StringAttr)
 
     @staticmethod
     def get(lhs: Union[Operation, SSAValue],
@@ -136,11 +136,11 @@ class Initialise(IRDLOperation):
 @irdl_op_definition
 class PointerCast(IRDLOperation):
     name: str = "iet.pointercast"
-    statement: OpAttr[StringAttr]
-    shape_indices: OpAttr[ArrayAttr[IntAttr]]
+    statement: StringAttr = attr_def(StringAttr)
+    shape_indices: ArrayAttr[IntAttr] = attr_def(ArrayAttr[IntAttr])
     
-    arg: Annotated[Operand, Dataobj]  # TOOD: Make it Dataobj()!
-    result: Annotated[OpResult, memref.MemRefType[Attribute]]
+    arg: Operand = operand_def(Dataobj)  # TOOD: Make it Dataobj()!
+    result: OpResult = result_def(memref.MemRefType[Attribute])
 
     @staticmethod
     def get(arg: SSAValue, statement, shape: tuple[int, ...], return_type: Attribute):
@@ -156,7 +156,7 @@ class PointerCast(IRDLOperation):
 @irdl_op_definition
 class Statement(IRDLOperation):
     name: str = "iet.comment"
-    statement: OpAttr[StringAttr]
+    statement: StringAttr = attr_def(StringAttr)
 
     @staticmethod
     def get(statement: str):
@@ -169,10 +169,10 @@ class Statement(IRDLOperation):
 @irdl_op_definition
 class StructDecl(IRDLOperation):
     name: str = "iet.structdecl"
-    id: OpAttr[StringAttr]
-    fields: OpAttr[Attribute]
-    declname: OpAttr[StringAttr]
-    padbytes: OpAttr[Attribute]
+    id: StringAttr = attr_def(StringAttr)
+    fields: Attribute = attr_def(Attribute)
+    declname: StringAttr = attr_def(StringAttr)
+    padbytes: Attribute = attr_def(Attribute)
 
     @staticmethod
     def get(name: str, fields: List[str], declname: str, padbytes: int = 0):
@@ -196,14 +196,14 @@ class StructDecl(IRDLOperation):
 class Callable(IRDLOperation):
     name: str = "iet.callable"
 
-    body: Region
-    callable_name: OpAttr[StringAttr]
-    parameters: OpAttr[Attribute]
-    header_parameters: OpAttr[Attribute]
-    types: OpAttr[Attribute]
-    qualifiers: OpAttr[Attribute]
-    retval: OpAttr[Attribute]
-    prefix: OpAttr[Attribute]
+    body: Region = region_def()
+    callable_name: StringAttr = attr_def(StringAttr)
+    parameters: Attribute = attr_def(Attribute)
+    header_parameters: Attribute = attr_def(Attribute)
+    types: Attribute = attr_def(Attribute)
+    qualifiers: Attribute = attr_def(Attribute)
+    retval: Attribute = attr_def(Attribute)
+    prefix: Attribute = attr_def(Attribute)
 
     @staticmethod
     def get(name: str,
@@ -236,12 +236,12 @@ class Callable(IRDLOperation):
 class Call(IRDLOperation):
     name: str = "iet.call"
 
-    call_name: OpAttr[StringAttr]
-    c_names: OpAttr[Attribute]
-    c_typenames: OpAttr[Attribute]
-    c_typeqs: OpAttr[Attribute]
-    prefix: OpAttr[Attribute]
-    ret_type: OpAttr[Attribute]
+    call_name: StringAttr = attr_def(StringAttr)
+    c_names: Attribute = attr_def(Attribute)
+    c_typenames: Attribute = attr_def(Attribute)
+    c_typeqs: Attribute = attr_def(Attribute)
+    prefix: Attribute = attr_def(Attribute)
+    ret_type: Attribute = attr_def(Attribute)
 
     @staticmethod
     def get(name: str,
@@ -271,11 +271,11 @@ class Call(IRDLOperation):
 class Iteration(IRDLOperation):
     name: str = "iet.iteration"
 
-    body: Region
-    arg_name: OpAttr[StringAttr]
-    limits: OpAttr[Attribute]
-    properties: OpAttr[Attribute]
-    pragmas: OpAttr[Attribute]
+    body: Region = region_def()
+    arg_name: StringAttr = attr_def(StringAttr)
+    limits: Attribute = attr_def(Attribute)
+    properties: Attribute = attr_def(Attribute)
+    pragmas: Attribute = attr_def(Attribute)
 
     @staticmethod
     def get(properties: List[str | StringAttr],
@@ -303,14 +303,14 @@ class Iteration(IRDLOperation):
 class IterationWithSubIndices(IRDLOperation):
     name: str = "iet.iteration_with_subindices"
 
-    arg_name: OpAttr[StringAttr]
-    body: Region
-    limits: OpAttr[Attribute]
-    uindices_names: OpAttr[Attribute]
-    uindices_symbmins_dividends: OpAttr[Attribute]
-    uindices_symbmins_divisors: OpAttr[Attribute]
-    properties: OpAttr[Attribute]
-    pragmas: OpAttr[Attribute]
+    arg_name: StringAttr = attr_def(StringAttr)
+    body: Region = region_def()
+    limits: Attribute = attr_def(Attribute)
+    uindices_names: Attribute = attr_def(Attribute)
+    uindices_symbmins_dividends: Attribute = attr_def(Attribute)
+    uindices_symbmins_divisors: Attribute = attr_def(Attribute)
+    properties: Attribute = attr_def(Attribute)
+    pragmas: Attribute = attr_def(Attribute)
 
     @staticmethod
     def get(properties: List[str],
@@ -351,18 +351,18 @@ class IterationWithSubIndices(IRDLOperation):
 class For(IRDLOperation):
     name: str = "iet.for"
 
-    lb: Annotated[Operand, IndexType]
-    ub: Annotated[Operand, IndexType]
-    step: Annotated[Operand, IndexType]
+    lb: Operand = operand_def(IndexType)
+    ub: Operand = operand_def(IndexType)
+    step: Operand = operand_def(IndexType)
 
-    result: Annotated[OpResult, IndexType]
+    result: OpResult = result_def(IndexType)
 
-    body: SingleBlockRegion
+    body: Region = region_def("single_block")
 
-    subindices: OpAttr[IntAttr]
+    subindices: IntAttr = attr_def(IntAttr)
 
-    properties: OpAttr[ArrayAttr[builtin.StringAttr]]
-    pragmas: OpAttr[ArrayAttr[builtin.StringAttr]]
+    properties: ArrayAttr[builtin.StringAttr] = attr_def(ArrayAttr[builtin.StringAttr])
+    pragmas: ArrayAttr[builtin.StringAttr] = attr_def(ArrayAttr[builtin.StringAttr])
 
     def subindice_ssa_vals(self) -> tuple[SSAValue, ...]:
         return self.block.args[1:]
@@ -421,24 +421,24 @@ class Stencil(IRDLOperation):
     """
     name = "devito.stencil"
 
-    input_indices: Annotated[VarOperand, AnyIntegerAttr]
-    output: Annotated[Operand, AnyIntegerAttr]
+    input_indices: VarOperand = var_operand_def(AnyIntegerAttr)
+    output: Operand = operand_def(AnyIntegerAttr)
 
-    shape: OpAttr[ArrayAttr[IntAttr]]
+    shape: ArrayAttr[IntAttr] = attr_def(ArrayAttr[IntAttr])
     """
     shape without halo (int, int, int)
     """
-    halo: OpAttr[ArrayAttr[ArrayAttr[IntAttr]]]
+    halo: ArrayAttr[ArrayAttr[IntAttr]] = attr_def(ArrayAttr[ArrayAttr[IntAttr]])
     """
     how far each dimension is expanded
     ((int, int), (int, int), (int, int))
     """
 
-    field_type: OpAttr[Attribute]
+    field_type: Attribute = attr_def(Attribute)
 
-    grid_name: OpAttr[StringAttr]
+    grid_name: StringAttr = attr_def(StringAttr)
 
-    body: SingleBlockRegion
+    body: Region = region_def("single_block")
 
     @property
     def block(self):
@@ -485,9 +485,9 @@ class Stencil(IRDLOperation):
 @irdl_op_definition
 class LoadSymbolic(IRDLOperation):
     name = "devito.load_symbolic"
-    symbol_name: OpAttr[StringAttr]
+    symbol_name: StringAttr = attr_def(StringAttr)
 
-    result: OpResult
+    result: OpResult = result_def()
 
     @staticmethod
     def get(name: str, typ: Attribute):
@@ -503,12 +503,12 @@ class LoadSymbolic(IRDLOperation):
 class GetField(IRDLOperation):
     name = "devito.get_field"
 
-    data: Annotated[Operand, memref.MemRefType[stencil.FieldType]]
-    t_index: Annotated[Operand, IntegerType]
-    field: Annotated[OpResult, stencil.FieldType]
+    data: Operand = operand_def(memref.MemRefType[stencil.FieldType])
+    t_index: Operand = operand_def(IntegerType)
+    field: OpResult = result_def(stencil.FieldType)
 
-    lb: OpAttr[stencil.IndexAttr]
-    ub: OpAttr[stencil.IndexAttr]
+    lb: stencil.IndexAttr = attr_def(stencil.IndexAttr)
+    ub: stencil.IndexAttr = attr_def(stencil.IndexAttr)
 
     @staticmethod
     def get(data: SSAValue | Operation, t_idx: SSAValue | Operation, field_t: stencil.FieldType, lb: stencil.IndexAttr, ub: stencil.IndexAttr):
