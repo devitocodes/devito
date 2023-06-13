@@ -68,7 +68,7 @@ init_size = args.init_size
 max_size = args.max_total_size
 points = args.points
 size = tuple([init_size] * dims[bench_name])
-csv_name = f"{bench_name}_grid_runtimes.csv"
+csv_name = f"{bench_name}{'_gpu' if args.gpu else ''}_grid_runtimes.csv"
 
 
 def get_runtimes_for_size(
