@@ -1,8 +1,7 @@
 # ------------- devito import -------------#
 
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
-from xdsl.dialects import arith, builtin, func, memref, scf
-from xdsl.dialects import stencil
+from xdsl.dialects import arith, builtin, func, memref, scf, stencil
 from xdsl.dialects.experimental import dmp, math
 from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 
@@ -25,8 +24,9 @@ default_int = builtin.i64
 class ExtractDevitoStencilConversion:
     """
     Lower Devito equations to the stencil dialect
-    
+
     """
+
     eqs: list[LoweredEq]
     block: Block
     loaded_values: dict[tuple[int, ...], SSAValue]
@@ -592,43 +592,38 @@ def generate_launcher_base(
 
     alloc_lines = "\n".join(alloc_lines)
 
-
     # set all allocated memref values to 0
 
-    ubs_def = '\n        '.join(
-        f'%loop_ub_{i} = "arith.constant"() {{"value" = {val} : index}} : () -> index' for i, val in enumerate(dims)
+    ubs_def = "\n        ".join(
+        f'%loop_ub_{i} = "arith.constant"() {{"value" = {val} : index}} : () -> index'
+        for i, val in enumerate(dims)
     )
-    ubs = [
-        f'%loop_ub_{i}' for i in range(rank)
-    ]
-    lbs = [
-        '%loop_lb' for _ in range(rank)
-    ]
-    step = [
-        '%loop_step' for _ in range(rank)
-    ]
-    
+    ubs = [f"%loop_ub_{i}" for i in range(rank)]
+    lbs = ["%loop_lb" for _ in range(rank)]
+    step = ["%loop_step" for _ in range(rank)]
+
     stores = "\n            ".join(
         '"memref.store"(%init_val, {}, {}) : (f32, {}, {}) -> ()'.format(
-            ref, 
+            ref,
             ", ".join(f"%i{i}" for i in range(rank)),
             str(memref_type),
             ", ".join(f"index" for _ in range(rank)),
-        ) for ref in func_args[1:]
+        )
+        for ref in func_args[1:]
     )
+    if not gpu:
+        alloc_lines += f"""
+            %init_val = "arith.constant"() {{"value" = 0.0 : f32}} : () -> f32
+            %loop_lb = "arith.constant"() {{"value" = 0 : index}} : () -> index
+            %loop_step = "arith.constant"() {{"value" = 1 : index}} : () -> index
+            {ubs_def}
 
-    alloc_lines += f"""
-        %init_val = "arith.constant"() {{"value" = 0.0 : f32}} : () -> f32
-        %loop_lb = "arith.constant"() {{"value" = 0 : index}} : () -> index
-        %loop_step = "arith.constant"() {{"value" = 1 : index}} : () -> index
-        {ubs_def}
-
-        "scf.parallel"({", ".join(lbs)}, {", ".join(ubs)}, {", ".join(step)}) ({{
-            ^init_loop_body({', '.join(f'%i{i} : index' for i in range(rank))}):
-                {stores}
-                "scf.yield"() : () -> ()
-        }}) {{"operand_segment_sizes" = array<i32: {rank}, {rank}, {rank}, 0>}} : ({', '.join(['index'] * (3 * rank))}) -> ()
-    """
+            "scf.parallel"({", ".join(lbs)}, {", ".join(ubs)}, {", ".join(step)}) ({{
+                ^init_loop_body({', '.join(f'%i{i} : index' for i in range(rank))}):
+                    {stores}
+                    "scf.yield"() : () -> ()
+            }}) {{"operand_segment_sizes" = array<i32: {rank}, {rank}, {rank}, 0>}} : ({', '.join(['index'] * (3 * rank))}) -> ()
+        """
 
     # grab the field type with allocated bounds
     field_type: stencil.FieldType = f.function_type.inputs.data[0]
@@ -665,7 +660,6 @@ def generate_launcher_base(
 
         "mpi.finalize"() : () -> ()
         """
-        
 
     if gpu:
         gpu_deallocs = [
@@ -675,13 +669,13 @@ def generate_launcher_base(
             for fa in func_args
         ]
         gpu_deallocs = "\n".join(gpu_deallocs)
-        #setup = ""
+        # setup = ""
         teardown = f"""
         %cpu_res = "memref.alloc"() {{"operand_segment_sizes" = array<i32: 0, 0>}} : () -> {str(t)}
         "gpu.memcpy"(%cpu_res, %res) {{"operand_segment_sizes" = array<i32: 0, 1, 1>}} : ({str(t)}, {str(t)}) -> ()
         {gpu_deallocs}
         "func.call"(%cpu_res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-        """ 
+        """
 
     return f"""
 "builtin.module"() ({{
