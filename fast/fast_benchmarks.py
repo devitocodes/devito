@@ -61,6 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--dump_mlir", default=False, action="store_true")
     parser.add_argument("--dump_main", default=False, action="store_true")
     parser.add_argument("--mpi", default=False, action="store_true")
+    parser.add_argument("--archer2", default=False, action="store_true")
     
     # Local group
     local_group = parser.add_mutually_exclusive_group()
@@ -278,7 +279,10 @@ def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
     env_str = " ".join(k + "=" + str(v) for k, v in env.items())
     cmd = f"{env_str} ./{bench_name}.out"
     if mpi:
-        cmd = "mpirun -n 2 " + cmd
+        if args.archer2:
+            cmd = "srun --nodes=2 --exclusive --time=01:00:00 --partition=standard --qos=standard --account=d011 -u" + cmd
+        else:
+            cmd = "mpirun -n 2 " + cmd
     out: str = ""
     try:
         print(cmd)
