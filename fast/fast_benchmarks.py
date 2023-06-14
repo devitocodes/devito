@@ -95,7 +95,8 @@ MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-m
 MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
 
-decomp = "{strategy=2d-horizontal slices=2}"
+decomp = "{strategy=2d-grid slices=4,4}"
+mpi_node_count = 4*4
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu}"
@@ -248,7 +249,7 @@ def compile_kernel(bench_name: str, mlir_code: str, args: argparse.Namespace):
     if args.gpu:
         kernel_CFLAGS += " -lmlir_cuda_runtime"
 
-    cmd = f"xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {kernel_CFLAGS}"
+    cmd = f"tee {bench_name}.mlir | xdsl-opt -t mlir -p {xdsl_pipe} | mlir-opt --pass-pipeline={mlir_pipe} | mlir-translate --mlir-to-llvmir | clang -x ir -c -o {bench_name}.kernel.o - {kernel_CFLAGS}"
     print(f"Trying to compile {bench_name}.kernel.o with:")
     run_subprocess(cmd, mlir_code.encode())
 
@@ -281,11 +282,11 @@ def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
     if mpi:
         if args.archer2:
             cmd = (
-                "srun --nodes=2 --exclusive --time=01:00:00 --partition=standard --qos=standard --account=d011 -u"
+                "srun --nodes={mpi_node_cound} --exclusive --time=01:00:00 --partition=standard --qos=standard --account=d011 -u"
                 + cmd
             )
         else:
-            cmd = "mpirun -n 2 " + cmd
+            cmd = f"mpirun -n {mpi_node_count} " + cmd
     out: str = ""
     try:
         print(cmd)
