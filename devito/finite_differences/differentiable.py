@@ -346,6 +346,10 @@ class DifferentiableOp(Differentiable):
         return obj
 
     def subs(self, *args, **kwargs):
+        if len(args) == 2:
+            old, new = args
+            if self == old:
+                return new
         return self.func(*[getattr(a, 'subs', lambda x: a)(*args, **kwargs)
                            for a in self.args], evaluate=False)
 
