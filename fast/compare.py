@@ -18,6 +18,7 @@ parser.add_argument(
     "-nt", "--nt", default=10, type=int, help="Simulation time in millisecond"
 )
 parser.add_argument("-n", "--name", type=str, help="benchmark name")
+parser.add_argument("--mpi", default=False, action="store_true")
 
 args, unknown = parser.parse_known_args()
 
@@ -72,6 +73,19 @@ if len(shape) == 3:
         (halo // 2) : -(halo // 2),
         (halo // 2) : -(halo // 2),
     ]
+nodes = 2
+if args.mpi and False:
+    print("Unmangling MPI gathered data")
+    # load data and re-order
+    stencil = np.zeros(args.shape)
+    local_dims = args.shape[0], args.shape[1] // nodes
+    for i in range(nodes):
+        local = stencil_data.flat[
+            (i * prod(local_dims)) : ((i + 1) * prod(local_dims))
+        ].reshape(local_dims)
+        stencil[:, (i * local_dims[1]) : ((i + 1) * local_dims[1])] = local
+    stencil_data = stencil
+
 # reshape into normal shape
 devito_data = devito_data.reshape(shape)
 error_data = devito_data - stencil_data
