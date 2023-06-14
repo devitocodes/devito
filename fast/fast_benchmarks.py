@@ -2,11 +2,11 @@ import argparse
 import os
 import pathlib
 import sys
-import numpy as np
-
 from functools import reduce
 from subprocess import PIPE, Popen
 from typing import Any
+
+import numpy as np
 
 
 def run_subprocess(cmd: str, stdin: bytes | None = None):
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     parser.add_argument("--dump_main", default=False, action="store_true")
     parser.add_argument("--mpi", default=False, action="store_true")
     parser.add_argument("--archer2", default=False, action="store_true")
-    
+
     # Local group
     local_group = parser.add_mutually_exclusive_group()
     local_group.add_argument("--openmp", default=False, action="store_true")
@@ -92,7 +92,7 @@ CFLAGS = "-O3 -march=native -mtune=native"
 MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 # gpu-launch-sink-index-computations seemed to have no impact
-MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=32,8,4}, canonicalize, func.func(gpu-map-parallel-loops), convert-parallel-loops-to-gpu, fold-memref-alias-ops,lower-affine, gpu-kernel-outlining,func.func(gpu-async-region),canonicalize,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize)"'
+MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
 
 decomp = "{strategy=2d-horizontal slices=2}"
@@ -280,7 +280,10 @@ def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
     cmd = f"{env_str} ./{bench_name}.out"
     if mpi:
         if args.archer2:
-            cmd = "srun --nodes=2 --exclusive --time=01:00:00 --partition=standard --qos=standard --account=d011 -u" + cmd
+            cmd = (
+                "srun --nodes=2 --exclusive --time=01:00:00 --partition=standard --qos=standard --account=d011 -u"
+                + cmd
+            )
         else:
             cmd = "mpirun -n 2 " + cmd
     out: str = ""
