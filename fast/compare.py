@@ -62,7 +62,9 @@ assert total_elms == prod(
 
 assert halo
 
-nodes = 2
+# set to the number of "columns" of nodes
+# this is a bit weird, but trust me.
+nodes = 4
 if args.mpi:
     print("Unmangling MPI gathered data")
     # load data and re-order
