@@ -514,6 +514,28 @@ class DAG(object):
         else:
             return tuple(groups)
 
+    def find_paths(self, node):
+        if node not in self.graph:
+            raise KeyError('node %s is not in graph' % node)
+
+        paths = []
+
+        def dfs(node, path):
+            path.append(node)
+
+            if not self.graph[node]:
+                paths.append(tuple(path))
+            else:
+                for child in self.graph[node]:
+                    dfs(child, path)
+
+            # Remove the node from the path to backtrack
+            path.pop()
+
+        dfs(node, [])
+
+        return tuple(paths)
+
 
 class frozendict(Mapping):
     """
