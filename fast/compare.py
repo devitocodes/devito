@@ -62,29 +62,31 @@ assert total_elms == prod(
 
 assert halo
 
-# reshape into expanded form
-stencil_data = stencil_data.reshape(tuple(shape_elm + halo for shape_elm in shape))
-# cut off the halo
-if len(shape) == 2:
-    stencil_data = stencil_data[(halo // 2) : -(halo // 2), (halo // 2) : -(halo // 2)]
-if len(shape) == 3:
-    stencil_data = stencil_data[
-        (halo // 2) : -(halo // 2),
-        (halo // 2) : -(halo // 2),
-        (halo // 2) : -(halo // 2),
-    ]
 nodes = 2
-if args.mpi and False:
+if args.mpi:
     print("Unmangling MPI gathered data")
     # load data and re-order
     stencil = np.zeros(args.shape)
     local_dims = args.shape[0], args.shape[1] // nodes
     for i in range(nodes):
-        local = stencil_data.flat[
-            (i * prod(local_dims)) : ((i + 1) * prod(local_dims))
-        ].reshape(local_dims)
-        stencil[:, (i * local_dims[1]) : ((i + 1) * local_dims[1])] = local
+        for i in range(nodes):
+            local = stencil_data[(i * prod(local_dims)):((i+1) * prod(local_dims))].reshape(local_dims)
+            stencil[:,(i * local_dims[1]):((i+1) * local_dims[1])] = local
     stencil_data = stencil
+else:
+
+    # reshape into expanded form
+    stencil_data = stencil_data.reshape(tuple(shape_elm + halo for shape_elm in shape))
+    # cut off the halo
+    if len(shape) == 2:
+        stencil_data = stencil_data[(halo // 2) : -(halo // 2), (halo // 2) : -(halo // 2)]
+    if len(shape) == 3:
+        stencil_data = stencil_data[
+            (halo // 2) : -(halo // 2),
+            (halo // 2) : -(halo // 2),
+            (halo // 2) : -(halo // 2),
+        ]
+
 
 # reshape into normal shape
 devito_data = devito_data.reshape(shape)
