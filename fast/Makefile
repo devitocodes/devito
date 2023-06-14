@@ -22,6 +22,7 @@ else ifeq ($(MODE),openmp)
 BENCH_OPTS_EXTRA += --openmp
 else ifeq ($(MODE),mpi)
 BENCH_OPTS_EXTRA += --mpi
+COMPARE_FLAGS += --mpi
 endif
 
 MAIN_MLIR_FILE_PIPELINE := "builtin.module(canonicalize, convert-scf-to-cf, convert-cf-to-llvm{index-bitwidth=64}, convert-math-to-llvm, convert-arith-to-llvm{index-bitwidth=64}, $(MEMREF_TO_LLVM_PASS){index-bitwidth=64}, convert-func-to-llvm, reconcile-unrealized-casts, canonicalize)"
@@ -32,6 +33,7 @@ BENCH_OPTS_EXTRA = --no_output_dump
 .PHONY: %.stencil.data
 endif
 
+.PRECIOUS: %.stencil.data %.input.data
 
 # this creates the devito data. afaik devito requires gcc for this on my machine. Probably nixos related :S
 # it calls the example script with the bench options, meaning it runs normal devito
@@ -49,7 +51,7 @@ ifeq ($(DUMP),0)
 	@echo "Done with no dumps, skipping output comparison"
 else
 %.bench: %.stencil.data %.devito.data
-	python3 compare.py --name  $(patsubst %.bench,%,$@) $(BENCH_OPTS)
+	python3 compare.py --name  $(patsubst %.bench,%,$@) $(BENCH_OPTS) $(COMPARE_FLAGS)
 endif
 
 
