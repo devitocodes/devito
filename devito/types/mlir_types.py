@@ -37,7 +37,7 @@ def memref_of_type_and_rank(dtype, rank: int):
         
         def unpack_args(self):
             return [
-                self.ptr, self.aligned, self.offset
+                self.ptr, self.aligned, index(self.offset)
             ] + [
                 index(self.size[i]) for i in range(rank)
             ] + [

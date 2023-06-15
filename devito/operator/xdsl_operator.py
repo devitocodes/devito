@@ -138,14 +138,7 @@ class XDSLOperator(Operator):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, "apply_kernel")
             # Associate a C type to each argument for runtime type check
-            packed_argtypes = [type(i) for i in self._construct_cfunction_args(self._jit_kernel_constants)]
-            unpacked_argtypes = []
-            for argtype in packed_argtypes:
-                if hasattr(argtype, 'unpacked_argtypes'):
-                    unpacked_argtypes.extend(argtype.unpacked_argtypes())
-                else:
-                    unpacked_argtypes.append(argtype)
-            self._cfunction.argtypes = unpacked_argtypes
+            self._cfunction.argtypes = [type(i) for i in self._construct_cfunction_args(self._jit_kernel_constants)]
 
         return self._cfunction
 
