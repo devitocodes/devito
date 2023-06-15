@@ -27,7 +27,7 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
         s0 = Symbol(name='s0', dtype=np.int32)
         s1 = Symbol(name='s1', dtype=np.int32)
@@ -37,7 +37,7 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == s0 + s1 + 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
     def test_reversed(self):
         d = Dimension(name='x')
@@ -47,14 +47,14 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
         expr = d.symbolic_max + d
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs is d.symbolic_max
-        assert expr.sd == 0
+        assert expr.sds == ()
 
     def test_non_affine(self):
         grid = Grid(shape=(3,))
@@ -75,8 +75,8 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == 1
+        assert expr.sds == (sd,)
 
         s = Symbol(name='s')
 
@@ -84,8 +84,29 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == 1 + s
+        assert expr.sds == (sd,)
+
+    def test_stencil_dim_multiple(self):
+        d = Dimension(name='x')
+        sd0 = StencilDimension('i0', 0, 1)
+        sd1 = StencilDimension('i1', 0, 1)
+
+        expr = d + sd0 + sd1 + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd0, sd1)
+
+        s = Symbol(name='s')
+
+        expr = sd0 + d + sd1 + 1 + s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1 + s
+        assert expr.sds == (sd0, sd1)
 
     def test_sub(self):
         d = Dimension(name='x')
@@ -103,8 +124,8 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == -1 - s
+        assert expr.sds == (sd,)
 
 
 class TestBufferedDimension(object):
