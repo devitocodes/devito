@@ -4,6 +4,7 @@ from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 from xdsl.dialects import arith, builtin, func, memref, scf, stencil
 from xdsl.dialects.experimental import dmp, math
 from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
+from typing import Any
 
 from devito import Grid, SteppingDimension
 from devito.ir.clusters import Cluster
@@ -530,6 +531,15 @@ def translate_signature(
     return inputs, outputs
 
 
+def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any]):
+    grpa = GreedyRewritePatternApplier(
+        [
+            _InsertSymbolicConstants(known_symbols),
+            _LowerLoadSymbolidToFuncArgs(),
+        ]
+    )
+    PatternRewriteWalker(grpa).rewrite_module(module)
+
 def generate_launcher_base(
     module: builtin.ModuleOp,
     known_symbols: dict[str, int | float],
@@ -542,13 +552,7 @@ def generate_launcher_base(
     loads into a function that is ready to be lowered by xdsl
     It replaces all symbolics with the one in known_symbols
     """
-    grpa = GreedyRewritePatternApplier(
-        [
-            _InsertSymbolicConstants(known_symbols),
-            _LowerLoadSymbolidToFuncArgs(),
-        ]
-    )
-    PatternRewriteWalker(grpa).rewrite_module(module)
+    finalize_module_with_globals(module, known_symbols)
     f = module.ops.first
 
     assert isinstance(f, func.FuncOp)

@@ -1,5 +1,5 @@
 from devito import Operator
-from devito.ir.ietxdsl import transform_devito_to_iet_ssa, iet_to_standard_mlir
+from devito.ir.ietxdsl import transform_devito_to_iet_ssa, iet_to_standard_mlir, finalize_module_with_globals
 from devito.logger import perf
 
 import tempfile
@@ -16,10 +16,21 @@ from devito.operator.operator import IRs
 from devito.operator.profiling import create_profile
 from devito.tools import OrderedSet, as_tuple, flatten, filter_sorted
 from devito.types import Evaluable
+from devito.types.mlir_types import make_memref_f32_struct_from_np
 
 from xdsl.printer import Printer
 
 __all__ = ['XDSLOperator']
+
+# TODO: get this from mpi4py! or devito or something!
+mpi_grid = (6,6)
+# run with restrict domain=false so we only introduce the swaps but don't
+# reduce the domain of the computation (as devito has already done that for us)
+decomp = f"{{strategy=2d-grid slices={','.join(str(x) for x in mpi_grid)} restrict_domain=false}}"
+
+xdsl_pipeline = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
+
+MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 
 
 class XDSLOperator(Operator):
@@ -38,25 +49,21 @@ class XDSLOperator(Operator):
         """
         #ccode = transform_devito_xdsl_string(self)
         #self.ccode = ccode
-        return
         with self._profiler.timer_on('jit-compile'):
             
-            module_obj = transform_devito_to_iet_ssa(self)
+            # specialize the code for the specific apply parameters
+            finalize_module_with_globals(self._module, self._jit_kernel_constants)
 
-            iet_to_standard_mlir(module_obj)
-
+            # print module as IR
             module_str = StringIO()
-            Printer(target=Printer.Target.MLIR, stream=module_str).print(module_obj)
+            Printer(stream=module_str).print(self._module)
             module_str = module_str.getvalue()
 
-            f = self._tf.name
-
+            # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
                 res = subprocess.run(
-                    #f'tee {f}.iet.mlir |'
-                    #f'cat /run/user/1000/tmp7lgpw9x1.so.iet.mlir | '
-                    f'mlir-opt -cse -loop-invariant-code-motion | '
-                    f'mlir-opt -convert-scf-to-cf -convert-cf-to-llvm -convert-arith-to-llvm -convert-math-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | '
+                    f'xdsl-opt -p {xdsl_pipeline} |'
+                    f'mlir-opt -p {MLIR_CPU_PIPELINE} | '
                     f'mlir-translate --mlir-to-llvmir | '
                     f'steam-run clang -O3 -shared -xir - -o {self._tf.name}',
                     shell=True,
@@ -77,6 +84,9 @@ class XDSLOperator(Operator):
     @property
     def _soname(self):
         return self._tf.name
+
+    def setup_memref_args(self):
+        pass
 
     @property
     def cfunction(self):
@@ -201,3 +211,9 @@ class XDSLOperator(Operator):
         file = StringIO()
         Printer(file).print(self._module)
         return file.getvalue()
+
+def get_arg_names_from_module(op):
+    return [
+        str_attr.data 
+        for str_attr in op.body.block.ops.first.attributes['param_names'].data
+    ]
