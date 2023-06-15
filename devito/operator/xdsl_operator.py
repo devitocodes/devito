@@ -112,7 +112,7 @@ class XDSLOperator(Operator):
                 for t in range(time_slices):
                     self._memref_cache[f'{arg._C_name}_{t}'] = make_memref_f32_struct_from_np(data[t, ...])
         print(f"constructed memrefs {list(self._memref_cache.keys())}")
-        self._jit_kernel_constants.extend(self._memref_cache)
+        self._jit_kernel_constants.update(self._memref_cache)
 
     def _construct_cfunction_args(self, args):
         return [args[name] for name in get_arg_names_from_module(self._module)]
