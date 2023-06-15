@@ -540,6 +540,36 @@ def test_inject(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
+@pytest.mark.parametrize('shape, coords, nexpr, result', [
+    ((11, 11), [(.05, .95), (.45, .45)], 1, 1.),
+    ((11, 11), [(.05, .95), (.45, .45)], 2, 1.),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 1, 0.5),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 2, 0.5)
+])
+def test_multi_inject(shape, coords, nexpr, result, npoints=19):
+    """Test point injection with a set of points forming a line
+    through the middle of the grid.
+    """
+    a1 = unit_box(name='a1', shape=shape)
+    a2 = unit_box(name='a2', shape=shape, grid=a1.grid)
+    a1.data[:] = 0.
+    a2.data[:] = 0.
+    p = points(a1.grid, ranges=coords, npoints=npoints)
+
+    iexpr = Float(1.) if nexpr == 1 else (Float(1.), Float(2.))
+    expr = p.inject((a1, a2), iexpr)
+
+    op = Operator(expr)
+    print(op)
+    op(a1=a1, a2=a2)
+
+    indices = [slice(4, 6, 1) for _ in coords]
+    indices[0] = slice(1, -1, 1)
+    result = (result, result) if nexpr == 1 else (result, 2 * result)
+    for r, a in zip(result, (a1, a2)):
+        assert np.allclose(a.data[indices], r, rtol=1.e-5)
+
+
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)

@@ -299,22 +299,34 @@ class WeightedInterpolator(GenericInterpolator):
         implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         def callback():
+            # Make iterable to support inject((u, v), expr=expr)
+            # or inject((u, v), expr=(expr1, expr2))
+            fields, exprs = as_tuple(field), as_tuple(expr)
+            # Provide either one expr per field or on expr for all fields
+            if len(fields) > 1:
+                if len(exprs) == 1:
+                    exprs = tuple(exprs[0] for _ in fields)
+                else:
+                    assert len(exprs) == len(fields)
+
             # Derivatives must be evaluated before the introduction of indirect accesses
             try:
-                _expr = expr.evaluate
+                _exprs = tuple(e.evaluate for e in exprs)
             except AttributeError:
                 # E.g., a generic SymPy expression or a number
-                _expr = expr
+                _exprs = exprs
 
-            variables = list(retrieve_function_carriers(_expr)) + [field]
+            variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
+            variables = variables + list(fields)
 
             # List of indirection indices for all adjacent grid points
             idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
 
             # Substitute coordinate base symbols into the interpolation coefficients
-            eqns = [Inc(field.xreplace(idx_subs),
+            eqns = [Inc(_field.xreplace(idx_subs),
                         _expr.xreplace(idx_subs) * self._weights,
-                        implicit_dims=implicit_dims + self._rdim)]
+                        implicit_dims=implicit_dims + self._rdim)
+                    for (_field, _expr) in zip(fields, _exprs)]
 
             return temps + eqns
 
