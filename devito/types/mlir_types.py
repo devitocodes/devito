@@ -21,9 +21,24 @@ def memref_of_type_and_rank(dtype, rank: int):
             ('size', index * rank),
             ('stride', index * rank)
         ]
+
         @property
         def _C_ctype(self):
+            """
+            required so it blends in with other devito types
+            """
             return self.__class__
+
+        @classmethod
+        def unpacked_argtypes(cls):
+            return [
+                ptr_of(dtype), ptr_of(dtype), index, index * rank, index*rank
+            ]
+        
+        def unpack_args(self):
+            return [
+                self.ptr, self.aligned, self.offset, self.size, self.stride
+            ]
     return Memref
 
 def make_memref_f32_struct_from_np(data: np.ndarray):

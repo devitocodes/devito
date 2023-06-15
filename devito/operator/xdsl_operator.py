@@ -116,7 +116,15 @@ class XDSLOperator(Operator):
         self._jit_kernel_constants.update(self._memref_cache)
 
     def _construct_cfunction_args(self, args):
-        return [args[name] for name in get_arg_names_from_module(self._module)]
+        packed_args = [args[name] for name in get_arg_names_from_module(self._module)]
+        # unpack memrefs to individual values
+        unpacked_args = []
+        for arg in packed_args:
+            if hasattr(arg, 'unpack_args'):
+                unpacked_args.extend(arg.unpack_args())
+            else:
+                unpacked_args.append(arg)
+        return unpacked_args
 
     @property
     def cfunction(self):
@@ -130,7 +138,14 @@ class XDSLOperator(Operator):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, "apply_kernel")
             # Associate a C type to each argument for runtime type check
-            self._cfunction.argtypes = [i._C_ctype for i in self._construct_cfunction_args(self._jit_kernel_constants)]
+            packed_argtypes = [i._C_ctype for i in self._construct_cfunction_args(self._jit_kernel_constants)]
+            unpacked_argtypes = []
+            for argtype in packed_argtypes:
+                if hasattr(argtype, 'unpacked_argtypes'):
+                    unpacked_argtypes.extend(argtype.unpacked_argtypes())
+                else:
+                    unpacked_argtypes.append(argtype)
+            self._cfunction.argtypes = unpacked_argtypes
 
         return self._cfunction
 
