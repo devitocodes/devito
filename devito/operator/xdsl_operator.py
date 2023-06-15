@@ -5,6 +5,7 @@ from devito.logger import perf
 import tempfile
 import subprocess
 import ctypes
+import numpy as np
 
 from collections import OrderedDict
 from io import StringIO
