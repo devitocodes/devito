@@ -21,6 +21,9 @@ def memref_of_type_and_rank(dtype, rank: int):
             ('size', index * rank),
             ('stride', index * rank)
         ]
+        @property
+        def _C_ctype(self):
+            return self
     return Memref
 
 def make_memref_f32_struct_from_np(data: np.ndarray):
