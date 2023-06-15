@@ -32,8 +32,8 @@ def make_memref_f32_struct_from_np(data: np.ndarray):
         data_ptr,
         data_ptr,
         0,
-        (ctypes.c_size_t * rank)(data.shape),
-        (ctypes.c_size_t * rank)([1] * rank)
+        (ctypes.c_size_t * rank)(*data.shape),
+        (ctypes.c_size_t * rank)(*([1] * rank))
     )
 
     

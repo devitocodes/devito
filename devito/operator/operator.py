@@ -788,10 +788,10 @@ class Operator(Callable):
             args = self.arguments(**kwargs)
             self._jit_kernel_constants = args
 
-        # Invoke kernel function with args
-        arg_values = [args[p.name] for p in self.parameters]
+        cfunction = self.cfunction
         try:
-            cfunction = self.cfunction
+            # Invoke kernel function with args
+            arg_values = self._construct_cfunction_args(args)
             print(f"{arg_values=}, {self.parameters=}")
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
@@ -813,6 +813,9 @@ class Operator(Callable):
         return self._emit_apply_profiling(args)
 
     # Performance profiling
+
+    def _construct_cfunction_args(self, args):
+        return [args[p.name] for p in self.parameters]
 
     def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):

@@ -4,6 +4,7 @@ from devito.logger import perf
 
 import tempfile
 import subprocess
+import ctypes
 
 from collections import OrderedDict
 from io import StringIO
@@ -22,15 +23,24 @@ from xdsl.printer import Printer
 
 __all__ = ['XDSLOperator']
 
+DO_MPI = False
+
 # TODO: get this from mpi4py! or devito or something!
 mpi_grid = (2,2)
 # run with restrict domain=false so we only introduce the swaps but don't
 # reduce the domain of the computation (as devito has already done that for us)
 decomp = f"{{strategy=2d-grid slices={','.join(str(x) for x in mpi_grid)} restrict_domain=false}}"
 
-xdsl_pipeline = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
+CFLAGS = "-O3 -march=native -mtune=native"
 
 MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,finalize-memref-to-llvm,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
+MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-openmp-to-llvm,convert-math-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
+# gpu-launch-sink-index-computations seemed to have no impact
+MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
+
+XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu}"
+XDSL_MPI_PIPELINE = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
 
 
 class XDSLOperator(Operator):
@@ -59,13 +69,17 @@ class XDSLOperator(Operator):
             Printer(stream=module_str).print(self._module)
             module_str = module_str.getvalue()
 
+            xdsl_pipeline = XDSL_MPI_PIPELINE if DO_MPI else XDSL_CPU_PIPELINE
+
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
+                cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
+                    f'mlir-opt -p {MLIR_CPU_PIPELINE} | ' \
+                    f'mlir-translate --mlir-to-llvmir | ' \
+                    f'steam-run clang -O3 -shared -xir - -o {self._tf.name}'
+                print(f"compiling kernel using {cmd}")
                 res = subprocess.run(
-                    f'xdsl-opt -p {xdsl_pipeline} |'
-                    f'mlir-opt -p {MLIR_CPU_PIPELINE} | '
-                    f'mlir-translate --mlir-to-llvmir | '
-                    f'steam-run clang -O3 -shared -xir - -o {self._tf.name}',
+                    cmd,
                     shell=True,
                     input=module_str,
                     text=True
@@ -86,20 +100,36 @@ class XDSLOperator(Operator):
         return self._tf.name
 
     def setup_memref_args(self):
-        pass
+        """
+        Add memrefs to args dictionary so they can be passed to the cfunction
+        """
+        self._memref_cache = dict()
+        for arg in self._jit_kernel_constants.values():
+            if hasattr(arg, 'data_with_halo') and isinstance(arg.data_with_halo, np.ndarray):
+                # TODO: is this even correct lol?
+                data = arg.data_with_halo
+                time_slices = data.shape[0]
+                for t in range(time_slices):
+                    self._memref_cache[f'{arg._C_name}_{t}'] = make_memref_f32_struct_from_np(data[t, ...])
+        print(f"constructed memrefs {list(self._memref_cache.keys())}")
+        self._jit_kernel_constants.extend(self._memref_cache)
+
+    def _construct_cfunction_args(self, args):
+        return [args[name] for name in get_arg_names_from_module(self._module)]
 
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             self._jit_compile()
+            self.setup_memref_args()
             self._lib = self._compiler.load(self._tf.name)
             self._lib.name = self._tf.name
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
             # Associate a C type to each argument for runtime type check
-            self._cfunction.argtypes = [i._C_ctype for i in self.parameters]
+            self._cfunction.argtypes = [i._C_ctype for i in self._construct_cfunction_args()]
 
         return self._cfunction
 
