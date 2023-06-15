@@ -76,7 +76,7 @@ class XDSLOperator(Operator):
                 cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {MLIR_CPU_PIPELINE} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'steam-run clang -O3 -shared -xir - -o {self._tf.name}'
+                    f'clang -O3 -shared -xir - -o {self._tf.name}'
                 print(f"compiling kernel using {cmd}")
                 res = subprocess.run(
                     cmd,
