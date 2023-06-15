@@ -23,7 +23,7 @@ def memref_of_type_and_rank(dtype, rank: int):
         ]
         @property
         def _C_ctype(self):
-            return self
+            return self.__class__
     return Memref
 
 def make_memref_f32_struct_from_np(data: np.ndarray):
