@@ -23,7 +23,7 @@ from xdsl.printer import Printer
 __all__ = ['XDSLOperator']
 
 # TODO: get this from mpi4py! or devito or something!
-mpi_grid = (6,6)
+mpi_grid = (2,2)
 # run with restrict domain=false so we only introduce the swaps but don't
 # reduce the domain of the computation (as devito has already done that for us)
 decomp = f"{{strategy=2d-grid slices={','.join(str(x) for x in mpi_grid)} restrict_domain=false}}"
