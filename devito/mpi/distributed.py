@@ -1,7 +1,9 @@
+from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
-from math import ceil
-from abc import ABC, abstractmethod
+from math import ceil, pow
+from sympy import factorint
+
 import atexit
 
 from cached_property import cached_property
@@ -204,8 +206,7 @@ class Distributor(AbstractDistributor):
                 # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
-                # A custom topology may contain integers or the wildcard '*', which
-                # implies `nprocs // nstars`
+                # A custom topology may contain integers or the wildcard '*'
                 topology = CustomTopology(topology, self._input_comm)
 
                 self._topology = topology
@@ -566,51 +567,89 @@ class MPINeighborhood(CompositeObject):
 class CustomTopology(tuple):
 
     """
-    A CustomTopology is a mechanism to describe parametric domain decompositions.
+    The CustomTopology class provides a mechanism to describe parametric domain
+    decompositions. It allows users to specify how the dimensions of a domain are
+    decomposed into chunks based on certain parameters.
 
     Examples
     --------
-    Assuming a domain consisting of three distributed Dimensions x, y, and z, and
-    an MPI communicator comprising N processes, a CustomTopology might be:
+    For example, let's consider a domain with three distributed dimensions: x, y, and z,
+    and an MPI communicator with N processes. Here are a few examples of CustomTopology:
 
     With N known, say N=4:
-
     * `(1, 1, 4)`: the z Dimension is decomposed into 4 chunks
-    * `(2, 1, 2)`: the x Dimension is decomposed into 2 chunks; the z Dimension
+    * `(2, 1, 2)`: the x Dimension is decomposed into 2 chunks and the z Dimension
                    is decomposed into 2 chunks
 
     With N unknown:
-
-    * `(1, '*', 1)`: the wildcard `'*'` tells the runtime to decompose the y
+    * `(1, '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose the y
                      Dimension into N chunks
-    * `('*', '*', 1)`: the wildcard `'*'` tells the runtime to decompose both the
-                       x and y Dimensions into N / 2 chunks respectively.
+    * `('*', '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose both
+                       the x and y Dimensions in `nstars` factors of N, prioritizing
+                       the outermost dimension
 
-    Raises
-    ------
-    N must evenly divide the number of `'*'`, otherwise a ValueError exception
-    is raised.
-    If the wildcard `'*'` is used, then the CustomTopology can only contain either
-    `'*'` or 1's, otherwise a ValueError exception is raised.
+    Assuming that the number of ranks `N` cannot evenly be decomposed to the requested
+    stars=6 we decompose as evenly as possible by prioritising the outermost dimension
+
+    For N=3
+    * `('*', '*', 1)` gives: (3, 1, 1)
+    * `('*', 1, '*')` gives: (3, 1, 1)
+    * `(1, '*', '*')` gives: (1, 3, 1)
+
+    For N=6
+    * `('*', '*', 1)` gives: (3, 2, 1)
+    * `('*', 1, '*')` gives: (3, 1, 2)
+    * `(1, '*', '*')` gives: (1, 3, 2)
+
+    For N=8
+    * `('*', '*', '*')` gives: (2, 2, 2)
+    * `('*', '*', 1)` gives: (4, 2, 1)
+    * `('*', 1, '*')` gives: (4, 1, 2)
+    * `(1, '*', '*')` gives: (1, 4, 2)
 
     Notes
     -----
-    Users shouldn't use this class directly. It's up to the Devito runtime to
-    instantiate it based on the user input.
+    Users should not directly use the CustomTopology class. It is instantiated
+    by the Devito runtime based on user input.
     """
 
     def __new__(cls, items, input_comm):
-        nstars = len([i for i in items if i == '*'])
-        if nstars > 0:
-            if input_comm.size % nstars != 0:
-                raise ValueError("Invalid `topology` for given nprocs")
-            if any(i not in ('*', 1) for i in items):
-                raise ValueError("Custom topology must be only 1 or *")
+        # Keep track of nstars and already defined decompositions
+        nstars = items.count('*')
 
-            v = input_comm.size // nstars
-            processed = [i if i == 1 else v for i in items]
-        else:
+        # If no stars exist we are ready
+        if nstars == 0:
             processed = items
+        else:
+            # Init decomposition list and track star positions
+            processed = [1] * len(items)
+            star_pos = []
+            for i, item in enumerate(items):
+                if isinstance(item, int):
+                    processed[i] = item
+                else:
+                    star_pos.append(i)
+
+            # Compute the remaining procs to be allocated
+            alloc_procs = np.prod([i for i in items if i != '*'])
+            rem_procs = int(input_comm.size // alloc_procs)
+
+            # List of all factors of rem_procs in decreasing order
+            factors = factorint(rem_procs)
+            vals = [k for (k, v) in factors.items() for _ in range(v)][::-1]
+
+            # Split in number of stars
+            split = np.array_split(vals, nstars)
+
+            # Reduce
+            star_vals = [int(np.prod(s)) for s in split]
+
+            # Apply computed star values to the processed
+            for index, value in zip(star_pos, star_vals):
+                processed[index] = value
+
+        # Final check that topology matches the communicator size
+        assert np.prod(processed) == input_comm.size
 
         obj = super().__new__(cls, processed)
         obj.logical = items

@@ -12,6 +12,8 @@ from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
 from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.distributed import CustomTopology
+from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -179,6 +181,48 @@ class TestDistributor(object):
         expected = [(4, 15), (4, 15), (4, 15), (3, 15)]
         assert f2.shape == expected[distributor.myrank]
         assert f2.size_global == f.size_global
+
+    @pytest.mark.parametrize('comm_size, topology, dist_topology', [
+        (2, (1, '*'), (1, 2)),
+        (2, ('*', '*'), (2, 1)),
+        (1, (1, '*', '*'), (1, 1, 1)),
+        (2, (1, '*', '*'), (1, 2, 1)),
+        (2, (2, '*', '*'), (2, 1, 1)),
+        (3, (1, '*', '*'), (1, 3, 1)),
+        (3, ('*', '*', 1), (3, 1, 1)),
+        (4, (2, '*', '*'), (2, 2, 1)),
+        (4, ('*', '*', 2), (2, 1, 2)),
+        (6, ('*', '*', 1), (3, 2, 1)),
+        (6, (1, '*', '*'), (1, 3, 2)),
+        (6, ('*', '*', '*'), (3, 2, 1)),
+        (12, ('*', '*', '*'), (3, 2, 2)),
+        (12, ('*', 3, '*'), (2, 3, 2)),
+        (18, ('*', '*', '*'), (3, 3, 2)),
+        (18, ('*', '*', 9), (2, 1, 9)),
+        (18, ('*', '*', 3), (3, 2, 3)),
+        (24, ('*', '*', '*'), (6, 2, 2)),
+        (32, ('*', '*', '*'), (4, 4, 2)),
+        (8, ('*', 1, '*'), (4, 1, 2)),
+        (8, ('*', '*', 1), (4, 2, 1)),
+        (8, ('*', '*', '*'), (2, 2, 2)),
+        (9, ('*', '*', '*'), (3, 3, 1)),
+        (11, (1, '*', '*'), (1, 11, 1)),
+        (22, ('*', '*', '*'), (11, 2, 1)),
+        (16, ('*', 1, '*'), (4, 1, 4)),
+        (32, ('*', '*', 1), (8, 4, 1)),
+        (64, ('*', '*', 1), (8, 8, 1)),
+        (64, ('*', 2, 4), (8, 2, 4)),
+        (128, ('*', '*', 1), (16, 8, 1)),
+        (231, ('*', '*', '*'), (11, 7, 3)),
+        (256, (1, '*', '*'), (1, 16, 16)),
+        (256, ('*', '*', '*'), (8, 8, 4)),
+        (256, ('*', '*', 2), (16, 8, 2)),
+        (256, ('*', 32, 2), (4, 32, 2)),
+    ])
+    def test_custom_topology_v2(self, comm_size, topology, dist_topology):
+        dummy_comm = Bunch(size=comm_size)
+        custom_topology = CustomTopology(topology, dummy_comm)
+        assert custom_topology == dist_topology
 
 
 class TestFunction(object):
