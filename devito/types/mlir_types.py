@@ -32,12 +32,16 @@ def memref_of_type_and_rank(dtype, rank: int):
         @classmethod
         def unpacked_argtypes(cls):
             return [
-                ptr_of(dtype), ptr_of(dtype), index, index * rank, index*rank
-            ]
+                ptr_of(dtype), ptr_of(dtype)
+            ] + ([index] * (2 * rank + 1))
         
         def unpack_args(self):
             return [
-                self.ptr, self.aligned, self.offset, self.size, self.stride
+                self.ptr, self.aligned, self.offset
+            ] + [
+                index(self.size[i]) for i in range(rank)
+            ] + [
+                index(self.stride[i]) for i in range(rank)
             ]
     return Memref
 
