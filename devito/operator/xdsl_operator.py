@@ -74,7 +74,7 @@ class XDSLOperator(Operator):
 
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
-                cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
+                cmd = f'tee 2d5pt.mlir | xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {MLIR_CPU_PIPELINE} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
                     f'clang -O3 -shared -xir - -o {self._tf.name}'

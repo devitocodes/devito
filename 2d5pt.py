@@ -104,7 +104,6 @@ def main(bench_name: str):
 
     if args.xdsl:
         xop = XDSLOperator([eq0])
-        dump_main(grid, u, xop, dt, nt)
         xop.apply(time_M=nt, a=0.1, dt=dt)
     else:
         op = Operator([eq0])
