@@ -607,11 +607,11 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         if args:
             try:
                 # Constructor if input is (rows, cols, lambda)
-                newobj = super(AbstractTensor, cls)._new(*args)
+                newobj = super()._new(*args)
             except ValueError:
                 # Constructor if input is list of list as (row, cols, list_of_list)
                 # doesn't work as it expects a flattened.
-                newobj = super(AbstractTensor, cls)._new(args[2])
+                newobj = super()._new(args[2])
 
             # Filter grid and dimensions
             grid, dimensions = newobj._infer_dims()
@@ -624,7 +624,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             # Initialize components and create new Matrix from standard
             # Devito inputs
             comps = cls.__subfunc_setup__(*args, **kwargs)
-            newobj = super(AbstractTensor, cls)._new(comps)
+            newobj = super()._new(comps)
             newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
@@ -638,7 +638,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         This class method is only accessible from an existing AbstractTensor
         that contains a grid or dimensions.
         """
-        newobj = super(AbstractTensor, cls)._fromrep(rep)
+        newobj = super()._fromrep(rep)
         grid, dimensions = newobj._infer_dims()
         try:
             # This is needed when `_fromrep` is called directly in 1.9
@@ -1405,7 +1405,7 @@ class Indexed(sympy.Indexed):
         return super().__str__()
 
     def _hashable_content(self):
-        return super(Indexed, self)._hashable_content() + (self.base.function,)
+        return super()._hashable_content() + (self.base.function,)
 
     @cached_property
     def indices(self):
@@ -1430,7 +1430,7 @@ class Indexed(sympy.Indexed):
     @cached_property
     def free_symbols(self):
         # Make it cached, since it's relatively expensive and called often
-        ret = super(Indexed, self).free_symbols
+        ret = super().free_symbols
         # Get rid of the IndexedBase label this Indexed stems from
         # as in Devito we can't have it floating around in Eq's
         ret.discard(self.base.label)

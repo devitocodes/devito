@@ -51,7 +51,7 @@ def dimension_sort(expr):
     relations.add(expr.implicit_dims)
 
     # Add in leftover free dimensions (not an Indexed' index)
-    extra = set(retrieve_dimensions(expr))
+    extra = set(retrieve_dimensions(expr, deep=True))
 
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
@@ -61,8 +61,6 @@ def dimension_sort(expr):
                      if e.is_integer}
         extra.update(expl_dims)
 
-    # Remove all parents with the same name as its DerivedDimension to preserve conditions
-    extra = extra - {d.parent for d in extra if d.is_Derived and d.indirect}
     # Enforce determinism
     extra = filter_sorted(extra)
 

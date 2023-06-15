@@ -173,14 +173,6 @@ class AbstractSparseFunction(DiscreteFunction):
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
 
-    @cached_property
-    def dist_origin(self):
-        return self._dist_origin
-
-    @property
-    def dist_origin(self):
-        return self._dist_origin
-
     @property
     def _mpitype(self):
         return dtype_to_mpidtype(self.dtype)
@@ -194,28 +186,6 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def _comm(self):
         return self._distributor.comm
-
-    @property
-    def _coords_indices(self):
-        if self.gridpoints_data is not None:
-            return self.gridpoints_data
-        else:
-            if self.coordinates_data is None:
-                raise ValueError("No coordinates or gridpoints attached"
-                                 "to this SparseFunction")
-            return (
-                np.floor(self.coordinates_data - self.grid.origin) / self.grid.spacing
-            ).astype(np.int32)
-
-    @property
-    def _subfunc_names(self):
-        names = []
-        for s in self._sub_functions:
-            try:
-                names.append(getattr(self, s).name)
-            except AttributeError:
-                pass
-        return tuple(names)
 
     @property
     def _coords_indices(self):
@@ -273,106 +243,11 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        return self._distributor.glb_to_rank(self._support) or {}
-
-    @cached_property
-    def _point_increments(self):
-        """Index increments in each Dimension for each point symbol."""
-        return tuple(product(range(-self.r+1, self.r+1), repeat=self.grid.dim))
-
-    @cached_property
-    def _point_support(self):
-        return np.array(self._point_increments)
-
-    @cached_property
-    def _point_symbols(self):
-        """Symbol for coordinate value in each Dimension of the point."""
-        return DimensionTuple(*(Symbol(name='p%s' % d, dtype=self.dtype)
-                                for d in self.grid.dimensions),
-                              getters=self.grid.dimensions)
-
-    @cached_property
-    def _position_map(self):
-        """
-        Symbols map for the physical position of the sparse points relative to the grid
-        origin.
-        """
-        symbols = [Symbol(name='pos%s' % d, dtype=self.dtype)
-                   for d in self.grid.dimensions]
-        return OrderedDict([(c - o, p) for p, c, o in zip(symbols,
-                                                          self._coordinate_symbols,
-                                                          self.grid.origin_symbols)])
-
-    @cached_property
-    def _coordinate_indices(self):
-        """
-        Symbol for each grid index according to the coordinates.
-
-        Notes
-        -----
-        The expression `(coord - origin)/spacing` could also be computed in the
-        mathematically equivalent expanded form `coord/spacing -
-        origin/spacing`. This particular form is problematic when a sparse
-        point is in close proximity of the grid origin, since due to a larger
-        machine precision error it may cause a +-1 error in the computation of
-        the position. We mitigate this problem by computing the positions
-        individually (hence the need for a position map).
-        """
-        return tuple([INT(floor(p / i.spacing))
-                      for p, i in zip(self._position_map.values(),
-                                      self.grid.dimensions[:self.grid.dim])])
-
-    @cached_property
-    def _dist_reorder_mask(self):
-        """
-        An ordering mask that puts ``self._sparse_position`` at the front.
-        """
-        ret = (self._sparse_position,)
-        ret += tuple(i for i, d in enumerate(self.indices) if d is not self._sparse_dim)
-        return ret
-
-    @property
-    def gridpoints(self):
-        try:
-            return self._gridpoints
-        except AttributeError:
-            return self._coords_indices
-
-    @property
-    def gridpoints_data(self):
-        try:
-            return self._gridpoints.data._local.view(np.ndarray)
-        except AttributeError:
-            return None
-
-    @property
-    def coordinates(self):
-        try:
-            return self._coordinates
-        except AttributeError:
-            return None
-
-    @property
-    def coordinates_data(self):
-        try:
-            return self.coordinates.data._local.view(np.ndarray)
-        except AttributeError:
-            return None
-
-    def guard(self, expr=None):
-        """
-        Generate guarded expressions, that is expressions that are evaluated
-        by an Operator only if certain conditions are met.  The introduced
-        condition, here, is that all grid points in the support of a sparse
-        value must fall within the grid domain (i.e., *not* on the halo).
-
-        Parameters
-        ----------
-        expr : expr-like, optional
-            Input expression, from which the guarded expression is derived.
-            If not specified, defaults to ``self``.
-        """
         return self.grid._distributor.glb_to_rank(self._support) or {}
+
+    @cached_property
+    def dist_origin(self):
+        return self._dist_origin
 
     @cached_property
     def _pos_symbols(self):
@@ -409,15 +284,6 @@ class AbstractSparseFunction(DiscreteFunction):
         ret += tuple(i for i, d in enumerate(self.indices) if d is not self._sparse_dim)
         return ret
 
-    def _coordinate_bases(self, field_offset):
-        """Symbol for the base coordinates of the reference grid point."""
-        return tuple([cast_mapper[self.dtype](c - o - idx * i.spacing)
-                      for c, o, idx, i, of in zip(self._coordinate_symbols,
-                                                  self.grid.origin_symbols,
-                                                  self._coordinate_indices,
-                                                  self.grid.dimensions[:self.grid.dim],
-                                                  field_offset)])
-
     def interpolate(self, *args, **kwargs):
         """
         Implement an interpolation operation from the grid onto the given sparse points
@@ -429,6 +295,47 @@ class AbstractSparseFunction(DiscreteFunction):
         Implement an injection operation from a sparse point onto the grid
         """
         return self.interpolator.inject(*args, **kwargs)
+
+    def guard(self, expr=None):
+        """
+        Generate guarded expressions, that is expressions that are evaluated
+        by an Operator only if certain conditions are met.  The introduced
+        condition, here, is that all grid points in the support of a sparse
+        value must fall within the grid domain (i.e., *not* on the halo).
+
+        Parameters
+        ----------
+        expr : expr-like, optional
+            Input expression, from which the guarded expression is derived.
+            If not specified, defaults to ``self``.
+        """
+        conditions = {}
+
+        # Positon map and temporaries for it
+        pmap = self._position_map
+
+        # Temporaries for the position
+        temps = self.interpolator._positions(self.dimensions)
+
+        # Create positions and indices temporaries/indirections
+        for ((di, d), pos) in zip(enumerate(self.grid.dimensions), pmap.values()):
+            # Add conditional to avoid OOB
+            lb = sympy.And(pos >= d.symbolic_min, evaluate=False)
+            ub = sympy.And(pos <= d.symbolic_max, evaluate=False)
+            conditions[d] = sympy.And(lb, ub, evaluate=False)
+        condition = sympy.And(*conditions.values(), evaluate=False)
+        cd = ConditionalDimension(self._sparse_dim.name,
+                                  self._sparse_dim,
+                                  condition=condition, indirect=True)
+
+        if expr is None:
+            out = self.indexify().xreplace({self._sparse_dim: cd})
+        else:
+            functions = {f for f in retrieve_function_carriers(expr)
+                         if f.is_SparseFunction}
+            out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
+
+        return out, temps
 
     def _dist_scatter_mask(self, dmap=None):
         """
@@ -646,7 +553,16 @@ class AbstractSparseFunction(DiscreteFunction):
         self._dist_data_gather(data)
         for (sg, s) in zip(subfunc, self._sub_functions):
             if getattr(self, s) is not None:
+                if np.sum([sg._obj.size[i] for i in range(self.ndim)]) > 0:
+                    sg = getattr(self, s)._C_as_ndarray(sg)
                 self._dist_subfunc_gather(sg, getattr(self, s))
+
+    def _eval_at(self, func):
+        return self
+
+    def _halo_exchange(self):
+        # no-op for SparseFunctions
+        return
 
     def _arg_defaults(self, alias=None):
         key = alias or self
@@ -666,13 +582,6 @@ class AbstractSparseFunction(DiscreteFunction):
                 args.update(i._arg_defaults(_min=0, size=s))
 
         return args
-
-    def _eval_at(self, func):
-        return self
-
-    def _halo_exchange(self):
-        # no-op for SparseFunctions
-        return
 
     def _arg_values(self, **kwargs):
         # Add value override for own data if it is provided, otherwise
@@ -722,7 +631,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         if not isinstance(self.time_order, int):
             raise ValueError("`time_order` must be int")
 
-        super(AbstractSparseTimeFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
     def __fd_setup__(self):
         """
@@ -873,7 +782,7 @@ class SparseFunction(AbstractSparseFunction):
     __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates_data',)
 
     def __init_finalize__(self, *args, **kwargs):
-        super(SparseFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
         self.interpolator = LinearInterpolator(self)
 
         # Set up sparse point coordinates
@@ -1003,8 +912,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             subs = {self.time_dim: p_t}
 
-        return super(SparseTimeFunction, self).interpolate(expr, increment=increment,
-                                                           self_subs=subs)
+        return super().interpolate(expr, increment=increment, self_subs=subs)
 
     def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None):
         """
@@ -1090,7 +998,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     The parameters must always be given as keyword arguments, since SymPy
     uses `*args` to (re-)create the Dimension arguments of the symbolic object.
     """
-     _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
+
+    _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
                    ('r', 'gridpoints_data', 'coordinates_data',
@@ -1149,15 +1058,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         self.interpolator = PrecomputedInterpolator(self)
 
     @property
-    def r(self):
-        return self._radius
-
-    @cached_property
-    def _point_increments(self):
-        """Index increments in each dimension for each point symbol."""
-        return tuple(product(range(-self.r//2+1, self.r//2+1), repeat=self.grid.dim))
-
-    @property
     def interpolation_coeffs(self):
         """ The Precomputed interpolation coefficients."""
         return self._interpolation_coeffs
@@ -1200,41 +1100,6 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                                                   self._pos_symbols))
         else:
             return super()._position_map
-
-    @cached_property
-    def _coordinate_symbols(self):
-        """Symbol representing the coordinate values in each Dimension."""
-        p_dim = self.indices[self._sparse_position]
-        if self.gridpoints is not None:
-            return tuple([self.gridpoints.indexify((p_dim, di)) * d.spacing + o
-                          for ((di, d), o) in zip(enumerate(self.grid.dimensions),
-                                                  self.grid.origin)])
-        else:
-            return tuple([self.coordinates.indexify((p_dim, i))
-                          for i in range(self.grid.dim)])
-
-    @cached_property
-    def _coordinate_indices(self):
-        """
-        Symbol for each grid index according to the coordinates.
-
-        Notes
-        -----
-        The expression `(coord - origin)/spacing` could also be computed in the
-        mathematically equivalent expanded form `coord/spacing -
-        origin/spacing`. This particular form is problematic when a sparse
-        point is in close proximity of the grid origin, since due to a larger
-        machine precision error it may cause a +-1 error in the computation of
-        the position. We mitigate this problem by computing the positions
-        individually (hence the need for a position map).
-        """
-        if self.gridpoints is not None:
-            ddim = self.gridpoints.dimensions[-1]
-            return tuple([self.gridpoints._subs(ddim, di) for di in range(self.grid.dim)])
-        else:
-            return tuple([INT(floor(p / i.spacing))
-                          for p, i in zip(self._position_map,
-                                          self.grid.dimensions[:self.grid.dim])])
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
@@ -1405,8 +1270,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # Rows are locations, columns are source/receivers
         nloc, npoint = self.matrix.shape
-        super().__init_finalize__(
-            *args, **kwargs, npoint=npoint)
+        super().__init_finalize__(*args, **kwargs, npoint=npoint)
 
         # Grid points per sparse point
         r = kwargs.get('r')

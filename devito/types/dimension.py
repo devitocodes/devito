@@ -486,7 +486,7 @@ class DerivedDimension(BasicDimension):
     def _arg_names(self):
         return self.parent._arg_names
 
-    def _arg_check(self, *args):
+    def _arg_check(self, *args, **kwargs):
         """A DerivedDimension performs no runtime checks."""
         return
 

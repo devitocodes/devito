@@ -29,16 +29,15 @@ class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
 
     subdomain = None
 
-    def __new__(cls, interpolator, callback):
+    def __new__(cls, interpolator):
         obj = super().__new__(cls)
 
         obj.interpolator = interpolator
-        obj.callback = callback
 
         return obj
 
     def _evaluate(self, **kwargs):
-        return_value = self.callback()
+        return_value = self.interpolator._evauate(**kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
 
@@ -56,15 +55,21 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, expr, increment, self_subs, interpolator, callback):
-        obj = super().__new__(cls, interpolator, callback)
+    def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator):
+        obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.expr = expr
         obj.increment = increment
         obj.self_subs = self_subs
+        obj.implicit_dims = implicit_dims
 
         return obj
+
+    def _evaluate(self, **kwargs):
+        return self.interpolator._interpolate(expr=self.expr, increment=self.increment,
+                                              self_subs=self.self_subs,
+                                              implicit_dims=self.implicit_dims)
 
     def __repr__(self):
         return "Interpolation(%s into %s)" % (repr(self.expr),
@@ -78,14 +83,19 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, field, expr, interpolator, callback):
-        obj = super().__new__(cls, interpolator, callback)
+    def __new__(cls, field, expr, implicit_dims, interpolator):
+        obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
+        obj.implicit_dims = implicit_dims
 
         return obj
+
+    def _evaluate(self, **kwargs):
+        return self.interpolator._inject(expr=self.expr, field=self.field,
+                                         implicit_dims=self.implicit_dims)
 
     def __repr__(self):
         return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
@@ -135,15 +145,9 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
-        dims = []
-        # Enforce ordering
-        prevdim = self.sfunction._sparse_dim
-        for d in self._gdim:
-            rd = CustomDimension("r%s%s" % (self.sfunction.name, d.name),
-                                 -self.r+1, self.r, len(range(-self.r+1, self.r+1)),
-                                 prevdim)
-            prevdim = rd
-            dims.append(rd)
+        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
+                                p-self.r+1, p+self.r, len(range(-self.r+1, self.r+1)))
+                for (p, d) in zip(self.sfunction._position_map.values(), self._gdim)]
 
         return DimensionTuple(*dims, getters=self._gdim)
 
@@ -161,77 +165,25 @@ class WeightedInterpolator(GenericInterpolator):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
-        idx_subs = []
-        mapper = defaultdict(list)
-
+        mapper = {}
         # Temporaries for the position
         temps = self._positions(implicit_dims)
 
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-
-        # Create positions and indices temporaries/indirections
-        prev = self.sfunction.dimensions[-1]
+        pr = self.sfunction.dimensions[-1]
         for ((di, d), rd) in zip(enumerate(self._gdim), self._rdim):
             # Add conditional to avoid OOB
             lb = sympy.And(rd >= d.symbolic_min, evaluate=False)
             ub = sympy.And(rd <= d.symbolic_max, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
-            mapper[d] = ConditionalDimension(rd.name, prev,
-                                             condition=cond, indirect=True)
-            prev = rd
+            mapper[d] = ConditionalDimension(rd.name, pr, condition=cond, indirect=True)
+            pr = rd
 
         # Substitution mapper for variables
         idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})
                     for v in variables}
-
-        return idx_subs, temps
-
-    def subs_coords(self, _expr, *idx_subs):
-        return [_expr.xreplace(v_sub) * b.xreplace(v_sub)
-                for b, v_sub in zip(self._interpolation_coeffs, idx_subs)]
-
-    def subs_coords_eq(self, field, _expr, *idx_subs, implicit_dims=None):
-        return [Inc(field.xreplace(vsub), _expr.xreplace(vsub) * b,
-                    implicit_dims=implicit_dims)
-                for b, vsub in zip(self._interpolation_coeffs, idx_subs)]
-
-    def _interpolation_indices(self, variables, offset=0, field_offset=0,
-                               implicit_dims=None):
-        """
-        Generate interpolation indices for the DiscreteFunctions in ``variables``.
-        """
-        idx_subs = []
-        points = {d: [] for d in self._gdim}
-        mapper = {d: [] for d in self._gdim}
-        pdim = self.sfunction._sparse_dim
-    
-        # Positon map and temporaries for it
-        pmap = self.sfunction._coordinate_indices
-
-        # Temporaries for the position
-        temps = self._positions(implicit_dims)
-
-        # Coefficient symbol expression
-        temps.extend(self._coeff_temps(implicit_dims))
-
-        # Create positions and indices temporaries/indirections
-        pr = []
-        for ((di, d), pos, rd) in zip(enumerate(self._gdim), pmap, self._rdim):
-            p = Symbol(name='ii_%s_%s' % (self.sfunction.name, d.name))
-            temps.extend([Eq(p, pos + rd, implicit_dims=implicit_dims + tuple(pr))])
-
-            # Add conditional to avoid OOB
-            lb = sympy.And(p >= d.symbolic_min-self.r, evaluate=False)
-            ub = sympy.And(p <= d.symbolic_max+self.r, evaluate=False)
-            condition = sympy.And(lb, ub, evaluate=False)
-            mapper[d] = ConditionalDimension(p.name, self.sfunction._sparse_dim,
-                                             condition=condition, indirect=True)
-            pr.append(rd)
-
-        # Substitution mapper for variables
-        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})
-                    for v in variables}
+        idx_subs.update({rd: crd for (rd, crd) in zip(self._rdim, mapper.values())})
 
         return idx_subs, temps
 
@@ -250,36 +202,7 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
-
-        def callback():
-            # Derivatives must be evaluated before the introduction of indirect accesses
-            try:
-                _expr = expr.evaluate
-            except AttributeError:
-                # E.g., a generic SymPy expression or a number
-                _expr = expr
-
-            variables = list(retrieve_function_carriers(_expr))
-
-            # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
-
-            # Accumulate point-wise contributions into a temporary
-            rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
-            summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
-            # Substitute coordinate base symbols into the interpolation coefficients
-            summands.extend([Inc(rhs, _expr.xreplace(idx_subs) * self._weights,
-                                 implicit_dims=implicit_dims + self._rdim)])
-
-            # Write/Incr `self`
-            lhs = self.sfunction.subs(self_subs)
-            ecls = Inc if increment else Eq
-            last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
-
-            return [summands[0]] + temps + summands[1:] + last
-
-        return Interpolation(expr, increment, self_subs, self, callback)
+        return Interpolation(expr, increment, implicit_dims, self_subs, self)
 
     def inject(self, field, expr, implicit_dims=None):
         """
@@ -296,41 +219,98 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
+        return Injection(field, expr, implicit_dims, self)
+
+    def _interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
+        """
+        Generate equations interpolating an arbitrary expression into ``self``.
+
+        Parameters
+        ----------
+        expr : expr-like
+            Input expression to interpolate.
+        increment: bool, optional
+            If True, generate increments (Inc) rather than assignments (Eq).
+        implicit_dims : Dimension or list of Dimension, optional
+            An ordered list of Dimensions that do not explicitly appear in the
+            interpolation expression, but that should be honored when constructing
+            the operator.
+        """
         implicit_dims = self._augment_implicit_dims(implicit_dims)
 
-        def callback():
-            # Make iterable to support inject((u, v), expr=expr)
-            # or inject((u, v), expr=(expr1, expr2))
-            fields, exprs = as_tuple(field), as_tuple(expr)
-            # Provide either one expr per field or on expr for all fields
-            if len(fields) > 1:
-                if len(exprs) == 1:
-                    exprs = tuple(exprs[0] for _ in fields)
-                else:
-                    assert len(exprs) == len(fields)
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            _expr = expr.evaluate
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            _expr = expr
 
-            # Derivatives must be evaluated before the introduction of indirect accesses
-            try:
-                _exprs = tuple(e.evaluate for e in exprs)
-            except AttributeError:
-                # E.g., a generic SymPy expression or a number
-                _exprs = exprs
+        variables = list(retrieve_function_carriers(_expr))
 
-            variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
-            variables = variables + list(fields)
+        # List of indirection indices for all adjacent grid points
+        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
 
-            # List of indirection indices for all adjacent grid points
-            idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+        # Accumulate point-wise contributions into a temporary
+        rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
+        summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
+        # Substitute coordinate base symbols into the interpolation coefficients
+        summands.extend([Inc(rhs, (_expr * self._weights).xreplace(idx_subs),
+                             implicit_dims=implicit_dims)])
 
-            # Substitute coordinate base symbols into the interpolation coefficients
-            eqns = [Inc(_field.xreplace(idx_subs),
-                        _expr.xreplace(idx_subs) * self._weights,
-                        implicit_dims=implicit_dims + self._rdim)
-                    for (_field, _expr) in zip(fields, _exprs)]
+        # Write/Incr `self`
+        lhs = self.sfunction.subs(self_subs)
+        ecls = Inc if increment else Eq
+        last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
 
-            return temps + eqns
+        return temps + summands + last
 
-        return Injection(field, expr, self, callback)
+    def _inject(self, field, expr, implicit_dims=None):
+        """
+        Generate equations injecting an arbitrary expression into a field.
+
+        Parameters
+        ----------
+        field : Function
+            Input field into which the injection is performed.
+        expr : expr-like
+            Injected expression.
+        implicit_dims : Dimension or list of Dimension, optional
+            An ordered list of Dimensions that do not explicitly appear in the
+            injection expression, but that should be honored when constructing
+            the operator.
+        """
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
+
+        # Make iterable to support inject((u, v), expr=expr)
+        # or inject((u, v), expr=(expr1, expr2))
+        fields, exprs = as_tuple(field), as_tuple(expr)
+        # Provide either one expr per field or on expr for all fields
+        if len(fields) > 1:
+            if len(exprs) == 1:
+                exprs = tuple(exprs[0] for _ in fields)
+            else:
+                assert len(exprs) == len(fields)
+
+        # Derivatives must be evaluated before the introduction of indirect accesses
+        try:
+            _exprs = tuple(e.evaluate for e in exprs)
+        except AttributeError:
+            # E.g., a generic SymPy expression or a number
+            _exprs = exprs
+
+        variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
+        variables = variables + list(fields)
+
+        # List of indirection indices for all adjacent grid points
+        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+
+        # Substitute coordinate base symbols into the interpolation coefficients
+        eqns = [Inc(_field.xreplace(idx_subs),
+                    (_expr * self._weights).xreplace(idx_subs),
+                    implicit_dims=implicit_dims)
+                for (_field, _expr) in zip(fields, _exprs)]
+
+        return temps + eqns
 
 
 class LinearInterpolator(WeightedInterpolator):

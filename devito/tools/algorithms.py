@@ -60,14 +60,17 @@ def toposort(data):
     # Perform the topological sorting
     extra_items_in_deps = reduce(set.union, mapper.values()) - set(mapper)
     mapper.update(OrderedDict([(item, set()) for item in extra_items_in_deps]))
+
     while True:
         ordered = set(item for item, dep in mapper.items() if not dep)
         if not ordered:
             break
+
         try:
             processed = sorted(ordered, key=attrgetter('name')) + processed
         except AttributeError:
             processed = sorted(ordered) + processed
+
         mapper = OrderedDict([(item, (dep - ordered)) for item, dep in mapper.items()
                               if item not in ordered])
 
