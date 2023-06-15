@@ -127,7 +127,7 @@ class XDSLOperator(Operator):
             self._lib.name = self._tf.name
 
         if self._cfunction is None:
-            self._cfunction = getattr(self._lib, self.name)
+            self._cfunction = getattr(self._lib, "apply_kernel")
             # Associate a C type to each argument for runtime type check
             self._cfunction.argtypes = [i._C_ctype for i in self._construct_cfunction_args()]
 
