@@ -104,7 +104,7 @@ class XDSLOperator(Operator):
         Add memrefs to args dictionary so they can be passed to the cfunction
         """
         self._memref_cache = dict()
-        for arg in self._jit_kernel_constants.values():
+        for arg in self.parameters:
             if hasattr(arg, 'data_with_halo') and isinstance(arg.data_with_halo, np.ndarray):
                 # TODO: is this even correct lol?
                 data = arg.data_with_halo
