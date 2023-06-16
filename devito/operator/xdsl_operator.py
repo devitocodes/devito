@@ -2,6 +2,7 @@ from devito import Operator
 from devito.ir.ietxdsl import transform_devito_to_iet_ssa, iet_to_standard_mlir, finalize_module_with_globals
 from devito.logger import perf
 
+import os
 import tempfile
 import subprocess
 import ctypes
@@ -39,9 +40,9 @@ MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-m
 # gpu-launch-sink-index-computations seemed to have no impact
 MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
-XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir"
-XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu}"
-XDSL_MPI_PIPELINE = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi"'
+XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir,print-to-printf"
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},print-to-printf"
+XDSL_MPI_PIPELINE = f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi,print-to-printf"'
 
 
 class XDSLOperator(Operator):
@@ -72,9 +73,20 @@ class XDSLOperator(Operator):
 
             xdsl_pipeline = XDSL_MPI_PIPELINE if DO_MPI else XDSL_CPU_PIPELINE
 
+            # allow jit backdooring to provide your own xdsl code
+            backdoor = os.getenv('XDSL_JIT_BACKDOOR')
+            if backdoor is not None:
+                with open(backdoor, 'r') as f:
+                    module_str = f.read()
+
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
-                cmd = f'tee 2d5pt.mlir | xdsl-opt -p {xdsl_pipeline} |' \
+                prefix = 'tee 2d5pt.mlir | '
+
+                if backdoor is not None:
+                    prefix = ""
+
+                cmd = f'{prefix} xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {MLIR_CPU_PIPELINE} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
                     f'clang -O3 -shared -xir - -o {self._tf.name}'
