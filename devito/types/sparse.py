@@ -488,7 +488,10 @@ class SparseFunction(AbstractSparseFunction):
 
     @property
     def coordinates_data(self):
-        return self.coordinates.data.view(np.ndarray)
+        try:
+            return self.coordinates.data.view(np.ndarray)
+        except AttributeError:
+            return None
 
     @cached_property
     def _point_symbols(self):
