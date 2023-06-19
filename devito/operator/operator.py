@@ -992,7 +992,12 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
+
+        if configuration['mpi']:
+            perf("Performance[mode=%s, mpi=%s] arguments: %s" % (self._mode,
+                 configuration['mpi'], perf_args))
+        else:
+            perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
 
