@@ -37,7 +37,7 @@ MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-para
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir,print-to-printf"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},print-to-printf"
-XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false generate_debug_prints=true}},lower-mpi,print-to-printf"'
+XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi,print-to-printf"'
 
 
 class XDSLOperator(Operator):
