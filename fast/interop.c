@@ -194,7 +194,7 @@ void print_i32(int n)
   printf("%d\n", n);
 }
 
-f64 timer_start() {
+double timer_start() {
   // return a number representing the current point in time
   // it might be offset by a fixed ammount
   struct timespec t;
@@ -202,7 +202,7 @@ f64 timer_start() {
   return (t.tv_sec) + (t.tv_nsec * 1e-9);
 }
 
-f64 timer_end(f64 start) {
+double timer_end(double start) {
   // return time elaspes since start in seconds
   return (timer_start() - start);
 }

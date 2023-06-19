@@ -273,18 +273,6 @@ class ExtractDevitoStencilConversion:
         return new_vals
 
 
-def _cluster_shape(cl: Cluster) -> tuple[int, ...]:
-    return cl.grid.shape
-
-
-def _cluster_grid(cl: Cluster) -> Grid:
-    return cl.grid
-
-
-def _cluster_function(cl: Cluster):  # TODO: fix typing here
-    return cl.exprs[0].args[0].function
-
-
 def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
     # shift all time values so that for all accesses at t + n, n>=0.
     # time_offs = min(int(i - d) for i, d in zip(idx.indices, idx.function.dimensions))
@@ -325,11 +313,7 @@ from xdsl.pattern_rewriter import (
 )
 
 from devito.ir.ietxdsl.lowering import (
-    ConvertForLoopVarToIndex,
-    ConvertScfForArgsToIndex,
-    DropIetComments,
     LowerIetForToScfFor,
-    recalc_func_type,
 )
 
 from xdsl.dialects import llvm
@@ -435,24 +419,6 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         out.res[0].name_hint = op.output.name_hint + "_result"
 
 
-class _LowerGetField(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.GetField, rewriter: PatternRewriter, /):
-        rewriter.replace_matched_op(
-            [
-                idx := arith.IndexCastOp.get(op.t_index, builtin.IndexType()),
-                ref := memref.Load.get(op.data, [idx]),
-                field := stencil.ExternalLoadOp.get(
-                    ref, res_type=field_type_to_dynamic_shape_type(op.field.typ)
-                ),
-                field_w_size := stencil_nexp.CastOp.get(
-                    field, op.lb, op.ub, op.field.typ
-                ),
-            ],
-            [field_w_size.result],
-        )
-
-
 def field_type_to_dynamic_shape_type(t: stencil.FieldType):
     return stencil.FieldType([-1] * len(t.shape), t.element_type)
 
@@ -481,13 +447,12 @@ class _InsertSymbolicConstants(RewritePattern):
             )
             return
 
-        assert op.result.typ in (builtin.i32, builtin.i64, builtin.IndexType())
-
-        rewriter.replace_matched_op(
-            arith.Constant.from_int_and_width(
-                int(self.known_symbols[symb_name]), op.result.typ
+        if isinstance(op.result.typ, (builtin.IntegerType, builtin.IndexType)):
+            rewriter.replace_matched_op(
+                arith.Constant.from_int_and_width(
+                    int(self.known_symbols[symb_name]), op.result.typ
+                )
             )
-        )
 
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):

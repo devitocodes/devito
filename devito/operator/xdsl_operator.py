@@ -27,6 +27,24 @@ from xdsl.printer import Printer
 
 __all__ = ['XDSLOperator']
 
+# small interop shim script for stuff that we don't want to implement in mlir-ir
+_INTEROP_C = """
+#include <time.h>
+
+double timer_start() {
+  // return a number representing the current point in time
+  // it might be offset by a fixed ammount
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (t.tv_sec) + (t.tv_nsec * 1e-9);
+}
+
+double timer_end(double start) {
+  // return time elaspes since start in seconds
+  return (timer_start() - start);
+}
+"""
+
 
 CFLAGS = "-O3 -march=native -mtune=native"
 
@@ -45,8 +63,24 @@ class XDSLOperator(Operator):
     def __new__(cls, expressions, **kwargs):
         self = super(XDSLOperator, cls).__new__(cls, expressions, **kwargs)
         self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so')
+        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o")
+        self._make_interop_o()
         self.__class__ = cls
         return self
+
+    def _make_interop_o(self):
+        """
+        compile the interop.o file
+        """
+        res = subprocess.run(
+            f'gcc -x c - -c -o {self._interop_tf.name}',
+            shell=True,
+            input=_INTEROP_C,
+            text=True,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+        )
+        assert res.returncode == 0
 
     @property
     def mpi_shape(self) -> tuple:
@@ -104,13 +138,16 @@ class XDSLOperator(Operator):
                 cmd = f'{prefix} xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {MLIR_CPU_PIPELINE} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'clang {cflags} -shared -xir - -o {self._tf.name}'
-                print(f"compiling kernel using {cmd}")
+                    f'clang {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name} '
+
                 res = subprocess.run(
                     cmd,
                     shell=True,
                     input=module_str,
-                    text=True
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+
                 )
                 assert res.returncode == 0
             except Exception as ex:
@@ -140,8 +177,30 @@ class XDSLOperator(Operator):
                     args[f'{arg._C_name}_{t}'] = data[t, ...].ctypes.data_as(ptr_of(f32))
         self._jit_kernel_constants.update(args)
 
-    def _construct_cfunction_args(self, args):
-        return [args[name] for name in get_arg_names_from_module(self._module)]
+    def _construct_cfunction_args(self, args, get_types = False):
+        """
+        Either construct the args for the cfunction, or construct the
+        arg types for it.
+        """
+        ps = {
+            p._C_name: p._C_ctype for p in self.parameters
+        }
+        
+        things = []
+        things_types = []
+
+        for name in get_arg_names_from_module(self._module):
+            thing = args[name]
+            things.append(thing)
+            if name in ps:
+                things_types.append(ps[name])
+            else:
+                things_types.append(type(thing))
+
+        if get_types:
+            return things_types
+        else:
+            return things
 
     @property
     def cfunction(self):
@@ -155,7 +214,7 @@ class XDSLOperator(Operator):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, "apply_kernel")
             # Associate a C type to each argument for runtime type check
-            self._cfunction.argtypes = [type(i) for i in self._construct_cfunction_args(self._jit_kernel_constants)]
+            self._cfunction.argtypes = self._construct_cfunction_args(self._jit_kernel_constants, get_types=True)
 
         return self._cfunction
 
