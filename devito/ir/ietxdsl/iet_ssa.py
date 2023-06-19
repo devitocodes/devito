@@ -499,26 +499,6 @@ class LoadSymbolic(IRDLOperation):
         return op
 
 
-@irdl_op_definition
-class GetField(IRDLOperation):
-    name = "devito.get_field"
-
-    data: Operand = operand_def(memref.MemRefType[stencil.FieldType])
-    t_index: Operand = operand_def(IntegerType)
-    field: OpResult = result_def(stencil.FieldType)
-
-    lb: stencil.IndexAttr = attr_def(stencil.IndexAttr)
-    ub: stencil.IndexAttr = attr_def(stencil.IndexAttr)
-
-    @staticmethod
-    def get(data: SSAValue | Operation, t_idx: SSAValue | Operation, field_t: stencil.FieldType, lb: stencil.IndexAttr, ub: stencil.IndexAttr):
-        return GetField.build(
-            operands=[data, t_idx],
-            attributes={'lb': lb, 'ub': ub},
-            result_types=[field_t],
-        )
-
-
 IET_SSA = Dialect([
     Statement,
     PointerCast,
@@ -536,7 +516,6 @@ IET_SSA = Dialect([
 
 DEVITO_SSA = Dialect([
     Stencil,
-    LoadSymbolic,
-    GetField
+    LoadSymbolic
 ], [
 ])
