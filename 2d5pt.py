@@ -80,6 +80,8 @@ def main(bench_name: str):
     u.data[:, int(nx / 2), int(nx / 2)] = init_value
     u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
 
+    print("xdsl:", flush=True)
+
     xop = XDSLOperator([eq0])
     xop.apply(time_M=nt, a=0.1, dt=dt)
 
@@ -88,6 +90,8 @@ def main(bench_name: str):
     u.data[:, :, :] = 0
     u.data[:, int(nx / 2), int(nx / 2)] = init_value
     u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
+
+    print("devito:", flush=True)
 
     op = Operator([eq0])
     op.apply(time_M=nt, a=0.1, dt=dt)
