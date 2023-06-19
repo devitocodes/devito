@@ -77,8 +77,8 @@ def main(bench_name: str):
     grid, u, eq0 = equation_and_time_function(nx, ny, so, to, init_value)
 
     u.data[:, :, :] = 0
-    u.data[:, int(nx / 2), int(nx / 2)] = init_value
-    u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
+    u.data[:, int(nx / 2), int(ny / 2)] = init_value
+    u.data[:, int(nx / 2), -int(ny / 2)] = -init_value
 
     print("xdsl:", flush=True)
 
@@ -88,8 +88,8 @@ def main(bench_name: str):
     x_data = u.data.copy()
 
     u.data[:, :, :] = 0
-    u.data[:, int(nx / 2), int(nx / 2)] = init_value
-    u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
+    u.data[:, int(nx / 2), int(ny / 2)] = init_value
+    u.data[:, int(nx / 2), -int(ny / 2)] = -init_value
 
     print("devito:", flush=True)
 
