@@ -792,7 +792,6 @@ class Operator(Callable):
         try:
             # Invoke kernel function with args
             arg_values = self._construct_cfunction_args(args)
-            print(f"{arg_values=}")
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
         except ctypes.ArgumentError as e:

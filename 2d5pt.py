@@ -12,10 +12,6 @@ def equation_and_time_function(nx: int, ny: int, so: int, to: int, init_value: i
     # Field initialization
     grid = Grid(shape=(nx, ny))
     u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
-    u.data[:, :, :] = 0
-    u.data[:, int(nx / 2), int(nx / 2)] = init_value
-    u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
-
     # Create an equation with second-order derivatives
     a = Constant(name="a")
     eq = Eq(u.dt, a * u.laplace + 0.01)
@@ -23,28 +19,6 @@ def equation_and_time_function(nx: int, ny: int, so: int, to: int, init_value: i
     eq0 = Eq(u.forward, stencil)
 
     return (grid, u, eq0)
-
-
-def dump_input(input: TimeFunction, filename: str):
-    input.data_with_halo[0, :, :].tofile(filename)
-
-
-def dump_main(grid: Grid, u: TimeFunction, xop: XDSLOperator, dt: float, nt: int):
-    info("Operator in " + bench_name + ".main.mlir")
-    with open(bench_name + ".main.mlir", "w") as f:
-        f.write(
-            generate_launcher_base(
-                xop._module,
-                {
-                    "time_m": 0,
-                    "time_M": nt,
-                    **{str(k): float(v) for k, v in dict(grid.spacing_map).items()},
-                    "a": 0.1,
-                    "dt": dt,
-                },
-                u.shape_allocated[1:],
-            )
-        )
 
 
 def run_operator(op: Operator, nt: int, dt: float):
@@ -102,27 +76,27 @@ def main(bench_name: str):
 
     grid, u, eq0 = equation_and_time_function(nx, ny, so, to, init_value)
 
-    if args.xdsl:
-        xop = XDSLOperator([eq0])
-        xop.apply(time_M=nt, a=0.1, dt=dt)
-    else:
-        op = Operator([eq0])
-        rt = run_operator(op, nt, dt)
-        print(f"Devito finer runtime: {rt} s")
-        if args.no_dump:
-            info("Skipping result data saving.")
-        else:
-            # get final data step
-            # this is cursed math, but we assume that:
-            #  1. Every kernel always writes to t1
-            #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
-            #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
-            #  4. time_M is always nt in this example
-            t1 = (nt + u._time_size - 1) % (2)
+    u.data[:, :, :] = 0
+    u.data[:, int(nx / 2), int(nx / 2)] = init_value
+    u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
 
-            res_data: np.array = u.data[t1]
-            info("Save result data to " + bench_name + ".devito.data")
-            res_data.tofile(bench_name + ".devito.data")
+    xop = XDSLOperator([eq0])
+    xop.apply(time_M=nt, a=0.1, dt=dt)
+
+    x_data = u.data.copy()
+
+    u.data[:, :, :] = 0
+    u.data[:, int(nx / 2), int(nx / 2)] = init_value
+    u.data[:, int(nx / 2), -int(nx / 2)] = -init_value
+
+    op = Operator([eq0])
+    op.apply(time_M=nt, a=0.1, dt=dt)
+
+    d_data = u.data
+
+    print("mean squared error:", ((d_data - x_data)**2).mean())
+    print("max abs error", np.abs((d_data - x_data)).max())
+    print("max abs val", max(np.abs(d_data).max(), np.abs(x_data).max()))
 
 
 if __name__ == "__main__":

@@ -75,7 +75,7 @@ class ExtractDevitoStencilConversion:
         # build stencil
         stencil_op = iet_ssa.Stencil.get(
             loop.subindice_ssa_vals(),
-            grid.shape,
+            grid.shape_local,
             halo,
             actual_time_size,
             mlir_type,
@@ -108,10 +108,10 @@ class ExtractDevitoStencilConversion:
         ), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(stencil.ReturnOp.get([rhs_result]))
-        outermost_block.add_op(func.Return.get(loop.result))
+        outermost_block.add_op(func.Return.get())
 
         return func.FuncOp.from_region(
-            "apply_kernel", [], [loop.result.typ], Region([outermost_block])
+            "apply_kernel", [], [], Region([outermost_block])
         )
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:

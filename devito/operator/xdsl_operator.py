@@ -18,8 +18,8 @@ from devito.ir.support import SymbolRegistry
 from devito.operator.operator import IRs
 from devito.operator.profiling import create_profile
 from devito.tools import OrderedSet, as_tuple, flatten, filter_sorted
-from devito.types import Evaluable
-from devito.types.mlir_types import make_memref_f32_struct_from_np
+from devito.types import Evaluable, TimeFunction
+from devito.types.mlir_types import ptr_of, f32
 
 from mpi4py import MPI
 
@@ -37,21 +37,21 @@ MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-para
 
 XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir,print-to-printf"
 XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},print-to-printf"
-XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi,print-to-printf"'
+XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false generate_debug_prints=true}},lower-mpi,print-to-printf"'
 
 
 class XDSLOperator(Operator):
 
     def __new__(cls, expressions, **kwargs):
         self = super(XDSLOperator, cls).__new__(cls, expressions, **kwargs)
-        self._tf = tempfile.NamedTemporaryFile(suffix='.so')
+        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so')
         self.__class__ = cls
         return self
 
     @property
     def mpi_shape(self) -> tuple:
         dist = self.functions[0].grid.distributor
-        return dist.topology
+        return dist.topology, dist.myrank
 
 
     def _jit_compile(self):
@@ -64,6 +64,7 @@ class XDSLOperator(Operator):
         #self.ccode = ccode
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
+            mpi_rank = 0
             # specialize the code for the specific apply parameters
             finalize_module_with_globals(self._module, self._jit_kernel_constants)
 
@@ -75,9 +76,11 @@ class XDSLOperator(Operator):
             xdsl_pipeline = XDSL_CPU_PIPELINE
 
             if is_mpi:
+                shape, mpi_rank = self.mpi_shape
                 # run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation (as devito has already done that for us)
-                decomp = f"{{strategy=2d-grid slices={','.join(str(x) for x in self.mpi_shape)} restrict_domain=false}}"
+                slices = ','.join(str(x) for x in shape)
+                decomp = f"{{strategy=2d-grid slices={slices} restrict_domain=false}}"
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp)
 
             # allow jit backdooring to provide your own xdsl code
@@ -89,7 +92,7 @@ class XDSLOperator(Operator):
 
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
-                prefix = 'tee 2d5pt.mlir | '
+                prefix = f'tee 2d5pt_rank{mpi_rank}.mlir | '
 
                 if backdoor is not None:
                     prefix = ""
@@ -128,27 +131,17 @@ class XDSLOperator(Operator):
         """
         Add memrefs to args dictionary so they can be passed to the cfunction
         """
-        self._memref_cache = dict()
-        for arg in self.parameters:
-            if hasattr(arg, 'data_with_halo') and isinstance(arg.data_with_halo, np.ndarray):
-                # TODO: is this even correct lol?
-                data = arg.data_with_halo
-                time_slices = data.shape[0]
-                for t in range(time_slices):
-                    self._memref_cache[f'{arg._C_name}_{t}'] = make_memref_f32_struct_from_np(data[t, ...])
-        print(f"constructed memrefs {list(self._memref_cache.keys())}")
-        self._jit_kernel_constants.update(self._memref_cache)
+        args = dict()
+        for arg in self.functions:
+            if isinstance(arg, TimeFunction):
+                data = arg._data_allocated
+                # iterate over the first dimension (time)
+                for t in range(data.shape[0]):
+                    args[f'{arg._C_name}_{t}'] = data[t, ...].ctypes.data_as(ptr_of(f32))
+        self._jit_kernel_constants.update(args)
 
     def _construct_cfunction_args(self, args):
-        packed_args = [args[name] for name in get_arg_names_from_module(self._module)]
-        # unpack memrefs to individual values
-        unpacked_args = []
-        for arg in packed_args:
-            if hasattr(arg, 'unpack_args'):
-                unpacked_args.extend(arg.unpack_args())
-            else:
-                unpacked_args.append(arg)
-        return unpacked_args
+        return [args[name] for name in get_arg_names_from_module(self._module)]
 
     @property
     def cfunction(self):
@@ -192,14 +185,6 @@ class XDSLOperator(Operator):
         conv = ExtractDevitoStencilConversion(expressions)
         module = conv.convert()
         convert_devito_stencil_to_xdsl_stencil(module)
-
-        #from xdsl.printer import Printer
-        #p = Printer(target=Printer.Target.MLIR)
-        #p.print(module)
-        #import sys
-
-        #cls._stencil_module = module
-        #sys.exit(0)
 
         # [LoweredEq] -> [Clusters]
         clusters = cls._lower_clusters(expressions, **kwargs)
