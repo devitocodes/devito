@@ -53,6 +53,8 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
     def _sympystr(self, printer):
         return str(self)
 
+    _ccode = _sympystr
+
     def _hashable_content(self):
         return (self.name, self.dtype)
 
