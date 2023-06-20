@@ -98,9 +98,12 @@ def main(bench_name: str):
 
     d_data = u.data
 
-    print("mean squared error:", ((d_data - x_data)**2).mean())
-    print("max abs error", np.abs((d_data - x_data)).max())
-    print("max abs val", max(np.abs(d_data).max(), np.abs(x_data).max()))
+    #print("mean squared error:", ((d_data - x_data)**2).mean())
+    #print("max abs error", np.abs((d_data - x_data)).max())
+    #print("max abs val", max(np.abs(d_data).max(), np.abs(x_data).max()))
+
+    if np.abs((d_data - x_data)).max() > 1e-5:
+        print(f"Failure, max abs error too high: {np.abs((d_data - x_data)).max()}")
 
 
 if __name__ == "__main__":
