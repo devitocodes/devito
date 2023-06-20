@@ -12,45 +12,6 @@ __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
 
 # ElementalFunction machinery
 
-class ElementalFunction(Callable):
-
-    """
-    A Callable performing a computation over an abstract convex iteration space.
-
-    A Call to an ElementalFunction will "instantiate" such iteration space by
-    supplying bounds and step increment for each Dimension listed in
-    ``dynamic_parameters``.
-    """
-
-    is_ElementalFunction = True
-
-    def __init__(self, name, body, retval='void', parameters=None, prefix=('static',),
-                 dynamic_parameters=None):
-        super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
-
-        self._mapper = {}
-        for i in as_tuple(dynamic_parameters):
-            if i.is_Dimension:
-                self._mapper[i] = (parameters.index(i.symbolic_min),
-                                   parameters.index(i.symbolic_max))
-            else:
-                self._mapper[i] = (parameters.index(i),)
-
-    @classmethod
-    def make(cls, name, body):
-        parameters = derive_parameters(body)
-        return cls(name, body, parameters=parameters)
-
-    @cached_property
-    def dynamic_defaults(self):
-        return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
-
-    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
-                  is_indirect=False):
-        return ElementalCall(self.name, list(self.parameters), dict(self._mapper),
-                             dynamic_args_mapper, incr, retobj, is_indirect)
-
-
 class ElementalCall(Call):
 
     def __init__(self, name, arguments=None, mapper=None, dynamic_args_mapper=None,
@@ -87,13 +48,54 @@ class ElementalCall(Call):
         return {k: tuple(self.arguments[i] for i in v) for k, v in self._mapper.items()}
 
 
-def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
+class ElementalFunction(Callable):
+
+    """
+    A Callable performing a computation over an abstract convex iteration space.
+
+    A Call to an ElementalFunction will "instantiate" such iteration space by
+    supplying bounds and step increment for each Dimension listed in
+    ``dynamic_parameters``.
+    """
+    _Call_cls = ElementalCall
+
+    is_ElementalFunction = True
+
+    def __init__(self, name, body, retval='void', parameters=None, prefix=('static',),
+                 dynamic_parameters=None):
+        super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
+
+        self._mapper = {}
+        for i in as_tuple(dynamic_parameters):
+            if i.is_Dimension:
+                self._mapper[i] = (parameters.index(i.symbolic_min),
+                                   parameters.index(i.symbolic_max))
+            else:
+                self._mapper[i] = (parameters.index(i),)
+
+    @classmethod
+    def make(cls, name, body):
+        parameters = derive_parameters(body)
+        return cls(name, body, parameters=parameters)
+
+    @cached_property
+    def dynamic_defaults(self):
+        return {k: tuple(self.parameters[i] for i in v) for k, v in self._mapper.items()}
+
+    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
+                  is_indirect=False):
+        return self._Call_cls(self.name, list(self.parameters), dict(self._mapper),
+                              dynamic_args_mapper, incr, retobj, is_indirect)
+
+
+def make_efunc(name, iet, dynamic_parameters=None, retval='void', prefix='static',
+               efunc_type=ElementalFunction):
     """
     Shortcut to create an ElementalFunction.
     """
-    return ElementalFunction(name, iet, retval=retval,
-                             parameters=derive_parameters(iet), prefix=prefix,
-                             dynamic_parameters=dynamic_parameters)
+    return efunc_type(name, iet, retval=retval,
+                      parameters=derive_parameters(iet), prefix=prefix,
+                      dynamic_parameters=dynamic_parameters)
 
 
 # Callable machinery
