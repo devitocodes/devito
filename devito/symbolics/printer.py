@@ -229,10 +229,13 @@ class CodePrinter(C99CodePrinter):
             func_name += 'f'
         return '%s(%s)' % (func_name, self._print(*expr.args))
 
+    def _print_DefFunction(self, expr):
+        arguments = [self._print(i) for i in expr.arguments]
+        return "%s(%s)" % (expr.name, ','.join(arguments))
+
     def _print_Fallback(self, expr):
         return expr.__str__()
 
-    _print_DefFunction = _print_Fallback
     _print_MacroArgument = _print_Fallback
     _print_IndexedBase = _print_Fallback
     _print_IndexSum = _print_Fallback
