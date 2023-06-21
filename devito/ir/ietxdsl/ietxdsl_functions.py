@@ -11,8 +11,8 @@ import devito.ir.iet.nodes as nodes
 from devito import SpaceDimension
 from devito.passes.iet.languages.openmp import OmpRegion
 
-from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Block, Statement, PointerCast, Powi, Initialise,
-                               StructDecl, Call)
+from devito.ir.ietxdsl import (MLContext, IET, Constant, Modi, Block, Statement,
+                               PointerCast, Powi, Initialise, StructDecl, Call)
 from devito.tools import as_list
 from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
@@ -485,6 +485,7 @@ def get_arg_types(symbols):
             processed.append(i32)
 
     return processed
+
 
 def memref_type_from_indexed_data(d: IndexedData):
     stype = dtypes_to_xdsltypes[d.dtype]

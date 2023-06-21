@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 from sympy import Mod
-from typing import Iterable, Tuple, List, Annotated, Union, Sequence
+from typing import Iterable, Tuple, List, Union, Sequence
 from dataclasses import dataclass
 
-from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr, IntegerAttr,
+from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
-                                   Float64Type, AnyIntegerAttr, FloatAttr, f32, IntAttr)
+                                   Float64Type, AnyIntegerAttr, f32, IntAttr)
 
-from xdsl.dialects import arith, builtin, memref, llvm
+from xdsl.dialects import builtin, memref, llvm
 from xdsl.dialects import stencil
 
-from xdsl.irdl import irdl_op_definition, operand_def, result_def, attr_def, region_def, var_operand_def, Operand, AnyOf, SingleBlockRegion, irdl_attr_definition, Attribute, ParametrizedAttribute, VarOperand, IRDLOperation
-from xdsl.ir import MLContext, Block, Region, OpResult, SSAValue, Attribute, Dialect, Operation
+from xdsl.irdl import (irdl_op_definition, operand_def, result_def, attr_def, region_def,
+                       var_operand_def, Operand, AnyOf, irdl_attr_definition, Attribute,
+                       ParametrizedAttribute, VarOperand, IRDLOperation)
+from xdsl.ir import (MLContext, Block, Region, OpResult, SSAValue,
+                     Dialect, Operation)
 
 
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
@@ -64,7 +67,7 @@ class Dataobj(ParametrizedAttribute):
 
     @staticmethod
     def get_llvm_struct_type():
-        unsigned_long = builtin.IntegerType(32, builtin.Signedness.UNSIGNED)
+        # unsigned_long = builtin.IntegerType(32, builtin.Signedness.UNSIGNED)
         return llvm.LLVMStructType.from_type_list([
             llvm.LLVMPointerType.opaque(),              # data
             llvm.LLVMPointerType.typed(builtin.i32),  # size
@@ -138,7 +141,7 @@ class PointerCast(IRDLOperation):
     name: str = "iet.pointercast"
     statement: StringAttr = attr_def(StringAttr)
     shape_indices: ArrayAttr[IntAttr] = attr_def(ArrayAttr[IntAttr])
-    
+
     arg: Operand = operand_def(Dataobj)  # TOOD: Make it Dataobj()!
     result: OpResult = result_def(memref.MemRefType[Attribute])
 
@@ -446,10 +449,10 @@ class Stencil(IRDLOperation):
 
     @staticmethod
     def get(
-        time_indices: Sequence[SSAValue | Operation], 
-        shape: Sequence[int], 
-        halo: Sequence[Sequence[int]], 
-        time_buffers: int, 
+        time_indices: Sequence[SSAValue | Operation],
+        shape: Sequence[int],
+        halo: Sequence[Sequence[int]],
+        time_buffers: int,
         typ: Attribute,
         grid_name: str
     ) -> Stencil:
@@ -458,7 +461,6 @@ class Stencil(IRDLOperation):
 
         *inputs, output = time_indices
         assert len(time_indices) == time_buffers
-
         block = Block(
             arg_types=[
             stencil.TempType(len(shape), typ)

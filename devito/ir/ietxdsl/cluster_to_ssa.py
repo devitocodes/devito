@@ -69,9 +69,11 @@ class ExtractDevitoStencilConversion:
         )
 
         # build the for loop
+        perf("Build Time Loop")
         loop = self._build_iet_for(grid.stepping_dim, ["sequential"], actual_time_size)
 
         # build stencil
+        perf("Init out stencil Op")
         stencil_op = iet_ssa.Stencil.get(
             loop.subindice_ssa_vals(),
             grid.shape,
@@ -84,6 +86,7 @@ class ExtractDevitoStencilConversion:
         self.block = stencil_op.block
 
         # dims -> ssa vals
+        perf("Apply time offsets")
         time_offset_to_field: dict[str, SSAValue] = {
             i: stencil_op.block.args[i] for i in range(actual_time_size - 1)
         }
@@ -92,9 +95,11 @@ class ExtractDevitoStencilConversion:
         self.loaded_values: dict[tuple[int, ...], SSAValue] = dict()
 
         # add all loads into the stencil
+        perf("Add stencil Loads")
         self._add_access_ops(retrieve_indexed(eq.rhs), time_offset_to_field)
 
         # add math
+        perf("Visiting math equations")
         rhs_result = self._visit_math_nodes(eq.rhs)
 
         # emit return
@@ -217,7 +222,6 @@ class ExtractDevitoStencilConversion:
     def _build_iet_for(
         self, dim: SteppingDimension, props: list[str], subindices: int
     ) -> iet_ssa.For:
-        perf("Build IET for")
         # Build a for loop in the custom iet_ssa.py using lower-upper bound and step
         lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
         ub = iet_ssa.LoadSymbolic.get(dim.symbolic_max._C_name, builtin.IndexType())
@@ -324,11 +328,11 @@ from xdsl.pattern_rewriter import (
 )
 
 from devito.ir.ietxdsl.lowering import (
-    ConvertForLoopVarToIndex,
-    ConvertScfForArgsToIndex,
-    DropIetComments,
+    ConvertForLoopVarToIndex, # Drop?
+    ConvertScfForArgsToIndex, # Drop?
+    DropIetComments, # Drop?
     LowerIetForToScfFor,
-    recalc_func_type,
+    recalc_func_type, # Drop?
 )
 
 
@@ -647,6 +651,7 @@ def generate_launcher_base(
         core_lb=stencil.IndexAttr.get(*([0] * len(bounds.lb))),
         core_ub=(bounds.ub + bounds.lb),
     )
+    perf("Halo inference for Distributed Memory Parallelism")
 
     teardown = f'"func.call"(%res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()'
 
