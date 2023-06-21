@@ -24,7 +24,6 @@ default_int = builtin.i64
 class ExtractDevitoStencilConversion:
     """
     Lower Devito equations to the stencil dialect
-
     """
 
     eqs: list[LoweredEq]

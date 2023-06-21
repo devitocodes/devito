@@ -365,7 +365,6 @@ def test_mfe():
     ])
 
     printer = Printer()
-    # import pdb;pdb.set_trace()
     printer.print_op(mod)
 
 

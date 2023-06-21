@@ -279,7 +279,8 @@ def link_kernel(bench_name: str, args: argparse.Namespace):
 
 def run_kernel(bench_name: str, mpi: bool, env: dict[str, Any] = {}) -> float:
     env_str = " ".join(k + "=" + str(v) for k, v in env.items())
-    cmd = f"{env_str} ./{bench_name}.out"
+    # cmd = f" {env_str} taskset -c 0-7 ./{bench_name}.out"
+    cmd = f" {env_str} ./{bench_name}.out"
     if mpi:
         if args.archer2:
             cmd = (
