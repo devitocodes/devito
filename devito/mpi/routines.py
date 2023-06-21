@@ -353,7 +353,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         rsend = MPIRequestObject(name='rsend', liveness='eager')
         recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
                          fromrank, Integer(13), comm, Byref(rrecv)])
-        # # import pdb;pdb.set_trace()
         send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
                          torank, Integer(13), comm, Byref(rsend)])
 
@@ -361,7 +360,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         waitsend = Call('MPI_Wait', [Byref(rsend), Macro('MPI_STATUS_IGNORE')])
 
         iet = List(body=[recv, gather, send, waitsend, waitrecv, scatter])
-        # # import pdb;pdb.set_trace()
         parameters = ([f] + list(bufs.shape) + ofsg + ofss + [fromrank, torank, comm])
         return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
 

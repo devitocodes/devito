@@ -11,6 +11,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.ietxdsl import iet_ssa
 from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 from devito.symbolics import retrieve_indexed
+from devito.logger import perf
 
 # ----------- devito ssa import -----------#
 
@@ -107,7 +108,6 @@ class ExtractDevitoStencilConversion:
 
         self.block.add_op(stencil.ReturnOp.get([rhs_result]))
         outermost_block.add_op(func.Return.get(loop.result))
-
         return func.FuncOp.from_region(
             "apply_kernel", [], [loop.result.typ], Region([outermost_block])
         )
@@ -217,6 +217,7 @@ class ExtractDevitoStencilConversion:
     def _build_iet_for(
         self, dim: SteppingDimension, props: list[str], subindices: int
     ) -> iet_ssa.For:
+        perf("Build IET for")
         # Build a for loop in the custom iet_ssa.py using lower-upper bound and step
         lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
         ub = iet_ssa.LoadSymbolic.get(dim.symbolic_max._C_name, builtin.IndexType())
@@ -355,6 +356,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.Stencil, rewriter: PatternRewriter, /):
+        perf("Convert devito.stencil op, mainly for subiterators")
         rank = len(op.shape)
 
         lb = list(-halo_elm.data[0].data for halo_elm in op.halo)
@@ -400,6 +402,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         out.res[0].name_hint = op.output.name_hint + "_result"
 
 
+# TODROP: Not used anymore?
 class _LowerGetField(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: iet_ssa.GetField, rewriter: PatternRewriter, /):
@@ -456,6 +459,7 @@ class _InsertSymbolicConstants(RewritePattern):
 
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):
+
     func_to_args: dict[func.FuncOp, dict[str, SSAValue]]
 
     def __init__(self):
@@ -493,6 +497,9 @@ def convert_devito_stencil_to_xdsl_stencil(module):
             LowerIetForToScfFor(),
         ]
     )
+    perf("DevitoStencil to stencil.stencil")
+    perf("LowerIetForToScfFor")
+
     PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
@@ -548,6 +555,9 @@ def generate_launcher_base(
         ]
     )
     PatternRewriteWalker(grpa).rewrite_module(module)
+    perf("Apply InsertSymbolicConstants")
+    perf("Apply LowerLoadSymbolidToFuncArgs")
+
     f = module.ops.first
 
     assert isinstance(f, func.FuncOp)
