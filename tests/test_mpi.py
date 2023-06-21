@@ -538,10 +538,7 @@ class TestSparseFunction(object):
             coords_loc = sf.coordinates.data[i, 1]
             if coords_loc is not None:
                 coords_loc += sf.coordinates.data[i, 0]
-            if sf.data[i] == coords_loc:
-                assert sf.data[i] == coords_loc
-            else:
-                print(sf._comm.rank, i, sf.data[i], coords_loc)
+            assert sf.data[i] == coords_loc
 
     @pytest.mark.parallel(mode=4)
     def test_sparse_coords_issue1823(self):

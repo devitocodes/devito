@@ -123,7 +123,7 @@ class IterationInstance(LabeledVector):
     def aindices(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
+            dims = i.atoms(Dimension)
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
 

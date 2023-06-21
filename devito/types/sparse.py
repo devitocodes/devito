@@ -1,9 +1,9 @@
 from collections import OrderedDict
 try:
-    from collections import Iterable
-except ImportError:
-    # After python 3.10
     from collections.abc import Iterable
+except ImportError:
+    # Before python 3.10
+    from collections import Iterable
 from itertools import product
 
 import sympy
@@ -196,8 +196,8 @@ class AbstractSparseFunction(DiscreteFunction):
                 raise ValueError("No coordinates or gridpoints attached"
                                  "to this SparseFunction")
             return (
-                np.floor(self.coordinates_data - self.grid.origin) / self.grid.spacing
-            ).astype(np.int32)
+                np.floor((self.coordinates_data - self.grid.origin) / self.grid.spacing)
+            ).astype(int)
 
     @property
     def gridpoints(self):
@@ -243,7 +243,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         Mapper ``M : MPI rank -> required sparse data``.
         """
-        return self.grid._distributor.glb_to_rank(self._support) or {}
+        return self.grid.distributor.glb_to_rank(self._support) or {}
 
     @cached_property
     def dist_origin(self):
@@ -281,7 +281,8 @@ class AbstractSparseFunction(DiscreteFunction):
         An ordering mask that puts ``self._sparse_position`` at the front.
         """
         ret = (self._sparse_position,)
-        ret += tuple(i for i, d in enumerate(self.indices) if d is not self._sparse_dim)
+        ret += tuple(i for i, d in enumerate(self.dimensions)
+                     if d is not self._sparse_dim)
         return ret
 
     def interpolate(self, *args, **kwargs):
@@ -496,6 +497,7 @@ class AbstractSparseFunction(DiscreteFunction):
             return
 
         # Compute dist map only once
+        data = self._C_as_ndarray(data)
         dmap = self._dist_datamap
         mask = self._dist_scatter_mask(dmap=dmap)
 
@@ -503,19 +505,19 @@ class AbstractSparseFunction(DiscreteFunction):
         data = np.ascontiguousarray(np.transpose(data, self._dist_reorder_mask))
 
         # Send back the sparse point values
-        sshape, scount, sdisp, _, rcount, rdisp = self._dist_alltoall(dmap=dmap)
+        sshape, scount, sdisp, rshape, rcount, rdisp = self._dist_alltoall(dmap=dmap)
         gathered = np.empty(shape=sshape, dtype=self.dtype)
+
         self._comm.Alltoallv([data, rcount, rdisp, self._mpitype],
                              [gathered, scount, sdisp, self._mpitype])
 
         # Unpack data values so that they follow the expected storage layout
         gathered = np.ascontiguousarray(np.transpose(gathered, self._dist_reorder_mask))
-        self.data
         self._data[mask] = gathered[:]
 
-    def _dist_subfunc_gather(self, sfuncd, sfunc):
+    def _dist_subfunc_gather(self, sfuncd, subfunc):
         try:
-            sfuncd = sfunc._C_as_ndarray(sfuncd)
+            sfuncd = subfunc._C_as_ndarray(sfuncd)
         except AttributeError:
             pass
         # If not using MPI, don't waste time
@@ -527,16 +529,16 @@ class AbstractSparseFunction(DiscreteFunction):
         mask = self._dist_scatter_mask(dmap=dmap)
 
         # Pack (reordered) SubFuncion values so that they can be sent out via an Alltoallv
-        if self.dist_origin[sfunc] is not None:
-            sfuncd = sfuncd + np.array(self.dist_origin[sfunc], dtype=sfunc.dtype)
+        if self.dist_origin[subfunc] is not None:
+            sfuncd = sfuncd + np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
 
         # Send out the sparse point SubFuncion values
         sshape, scount, sdisp, _, rcount, rdisp = \
-            self._dist_subfunc_alltoall(sfunc, dmap=dmap)
-        gathered = np.empty(shape=sshape, dtype=sfunc.dtype)
-        self._comm.Alltoallv([sfuncd, rcount, rdisp, self._smpitype[sfunc]],
-                             [gathered, scount, sdisp, self._smpitype[sfunc]])
-        sfunc.data._local[mask[self._sparse_position]] = gathered[:]
+            self._dist_subfunc_alltoall(subfunc, dmap=dmap)
+        gathered = np.empty(shape=sshape, dtype=subfunc.dtype)
+        self._comm.Alltoallv([sfuncd, rcount, rdisp, self._smpitype[subfunc]],
+                             [gathered, scount, sdisp, self._smpitype[subfunc]])
+        subfunc.data._local[mask[self._sparse_position]] = gathered[:]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent
         # in `_dist_scatter` is here received; a sparse point that is received in
@@ -553,8 +555,6 @@ class AbstractSparseFunction(DiscreteFunction):
         self._dist_data_gather(data)
         for (sg, s) in zip(subfunc, self._sub_functions):
             if getattr(self, s) is not None:
-                if np.sum([sg._obj.size[i] for i in range(self.ndim)]) > 0:
-                    sg = getattr(self, s)._C_as_ndarray(sg)
                 self._dist_subfunc_gather(sg, getattr(self, s))
 
     def _eval_at(self, func):
@@ -608,7 +608,7 @@ class AbstractSparseFunction(DiscreteFunction):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(self._C_as_ndarray(dataobj), *subfuncs)
+            key._dist_gather(dataobj, *subfuncs)
         elif self._distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))
@@ -793,8 +793,8 @@ class SparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each Dimension."""
-        p_dim = self.indices[self._sparse_position]
-        return tuple([self.coordinates.indexify((p_dim, i))
+        d_dim = self.coordinates.dimensions[1]
+        return tuple([self.coordinates._subs(d_dim, i)
                       for i in range(self.grid.dim)])
 
     @cached_property
@@ -1069,13 +1069,14 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     @cached_property
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each Dimension."""
-        p_dim = self.indices[self._sparse_position]
         if self.gridpoints is not None:
-            return tuple([self.gridpoints.indexify((p_dim, di)) * d.spacing + o
+            d_dim = self.gridpoints.dimensions[1]
+            return tuple([self.gridpoints._subs(d_dim, di) * d.spacing + o
                           for ((di, d), o) in zip(enumerate(self.grid.dimensions),
                                                   self.grid.origin)])
         else:
-            return tuple([self.coordinates.indexify((p_dim, i))
+            d_dim = self.coordinates.dimensions[1]
+            return tuple([self.coordinates._subs(d_dim, i)
                           for i in range(self.grid.dim)])
 
     @cached_property

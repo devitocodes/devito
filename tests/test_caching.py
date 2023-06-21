@@ -638,10 +638,10 @@ class TestCaching(object):
 
         i = u.inject(expr=u, field=u)
 
-        # created: rxu, rxy (radius dimensions) and spacings
+        # created: rxu, rxy (radius dimensions) and spacings and conditionals
         # conditional sparse dim
         # posx, posy, px, py, u_coords (as indexified),
-        ncreated = 2+1+2+2+2+1
+        ncreated = 2+2+1+2+2+2+1
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
         i.evaluate

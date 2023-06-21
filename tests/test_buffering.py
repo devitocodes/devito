@@ -3,7 +3,7 @@ import numpy as np
 
 from conftest import skipif
 from devito import (Constant, Grid, TimeFunction, SparseTimeFunction, Operator,
-                    Eq, ConditionalDimension, SubDimension, SubDomain)
+                    Eq, ConditionalDimension, SubDimension, SubDomain, configuration)
 from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.exceptions import InvalidOperator
 
@@ -271,7 +271,8 @@ def test_over_injection():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 8
+    assert len(retrieve_iteration_tree(op1)) == \
+        7 + bool(configuration['language'] != 'C')
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 

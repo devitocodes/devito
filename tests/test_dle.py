@@ -725,6 +725,7 @@ class TestNodeParallelism(object):
         op = Operator(eqns, opt=('openmp', {'par-dynamic-work': 0}))
 
         iterations = FindNodes(Iteration).visit(op)
+
         assert len(iterations) == 6
         assert iterations[1].is_Affine
         assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value

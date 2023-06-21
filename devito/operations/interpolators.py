@@ -37,9 +37,13 @@ class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
         return obj
 
     def _evaluate(self, **kwargs):
-        return_value = self.interpolator._evauate(**kwargs)
+        return_value = self.operation(**kwargs)
         assert(all(isinstance(i, Eq) for i in return_value))
         return return_value
+
+    @abstractmethod
+    def operation(self, **kwargs):
+        pass
 
     def __add__(self, other):
         return flatten([self, other])
@@ -66,7 +70,7 @@ class Interpolation(UnevaluatedSparseOperation):
 
         return obj
 
-    def _evaluate(self, **kwargs):
+    def operation(self, **kwargs):
         return self.interpolator._interpolate(expr=self.expr, increment=self.increment,
                                               self_subs=self.self_subs,
                                               implicit_dims=self.implicit_dims)
@@ -93,7 +97,7 @@ class Injection(UnevaluatedSparseOperation):
 
         return obj
 
-    def _evaluate(self, **kwargs):
+    def operation(self, **kwargs):
         return self.interpolator._inject(expr=self.expr, field=self.field,
                                          implicit_dims=self.implicit_dims)
 
@@ -174,8 +178,8 @@ class WeightedInterpolator(GenericInterpolator):
         pr = self.sfunction.dimensions[-1]
         for ((di, d), rd) in zip(enumerate(self._gdim), self._rdim):
             # Add conditional to avoid OOB
-            lb = sympy.And(rd >= d.symbolic_min, evaluate=False)
-            ub = sympy.And(rd <= d.symbolic_max, evaluate=False)
+            lb = sympy.And(rd >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(rd <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(rd.name, pr, condition=cond, indirect=True)
             pr = rd

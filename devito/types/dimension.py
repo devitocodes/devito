@@ -107,6 +107,8 @@ class Dimension(ArgProvider):
     is_Incr = False
     is_Block = False
 
+    indirect = False
+
     # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
     _op_priority = sympy.Expr._op_priority + 1.
 
@@ -823,7 +825,7 @@ class ConditionalDimension(DerivedDimension):
 
     @cached_property
     def free_symbols(self):
-        retval = set(super(ConditionalDimension, self).free_symbols)
+        retval = set(super().free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
         try:
@@ -1206,7 +1208,6 @@ class CustomDimension(BasicDimension):
     """
 
     is_Custom = True
-    indirect = False
 
     __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent')
 

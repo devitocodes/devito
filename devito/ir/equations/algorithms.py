@@ -33,8 +33,7 @@ def dimension_sort(expr):
 
                 # Fallback: Just insert all the Dimensions we find, regardless of
                 # what the user is attempting to do
-                relation.extend(filter_sorted([d for d in i.free_symbols
-                                               if isinstance(d, Dimension)]))
+                relation.extend(filter_sorted(i.atoms(Dimension)))
 
         # StencilDimensions are lowered subsequently through special compiler
         # passes, so they can be ignored here

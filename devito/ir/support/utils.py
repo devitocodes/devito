@@ -183,7 +183,6 @@ def detect_accesses(exprs):
     for e in as_tuple(exprs):
         other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
         other_dims.update(e.implicit_dims)
-
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
