@@ -73,7 +73,7 @@ class XDSLOperator(Operator):
         compile the interop.o file
         """
         res = subprocess.run(
-            f'gcc -x c - -c -o {self._interop_tf.name}',
+            f'clang -x c - -c -o {self._interop_tf.name}',
             shell=True,
             input=_INTEROP_C,
             text=True,
