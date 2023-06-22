@@ -106,7 +106,6 @@ class XDSLOperator(Operator):
             if is_omp and is_gpu:
                 raise RuntimeError("Cannot run OMP+GPU!")
 
-            mpi_rank = 0
             # specialize the code for the specific apply parameters
             finalize_module_with_globals(self._module, self._jit_kernel_constants)
 
@@ -141,11 +140,6 @@ class XDSLOperator(Operator):
 
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
-                prefix = f'tee 2d5pt_rank{mpi_rank}.mlir | '
-
-                if backdoor is not None:
-                    prefix = ""
-
                 cflags = CFLAGS
                 if is_mpi:
                     cflags += ' -lmpi '
@@ -154,7 +148,7 @@ class XDSLOperator(Operator):
                 if is_gpu:
                     cflags += " -lmlir_cuda_runtime "
 
-                cmd = f'{prefix} xdsl-opt -p {xdsl_pipeline} |' \
+                cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
                     f'clang {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
