@@ -8,11 +8,11 @@ import sympy
 
 from devito.finite_differences import EvalDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
-                       IterationInstance, IterationSpace, Interval, Cluster,
-                       Queue, IntervalGroup, LabeledVector, normalize_properties,
+                       IterationSpace, Interval, Cluster, ExprGeometry, Queue,
+                       IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties, sdims_min, sdims_max)
-from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
-                              reuse_if_untouched, retrieve_indexed, search, uxreplace)
+from devito.symbolics import (Uxmapper, estimate_cost, q_constant, search,
+                              reuse_if_untouched, retrieve_indexed, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
 from devito.types import (Array, TempFunction, Eq, Symbol, Temp, ModuloDimension,
@@ -438,28 +438,10 @@ def collect(extracted, ispace, minstorage):
     for expr in extracted:
         assert not expr.is_Equality
 
-        indexeds = retrieve_indexed(expr)
-
-        bases = []
-        offsets = []
-        for i in indexeds:
-            ii = IterationInstance(i)
-            if ii.is_irregular:
-                break
-
-            base = []
-            offset = []
-            for e, ai in zip(ii, ii.aindices):
-                if q_constant(e):
-                    base.append(e)
-                else:
-                    base.append(ai)
-                    offset.append((ai, e - ai))
-            bases.append(tuple(base))
-            offsets.append(LabeledVector(offset))
-
-        if not indexeds or len(bases) == len(indexeds):
-            found.append(Candidate(expr, ispace, indexeds, bases, offsets))
+        try:
+            found.append(ExprGeometry(expr))
+        except ValueError:
+            pass
 
     # Create groups of aliasing expressions
     mapper = OrderedDict()
@@ -468,17 +450,13 @@ def collect(extracted, ispace, minstorage):
         c = unseen.pop(0)
         group = [c]
         for u in list(unseen):
-            # Is the arithmetic structure of `c` and `u` equivalent ?
-            if not compare_ops(c.expr, u.expr):
-                continue
-
             # Is `c` translated w.r.t. `u` ?
             if not c.translated(u):
                 continue
 
             group.append(u)
             unseen.remove(u)
-        group = Group(group)
+        group = Group(group, ispace=ispace)
 
         if minstorage:
             k = group.dimensions_translated
@@ -970,72 +948,13 @@ def pick_best(variants, schedule_strategy, eval_variants_delta):
 # Utilities
 
 
-class Candidate(object):
-
-    def __init__(self, expr, ispace, indexeds, bases, offsets):
-        self.expr = expr
-        self.ispace = ispace
-        self.indexeds = indexeds
-        self.bases = bases
-        self.offsets = offsets
-
-    def __repr__(self):
-        return "Candidate(expr=%s)" % self.expr
-
-    def translated(self, other):
-        """
-        True if ``self`` is translated w.r.t. ``other``, False otherwise.
-
-        Examples
-        --------
-        Two candidates are translated if their bases are the same and
-        their offsets are pairwise translated.
-
-        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0,0], j: [0,1]}
-        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1,1], j: [0,1]}
-
-        Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
-        """
-        if len(self.Toffsets) != len(other.Toffsets):
-            return False
-        if len(self.bases) != len(other.bases):
-            return False
-
-        # Check the bases
-        if any(b0 != b1 for b0, b1 in zip(self.bases, other.bases)):
-            return False
-
-        # Check the offsets
-        for (d0, o0), (d1, o1) in zip(self.Toffsets, other.Toffsets):
-            if d0 is not d1:
-                return False
-
-            distance = set(o0 - o1)
-            if len(distance) != 1:
-                return False
-
-        return True
-
-    @cached_property
-    def Toffsets(self):
-        return LabeledVector.transpose(*self.offsets)
-
-    @cached_property
-    def dimensions(self):
-        return frozenset(i for i, _ in self.Toffsets)
-
-    @property
-    def shifts(self):
-        return self.ispace.intervals
-
-
 class Group(tuple):
 
     """
     A collection of aliasing expressions.
     """
 
-    def __new__(cls, items):
+    def __new__(cls, items, ispace=None):
         # Expand out the StencilDimensions, if any
         processed = []
         for c in items:
@@ -1049,12 +968,12 @@ class Group(tuple):
                 offsets = [LabeledVector([(d, f(i)) for d, i in v.items()])
                            for v in c.offsets]
 
-                processed.append(
-                    Candidate(expr, c.ispace, indexeds, c.bases, offsets)
-                )
+                processed.append(ExprGeometry(expr, indexeds, c.bases, offsets))
 
         obj = super().__new__(cls, processed)
         obj._items = items
+        obj._ispace = ispace
+
         return obj
 
     def __repr__(self):
@@ -1109,7 +1028,7 @@ class Group(tuple):
     @property
     def pivot(self):
         """
-        A deterministically chosen Candidate for this Group.
+        A deterministically chosen reference for this Group.
         """
         return self[0]
 
@@ -1158,7 +1077,7 @@ class Group(tuple):
     def _pivot_min_intervals(self):
         """
         The minimum Interval along each Dimension such that by evaluating the
-        pivot, all Candidates are evaluated too.
+        pivot, all other items are evaluated too.
         """
         c = self.pivot
 
@@ -1196,7 +1115,7 @@ class Group(tuple):
                 hsize = sum(f._size_halo[l])
 
                 # Any `ofs`'s shift due to non-[0,0] iteration space
-                lower, upper = c.shifts[l].offsets
+                lower, upper = self._ispace.intervals[l].offsets
 
                 try:
                     # Assume `ofs[l]` is a number (typical case)

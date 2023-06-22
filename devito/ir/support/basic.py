@@ -6,13 +6,14 @@ from sympy import S
 from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routine,
-                              q_terminal)
+from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
+                              q_constant, q_affine, q_routine, q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple, Jump, Symbol
+from devito.types import (Barrier, Dimension, DimensionTuple, Jump, Symbol,
+                          StencilDimension)
 
-__all__ = ['IterationInstance', 'TimedAccess', 'Scope']
+__all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
 
 class IndexMode(Tag):
@@ -1064,3 +1065,99 @@ class Scope(object):
         All Relations of the Scope.
         """
         return list(self.r_gen())
+
+
+class ExprGeometry(object):
+
+    """
+    Geometric representation of an expression by abstracting Indexeds as
+    LabeledVectors.
+    """
+
+    def __init__(self, expr, indexeds=None, bases=None, offsets=None):
+        self.expr = expr
+
+        if indexeds is not None:
+            self.indexeds = indexeds
+            self.bases = bases
+            self.offsets = offsets
+            return
+
+        indexeds = retrieve_indexed(expr)
+
+        bases = []
+        offsets = []
+        for i in indexeds:
+            ii = IterationInstance(i)
+            if ii.is_irregular:
+                raise ValueError("Cannot understand expression geometry")
+
+            base = []
+            offset = []
+            for e, ai in zip(ii, ii.aindices):
+                if q_constant(e):
+                    base.append(e)
+                else:
+                    base.append(ai)
+                    offset.append((ai, e - ai))
+            bases.append(tuple(base))
+            offsets.append(LabeledVector(offset))
+
+        self.indexeds = indexeds
+        self.bases = bases
+        self.offsets = offsets
+
+    def __repr__(self):
+        return "ExprGeometry(expr=%s)" % self.expr
+
+    def translated(self, other, dims=None):
+        """
+        True if `self` is translated w.r.t. `other`, False otherwise.
+
+        Examples
+        --------
+        Two expressions are translated if they perform the same operations,
+        their bases are the same and their offsets are pairwise translated.
+
+        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0,0], j: [0,1]}
+        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1,1], j: [0,1]}
+
+        Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
+
+        The test may be strengthen by imposing that a translation occurs
+        only along a specific set of Dimensions through the kwarg `dims`.
+        """
+        if not compare_ops(self.expr, other.expr):
+            return False
+
+        if len(self.Toffsets) != len(other.Toffsets):
+            return False
+        if len(self.bases) != len(other.bases):
+            return False
+
+        # Check the bases
+        if any(b0 != b1 for b0, b1 in zip(self.bases, other.bases)):
+            return False
+
+        # Check the offsets
+        for (d0, o0), (d1, o1) in zip(self.Toffsets, other.Toffsets):
+            if d0 is not d1:
+                return False
+
+            distance = set(o0 - o1)
+            if len(distance) != 1:
+                return False
+
+            if dims and not d0._defines & set(as_tuple(dims)):
+                if distance.pop() != 0:
+                    return False
+
+        return True
+
+    @cached_property
+    def Toffsets(self):
+        return LabeledVector.transpose(*self.offsets)
+
+    @cached_property
+    def dimensions(self):
+        return frozenset(i for i, _ in self.Toffsets)
