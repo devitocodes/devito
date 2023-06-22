@@ -114,41 +114,12 @@ def main(bench_name: str, nt: int):
     if args.xdsl:
         xop = XDSLOperator([eq0])
         rt = run_operator(xop, nt, dt)
-        print(f"xDSL finer runtime: {rt} s")
-        if args.no_output_dump:
-            info("Skipping result data saving.")
-        else:
-            # get final data step
-            # this is cursed math, but we assume that:
-            #  1. Every kernel always writes to t1
-            #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
-            #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
-            #  4. time_M is always nt in this example
-            t1 = (nt + u._time_size - 1) % (2)
-
-            #res_data: np.array = u.data[t1, ...]
-            #info("Save result data to " + bench_name + ".stencil.data")
-            #res_data.tofile(bench_name + ".stencil.data")
 
     else:
         op = Operator([eq0])
         rt = run_operator(op, nt, dt)
-        print(f"Devito finer runtime: {rt} s")
-        if args.no_output_dump:
-            info("Skipping result data saving.")
-        else:
-            # get final data step
-            # this is cursed math, but we assume that:
-            #  1. Every kernel always writes to t1
-            #  2. The formula for calculating t1 = (time + n - 1) % n, where n is the number of time steps we have
-            #  3. the loop goes for (...; time <= time_M; ...), which means that the last value of time is time_M
-            #  4. time_M is always nt in this example
-            t1 = (nt + u._time_size - 1) % (2)
 
-            #res_data: np.array = u.data[t1, ...]
-            #info("Save result data to " + bench_name + ".devito.data")
-            #res_data.tofile(bench_name + ".devito.data")
-
+    print(f"fine runtime: {rt}")
 
 if __name__ == "__main__":
     benchmark_dim: int
