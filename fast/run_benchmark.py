@@ -76,10 +76,10 @@ def initialize_domain(u: TimeFunction, nx: int, ny: int):
     # seed with (reproducable) random noise if requested
     # helps finds bugs faster sometimes
     if args.random_init:
-        seed = 123456 + my_rank()
-        random.seed(seed)
+        data = np.zeros(u.data.shape)
         for index, _ in np.ndenumerate(u.data):
-            u.data[index] =  10 if random.random() > 0.8 else 0
+            data[index] =  10 if random.random() > 0.8 else 0
+        u.data[...] = data
     else:
         u.data[...] = 0
         u.data[..., int(nx / 2), int(ny / 2)] = init_value
