@@ -149,6 +149,10 @@ class XDSLOperator(Operator):
                 cflags = CFLAGS
                 if is_mpi:
                     cflags += ' -lmpi '
+                if is_omp:
+                    clfags += " -fopenmp "
+                if is_gpu:
+                    clfags += " -lmlir_cuda_runtime "
 
                 cmd = f'{prefix} xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
