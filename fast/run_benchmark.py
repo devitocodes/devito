@@ -108,7 +108,7 @@ def run_operator(op: Operator, nt: int, dt: float) -> float:
     return o.time
 
 
-def main(bench_name: str, nt: int, dump_main: bool, dump_mlir: bool):
+def main(bench_name: str, nt: int):
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
     if args.xdsl:
@@ -168,4 +168,4 @@ if __name__ == "__main__":
     to = args.time_order
 
     init_value = 10
-    main(args.benchmark_name, args.nt, args.dump_main, args.dump_mlir)
+    main(args.benchmark_name, args.nt)
