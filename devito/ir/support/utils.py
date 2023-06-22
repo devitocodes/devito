@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from devito.ir.support.vector import LabeledVector
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
