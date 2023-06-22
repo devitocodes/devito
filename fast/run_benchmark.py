@@ -137,6 +137,8 @@ def main(bench_name: str, nt: int):
     data = []
     rank = my_rank()
 
+    print(f"local domain: {u.data.shape}")
+
     if args.xdsl:
         initialize_domain(u, *args.shape)
         xop = XDSLOperator([eq0])
