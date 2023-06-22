@@ -1,8 +1,9 @@
 import argparse
 import os
 import sys
+import json
 from functools import reduce
-
+import numpy as np
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process arguments.")
@@ -32,6 +33,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--mpi", default=False, action="store_true")
 
+    parser.add_argument(
+        "--compare", default=False, action="store_true", help="Compare xdsl/devito output"
+    )
 
     # Local group
     local_group = parser.add_mutually_exclusive_group()
@@ -39,7 +43,9 @@ if __name__ == "__main__":
     local_group.add_argument("--gpu", default=False, action="store_true")
 
     # This main-specific ones
-    parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
+    parser.add_argument("--xdsl", default=False, action="store_true")
+
+    parser.add_argument("--devito", default=False, action="store_true")
 
     args = parser.parse_args()
     # TODO: (eventually) register mlir as an devito language or something?
@@ -52,9 +58,15 @@ if __name__ == "__main__":
 # Doing this here because Devito does config at import time
 
 from devito import Constant, Eq, Grid, Operator, TimeFunction, XDSLOperator, solve
-from devito.logger import info
 from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 
+from mpi4py import MPI
+
+
+def initialize_domain(u: TimeFunction, nx: int, ny: int):
+    u.data[...] = 0
+    u.data[..., int(nx / 2), int(ny / 2)] = init_value
+    u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
 
 def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value: int):
     d = (2.0 / (n - 1) for n in shape)
@@ -63,13 +75,9 @@ def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value
     dt = sigma * reduce(lambda a, b: a * b, d) / nu
     match name:
         case "2d5pt":
-            nx, ny = shape
             # Field initialization
             grid = Grid(shape=shape)
             u = TimeFunction(name="u", grid=grid, space_order=so, time_order=to)
-            u.data[...] = 0
-            u.data[..., int(nx / 2), int(ny / 2)] = init_value
-            u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
 
             # Create an equation with second-order derivatives
             a = Constant(name="a")
@@ -106,15 +114,59 @@ def run_operator(op: Operator, nt: int, dt: float) -> float:
 def main(bench_name: str, nt: int):
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
+    rank = 0
+    if MPI.Is_initialized():
+        rank = MPI.Comm(MPI.COMM_WORLD).rank
+
+    data = []
+
     if args.xdsl:
+        initialize_domain(u, *args.shape)
         xop = XDSLOperator([eq0])
         rt = run_operator(xop, nt, dt)
 
-    else:
+        print(json.dumps({
+            'type': 'runtime',
+            'runtime': rt,
+            'rank': rank,
+            'name': bench_name,
+            'impl': 'xdsl',
+        }))
+
+        if args.compare:
+            data.append(u.data.copy())
+
+    if args.devito:
+        initialize_domain(u, *args.shape)
         op = Operator([eq0])
         rt = run_operator(op, nt, dt)
 
-    print(f"fine runtime: {rt}")
+        print(json.dumps({
+            'type': 'runtime',
+            'runtime': rt,
+            'rank': rank,
+            'name': bench_name,
+            'impl': 'devito',
+        }))
+
+        if args.compare:
+            data.append(u.data.copy())
+
+    if args.compare:
+        if len(data) != 2:
+            print("cannot compare data, must be run with --xdsl --devito flags to run both!")
+
+        compare_data(*data, rank)
+
+def compare_data(a: np.ndarray, b: np.ndarray, rank: int):
+    print(json.dumps({
+        'rank': rank,
+        'type': 'correctness',
+        'mean_squared_error': float(((a - b)**2).mean()),
+        'abs_max_val': float(max(np.abs(a).max(), np.abs(b).max())),
+        'abs_max_error': float(np.abs(a - b).max()),
+    }))
+
 
 if __name__ == "__main__":
     benchmark_dim: int
