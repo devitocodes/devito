@@ -160,10 +160,13 @@ class XDSLOperator(Operator):
                     shell=True,
                     input=module_str,
                     text=True,
-                    stderr=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-
+                    capture_output=True
                 )
+
+                if res.returncode != 0:
+                    print("compilation failed with output:")
+                    print(res.stdout.encode())
+
                 assert res.returncode == 0
             except Exception as ex:
                 print("error")
