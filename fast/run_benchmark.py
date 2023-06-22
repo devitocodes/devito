@@ -66,20 +66,23 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 
 from mpi4py import MPI
 
-def my_rank() -> int:
+def my_rank(default = None) -> int | None:
     if MPI.Is_initialized():
         return MPI.Comm(MPI.COMM_WORLD).rank
-    return 0
+    return default
 
 
 def initialize_domain(u: TimeFunction, nx: int, ny: int):
     # seed with (reproducable) random noise if requested
     # helps finds bugs faster sometimes
+    print(u.data.shape)
+
     if args.random_init:
-        data = np.zeros(u.data.shape)
-        for index, _ in np.ndenumerate(u.data):
-            data[index] =  10 if random.random() > 0.8 else 0
-        u.data[...] = data
+        seed = 123456 + my_rank(0)
+        np.random.seed(seed)
+        mask = np.random.random(u.data.shape) > 0.8
+        u.data[...] = 0
+        u.data[mask] = 10
     else:
         u.data[...] = 0
         u.data[..., int(nx / 2), int(ny / 2)] = init_value
@@ -126,7 +129,7 @@ def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value
 def run_operator(op: Operator, nt: int, dt: float) -> float:
     res = op.apply(time_M=nt, a=0.1, dt=dt)
     assert isinstance(res, PerformanceSummary)
-    o = res[PerfKey("section0", None)]
+    o = res[PerfKey("section0", my_rank())]
     assert isinstance(o, PerfEntry)
     return o.time
 
@@ -136,8 +139,6 @@ def main(bench_name: str, nt: int):
 
     data = []
     rank = my_rank()
-
-    print(f"local domain: {u.data.shape}")
 
     if args.xdsl:
         initialize_domain(u, *args.shape)
