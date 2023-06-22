@@ -165,7 +165,7 @@ class XDSLOperator(Operator):
 
                 if res.returncode != 0:
                     print("compilation failed with output:")
-                    print(res.stderr.encode())
+                    print(res.stderr)
 
                 assert res.returncode == 0
             except Exception as ex:
