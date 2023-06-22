@@ -3,8 +3,7 @@ import argparse
 import numpy as np
 
 from devito import Constant, Eq, Grid, Operator, TimeFunction, XDSLOperator, solve
-from devito.ir.ietxdsl.cluster_to_ssa import generate_launcher_base
-from devito.logger import info
+
 from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 
 
