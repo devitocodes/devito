@@ -233,7 +233,7 @@ class Buffering(Queue):
 
                 guards = c.guards
                 if b.dim.is_Conditional:
-                    guards.andg(b.xd, GuardBound(0, b.firstidx.f))
+                    guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace, guards=guards, properties=properties)
@@ -269,7 +269,7 @@ class Buffering(Queue):
 
                 guards = c.guards
                 if b.dim.is_Conditional:
-                    guards.andg(b.xd, GuardBound(0, b.firstidx.f))
+                    guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace, guards=guards, properties=properties)
