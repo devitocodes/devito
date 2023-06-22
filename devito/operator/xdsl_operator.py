@@ -153,7 +153,7 @@ class XDSLOperator(Operator):
                 cmd = f'{prefix} xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'clang {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name} '
+                    f'clang {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
 
                 res = subprocess.run(
                     cmd,
@@ -161,12 +161,11 @@ class XDSLOperator(Operator):
                     input=module_str,
                     text=True,
                     capture_output=True,
-                    stderr=subprocess.STDOUT,
                 )
 
                 if res.returncode != 0:
                     print("compilation failed with output:")
-                    print(res.stdout.encode())
+                    print(res.stderr.encode())
 
                 assert res.returncode == 0
             except Exception as ex:
