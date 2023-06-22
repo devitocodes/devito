@@ -97,8 +97,8 @@ class XDSLOperator(Operator):
         #self.ccode = ccode
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
-            is_gpu = os.environ["DEVITO_PLATFORM"] == 'nvidiaX'
-            is_omp = os.environ["DEVITO_LANGUAGE"] == 'openmp'
+            is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
+            is_omp = os.environ.get("DEVITO_LANGUAGE", None) == 'openmp'
 
             if is_mpi and is_gpu:
                 raise RuntimeError("Cannot run MPI+GPU for now!")
