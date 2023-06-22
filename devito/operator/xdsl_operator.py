@@ -160,7 +160,8 @@ class XDSLOperator(Operator):
                     shell=True,
                     input=module_str,
                     text=True,
-                    capture_output=True
+                    capture_output=True,
+                    stderr=subprocess.STDOUT,
                 )
 
                 if res.returncode != 0:
