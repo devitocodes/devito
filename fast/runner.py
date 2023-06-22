@@ -21,6 +21,8 @@ class PerfReport:
     times[i][k] is the execution time of the k-th rank on the i-th run.
     """
 
+    correctness: list[dict]
+
 
 def run_benchmark(ranks: int, cpus_per_rank: int, name: str, flags: str, time_limit='01:00:00', env: str = ""):
     cmd = f"${env} srun --n={nodes} --cpus-per-task={cpus_per_rank} --exclusive --time=${time_limit} --partition=standard --qos=standard --account=d011 -u" \

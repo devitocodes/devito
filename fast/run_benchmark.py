@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import json
+import random
 from functools import reduce
 import numpy as np
 
@@ -36,6 +37,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compare", default=False, action="store_true", help="Compare xdsl/devito output"
     )
+    parser.add_argument(
+        "--random-init", default=False, action="store_true", help="Initialize data randomly"
+    )
 
     # Local group
     local_group = parser.add_mutually_exclusive_group()
@@ -62,11 +66,27 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 
 from mpi4py import MPI
 
+def my_rank() -> int:
+    if MPI.Is_initialized():
+        return MPI.Comm(MPI.COMM_WORLD).rank
+    return 0
+
 
 def initialize_domain(u: TimeFunction, nx: int, ny: int):
-    u.data[...] = 0
-    u.data[..., int(nx / 2), int(ny / 2)] = init_value
-    u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
+    # seed with (reproducable) random noise if requested
+    # helps finds bugs faster sometimes
+    if args.random_init:
+        seed = 123456 + my_rank()
+        random.seed(seed)
+        for index, _ in np.ndenumerate(u.data):
+            u[index] =  10 if random.random() > 0.8 else 0
+    else:
+        u.data[...] = 0
+        u.data[..., int(nx / 2), int(ny / 2)] = init_value
+        u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
+
+
+
 
 def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value: int):
     d = (2.0 / (n - 1) for n in shape)
@@ -114,11 +134,8 @@ def run_operator(op: Operator, nt: int, dt: float) -> float:
 def main(bench_name: str, nt: int):
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
 
-    rank = 0
-    if MPI.Is_initialized():
-        rank = MPI.Comm(MPI.COMM_WORLD).rank
-
     data = []
+    rank = my_rank()
 
     if args.xdsl:
         initialize_domain(u, *args.shape)
