@@ -236,7 +236,8 @@ class Buffering(Queue):
                     guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
-                    c.rebuild(exprs=expr, ispace=ispace, guards=guards, properties=properties)
+                    c.rebuild(exprs=expr, ispace=ispace,
+                              guards=guards, properties=properties)
                 )
 
             # Substitute buffered Functions with the newly created buffers
@@ -272,7 +273,8 @@ class Buffering(Queue):
                     guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
-                    c.rebuild(exprs=expr, ispace=ispace, guards=guards, properties=properties)
+                    c.rebuild(exprs=expr, ispace=ispace,
+                              guards=guards, properties=properties)
                 )
 
         # Lift {write,read}-only buffers into separate IterationSpaces
