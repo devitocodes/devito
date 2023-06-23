@@ -111,15 +111,15 @@ def mpi_thread_scale_2d5pt(qos="standard"):
         for res in results:
             res.report()
             result_lines.append((
-                ranks, res.impl_name, sum(res.times) / len(res.times)
+                cpus_per_rank, res.impl_name, sum(res.times) / len(res.times)
             ))
     # write csv file
-    with open(f'2d5pt_mpi_runtimes.csv', 'w') as f:
+    with open(f'2d5pt_mpi_threads_runtimes.csv', 'w') as f:
         w = csv.writer(f)
-        w.writerow(['ranks', 'implementation', 'time'])
+        w.writerow(['cpus', 'implementation', 'time'])
         w.writerows(result_lines)
 
     # write raw data as json lines
-    with open(f'2d5pt_mpi_runtimes.json', 'w') as f:
+    with open(f'2d5pt_mpi_threads_runtimes.json', 'w') as f:
         for r in raw_results:
             f.write(r.to_json() + '\n')
