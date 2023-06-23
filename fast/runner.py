@@ -13,6 +13,7 @@ class PerfReport:
     impl_name: str
     bench_name: str
     flags: str
+    env: str
     shape: list[int]
     ranks: int
     cpus: int
@@ -31,6 +32,7 @@ class PerfReport:
             'impl_name': self.impl_name,
             'bench_name': self.bench_name,
             'flags': self.flags,
+            'env': self.env,
             'shape': self.shape,
             'ranks': self.ranks,
             'cpus': self.cpus,
@@ -45,10 +47,10 @@ class PerfReport:
         return PerfReport(**json_d)
 
 
-def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], flags: str, time_limit='01:00:00', env: str = ""):
+def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], flags: str, runs: int = 1, time_limit='01:00:00', env: str = ""):
     shape = ' '.join(str(x) for x in shape)
     cmd = f"{env} srun -n {ranks} --cpus-per-task {cpus_per_rank} --exclusive --time={time_limit} --partition=standard --qos=standard --account=d011 -u" \
-          f" python3 run_benchmark.py {name} {flags} -d {shape}"
+          f" python3 run_benchmark.py {name} {flags} -d {shape} --repeat {runs}"
     print(f"running: {cmd}")
     pr = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     print(pr.stderr)
@@ -66,7 +68,7 @@ def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], f
             pass
 
     try:
-        return list(process_records(reports, flags, name, shape, ranks, cpus_per_rank))
+        return list(process_records(reports, flags, name, shape, ranks, cpus_per_rank, env))
     except Exception as ex:
         print("Error in processing records: ", ex)
         print("with output:")
@@ -82,11 +84,25 @@ def get_type(d: dict):
 def get_impl(d: dict):
     return d['impl']
 
-def process_records(records: list[dict], flags: str, bench: str, shape: list[int], ranks: int, cpus: int) -> list[PerfReport]:
+def prune_dict(d: dict, *remove_fields: str):
+    for f in remove_fields:
+        d.pop(f, None)
+    return d
+
+def process_records(records: list[dict], flags: str, bench: str, shape: list[int], ranks: int, cpus: int, env: str) -> list[PerfReport]:
     for run, run_records in sorted(group_by(records, get_run), key=lambda x: x[0]):
         kinds = dict(
             group_by(run_records, get_type)
         )
+
+        if 'correctness' in kinds:
+            kinds['correctness'] = [
+                prune_dict(d, 'rank', 'run', 'type')
+                for d in sorted(kinds.get('correctness', []), key=get_rank)
+            ]
+        else:
+            kinds['correctness'] = []
+
         assert 'runtime' in kinds, "'runtime' records not present in run output! Something is wrong!"
         assert bench == kinds['runtime'][0]['name'], "collected records not for same bench as promised!"
         for impl, perf_records in group_by(kinds['runtime'], get_impl):
@@ -94,13 +110,14 @@ def process_records(records: list[dict], flags: str, bench: str, shape: list[int
                 impl_name=impl,
                 bench_name=bench,
                 flags=flags,
+                env=env,
                 shape=shape,
                 ranks=ranks,
                 cpus=cpus,
                 times=[
                     r['runtime'] for r in sorted(perf_records, key=get_rank)
                 ],
-                correctness=list(sorted(kinds.get('correctness', []), key=get_rank))
+                correctness=kinds['correctness']
             )
 
 
