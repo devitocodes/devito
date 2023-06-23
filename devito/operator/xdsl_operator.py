@@ -154,7 +154,7 @@ class XDSLOperator(Operator):
                 cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'%{cc} {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
+                    f'{cc} {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
 
                 res = subprocess.run(
                     cmd,
