@@ -3,7 +3,7 @@ import csv
 
 dims = {"2d5pt": 2, "3d_diff": 3}
 
-def thread_scale(name: str):
+def thread_scale(name: str, qos: str = 'standard'):
     flags = '-nt 100 --xdsl --devito --openmp'
     shape = [20000, 20000]
     env_base = "OMP_PLACES=cores"
@@ -56,7 +56,6 @@ def mpi_scale_2d5pt(qos="standard"):
     result_lines = []
 
     for ranks in (1, 2, 4, 8, 16, 32, 64, 128):
-        env
         results = run_benchmark(
             ranks=ranks, 
             cpus_per_rank=cpus_per_rank,
