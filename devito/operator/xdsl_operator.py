@@ -145,7 +145,7 @@ class XDSLOperator(Operator):
 
                 if is_mpi:
                     cflags += ' -lmpi '
-                    cc = 'mpicc'
+                    cc = "mpicc -cc=clang"
                 if is_omp:
                     cflags += " -fopenmp "
                 if is_gpu:
