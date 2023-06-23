@@ -87,7 +87,7 @@ def mpi_scale_2d5pt(qos="standard"):
 def mpi_thread_scale_2d5pt(qos="standard"):
     flags = '-nt 100 --xdsl --devito --openmp --mpi'
     ranks = 16
-    env = f"OMP_PLACES=cores OMP_NUM_THREADS={cpus_per_rank} DEVITO_MPI=1"
+    env = f"OMP_PLACES=cores DEVITO_MPI=1"
     shape = [20000, 20000]
     runs = 5
 
@@ -103,7 +103,7 @@ def mpi_thread_scale_2d5pt(qos="standard"):
             shape=shape,
             flags=flags,
             runs=runs,
-            env=env,
+            env=env + f' OMP_NUM_THREADS={cpus_per_rank}',
             qos=qos,
         )
         raw_results.extend(results)
