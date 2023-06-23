@@ -40,6 +40,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--random-init", default=False, action="store_true", help="Initialize data randomly"
     )
+    parser.add_argument(
+        "--repeat", default=1, type=int, help="Run n times"
+    )
 
     # Local group
     local_group = parser.add_mutually_exclusive_group()
@@ -75,8 +78,6 @@ def my_rank(default = None) -> int | None:
 def initialize_domain(u: TimeFunction, nx: int, ny: int):
     # seed with (reproducable) random noise if requested
     # helps finds bugs faster sometimes
-    print(u.data.shape)
-
     if args.random_init:
         seed = 123456 + my_rank(0)
         np.random.seed(seed)
@@ -134,54 +135,57 @@ def run_operator(op: Operator, nt: int, dt: float) -> float:
     return o.time
 
 
-def main(bench_name: str, nt: int):
+def main(bench_name: str, nt: int, runs: int = 1):
     grid, u, eq0, dt = get_equation(bench_name, args.shape, so, to, init_value)
-
-    data = []
     rank = my_rank()
 
-    if args.xdsl:
-        initialize_domain(u, *args.shape)
-        xop = XDSLOperator([eq0])
-        rt = run_operator(xop, nt, dt)
+    for run in range(runs):
+        data = []
+        if args.xdsl:
+            initialize_domain(u, *args.shape)
+            xop = XDSLOperator([eq0])
+            rt = run_operator(xop, nt, dt)
 
-        print(json.dumps({
-            'type': 'runtime',
-            'runtime': rt,
-            'rank': rank,
-            'name': bench_name,
-            'impl': 'xdsl',
-        }))
+            print(json.dumps({
+                'type': 'runtime',
+                'runtime': rt,
+                'rank': rank,
+                'name': bench_name,
+                'impl': 'xdsl',
+                'run': run,
+            }))
+
+            if args.compare:
+                data.append(u.data.copy())
+
+        if args.devito:
+            initialize_domain(u, *args.shape)
+            op = Operator([eq0])
+            rt = run_operator(op, nt, dt)
+
+            print(json.dumps({
+                'type': 'runtime',
+                'runtime': rt,
+                'rank': rank,
+                'name': bench_name,
+                'impl': 'devito',
+                'run': run,
+            }))
+
+            if args.compare:
+                data.append(u.data.copy())
 
         if args.compare:
-            data.append(u.data.copy())
+            if len(data) != 2:
+                print("cannot compare data, must be run with --xdsl --devito flags to run both!")
 
-    if args.devito:
-        initialize_domain(u, *args.shape)
-        op = Operator([eq0])
-        rt = run_operator(op, nt, dt)
+            compare_data(*data, rank, run)
 
-        print(json.dumps({
-            'type': 'runtime',
-            'runtime': rt,
-            'rank': rank,
-            'name': bench_name,
-            'impl': 'devito',
-        }))
-
-        if args.compare:
-            data.append(u.data.copy())
-
-    if args.compare:
-        if len(data) != 2:
-            print("cannot compare data, must be run with --xdsl --devito flags to run both!")
-
-        compare_data(*data, rank)
-
-def compare_data(a: np.ndarray, b: np.ndarray, rank: int):
+def compare_data(a: np.ndarray, b: np.ndarray, rank: int, run: int):
     print(json.dumps({
         'rank': rank,
         'type': 'correctness',
+        'run': run,
         'mean_squared_error': float(((a - b)**2).mean()),
         'abs_max_val': float(max(np.abs(a).max(), np.abs(b).max())),
         'abs_max_error': float(np.abs(a - b).max()),
