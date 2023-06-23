@@ -210,4 +210,4 @@ if __name__ == "__main__":
     to = args.time_order
 
     init_value = 10
-    main(args.benchmark_name, args.nt)
+    main(args.benchmark_name, args.nt, args.repeat)
