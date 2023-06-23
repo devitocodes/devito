@@ -141,8 +141,11 @@ class XDSLOperator(Operator):
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
                 cflags = CFLAGS
+                cc = "clang"
+
                 if is_mpi:
                     cflags += ' -lmpi '
+                    cc = 'mpicc'
                 if is_omp:
                     cflags += " -fopenmp "
                 if is_gpu:
@@ -151,7 +154,7 @@ class XDSLOperator(Operator):
                 cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'clang {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
+                    f'%{cc} {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
 
                 res = subprocess.run(
                     cmd,
