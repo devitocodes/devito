@@ -46,6 +46,20 @@ class PerfReport:
             json_d = json.loads(json_d)
         return PerfReport(**json_d)
 
+    def report(self):
+        avg_time = sum(self.times) / len(self.times)
+        c_nums = []
+        if self.correctness:
+            for correctness_data in self.correctness:
+                c_nums.append(correctness_data['abs_max_error'])
+        max_err = '-' if not c_nums else max(c_nums)
+
+        print(f"""Run info:
+  impl:    {self.impl_name}
+  bench:   {self.bench_name}
+  grid:    {self.shape}
+  time:    {avg_time}
+  max err: {max_err}""")
 
 def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], flags: str, runs: int = 1, time_limit='01:00:00', env: str = ""):
     shape = ' '.join(str(x) for x in shape)
