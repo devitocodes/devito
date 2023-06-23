@@ -49,6 +49,7 @@ def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], f
     shape = ' '.join(str(x) for x in shape)
     cmd = f"${env} srun --n={ranks} --cpus-per-task={cpus_per_rank} --exclusive --time=${time_limit} --partition=standard --qos=standard --account=d011 -u" \
           f" time python3 run_benchmark.py f{name} {flags} -d {shape}"
+    print(f"running: {cmd}")
     pr = subprocess.run(cmd, shell=True, capture_output=True)
     res = pr.stdout.decode('utf-8')
 
