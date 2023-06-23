@@ -63,7 +63,7 @@ class PerfReport:
 
 def run_benchmark(ranks: int, cpus_per_rank: int, name: str, shape: list[int], flags: str, runs: int = 1, time_limit='01:00:00', env: str = ""):
     shape = ' '.join(str(x) for x in shape)
-    cmd = f"{env} srun -n {ranks} --cpus-per-task {cpus_per_rank} --exclusive --time={time_limit} --partition=standard --qos=standard --account=d011 -u" \
+    cmd = f"{env} srun -n {ranks} --cpus-per-task {cpus_per_rank} --exclusive --time={time_limit} --partition=standard --qos=standard --account=d011 --distribution=block:block --hint=nomultithread -u" \
           f" python3 run_benchmark.py {name} {flags} -d {shape} --repeat {runs}"
     print(f"running: {cmd}")
     pr = subprocess.run(cmd, shell=True, capture_output=True, text=True)
