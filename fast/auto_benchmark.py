@@ -47,7 +47,7 @@ def thread_scale(name: str):
 def mpi_scale_2d5pt():
     flags = '-nt 100 --xdsl --devito --openmp --mpi'
     cpus_per_rank=4
-    env = f"OMP_PLACES=cores OMP_NUM_THREADS={cpus_per_rank} DEVITO_MPI=1"
+    env = f"OMP_PLACES=cores OMP_NUM_THREADS={cpus_per_rank*2} DEVITO_MPI=1"
     shape = [20000, 20000]
     runs = 10
 
