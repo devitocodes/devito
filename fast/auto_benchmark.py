@@ -44,7 +44,7 @@ def thread_scale(name: str):
             f.write(r.to_json() + '\n')
 
 
-def mpi_scale_2d5pt():
+def mpi_scale_2d5pt(qos="standard"):
     flags = '-nt 100 --xdsl --devito --openmp --mpi'
     cpus_per_rank=4
     env = f"OMP_PLACES=cores OMP_NUM_THREADS={cpus_per_rank} DEVITO_MPI=1"
@@ -64,7 +64,8 @@ def mpi_scale_2d5pt():
             shape=shape,
             flags=flags,
             runs=runs,
-            env=env 
+            env=env,
+            qos=qos,
         )
         raw_results.extend(results)
 
