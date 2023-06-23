@@ -70,7 +70,6 @@ def mpi_scale_2d5pt():
 
         for res in results:
             res.report()
-            assert len(res.times) == 1
             result_lines.append((
                 ranks, res.impl_name, sum(res.times) / len(res.times)
             ))
