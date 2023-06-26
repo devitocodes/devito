@@ -438,10 +438,9 @@ def collect(extracted, ispace, minstorage):
     for expr in extracted:
         assert not expr.is_Equality
 
-        try:
-            found.append(ExprGeometry(expr))
-        except ValueError:
-            pass
+        eg = ExprGeometry(expr)
+        if eg.is_regular:
+            found.append(eg)
 
     # Create groups of aliasing expressions
     mapper = OrderedDict()

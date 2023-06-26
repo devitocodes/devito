@@ -1083,27 +1083,22 @@ class ExprGeometry(object):
             self.offsets = offsets
             return
 
-        indexeds = retrieve_indexed(expr)
+        self.indexeds = retrieve_indexed(expr)
 
         bases = []
         offsets = []
-        for i in indexeds:
-            ii = IterationInstance(i)
-            if ii.is_irregular:
-                raise ValueError("Cannot understand expression geometry")
-
+        for ii in self.iinstances:
             base = []
             offset = []
-            for e, ai in zip(ii, ii.aindices):
-                if q_constant(e):
-                    base.append(e)
+            for e, fi, ai in zip(ii, ii.findices, ii.aindices):
+                if ai is None:
+                    base.append((fi, e))
                 else:
-                    base.append(ai)
+                    base.append((fi, ai))
                     offset.append((ai, e - ai))
-            bases.append(tuple(base))
+            bases.append(LabeledVector(base))
             offsets.append(LabeledVector(offset))
 
-        self.indexeds = indexeds
         self.bases = bases
         self.offsets = offsets
 
@@ -1127,32 +1122,55 @@ class ExprGeometry(object):
         The test may be strengthen by imposing that a translation occurs
         only along a specific set of Dimensions through the kwarg `dims`.
         """
+        # Check mathematical structure
         if not compare_ops(self.expr, other.expr):
             return False
 
-        if len(self.Toffsets) != len(other.Toffsets):
-            return False
-        if len(self.bases) != len(other.bases):
-            return False
-
-        # Check the bases
-        if any(b0 != b1 for b0, b1 in zip(self.bases, other.bases)):
-            return False
-
-        # Check the offsets
-        for (d0, o0), (d1, o1) in zip(self.Toffsets, other.Toffsets):
-            if d0 is not d1:
+        # Use a suitable value for `dims` if not provided by user
+        if dims is None:
+            if self.aindices != other.aindices:
                 return False
+            dims = self.aindices
+        dims = set(as_tuple(dims))
 
-            distance = set(o0 - o1)
-            if len(distance) != 1:
-                return False
+        # Check bases and offsets
+        for i in ['Tbases', 'Toffsets']:
+            Ti0 = getattr(self, i)
+            Ti1 = getattr(other, i)
 
-            if dims and not d0._defines & set(as_tuple(dims)):
-                if distance.pop() != 0:
+            m0 = dict(Ti0)
+            m1 = dict(Ti1)
+
+            # The only hope in presence of Dimensions appearing only in either
+            # `self` or `other` is that they have been projected away by the caller
+            for d in set(m0).symmetric_difference(set(m1)):
+                if not d._defines & dims:
                     return False
 
+            for d in set(m0).union(set(m1)):
+                try:
+                    o0 = m0[d]
+                    o1 = m1[d]
+                except KeyError:
+                    continue
+
+                distance = set(o0 - o1)
+                if len(distance) != 1:
+                    return False
+
+                if not d._defines & dims:
+                    if distance.pop() != 0:
+                        return False
+
         return True
+
+    @cached_property
+    def iinstances(self):
+        return tuple(IterationInstance(i) for i in self.indexeds)
+
+    @cached_property
+    def Tbases(self):
+        return LabeledVector.transpose(*self.bases)
 
     @cached_property
     def Toffsets(self):
@@ -1161,3 +1179,14 @@ class ExprGeometry(object):
     @cached_property
     def dimensions(self):
         return frozenset(i for i, _ in self.Toffsets)
+
+    @cached_property
+    def aindices(self):
+        try:
+            return tuple(zip(*self.Toffsets))[0]
+        except IndexError:
+            return ()
+
+    @property
+    def is_regular(self):
+        return all(i.is_regular for i in self.iinstances)
