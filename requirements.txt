@@ -11,5 +11,5 @@ cgen>=2020.1
 codepy>=2019.1
 click<9.0
 multidict
-anytree>=2.4.3,<=2.8
+anytree>=2.4.3,<=2.9.0
 distributed<2023.7
