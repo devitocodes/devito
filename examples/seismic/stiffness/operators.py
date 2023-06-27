@@ -1,8 +1,7 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import solve
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import matriz_init
-from examples.seismic.stiffness.utils import D, S, vec
+from examples.seismic.stiffness.utils import D, S, vec, matriz_init
 
 
 def iso_elastic_tensor(model):
