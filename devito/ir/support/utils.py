@@ -308,4 +308,5 @@ def minmax_index(expr, d):
         except KeyError:
             pass
 
-    return min(indices), max(indices)
+    return (min(sdims_min(i) for i in indices),
+            max(sdims_max(i) for i in indices))
