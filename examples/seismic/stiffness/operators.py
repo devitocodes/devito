@@ -1,7 +1,7 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import solve
 from examples.seismic import PointSource, Receiver
-from examples.seismic.utils import matriz_init
+from examples.seismic.stiffness.utils import matriz_init
 from examples.seismic.stiffness.utils import D, S, vec
 
 
@@ -152,7 +152,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     src_expr, rec_expr = src_rec(v, tau, model, geometry)
 
     op = Operator(eqn + src_expr + rec_expr, subs=model.spacing_map,
-                  name="ForwardElastic", **kwargs)
+                  name="ForwardIsoElastic", **kwargs)
     # Substitute spacing terms to reduce flops
     return op
 
@@ -182,4 +182,4 @@ def AdjointOperator(model, geometry, space_order=4, **kwargs):
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_expr + rec_expr, subs=model.spacing_map,
-                    name='AdjointElastic', **kwargs)
+                    name='AdjointIsoElastic', **kwargs)

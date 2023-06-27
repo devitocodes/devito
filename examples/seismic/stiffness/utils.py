@@ -1,6 +1,22 @@
 from devito.types.tensor import tens_func
 import numpy as np
 
+from sympy import symbols, Matrix
+
+
+def matrix_init(model):
+    def cij(i, j):
+        ii, jj = min(i, j), max(i, j)
+        if (ii == jj or (model.dim == 3 and ii < 4 and jj < 4) or
+                        (model.dim == 2 and ii < 3 and jj < 3)):
+            return symbols('C%s%s' % (ii, jj))
+        return 0
+
+    d = model.dim*2 + model.dim-2
+    Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
+    return Matrix(Cij)
+
+
 
 def D(self, shift=None):
     """
