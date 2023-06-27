@@ -271,7 +271,7 @@ def sympy_dtype(expr, default):
     args = expr.args
     # We can only infer the dtype for addition/multiplication or Symbols
     # For other case the epxression function may modify the infered dtype
-    if not (isinstance(expr.func, Add) or isinstance(expr.func, Add)) or \
+    if not (isinstance(expr.func, Add) or isinstance(expr.func, Mul)) or \
             not expr.is_Symbol:
         return default
 

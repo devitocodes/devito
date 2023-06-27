@@ -663,9 +663,12 @@ class TestCaching(object):
 
         assert len(_SymbolCache) == init_cache_size + 10
         clear_cache()
-        # Now we should be back to the original state except pos*
-        # that belong to the abstract class
+        # Now we should be back to the original state except for
+        # pos* that belong to the abstract class
         assert len(_SymbolCache) == init_cache_size + 2
+        clear_cache()
+        # Now we should be back to the original state
+        assert len(_SymbolCache) == init_cache_size
 
     def test_after_indexification(self):
         """

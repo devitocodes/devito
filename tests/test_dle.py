@@ -291,7 +291,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
+    assert_structure(op, ['t', 't,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
                      't,p_s0_blk0,p_s,rsx,rsy')
 
 
@@ -952,7 +952,7 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
-        assert 'omp for' in iterations[2].pragmas[0].value
+        assert 'omp for' in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):

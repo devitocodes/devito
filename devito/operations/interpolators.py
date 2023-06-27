@@ -149,9 +149,10 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
+        parent = self.sfunction.dimensions[-1]
         dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
-                                p-self.r+1, p+self.r, len(range(-self.r+1, self.r+1)))
-                for (p, d) in zip(self.sfunction._position_map.values(), self._gdim)]
+                                -self.r+1, self.r, 2*self.r, parent)
+                for d in self._gdim]
 
         return DimensionTuple(*dims, getters=self._gdim)
 
@@ -170,24 +171,23 @@ class WeightedInterpolator(GenericInterpolator):
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
         mapper = {}
+        pos = self.sfunction._position_map.values()
         # Temporaries for the position
         temps = self._positions(implicit_dims)
 
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-        pr = self.sfunction.dimensions[-1]
-        for ((di, d), rd) in zip(enumerate(self._gdim), self._rdim):
+        for ((di, d), rd, p) in zip(enumerate(self._gdim), self._rdim, pos):
             # Add conditional to avoid OOB
-            lb = sympy.And(rd >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(rd <= d.symbolic_max + self.r, evaluate=False)
+            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
-            mapper[d] = ConditionalDimension(rd.name, pr, condition=cond, indirect=True)
-            pr = rd
+            mapper[d] = ConditionalDimension(rd.name, rd, condition=cond, indirect=True)
 
         # Substitution mapper for variables
-        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) for (k, c) in mapper.items()})
+        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) + p
+                    for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
-        idx_subs.update({rd: crd for (rd, crd) in zip(self._rdim, mapper.values())})
 
         return idx_subs, temps
 
@@ -328,7 +328,9 @@ class LinearInterpolator(WeightedInterpolator):
     """
     @property
     def _weights(self):
-        c = [(1 - p) * (1 - (rd - rd._symbolic_min)) + (rd - rd._symbolic_min) * p
+        # (1 - p) * (1 - rd) + rd * p
+        # simplified for better arithmetic
+        c = [1 - p + rd * (2*p - 1)
              for (p, d, rd) in zip(self._point_symbols, self._gdim, self._rdim)]
         return prod(c)
 
@@ -373,5 +375,5 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        return prod([self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd._symbolic_min})
+        return prod([self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd.symbolic_min})
                      for (ri, rd) in enumerate(self._rdim)])

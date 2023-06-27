@@ -2670,10 +2670,13 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 41
+        assert summary0[('section1', None)].ops == 50
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
+        assert summary1[('section0', None)].ops == 9
+        assert summary1[('section1', None)].ops == 9
         assert summary1[('section2', None)].ops == 31
+        assert summary1[('section3', None)].ops == 32
         assert np.isclose(summary1[('section2', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)

@@ -1450,9 +1450,11 @@ class TestConditionalDimension(object):
 
         assert np.all(p.data[0] == 0)
         # Note the endpoint of the range is 12 because we inject at p.forward
-        assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
-        assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
-        assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+        for i in range(1, 12):
+            assert p.data[i].sum() == i - 1
+            assert p.data[i, 10, 10, 10] == i - 1
+        for i in range(12, 20):
+            assert np.all(p.data[i] == 0)
 
     @pytest.mark.parametrize('init_value,expected', [
         ([2, 1, 3], [2, 2, 0]),  # updates f1, f2
