@@ -1138,6 +1138,16 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The MPI communicator the arguments are collective over.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">comm</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_NULL</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">opkwargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">temp_registry</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">platform_registry</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">temp_registry</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">platform</span><span class="p">]</span>
+
+        <span class="n">temp_registry</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="p">:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">compiler_registry</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="n">compiler</span> <span class="o">=</span> <span class="n">temp_registry</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="vm">__class__</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;platform&#39;</span><span class="p">:</span> <span class="n">platform</span><span class="p">,</span> <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="n">compiler</span><span class="p">,</span> <span class="s1">&#39;language&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">language</span><span class="p">}</span>
+
 
 <span class="k">def</span> <span class="nf">parse_kwargs</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
