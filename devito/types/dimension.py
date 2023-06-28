@@ -841,7 +841,7 @@ class ConditionalDimension(DerivedDimension):
             return defaults
         try:
             # Is it a symbolic factor?
-            factor = dim._factor.data
+            factor = defaults[dim._factor.name] = dim._factor.data
         except AttributeError:
             factor = dim._factor
         defaults[dim.parent.max_name] = \
