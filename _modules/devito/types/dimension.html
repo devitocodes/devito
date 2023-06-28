@@ -918,7 +918,7 @@
             <span class="k">return</span> <span class="n">defaults</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="c1"># Is it a symbolic factor?</span>
-            <span class="n">factor</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">data</span>
+            <span class="n">factor</span> <span class="o">=</span> <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">data</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="n">factor</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span>
         <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> \
