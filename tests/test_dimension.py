@@ -1097,6 +1097,39 @@ class TestConditionalDimension(object):
         assert np.all(usave.data[2] == 5)
         assert np.all(usave.data[3] == 7)
 
+    def test_auto_override_factor(self):
+        grid = Grid(shape=(4, 4, 4))
+        time_dim = grid.time_dim
+
+        fact = Constant(name='fact', dtype=np.int32, value=4)
+        tsub = ConditionalDimension(name='tsub', parent=time_dim, factor=fact)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=tsub, save=4)
+
+        eqns = [Eq(u, u + 1),
+                Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        op.apply(time_M=7)  # Use `fact`'s default value, 4
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 5)
+        assert np.all(usave.data[2:] == 0)
+
+        # Now try with a different set of input
+        fact1 = Constant(name='fact', dtype=np.int32, value=3)
+        tsub1 = ConditionalDimension(name='tsub', parent=time_dim, factor=fact1)
+
+        u1 = TimeFunction(name='u', grid=grid, time_order=0)
+        usave1 = TimeFunction(name='usave', grid=grid, time_dim=tsub1, save=4)
+
+        op.apply(time_M=7, u=u1, usave=usave1)  # Expect to use tsub1's factor!
+        assert np.all(usave1.data[0] == 1)
+        assert np.all(usave1.data[1] == 4)
+        assert np.all(usave1.data[2] == 7)
+        assert np.all(usave1.data[3:] == 0)
+
     def test_implicit_dims(self):
         """
         Test ConditionalDimension as an implicit dimension for an equation.

@@ -542,6 +542,7 @@ class Operator(Callable):
             except ValueError:
                 raise ValueError("Override `%s` is incompatible with overrides `%s`" %
                                  (p, [i for i in overrides if i.name in args]))
+
         # Process data-carrier defaults
         for p in defaults:
             if p.name in args:
@@ -552,6 +553,12 @@ class Operator(Callable):
                     args[k] = v
                 elif k in futures:
                     # An explicit override is later going to set `args[k]`
+                    pass
+                elif k in kwargs:
+                    # User is in control
+                    # E.g., given a ConditionalDimension `t_sub` with factor `fact` and
+                    # a TimeFunction `usave(t_sub, x, y)`, an override for `fact` is
+                    # supplied w/o overriding `usave`; that's legal
                     pass
                 elif is_integer(args[k]) and args[k] not in as_tuple(v):
                     raise ValueError("Default `%s` is incompatible with other args as "
