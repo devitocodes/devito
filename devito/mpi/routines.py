@@ -12,7 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
                            Expression, ExpressionBundle, AugmentedExpression,
                            Iteration, List, Prodder, Return, make_efunc, FindNodes,
-                           Transformer)
+                           Transformer, ElementalCall)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
@@ -572,6 +572,14 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         return HaloUpdate('haloupdate%s' % key, iet, parameters)
 
 
+class ComputeCall(ElementalCall):
+    pass
+
+
+class ComputeFunction(ElementalFunction):
+    _Call_cls = ComputeCall
+
+
 class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
     """
@@ -647,7 +655,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc('compute%d' % key, hs.body, hs.arguments)
+            return make_efunc('compute%d' % key, hs.body, hs.arguments,
+                              efunc_type=ComputeFunction)
 
     def _call_compute(self, hs, compute, *args):
         if compute is None:
@@ -952,7 +961,8 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc('compute%d' % key, iet, hs.arguments)
+            return make_efunc('compute%d' % key, iet, hs.arguments,
+                              efunc_type=ComputeFunction)
 
     def _make_poke(self, hs, key, msgs):
         lflag = Symbol(name='lflag')

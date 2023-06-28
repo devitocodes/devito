@@ -16,7 +16,7 @@ from devito.ir.iet import (BusyWait, ExpressionBundle, List, TimedList, Section,
 from devito.ir.support import IntervalGroup
 from devito.logger import warning, error
 from devito.mpi import MPI
-from devito.mpi.routines import MPICall, MPIList, RemainderCall
+from devito.mpi.routines import MPICall, MPIList, RemainderCall, ComputeCall
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
@@ -332,7 +332,7 @@ class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 
     @property
     def trackable_subsections(self):
-        return (MPICall, BusyWait)
+        return (MPICall, BusyWait, ComputeCall)
 
 
 class AdvisorProfiler(AdvancedProfiler):
