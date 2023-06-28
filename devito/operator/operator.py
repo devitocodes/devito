@@ -1061,6 +1061,16 @@ class ArgumentsMap(dict):
         """The MPI communicator the arguments are collective over."""
         return self.grid.comm if self.grid is not None else MPI.COMM_NULL
 
+    @property
+    def opkwargs(self):
+        temp_registry = {v: k for k, v in platform_registry.items()}
+        platform = temp_registry[self.platform]
+
+        temp_registry = {v: k for k, v in compiler_registry.items()}
+        compiler = temp_registry[self.compiler.__class__]
+
+        return {'platform': platform, 'compiler': compiler, 'language': self.language}
+
 
 def parse_kwargs(**kwargs):
     """
