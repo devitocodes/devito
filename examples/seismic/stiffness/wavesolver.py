@@ -1,8 +1,8 @@
 from devito.tools import memoized_meth
-from devito import VectorTimeFunction, TensorTimeFunction
+from devito import VectorTimeFunction, TensorTimeFunction, Function
 from examples.seismic import PointSource
 
-from examples.seismic.stiffness.operators import ForwardOperator, AdjointOperator
+from examples.seismic.stiffness.operators import ForwardOperator, AdjointOperator, GradientOperator
 
 
 class IsoElasticWaveSolver(object):
@@ -45,6 +45,12 @@ class IsoElasticWaveSolver(object):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
                                space_order=self.space_order, **self._kwargs)
+    
+    @memoized_meth
+    def op_grad(self, save=True):
+        """Cached operator for gradient runs"""
+        return GradientOperator(self.model, save=save, geometry=self.geometry,
+                                space_order=self.space_order, **self._kwargs)
 
     def forward(self, src=None, rec_tau=None, rec_vx=None, rec_vz=None, rec_vy=None,
                 v=None, tau=None, model=None, save=None, **kwargs):
@@ -162,3 +168,64 @@ class IsoElasticWaveSolver(object):
         summary = self.op_adj().apply(src=srca, rec=rec, dt=kwargs.pop('dt', self.dt),
                                       **kwargs)
         return srca, u, sig, summary
+
+    def jacobian_adjoint(self, rec_vx, rec_vz, v, u=None, sig=None, rec_vy=None,
+                         grad_lam=None, grad_mu=None, grad_rho=None, model=None,
+                         checkpointing=False, **kwargs):
+        """
+        Gradient modelling function for computing the adjoint of the
+        Linearized Born modelling function, ie. the action of the
+        Jacobian adjoint on an input data.
+
+        Parameters
+        ----------
+        rec : SparseTimeFunction
+            Receiver data.
+        p : TimeFunction
+            Full wavefield `p` (created with save=True).
+        pa : TimeFunction, optional
+            Stores the computed wavefield.
+        grad : Function, optional
+            Stores the gradient field.
+        r : TimeFunction, optional
+            The computed attenuation memory variable.
+        va : VectorTimeFunction, optional
+            The computed particle velocity.
+        model : Model, optional
+            Object containing the physical parameters.
+        vp : Function or float, optional
+            The time-constant velocity.
+        qp : Function, optional
+            The P-wave quality factor.
+        b : Function, optional
+            The time-constant inverse density.
+
+        Returns
+        -------
+        Gradient field and performance summary.
+        """
+        # Gradient symbol
+        grad_lam = grad_lam or Function(name='grad_lam', grid=self.model.grid)
+        grad_mu = grad_mu or Function(name='grad_mu', grid=self.model.grid)
+        grad_rho = grad_rho or Function(name='grad_rho', grid=self.model.grid)
+
+        u = u or VectorTimeFunction(name="u", grid=self.model.grid,
+                                    time_order=1, space_order=self.space_order)
+        sig = sig or TensorTimeFunction(name='sig', grid=self.model.grid,
+                                        space_order=self.space_order, time_order=1)
+        kwargs.update({k.name: k for k in v})
+        kwargs.update({k.name: k for k in u})
+        kwargs.update({k.name: k for k in sig})
+        if self.model.grid.dim == 3:
+            kwargs.update({'rec_vy': rec_vy})
+        kwargs['time_m'] = 0
+
+        model = model or self.model
+        # Pick vp and physical parameters from model unless explicitly provided
+        kwargs.update(model.physical_params(**kwargs))
+
+        summary = self.op_grad().apply(rec_vx=rec_vx, rec_vz=rec_vz, grad_lam=grad_lam,
+                                       grad_mu=grad_mu, grad_rho=grad_rho,
+                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        return grad_lam, grad_mu, grad_rho, summary
