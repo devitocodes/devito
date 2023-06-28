@@ -7,8 +7,7 @@ from sympy import symbols, Matrix
 def matrix_init(model):
     def cij(i, j):
         ii, jj = min(i, j), max(i, j)
-        if (ii == jj or (model.dim == 3 and ii < 4 and jj < 4) or
-                        (model.dim == 2 and ii < 3 and jj < 3)):
+        if (ii == jj or (ii <= model.dim and jj <= model.dim)):
             return symbols('C%s%s' % (ii, jj))
         return 0
 
