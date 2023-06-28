@@ -179,8 +179,7 @@ class Buffering(Queue):
                 lhs = b.indexed[dims]._subs(dim, b.firstidx.b)
                 rhs = b.function[dims]._subs(dim, b.firstidx.f)
 
-                if dim.is_Conditional:
-                    guards[b.xd] = GuardBound(0, b.firstidx.f)
+                guards[b.xd] = GuardBound(0, b.firstidx.f)
 
             elif b.is_write and init_onwrite(b.function):
                 dims = b.buffer.dimensions
@@ -229,11 +228,8 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.readfrom
+                guards = c.guards.andg(b.xd, GuardBound(0, b.firstidx.f))
                 properties = c.properties.sequentialize(d)
-
-                guards = c.guards
-                if b.dim.is_Conditional:
-                    guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace,
@@ -266,11 +262,8 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
+                guards = c.guards.andg(b.xd, GuardBound(0, b.firstidx.f))
                 properties = c.properties.sequentialize(d)
-
-                guards = c.guards
-                if b.dim.is_Conditional:
-                    guards = guards.andg(b.xd, GuardBound(0, b.firstidx.f))
 
                 processed.append(
                     c.rebuild(exprs=expr, ispace=ispace,
