@@ -15,6 +15,7 @@ def matrix_init(model):
     Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
     return Matrix(Cij)
 
+
 def generate_Clam(model):
     def c_lam(i, j):
         ii, jj = min(i, j), max(i, j)
@@ -25,6 +26,7 @@ def generate_Clam(model):
     d = model.dim*2 + model.dim-2
     Clam = [[c_lam(i, j) for i in range(1, d)] for j in range(1, d)]
     return Matrix(Clam)
+
 
 def generate_Cmu(model):
     def c_mu(i, j):
@@ -39,7 +41,6 @@ def generate_Cmu(model):
     d = model.dim*2 + model.dim-2
     Cmu = [[c_mu(i, j) for i in range(1, d)] for j in range(1, d)]
     return Matrix(Cmu)
-
 
 
 def D(self, shift=None):
