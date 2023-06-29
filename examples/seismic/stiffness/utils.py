@@ -117,3 +117,19 @@ def tensor(self):
 
     func = tens_func(self)
     return func._new(M)
+
+
+def gather(v1, v2):
+
+    v1 = Matrix(v1)
+    v2 = Matrix(v2)
+
+    if(v1.shape[0] > 1 and v1.shape[1] > 1) or (v2.shape[0] > 1 and v2.shape[1] > 1):
+        raise Exception("v1 and v2 must be one dimensional matrices")
+
+    if v1.cols > 1:
+        v1 = v1.T
+    if v2.cols > 1:
+        v2 = v2.T
+
+    return Matrix.vstack(v1, v2)
