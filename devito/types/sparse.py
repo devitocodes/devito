@@ -497,7 +497,10 @@ class AbstractSparseFunction(DiscreteFunction):
             return
 
         # Compute dist map only once
-        data = self._C_as_ndarray(data)
+        try:
+            data = self._C_as_ndarray(data)
+        except AttributeError:
+            pass
         dmap = self._dist_datamap
         mask = self._dist_scatter_mask(dmap=dmap)
 

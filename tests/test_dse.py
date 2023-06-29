@@ -2627,6 +2627,21 @@ class TestAliases(object):
                          subdomain=grid.interior))
         assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
 
+    def test_dtype_aliases(self):
+        a = np.arange(64).reshape((8, 8))
+        grid = Grid(shape=a.shape, extent=(8, 8))
+
+        so = 2
+        f = Function(name='f', grid=grid, space_order=so, dtype=np.int32)
+        f.data[:] = a
+
+        fo = Function(name='fo', grid=grid, space_order=so, dtype=np.int32)
+        op = Operator(Eq(fo, f.dx))
+        op.apply()
+
+        assert FindNodes(Expression).visit(op)[0].dtype == np.float32
+        assert np.all(fo.data[:-1, :-1] == 6)
+
 
 class TestIsoAcoustic(object):
 

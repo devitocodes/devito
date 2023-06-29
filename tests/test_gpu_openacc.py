@@ -102,7 +102,7 @@ class TestCodeGeneration(object):
                       opt=('advanced', {'par-tile': par_tile}))
 
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 4
+        assert len(trees) == 6
 
         assert trees[0][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4,4) present(u)'
