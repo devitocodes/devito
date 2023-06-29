@@ -13,11 +13,6 @@ from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
 
-# try:
-#     from mpi4py import MPI  # noqa
-# except ImportError:
-#     MPI = None
-
 
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
