@@ -1,7 +1,7 @@
-from devito.types.tensor import tens_func
+from devito.types.tensor import TensorFunction, TensorTimeFunction, VectorFunction, VectorTimeFunction, tens_func
 import numpy as np
 
-from sympy import symbols, Matrix
+from sympy import symbols, Matrix, ones
 
 
 def matrix_init(model):
@@ -119,17 +119,31 @@ def tensor(self):
     return func._new(M)
 
 
-def gather(v1, v2):
+def gather(a1, a2):
+    # vector e tensor obrigatoriamente, e tambem nessa ordem. Se tiver valor zero, quero adicionar ndim zeros
 
-    v1 = Matrix(v1)
-    v2 = Matrix(v2)
+    expected_a1_types = [int, VectorFunction, VectorTimeFunction]
+    expected_a2_types = [TensorFunction, TensorTimeFunction]
 
-    if(v1.shape[0] > 1 and v1.shape[1] > 1) or (v2.shape[0] > 1 and v2.shape[1] > 1):
-        raise Exception("v1 and v2 must be one dimensional matrices")
+    if type(a1) not in expected_a1_types:
+        raise ValueError("a1 must be a VectorFunction or a Integer")
+    if type(a2) not in expected_a2_types:
+        raise ValueError("a2 must be a TensorFunction")
 
-    if v1.cols > 1:
-        v1 = v1.T
-    if v2.cols > 1:
-        v2 = v2.T
+    if(a2.shape[0] > 1 and a2.shape[1] > 1):
+        raise Exception("Tensor Function must be at its vector representation")
 
-    return Matrix.vstack(v1, v2)
+
+    if type(a1) is int:
+        a1 = Matrix([ones(len(a2.space_dimensions), 1)*a1])    
+    else:
+        a1 = Matrix(a1)
+
+    a2 = Matrix(a2)
+    
+    if a1.cols > 1:
+        a1 = a1.T
+    if a2.cols > 1:
+        a2 = a2.T
+
+    return Matrix.vstack(a1, a2)
