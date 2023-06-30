@@ -120,7 +120,6 @@ def tensor(self):
 
 
 def gather(a1, a2):
-    # vector e tensor obrigatoriamente, e tambem nessa ordem. Se tiver valor zero, quero adicionar ndim zeros
 
     expected_a1_types = [int, VectorFunction, VectorTimeFunction]
     expected_a2_types = [TensorFunction, TensorTimeFunction]
