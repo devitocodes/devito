@@ -599,3 +599,21 @@ class UnboundedMultiTuple(object):
         if self.curiter is None:
             raise StopIteration
         return next(self.curiter)
+
+
+class UnboundTuple(object):
+    """
+    A simple data structure that returns the last element forever once reached
+    """
+    def __init__(self, items):
+        self.items = as_tuple(items)
+        self.last = len(self.items)
+        self.current = 0
+
+    def next(self):
+        item = self.items[self.current]
+        self.current = min(self.last - 1, self.current+1)
+        return item
+
+    def __len__(self):
+        return self.last

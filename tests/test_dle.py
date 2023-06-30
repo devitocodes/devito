@@ -928,6 +928,7 @@ class TestNodeParallelism(object):
         assert 'omp simd' in iterations[3].pragmas[0].value
 
         op.apply()
+        print(op._lib)
         assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
 
     def test_parallel_prec_inject(self):

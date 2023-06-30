@@ -1,7 +1,9 @@
 from functools import singledispatch
 
 import numpy as np
-from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
+from sympy import (Function, Indexed, Integer, Mul, Number,
+                   Pow, S, Symbol, Tuple)
+from sympy.core.operations import AssocOp
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -268,13 +270,15 @@ def sympy_dtype(expr, default):
     Try to infer the data type of the expression
     returns the default if non is found
     """
-    args = expr.args
     # Symbol/... without argument, check its dtype
-    if len(args) == 0:
+    if len(expr.args) == 0:
         try:
             return expr.dtype
         except AttributeError:
             return default
     else:
-        # Infer expression dtype from its arguments
-        return infer_dtype([sympy_dtype(a, default) for a in expr.args])
+        if not (isinstance(expr.func, AssocOp) or expr.is_Pow):
+            return default
+        else:
+            # Infer expression dtype from its arguments
+            return infer_dtype([sympy_dtype(a, default) for a in expr.args])
