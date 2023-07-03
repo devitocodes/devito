@@ -47,9 +47,9 @@ def _drop_halospots(iet):
 
     # If a HaloSpot is outside any iteration it is not needed
     for iters, halo_spots in MapNodes(Iteration, HaloSpot, 'groupby').visit(iet).items():
-        if not iters and halo_spots:
-            for hs in halo_spots:
-                for f in hs.fmapper:
+        for hs in halo_spots:
+            for f, v in hs.fmapper.items():
+                if not iters and v.loc_indices:
                     mapper[hs].add(f)
 
     # Transform the IET introducing the "reduced" HaloSpots

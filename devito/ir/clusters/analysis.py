@@ -100,7 +100,7 @@ class Parallelism(Detector):
                 # False alarm, the dependence is over a locally-defined symbol
                 continue
 
-            if dep.is_reduction and not (d.is_Custom and d.is_Derived):
+            if dep.is_reduction:
                 is_parallel_atomic = True
                 continue
 

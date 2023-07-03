@@ -10,7 +10,6 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
                     CustomDimension, dimensions, configuration)
-from devito.arch.compiler import IntelCompiler, OneapiCompiler
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
@@ -1417,8 +1416,7 @@ class TestConditionalDimension(object):
         iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
         assert all(i.is_Affine for i in iterations)
 
-    @switchconfig(condition=isinstance(configuration['compiler'],
-                  (IntelCompiler, OneapiCompiler)), safe_math=True)
+    @switchconfig(safe_math=True)
     def test_sparse_time_function(self):
         nt = 20
 
@@ -1452,6 +1450,7 @@ class TestConditionalDimension(object):
         # Note the endpoint of the range is 12 because we inject at p.forward
         for i in range(1, 12):
             assert p.data[i].sum() == i - 1
+            print(p.data[i, 10, 10, 10])
             assert p.data[i, 10, 10, 10] == i - 1
         for i in range(12, 20):
             assert np.all(p.data[i] == 0)

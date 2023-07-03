@@ -272,7 +272,7 @@ def test_over_injection():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == \
-        7 + bool(configuration['language'] != 'C')
+        8 + bool(configuration['language'] != 'C')
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 

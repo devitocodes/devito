@@ -2629,7 +2629,7 @@ class TestAliases(object):
 
     def test_dtype_aliases(self):
         a = np.arange(64).reshape((8, 8))
-        grid = Grid(shape=a.shape, extent=(8, 8))
+        grid = Grid(shape=a.shape, extent=(7, 7))
 
         so = 2
         f = Function(name='f', grid=grid, space_order=so, dtype=np.int32)
@@ -2640,7 +2640,7 @@ class TestAliases(object):
         op.apply()
 
         assert FindNodes(Expression).visit(op)[0].dtype == np.float32
-        assert np.all(fo.data[:-1, :-1] == 6)
+        assert np.all(fo.data[:-1, :-1] == 8)
 
 
 class TestIsoAcoustic(object):
@@ -2685,13 +2685,13 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 50
+        assert summary0[('section1', None)].ops == 44
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 9
         assert summary1[('section1', None)].ops == 9
         assert summary1[('section2', None)].ops == 31
-        assert summary1[('section3', None)].ops == 32
+        assert summary1[('section3', None)].ops == 26
         assert np.isclose(summary1[('section2', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)

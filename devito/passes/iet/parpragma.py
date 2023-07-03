@@ -285,6 +285,10 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 if i.is_Vectorized:
                     break
 
+                # Also, we do not want to collapse small atomic reductions
+                if i.is_ParallelAtomic and i.dim.is_Custom:
+                    break
+
                 # Would there be enough work per parallel iteration?
                 nested = candidates[n+1:]
                 if nested:
@@ -422,7 +426,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if self.nhyperthreads <= self.nested:
+        if self.nhyperthreads <= self.nested or partree.root.is_ParallelAtomic:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,

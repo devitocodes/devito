@@ -84,25 +84,31 @@ def custom_points(grid, ranges, npoints, name='points'):
     return points
 
 
-def precompute_linear_interpolation(points, grid, origin):
-    """ Sample precompute function that, given point and grid information
-        precomputes gridpoints and interpolation coefficients according to a linear
-        scheme to be used in PrecomputedSparseFunction.
+def precompute_linear_interpolation(points, grid, origin, r=2):
+    """
+    Sample precompute function that, given point and grid information
+    precomputes gridpoints and interpolation coefficients according to a linear
+    scheme to be used in PrecomputedSparseFunction.
+
+    Allow larger radius with zero weights for testing.
     """
     gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
                         for i in range(len(point))) for point in points]
 
-    interpolation_coeffs = np.zeros((len(points), 2, 2))
+    interpolation_coeffs = np.zeros((len(points), grid.dim, r))
+    rs = r // 2 - 1
     for i, point in enumerate(points):
         for d in range(grid.dim):
-            interpolation_coeffs[i, d, 0] = ((gridpoints[i][d] + 1)*grid.spacing[d] -
-                                             point[d])/grid.spacing[d]
-            interpolation_coeffs[i, d, 1] = (point[d]-gridpoints[i][d]*grid.spacing[d])\
+            gd = gridpoints[i][d]
+            interpolation_coeffs[i, d, rs] = ((gd + 1)*grid.spacing[d] -
+                                              point[d])/grid.spacing[d]
+            interpolation_coeffs[i, d, rs+1] = (point[d]-gd*grid.spacing[d])\
                 / grid.spacing[d]
     return gridpoints, interpolation_coeffs
 
 
-def test_precomputed_interpolation():
+@pytest.mark.parametrize('r', [2, 4, 6])
+def test_precomputed_interpolation(r):
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for interpolation coefficients
     """
@@ -123,7 +129,8 @@ def test_precomputed_interpolation():
     m = Function(name='m', grid=grid, initializer=init, space_order=0)
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
-                                                                       grid, origin)
+                                                                       grid, origin,
+                                                                       r=r)
 
     sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
                                    gridpoints=gridpoints,
@@ -136,7 +143,8 @@ def test_precomputed_interpolation():
     assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
 
 
-def test_precomputed_interpolation_time():
+@pytest.mark.parametrize('r', [2, 4, 6])
+def test_precomputed_interpolation_time(r):
     """ Test interpolation with PrecomputedSparseFunction which accepts
         precomputed values for interpolation coefficients, but this time
         with a TimeFunction
@@ -154,7 +162,8 @@ def test_precomputed_interpolation_time():
         u.data[it, :] = it
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
-                                                                       grid, origin)
+                                                                       grid, origin,
+                                                                       r=r)
 
     sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r, npoint=len(points),
                                        nt=5, gridpoints=gridpoints,
@@ -171,7 +180,8 @@ def test_precomputed_interpolation_time():
         assert np.allclose(sf.data[it, :], it)
 
 
-def test_precomputed_injection():
+@pytest.mark.parametrize('r', [2, 4, 6])
+def test_precomputed_injection(r):
     """Test injection with PrecomputedSparseFunction which accepts
        precomputed values for interpolation coefficients
     """
@@ -188,7 +198,8 @@ def test_precomputed_injection():
     m.data[:] = 0.
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
-                                                                       m.grid, origin)
+                                                                       m.grid, origin,
+                                                                       r=r)
 
     sf = PrecomputedSparseFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
                                    gridpoints=gridpoints,
@@ -206,7 +217,8 @@ def test_precomputed_injection():
     assert np.allclose(m.data[indices], result, rtol=1.e-5)
 
 
-def test_precomputed_injection_time():
+@pytest.mark.parametrize('r', [2, 4, 6])
+def test_precomputed_injection_time(r):
     """Test injection with PrecomputedSparseFunction which accepts
        precomputed values for interpolation coefficients
     """
@@ -224,7 +236,8 @@ def test_precomputed_injection_time():
     m.data[:] = 0.
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
-                                                                       m.grid, origin)
+                                                                       m.grid, origin,
+                                                                       r=r)
 
     sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
                                        gridpoints=gridpoints, nt=nt,
@@ -718,7 +731,7 @@ def test_sparse_first():
     # No time dependence so need the implicit dim
     rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
     op = Operator(eqs + rec)
-    print(op)
+
     op(time_M=10)
     expected = 10*11/2  # n (n+1)/2
     assert np.allclose(s.data, expected)

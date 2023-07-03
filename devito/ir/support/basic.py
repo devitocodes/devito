@@ -660,9 +660,9 @@ class Dependence(Relation):
         """
         True if a constant dependence, that is no Dimensions involved, False otherwise.
         """
-        return (self.source.aindices[dim] is None and
-                self.sink.aindices[dim] is None and
-                self.distance_mapper[dim] == 0)
+        return (self.source.aindices.get(dim, None) is None and
+                self.sink.aindices.get(dim, None) is None and
+                self.distance_mapper.get(dim, 0) == 0)
 
     @memoized_meth
     def is_carried(self, dim=None):

@@ -3,9 +3,10 @@ from abc import ABC, abstractmethod
 import sympy
 from cached_property import cached_property
 
+from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.symbolics import retrieve_function_carriers, INT
-from devito.tools import as_tuple, flatten, prod
+from devito.tools import as_tuple, flatten
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension)
 from devito.types.utils import DimensionTuple
@@ -328,11 +329,9 @@ class LinearInterpolator(WeightedInterpolator):
     """
     @property
     def _weights(self):
-        # (1 - p) * (1 - rd) + rd * p
-        # simplified for better arithmetic
-        c = [1 - p + rd * (2*p - 1)
-             for (p, d, rd) in zip(self._point_symbols, self._gdim, self._rdim)]
-        return prod(c)
+        c = [(1 - p) * (1 - r) + p * r
+             for (p, d, r) in zip(self._point_symbols, self._gdim, self._rdim)]
+        return Mul(*c)
 
     @cached_property
     def _point_symbols(self):
@@ -375,5 +374,5 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        return prod([self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd.symbolic_min})
+        return Mul(*[self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd.symbolic_min})
                      for (ri, rd) in enumerate(self._rdim)])
