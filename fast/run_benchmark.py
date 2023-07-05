@@ -2,7 +2,6 @@ import argparse
 import os
 import sys
 import json
-import random
 from functools import reduce
 import numpy as np
 
