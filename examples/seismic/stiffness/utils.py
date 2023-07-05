@@ -122,27 +122,30 @@ def tensor(self):
 def gather(a1, a2):
 
     expected_a1_types = [int, VectorFunction, VectorTimeFunction]
-    expected_a2_types = [TensorFunction, TensorTimeFunction]
+    expected_a2_types = [int, TensorFunction, TensorTimeFunction]
 
     if type(a1) not in expected_a1_types:
         raise ValueError("a1 must be a VectorFunction or a Integer")
     if type(a2) not in expected_a2_types:
-        raise ValueError("a2 must be a TensorFunction")
-
-    if(a2.shape[0] > 1 and a2.shape[1] > 1):
-        raise Exception("Tensor Function must be at its vector representation")
+        raise ValueError("a2 must be a TensorFunction or a Integer")
+    if  type(a1) is int and  type(a2) is int:
+        raise ValueError("Both a2 and a1 cannot be Integers simultaneously")
 
 
     if type(a1) is int:
-        a1 = Matrix([ones(len(a2.space_dimensions), 1)*a1])    
+        a1_m = Matrix([ones(len(a2.space_dimensions), 1)*a1])    
     else:
-        a1 = Matrix(a1)
+        a1_m = Matrix(a1)
 
-    a2 = Matrix(a2)
+    if type(a2) is int:
+        ndim = len(a1.space_dimensions)
+        a2_m = Matrix([ones((3*ndim-3), 1)*a2])    
+    else:
+        a2_m = Matrix(a2)
     
-    if a1.cols > 1:
-        a1 = a1.T
-    if a2.cols > 1:
-        a2 = a2.T
+    if a1_m.cols > 1:
+        a1_m = a1_m.T
+    if a2_m.cols > 1:
+        a2_m = a2_m.T
 
-    return Matrix.vstack(a1, a2)
+    return Matrix.vstack(a1_m, a2_m)
