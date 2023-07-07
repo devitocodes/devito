@@ -234,6 +234,19 @@ class Guards(frozendict):
 
         return Guards(m)
 
+    def xandg(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        try:
+            m[d] = And(m[d], guard)
+        except KeyError:
+            pass
+
+        return Guards(m)
+
     def impose(self, d, guard):
         m = dict(self)
 

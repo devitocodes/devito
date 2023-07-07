@@ -228,7 +228,10 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.readfrom
-                guards = c.guards.andg(b.xd, GuardBound(0, b.firstidx.f))
+                try:
+                    guards = c.guards.xandg(b.xd, GuardBound(0, b.firstidx.f))
+                except KeyError:
+                    guards = c.guards
                 properties = c.properties.sequentialize(d)
 
                 processed.append(
@@ -262,7 +265,10 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
-                guards = c.guards.andg(b.xd, GuardBound(0, b.firstidx.f))
+                try:
+                    guards = c.guards.xandg(b.xd, GuardBound(0, b.firstidx.f))
+                except KeyError:
+                    guards = c.guards
                 properties = c.properties.sequentialize(d)
 
                 processed.append(
