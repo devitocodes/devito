@@ -16,7 +16,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer
+from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
@@ -1580,8 +1580,9 @@ class TempFunction(DiscreteFunction):
                 raise ValueError("Either `shape` or `kwargs` (Operator overrides) "
                                  "must be provided.")
             shape = []
+            args = normalize_args(kwargs)
             for n, i in enumerate(self.shape):
-                v = i.subs(kwargs)
+                v = i.subs(args)
                 if not v.is_Integer:
                     raise ValueError("Couldn't resolve `shape[%d]=%s` with the given "
                                      "kwargs (obtained: `%s`)" % (n, i, v))

@@ -18,38 +18,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - base: 'bases:nvidia-nvc'
+          - base: 'test-bases:nvidia-nvc'
             tag: 'nvidia-nvc'
             flag: '--gpus all'
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
-          - base: 'bases:nvidia-clang'
+          - base: 'test-bases:nvidia-clang'
             tag: 'nvidia-clang'
             flag: '--gpus all'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
-          - base: 'bases:amd'
+          - base: 'test-bases:amd'
             tag: 'amd'
             flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "amdgpu"]
 
-          - base: 'bases:cpu-gcc'
+          - base: 'test-bases:cpu-gcc'
             tag: "gcc"
             flag: ''
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
-          - base: 'bases:cpu-icc'
+          - base: 'test-bases:cpu-icc'
             tag: "icc"
             flag: ''
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
-          - base: 'bases:cpu-icx'
+          - base: 'test-bases:cpu-icx'
             tag: "icx"
             flag: ''
             test: 'tests/test_operator.py'
@@ -90,16 +90,16 @@ jobs:
           tags: |
             type=raw,value=${{ matrix.tag }}-dev
             type=raw,value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }}
-            type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
+            type=raw,value=latest,enable=${{ matrix.base == 'test-bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }}
             # Legacy "gpu" tag
-            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
-            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }}
-            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }}
+            type=raw,value=gpu-dev,enable=${{ matrix.base == 'test-bases:nvidia-nvc' }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  matrix.base == 'test-bases:nvidia-nvc' }}
+            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  matrix.base == 'test-bases:nvidia-nvc' }}
             # Legacy "cpu" tag
-            type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
-            type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
-            type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
+            type=raw,value=cpu-dev,enable=${{ matrix.base == 'test-bases:cpu-gcc' }}
+            type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'test-bases:cpu-gcc' }}
+            type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'test-bases:cpu-gcc' }}
 
       - name: Check tags
         run: echo "${{ steps.meta.outputs.tags }}"

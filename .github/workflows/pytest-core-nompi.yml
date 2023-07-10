@@ -141,7 +141,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e DEVITO_ARCH=${{ matrix.arch }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi

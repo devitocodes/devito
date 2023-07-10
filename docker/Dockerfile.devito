@@ -7,9 +7,14 @@ ARG base=devitocodes/bases:cpu-gcc
 
 FROM $base as builder
 
+# User/Group Ids
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 ##################  Install devito ############################################
 # Copy Devito
 ADD . /app/devito
+
 # Remove git files
 RUN rm -rf /app/devito/.git
 
@@ -18,6 +23,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
+    eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir mpi4py" && \
     /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,tests] && \
     rm -rf ~/.cache/pip
 
@@ -28,6 +34,10 @@ RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
 FROM $base as user
 # COPY is much faster than RUN chown by order of magnitude so we have a final step that
 # just copies the built image into the user.
+
+# User/Group Ids
+ARG USER_ID=1000
+ARG GROUP_ID=1000
 
 ## Create App user
 # Set the home directory to our app user's home.
