@@ -707,6 +707,7 @@ class IntelCompiler(Compiler):
             if mpi_distro != 'IntelMPI':
                 warning("Expected Intel MPI distribution with `%s`, but found `%s`"
                         % (self.__class__.__name__, mpi_distro))
+            self.cflags.append("-cc=%s" % self.CC)
 
     def __lookup_cmds__(self):
         self.CC = 'icc'

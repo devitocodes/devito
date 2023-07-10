@@ -49,6 +49,12 @@ jobs:
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
+          - base: 'bases:cpu-icx'
+            tag: "icx"
+            flag: ''
+            test: 'tests/test_operator.py'
+            runner: ubuntu-latest
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v3
