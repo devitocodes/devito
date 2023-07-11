@@ -15,6 +15,30 @@ def matrix_init(model):
     Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
     return Matrix(Cij)
 
+def inverse_C(model):
+    def subs3D(lmbda, mu):
+        return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                'C33': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                'C44': 1/mu,
+                'C55': 1/mu,
+                'C66': 1/mu,
+                'C12': (lmbda)/(6*lmbda*mu + 4*mu*mu),
+                'C13': (lmbda)/(6*lmbda*mu + 4*mu*mu),
+                'C23': (lmbda)/(6*lmbda*mu + 4*mu*mu)}
+
+    def subs2D(lmbda, mu):
+        return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                'C33': 1/mu,
+                'C12': (lmbda)/(6*lmbda*mu + 4*mu*mu)}
+
+    matrix = matrix_init(model)
+    lmbda = model.lam
+    mu = model.mu
+
+    subs = subs3D(lmbda, mu) if model.dim == 3 else subs2D(lmbda, mu)
+    return matrix.subs(subs)
 
 def generate_Dlam(model):
     def d_lam(i, j):

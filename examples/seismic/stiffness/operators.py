@@ -1,7 +1,7 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction, Function, Derivative
 from devito import solve, div
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import D, S, vec, matrix_init, generate_Dlam, generate_Dmu
+from examples.seismic.stiffness.utils import D, S, vec, matrix_init, generate_Dlam, generate_Dmu, inverse_C
 
 
 def iso_elastic_tensor(model):
@@ -31,6 +31,7 @@ def iso_elastic_tensor(model):
 
     M.dlam = generate_Dlam(model)
     M.dmu = generate_Dmu(model)
+    M.inv = inverse_C(model)
     return M
 
 
