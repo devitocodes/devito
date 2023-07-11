@@ -1,7 +1,7 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction, Function, Derivative
 from devito import solve, div
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import D, S, vec, matriz_init, generate_Clam, generate_Cmu
+from examples.seismic.stiffness.utils import D, S, vec, matrix_init, generate_Dlam, generate_Dmu
 
 
 def iso_elastic_tensor(model):
@@ -22,15 +22,15 @@ def iso_elastic_tensor(model):
                 'C33': mu,
                 'C12': lmbda}
 
-    matriz = matriz_init(model)
+    matriz = matrix_init(model)
     lmbda = model.lam
     mu = model.mu
 
     subs = subs3D(lmbda, mu) if model.dim == 3 else subs2D(lmbda, mu)
     M = matriz.subs(subs)
 
-    M.dlam = generate_Clam(model)
-    M.dmu = generate_Cmu(model)
+    M.dlam = generate_Dlam(model)
+    M.dmu = generate_Dmu(model)
     return M
 
 
