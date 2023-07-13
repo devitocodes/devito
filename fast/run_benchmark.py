@@ -90,7 +90,6 @@ def initialize_domain(u: TimeFunction, nx: int, ny: int):
 
 
 
-
 def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value: int):
     d = (2.0 / (n - 1) for n in shape)
     nu = 0.5
