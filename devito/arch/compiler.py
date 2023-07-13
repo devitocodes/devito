@@ -686,10 +686,6 @@ class IntelCompiler(Compiler):
         else:
             self.cflags.append('-fp-model=fast')
 
-        if isinstance(platform, IntelSkylake):
-            # Systematically use 512-bit vectors on skylake
-            self.cflags.append("-qopt-zmm-usage=high")
-
         if language == 'openmp':
             self.ldflags.append('-qopenmp')
 
