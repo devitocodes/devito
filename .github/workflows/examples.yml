@@ -46,8 +46,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install -e .[tests]
-        pip install matplotlib pyrevolve
+        pip install -e .[tests,extras]
 
     - name: Tests in examples
       run: py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
