@@ -46,8 +46,6 @@ u = TimeFunction(name='u', grid=grid, space_order=so)
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 
-# u.data[0, :, int(ny/2)] = 2
-
 a = Constant(name='a')
 # Create an equation with second-order derivatives
 eq = Eq(u.dt, a * u.laplace, subdomain=grid.interior)

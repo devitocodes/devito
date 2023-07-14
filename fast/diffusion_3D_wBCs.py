@@ -31,7 +31,7 @@ def plot_3dfunc(u):
 
     cmap = plt.cm.get_cmap("viridis")
     values = u.data[0, :, :, :]
-    vistagrid = pv.UniformGrid()
+    vistagrid = pv.ImageData()
     vistagrid.dimensions = np.array(values.shape) + 1
     vistagrid.spacing = (1, 1, 1)
     vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
@@ -73,25 +73,10 @@ eq_stencil = Eq(u.forward, stencil)
 x, y, z = grid.dimensions
 t = grid.stepping_dim
 
-# Add boundary conditions
-# bc = [Eq(u[t+1, x, y, 0], 2.)]  # bottom
-# bc += [Eq(u[t+1, x, y, nz-1], 2.)]  # top
-# bc += [Eq(u[t+1, 0, y, z], 2.)]  # left
-# bc += [Eq(u[t+1, nx-1, y, z], 2.)]  # right
-
-# bc += [Eq(u[t+1, x, 0, z], 2.)]  # front
-# bc += [Eq(u[t+1, x, ny-1, z], 2.)]  # back
-
 print(eq_stencil)
 
-# Create an operator that updates the forward stencil point
-# plus adding boundary conditions
-# op = Operator([eq_stencil] + bc, subdomain=grid.interior)
-
 # No BCs
-# op = XDSLOperator([eq_stencil])
 op = Operator([eq_stencil])
-# print(op.ccode)
 
 # Apply the operator for a number of timesteps
 op.apply(time=nt, dt=dt, a=nu)
@@ -100,4 +85,15 @@ if args.plot:
     plot_3dfunc(u)
 
 print("Field norm is:", norm(u))
-# import pdb;pdb.set_trace()
+
+# Reset data for XDSL
+u.data[:, :, :, :] = 0
+u.data[:, :, :, int(nz/2)] = 1
+
+xdslop = XDSLOperator([eq_stencil])
+xdslop.apply(time=nt, dt=dt, a=nu)
+
+if args.plot:
+    plot_3dfunc(u)
+
+print("Field norm is:", norm(u))
