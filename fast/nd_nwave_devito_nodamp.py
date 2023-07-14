@@ -108,7 +108,7 @@ op = Operator([stencil] + src_term, subs=model.spacing_map)
 print(time_range)
 # Run with source and plot
 # import pdb;pdb.set_trace()
-op.apply(time=20, dt=model.critical_dt)
+op.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
     if args.plot:

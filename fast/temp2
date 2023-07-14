@@ -1,0 +1,212 @@
+#map = affine_map<()[s0] -> (s0 + 2)>
+module {
+  func.func @apply_kernel(%arg0: memref<260x260xf32>, %arg1: memref<260x260xf32>) -> memref<260x260xf32> attributes {param_names = ["u_vec_0", "u_vec_1"]} {
+    %c28_i64 = arith.constant 28 : i64
+    %c12_i64 = arith.constant 12 : i64
+    %c24_i64 = arith.constant 24 : i64
+    %c8_i64 = arith.constant 8 : i64
+    %c20_i64 = arith.constant 20 : i64
+    %c16_i64 = arith.constant 16 : i64
+    %c257 = arith.constant 257 : index
+    %cst = arith.constant 1.000000e-01 : f32
+    %cst_0 = arith.constant -2.000000e+00 : f32
+    %c-2_i64 = arith.constant -2 : i64
+    %cst_1 = arith.constant 0.00392156886 : f32
+    %c-1_i64 = arith.constant -1 : i64
+    %cst_2 = arith.constant 3.075740e-05 : f32
+    %cst_3 = arith.constant 0.00999999977 : f32
+    %c-1 = arith.constant -1 : index
+    %c64 = arith.constant 64 : index
+    %c738197504_i32 = arith.constant 738197504 : i32
+    %c4_i64 = arith.constant 4 : i64
+    %c-1_i32 = arith.constant -1 : i32
+    %c4_i32 = arith.constant 4 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %c0_i32 = arith.constant 0 : i32
+    %c1275069450_i32 = arith.constant 1275069450 : i32
+    %c66_i32 = arith.constant 66 : i32
+    %c1_i64 = arith.constant 1 : i64
+    %c1140850688_i32 = arith.constant 1140850688 : i32
+    %c8_i32 = arith.constant 8 : i32
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %0 = llvm.alloca %c8_i32 x i32 {alignment = 32 : i64} : (i32) -> !llvm.ptr<i32>
+    %1 = llvm.alloca %c1_i64 x i32 {alignment = 32 : i64} : (i64) -> !llvm.ptr<i32>
+    %2 = call @MPI_Comm_rank(%c1140850688_i32, %1) : (i32, !llvm.ptr<i32>) -> i32
+    %3 = llvm.load %1 : !llvm.ptr<i32>
+    %alloc = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr = memref.extract_aligned_pointer_as_index %alloc : memref<66xf32> -> index
+    %4 = arith.index_cast %intptr : index to i64
+    %5 = llvm.inttoptr %4 : i64 to !llvm.ptr
+    %alloc_4 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_5 = memref.extract_aligned_pointer_as_index %alloc_4 : memref<66xf32> -> index
+    %6 = arith.index_cast %intptr_5 : index to i64
+    %7 = llvm.inttoptr %6 : i64 to !llvm.ptr
+    %alloc_6 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_7 = memref.extract_aligned_pointer_as_index %alloc_6 : memref<66xf32> -> index
+    %8 = arith.index_cast %intptr_7 : index to i64
+    %9 = llvm.inttoptr %8 : i64 to !llvm.ptr
+    %alloc_8 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_9 = memref.extract_aligned_pointer_as_index %alloc_8 : memref<66xf32> -> index
+    %10 = arith.index_cast %intptr_9 : index to i64
+    %11 = llvm.inttoptr %10 : i64 to !llvm.ptr
+    %alloc_10 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_11 = memref.extract_aligned_pointer_as_index %alloc_10 : memref<66xf32> -> index
+    %12 = arith.index_cast %intptr_11 : index to i64
+    %13 = llvm.inttoptr %12 : i64 to !llvm.ptr
+    %alloc_12 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_13 = memref.extract_aligned_pointer_as_index %alloc_12 : memref<66xf32> -> index
+    %14 = arith.index_cast %intptr_13 : index to i64
+    %15 = llvm.inttoptr %14 : i64 to !llvm.ptr
+    %alloc_14 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_15 = memref.extract_aligned_pointer_as_index %alloc_14 : memref<66xf32> -> index
+    %16 = arith.index_cast %intptr_15 : index to i64
+    %17 = llvm.inttoptr %16 : i64 to !llvm.ptr
+    %alloc_16 = memref.alloc() {alignment = 64 : i64} : memref<66xf32>
+    %intptr_17 = memref.extract_aligned_pointer_as_index %alloc_16 : memref<66xf32> -> index
+    %18 = arith.index_cast %intptr_17 : index to i64
+    %19 = llvm.inttoptr %18 : i64 to !llvm.ptr
+    %20 = arith.remui %3, %c4_i32 : i32
+    %21 = arith.divui %3, %c4_i32 : i32
+    %22 = arith.remui %21, %c4_i32 : i32
+    %23 = arith.addi %22, %c-1_i32 : i32
+    %24 = arith.cmpi sge, %23, %c0_i32 : i32
+    %25 = arith.muli %23, %c4_i32 : i32
+    %26 = arith.addi %20, %25 : i32
+    %27 = llvm.ptrtoint %0 : !llvm.ptr<i32> to i64
+    %28 = llvm.inttoptr %27 : i64 to !llvm.ptr<i32>
+    %29 = arith.addi %27, %c16_i64 : i64
+    %30 = llvm.inttoptr %29 : i64 to !llvm.ptr<i32>
+    %31 = arith.addi %22, %c1_i32 : i32
+    %32 = arith.cmpi slt, %31, %c4_i32 : i32
+    %33 = arith.muli %31, %c4_i32 : i32
+    %34 = arith.addi %20, %33 : i32
+    %35 = arith.addi %27, %c4_i64 : i64
+    %36 = llvm.inttoptr %35 : i64 to !llvm.ptr<i32>
+    %37 = arith.addi %27, %c20_i64 : i64
+    %38 = llvm.inttoptr %37 : i64 to !llvm.ptr<i32>
+    %39 = arith.addi %20, %c-1_i32 : i32
+    %40 = arith.cmpi sge, %39, %c0_i32 : i32
+    %41 = arith.muli %22, %c4_i32 : i32
+    %42 = arith.addi %39, %41 : i32
+    %43 = arith.addi %27, %c8_i64 : i64
+    %44 = llvm.inttoptr %43 : i64 to !llvm.ptr<i32>
+    %45 = arith.addi %27, %c24_i64 : i64
+    %46 = llvm.inttoptr %45 : i64 to !llvm.ptr<i32>
+    %47 = arith.addi %20, %c1_i32 : i32
+    %48 = arith.cmpi slt, %47, %c4_i32 : i32
+    %49 = arith.addi %47, %41 : i32
+    %50 = arith.addi %27, %c12_i64 : i64
+    %51 = llvm.inttoptr %50 : i64 to !llvm.ptr<i32>
+    %52 = arith.addi %27, %c28_i64 : i64
+    %53 = llvm.inttoptr %52 : i64 to !llvm.ptr<i32>
+    %54 = llvm.inttoptr %c1_i64 : i64 to !llvm.ptr
+    %55 = math.fpowi %cst_2, %c-1_i64 : f32, i64
+    %56 = math.fpowi %cst_1, %c-2_i64 : f32, i64
+    %57 = arith.mulf %56, %cst_0 : f32
+    %58:2 = scf.for %arg2 = %c0 to %c257 step %c1 iter_args(%arg3 = %arg0, %arg4 = %arg1) -> (memref<260x260xf32>, memref<260x260xf32>) {
+      scf.if %24 {
+        %subview = memref.subview %arg3[1, 2] [66, 1] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[260], offset: 262>>
+        memref.copy %subview, %alloc : memref<66xf32, strided<[260], offset: 262>> to memref<66xf32>
+        %60 = func.call @MPI_Isend(%5, %c66_i32, %c1275069450_i32, %26, %c0_i32, %c1140850688_i32, %28) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+        %61 = func.call @MPI_Irecv(%7, %c66_i32, %c1275069450_i32, %26, %c0_i32, %c1140850688_i32, %30) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+      } else {
+        llvm.store %c738197504_i32, %28 : !llvm.ptr<i32>
+        llvm.store %c738197504_i32, %30 : !llvm.ptr<i32>
+      }
+      scf.if %32 {
+        %subview = memref.subview %arg3[1, 65] [66, 1] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[260], offset: 325>>
+        memref.copy %subview, %alloc_6 : memref<66xf32, strided<[260], offset: 325>> to memref<66xf32>
+        %60 = func.call @MPI_Isend(%9, %c66_i32, %c1275069450_i32, %34, %c0_i32, %c1140850688_i32, %36) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+        %61 = func.call @MPI_Irecv(%11, %c66_i32, %c1275069450_i32, %34, %c0_i32, %c1140850688_i32, %38) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+      } else {
+        llvm.store %c738197504_i32, %36 : !llvm.ptr<i32>
+        llvm.store %c738197504_i32, %38 : !llvm.ptr<i32>
+      }
+      scf.if %40 {
+        %subview = memref.subview %arg3[2, 1] [1, 66] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[1], offset: 521>>
+        memref.copy %subview, %alloc_10 : memref<66xf32, strided<[1], offset: 521>> to memref<66xf32>
+        %60 = func.call @MPI_Isend(%13, %c66_i32, %c1275069450_i32, %42, %c0_i32, %c1140850688_i32, %44) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+        %61 = func.call @MPI_Irecv(%15, %c66_i32, %c1275069450_i32, %42, %c0_i32, %c1140850688_i32, %46) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+      } else {
+        llvm.store %c738197504_i32, %44 : !llvm.ptr<i32>
+        llvm.store %c738197504_i32, %46 : !llvm.ptr<i32>
+      }
+      scf.if %48 {
+        %subview = memref.subview %arg3[65, 1] [1, 66] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[1], offset: 16901>>
+        memref.copy %subview, %alloc_14 : memref<66xf32, strided<[1], offset: 16901>> to memref<66xf32>
+        %60 = func.call @MPI_Isend(%17, %c66_i32, %c1275069450_i32, %49, %c0_i32, %c1140850688_i32, %51) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+        %61 = func.call @MPI_Irecv(%19, %c66_i32, %c1275069450_i32, %49, %c0_i32, %c1140850688_i32, %53) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+      } else {
+        llvm.store %c738197504_i32, %51 : !llvm.ptr<i32>
+        llvm.store %c738197504_i32, %53 : !llvm.ptr<i32>
+      }
+      %59 = func.call @MPI_Waitall(%c8_i32, %0, %54) : (i32, !llvm.ptr<i32>, !llvm.ptr) -> i32
+      scf.if %24 {
+        %subview = memref.subview %arg3[1, 1] [66, 1] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[260], offset: 261>>
+        memref.copy %subview, %alloc_4 : memref<66xf32, strided<[260], offset: 261>> to memref<66xf32>
+      }
+      scf.if %32 {
+        %subview = memref.subview %arg3[1, 66] [66, 1] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[260], offset: 326>>
+        memref.copy %subview, %alloc_8 : memref<66xf32, strided<[260], offset: 326>> to memref<66xf32>
+      }
+      scf.if %40 {
+        %subview = memref.subview %arg3[1, 1] [1, 66] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[1], offset: 261>>
+        memref.copy %subview, %alloc_12 : memref<66xf32, strided<[1], offset: 261>> to memref<66xf32>
+      }
+      scf.if %48 {
+        %subview = memref.subview %arg3[66, 1] [1, 66] [1, 1] : memref<260x260xf32> to memref<66xf32, strided<[1], offset: 17161>>
+        memref.copy %subview, %alloc_16 : memref<66xf32, strided<[1], offset: 17161>> to memref<66xf32>
+      }
+      scf.parallel (%arg5) = (%c0) to (%c64) step (%c1) {
+        %60 = arith.addi %arg5, %c-1 : index
+        %61 = arith.addi %arg5, %c1 : index
+        scf.for %arg6 = %c0 to %c64 step %c1 {
+          %62 = affine.apply #map()[%arg5]
+          %63 = affine.apply #map()[%arg6]
+          %64 = memref.load %arg3[%62, %63] : memref<260x260xf32>
+          %65 = affine.apply #map()[%60]
+          %66 = affine.apply #map()[%arg6]
+          %67 = memref.load %arg3[%65, %66] : memref<260x260xf32>
+          %68 = affine.apply #map()[%61]
+          %69 = affine.apply #map()[%arg6]
+          %70 = memref.load %arg3[%68, %69] : memref<260x260xf32>
+          %71 = arith.addi %arg6, %c-1 : index
+          %72 = affine.apply #map()[%arg5]
+          %73 = affine.apply #map()[%71]
+          %74 = memref.load %arg3[%72, %73] : memref<260x260xf32>
+          %75 = arith.addi %arg6, %c1 : index
+          %76 = affine.apply #map()[%arg5]
+          %77 = affine.apply #map()[%75]
+          %78 = memref.load %arg3[%76, %77] : memref<260x260xf32>
+          %79 = arith.mulf %55, %64 : f32
+          %80 = arith.mulf %56, %67 : f32
+          %81 = arith.mulf %56, %70 : f32
+          %82 = arith.mulf %57, %64 : f32
+          %83 = arith.addf %80, %81 : f32
+          %84 = arith.addf %83, %82 : f32
+          %85 = arith.mulf %56, %74 : f32
+          %86 = arith.mulf %56, %78 : f32
+          %87 = arith.addf %85, %86 : f32
+          %88 = arith.addf %87, %82 : f32
+          %89 = arith.addf %84, %88 : f32
+          %90 = arith.mulf %89, %cst : f32
+          %91 = arith.addf %79, %cst_3 : f32
+          %92 = arith.addf %91, %90 : f32
+          %93 = arith.mulf %92, %cst_2 : f32
+          %94 = affine.apply #map()[%arg5]
+          %95 = affine.apply #map()[%arg6]
+          memref.store %93, %arg4[%94, %95] : memref<260x260xf32>
+        }
+        scf.yield
+      }
+      scf.yield %arg4, %arg3 : memref<260x260xf32>, memref<260x260xf32>
+    }
+    return %58#0 : memref<260x260xf32>
+  }
+  func.func private @MPI_Comm_rank(i32, !llvm.ptr<i32>) -> i32
+  func.func private @MPI_Isend(!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+  func.func private @MPI_Irecv(!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr<i32>) -> i32
+  func.func private @MPI_Waitall(i32, !llvm.ptr<i32>, !llvm.ptr) -> i32
+}
+
