@@ -84,7 +84,7 @@ op.apply(time=nt, dt=dt, a=nu)
 if args.plot:
     plot_3dfunc(u)
 
-print("Field norm is:", norm(u))
+print("Devito Field norm is:", norm(u))
 
 # Reset data for XDSL
 u.data[:, :, :, :] = 0
@@ -96,4 +96,4 @@ xdslop.apply(time=nt, dt=dt, a=nu)
 if args.plot:
     plot_3dfunc(u)
 
-print("Field norm is:", norm(u))
+print("xDSL Field norm is:", norm(u))

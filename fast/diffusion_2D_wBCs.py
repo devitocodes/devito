@@ -42,7 +42,6 @@ grid = Grid(shape=(nx, ny), extent=(2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
 
 # Reset our data field and ICs
-# u.data[:, :, :] = 0.1
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 
@@ -56,23 +55,9 @@ eq_stencil = Eq(u.forward, stencil)
 x, y = grid.dimensions
 t = grid.stepping_dim
 
-# Add boundary conditions
-# bc = [Eq(u[t+1, x, y, 0], 2.)]  # bottom
-# bc += [Eq(u[t+1, x, y, nz-1], 2.)]  # top
-# bc += [Eq(u[t+1, 0, y, z], 2.)]  # left
-# bc += [Eq(u[t+1, nx-1, y, z], 2.)]  # right
-
-# bc += [Eq(u[t+1, x, 0, z], 2.)]  # front
-# bc += [Eq(u[t+1, x, ny-1, z], 2.)]  # back
-
 print(eq_stencil)
 
 # Create an operator that updates the forward stencil point
-# plus adding boundary conditions
-# op = Operator([eq_stencil] + bc, subdomain=grid.interior)
-
-# No BCs
-# op = XDSLOperator([eq_stencil])
 op = Operator([eq_stencil])
 # print(op.ccode)
 # dt = 0.00002
@@ -81,8 +66,15 @@ op = Operator([eq_stencil])
 print(dt)
 op.apply(time=nt, dt=dt, a=nu)
 
-print("Field norm is:", norm(u))
+print("Devito Field norm is:", norm(u))
 
 plot_image(u.data[0], cmap="seismic")
 
-# import pdb;pdb.set_trace()
+
+# Reset our data field and ICs
+init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+xdslop = XDSLOperator([eq_stencil])
+xdslop.apply(time=nt, dt=dt, a=nu)
+plot_image(u.data[0], cmap="seismic")
+
+print("xDSL Field norm is:", norm(u))
