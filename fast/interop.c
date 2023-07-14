@@ -194,21 +194,17 @@ void print_i32(int n)
   printf("%d\n", n);
 }
 
-i64 timer_start() {
-  // return epoch in ms
+double timer_start() {
+  // return a number representing the current point in time
+  // it might be offset by a fixed ammount
   struct timespec t;
   clock_gettime(CLOCK_MONOTONIC, &t);
-  //return (t.tv_sec * 1e3) + ((i64) t.tv_nsec / 1e6);
-  i64 msecs = (t.tv_sec * 1000) + (t.tv_nsec * 1e-6);
-  printf("Timestamp is: %.2f \n", msecs * 1e-3);
-  return msecs;
+  return (t.tv_sec) + (t.tv_nsec * 1e-9);
 }
 
-void timer_end(i64 start) {
-  // print time elapsed time
-  i64 end = timer_start();
-  i64 elapsed_time = (end - start);
-  printf("Elapsed time is: %.17f secs\n", elapsed_time * 1e-3);
+double timer_end(double start) {
+  // return time elaspes since start in seconds
+  return (timer_start() - start);
 }
 
 #ifdef MPI_ENABLE

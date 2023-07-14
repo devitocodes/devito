@@ -4,6 +4,7 @@ from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 from xdsl.dialects import arith, builtin, func, memref, scf, stencil
 from xdsl.dialects.experimental import dmp, math
 from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
+from typing import Any
 
 from devito import Grid, SteppingDimension
 from devito.ir.clusters import Cluster
@@ -76,7 +77,7 @@ class ExtractDevitoStencilConversion:
         perf("Init out stencil Op")
         stencil_op = iet_ssa.Stencil.get(
             loop.subindice_ssa_vals(),
-            grid.shape,
+            grid.shape_local,
             halo,
             actual_time_size,
             mlir_type,
@@ -112,9 +113,10 @@ class ExtractDevitoStencilConversion:
         ), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(stencil.ReturnOp.get([rhs_result]))
-        outermost_block.add_op(func.Return.get(loop.result))
+        outermost_block.add_op(func.Return.get())
+
         return func.FuncOp.from_region(
-            "apply_kernel", [], [loop.result.typ], Region([outermost_block])
+            "apply_kernel", [], [], Region([outermost_block])
         )
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
@@ -276,18 +278,6 @@ class ExtractDevitoStencilConversion:
         return new_vals
 
 
-def _cluster_shape(cl: Cluster) -> tuple[int, ...]:
-    return cl.grid.shape
-
-
-def _cluster_grid(cl: Cluster) -> Grid:
-    return cl.grid
-
-
-def _cluster_function(cl: Cluster):  # TODO: fix typing here
-    return cl.exprs[0].args[0].function
-
-
 def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
     # shift all time values so that for all accesses at t + n, n>=0.
     # time_offs = min(int(i - d) for i, d in zip(idx.indices, idx.function.dimensions))
@@ -317,7 +307,7 @@ def is_float(val: SSAValue):
 #                                                          ####
 # -------------------------------------------------------- ####
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
@@ -328,12 +318,44 @@ from xdsl.pattern_rewriter import (
 )
 
 from devito.ir.ietxdsl.lowering import (
-    ConvertForLoopVarToIndex, # Drop?
-    ConvertScfForArgsToIndex, # Drop?
-    DropIetComments, # Drop?
     LowerIetForToScfFor,
-    recalc_func_type, # Drop?
 )
+
+from xdsl.dialects import llvm
+
+@dataclass
+class MakeFunctionTimed(RewritePattern):
+    """
+    Populate the section0 devito timer with the total runtime of the function
+    """
+    func_name: str
+    seen_ops: set[func.Func] = field(default_factory=set)
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter):
+        if op.sym_name.data != self.func_name or op in self.seen_ops:
+            return
+        
+        # only apply once
+        self.seen_ops.add(op)
+        
+        rewriter.insert_op_at_start([
+            t0 := func.Call.get('timer_start', [], [builtin.f64])
+        ], op.body.block)
+
+        ret = op.get_return_op()
+        assert ret is not None
+
+        rewriter.insert_op_before([
+            timers := iet_ssa.LoadSymbolic.get('timers', llvm.LLVMPointerType.typed(builtin.f64)),
+            t1 := func.Call.get('timer_end', [t0], [builtin.f64]),
+            llvm.StoreOp.get(t1, timers),
+        ], ret)
+
+        rewriter.insert_op_after_matched_op([
+            func.FuncOp.external('timer_start', [], [builtin.f64]),
+            func.FuncOp.external('timer_end', [builtin.f64], [builtin.f64])
+        ])
 
 
 class _DevitoStencilToStencilStencil(RewritePattern):
@@ -406,29 +428,6 @@ class _DevitoStencilToStencilStencil(RewritePattern):
         out.res[0].name_hint = op.output.name_hint + "_result"
 
 
-# TODROP: Not used anymore?
-class _LowerGetField(RewritePattern):
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.GetField, rewriter: PatternRewriter, /):
-        rewriter.replace_matched_op(
-            [
-                idx := arith.IndexCastOp.get(op.t_index, builtin.IndexType()),
-                ref := memref.Load.get(op.data, [idx]),
-                field := stencil.ExternalLoadOp.get(
-                    ref, res_type=field_type_to_dynamic_shape_type(op.field.typ)
-                ),
-                field_w_size := stencil_nexp.CastOp.get(
-                    field, op.lb, op.ub, op.field.typ
-                ),
-            ],
-            [field_w_size.result],
-        )
-
-
-def field_type_to_dynamic_shape_type(t: stencil.FieldType):
-    return stencil.FieldType([-1] * len(t.shape), t.element_type)
-
-
 def get_containing_func(op: Operation) -> func.FuncOp | None:
     while op is not None and not isinstance(op, func.FuncOp):
         op = op.parent_op()
@@ -453,13 +452,12 @@ class _InsertSymbolicConstants(RewritePattern):
             )
             return
 
-        assert op.result.typ in (builtin.i32, builtin.i64, builtin.IndexType())
-
-        rewriter.replace_matched_op(
-            arith.Constant.from_int_and_width(
-                int(self.known_symbols[symb_name]), op.result.typ
+        if isinstance(op.result.typ, (builtin.IntegerType, builtin.IndexType)):
+            rewriter.replace_matched_op(
+                arith.Constant.from_int_and_width(
+                    int(self.known_symbols[symb_name]), op.result.typ
+                )
             )
-        )
 
 
 class _LowerLoadSymbolidToFuncArgs(RewritePattern):
@@ -499,6 +497,7 @@ def convert_devito_stencil_to_xdsl_stencil(module):
         [
             _DevitoStencilToStencilStencil(),
             LowerIetForToScfFor(),
+            MakeFunctionTimed('apply_kernel'),
         ]
     )
     perf("DevitoStencil to stencil.stencil")
@@ -507,51 +506,8 @@ def convert_devito_stencil_to_xdsl_stencil(module):
     PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
-def prod(iter):
-    """
-    Calculate the product over an iterator of numbers
-    """
-    carry = 1
-    for x in iter:
-        carry *= x
-    return carry
 
-
-def translate_signature(
-    t: func.FunctionType,
-) -> tuple[list[Attribute], list[Attribute]]:
-    inputs = []
-    outputs = []
-    for i in t.inputs:
-        if not isinstance(i, stencil.FieldType):
-            inputs.append(i)
-            break
-        inputs.append(
-            memref.MemRefType.from_element_type_and_shape(i.element_type, i.get_shape())
-        )
-
-    for o in t.outputs:
-        if not isinstance(o, stencil.FieldType):
-            outputs.append(o)
-            break
-        outputs.append(
-            memref.MemRefType.from_element_type_and_shape(o.element_type, o.get_shape())
-        )
-    return inputs, outputs
-
-
-def generate_launcher_base(
-    module: builtin.ModuleOp,
-    known_symbols: dict[str, int | float],
-    dims: tuple[int],
-    mpi: bool = False,
-    gpu: bool = False,
-) -> str:
-    """
-    This transforms a module containing a function with symbolic
-    loads into a function that is ready to be lowered by xdsl
-    It replaces all symbolics with the one in known_symbols
-    """
+def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any]):
     grpa = GreedyRewritePatternApplier(
         [
             _InsertSymbolicConstants(known_symbols),
@@ -559,167 +515,3 @@ def generate_launcher_base(
         ]
     )
     PatternRewriteWalker(grpa).rewrite_module(module)
-    perf("Apply InsertSymbolicConstants")
-    perf("Apply LowerLoadSymbolidToFuncArgs")
-
-    f = module.ops.first
-
-    assert isinstance(f, func.FuncOp)
-
-    input_types, result_types = translate_signature(f.function_type)
-
-    # grab the signature of the kernel
-    ext_func_decl = func.FuncOp.external(f.sym_name.data, input_types, result_types)
-    kernel_signature = str(ext_func_decl)
-
-    dtype: str = input_types[0].element_type.name
-
-    memref_type = str(input_types[0])
-
-    dims = input_types[0].get_shape()
-
-    rank = len(dims)
-
-    size_in_bytes = prod(dims) * int(dtype[1:]) // 8
-
-    func_args = ["%t0"]
-    alloc_lines = []
-
-    for i, t in enumerate(input_types[1:]):
-        alloc_lines.append(
-            f'        %t{i+1} = "memref.alloc"() {{"operand_segment_sizes" = array<i32: 0, 0>}} : () -> {str(t)}'
-        )
-        func_args.append(f"%t{i+1}")
-
-    if gpu:
-        func_args = []
-        for i, t in enumerate(input_types):
-            alloc_lines.append(
-                f"""        
-        %gt{i} = "gpu.alloc"() {{operand_segment_sizes = array<i32: 0, 0, 0>}} : () -> {str(t)}
-        "gpu.memcpy"(%gt{i}, %t{i}) {{"operand_segment_sizes" = array<i32: 0, 1, 1>}} : ({str(t)}, {str(t)}) -> ()
-        "memref.dealloc"(%t{i}) {{"operand_segment_sizes" = array<i32: 0, 1>}} : ({str(t)}) -> ()
-            """
-            )
-            func_args.append(f"%gt{i}")
-
-    alloc_lines = "\n".join(alloc_lines)
-
-    # set all allocated memref values to 0
-
-    ubs_def = "\n        ".join(
-        f'%loop_ub_{i} = "arith.constant"() {{"value" = {val} : index}} : () -> index'
-        for i, val in enumerate(dims)
-    )
-    ubs = [f"%loop_ub_{i}" for i in range(rank)]
-    lbs = ["%loop_lb" for _ in range(rank)]
-    step = ["%loop_step" for _ in range(rank)]
-
-    stores = "\n            ".join(
-        '"memref.store"(%init_val, {}, {}) : (f32, {}, {}) -> ()'.format(
-            ref,
-            ", ".join(f"%i{i}" for i in range(rank)),
-            str(memref_type),
-            ", ".join(f"index" for _ in range(rank)),
-        )
-        for ref in func_args[1:]
-    )
-    if not gpu:
-        alloc_lines += f"""
-            %init_val = "arith.constant"() {{"value" = 0.0 : f32}} : () -> f32
-            %loop_lb = "arith.constant"() {{"value" = 0 : index}} : () -> index
-            %loop_step = "arith.constant"() {{"value" = 1 : index}} : () -> index
-            {ubs_def}
-
-            "scf.parallel"({", ".join(lbs)}, {", ".join(ubs)}, {", ".join(step)}) ({{
-                ^init_loop_body({', '.join(f'%i{i} : index' for i in range(rank))}):
-                    {stores}
-                    "scf.yield"() : () -> ()
-            }}) {{"operand_segment_sizes" = array<i32: {rank}, {rank}, {rank}, 0>}} : ({', '.join(['index'] * (3 * rank))}) -> ()
-        """
-
-    # grab the field type with allocated bounds
-    field_type: stencil.FieldType = f.function_type.inputs.data[0]
-    assert isinstance(field_type, stencil.FieldType)
-    assert isinstance(field_type.bounds, stencil.StencilBoundsAttr)
-
-    bounds = field_type.bounds
-
-    global_shape = dmp.HaloShapeInformation.from_index_attrs(
-        buff_lb=bounds.lb,
-        buff_ub=bounds.ub,
-        core_lb=stencil.IndexAttr.get(*([0] * len(bounds.lb))),
-        core_ub=(bounds.ub + bounds.lb),
-    )
-    perf("Halo inference for Distributed Memory Parallelism")
-
-    teardown = f'"func.call"(%res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()'
-
-    setup = ""
-
-    if mpi:
-        setup += f"""
-        "mpi.init"() : () -> ()
-
-        %rank = "mpi.comm.rank"() : () -> i32
-        %rank_idx = "arith.index_cast"(%rank) : (i32) -> index
-
-        "dmp.scatter"(%t0, %rank_idx) {{ "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
-        """
-        teardown = f"""
-        "dmp.gather"(%res, %rank_idx) ({{
-        ^bb0(%global_data: {memref_type}):
-            "func.call"(%global_data) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-        }}) {{ "root_rank" = 0, "global_shape" = {str(global_shape)} }} : ({memref_type}, index) -> ()
-
-        "mpi.finalize"() : () -> ()
-        """
-
-    if gpu:
-        gpu_deallocs = [
-            f"""
-        "gpu.dealloc" ({fa}) {{"operand_segment_sizes" = array<i32: 0, 1>}} : ({memref_type}) -> ()
-        """
-            for fa in func_args
-        ]
-        gpu_deallocs = "\n".join(gpu_deallocs)
-        # setup = ""
-        teardown = f"""
-        %cpu_res = "memref.alloc"() {{"operand_segment_sizes" = array<i32: 0, 0>}} : () -> {str(t)}
-        "gpu.memcpy"(%cpu_res, %res) {{"operand_segment_sizes" = array<i32: 0, 1, 1>}} : ({str(t)}, {str(t)}) -> ()
-        {gpu_deallocs}
-        "func.call"(%cpu_res) {{"callee" = @dump_memref_{dtype}_rank_{rank}}} : ({memref_type}) -> ()
-        """
-
-    return f"""
-"builtin.module"() ({{
-    "func.func"() ({{
-        %num_bytes = "arith.constant"() {{"value" = {size_in_bytes} : index}} : () -> index
-        %byte_ref = "func.call"(%num_bytes) {{"callee" = @load_input}} : (index) -> memref<{size_in_bytes}xi8>
-
-        %cst0 = "arith.constant"() {{"value" = 0 : index}} : () -> index
-        %cst1 = "arith.constant"() {{"value" = 1 : index}} : () -> index
-
-        %t0 = "memref.view"(%byte_ref, %cst0) : (memref<{size_in_bytes}xi8>, index) -> {memref_type}
-{alloc_lines}
-{setup}
-        %time_start = "func.call"() {{"callee" = @timer_start}} : () -> i64
-
-        %res = "func.call"({', '.join(func_args)}) {{"callee" = @{f.sym_name.data}}}  : {str(ext_func_decl.function_type)}
-
-        "func.call"(%time_start) {{"callee" = @timer_end}} : (i64) -> ()
-{teardown}
-        "func.return" (%cst0) : (index) -> ()
-
-    }}) {{"function_type" = () -> (index), "sym_name" = "main"}} : () -> ()
-
-    func.func private @dump_memref_{dtype}_rank_{rank}({memref_type}) -> ()
-    func.func private @load_input(index) -> memref<{size_in_bytes}xi8>
-
-    func.func private @timer_start() -> i64
-
-    func.func private @timer_end(i64) -> ()
-
-    {kernel_signature}
-}}) : () -> ()
-"""
