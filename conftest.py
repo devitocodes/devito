@@ -21,6 +21,11 @@ except ImportError:
     MPI = None
 
 
+def pytest_collectstart(collector):
+    if collector.fspath and collector.fspath.ext == '.ipynb':
+        collector.skip_compare += ('text/latex', 'stderr')
+
+
 def skipif(items, whole_module=False):
     assert isinstance(whole_module, bool)
     items = as_tuple(items)
