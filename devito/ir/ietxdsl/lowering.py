@@ -42,7 +42,7 @@ class ConvertScfForArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
         # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
-        if isinstance(op.lb.typ, builtin.IndexType):
+        if isinstance(op.lb.type, builtin.IndexType):
             return
         for val in (op.lb, op.ub, op.step):
             cast = arith.IndexCastOp.get(val, builtin.IndexType())
@@ -55,7 +55,7 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
     def match_and_rewrite(self, op: scf.ParallelOp, rewriter: PatternRewriter,
                           /):
         # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
-        if isinstance(op.lowerBound[0].typ, builtin.IndexType):
+        if isinstance(op.lowerBound[0].type, builtin.IndexType):
             return
         # increment upper bound
         cst1 = arith.Constant.from_int_and_width(1, builtin.i64)
@@ -67,7 +67,7 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
             )
 
         for val in (*op.lowerBound, *op.upperBound, *op.step):
-            if isinstance(val.typ, builtin.IndexType):
+            if isinstance(val.type, builtin.IndexType):
                 continue
             cast = arith.IndexCastOp.get(val, builtin.IndexType())
             rewriter.insert_op_before_matched_op(cast)
@@ -82,9 +82,9 @@ class ConvertForLoopVarToIndex(RewritePattern):
         block: Block = op.regions[0].blocks[0]
         # change all loop vars to index and immediately cast to i64
         for loop_var in block.args:
-            if isinstance(loop_var.typ, builtin.IndexType):
+            if isinstance(loop_var.type, builtin.IndexType):
                 continue
-            loop_var.typ = builtin.IndexType()
+            loop_var.type = builtin.IndexType()
             # insert a cast from index to i64 at the start of the loop
 
             rewriter.insert_op_at_start(
@@ -111,7 +111,7 @@ class LowerIetForToScfFor(RewritePattern):
         subindice_vals = [
             iet_ssa.LoadSymbolic.get(
                 f"{field_name}_{i}",
-                body.args[i+1].typ,
+                body.args[i+1].type,
             ) for i in range(op.subindices.data)
         ]
         rewriter.insert_op_before_matched_op(subindice_vals)
@@ -194,7 +194,7 @@ class LowerIetForToScfParallel(RewritePattern):
 
         new_body = inner_for.body.detach_block(0)
         for arg in body.args:
-            new_body.insert_arg(arg.typ, arg.index)
+            new_body.insert_arg(arg.type, arg.index)
             arg.replace_by(new_body.args[arg.index])
 
         body = new_body
@@ -233,7 +233,7 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
         assert len(self.dimensions) == 0, "can only convert one pointer cast!"
 
         # grab the type the pointercast returns (memref type)
-        memref_typ = op.result.typ
+        memref_typ = op.result.type
         assert isinstance(memref_typ, memref.MemRefType)
 
         # u_vec_size_ptr_addr : llvm.ptr<llvm.ptr<i64>>
@@ -294,17 +294,17 @@ class CleanupDanglingIetDatatypes(RewritePattern):
     def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter, /):
         for i, arg_typ in enumerate(op.function_type.inputs.data):
             if isinstance(arg_typ, iet_ssa.Dataobj):
-                op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.typed(
+                op.body.blocks[0].args[i].type = llvm.LLVMPointerType.typed(
                     iet_ssa.Dataobj.get_llvm_struct_type(), )
             elif isinstance(arg_typ, iet_ssa.Profiler):
-                op.body.blocks[0].args[i].typ = llvm.LLVMPointerType.opaque()
+                op.body.blocks[0].args[i].type = llvm.LLVMPointerType.opaque()
 
         recalc_func_type(op)
 
 
 def recalc_func_type(op: func.FuncOp):
     op.attributes['function_type'] = builtin.FunctionType.from_lists(
-        [arg.typ for arg in op.body.blocks[0].args],
+        [arg.type for arg in op.body.blocks[0].args],
         op.function_type.outputs.data,
     )
 
@@ -341,7 +341,7 @@ class LowerMemrefLoadToLLvmPointer(RewritePattern):
                                       indices=[llvm.GEP_USE_SSA_VAL],
                                       ssa_indices=[idx],
                                       result_type=llvm.LLVMPointerType.typed(
-                                          op.memref.memref.typ.element_type)),
+                                          op.memref.memref.type.element_type)),
                 load := llvm.LoadOp.get(gep),
             ],
             [load.dereferenced_value],

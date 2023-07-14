@@ -153,7 +153,7 @@ class ExtractDevitoStencilConversion:
             # this makes the reduction easier
             carry, *args = self._ensure_same_type(*args)
             # select the correct op from arith.addi, arith.addf, arith.muli, arith.mulf
-            if isinstance(carry.typ, builtin.IntegerType):
+            if isinstance(carry.type, builtin.IntegerType):
                 op_cls = arith.Addi if isinstance(node, Add) else arith.Muli
             else:
                 op_cls = arith.Addf if isinstance(node, Add) else arith.Mulf
@@ -248,7 +248,7 @@ class ExtractDevitoStencilConversion:
         )
 
     def _ensure_same_type(self, *vals: SSAValue):
-        if all(isinstance(val.typ, builtin.IntegerAttr) for val in vals):
+        if all(isinstance(val.type, builtin.IntegerAttr) for val in vals):
             return vals
         if all(is_float(val) for val in vals):
             return vals
@@ -265,7 +265,7 @@ class ExtractDevitoStencilConversion:
                 and isinstance(val.op, arith.Constant)
                 and val.uses == 0
             ):
-                val.typ = builtin.f32
+                val.type = builtin.f32
                 val.op.attributes["value"] = builtin.FloatAttr(
                     float(val.op.value.value.data), builtin.f32
                 )
@@ -294,11 +294,11 @@ def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
 
 
 def is_int(val: SSAValue):
-    return isinstance(val.typ, builtin.IntegerType)
+    return isinstance(val.type, builtin.IntegerType)
 
 
 def is_float(val: SSAValue):
-    return val.typ in (builtin.f32, builtin.f64)
+    return val.type in (builtin.f32, builtin.f64)
 
 
 # -------------------------------------------------------- ####
@@ -391,14 +391,14 @@ class _DevitoStencilToStencilStencil(RewritePattern):
             for shape_elm, halo_elm in zip(op.shape, op.halo)
         )
 
-        field_t = stencil.FieldType(zip(lb, ub), typ=op.field_type)
+        field_t = stencil.FieldType(zip(lb, ub), element_type=op.field_type)
 
         # change type of iet.for iteration variables to stencil.field
         for val in (*op.input_indices, op.output):
             assert isinstance(val.owner, Block)
             loop = val.owner.parent_op()
             assert isinstance(loop, iet_ssa.For)
-            val.typ = field_t
+            val.type = field_t
             loop.attributes["index_owner"] = op.grid_name
 
         input_temps = []
@@ -413,7 +413,7 @@ class _DevitoStencilToStencilStencil(RewritePattern):
                 out := stencil.ApplyOp.get(
                     input_temps,
                     op.body.detach_block(0),
-                    result_types=[stencil.TempType(rank, typ=op.field_type)],
+                    result_types=[stencil.TempType(rank, element_type=op.field_type)],
                 ),
                 stencil.StoreOp.get(
                     out,
@@ -444,18 +444,18 @@ class _InsertSymbolicConstants(RewritePattern):
         if symb_name not in self.known_symbols:
             return
 
-        if op.result.typ in (builtin.f32, builtin.f64):
+        if op.result.type in (builtin.f32, builtin.f64):
             rewriter.replace_matched_op(
                 arith.Constant.from_float_and_width(
-                    float(self.known_symbols[symb_name]), op.result.typ
+                    float(self.known_symbols[symb_name]), op.result.type
                 )
             )
             return
 
-        if isinstance(op.result.typ, (builtin.IntegerType, builtin.IndexType)):
+        if isinstance(op.result.type, (builtin.IntegerType, builtin.IndexType)):
             rewriter.replace_matched_op(
                 arith.Constant.from_int_and_width(
-                    int(self.known_symbols[symb_name]), op.result.typ
+                    int(self.known_symbols[symb_name]), op.result.type
                 )
             )
 
@@ -478,7 +478,7 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
 
         if symb_name not in args:
             body = parent.body.blocks[0]
-            args[symb_name] = body.insert_arg(op.result.typ, len(body.args))
+            args[symb_name] = body.insert_arg(op.result.type, len(body.args))
 
         op.result.replace_by(args[symb_name])
         rewriter.erase_matched_op()
