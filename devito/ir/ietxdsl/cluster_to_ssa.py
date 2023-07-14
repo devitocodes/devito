@@ -113,7 +113,7 @@ class ExtractDevitoStencilConversion:
         ), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(stencil.ReturnOp.get([rhs_result]))
-        outermost_block.add_op(func.Return.get())
+        outermost_block.add_op(func.Return())
 
         return func.FuncOp.from_region(
             "apply_kernel", [], [], Region([outermost_block])
