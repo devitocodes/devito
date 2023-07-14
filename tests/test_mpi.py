@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R, assert_blocking
+from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -11,7 +11,10 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall, MPICall
+from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall, ComputeCall
+from devito.mpi.distributed import CustomTopology
+from devito.tools import Bunch
+
 from examples.seismic.acoustic import acoustic_setup
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -179,6 +182,48 @@ class TestDistributor(object):
         expected = [(4, 15), (4, 15), (4, 15), (3, 15)]
         assert f2.shape == expected[distributor.myrank]
         assert f2.size_global == f.size_global
+
+    @pytest.mark.parametrize('comm_size, topology, dist_topology', [
+        (2, (1, '*'), (1, 2)),
+        (2, ('*', '*'), (2, 1)),
+        (1, (1, '*', '*'), (1, 1, 1)),
+        (2, (1, '*', '*'), (1, 2, 1)),
+        (2, (2, '*', '*'), (2, 1, 1)),
+        (3, (1, '*', '*'), (1, 3, 1)),
+        (3, ('*', '*', 1), (3, 1, 1)),
+        (4, (2, '*', '*'), (2, 2, 1)),
+        (4, ('*', '*', 2), (2, 1, 2)),
+        (6, ('*', '*', 1), (3, 2, 1)),
+        (6, (1, '*', '*'), (1, 3, 2)),
+        (6, ('*', '*', '*'), (3, 2, 1)),
+        (12, ('*', '*', '*'), (3, 2, 2)),
+        (12, ('*', 3, '*'), (2, 3, 2)),
+        (18, ('*', '*', '*'), (3, 3, 2)),
+        (18, ('*', '*', 9), (2, 1, 9)),
+        (18, ('*', '*', 3), (3, 2, 3)),
+        (24, ('*', '*', '*'), (6, 2, 2)),
+        (32, ('*', '*', '*'), (4, 4, 2)),
+        (8, ('*', 1, '*'), (4, 1, 2)),
+        (8, ('*', '*', 1), (4, 2, 1)),
+        (8, ('*', '*', '*'), (2, 2, 2)),
+        (9, ('*', '*', '*'), (3, 3, 1)),
+        (11, (1, '*', '*'), (1, 11, 1)),
+        (22, ('*', '*', '*'), (11, 2, 1)),
+        (16, ('*', 1, '*'), (4, 1, 4)),
+        (32, ('*', '*', 1), (8, 4, 1)),
+        (64, ('*', '*', 1), (8, 8, 1)),
+        (64, ('*', 2, 4), (8, 2, 4)),
+        (128, ('*', '*', 1), (16, 8, 1)),
+        (231, ('*', '*', '*'), (11, 7, 3)),
+        (256, (1, '*', '*'), (1, 16, 16)),
+        (256, ('*', '*', '*'), (8, 8, 4)),
+        (256, ('*', '*', 2), (16, 8, 2)),
+        (256, ('*', 32, 2), (4, 32, 2)),
+    ])
+    def test_custom_topology_v2(self, comm_size, topology, dist_topology):
+        dummy_comm = Bunch(size=comm_size)
+        custom_topology = CustomTopology(topology, dummy_comm)
+        assert custom_topology == dist_topology
 
 
 class TestFunction(object):
@@ -676,9 +721,11 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0] == 3.)
 
         # Also check that there are no redundant halo exchanges. Here, only
-        # two are expected before the `x` Iteration, one for `f` and one for `g`
+        # one is expected before the `x` Iteration, with two components, namely
+        # `f` and `g`
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
+        assert len(calls) == 1
+        assert calls[0].ncomps == 2
 
     @pytest.mark.parallel(mode=2)
     def test_reapply_with_different_functions(self):
@@ -1066,9 +1113,34 @@ class TestCodeGeneration(object):
             assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
+    @pytest.mark.parallel(mode=1)
+    def test_merge_haloupdate_if_diff_locindices_v0(self):
+        grid = Grid(shape=(101, 101))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = Function(name="f", grid=grid)
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+
+        cond = ConditionalDimension(name='cond', parent=y, condition=y < 10)
+
+        eqns = [
+            Eq(f, u[t, x+2, y]),
+            Eq(u.forward, u[t-1, x+2, y], implicit_dims=[cond])
+        ]
+
+        op = Operator(eqns)
+
+        assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
+        op.cfunction
+
     @pytest.mark.parallel(mode=2)
-    def test_unmerge_haloudate_if_diff_locindices(self):
+    def test_merge_haloupdate_if_diff_locindices_v1(self):
         """
+        This test is a revisited, more complex version of
+        `test_merge_haloupdate_if_diff_locindices_v0`. And in addition to
+        checking the generated code, it also checks the numerical output.
+
         In the Operator there are three Eqs:
 
         * the first one does *not* require a halo update
@@ -1079,9 +1151,8 @@ class TestCodeGeneration(object):
 
         * the second and third Eqs cannot be fused in the same loop
 
-        So in the IET we end up with two HaloSpots, one for the second and one
-        for the third Eqs. These will *not* be merged because they operate at
-        different `t`-indices (`t+1` and `t`).
+        In the IET we end up with *one* HaloSpots, placed right before the
+        second Eq. The third Eq will seamlessy find its halo up-to-date.
         """
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
@@ -1104,7 +1175,7 @@ class TestCodeGeneration(object):
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
+        assert len(calls) == 1
 
         op.apply(time_M=1)
         glb_pos_map = f.grid.distributor.glb_pos_map
@@ -1162,6 +1233,33 @@ class TestCodeGeneration(object):
         # No halo update here because the `x` Iteration is SEQUENTIAL
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
+
+    @pytest.mark.parallel(mode=1)
+    def test_conditional_dimension_v2(self):
+        """
+        Make sure optimizations don't move around halo exchanges if embedded
+        within conditionals.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        h = TimeFunction(name='h', grid=grid, space_order=2)
+
+        cd0 = ConditionalDimension(name='cd0', parent=time, condition=time <= 2)
+        cd1 = ConditionalDimension(name='cd1', parent=time, condition=time > 2)
+
+        eqns = [Eq(f.forward, f.dx2 + 1, implicit_dims=cd0),
+                Eq(h.forward, h.dx2 + 1, implicit_dims=cd1)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 2
+        assert all(isinstance(i.then_body[0].body[0].body[0].body[0],
+                              HaloUpdateList) for i in conds)
 
     @pytest.mark.parametrize('expr,expected', [
         ('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'}),
@@ -1282,26 +1380,82 @@ class TestCodeGeneration(object):
 
         if configuration['mpi'] in ('basic', 'diag'):
             assert len(op._func_table) == 4  # gather, scatter, sendrecv, haloupdate
-            assert len(calls) == 2
+            assert len(calls) == 1
             assert calls[0].name == 'haloupdate0'
-            assert calls[1].name == 'haloupdate0'
+            assert calls[0].ncomps == 2
         elif configuration['mpi'] in ('overlap'):
             assert len(op._func_table) == 8
-            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert len(calls) == 4  # haloupdate, compute, halowait, remainder
             assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('overlap2'):
             assert len(op._func_table) == 6
-            assert len(calls) == 6  # haloupdateX2, compute, halowaitX2, remainder
+            assert len(calls) == 4  # haloupdate, compute, halowait, remainder
             assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('diag2'):
             assert len(op._func_table) == 4
-            assert len(calls) == 4
+            assert len(calls) == 2
             assert calls[0].name == 'haloupdate0'
-            assert calls[1].name == 'haloupdate0'
+            assert calls[0].ncomps == 2
+            assert calls[1].name == 'halowait0'
         elif configuration['mpi'] in ('full'):
             assert len(op._func_table) == 7
-            assert len(calls) == 6
+            assert len(calls) == 4
             assert 'haloupdate1' not in op._func_table
+            assert len(FindNodes(ComputeCall).visit(op)) == 1
+
+    @pytest.mark.parallel(mode=[(1, 'diag2')])
+    def test_many_functions(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        eqns = []
+        for i in ['a', 'b', 'c', 'd', 'e', 'f', 'g']:
+            w = TimeFunction(name=i, grid=grid, space_order=2)
+            eqns.append(Eq(w.forward, w.dx + 1.))
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        assert calls[0].ncomps == 7
+
+    @switchconfig(profiling='advanced2')
+    @pytest.mark.parallel(mode=[
+        (1, 'full'),
+    ])
+    def test_profiled_regions(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        g = TimeFunction(name='g', grid=grid, space_order=2)
+
+        eqns = [Eq(f.forward, f.dx2 + 1.),
+                Eq(g.forward, g.dx2 + 1.)]
+
+        op = Operator(eqns)
+        assert op._profiler.all_sections == ['section0', 'haloupdate0', 'halowait0',
+                                             'remainder0', 'compute0']
+
+    @pytest.mark.parallel(mode=1)
+    def test_enforce_haloupdate_if_unwritten_function(self):
+        grid = Grid(shape=(16, 16))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        w = TimeFunction(name='w', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=10, space_order=4)
+
+        eqns = [Eq(w.forward, v.forward.dx + w + 1., subdomain=grid.interior),
+                Eq(u.forward, u + 1.),
+                Eq(v.forward, u.forward + usave.dx4, subdomain=grid.interior)]
+
+        key = lambda f: f is not usave
+
+        op = Operator(eqns, opt=('advanced', {'dist-drop-unwritten': key}))
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2   # One for `v` and one for `usave`
 
 
 class TestOperatorAdvanced(object):
@@ -2218,6 +2372,36 @@ class TestOperatorAdvanced(object):
         op.apply(time_M=0, u=u3)
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
 
+    @pytest.mark.parallel(mode=4)
+    def test_fission_due_to_antidep(self):
+        grid = Grid(shape=(16, 16, 64), dtype=np.float64)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u1', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+        v1 = TimeFunction(name='v1', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, v.laplace),
+                Eq(v.forward, u.forward.dz2)]
+
+        op1 = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        # First, check the generated code
+        assert_structure(op1, ['t',
+                               't,x0_blk0,y0_blk0,x,y,z',
+                               't,x0_blk0,y0_blk0,x,y,z'],
+                         't,x0_blk0,y0_blk0,x,y,z,z')
+
+        def init(f, v=1):
+            f.data[:] = np.indices(grid.shape).sum(axis=0) % (.004*v) + .01
+
+        init(u1)
+        init(v1, 2)
+        op1(u=u1, v=v1, time_M=5, h_z=20.)
+
+        assert np.isclose(norm(u1), 12445251.87, rtol=1e-7)
+        assert np.isclose(norm(v1), 147063.38, rtol=1e-7)
+
 
 def gen_serial_norms(shape, so):
     """
@@ -2333,15 +2517,10 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = True
+    configuration['mpi'] = 'overlap'
     # TestDecomposition().test_reshape_left_right()
-    # TestOperatorSimple().test_trivial_eq_2d()
-    # TestOperatorSimple().test_num_comms('f[t,x-1,y] + f[t,x+1,y]', {'rc', 'lc'})
+    TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
-    # TestSparseFunction().test_ownership(((1., 1.), (1., 3.), (3., 1.), (3., 3.)))
-    # TestSparseFunction().test_local_indices([(0.5, 0.5), (1.5, 2.5), (1.5, 1.5), (2.5, 1.5)], [[0.], [1.], [2.], [3.]])  # noqa
     # TestSparseFunction().test_scatter_gather()
-    # TestOperatorAdvanced().test_nontrivial_operator()
-    # TestOperatorAdvanced().test_interpolation_dup()
-    # TestOperatorAdvanced().test_injection_wodup()
-    TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    # TestOperatorAdvanced().test_fission_due_to_antidep()
+    # TestIsotropicAcoustic().test_adjoint_F_no_omp()
