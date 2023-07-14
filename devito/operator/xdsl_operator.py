@@ -53,9 +53,9 @@ MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-m
 # gpu-launch-sink-index-computations seemed to have no impact
 MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
-XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir,print-to-printf"
-XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},print-to-printf"
-XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi,print-to-printf"'
+XDSL_CPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir,printf-to-llvm"
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},printf-to-llvm"
+XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},convert-stencil-to-ll-mlir,dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
 
 
 class XDSLOperator(Operator):
@@ -154,7 +154,7 @@ class XDSLOperator(Operator):
                 cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
-                    f'{cc} {cflags} -shared {self._interop_tf.name} -xir - -o {self._tf.name}'
+                    f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'
 
                 res = subprocess.run(
                     cmd,
