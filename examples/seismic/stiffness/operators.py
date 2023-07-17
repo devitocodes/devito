@@ -1,38 +1,8 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction, Function, Derivative
 from devito import solve, div
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import D, S, vec, matrix_init, generate_Dlam, generate_Dmu, inverse_C
+from examples.seismic.stiffness.utils import D, S, vec, C_Matrix
 
-
-def iso_elastic_tensor(model):
-    def subs3D(lmbda, mu):
-        return {'C11': lmbda + (2*mu),
-                'C22': lmbda + (2*mu),
-                'C33': lmbda + (2*mu),
-                'C44': mu,
-                'C55': mu,
-                'C66': mu,
-                'C12': lmbda,
-                'C13': lmbda,
-                'C23': lmbda}
-
-    def subs2D(lmbda, mu):
-        return {'C11': lmbda + (2*mu),
-                'C22': lmbda + (2*mu),
-                'C33': mu,
-                'C12': lmbda}
-
-    matriz = matrix_init(model)
-    lmbda = model.lam
-    mu = model.mu
-
-    subs = subs3D(lmbda, mu) if model.dim == 3 else subs2D(lmbda, mu)
-    M = matriz.subs(subs)
-
-    M.dlam = generate_Dlam(model)
-    M.dmu = generate_Dmu(model)
-    M.inv = inverse_C(model)
-    return M
 
 
 def src_rec(v, tau, model, geometry, forward=True):
@@ -97,7 +67,7 @@ def elastic_stencil(model, v, tau, forward=True):
 
     rho = 1. / b
 
-    C = iso_elastic_tensor(model)
+    C = C_Matrix(model, [model.lam, model.mu])
     tau = vec(tau)
     if forward:
 

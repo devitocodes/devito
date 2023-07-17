@@ -4,67 +4,124 @@ import numpy as np
 from sympy import symbols, Matrix, ones
 
 
-def matrix_init(model):
-    def cij(i, j):
-        ii, jj = min(i, j), max(i, j)
-        if (ii == jj or (ii <= model.dim and jj <= model.dim)):
-            return symbols('C%s%s' % (ii, jj))
-        return 0
+class C_Matrix():
 
-    d = model.dim*2 + model.dim-2
-    Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
-    return Matrix(Cij)
-
-def inverse_C(model):
-    def subs3D(lmbda, mu):
-        return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
-                'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
-                'C33': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
-                'C44': 1/mu,
-                'C55': 1/mu,
-                'C66': 1/mu,
-                'C12': (lmbda)/(6*lmbda*mu + 4*mu*mu),
-                'C13': (lmbda)/(6*lmbda*mu + 4*mu*mu),
-                'C23': (lmbda)/(6*lmbda*mu + 4*mu*mu)}
-
-    def subs2D(lmbda, mu):
-        return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
-                'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
-                'C33': 1/mu,
-                'C12': (lmbda)/(6*lmbda*mu + 4*mu*mu)}
-
-    matrix = matrix_init(model)
-    lmbda = model.lam
-    mu = model.mu
-
-    subs = subs3D(lmbda, mu) if model.dim == 3 else subs2D(lmbda, mu)
-    return matrix.subs(subs)
-
-def generate_Dlam(model):
-    def d_lam(i, j):
-        ii, jj = min(i, j), max(i, j)
-        if (ii <= model.dim and jj <= model.dim):
-            return 1
-        return 0
-
-    d = model.dim*2 + model.dim-2
-    Clam = [[d_lam(i, j) for i in range(1, d)] for j in range(1, d)]
-    return Matrix(Clam)
+    accepted_parameters_set = [['lam', 'mu']]
 
 
-def generate_Dmu(model):
-    def d_mu(i, j):
-        ii, jj = min(i, j), max(i, j)
-        if (ii == jj):
-           if  ii <= model.dim:
-               return 2
-           else: 
-               return 1
-        return 0
+    def __new__(cls, model, parameters):
+        c_m_gen = cls.C_matrix_gen(parameters)
+        return c_m_gen(model)
+    
 
-    d = model.dim*2 + model.dim-2
-    Cmu = [[d_mu(i, j) for i in range(1, d)] for j in range(1, d)]
-    return Matrix(Cmu)
+    @classmethod
+    def C_matrix_gen(cls, parameters):
+        parameters_names = [p.name for p in parameters]
+        if set(parameters_names) == set(cls.accepted_parameters_set[0]):
+            return cls.C_lambda_mu
+        else:
+            raise Exception("These parameters are not accepted to generate C matrix")
+
+
+    def _matrix_init(dim):
+        def cij(i, j):
+            ii, jj = min(i, j), max(i, j)
+            if (ii == jj or (ii <= dim and jj <= dim)):
+                return symbols('C%s%s' % (ii, jj))
+            return 0
+
+        d = dim*2 + dim-2
+        Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
+        return Matrix(Cij)
+
+
+    @classmethod
+    def C_lambda_mu(cls, model):
+        def subs3D():
+            return {'C11': lmbda + (2*mu),
+                    'C22': lmbda + (2*mu),
+                    'C33': lmbda + (2*mu),
+                    'C44': mu,
+                    'C55': mu,
+                    'C66': mu,
+                    'C12': lmbda,
+                    'C13': lmbda,
+                    'C23': lmbda}
+
+        def subs2D():
+            return {'C11': lmbda + (2*mu),
+                    'C22': lmbda + (2*mu),
+                    'C33': mu,
+                    'C12': lmbda}
+
+        matriz = C_Matrix._matrix_init(model.dim)
+        lmbda = model.lam
+        mu = model.mu
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        M = matriz.subs(subs)
+
+        M.dlam = cls._generate_Dlam(model)
+        M.dmu = cls._generate_Dmu(model)
+        M.inv = cls._inverse_C_lam(model)
+        return M
+
+
+    @staticmethod
+    def _inverse_C_lam(model):
+        def subs3D():
+            return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                    'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                    'C33': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                    'C44': 1/mu,
+                    'C55': 1/mu,
+                    'C66': 1/mu,
+                    'C12': -lmbda/(6*lmbda*mu + 4*mu*mu),
+                    'C13': -lmbda/(6*lmbda*mu + 4*mu*mu),
+                    'C23': -lmbda/(6*lmbda*mu + 4*mu*mu)}
+
+        def subs2D():
+            return {'C11': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                    'C22': (lmbda + mu)/(3*lmbda*mu + 2*mu*mu),
+                    'C33': 1/mu,
+                    'C12': -lmbda/(6*lmbda*mu + 4*mu*mu)}
+
+        matrix = C_Matrix._matrix_init(model.dim)
+        lmbda = model.lam
+        mu = model.mu
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        return matrix.subs(subs)
+
+
+    @staticmethod
+    def _generate_Dlam(model):
+        def d_lam(i, j):
+            ii, jj = min(i, j), max(i, j)
+            if (ii <= model.dim and jj <= model.dim):
+                return 1
+            return 0
+
+        d = model.dim*2 + model.dim-2
+        Dlam = [[d_lam(i, j) for i in range(1, d)] for j in range(1, d)]
+        return Matrix(Dlam)
+
+
+    @staticmethod
+    def _generate_Dmu(model):
+        def d_mu(i, j):
+            ii, jj = min(i, j), max(i, j)
+            if (ii == jj):
+                if  ii <= model.dim:
+                    return 2
+                else: 
+                    return 1
+            return 0
+
+        d = model.dim*2 + model.dim-2
+        Dmu = [[d_mu(i, j) for i in range(1, d)] for j in range(1, d)]
+        return Matrix(Dmu)
+
 
 
 def D(self, shift=None):
