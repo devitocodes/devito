@@ -6,7 +6,7 @@ from sympy import symbols, Matrix, ones
 
 class C_Matrix():
 
-    accepted_parameters_set = [['lam', 'mu']]
+    accepted_parameters_set = [['lam', 'mu'], [ 'vp', 'vs', 'rho']]
 
 
     def __new__(cls, model, parameters):
@@ -19,6 +19,8 @@ class C_Matrix():
         parameters_names = [p.name for p in parameters]
         if set(parameters_names) == set(cls.accepted_parameters_set[0]):
             return cls.C_lambda_mu
+        elif set(parameters_names) == set(cls.accepted_parameters_set[1]):
+            return cls.C_vp_vs_rho
         else:
             raise Exception("These parameters are not accepted to generate C matrix")
 
@@ -123,6 +125,133 @@ class C_Matrix():
         return Matrix(Dmu)
 
 
+    @classmethod
+    def C_vp_vs_rho(cls, model):
+        def subs3D():
+            return {'C11': rho*vp*vp,
+                    'C22': rho*vp*vp,
+                    'C33': rho*vp*vp,
+                    'C44': rho*vs*vs,
+                    'C55': rho*vs*vs,
+                    'C66': rho*vs*vs,
+                    'C12': rho*vp*vp - 2*rho*vs*vs,
+                    'C13': rho*vp*vp - 2*rho*vs*vs,
+                    'C23': rho*vp*vp - 2*rho*vs*vs}
+
+        def subs2D():
+            return {'C11': rho*vp*vp,
+                    'C22': rho*vp*vp,
+                    'C33': rho*vs*vs ,
+                    'C12': rho*vp*vp - 2*rho*vs*vs}
+
+        matrix = C_Matrix._matrix_init(model.dim)
+        vp = model.vp
+        vs = model.vs
+        rho = model.rho
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        M = matrix.subs(subs)
+
+        M.dvp = cls._generate_Dvp(model)
+        M.dvs = cls._generate_Dvs(model)
+        M.drho = cls._generate_Drho(model)
+        M.inv = cls._inverse_C_vp_vs(model)
+        return M
+
+
+    @staticmethod
+    def _inverse_C_vp_vs(model):
+        def subs3D():
+            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+                    'C33': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+                    'C44': 1/(rho*vs*vs),
+                    'C55': 1/(rho*vs*vs),
+                    'C66': 1/(rho*vs*vs),
+                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs)),
+                    'C13': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs)),
+                    'C23': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs))}
+
+        def subs2D():
+            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+                    'C33': 1/(rho*vs*vs),
+                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs))}
+
+        matrix = C_Matrix._matrix_init(model.dim)
+        vp = model.vp
+        vs = model.vs
+        rho = model.rho
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        return matrix.subs(subs)
+
+
+    @staticmethod
+    def _generate_Dvp(model):
+        def d_vp(i, j):
+            ii, jj = min(i, j), max(i, j)
+            if (ii <= model.dim and jj <= model.dim):
+                return 2*model.rho*model.vp
+            return 0
+
+        d = model.dim*2 + model.dim-2
+        Dvp = [[d_vp(i, j) for i in range(1, d)] for j in range(1, d)]
+        return Matrix(Dvp)
+    
+
+    @staticmethod
+    def _generate_Dvs(model):
+        def subs3D():
+            return {'C11': 0,
+                    'C22': 0,
+                    'C33': 0,
+                    'C44': 2*rho*vs,
+                    'C55': 2*rho*vs,
+                    'C66': 2*rho*vs,
+                    'C12': -4*rho*vs,
+                    'C13': -4*rho*vs,
+                    'C23': -4*rho*vs}
+
+        def subs2D():
+            return {'C11': 0,
+                    'C22': 0,
+                    'C33': 2*rho*vs,
+                    'C12': -4*rho*vs}
+
+        Dvs = C_Matrix._matrix_init(model.dim)
+        rho = model.rho
+        vs = model.vs
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        return Dvs.subs(subs)
+    
+
+    @staticmethod
+    def _generate_Drho(model):
+        def subs3D():
+            return {'C11': vp*vp,
+                    'C22': vp*vp,
+                    'C33': vp*vp,
+                    'C44': vs*vs,
+                    'C55': vs*vs,
+                    'C66': vs*vs,
+                    'C12': vp*vp - 2*vs*vs,
+                    'C13': vp*vp - 2*vs*vs,
+                    'C23': vp*vp - 2*vs*vs}
+
+        def subs2D():
+            return {'C11': vp*vp,
+                    'C22': vp*vp,
+                    'C33': vs*vs,
+                    'C12': vp*vp - 2*vs*vs}
+
+        Dvs = C_Matrix._matrix_init(model.dim)
+        vp = model.vp
+        vs = model.vs
+
+        subs = subs3D() if model.dim == 3 else subs2D()
+        return Dvs.subs(subs)
 
 def D(self, shift=None):
     """
