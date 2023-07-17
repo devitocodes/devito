@@ -5,6 +5,7 @@
 
 ARG pyversion=python:3.9
 ARG arch=gcc
+ARG OMPI_BRANCH="v4.1.4"
 
 # Base image 
 FROM ${pyversion}-slim-bullseye as base
@@ -34,8 +35,10 @@ CMD ["/bin/bash"]
 ##############################################################
 FROM base as gcc
 
+ARG OMPI_BRANCH="v4.1.4"
+# Install OpenMPI
 RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
-    git clone --recursive --branch v4.1.4 https://github.com/open-mpi/ompi.git openmpi && \
+    git clone --depth 1 --recursive --branch ${OMPI_BRANCH} https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
     ../configure --prefix=/opt/openmpi/ \
@@ -71,6 +74,7 @@ ENV FI_PROVIDER_PATH $I_MPI_ROOT/libfabric/lib/prov:/usr/lib64/libfabric:${LD_LI
 
 ##############################################################
 # ICC image
+# This is a legacy setup that is not built anymore but kept for reference
 ##############################################################
 FROM oneapi as icc
 

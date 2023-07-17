@@ -101,16 +101,6 @@ jobs:
           build-args: 'arch=icx'
           tags: 'devitocodes/bases:cpu-icx'
 
-      - name: ICC image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: './docker/Dockerfile.cpu'
-          push: true
-          target: 'icc'
-          build-args: 'arch=icc'
-          tags: 'devitocodes/bases:cpu-icc'
-
 #######################################################
 ################### Nvidia nvhpc ######################
 #######################################################
@@ -250,7 +240,7 @@ jobs:
           context: .
           file: './docker/Dockerfile.amd'
           push: true
-          target: 'aomp'
+          target: 'amdclang'
           tags: devitocodes/bases:amd
 
       - name: AMD HIP image

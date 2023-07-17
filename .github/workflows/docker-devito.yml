@@ -43,12 +43,6 @@ jobs:
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
-          - base: 'bases:cpu-icc'
-            tag: "icc"
-            flag: ''
-            test: 'tests/test_operator.py'
-            runner: ubuntu-latest
-
           - base: 'bases:cpu-icx'
             tag: "icx"
             flag: ''

@@ -59,7 +59,7 @@ jobs:
       runs-on: ubuntu-latest
       strategy:
         matrix:
-          arch: [gcc, icc, icx]
+          arch: [gcc, icx]
       
       steps:
       - name: Checkout devito

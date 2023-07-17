@@ -10,9 +10,9 @@ Devito provides several images that target different architectures and compilers
 
 We provide two CPU images:
 - `devito:gcc-*` with the standard GNU gcc compiler.
-- `devito:icc-*` with the Intel C compiler for Intel architectures.
+- `devito:icx-*` with the Intel C compiler for Intel architectures.
 
-These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
+These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icx` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
 
 To run this image locally, you will first need to install `docker`. Then, the following commands will get you started:
 

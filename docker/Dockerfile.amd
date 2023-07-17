@@ -65,7 +65,7 @@ WORKDIR /tmp
 
 # Install UCX
 RUN cd /tmp/ \
-    && git clone https://github.com/openucx/ucx.git -b ${UCX_BRANCH} \
+    && git clone --depth 1 https://github.com/openucx/ucx.git -b ${UCX_BRANCH} \
     && cd ucx \
     && ./autogen.sh \
     && mkdir build \
@@ -82,8 +82,26 @@ RUN cd /tmp/ \
     && make -j ${nproc} \
     && make install
 
+# Install OpenMPI
+RUN cd /tmp \
+    && git clone --depth 1 --recursive https://github.com/open-mpi/ompi.git -b ${OMPI_BRANCH} \
+    && cd ompi \
+    && ./autogen.pl \
+    && mkdir build \
+    && cd build \
+    && ../configure --prefix=$OMPI_HOME --with-ucx=$UCX_HOME \
+        CC=amdclang CXX=amdclang++ FC=amdflang F90=amdflang \
+        --enable-mca-no-build=btl-uct  \
+        --without-verbs \
+        --with-pmix  \
+        --enable-mpi \
+        --enable-mpi-fortran=yes \
+        --disable-debug \
+    && make -j ${nproc} \
+    && make install
+
 # Cleanup
-RUN rm -rf /tmp/ucx
+RUN rm -rf /tmp/ucx && rm -rf /tmp/ompi
 
 # Adding OpenMPI and UCX to Environment
 ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
@@ -117,26 +135,7 @@ CMD ["/bin/bash"]
 # AOMP for GPUs (OpenMP offloading)
 ########################################################################
 # This will only trigger if arch is aomp since the final stage depends on it
-FROM sdk-base as aomp
-
-# Install OpenMPI
-RUN cd /tmp \
-    && git clone --recursive https://github.com/open-mpi/ompi.git -b ${OMPI_BRANCH} \
-    && cd ompi \
-    && ./autogen.pl \
-    && mkdir build \
-    && cd build \
-    && ../configure --prefix=$OMPI_HOME --with-ucx=$UCX_HOME \
-        CC=amdclang CXX=amdclang++ FC=amdflang F90=amdflang \
-        --enable-mca-no-build=btl-uct  \
-        --without-verbs \
-        --with-pmix  \
-        --enable-mpi \
-        --enable-mpi-fortran=yes \
-        --disable-debug \
-    && make -j ${nproc} \
-    && make install
-RUN RUN rm -rf /tmp/ompi
+FROM sdk-base as amdclang
 
 # MPI env
 ENV OMPI_CC="amdclang"
@@ -152,25 +151,6 @@ ENV DEVITO_LANGUAGE="openmp"
 ########################################################################
 # This will only trigger if arch is hip since the final stage depends on it
 FROM sdk-base as hip
-
-# Install OpenMPI
-RUN cd /tmp \
-    && git clone --recursive https://github.com/open-mpi/ompi.git -b ${OMPI_BRANCH} \
-    && cd ompi \
-    && ./autogen.pl \
-    && mkdir build \
-    && cd build \
-    && ../configure --prefix=$OMPI_HOME --with-ucx=$UCX_HOME \
-        CC=hipcc CXX=hipcc FC=hipfort F90=hipfort \
-        --enable-mca-no-build=btl-uct  \
-        --without-verbs \
-        --with-pmix  \
-        --enable-mpi \
-        --enable-mpi-fortran=yes \
-        --disable-debug \
-    && make -j ${nproc} \
-    && make install
-RUN RUN rm -rf /tmp/ompi
 
 # MPI env
 ENV OMPI_CC="hipcc"
