@@ -1,9 +1,6 @@
 pip>=9.0.1
 numpy>1.16
 sympy>=1.9,<1.13
-scipy
-flake8>=2.1.0
-nbval
 cached-property
 psutil>=5.1.0,<6.0
 py-cpuinfo<10
@@ -12,4 +9,4 @@ codepy>=2019.1
 click<9.0
 multidict
 anytree>=2.4.3,<=2.9.0
-distributed<2023.8
+cloudpickle

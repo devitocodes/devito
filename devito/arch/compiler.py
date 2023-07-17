@@ -10,7 +10,7 @@ import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import GCCToolchain
+from codepy.toolchain import GCCToolchain, call_capture_output
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
                          INTELGPUX, IntelSkylake, get_nvidia_cc, check_cuda_runtime,
@@ -54,6 +54,8 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("icc"):
         compiler = "icc"
+    elif ver.startswith("icx"):
+        compiler = "icx"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
     elif ver.startswith("cray"):
@@ -62,7 +64,7 @@ def sniff_compiler_version(cc):
         compiler = "unknown"
 
     ver = Version("0")
-    if compiler in ["gcc", "icc"]:
+    if compiler in ["gcc", "icc", "icx"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
             res = run([cc, "-dumpfullversion"], stdout=PIPE, stderr=DEVNULL)
@@ -707,6 +709,17 @@ class IntelCompiler(Compiler):
             if mpi_distro != 'IntelMPI':
                 warning("Expected Intel MPI distribution with `%s`, but found `%s`"
                         % (self.__class__.__name__, mpi_distro))
+            self.cflags.insert(0, '-cc=%s' % self.CC)
+
+    def get_version(self):
+        if configuration['mpi']:
+            cmd = [self.cc, "-cc=%s" % self.CC, "--version"]
+        else:
+            cmd = [self.cc, "--version"]
+        result, stdout, stderr = call_capture_output(cmd)
+        if result != 0:
+            raise RuntimeError(f"version query failed: {stderr}")
+        return stdout
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
@@ -719,9 +732,9 @@ class IntelCompiler(Compiler):
         # we try to use `mpiicc` first, while `mpicc` is our fallback, which may
         # or may not be an Intel distribution
         try:
-            check_output(["mpiicc", "--version"]).decode("utf-8")
+            check_output(["mpiicc", "-cc=%s" % self.CC, "--version"]).decode("utf-8")
             self.MPICC = 'mpiicc'
-            self.MPICXX = 'mpiicpc'
+            self.MPICXX = 'mpicxx'
         except FileNotFoundError:
             self.MPICC = 'mpicc'
             self.MPICXX = 'mpicxx'
@@ -776,7 +789,7 @@ class OneapiCompiler(IntelCompiler):
         self.CC = 'icx'
         self.CXX = 'icpx'
         self.MPICC = 'mpicc'
-        self.MPICX = 'mpicx'
+        self.MPICXX = 'mpicxx'
 
 
 class CustomCompiler(Compiler):

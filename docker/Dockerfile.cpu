@@ -1,17 +1,22 @@
+# syntax=docker/dockerfile:1
 ##############################################################
 # This Dockerfile contains the Devito codes and can be built using different base images.
 ##############################################################
 
-ARG pyversion=python:3.7
+ARG pyversion=python:3.9
 ARG arch=gcc
+ARG OMPI_BRANCH="v4.1.4"
 
 # Base image 
-FROM ${pyversion} as base
+FROM ${pyversion}-slim-bullseye as base
 
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install for basic base not containing it
-RUN apt-get update && apt-get install -y vim wget git flex libnuma-dev tmux numactl hwloc
+RUN apt-get update && \
+    apt-get install -y vim wget git flex libnuma-dev tmux \
+        numactl hwloc curl \
+        autoconf libtool build-essential
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -19,18 +24,26 @@ RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/l
 # Install OpenGL library, necessary for the installation of GemPy
 RUN apt-get install -y libgl1-mesa-glx
 
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+
+EXPOSE 8888
+CMD ["/bin/bash"]
+
 ##############################################################
 # GCC standard image
 ##############################################################
 FROM base as gcc
 
+ARG OMPI_BRANCH="v4.1.4"
+# Install OpenMPI
 RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
-    git clone --recursive --branch v4.1.4 https://github.com/open-mpi/ompi.git openmpi && \
+    git clone --depth 1 --recursive --branch ${OMPI_BRANCH} https://github.com/open-mpi/ompi.git openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
     ../configure --prefix=/opt/openmpi/ \
                  --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
-    make -j $(( $(lscpu | awk '/^Socket\(s\)/{ print $2 }') * $(lscpu | awk '/^Core\(s\) per socket/{ print $4 }') )) && \
+    make -j ${nproc} && \
     make install && \
     rm -rf /deps/openmpi
 
@@ -43,17 +56,14 @@ ENV DEVITO_ARCH="gcc"
 ENV DEVITO_LANGUAGE="openmp"
 
 ##############################################################
-# ICC image
+# Intel Oneapi base
 ##############################################################
-FROM base as icc
+FROM base as oneapi
 
- # Download the key to system keyring
- # https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
+# Download the key to system keyring
+# https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
-
-# Install wanted components only (icc and mpiicc)
-RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel
 
 # Set en vars by hand since we can't use entrypoint for intermediate image
 ENV I_ICC_ROOT=/opt/intel/oneapi/compiler/latest/
@@ -62,19 +72,35 @@ ENV PATH $I_MPI_ROOT/libfabric/bin:$I_MPI_ROOT/bin:$I_ICC_ROOT/linux/bin/intel64
 ENV LD_LIBRARY_PATH $I_MPI_ROOT/libfabric/lib:$I_MPI_ROOT/lib/release:$I_MPI_ROOT/lib:$I_ICC_ROOT/linux/lib:$I_ICC_ROOT/linux/lib/x64:$I_ICC_ROOT/linux/compiler/lib/intel64_lin:${LD_LIBRARY_PATH}
 ENV FI_PROVIDER_PATH $I_MPI_ROOT/libfabric/lib/prov:/usr/lib64/libfabric:${LD_LIBRARY_PATH}
 
+##############################################################
+# ICC image
+# This is a legacy setup that is not built anymore but kept for reference
+##############################################################
+FROM oneapi as icc
+
+RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel && \
+    apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+
 # Devito config
 ENV DEVITO_ARCH="icc"
 ENV DEVITO_LANGUAGE="openmp"
 # MPICC compiler for mpi4py
 ENV MPICC=$I_MPI_ROOT/bin/mpiicc
+ENV MPI4PY_FLAGS='CFLAGS="-cc=icc"'
 
 ##############################################################
-# Published image
+# ICX image
 ##############################################################
-FROM ${arch} as final
+FROM oneapi as icx
 
-RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
+    apt-get clean && apt-get autoclean && apt-get autoremove && \
     rm -rf /var/lib/apt/lists/*
 
-EXPOSE 8888
-CMD ["/bin/bash"]
+# Devito config
+ENV DEVITO_ARCH="icx"
+ENV DEVITO_LANGUAGE="openmp"
+# MPICC compiler for mpi4py
+ENV MPICC=$I_MPI_ROOT/bin/mpiicc
+ENV MPI4PY_FLAGS='CFLAGS="-cc=icx"'

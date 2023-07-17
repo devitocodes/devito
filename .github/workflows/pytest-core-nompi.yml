@@ -37,9 +37,8 @@ jobs:
            pytest-ubuntu-py38-gcc8-omp,
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
-           pytest-docker-py37-gcc-omp,
-           pytest-docker-py37-icc-omp,
-           pytest-docker-py38-icx-omp
+           pytest-docker-py39-gcc-omp,
+           pytest-docker-py39-icx-omp
         ]
         set: [base, adjoint]
         include:
@@ -92,26 +91,19 @@ jobs:
           language: "C"
           sympy: "1.9"
 
-        - name: pytest-docker-py37-gcc-omp
-          python-version: '3.7'
+        - name: pytest-docker-py39-gcc-omp
+          python-version: '3.9'
           os: ubuntu-latest
           arch: "gcc"
           language: "openmp"
-          sympy: "1.10"
+          sympy: "1.12"
 
-        - name: pytest-docker-py37-icc-omp
-          python-version: '3.7'
-          os: ubuntu-22.04
-          arch: "icc"
-          language: "openmp"
-          sympy: "1.11"
-
-        - name: pytest-docker-py38-icx-omp
-          python-version: '3.8'
+        - name: pytest-docker-py39-icx-omp
+          python-version: '3.9'
           os: ubuntu-22.04
           arch: "icx"
           language: "openmp"
-          sympy: "1.11"
+          sympy: "1.12"
 
         - set: base
           test-set: 'not adjoint'
@@ -141,7 +133,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e DEVITO_ARCH=${{ matrix.arch }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi

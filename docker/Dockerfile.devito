@@ -7,9 +7,14 @@ ARG base=devitocodes/bases:cpu-gcc
 
 FROM $base as builder
 
+# User/Group Ids
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 ##################  Install devito ############################################
 # Copy Devito
 ADD . /app/devito
+
 # Remove git files
 RUN rm -rf /app/devito/.git
 
@@ -18,6 +23,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
+    eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir mpi4py" && \
     /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,tests] && \
     rm -rf ~/.cache/pip
 
@@ -29,6 +35,10 @@ FROM $base as user
 # COPY is much faster than RUN chown by order of magnitude so we have a final step that
 # just copies the built image into the user.
 
+# User/Group Ids
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 ## Create App user
 # Set the home directory to our app user's home.
 ENV HOME=/app
@@ -37,7 +47,10 @@ ENV APP_HOME=/app
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
 # Chown all the files to the app user.
-RUN mkdir -p /app && groupadd -r app && useradd -r -g app -d /app -s /sbin/nologin -c "Docker image user" app && chown -R app:app $APP_HOME
+RUN groupadd -g ${GROUP_ID} app && \
+    useradd -l -u ${USER_ID} -g app app && \
+    install -d -m 0755 -o app -g app /app && \
+    chown -R app:app $APP_HOME
 
 COPY --from=builder --chown=app:app /app /app
 

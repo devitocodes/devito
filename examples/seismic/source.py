@@ -58,10 +58,10 @@ class TimeAxis(object):
         if not isinstance(num, int):
             raise TypeError("input argument must be of type int")
 
-        self.start = start
-        self.stop = stop
-        self.step = step
-        self.num = num
+        self.start = float(start)
+        self.stop = float(stop)
+        self.step = float(step)
+        self.num = int(num)
 
     def __str__(self):
         return "TimeAxis: start=%g, stop=%g, step=%g, num=%g" % \

@@ -15,7 +15,7 @@ on:
       - master
 
 jobs:
-  build:
+  test-mpi-basic:
     name: pytest-mpi
     runs-on: ubuntu-20.04
     strategy:
@@ -25,6 +25,7 @@ jobs:
     env:
       DEVITO_LANGUAGE: "openmp"
       DEVITO_ARCH: "gcc-9"
+      OMP_NUM_THREADS: "1"
       CC: "gcc-9"
       CXX: "g++-9"
 
@@ -52,3 +53,22 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: pytest-mpi
+
+  test-mpi-docker:
+      name: pytest-mpi
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          arch: [gcc, icx]
+      
+      steps:
+      - name: Checkout devito
+        uses: actions/checkout@v3
+      
+      - name: Build docker image
+        run: |
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
+      
+      - name: Test with pytest
+        run: |
+          docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py

@@ -1,5 +1,9 @@
 name: Build base compilers docker images
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     paths:
@@ -15,68 +19,14 @@ on:
     - cron: "0 13 * * 1"
 
 jobs:
-  deploy-docker-bases:
-    name: ${{ matrix.tag }}
-    runs-on: ${{ matrix.runner }}
+#######################################################
+############## Basic gcc CPU ##########################
+#######################################################
+  deploy-cpu-bases:
+    name: "cpu-base"
+    runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tag: 'devitocodes/bases:nvidia-nvc'
-            arch: 'arch=nvc'
-            version: 'ver=nvhpc-22-7'
-            dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "nvidiagpu"]
-
-          - tag: 'devitocodes/bases:nvidia-nvcc'
-            arch: 'arch=nvcc'
-            version: 'ver=nvhpc-22-7'
-            dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "nvidiagpu"]
-
-          - tag: 'devitocodes/bases:nvidia-clang'
-            arch: 'arch=clang'
-            # clang is only officialy supporting cuda<11.5. The latest nvidia sdk with cuda 11.5 is 21.11 (last of 2021)
-            # We cannot use newer ones such as 22-1 because the package manager automatically installs the latest 2022
-            # that re-install the latest (11.7) version on top of it.
-            # For more info check https://llvm.org/docs/CompileCudaWithLLVM.html and the Prerequisites 
-            version: 'ver=nvhpc-21-11'
-            dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "nvidiagpu"]
-
-          - tag: 'devitocodes/bases:amd'
-            arch: ''
-            version: ''
-            dockerfile: './docker/Dockerfile.amd'
-            runner: ["self-hosted", "amdgpu"]
-
-          - tag: 'devitocodes/bases:amd-hip'
-            arch: 'arch=hip'
-            version: ''
-            dockerfile: './docker/Dockerfile.amd'
-            runner: ["self-hosted", "amdgpu"]
-          
-          # These ones are tiny runs on default
-          - tag: 'devitocodes/bases:cpu-gcc'
-            arch: 'arch=gcc'
-            version: ''
-            dockerfile: './docker/Dockerfile.cpu'
-            runner: ubuntu-latest 
-          
-          - tag: 'devitocodes/bases:cpu-icc, devitocodes/bases:cpu-icx'
-            arch: 'arch=icc'
-            version: ''
-            dockerfile: './docker/Dockerfile.cpu'
-            runner: ubuntu-latest 
-
-          - tag: 'devitocodes/bases:cpu-nvc'
-            arch: 'arch=nvc-host'
-            version: ''
-            dockerfile: './docker/Dockerfile.nvidia'
-            runner: ["self-hosted", "nvidiagpu"]
 
     steps:
       - name: Checkout devito
@@ -100,13 +50,206 @@ jobs:
       - name: cleanup
         run: docker system prune -a -f
 
-      - name: Docker image
+      - name: GCC image
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ${{ matrix.dockerfile }}
+          file: './docker/Dockerfile.cpu'
           push: true
+          target: 'gcc'
+          build-args: 'arch=gcc'
+          tags: 'devitocodes/bases:cpu-gcc'
+
+#######################################################
+############## Intel OneApi CPU #######################
+#######################################################
+  deploy-oneapi-bases:
+    name: "oneapi-base"
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v3
+
+      - name: Check event name
+        run: echo ${{ github.event_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: ICX image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.cpu'
+          push: true
+          target: 'icx'
+          build-args: 'arch=icx'
+          tags: 'devitocodes/bases:cpu-icx'
+
+#######################################################
+################### Nvidia nvhpc ######################
+#######################################################
+  deploy-nvidia-bases:
+    name: "nvidia-bases"
+    runs-on: ["self-hosted", "nvidiagpu"]
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v3
+
+      - name: Check event name
+        run: echo ${{ github.event_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: NVC image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.nvidia'
+          push: true
+          target: 'nvc'
+          build-args: 'arch=nvc'
+          tags: 'devitocodes/bases:nvidia-nvc'
+
+      - name: NVCC image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.nvidia'
+          push: true
+          target: 'nvcc'
+          build-args: 'arch=nvcc'
+          tags: 'devitocodes/bases:nvidia-nvcc'
+
+      - name: NVC host image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.nvidia'
+          push: true
+          target: 'nvc-host'
+          build-args: 'arch=nvc-host'
+          tags: 'devitocodes/bases:cpu-nvc'
+
+#######################################################
+################### Nvidia clang ######################
+#######################################################
+  deploy-nvidia-clang-base:
+    name: "nvidia-clang-base"
+    runs-on: ["self-hosted", "nvidiagpu"]
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v3
+
+      - name: Check event name
+        run: echo ${{ github.event_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: Nvidia clang image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.nvidia'
+          push: true
+          target: 'clang'
+          build-args: 'arch=clang'
+          tags: 'devitocodes/bases:nvidia-clang'
+
+#######################################################
+##################### AMD #############################
+#######################################################
+  deploy-amd-bases:
+    name: "amd-base"
+    runs-on: ["self-hosted", "amdgpu"]
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v3
+
+      - name: Check event name
+        run: echo ${{ github.event_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: AMD image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.amd'
+          push: true
+          target: 'amdclang'
+          tags: devitocodes/bases:amd
+
+      - name: AMD HIP image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.amd'
+          push: true
+          target: 'hip'
           build-args: |
-            ${{ matrix.arch }}
-            ${{ matrix.version }}
-          tags: ${{ matrix.tag }}
+            arch=hip
+          tags: devitocodes/bases:amd-hip

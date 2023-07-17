@@ -1,3 +1,5 @@
 matplotlib
 pandas
 pyrevolve
+scipy
+distributed

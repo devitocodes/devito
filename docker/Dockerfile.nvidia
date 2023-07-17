@@ -31,8 +31,8 @@ RUN if [ "$ver" = "nvhpc" ]; then \
         apt-get install -y -q --allow-unauthenticated ${ver}; \
     else \
         export year=$(echo $ver | cut -d "-" -f 2) && export minor=$(echo $ver | cut -d "-" -f 3) && \
-        wget https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64/nvhpc-20${year}_${year}.${minor}_amd64.deb && \
-        apt-get install --allow-unauthenticated -y -q ./nvhpc-20${year}_${year}.${minor}_amd64.deb; \
+        wget https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64/nvhpc_${year}.${minor}_amd64.deb && \
+        apt-get install --allow-unauthenticated -y -q ./nvhpc_${year}.${minor}_amd64.deb; \
     fi;
 
 RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
@@ -46,7 +46,6 @@ RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
 # MPI_VER options 3,4,HPCX
 ARG MPI_VER=HPCX
 ENV MPIVER=${MPI_VER}
-
 
 # nvidia-container-runtime
 ENV NVIDIA_VISIBLE_DEVICES all
@@ -74,11 +73,21 @@ ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
 #ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 # Make simlink for path setup since ENV doesn't accept shell commands.
-RUN export NVARCH=$(ls -1 opt/nvidia/hpc_sdk/Linux_x86_64/ | grep '\.' | head -n 1) && \
-    export CUDA_V=$(ls opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/ | grep '\.') && \
+RUN export NVARCH=$(ls -1 /opt/nvidia/hpc_sdk/Linux_x86_64/ | grep '\.' | head -n 1) && \
+    export CUDA_V=$(ls /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/ | grep '\.') && \
     ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH} /opt/nvhpc && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI && \
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/comm_libs/${CUDA_V}/nvshmem /opt/nvhpc/comm_libs/nvshmem && \
+    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/comm_libs/${CUDA_V}/nccl /opt/nvhpc/comm_libs/nccl
 
+# Starting nvhpc 23.5 and cuda 12.1, hpcx and openmpi are inside the cuda version folder, only the bin is in the comm_libs path
+RUN export CUDA_V=$(ls /opt/nvhpc/${NVARCH}/cuda/ | grep '\.') && \
+    ls /opt/nvhpc/comm_libs/${CUDA_V}/hpcx/ &&\
+    if [ -d /opt/nvhpc/comm_libs/${CUDA_V}/hpcx ]; then \
+        rm -rf /opt/nvhpc/comm_libs/hpcx && rm -rf /opt/nvhpc/comm_libs/openmpi4 && \
+        ln -sf /opt/nvhpc/comm_libs/${CUDA_V}/hpcx /opt/nvhpc/comm_libs/hpcx && \
+        ln -sf /opt/nvhpc/comm_libs/${CUDA_V}/openmpi4 /opt/nvhpc/comm_libs/openmpi4;\
+    fi;
 # Set base path based on version
 ENV HPCSDK_HOME=/opt/nvhpc
 ENV HPCSDK_CUPTI=/opt/CUPTI
@@ -98,15 +107,14 @@ ENV NVHPC_CUDA_HOME $HPCSDK_HOME/cuda
 ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
-ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
+ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/include:$HPCSDK_HOME/comm_libs/nccl/include:${CPATH}
 
 # MPI
 RUN if [ "x$MPI_VER" = "x4" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-        ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 \
+        ln -sf $HPCSDK_HOME/comm_libs/openmpi4/latest \
                $HPCSDK_HOME/comm_libs/mpi ; \
-    fi;  \
-    if [ "$MPI_VER" = "HPCX" ]; then \
+    elif [ "$MPI_VER" = "HPCX" ]; then \
         rm -f  $HPCSDK_HOME/comm_libs/mpi && \
         ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi \
                $HPCSDK_HOME/comm_libs/mpi ; \
@@ -121,6 +129,12 @@ RUN python3 -m venv /venv && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
     rm -rf ~/.cache/pip
 
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+
+EXPOSE 8888
+CMD ["/bin/bash"]
+
 ########################################################################
 # NVC for GPUs via OpenACC config
 ########################################################################
@@ -130,7 +144,7 @@ FROM sdk-base as nvc
 ADD docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
-RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+ENV MPI4PY_FLAGS='CC=nvc CFLAGS="-noswitcherror -tp=px"'
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -139,13 +153,7 @@ ENV DEVITO_LANGUAGE="openacc"
 ########################################################################
 # NVC for GPUs via CUDA config
 ########################################################################
-FROM sdk-base as nvcc
-
-# Make devito env vars file and extras
-ADD docker/nvdashboard.json /app/nvdashboard.json
-
-# mpi4py
-RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+FROM nvc as nvcc
 
 ENV DEVITO_ARCH="cuda"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -154,10 +162,7 @@ ENV DEVITO_LANGUAGE="cuda"
 ########################################################################
 # NVC for CPUs config
 ########################################################################
-FROM sdk-base as nvc-host
-
-# mpi4py
-RUN CC=nvc CFLAGS="-noswitcherror -tp=px" /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
+FROM nvc as nvc-host
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="cpu64"
@@ -193,8 +198,11 @@ RUN cd /llvm-project/build && \
 # Set path
 ENV PATH /llvm/bin:${PATH}
 ENV LD_LIBRARY_PATH /llvm/lib:${LD_LIBRARY_PATH}
+ENV CPATH /llvm/include:${CPATH}
 
 RUN rm -rf llvm-project
+RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 # Recompile mpi4py with clang
 ENV OMPI_CC="clang"
@@ -204,14 +212,3 @@ RUN /venv/bin/pip install --no-cache-dir mpi4py && rm -rf ~/.cache/pip
 ENV DEVITO_ARCH="clang"
 ENV DEVITO_PLATFORM="nvidiaX"
 ENV DEVITO_LANGUAGE="openmp"
-
-########################################################################
-# Final image
-########################################################################
-FROM ${arch} as final
-
-RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
-    rm -rf /var/lib/apt/lists/*
-
-EXPOSE 8888
-CMD ["/bin/bash"]
