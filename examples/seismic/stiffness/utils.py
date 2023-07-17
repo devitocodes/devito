@@ -253,6 +253,8 @@ class C_Matrix():
         subs = subs3D() if model.dim == 3 else subs2D()
         return Dvs.subs(subs)
 
+
+
 def D(self, shift=None):
     """
     Returns the result of matrix D applied over the TensorFunction.
