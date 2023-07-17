@@ -93,7 +93,7 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="kn">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.mpi</span> <span class="kn">import</span> <span class="n">MPI</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="kn">import</span> <span class="n">configuration</span>
-<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">FieldFromPointer</span>
+<span class="kn">from</span> <span class="nn">devito.symbolics</span> <span class="kn">import</span> <span class="n">FieldFromPointer</span><span class="p">,</span> <span class="n">normalize_args</span>
 <span class="kn">from</span> <span class="nn">devito.finite_differences</span> <span class="kn">import</span> <span class="n">Differentiable</span><span class="p">,</span> <span class="n">generate_fd_shortcuts</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="kn">import</span> <span class="p">(</span><span class="n">ReducerMap</span><span class="p">,</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">c_restrict_void_p</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span><span class="p">,</span>
                           <span class="n">memoized_meth</span><span class="p">,</span> <span class="n">dtype_to_ctype</span><span class="p">,</span> <span class="n">humanbytes</span><span class="p">)</span>
@@ -1657,8 +1657,9 @@
                 <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Either `shape` or `kwargs` (Operator overrides) &quot;</span>
                                  <span class="s2">&quot;must be provided.&quot;</span><span class="p">)</span>
             <span class="n">shape</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">normalize_args</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
-                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="n">v</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
                 <span class="k">if</span> <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Integer</span><span class="p">:</span>
                     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t resolve `shape[</span><span class="si">%d</span><span class="s2">]=</span><span class="si">%s</span><span class="s2">` with the given &quot;</span>
                                      <span class="s2">&quot;kwargs (obtained: `</span><span class="si">%s</span><span class="s2">`)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
