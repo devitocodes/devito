@@ -74,7 +74,7 @@ jobs:
           test_drive_cmd: "rocm-smi"
           # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
           # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
-          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add 109 --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm --name testrun-amd"
+          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm --name testrun-amd"
 
     steps:
     - name: Checkout devito
