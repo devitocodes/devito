@@ -82,8 +82,14 @@ class MemoryAllocator(object):
             ctype_1d = ctype * size
             buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
             pointer = np.frombuffer(buf, dtype=dtype)
+
+        # During the execution in MPI, domain splitting can generate a situation where
+        # the allocated data size is zero, as we have observed with Sparse Functions.
+        # When this occurs, Cupy returns a pointer with a value of zero. This
+        # conditional statement was defined for this case.
         else:
             pointer = np.empty(shape=(0), dtype=dtype)
+
         # pointer.reshape should not be used here because it may introduce a copy
         # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
         # It is not always possible to change the shape of an array without copying the
