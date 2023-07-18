@@ -204,12 +204,10 @@ class Cluster(object):
         # at most PARALLEL_IF_PVT). This is a quick and easy check so we try it first
         try:
             pset = {PARALLEL, PARALLEL_IF_PVT}
-            grid = self.grid
-            for d in grid.dimensions:
-                if not any(pset & v for k, v in self.properties.items()
-                           if d in k._defines):
-                    raise ValueError
-            return True
+            target = set(self.grid.dimensions)
+            dims = {d for d in self.properties if d._defines & target}
+            if any(pset & self.properties[d] for d in dims):
+                return True
         except ValueError:
             pass
 
