@@ -6,11 +6,11 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
-from devito.finite_differences import EvalDerivative
+from devito.finite_differences import EvalDerivative, IndexDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
                        IntervalGroup, LabeledVector, normalize_properties,
-                       relax_properties, sdims_min, sdims_max)
+                       relax_properties, sdims_free, sdims_min, sdims_max)
 from devito.symbolics import (Uxmapper, estimate_cost, q_constant, search,
                               reuse_if_untouched, retrieve_indexed, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
@@ -84,7 +84,8 @@ def cire(clusters, mode, sregistry, options, platform):
     """
     modes = {
         'invariants': [CireInvariantsElementary, CireInvariantsDivs],
-        'sops': [CireSops],
+        'sops': [CireSops,  # TODO: one day, we'll get rid of this legacy pass
+                 CireIndexDerivatives],
     }
 
     for cls in modes[mode]:
@@ -384,11 +385,27 @@ class CireSops(CireTransformer):
         # If there's a greater flop reduction using fewer temporaries, no doubts
         # what's gonna be the best variant. But if the better flop reduction
         # comes at the price of using more temporaries, then we have to apply
-        # heuristics, in particular we estimate how many flops would a temporary
+        # heuristics, in particular we estimate how many flops a temporary would
         # allow to save
         return ((delta_flops >= 0 and delta_ws > 0 and delta_flops / delta_ws < 15) or
                 (delta_flops <= 0 and delta_ws < 0 and delta_flops / delta_ws > 15) or
                 (delta_flops <= 0 and delta_ws >= 0))
+
+
+class CireIndexDerivatives(CireSops):
+
+    def _generate(self, exprs, exclude):
+        # E.g., extract `u.dx*a*b` and `u.dx*a*c` from `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
+        def cbk_search(expr):
+            if isinstance(expr, IndexDerivative):
+                return (expr.base,)
+            else:
+                return flatten(e for e in [cbk_search(a) for a in expr.args] if e)
+
+        basextr = self._do_generate(exprs, exclude, cbk_search)
+        if not basextr:
+            return
+        yield basextr
 
 
 def collect(extracted, ispace, minstorage):
@@ -665,8 +682,9 @@ def lower_aliases(aliases, meta, maxpar):
 
             # Given the iteration `interval`, lower distances to indices
             for distance, indices in zip(a.distances, indicess):
+                v = distance[interval.dim] or 0
                 try:
-                    indices.append(d - interval.lower + distance[interval.dim])
+                    indices.append(d - interval.lower + v)
                 except TypeError:
                     indices.append(d)
 
@@ -957,11 +975,15 @@ class Group(tuple):
         # Expand out the StencilDimensions, if any
         processed = []
         for c in items:
-            if not c.expr.find(StencilDimension):
+            sdims = sdims_free(c.expr)
+            if not sdims:
                 processed.append(c)
                 continue
 
-            for f in (sdims_min, sdims_max):
+            f0 = lambda e: sdims_min(e, sdims)
+            f1 = lambda e: sdims_max(e, sdims)
+
+            for f in (f0, f1):
                 expr = f(c.expr)
                 indexeds = [f(i) for i in c.indexeds]
                 offsets = [LabeledVector([(d, f(i)) for d, i in v.items()])
@@ -1012,6 +1034,8 @@ class Group(tuple):
         ret = defaultdict(int)
         for i in self.Toffsets:
             for d, v in i:
+                if d not in self._ispace:
+                    continue
                 try:
                     distance = int(max(v) - min(v))
                 except TypeError:
@@ -1043,7 +1067,7 @@ class Group(tuple):
     def naliases(self):
         na = len(self._items)
 
-        sdims = set().union(*[c.expr.find(StencilDimension) for c in self._items])
+        sdims = set().union(*[sdims_free(c.expr) for c in self._items])
         implicit = int(np.prod([i._size for i in sdims])) - 1
 
         return na + implicit
@@ -1109,17 +1133,24 @@ class Group(tuple):
         ret = defaultdict(lambda: (-np.inf, np.inf))
         for i, ofs in zip(c.indexeds, c.offsets):
             f = i.function
+
             for l in ofs.labels:
+                if isinstance(l, StencilDimension):
+                    continue
+
                 # `f`'s cumulative halo size along `l`
                 hsize = sum(f._size_halo[l])
 
                 # Any `ofs`'s shift due to non-[0,0] iteration space
                 lower, upper = self._ispace.intervals[l].offsets
 
+                ofs0 = sdims_min(ofs[l])
+                ofs1 = sdims_max(ofs[l])
+
                 try:
                     # Assume `ofs[l]` is a number (typical case)
-                    maxd = min(0, max(ret[l][0], -ofs[l] - lower))
-                    mini = max(0, min(ret[l][1], hsize - ofs[l] - upper))
+                    maxd = min(0, max(ret[l][0], -ofs0 - lower))
+                    mini = max(0, min(ret[l][1], hsize - ofs1 - upper))
 
                     ret[l] = (maxd, mini)
                 except TypeError:

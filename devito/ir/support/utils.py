@@ -1,13 +1,15 @@
 from collections import defaultdict
 
+from devito.finite_differences import IndexDerivative
 from devito.ir.support.vector import LabeledVector
-from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals
+from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
+                              search)
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
 from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
                           StencilDimension)
 
 __all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'sdims_min', 'sdims_max', 'minmax_index']
+           'pull_dims', 'sdims_free', 'sdims_min', 'sdims_max', 'minmax_index']
 
 
 class AccessMode(object):
@@ -272,25 +274,34 @@ def pull_dims(exprs, flag=True):
 
 # *** Utility functions for expressions that potentially contain StencilDimensions
 
-def sdims_min(expr):
+def sdims_free(expr):
     """
-    Replace all StencilDimensions in `expr` with their minimum point.
+    Retrieve all unbounded StencilDimensions in `expr`.
     """
-    try:
-        sdims = expr.find(StencilDimension)
-    except AttributeError:
+    bound = set().union(*[i.dimensions for i in search(expr, IndexDerivative)])
+    sdims = search(expr, StencilDimension, mode='unique', deep=True)
+    return sdims - bound
+
+
+def sdims_min(expr, sdims=None):
+    """
+    Replace StencilDimensions in `expr` with their minimum point.
+    """
+    if not sdims:
+        sdims = sdims_free(expr)
+    if not sdims:
         return expr
     mapper = {e: e._min for e in sdims}
     return expr.subs(mapper)
 
 
-def sdims_max(expr):
+def sdims_max(expr, sdims=None):
     """
-    Replace all StencilDimensions in `expr` with their maximum point.
+    Replace StencilDimensions in `expr` with their maximum point.
     """
-    try:
-        sdims = expr.find(StencilDimension)
-    except AttributeError:
+    if not sdims:
+        sdims = sdims_free(expr)
+    if not sdims:
         return expr
     mapper = {e: e._max for e in sdims}
     return expr.subs(mapper)
