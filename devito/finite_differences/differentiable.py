@@ -672,6 +672,10 @@ class IndexDerivative(IndexSum):
     def _hashable_content(self):
         return super()._hashable_content() + (self.mapper,)
 
+    @cached_property
+    def base(self):
+        return self.expr.func(*[a for a in self.expr.args if a is not self.weights])
+
     @property
     def weights(self):
         return self._weights
