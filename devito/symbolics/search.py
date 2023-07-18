@@ -1,3 +1,5 @@
+import sympy
+
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
                                       q_symbol, q_dimension, q_derivative)
 from devito.tools import as_tuple
@@ -119,6 +121,9 @@ def search(exprs, query, mode='unique', visit='dfs', deep=False):
 
     found = Search.modes[mode]()
     for e in as_tuple(exprs):
+        if not isinstance(e, sympy.Basic):
+            continue
+
         if visit == 'dfs':
             found.update(searcher.dfs(e))
         elif visit == 'bfs':
