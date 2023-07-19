@@ -75,21 +75,22 @@ t = grid.stepping_dim
 
 print(eq_stencil)
 
-# Create an operator that updates the forward stencil point
-# plus adding boundary conditions
-# op = Operator([eq_stencil] + bc, subdomain=grid.interior)
-
-# No BCs
-op = XDSLOperator([eq_stencil])
-# op = Operator([eq_stencil])
-# print(op.ccode)
-
+# Create Operator
+op = Operator([eq_stencil])
 # Apply the operator for a number of timesteps
 op.apply(time=nt, dt=dt, a=nu)
+print("Devito Field norm is:", norm(u))
+
+# Reset field
+u.data[:, :, :, :] = 0
+u.data[:, :, :, int(nz/2)] = 1
+xdslop = XDSLOperator([eq_stencil])
+# Apply the xdsl operator for a number of timesteps
+xdslop.apply(time=nt, dt=dt, a=nu)
 
 if args.plot:
     plot_3dfunc(u)
 
-print("Field norm is:", norm(u))
+print("XDSL Field norm is:", norm(u))
 
 # import pdb;pdb.set_trace()
