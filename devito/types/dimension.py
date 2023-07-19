@@ -1561,22 +1561,30 @@ class AffineIndexAccessFunction(IndexAccessFunction):
     """
 
     def __new__(cls, *args, **kwargs):
+        # `args` may contain arbitrarily complicated expressions, so first of all
+        # we let SymPy simplify it, then we process the args and see if the
+        # resulting expression is indeed an AffineIndexAccessFunction
+        add = sympy.Add(*args, **kwargs)
+        if not isinstance(add, sympy.Add):
+            # E.g., reduced to a Symbol
+            return add
+
         d = 0
         sds = []
         ofs_items = []
-        for a in args:
+        for a in add.args:
             if isinstance(a, StencilDimension):
                 sds.append(a)
             elif isinstance(a, Dimension):
                 d = cls._separate_dims(d, a, ofs_items)
                 if d is None:
-                    return sympy.Add(*args, **kwargs)
+                    return add
             elif isinstance(a, AffineIndexAccessFunction):
                 if sds and a.sds:
-                    return sympy.Add(*args, **kwargs)
+                    return add
                 d = cls._separate_dims(d, a.d, ofs_items)
                 if d is None:
-                    return sympy.Add(*args, **kwargs)
+                    return add
                 sds = list(a.sds or sds)
                 ofs_items.append(a.ofs)
             else:
@@ -1584,7 +1592,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
         ofs = sympy.Add(*[i for i in ofs_items if i is not None])
         if not all(is_integer(i) or i.is_Symbol for i in ofs.free_symbols):
-            return sympy.Add(*args, **kwargs)
+            return add
 
         sds = tuple(sds)
 
@@ -1603,7 +1611,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
     @classmethod
     def _separate_dims(cls, d0, d1, ofs_items):
         if d0 == 0 and d1 == 0:
-            return None
+            return 0
         elif d0 == 0 and isinstance(d1, Dimension):
             return d1
         elif d1 == 0 and isinstance(d0, Dimension):
