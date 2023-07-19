@@ -455,8 +455,6 @@ class DeviceAwareDataManager(DataManager):
         `_map_array_on_high_bw_mem` is that the former triggers a data transfer to
         synchronize the host and device copies, while the latter does not.
         """
-        mmap = self.lang._map_to(obj)
-
         if read_only is False:
             if is_gpu_create(obj, self.gpu_create):
                 mmap = self.lang._map_alloc(obj)
