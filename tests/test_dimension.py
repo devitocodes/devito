@@ -88,6 +88,13 @@ class TestIndexAccessFunction(object):
         assert expr.ofs == 1 + s
         assert expr.sds == (sd,)
 
+        expr = sd + 1 + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
+
     def test_stencil_dim_multiple(self):
         d = Dimension(name='x')
         sd0 = StencilDimension('i0', 0, 1)
@@ -126,6 +133,13 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == -1 - s
+        assert expr.sds == (sd,)
+
+        expr = d + 1 + sd - d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d == 0
+        assert expr.ofs == 1
         assert expr.sds == (sd,)
 
 
