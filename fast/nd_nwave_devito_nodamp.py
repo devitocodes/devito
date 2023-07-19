@@ -102,18 +102,15 @@ stencil
 
 # Finally we define the source injection and receiver read function to generate
 # the corresponding code
+print(time_range)
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 op = Operator([stencil] + src_term, subs=model.spacing_map)
-
-print(time_range)
 # Run with source and plot
-# import pdb;pdb.set_trace()
 op.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
-
 
 initdata = u.data[:]
 
@@ -127,9 +124,8 @@ if len(shape) == 3:
 
 print(norm(u))
 
-
+# Reset initial data
 u.data[:] = initdata
-
 
 # Run more with no sources now (Not supported in xdsl)
 xdslop = XDSLOperator([stencil])
