@@ -114,18 +114,22 @@ if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
-# Run more with no sources now (Not supported in xdsl)
-# op = XDSLOperator([stencil])
 
-# op.apply(time=time_range.num-1, dt=model.critical_dt)
+initdata = u.data[:]
+
+# Run more with no sources now (Not supported in xdsl)
+xdslop = XDSLOperator([stencil])
+xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
-# print(norm(u))
+print(norm(u))
 
-# todo edit data
+
+u.data[:] = initdata
+
 
 # Run more with no sources now (Not supported in xdsl)
 xdslop = XDSLOperator([stencil])

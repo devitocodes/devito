@@ -73,15 +73,6 @@ eq_stencil = Eq(u.forward, stencil)
 x, y, z = grid.dimensions
 t = grid.stepping_dim
 
-# Add boundary conditions
-# bc = [Eq(u[t+1, x, y, 0], 2.)]  # bottom
-# bc += [Eq(u[t+1, x, y, nz-1], 2.)]  # top
-# bc += [Eq(u[t+1, 0, y, z], 2.)]  # left
-# bc += [Eq(u[t+1, nx-1, y, z], 2.)]  # right
-
-# bc += [Eq(u[t+1, x, 0, z], 2.)]  # front
-# bc += [Eq(u[t+1, x, ny-1, z], 2.)]  # back
-
 print(eq_stencil)
 
 # Create an operator that updates the forward stencil point
@@ -89,8 +80,8 @@ print(eq_stencil)
 # op = Operator([eq_stencil] + bc, subdomain=grid.interior)
 
 # No BCs
-# op = XDSLOperator([eq_stencil])
-op = Operator([eq_stencil])
+op = XDSLOperator([eq_stencil])
+# op = Operator([eq_stencil])
 # print(op.ccode)
 
 # Apply the operator for a number of timesteps
@@ -100,4 +91,5 @@ if args.plot:
     plot_3dfunc(u)
 
 print("Field norm is:", norm(u))
+
 # import pdb;pdb.set_trace()
