@@ -65,7 +65,8 @@ u.data[:, :, :, int(nz/2)] = 1
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
-eq = Eq(u.dt, a * u.laplace, subdomain=grid.interior)
+eq = Eq(u.dt, a * u.laplace)
+
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
 
@@ -76,7 +77,7 @@ t = grid.stepping_dim
 print(eq_stencil)
 
 # Create Operator
-op = Operator([eq_stencil])
+op = Operator([eq_stencil], name='DevitoOperator')
 # Apply the operator for a number of timesteps
 op.apply(time=nt, dt=dt, a=nu)
 print("Devito Field norm is:", norm(u))
@@ -84,7 +85,7 @@ print("Devito Field norm is:", norm(u))
 # Reset field
 u.data[:, :, :, :] = 0
 u.data[:, :, :, int(nz/2)] = 1
-xdslop = XDSLOperator([eq_stencil])
+xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
 # Apply the xdsl operator for a number of timesteps
 xdslop.apply(time=nt, dt=dt, a=nu)
 

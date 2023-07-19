@@ -56,16 +56,14 @@ x, y = grid.dimensions
 t = grid.stepping_dim
 
 initdata = u.data[:]
-op = Operator([eq_stencil])
+op = Operator([eq_stencil], name='DevitoOperator')
 op.apply(time=nt, dt=dt, a=nu)
 
 print("Devito Field norm is:", norm(u))
 
-# plot_image(u.data[0], cmap="seismic")
-
 # Reset data and run XDSLOperator
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
-xdslop = XDSLOperator([eq_stencil])
+xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
 xdslop.apply(time=nt, dt=dt, a=nu)
 
 print("XDSL Field norm is:", norm(u))

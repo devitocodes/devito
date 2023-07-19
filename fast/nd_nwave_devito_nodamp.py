@@ -104,7 +104,7 @@ stencil
 # the corresponding code
 print(time_range)
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
-op = Operator([stencil] + src_term, subs=model.spacing_map)
+op = Operator([stencil] + src_term, subs=model.spacing_map, name='DevitoOperator')
 # Run with source and plot
 op.apply(time=time_range.num-1, dt=model.critical_dt)
 
@@ -115,7 +115,7 @@ if len(shape) == 3:
 initdata = u.data[:]
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil])
+xdslop = XDSLOperator([stencil], name='XDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
