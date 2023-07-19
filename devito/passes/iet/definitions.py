@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               SizeOf, VOID, Keyword, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import DeviceRM, Symbol
+from devito.types import Array, CustomDimension, DeviceMap, DeviceRM, Eq, Symbol
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
