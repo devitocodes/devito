@@ -22,31 +22,31 @@ jobs:
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
-      PYTHON_VERSION: "3.7"
+      PYTHON_VERSION: "3.9"
 
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
       matrix:
         name: [
-          tutos-ubuntu-gcc-py37,
-          tutos-osx-gcc-py37,
-          tutos-osx-clang-py37,
+          tutos-ubuntu-gcc-py39,
+          tutos-osx-gcc-py39,
+          tutos-osx-clang-py39,
           tutos-docker-gcc-py39
           ]
 
         include:
-          - name: tutos-ubuntu-gcc-py37
+          - name: tutos-ubuntu-gcc-py39
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
 
-          - name: tutos-osx-gcc-py37
+          - name: tutos-osx-gcc-py39
             os: macos-latest
             compiler: gcc-11
             language: "openmp"
 
-          - name: tutos-osx-clang-py37
+          - name: tutos-osx-clang-py39
             os: macos-latest
             compiler: clang
             language: "C"
@@ -60,11 +60,11 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v3
 
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v4
       with:
-        python-version: 3.7
+        python-version: 3.9
 
     - uses: maxim-lobanov/setup-xcode@v1
       if: runner.os == 'macOS'
