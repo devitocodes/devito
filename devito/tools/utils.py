@@ -301,4 +301,4 @@ def humanbytes(B):
     elif GB <= B < TB:
         return '%.1f GB' % round(B / GB, 1)
     elif TB <= B:
-        return '%.1f TB' % round(B / TB, 1)
+        return '%.2f TB' % round(B / TB, 1)
