@@ -151,6 +151,8 @@ class XDSLOperator(Operator):
                 if is_gpu:
                     cflags += " -lmlir_cuda_runtime "
 
+                # TODO More detailed error handling manually,
+                # instead of relying on a bash-only feature.
                 cmd = 'set -eo pipefail; '\
                     f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
