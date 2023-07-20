@@ -48,6 +48,8 @@ exclude = ['docs', 'tests']
 try:
     if not bool(int(os.environ.get('DEVITO_BENCHMARKS', 0))):
         exclude += ['examples']
+    else:
+        required += testing
 except (TypeError, ValueError):
     exclude += ['examples']
 
