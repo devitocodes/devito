@@ -151,7 +151,8 @@ class XDSLOperator(Operator):
                 if is_gpu:
                     cflags += " -lmlir_cuda_runtime "
 
-                cmd = f'xdsl-opt -p {xdsl_pipeline} |' \
+                cmd = 'set -eo pipefail; '\
+                    f'xdsl-opt -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
                     f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'
