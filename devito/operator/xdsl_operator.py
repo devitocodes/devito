@@ -137,7 +137,10 @@ class XDSLOperator(Operator):
                 print("JIT Backdoor: loading xdsl file from: " + backdoor)
                 with open(backdoor, 'r') as f:
                     module_str = f.read()
-
+            source_name = os.path.splitext(self._tf.name)[0] + ".mlir"
+            source_file = open(source_name, "w")
+            source_file.write(module_str)
+            source_file.close()
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
                 cflags = CFLAGS
@@ -154,15 +157,14 @@ class XDSLOperator(Operator):
                 # TODO More detailed error handling manually,
                 # instead of relying on a bash-only feature.
                 cmd = 'set -eo pipefail; '\
-                    f'xdsl-opt -p {xdsl_pipeline} |' \
+                    f'xdsl-opt {source_name} -p {xdsl_pipeline} |' \
                     f'mlir-opt -p {mlir_pipeline} | ' \
                     f'mlir-translate --mlir-to-llvmir | ' \
                     f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'
-
+                print(cmd)
                 res = subprocess.run(
                     cmd,
                     shell=True,
-                    input=module_str,
                     text=True,
                     capture_output=True,
                     executable="/bin/bash"
@@ -181,7 +183,7 @@ class XDSLOperator(Operator):
         elapsed = self._profiler.py_timers['jit-compile']
         
         perf("XDSLOperator `%s` jit-compiled `%s` in %.2f s with `mlir-opt`" %
-                    (self.name, self._tf.name, elapsed))
+                    (self.name, source_name, elapsed))
         
     @property
     def _soname(self):
