@@ -163,6 +163,7 @@ class XDSLOperator(Operator):
                     input=module_str,
                     text=True,
                     capture_output=True,
+                    executable="/bin/bash"
                 )
 
                 if res.returncode != 0:
