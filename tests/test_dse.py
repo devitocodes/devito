@@ -2604,6 +2604,16 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
         assert op._profiler._sections['section0'].sops == 16
 
+    def test_issue_2163(self):
+        grid = Grid((3, 3))
+        z = grid.dimensions[-1]
+        mapper = {z: INT(abs(z-1))}
+
+        u = TimeFunction(name="u", grid=grid)
+        op = Operator(Eq(u.forward, u.dy.dy.subs(mapper),
+                         subdomain=grid.interior))
+        assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
+
 
 class TestIsoAcoustic(object):
 
