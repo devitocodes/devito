@@ -15,9 +15,9 @@ from devito.symbolics import (Uxmapper, estimate_cost, q_constant, search,
                               reuse_if_untouched, retrieve_indexed, uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
-from devito.types import (Array, TempFunction, Eq, Symbol, Temp, ModuloDimension,
-                          CustomDimension, IncrDimension, StencilDimension, Indexed,
-                          Hyperplane)
+from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
+                          ModuloDimension, CustomDimension, IncrDimension,
+                          StencilDimension, Indexed, Hyperplane)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -821,7 +821,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         make = TempFunction
     else:
         # Typical case -- the user does *not* "see" the CIRE-created temporaries
-        make = Array
+        make = TempArray
 
     clusters = []
     subs = {}
