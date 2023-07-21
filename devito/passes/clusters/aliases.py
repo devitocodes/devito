@@ -407,6 +407,18 @@ class CireIndexDerivatives(CireSops):
             return
         yield basextr
 
+        # E.g., extract `u.dx` from `u.dx*a*b`, which in turn was extracted
+        # from `(u.dx*a*b).dy`. That is, the inner derivatives only
+        def cbk_search2(expr):
+            if isinstance(expr, IndexDerivative):
+                return (expr,)
+            else:
+                return flatten(e for e in [cbk_search2(a) for a in expr.args] if e)
+
+        sndxtr = self._do_generate(list(basextr), exclude, cbk_search2)
+        if sndxtr:
+            yield sndxtr
+
 
 def collect(extracted, ispace, minstorage):
     """
