@@ -46,7 +46,7 @@ double timer_end(double start) {
 """
 
 
-CFLAGS = "-O3 -march=native -mtune=native -lmlir_runner_utils"
+CFLAGS = "-O3 -march=native -mtune=native -lmlir_c_runner_utils"
 
 MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm{use-bare-ptr-memref-call-conv},finalize-memref-to-llvm,canonicalize,cse)"'
 MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-func-to-llvm{use-bare-ptr-memref-call-conv},convert-openmp-to-llvm,convert-math-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
