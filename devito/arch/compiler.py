@@ -52,6 +52,8 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("Homebrew clang"):
         compiler = "clang"
+    elif ver.startswith("Intel"):
+        compiler = "icx"
     elif ver.startswith("icc"):
         compiler = "icc"
     elif ver.startswith("icx"):
@@ -761,7 +763,8 @@ class OneapiCompiler(IntelCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        if language == 'openmp':
+        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
+        if self.version < Version('17.0.0') and language == 'openmp':
             self.ldflags.remove('-qopenmp')
             self.ldflags.append('-fopenmp')
 
