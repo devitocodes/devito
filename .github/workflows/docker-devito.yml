@@ -24,9 +24,9 @@ jobs:
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
-          - base: 'bases:nvidia-clang'
-            tag: 'nvidia-clang'
-            flag: '--gpus all'
+          - base: 'bases:nvidia-nvc'
+            tag: 'nvidia-nvc-omp'
+            flag: '--gpus all --env DEVITO_LABGUAGE=openmp'
             test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 

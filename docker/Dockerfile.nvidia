@@ -8,11 +8,16 @@ ARG arch="nvc"
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-FROM ${pyversion}-slim-bullseye as sdk-base
+FROM ubuntu:22.04 as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN apt-get update -y && apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl
+RUN apt-get update -y && \
+    apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl
+
+#Install python
+RUN apt-get update && \
+    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip    
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
@@ -81,7 +86,7 @@ RUN export NVARCH=$(ls -1 /opt/nvidia/hpc_sdk/Linux_x86_64/ | grep '\.' | head -
     ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/comm_libs/${CUDA_V}/nccl /opt/nvhpc/comm_libs/nccl
 
 # Starting nvhpc 23.5 and cuda 12.1, hpcx and openmpi are inside the cuda version folder, only the bin is in the comm_libs path
-RUN export CUDA_V=$(ls /opt/nvhpc/${NVARCH}/cuda/ | grep '\.') && \
+RUN export CUDA_V=$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p') && \
     ls /opt/nvhpc/comm_libs/${CUDA_V}/hpcx/ &&\
     if [ -d /opt/nvhpc/comm_libs/${CUDA_V}/hpcx ]; then \
         rm -rf /opt/nvhpc/comm_libs/hpcx && rm -rf /opt/nvhpc/comm_libs/openmpi4 && \
