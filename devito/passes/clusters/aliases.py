@@ -1169,8 +1169,12 @@ class Group(tuple):
 
             for d, v in distance:
                 value = v.pop()
-                ret[d][0] = min(ret[d][0], value)
-                ret[d][1] = max(ret[d][1], value)
+                try:
+                    ret[d][0] = min(ret[d][0], value)
+                    ret[d][1] = max(ret[d][1], value)
+                except TypeError:
+                    ret[d][0] = min(ret[d][0], 0)
+                    ret[d][1] = max(ret[d][1], 0)
 
         ret = {d: Interval(d, m, M) for d, (m, M) in ret.items()}
 
