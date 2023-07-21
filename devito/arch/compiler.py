@@ -763,7 +763,7 @@ class OneapiCompiler(IntelCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        # Earlier to versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
+        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
         if self.version < Version('17.0.0') and language == 'openmp':
             self.ldflags.remove('-qopenmp')
             self.ldflags.append('-fopenmp')
