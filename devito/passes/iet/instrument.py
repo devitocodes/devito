@@ -136,6 +136,6 @@ def sync_sections(iet, lang=None, profiler=None, **kwargs):
         if runs_async and not unnecessary:
             mapper[tl] = tl._rebuild(body=tl.body + (sync,))
 
-    iet = Transformer(mapper).visit(iet)
+    iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet, {}
