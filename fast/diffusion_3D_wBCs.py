@@ -31,7 +31,7 @@ def plot_3dfunc(u):
 
     cmap = plt.cm.get_cmap("viridis")
     values = u.data[0, :, :, :]
-    vistagrid = pv.UniformGrid()
+    vistagrid = pv.ImageData()
     vistagrid.dimensions = np.array(values.shape) + 1
     vistagrid.spacing = (1, 1, 1)
     vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set

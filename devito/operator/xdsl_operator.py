@@ -178,13 +178,13 @@ class XDSLOperator(Operator):
             except Exception as ex:
                 print("error")
                 raise ex
-            #print(res.stderr)
+            # print(res.stderr)
 
         elapsed = self._profiler.py_timers['jit-compile']
-        
+
         perf("XDSLOperator `%s` jit-compiled `%s` in %.2f s with `mlir-opt`" %
-                    (self.name, source_name, elapsed))
-        
+             (self.name, source_name, elapsed))
+
     @property
     def _soname(self):
         return self._tf.name
