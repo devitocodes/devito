@@ -405,8 +405,8 @@ class _DevitoStencilToStencilStencil(RewritePattern):
 
         for field in op.input_indices:
             rewriter.insert_op_before_matched_op(load_op := stencil.LoadOp.get(field))
-            input_temps.append(load_op.res)
             load_op.res.name_hint = field.name_hint + "_temp"
+            input_temps.insert(0, load_op.res)
 
         rewriter.replace_matched_op(
             [

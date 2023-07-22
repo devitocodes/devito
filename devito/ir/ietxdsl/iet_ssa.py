@@ -466,7 +466,7 @@ class Stencil(IRDLOperation):
             stencil.TempType(len(shape), typ)
         ] * (time_buffers - 1))
 
-        for block_arg, idx_arg in zip(block.args, time_indices):
+        for block_arg, idx_arg in zip(block.args, reversed(inputs)):
             name = SSAValue.get(idx_arg).name_hint
             if name is None:
                 continue

@@ -115,20 +115,23 @@ if len(shape) == 3:
 initdata = u.data[:]
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil], name='XDSLOperator')
+xdslop = Operator([stencil], name='DevitoOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
-print(norm(u))
+
+devito_output = u.copy()
+print(f"devito output norm: {norm(devito_output)}")
 
 # Reset initial data
 u.data[:] = initdata
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil])
+xdslop = XDSLOperator([stencil], name='xDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
-print(norm(u))
+xdsl_output = u.copy()
+print(f"xdsl output norm: {norm(xdsl_output)}")
