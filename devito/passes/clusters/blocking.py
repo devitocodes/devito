@@ -1,11 +1,12 @@
 from sympy import sympify
 
+from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
                                SEQUENTIAL, SKEWABLE, TILABLES, Interval,
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
-from devito.symbolics import uxreplace, xreplace_indices
+from devito.symbolics import search, uxreplace, xreplace_indices
 from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer, prod
 from devito.types import BlockDimension
 
@@ -99,6 +100,8 @@ class AnayzeBlockingBase(Queue):
         # is that the same Function is accessed twice at the same memory location,
         # which translates into the existance of any Relation accross Indexeds
         if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+            return True
+        if search(cluster.exprs, IndexSum):
             return True
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
