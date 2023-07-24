@@ -172,7 +172,8 @@ class Cluster(object):
         example, reduction or redundant (i.e., invariant) Dimensions won't
         appear in an expression.
         """
-        return {i for i in self.free_symbols if i.is_Dimension}
+        idims = set.union(*[set(e.implicit_dims) for e in self.exprs])
+        return {i for i in self.free_symbols if i.is_Dimension} | idims
 
     @cached_property
     def scope(self):
