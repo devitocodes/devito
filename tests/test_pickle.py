@@ -135,6 +135,24 @@ class TestBasic(object):
         assert sf.dtype == new_sf.dtype
         assert sf.npoint == new_sf.npoint == 3
 
+    def test_alias_sparse_function(self, pickle):
+        grid = Grid(shape=(3,))
+        sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
+                            coordinates=[(0.,), (1.,), (2.,)])
+        sf.data[0] = 1.
+
+        # Create alias
+        f0 = sf._rebuild(name='f0', alias=True)
+        pkl_f0 = pickle.dumps(f0)
+        new_f0 = pickle.loads(pkl_f0)
+
+        assert f0.data is None and new_f0.data is None
+        assert f0.coordinates.data is None and new_f0.coordinates.data is None
+
+        assert sf.space_order == f0.space_order == new_f0.space_order
+        assert sf.dtype == f0.dtype == new_f0.dtype
+        assert sf.npoint == f0.npoint == new_f0.npoint
+
     def test_internal_symbols(self, pickle):
         s = dSymbol(name='s', dtype=np.float32)
         pkl_s = pickle.dumps(s)

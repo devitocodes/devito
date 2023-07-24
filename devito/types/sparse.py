@@ -146,30 +146,6 @@ class AbstractSparseFunction(DiscreteFunction):
         return sf
 
     @property
-    def npoint(self):
-        return self.shape[self._sparse_position]
-
-    @property
-    def npoint_global(self):
-        """
-        Global `npoint`s. This only differs from `self.npoint` in an MPI context.
-
-        Issues
-        ------
-        * https://github.com/devitocodes/devito/issues/1498
-        """
-        return self._npoint
-
-    @property
-    def space_order(self):
-        """The space order."""
-        return self._space_order
-
-    @property
-    def r(self):
-        return self._radius
-
-    @property
     def _sparse_dim(self):
         return self.dimensions[self._sparse_position]
 
@@ -200,6 +176,37 @@ class AbstractSparseFunction(DiscreteFunction):
             ).astype(int)
 
     @property
+    def _support(self):
+        """
+        The grid points surrounding each sparse point within the radius of self's
+        injection/interpolation operators.
+        """
+        max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
+        minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
+        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
+                        axis=2)
+
+    @property
+    def _dist_datamap(self):
+        """
+        Mapper ``M : MPI rank -> required sparse data``.
+        """
+        return self.grid.distributor.glb_to_rank(self._support) or {}
+
+    @property
+    def npoint(self):
+        return self.shape[self._sparse_position]
+
+    @property
+    def space_order(self):
+        """The space order."""
+        return self._space_order
+
+    @property
+    def r(self):
+        return self._radius
+
+    @property
     def gridpoints(self):
         try:
             return self._gridpoints
@@ -226,28 +233,6 @@ class AbstractSparseFunction(DiscreteFunction):
             return self.coordinates.data._local.view(np.ndarray)
         except AttributeError:
             return None
-
-    @property
-    def _support(self):
-        """
-        The grid points surrounding each sparse point within the radius of self's
-        injection/interpolation operators.
-        """
-        max_shape = np.array(self.grid.shape).reshape(1, self.grid.dim)
-        minmax = lambda arr: np.minimum(max_shape, np.maximum(0, arr))
-        return np.stack([minmax(self._coords_indices + s) for s in self._point_support],
-                        axis=2)
-
-    @property
-    def _dist_datamap(self):
-        """
-        Mapper ``M : MPI rank -> required sparse data``.
-        """
-        return self.grid.distributor.glb_to_rank(self._support) or {}
-
-    @cached_property
-    def dist_origin(self):
-        return self._dist_origin
 
     @cached_property
     def _pos_symbols(self):
@@ -284,6 +269,10 @@ class AbstractSparseFunction(DiscreteFunction):
         ret += tuple(i for i, d in enumerate(self.dimensions)
                      if d is not self._sparse_dim)
         return ret
+
+    @cached_property
+    def dist_origin(self):
+        return self._dist_origin
 
     def interpolate(self, *args, **kwargs):
         """

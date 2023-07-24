@@ -141,7 +141,7 @@ class WeightedInterpolator(GenericInterpolator):
         raise NotImplementedError
 
     @property
-    def _gdim(self):
+    def _gdims(self):
         return self.grid.dimensions
 
     @property
@@ -153,12 +153,15 @@ class WeightedInterpolator(GenericInterpolator):
         parent = self.sfunction.dimensions[-1]
         dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
                                 -self.r+1, self.r, 2*self.r, parent)
-                for d in self._gdim]
+                for d in self._gdims]
 
-        return DimensionTuple(*dims, getters=self._gdim)
+        return DimensionTuple(*dims, getters=self._gdims)
 
     def _augment_implicit_dims(self, implicit_dims):
-        return as_tuple(implicit_dims) + self.sfunction.dimensions
+        if self.sfunction._sparse_position == -1:
+            return self.sfunction.dimensions + as_tuple(implicit_dims)
+        else:
+            return as_tuple(implicit_dims) + self.sfunction.dimensions
 
     def _coeff_temps(self, implicit_dims):
         return []
@@ -178,7 +181,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Coefficient symbol expression
         temps.extend(self._coeff_temps(implicit_dims))
-        for ((di, d), rd, p) in zip(enumerate(self._gdim), self._rdim, pos):
+        for ((di, d), rd, p) in zip(enumerate(self._gdims), self._rdim, pos):
             # Add conditional to avoid OOB
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
@@ -330,7 +333,7 @@ class LinearInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         c = [(1 - p) * (1 - r) + p * r
-             for (p, d, r) in zip(self._point_symbols, self._gdim, self._rdim)]
+             for (p, d, r) in zip(self._point_symbols, self._gdims, self._rdim)]
         return Mul(*c)
 
     @cached_property
@@ -345,7 +348,7 @@ class LinearInterpolator(WeightedInterpolator):
         pmap = self.sfunction._position_map
         poseq = [Eq(self._point_symbols[d], pos - floor(pos),
                     implicit_dims=implicit_dims)
-                 for (d, pos) in zip(self._gdim, pmap.keys())]
+                 for (d, pos) in zip(self._gdims, pmap.keys())]
         return poseq
 
 

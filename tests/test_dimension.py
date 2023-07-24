@@ -1450,7 +1450,6 @@ class TestConditionalDimension(object):
         # Note the endpoint of the range is 12 because we inject at p.forward
         for i in range(1, 12):
             assert p.data[i].sum() == i - 1
-            print(p.data[i, 10, 10, 10])
             assert p.data[i, 10, 10, 10] == i - 1
         for i in range(12, 20):
             assert np.all(p.data[i] == 0)

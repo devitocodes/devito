@@ -281,4 +281,5 @@ def sympy_dtype(expr, default):
             return default
         else:
             # Infer expression dtype from its arguments
-            return infer_dtype([sympy_dtype(a, default) for a in expr.args])
+            dtype = infer_dtype([sympy_dtype(a, default) for a in expr.args])
+            return dtype or default

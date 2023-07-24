@@ -66,7 +66,7 @@ class EnrichedTuple(tuple, Pickable):
         # objects with varying number of attributes
         return (tuple(self), dict(self.__dict__))
 
-    def get(self, key, val):
+    def get(self, key, val=None):
         return self._getters.get(key, val)
 
 
@@ -605,6 +605,7 @@ class UnboundTuple(object):
     """
     A simple data structure that returns the last element forever once reached
     """
+
     def __init__(self, items):
         self.items = as_tuple(items)
         self.last = len(self.items)

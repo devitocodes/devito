@@ -107,8 +107,6 @@ class Dimension(ArgProvider):
     is_Incr = False
     is_Block = False
 
-    indirect = False
-
     # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
     _op_priority = sympy.Expr._op_priority + 1.
 
@@ -182,6 +180,14 @@ class Dimension(ArgProvider):
     @cached_property
     def max_name(self):
         return "%s_M" % self.name
+
+    @property
+    def indirect(self):
+        return False
+
+    @property
+    def index(self):
+        return self if self.indirect is True else getattr(self, 'parent', self)
 
     @property
     def is_const(self):
@@ -456,7 +462,6 @@ class DerivedDimension(BasicDimension):
     """
 
     is_Derived = True
-    indirect = False
 
     __rargs__ = Dimension.__rargs__ + ('parent',)
     __rkwargs__ = ()
@@ -818,10 +823,6 @@ class ConditionalDimension(DerivedDimension):
     @property
     def indirect(self):
         return self._indirect
-
-    @property
-    def index(self):
-        return self if self.indirect is True else self.parent
 
     @cached_property
     def free_symbols(self):
@@ -1216,7 +1217,7 @@ class CustomDimension(BasicDimension):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
-        self._parent = parent
+        self._parent = parent or BOTTOM
         super().__init_finalize__(name)
 
     @property

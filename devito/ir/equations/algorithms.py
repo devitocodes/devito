@@ -56,9 +56,7 @@ def dimension_sort(expr):
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
     for i in indexeds:
-        expl_dims = {d for (d, e) in zip(i.function.dimensions, i.indices)
-                     if e.is_integer}
-        extra.update(expl_dims)
+        extra.update({d for d in i.function.dimensions if i.indices[d].is_integer})
 
     # Enforce determinism
     extra = filter_sorted(extra)
@@ -75,8 +73,9 @@ def dimension_sort(expr):
     # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we
     # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering
     # `(x, time, xi)` might be returned instead, which would be non-sense
-    implicit_relations.update({tuple(filter_ordered(d.root for d in i))
-                               for i in relations})
+    for i in relations:
+        dims = [di for d in i for di in (d.index, d)]
+        implicit_relations.update({tuple(filter_ordered(dims))})
 
     ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
 

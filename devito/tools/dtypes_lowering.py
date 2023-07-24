@@ -130,6 +130,9 @@ def dtype_to_mpitype(dtype):
 
 
 def dtype_to_mpidtype(dtype):
+    """
+    Map numpy type to MPI internal types for communication
+    """
     from devito.mpi import MPI
     return MPI._typedict[np.dtype(dtype).char]
 

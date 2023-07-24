@@ -1479,9 +1479,7 @@ class SubFunction(Function):
 
     @property
     def origin(self):
-        """
-        SubFunction have zero origin
-        """
+        # SubFunction have zero origin
         return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
 
 

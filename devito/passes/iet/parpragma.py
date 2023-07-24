@@ -426,7 +426,12 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if self.nhyperthreads <= self.nested or partree.root.is_ParallelAtomic:
+        if self.nhyperthreads <= self.nested:
+            return partree
+
+        # Loop nest with atomic reductions are more likely to have less latency
+        # keep outer loop parallel
+        if partree.root.is_ParallelAtomic:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,
