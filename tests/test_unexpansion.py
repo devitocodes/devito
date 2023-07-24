@@ -298,5 +298,4 @@ def tti_sa_eqns(grid):
     eqns = [Eq(p0.forward, update_p),
             Eq(m0.forward, update_m)]
 
-
     return eqns

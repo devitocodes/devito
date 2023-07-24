@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 from devito.finite_differences import IndexDerivative
-from devito.ir.support.vector import LabeledVector
 from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
                               search)
 from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split

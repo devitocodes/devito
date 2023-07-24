@@ -11,8 +11,8 @@ from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forwar
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
                        IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties, sdims_free, sdims_min, sdims_max)
-from devito.symbolics import (Uxmapper, estimate_cost, q_constant, search,
-                              reuse_if_untouched, retrieve_indexed, uxreplace)
+from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
+                              uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
