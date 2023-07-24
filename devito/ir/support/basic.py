@@ -10,8 +10,7 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_affine, q_routine, q_terminal)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import (Barrier, Dimension, DimensionTuple, Jump, Symbol,
-                          StencilDimension)
+from devito.types import Barrier, Dimension, DimensionTuple, Jump, Symbol
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
