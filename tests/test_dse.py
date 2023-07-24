@@ -418,6 +418,19 @@ class TestLifting(object):
                 for j in trees] == expected
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
 
+    def test_implicit_only(self):
+        grid = Grid(shape=(5, 5))
+        time = grid.time_dim
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        idimeq = Eq(Symbol('s'), 1, implicit_dims=time)
+
+        op = Operator([Eq(u.forward, u + 1.), idimeq])
+        trees = retrieve_iteration_tree(op)
+
+        assert len(trees) == 2
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+        assert trees[1].dimensions == [time]
+
 
 class TestAliases(object):
 
