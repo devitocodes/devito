@@ -356,6 +356,11 @@ class ParTile(tuple, OptOption):
                 # E.g., (32, 4, 8)
                 items = (ParTileArg(items),)
 
+            elif x is None:
+                # E.g. (None, None); to define the dimensionality of a block,
+                # while the actual shape values remain parametric
+                items = (ParTileArg(items),)
+
             elif isinstance(x, ParTileArg):
                 # From a reconstruction
                 pass
