@@ -163,6 +163,7 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ env.RUN_CMD }} ${{ matrix.arch }} --version
+        ${{ env.RUN_CMD }} python3 --version
         ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Upload coverage to Codecov
