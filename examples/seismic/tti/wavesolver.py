@@ -33,6 +33,12 @@ class AnisotropicWaveSolver(object):
         self.model._initialize_bcs(bcs="damp")
         self.geometry = geometry
         self.kernel = kernel
+        
+        if model.fs and kernel == 'staggered':
+            warning("Bad arguments in AnisotropicWaveSolver() - " +
+                    "if model.fs is True, kernel should be centered. " +
+                    "Switching to 'centered'")
+            self.kernel = 'centered'
 
         if space_order % 2 != 0:
             raise ValueError("space_order must be even but got %s"
