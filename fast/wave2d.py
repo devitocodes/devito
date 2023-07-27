@@ -125,7 +125,7 @@ print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
 print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
 
 print("Norm of initial data:", norm(u))
-import pdb;pdb.set_trace()
+# import pdb;pdb.set_trace()
 u2.data[:] = u.data[:]
 
 # Run more with no sources now (Not supported in xdsl)
@@ -142,7 +142,7 @@ print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
 print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
 print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
-import pdb;pdb.set_trace()
+# import pdb;pdb.set_trace()
 
 
 # Reset initial data
