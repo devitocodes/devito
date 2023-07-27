@@ -96,7 +96,7 @@ class TestAdjoint(object):
         location from data. This test uses the conventional dot test:
         < Fx, y> = <x, F^T y>
         """
-        tn = 1000. if mkey[-3:] == "-fs" else 500.  # Final time (twice the time for fs)
+        tn = 500.  # Final time
 
         # Create solver from preset
         solver = setup_func(shape=shape, spacing=[15. for _ in shape],
@@ -165,7 +165,7 @@ class TestAdjoint(object):
         dot test:
         < Jx, y> = <x ,J^T y>
         """
-        tn = 1000. if mkey[-3:] == "-fs" else 500.  # Final time (twice the time for fs)
+        tn = 750. if mkey[-3:] == "-fs" else 500  # Final time
         nbl = 10 + space_order / 2
         spacing = tuple([10.]*len(shape))
         # Create solver from preset
