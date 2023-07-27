@@ -72,6 +72,11 @@ ENV PATH $I_MPI_ROOT/libfabric/bin:$I_MPI_ROOT/bin:$I_ICC_ROOT/linux/bin/intel64
 ENV LD_LIBRARY_PATH $I_MPI_ROOT/libfabric/lib:$I_MPI_ROOT/lib/release:$I_MPI_ROOT/lib:$I_ICC_ROOT/linux/lib:$I_ICC_ROOT/linux/lib/x64:$I_ICC_ROOT/linux/compiler/lib/intel64_lin:${LD_LIBRARY_PATH}
 ENV FI_PROVIDER_PATH $I_MPI_ROOT/libfabric/lib/prov:/usr/lib64/libfabric:${LD_LIBRARY_PATH}
 
+# Install intelpython
+RUN wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/03aae3a8-623a-47cf-9655-5dd8fcf86430/l_pythoni39_oneapi_p_2023.2.0.49422.sh && \
+    chmod +x l_pythoni39_oneapi_p_2023.2.0.49422.sh && ./l_pythoni39_oneapi_p_2023.2.0.49422.sh -r yes -a -s --eula accept
+ENV PATH /opt/intel/oneapi/intelpython/python3.9/bin:${PATH}
+
 ##############################################################
 # ICC image
 # This is a legacy setup that is not built anymore but kept for reference
