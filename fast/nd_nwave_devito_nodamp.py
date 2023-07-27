@@ -70,6 +70,7 @@ model = Model(vp=v, origin=origin, shape=shape, spacing=spacing,
 t0 = 0.  # Simulation starts a t=0
 tn = nt  # Simulation last 1 second (1000 ms)
 dt = model.critical_dt  # Time step from model grid spacing
+print("dt is:", dt)
 
 time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
@@ -115,8 +116,8 @@ if len(shape) == 3:
 initdata = u.data[:]
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = Operator([stencil], name='DevitoOperator')
-xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
+op = Operator([stencil], name='DevitoOperator', opt='noop')
+op.apply(time=time_range.num-1, dt=model.critical_dt)
 
 if len(shape) == 3:
     if args.plot:
@@ -124,6 +125,7 @@ if len(shape) == 3:
 
 
 devito_output = u.copy()
+print("Devito norm:", norm(u))
 print(f"devito output norm: {norm(devito_output)}")
 
 # Reset initial data
@@ -134,4 +136,5 @@ xdslop = XDSLOperator([stencil], name='xDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 xdsl_output = u.copy()
+print("XDSL norm:", norm(u))
 print(f"xdsl output norm: {norm(xdsl_output)}")
