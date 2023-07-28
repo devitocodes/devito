@@ -7,10 +7,11 @@ from devito.ir.support.space import Backward, IterationSpace
 from devito.ir.support.utils import AccessMode
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
-                              q_constant, q_affine, q_routine, q_terminal)
+                              q_constant, q_affine, q_routine, search, uxreplace)
 from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
                           memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple, Jump, Symbol
+from devito.types import (Barrier, ComponentAccess, Dimension, DimensionTuple,
+                          Jump, Symbol)
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -322,6 +323,12 @@ class TimedAccess(IterationInstance, AccessMode):
         other : TimedAccess
             The TimedAccess w.r.t. which the distance is computed.
         """
+        if isinstance(self.access, ComponentAccess) and \
+           isinstance(other.access, ComponentAccess) and \
+           self.access.index != other.access.index:
+            # E.g., `uv(x).x` and `uv(x).y` -- not a real dependence!
+            return Vector(S.ImaginaryUnit)
+
         ret = []
         for sit, oit in zip(self.itintervals, other.itintervals):
             n = len(ret)
@@ -821,9 +828,9 @@ class Scope(object):
 
         for i, e in enumerate(exprs):
             # Reads
-            terminals = retrieve_terminals(e.rhs, deep=True, mode='unique')
+            terminals = retrieve_accesses(e.rhs, deep=True)
             try:
-                terminals.update(retrieve_terminals(e.lhs.indices))
+                terminals.update(retrieve_accesses(e.lhs.indices))
             except AttributeError:
                 pass
             for j in terminals:
@@ -832,12 +839,10 @@ class Scope(object):
                 v.append(TimedAccess(j, mode, i, e.ispace))
 
             # Write
-            terminals = []
-            if q_terminal(e.lhs):
-                terminals.append(e.lhs)
+            terminals = retrieve_accesses(e.lhs)
             if q_routine(e.rhs):
                 try:
-                    terminals.extend(e.rhs.writes)
+                    terminals.update(e.rhs.writes)
                 except AttributeError:
                     # E.g., foreign routines, such as `cos` or `sin`
                     pass
@@ -857,7 +862,7 @@ class Scope(object):
 
             # Look up ConditionalDimensions
             for v in e.conditionals.values():
-                for j in retrieve_terminals(v):
+                for j in retrieve_accesses(v):
                     v = self.reads.setdefault(j.function, [])
                     v.append(TimedAccess(j, 'R', -1, e.ispace))
 
@@ -947,6 +952,9 @@ class Scope(object):
                 for r in self.reads.get(k, []):
                     dependence = Dependence(w, r)
 
+                    if dependence.is_imaginary:
+                        continue
+
                     if any(not rule(dependence) for rule in self.rules):
                         continue
 
@@ -957,8 +965,7 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_flow = (not dependence.is_imaginary and
-                                   not r.is_read_reduction)
+                        is_flow = not r.is_read_reduction
                     if is_flow:
                         yield dependence
 
@@ -975,6 +982,9 @@ class Scope(object):
                 for r in self.reads.get(k, []):
                     dependence = Dependence(r, w)
 
+                    if dependence.is_imaginary:
+                        continue
+
                     if any(not rule(dependence) for rule in self.rules):
                         continue
 
@@ -985,8 +995,7 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_anti = (not dependence.is_imaginary and
-                                   not r.is_read_reduction)
+                        is_anti = not r.is_read_reduction
                     if is_anti:
                         yield dependence
 
@@ -1003,6 +1012,9 @@ class Scope(object):
                 for w2 in self.writes.get(k, []):
                     dependence = Dependence(w2, w1)
 
+                    if dependence.is_imaginary:
+                        continue
+
                     if any(not rule(dependence) for rule in self.rules):
                         continue
 
@@ -1012,7 +1024,7 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
-                        is_output = not dependence.is_imaginary
+                        is_output = True
                     if is_output:
                         yield dependence
 
@@ -1200,3 +1212,22 @@ class ExprGeometry(object):
     @property
     def is_regular(self):
         return all(i.is_regular for i in self.iinstances)
+
+
+# *** Utils
+
+def retrieve_accesses(exprs, **kwargs):
+    """
+    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
+    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
+    """
+    kwargs['mode'] = 'unique'
+
+    compaccs = search(exprs, ComponentAccess)
+    if not compaccs:
+        return retrieve_terminals(exprs, **kwargs)
+
+    subs = {i: Symbol('dummy%d' % n) for n, i in enumerate(compaccs)}
+    exprs1 = uxreplace(exprs, subs)
+
+    return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
