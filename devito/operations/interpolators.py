@@ -287,7 +287,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
+        implicit_dims = self._augment_implicit_dims(implicit_dims) + self._rdim
 
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))

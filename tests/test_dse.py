@@ -42,9 +42,9 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert all(i.dim is j for i, j in zip(trees[1], grid.dimensions))  # time invariant
-    assert trees[2].root.dim is grid.time_dim
-    assert all(trees[2].root.dim is tree.root.dim for tree in trees[2:])
+    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert trees[1].root.dim is grid.time_dim
+    assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
 
 @pytest.mark.parametrize('exprs,expected,min_cost', [
@@ -1665,7 +1665,7 @@ class TestAliases(object):
         op = Operator(eqns, opt=('advanced', {'cire-rotate': rotate}))
 
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        assert len(arrays) == 4
+        assert len(arrays) == 2
         assert all(i._mem_heap and not i._mem_external for i in arrays)
 
     def test_full_shape_big_temporaries(self):
@@ -2689,10 +2689,9 @@ class TestIsoAcoustic(object):
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 9
-        assert summary1[('section1', None)].ops == 9
-        assert summary1[('section2', None)].ops == 31
-        assert summary1[('section3', None)].ops == 26
-        assert np.isclose(summary1[('section2', None)].oi, 1.767, atol=0.001)
+        assert summary1[('section1', None)].ops == 31
+        assert summary1[('section2', None)].ops == 88
+        assert np.isclose(summary1[('section1', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -2752,8 +2751,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section3', None)].ops == 92
-        assert np.isclose(summary[('section3', None)].oi, 2.074, atol=0.001)
+        assert summary[('section2', None)].ops == 92
+        assert np.isclose(summary[('section2', None)].oi, 2.074, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
@@ -2768,10 +2767,10 @@ class TestTTI(object):
         # * all of the six Arrays are allocated on the heap
         # * with OpenMP:
         #   four Arrays are defined globally for the cos/sin temporaries
-        #   six Arrays are defined globally for the sparse positions temporaries
+        #   3 Arrays are defined globally for the sparse positions temporaries
         # and two additional bock-sized Arrays are defined locally
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        extra_arrays = 2+6
+        extra_arrays = 2+3
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         bns, pbs = assert_blocking(op, {'x0_blk0'})
@@ -2807,7 +2806,7 @@ class TestTTI(object):
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
         sections = list(op.op_fwd()._profiler._sections.values())
-        assert sections[3].sops == expected
+        assert sections[2].sops == expected
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
@@ -2817,8 +2816,8 @@ class TestTTI(object):
         wavesolver = self.tti_operator(opt=('advanced', {'openmp': False}))
         op = wavesolver.op_adj()
 
-        assert op._profiler._sections['section3'].sops == expected
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7+6
+        assert op._profiler._sections['section2'].sops == expected
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7+3
 
 
 class TestTTIv2(object):

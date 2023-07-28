@@ -1403,7 +1403,9 @@ class TestEdgeCases(object):
         f = TimeFunction(name='f', grid=grid, space_order=0)
         f.data[:] = 1.
         sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=0, nt=10)
-        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10,
+                                 coordinates=sf1.coordinates,
+                                 dimensions=sf1.dimensions)
         assert sf1.size == 0
         assert sf2.size == 0
 

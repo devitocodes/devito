@@ -102,15 +102,15 @@ class TestCodeGeneration(object):
                       opt=('advanced', {'par-tile': par_tile}))
 
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 6
+        assert len(trees) == 4
 
-        assert trees[1][1].pragmas[0].value ==\
+        assert trees[0][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4,4) present(u)'
-        assert trees[2][1].pragmas[0].value ==\
+        assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4) present(u)'
         # Only the AFFINE Iterations are tiled
-        assert trees[4][1].pragmas[0].value ==\
-            'acc parallel loop present(src,src_coords,u) deviceptr(r1,r2,r3)'
+        assert trees[3][1].pragmas[0].value ==\
+            'acc parallel loop collapse(3) present(src,src_coords,u)'
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
                                           ((32, 4, 4), (8, 8, 8))])
@@ -130,7 +130,7 @@ class TestCodeGeneration(object):
                       opt=('advanced', {'par-tile': par_tile}))
 
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 6
+        assert len(trees) == 4
 
         assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4,4) present(u)'

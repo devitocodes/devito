@@ -285,10 +285,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 if i.is_Vectorized:
                     break
 
-                # Also, we do not want to collapse small atomic reductions
-                if i.is_ParallelAtomic and i.dim.is_Custom:
-                    break
-
                 # Would there be enough work per parallel iteration?
                 nested = candidates[n+1:]
                 if nested:
@@ -299,7 +295,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
-                collapsable.append(i)
+                if not i.is_ParallelAtomic or nested:
+                    collapsable.append(i)
 
             # Give a score to this candidate, based on the number of fully-parallel
             # Iterations and their position (i.e. outermost to innermost) in the nest

@@ -187,14 +187,9 @@ def test_cache_blocking_structure_optrelax():
 
     op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
 
-    bns, _ = assert_blocking(op, {'p_src0_blk0', 'x0_blk0', 'p_src1_blk0'})
+    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
 
     iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
-    assert len(iters) == 2
-    assert iters[0].dim.is_Block
-    assert iters[1].dim.is_Block
-
-    iters = FindNodes(Iteration).visit(bns['p_src1_blk0'])
     assert len(iters) == 5
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
@@ -291,7 +286,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t', 't,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
+    assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
                      't,p_s0_blk0,p_s,rsx,rsy')
 
 
@@ -750,13 +745,14 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op)
         parallelized = iterations[dim+1]
         assert parallelized.pragmas
-        if parallelized is iterations[-1]:
+        if parallelized.dim is iterations[-1]:
             # With the `f[z] += u[t0][x + 1][y + 1][z + 1] + 1` expr, the innermost
             # `z` Iteration gets parallelized, nothing is collapsed, hence no
             # reduction is required
             assert "reduction" not in parallelized.pragmas[0].value
         elif Ompizer._support_array_reduction(configuration['compiler']):
-            assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
+            if "collapse" in parallelized.pragmas[0].value:
+                assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
         else:
             # E.g. old GCC's
             assert "atomic update" in str(iterations[-1])
@@ -817,8 +813,10 @@ class TestNodeParallelism(object):
         # All loops get collapsed, but the `y` and `z` loops are PARALLEL_IF_ATOMIC,
         # hence an atomic pragma is expected
         op0 = Operator(Inc(uf, 1), opt=('advanced', {'openmp': True,
-                                                     'par-collapse-ncores': 1}))
-        assert 'collapse(3)' in str(op0)
+                                                     'par-collapse-ncores': 1,
+                                                     'par-collapse-work': 0}))
+
+        assert 'collapse(2)' in str(op0)
         assert 'atomic' in str(op0)
 
         # Now only `x` is parallelized
@@ -928,7 +926,6 @@ class TestNodeParallelism(object):
         assert 'omp simd' in iterations[3].pragmas[0].value
 
         op.apply()
-        print(op._lib)
         assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
 
     def test_parallel_prec_inject(self):
@@ -954,6 +951,14 @@ class TestNodeParallelism(object):
 
         assert not iterations[0].pragmas
         assert 'omp for' in iterations[1].pragmas[0].value
+
+        op0 = Operator(eqns, opt=('advanced', {'openmp': True,
+                                               'par-collapse-ncores': 1,
+                                               'par-collapse-work': 1}))
+        iterations = FindNodes(Iteration).visit(op0)
+
+        assert not iterations[0].pragmas
+        assert 'omp for collapse(2)' in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):
@@ -1007,6 +1012,7 @@ class TestNestedParallelism(object):
 
         # Does it produce the right result
         op.apply(t_M=9)
+
         assert np.all(u.data[0] == 10)
 
         bns, _ = assert_blocking(op, {'x0_blk0'})
