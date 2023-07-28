@@ -95,6 +95,9 @@ configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_com
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])
 
+# Select target device
+configuration.add('deviceid', -1, preprocessor=int, impacts_jit=False)
+
 
 def autotune_callback(val):  # noqa
     if isinstance(val, str):

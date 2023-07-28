@@ -7,6 +7,7 @@ from functools import wraps
 from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
 
+
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
            'switchconfig']
 
@@ -159,7 +160,8 @@ env_vars_mapper = {
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
-    'DEVITO_SAFE_MATH': 'safe-math'
+    'DEVITO_SAFE_MATH': 'safe-math',
+    'DEVITO_DEVICEID': 'deviceid'
 }
 
 env_vars_deprecated = {
@@ -232,7 +234,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
 class switchconfig(object):
 
     """
-    Decorator to temporarily change `configuration` parameters.
+    Decorator or context manager to temporarily change `configuration` parameters.
     """
 
     def __init__(self, condition=True, **params):
@@ -240,23 +242,37 @@ class switchconfig(object):
             self.params = {k.replace('_', '-'): v for k, v in params.items()}
         else:
             self.params = {}
+        self.previous = {}
+
+    def __enter__(self, condition=True, **params):
+        self.previous = {}
+        for k, v in self.params.items():
+            self.previous[k] = configuration[k]
+            configuration[k] = v
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for k, v in self.params.items():
+            try:
+                configuration[k] = self.previous[k]
+            except ValueError:
+                # E.g., `platform` and `compiler` will end up here
+                try:
+                    configuration[k] = self.previous[k].name
+                except AttributeError:
+                    from devito.arch.compiler import Compiler, compiler_registry
+                    from devito.arch.archinfo import Platform, platform_registry
+                    if isinstance(self.previous[k], Compiler):
+                        temp_registry = {v: k for k, v in compiler_registry.items()}
+                        compiler = temp_registry[self.previous[k].__class__]
+                    elif isinstance(self.previous[k], Platform):
+                        temp_registry = {v: k for k, v in platform_registry.items()}
+                        platform = temp_registry[self.previous[k]]
 
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            previous = {}
-            for k, v in self.params.items():
-                previous[k] = configuration[k]
-                configuration[k] = v
-            try:
+            with self:
                 result = func(*args, **kwargs)
-            finally:
-                for k, v in self.params.items():
-                    try:
-                        configuration[k] = previous[k]
-                    except ValueError:
-                        # E.g., `platform` and `compiler` will end up here
-                        configuration[k] = previous[k].name
             return result
         return wrapper
 

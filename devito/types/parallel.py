@@ -252,7 +252,7 @@ class DeviceID(DeviceSymbol):
 
     @property
     def default_value(self):
-        return -1
+        return configuration['deviceid']
 
 
 class DeviceRM(DeviceSymbol):
