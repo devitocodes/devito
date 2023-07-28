@@ -11,7 +11,8 @@ from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
 from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle']
+__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
+           'ComponentAccess']
 
 
 class ArrayBasic(AbstractFunction):

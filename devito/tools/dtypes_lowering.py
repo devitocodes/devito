@@ -267,7 +267,7 @@ def infer_dtype(dtypes):
         * If there's at least one floating dtype, ignore any integer dtypes.
     """
     # Resolve the vector types, if any
-    dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes }
+    dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
     fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
     if len(fdtypes) > 1:

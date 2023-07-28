@@ -307,7 +307,7 @@ class Fusion(Queue):
 
         return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
-    def _build_dag(self, cgroups, prefix, peeking=False):
+    def _build_dag(self, cgroups, prefix):
         """
         A DAG representing the data dependences across the ClusterGroups within
         a given scope.
@@ -353,9 +353,6 @@ class Fusion(Queue):
                 # Clearly, output dependences must be honored
                 elif any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
-
-            if peeking and dag.edges:
-                return dag
 
         return dag
 
