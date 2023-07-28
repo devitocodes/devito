@@ -73,15 +73,6 @@ class Parameters(OrderedDict, Signer):
         else:
             return value
 
-    def _updated(self, key, value):
-        """
-        Execute the callback associated to ``key``, if any.
-        """
-        if key in self._update_functions:
-            retval = self._update_functions[key](value)
-            if retval is not None:
-                super(Parameters, self).__setitem__(key, retval)
-
     @_check_key_deprecation
     def __getitem__(self, key, *args):
         return super(Parameters, self).__getitem__(key)
@@ -90,8 +81,10 @@ class Parameters(OrderedDict, Signer):
     @_check_key_value
     def __setitem__(self, key, value):
         value = self._preprocess(key, value)
-        super(Parameters, self).__setitem__(key, value)
-        self._updated(key, value)
+        if key in self._update_functions:
+            value = self._update_functions[key](value)
+        if value is not None:
+            super(Parameters, self).__setitem__(key, value)
 
     @_check_key_deprecation
     @_check_key_value
@@ -160,8 +153,7 @@ env_vars_mapper = {
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
-    'DEVITO_SAFE_MATH': 'safe-math',
-    'DEVITO_DEVICEID': 'deviceid'
+    'DEVITO_SAFE_MATH': 'safe-math'
 }
 
 env_vars_deprecated = {
@@ -259,14 +251,7 @@ class switchconfig(object):
                 try:
                     configuration[k] = self.previous[k].name
                 except AttributeError:
-                    from devito.arch.compiler import Compiler, compiler_registry
-                    from devito.arch.archinfo import Platform, platform_registry
-                    if isinstance(self.previous[k], Compiler):
-                        temp_registry = {v: k for k, v in compiler_registry.items()}
-                        compiler = temp_registry[self.previous[k].__class__]
-                    elif isinstance(self.previous[k], Platform):
-                        temp_registry = {v: k for k, v in platform_registry.items()}
-                        platform = temp_registry[self.previous[k]]
+                    super(Parameters, configuration).__setitem__(k, self.previous[k])
 
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
