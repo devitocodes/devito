@@ -317,7 +317,7 @@ class SynthesizeBlocking(Queue):
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
             try:
-                step = sympify(blk_size_gen.next(clusters, d))
+                step = sympify(blk_size_gen.next(prefix, d, clusters))
             except StopIteration:
                 return clusters
         else:
@@ -421,6 +421,7 @@ class BlockSizeGenerator(object):
 
     def __init__(self, par_tile):
         self.umt = UnboundedMultiTuple(*par_tile)
+        self.tip = -1
 
         # This is for Clusters that need a small par-tile to avoid under-utilizing
         # computational resources (e.g., kernels running over iteration spaces that
@@ -433,15 +434,45 @@ class BlockSizeGenerator(object):
         else:
             self.umt_small = UnboundedMultiTuple(par_tile.default)
 
-    def next(self, clusters, d):
+    def next(self, prefix, d, clusters):
+        # If a whole new set of Dimensions, move the tip -- this means `clusters`
+        # at `d` represents a new loop nest or kernel
+        x = any(i.dim.is_Block for i in flatten(c.ispace for c in clusters))
+        if not x:
+            self.tip += 1
+
         # TODO: This is for now exceptionally rudimentary
         if all(c.properties.is_blockable_small(d) for c in clusters):
-            umt = self.umt_small
-        else:
-            umt = self.umt
+            if not x:
+                self.umt_small.iter()
+            return self.umt_small.next()
 
-        if not any(i.dim.is_Block for i in flatten(c.ispace for c in clusters)):
+        if x:
+            item = self.umt.curitem
+        else:
+            # We can't `self.umt.iter()` because we might still want to
+            # fallback to `self.umt_small`
+            item = self.umt.nextitem
+
+        # Handle user-provided rules
+        # TODO: This is also rudimentary
+        if item.rule is None:
+            umt = self.umt
+        elif is_integer(item.rule):
+            if item.rule == self.tip:
+                umt = self.umt
+            else:
+                umt = self.umt_small
+        else:
+            if item.rule in {d.name for d in prefix.itdims}:
+                umt = self.umt
+            else:
+                # This is like "pattern unmatched" -- fallback to `umt_small`
+                umt = self.umt_small
+
+        if not x:
             umt.iter()
+
         return umt.next()
 
 
