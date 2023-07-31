@@ -638,10 +638,9 @@ class TestCaching(object):
 
         i = u.inject(expr=u, field=u)
 
-        # created: rxu, rxy (radius dimensions) and spacings and conditionals
-        # conditional sparse dim
+        # created: rux, ruy (radius dimensions) and spacings
         # posx, posy, px, py, u_coords (as indexified),
-        ncreated = 2+2+1+2+2+2+1
+        ncreated = 2+1+2+2+2+1
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
         i.evaluate
@@ -661,7 +660,7 @@ class TestCaching(object):
         # in the first clear_cache they were still referenced by their "parent" objects
         # (e.g., ru* by ConditionalDimensions, through `condition`)
 
-        assert len(_SymbolCache) == init_cache_size + 10
+        assert len(_SymbolCache) == init_cache_size + 8
         clear_cache()
         # Now we should be back to the original state except for
         # pos* that belong to the abstract class

@@ -830,7 +830,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             # Go straight through Basic, thus bypassing caching and machinery
             # in sympy.Application/Function that isn't really necessary
             # AbstractFunctions are unique by construction!
-            newobj = sympy.Basic.__new__(cls, *indices)
+            newobj = sympy.Basic.__new__(cls, *sympy.sympify(indices))
 
         # Initialization. The following attributes must be available
         # when executing __init_finalize__

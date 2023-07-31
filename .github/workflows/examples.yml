@@ -51,11 +51,6 @@ jobs:
     - name: Tests in examples
       run: |
         py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
-        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic/acoustic_example.py
-        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoacoustic/viscoacoustic_example.py
-        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/tti/tti_example.py
-        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/elastic/elastic_example.py
-        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Seismic acoustic examples
       run: |

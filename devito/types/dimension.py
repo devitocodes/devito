@@ -187,7 +187,7 @@ class Dimension(ArgProvider):
 
     @property
     def index(self):
-        return self if self.indirect is True else getattr(self, 'parent', self)
+        return self
 
     @property
     def is_const(self):
@@ -476,6 +476,10 @@ class DerivedDimension(BasicDimension):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def index(self):
+        return self if self.indirect else self.parent
 
     @property
     def root(self):
@@ -1227,6 +1231,10 @@ class CustomDimension(BasicDimension):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def index(self):
+        return self.parent or self
 
     @property
     def root(self):

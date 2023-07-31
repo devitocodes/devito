@@ -295,6 +295,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
+                # At least one inner loop (nested) or
+                # we do not collapse most inner loop if it is an atomic reduction
                 if not i.is_ParallelAtomic or nested:
                     collapsable.append(i)
 

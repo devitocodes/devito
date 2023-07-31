@@ -112,7 +112,7 @@ class AbstractSparseFunction(DiscreteFunction):
             # Fallback to default behaviour
             dtype = dtype or self.dtype
         else:
-            if not isinstance(key, np.ndarray):
+            if key is not None:
                 key = np.array(key)
 
             if (shape != key.shape[:2] and key.shape != (shape[1],)) and \
@@ -196,6 +196,16 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def npoint(self):
         return self.shape[self._sparse_position]
+
+    @property
+    def npoint_global(self):
+        """
+        Global `npoint`s. This only differs from `self.npoint` in an MPI context.
+        Issues
+        ------
+        * https://github.com/devitocodes/devito/issues/1498
+        """
+        return self._npoint
 
     @property
     def space_order(self):
@@ -1656,9 +1666,9 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         """
         Return the default Dimension indices for a given data shape.
         """
-        Dimensions = kwargs.get('dimensions')
-        if Dimensions is None:
-            Dimensions = (kwargs['grid'].time_dim, Dimension(
+        dimensions = kwargs.get('dimensions')
+        if dimensions is None:
+            dimensions = (kwargs['grid'].time_dim, Dimension(
                 name='p_%s' % kwargs["name"]))
 
         if args:

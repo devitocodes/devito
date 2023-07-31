@@ -132,9 +132,9 @@ class TestCodeGeneration(object):
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 4
 
-        assert trees[1][1].pragmas[0].value ==\
+        assert trees[0][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4,4) present(u)'
-        assert trees[2][1].pragmas[0].value ==\
+        assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(8,8) present(u)'
 
     def test_multi_tile_blocking_structure(self):

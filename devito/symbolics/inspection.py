@@ -267,8 +267,8 @@ def has_integer_args(*args):
 
 def sympy_dtype(expr, default):
     """
-    Try to infer the data type of the expression
-    returns the default if non is found
+    Infer the dtype of the expression
+    or default if could not be determined.
     """
     # Symbol/... without argument, check its dtype
     if len(expr.args) == 0:
