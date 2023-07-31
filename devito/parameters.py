@@ -7,7 +7,6 @@ from functools import wraps
 from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
 
-
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
            'switchconfig']
 
