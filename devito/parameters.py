@@ -247,10 +247,7 @@ class switchconfig(object):
                 configuration[k] = self.previous[k]
             except ValueError:
                 # E.g., `platform` and `compiler` will end up here
-                try:
-                    configuration[k] = self.previous[k].name
-                except AttributeError:
-                    super(Parameters, configuration).__setitem__(k, self.previous[k])
+                super(Parameters, configuration).__setitem__(k, self.previous[k])
 
     def __call__(self, func, *args, **kwargs):
         @wraps(func)
