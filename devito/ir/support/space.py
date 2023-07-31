@@ -929,6 +929,10 @@ class IterationSpace(Space):
         return self.intervals.dimensions
 
     @property
+    def itdims(self):
+        return self.itdimensions
+
+    @property
     def relations(self):
         return self.intervals.relations
 

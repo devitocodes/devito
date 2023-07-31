@@ -632,7 +632,11 @@ class UnboundedMultiTuple(object):
         nitems = []
         for i in as_tuple(items):
             if isinstance(i, Iterable):
-                nitems.append(tuple(i))
+                if isinstance(i, tuple):
+                    # Honours tuple subclasses
+                    nitems.append(i)
+                else:
+                    nitems.append(tuple(i))
             else:
                 raise ValueError("Expected sequence, got %s" % type(i))
 
@@ -645,6 +649,17 @@ class UnboundedMultiTuple(object):
         if self.curiter is not None:
             items[self.tip] = "*%s" % items[self.tip]
         return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
+
+    @property
+    def curitem(self):
+        return self.items[self.tip]
+
+    @property
+    def nextitem(self):
+        return self.items[min(self.tip + 1, max(len(self.items) - 1, 0))]
+
+    def index(self, item):
+        return self.items.index(item)
 
     def iter(self):
         if not self.items:
