@@ -932,7 +932,7 @@ def pick_best(variants, schedule_strategy, eval_variants_delta):
     Return the variant with the best trade-off between operation count
     reduction and working set increase. Heuristics may be applied.
     """
-    if type(schedule_strategy) == int:
+    if type(schedule_strategy) is int:
         try:
             return variants[schedule_strategy]
         except IndexError:

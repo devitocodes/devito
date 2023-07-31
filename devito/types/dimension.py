@@ -1582,7 +1582,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
 
 def dimensions(names):
-    assert type(names) == str
+    assert type(names) is str
     return tuple(Dimension(i) for i in names.split())
 
 

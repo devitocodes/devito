@@ -59,13 +59,6 @@ jobs:
           test_drive_cmd: "nvidia-smi"
           flags: '--gpus all --rm --name testrun-nvc'
 
-        # - name: pytest-gpu-omp-nvidia
-        #   test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
-        #   base: "devitocodes/bases:nvidia-nvc"
-        #   tags: ["self-hosted", "nvidiagpu"]
-        #   test_drive_cmd: "nvidia-smi"
-        #   flags: '--gpus all --rm --name testrun-nvc-omp-nvidia --env DEVITO_LANGUAGE=openmp'
-
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           tags: ["self-hosted", "amdgpu"]

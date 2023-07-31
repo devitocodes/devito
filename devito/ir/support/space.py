@@ -36,7 +36,7 @@ class AbstractInterval(object):
         self.stamp = stamp
 
     def __eq__(self, o):
-        return (type(self) == type(o) and
+        return (type(self) is type(o) and
                 self.dim is o.dim and
                 self.stamp == o.stamp)
 
