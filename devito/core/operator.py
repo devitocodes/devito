@@ -329,9 +329,9 @@ class OptOption(object):
 
 class ParTileArg(tuple):
 
-    def __new__(cls, items, shm=0, tag=None):
+    def __new__(cls, items, rule=None, tag=None):
         obj = super().__new__(cls, items)
-        obj.shm = shm
+        obj.rule = rule
         obj.tag = tag
         return obj
 
@@ -371,14 +371,15 @@ class ParTile(tuple, OptOption):
 
                 try:
                     y = items[1]
-                    if is_integer(y):
-                        # E.g., ((32, 4, 8), 1)
-                        # E.g., ((32, 4, 8), 1, 'tag')
+                    if is_integer(y) or isinstance(y, str) or y is None:
+                        # E.g., ((32, 4, 8), 'rule')
+                        # E.g., ((32, 4, 8), 'rule', 'tag')
                         items = (ParTileArg(*items),)
                     else:
                         try:
-                            # E.g., (((32, 4, 8), 1), ((32, 4, 4), 2))
-                            # E.g., (((32, 4, 8), 1, 'tag0'), ((32, 4, 4), 2, 'tag1'))
+                            # E.g., (((32, 4, 8), 'rule'), ((32, 4, 4), 'rule'))
+                            # E.g., (((32, 4, 8), 'rule0', 'tag0'),
+                            #        ((32, 4, 4), 'rule1', 'tag1'))
                             items = tuple(ParTileArg(*i) for i in items)
                         except TypeError:
                             # E.g., ((32, 4, 8), (32, 4, 4))
