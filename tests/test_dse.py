@@ -2,21 +2,27 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
+from sympy import Mul  # noqa
+
 from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
                       get_params, get_arrays, check_array)
-from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, ConditionalDimension, DefaultDimension, Grid,
-                    Operator, norm, grad, div, dimensions, switchconfig, configuration,
-                    centered, first_derivative, solve, transpose, Abs, cos, sin, sqrt)
+from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
+                    SparseTimeFunction, Dimension, SubDimension,
+                    ConditionalDimension, DefaultDimension, Grid, Operator,
+                    norm, grad, div, dimensions, switchconfig, configuration,
+                    centered, first_derivative, solve, transpose, Abs, cos,
+                    sin, sqrt)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.factorization import collect_nested
 from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
-                              Keyword, SizeOf, estimate_cost, pow_to_mul, indexify)
+                              IndexedPointer, Keyword, SizeOf, estimate_cost,
+                              pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
 from devito.types import Array, Scalar, Symbol
 
@@ -161,6 +167,9 @@ def test_cse(exprs, expected, min_cost):
     ('fa[x]**(-s)', 'fa[x]**(-s)'),
     ('-2/(s**2)', '-2/(s*s)'),
     ('-fa[x]', '-fa[x]'),
+    ('Mul(SizeOf("char"), '
+     '-IndexedPointer(FieldFromPointer("size", fa._C_symbol), x), evaluate=False)',
+     'sizeof(char)*(-fa_vec->size[x])'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
@@ -171,6 +180,19 @@ def test_pow_to_mul(expr, expected):
     fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
 
     assert str(pow_to_mul(eval(expr))) == expected
+
+
+@pytest.mark.parametrize('expr,expected', [
+    ('s - SizeOf("int")*fa[x]', 's - fa[x]*sizeof(int)'),
+])
+def test_factorize(expr, expected):
+    grid = Grid((4, 5))
+    x, y = grid.dimensions
+
+    s = Scalar(name='s')  # noqa
+    fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+
+    assert str(collect_nested(eval(expr))) == expected
 
 
 @pytest.mark.parametrize('expr,expected,estimate', [

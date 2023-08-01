@@ -142,13 +142,16 @@ def collect_nested(expr):
                     terms.append(i)
 
             # Collect common funcs
-            w_funcs = Add(*w_funcs, evaluate=False)
-            w_funcs = collect(w_funcs, funcs, evaluate=False)
-            try:
-                terms.extend([Mul(k, collect_const(v), evaluate=False)
-                              for k, v in w_funcs.items()])
-            except AttributeError:
-                assert w_funcs == 0
+            if len(w_funcs) > 1:
+                w_funcs = Add(*w_funcs, evaluate=False)
+                w_funcs = collect(w_funcs, funcs, evaluate=False)
+                try:
+                    terms.extend([Mul(k, collect_const(v), evaluate=False)
+                                  for k, v in w_funcs.items()])
+                except AttributeError:
+                    assert w_funcs == 0
+            else:
+                terms.extend(w_funcs)
 
             # Collect common pows
             w_pows = Add(*w_pows, evaluate=False)
