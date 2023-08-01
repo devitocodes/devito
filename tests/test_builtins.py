@@ -490,7 +490,7 @@ class TestBuiltinsResult(object):
         assert v0 == v1
         assert v0 == v2
         assert v0 == v3
-        assert type(v0) == np.int16
-        assert type(v1) == np.int32
-        assert type(v2) == np.float32
-        assert type(v3) == np.float64
+        assert type(v0) is np.int16
+        assert type(v1) is np.int32
+        assert type(v2) is np.float32
+        assert type(v3) is np.float64

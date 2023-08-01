@@ -46,20 +46,12 @@ jobs:
 
       matrix:
         name: [
-          pytest-gpu-omp-nvidia,
           pytest-gpu-acc-nvidia,
           pytest-gpu-omp-amd
         ]
         test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
 
         include:
-        - name: pytest-gpu-omp-nvidia
-          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
-          base: "devitocodes/bases:nvidia-clang"
-          tags: ["self-hosted", "nvidiagpu"]
-          test_drive_cmd: "nvidia-smi"
-          flags: '--gpus all --rm --name testrun-clang-nvidia'
-
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"

@@ -185,7 +185,7 @@ class List(Node):
 
     def __init__(self, header=None, body=None, footer=None):
         body = as_tuple(body)
-        if len(body) == 1 and all(type(i) == List for i in [self, body[0]]):
+        if len(body) == 1 and all(type(i) is List for i in [self, body[0]]):
             # De-nest Lists
             #
             # Note: to avoid disgusting metaclass voodoo (due to

@@ -89,7 +89,7 @@ class Derivative(sympy.Derivative, Differentiable):
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs', 'x0')
 
     def __new__(cls, expr, *dims, **kwargs):
-        if type(expr) == sympy.Derivative:
+        if type(expr) is sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
             raise ValueError("`expr` must be a Differentiable object")

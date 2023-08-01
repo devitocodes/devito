@@ -443,8 +443,8 @@ class TestSubDimension(object):
                                  thickness_left=thickness, thickness_right=thickness)
 
         # a 5 point stencil that can be computed in parallel
-        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t, xi-1, yi]
-                                    + u[t, xi+1, yi] + u[t, xi, yi-1] + u[t, xi, yi+1])
+        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t, xi-1, yi] +
+                    u[t, xi+1, yi] + u[t, xi, yi-1] + u[t, xi, yi+1])
 
         u.data[0, 10, 10] = 1.0
 

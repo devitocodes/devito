@@ -24,12 +24,6 @@ jobs:
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
-          - base: 'bases:nvidia-clang'
-            tag: 'nvidia-clang'
-            flag: '--gpus all'
-            test: 'tests/test_gpu_openmp.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "nvidiagpu"]
-
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
             tag: 'amd'
