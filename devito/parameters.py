@@ -239,7 +239,7 @@ class switchconfig(object):
         self.previous = {}
         for k, v in self.params.items():
             self.previous[k] = configuration[k]
-            configuration.update(k, v)
+            configuration[k] = v
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         for k, v in self.params.items():

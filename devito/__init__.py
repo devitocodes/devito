@@ -50,6 +50,7 @@ def reinit_compiler(val):
     """
     configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
                                        mpi=configuration['mpi'])
+    return val
 
 
 # Setup target platform and compiler
