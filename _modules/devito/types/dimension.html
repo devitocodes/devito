@@ -1659,7 +1659,7 @@
 
 
 <span class="k">def</span> <span class="nf">dimensions</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
-    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">==</span> <span class="nb">str</span>
+    <span class="k">assert</span> <span class="nb">type</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">str</span>
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Dimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">names</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
 
 
