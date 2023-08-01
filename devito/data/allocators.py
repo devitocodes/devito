@@ -13,9 +13,10 @@ from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
 
+
 __all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator']
+           'ALLOC_CUPY', 'default_allocator']
 
 
 class MemoryAllocator(object):
@@ -76,10 +77,19 @@ class MemoryAllocator(object):
         if c_pointer is None:
             raise RuntimeError("Unable to allocate %d elements in memory", str(size))
 
-        # cast to 1D array of the specified size
-        ctype_1d = ctype * size
-        buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.frombuffer(buf, dtype=dtype)
+        if c_pointer:
+            # cast to 1D array of the specified size
+            ctype_1d = ctype * size
+            buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
+            pointer = np.frombuffer(buf, dtype=dtype)
+
+        # During the execution in MPI, domain splitting can generate a situation where
+        # the allocated data size is zero, as we have observed with Sparse Functions.
+        # When this occurs, Cupy returns a pointer with a value of zero. This
+        # conditional statement was defined for this case.
+        else:
+            pointer = np.empty(shape=(0), dtype=dtype)
+
         # pointer.reshape should not be used here because it may introduce a copy
         # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
         # It is not always possible to change the shape of an array without copying the
@@ -317,6 +327,51 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
+class CupyAllocator(MemoryAllocator):
+
+    """
+    Memory allocator based on Unified Memory concept. The allocation is made using Cupy.
+    """
+    _mempool = None
+
+    @classmethod
+    def initialize(cls):
+
+        try:
+            import cupy as cp
+            cls.lib = cp
+            cls._initialize_shared_memory()
+            try:
+                from devito.mpi import MPI
+                cls.MPI = MPI
+                cls._set_device_for_mpi()
+            except:
+                cls.MPI = None
+        except:
+            cls.lib = None
+
+    @classmethod
+    def _initialize_shared_memory(cls):
+        cls._mempool = cls.lib.cuda.MemoryPool(cls.lib.cuda.malloc_managed)
+        cls.lib.cuda.set_allocator(cls._mempool.malloc)
+
+    @classmethod
+    def _set_device_for_mpi(cls):
+        if cls.MPI.Is_initialized():
+            n_gpu = cls.lib.cuda.runtime.getDeviceCount()
+            rank_l = cls.MPI.COMM_WORLD.Split_type(cls.MPI.COMM_TYPE_SHARED).Get_rank()
+            cls.lib.cuda.runtime.setDevice(rank_l % n_gpu)
+
+    def _alloc_C_libcall(self, size, ctype):
+        if not self.available():
+            raise ImportError("Couldn't initialize cupy or MPI elements of alocation")
+        mem_obj = self.lib.zeros(size, dtype=self.lib.float64)
+        return mem_obj.data.ptr, (mem_obj,)
+
+    def free(self, _):
+        self._mempool.free_all_blocks()
+
+
 class ExternalAllocator(MemoryAllocator):
 
     """
@@ -373,6 +428,7 @@ ALLOC_KNL_DRAM = NumaAllocator(0)
 ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
+ALLOC_CUPY = CupyAllocator()
 
 custom_allocators = {}
 """User-defined allocators."""

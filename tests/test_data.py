@@ -1,8 +1,10 @@
 import pytest
 import numpy as np
+import cupy as cp
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, ALLOC_CUPY,
+                    configuration, switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -1473,6 +1475,52 @@ class TestDataGather(object):
             assert ans == np.array(None)
 
 
+class TestAllocators(object):
+
+    def test_uma_allocation(self):
+        """
+        Test Unified Memory allocation.
+        """
+        nt = 5
+        grid = Grid(shape=(4, 4, 4))
+
+        u = Function(name='u', grid=grid, allocator=ALLOC_CUPY)
+        u.data[:] = 5
+        address = u.data.ctypes.data
+        pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
+        assert pointerAttr.devicePointer == pointerAttr.hostPointer
+
+        v = TimeFunction(name='v', grid=grid, save=nt, allocator=ALLOC_CUPY)
+        v.data[:] = 5
+        address = v.data.ctypes.data
+        pointerAttr = cp.cuda.runtime.pointerGetAttributes(address)
+        assert pointerAttr.devicePointer == pointerAttr.hostPointer
+
+    def test_external_allocator(self):
+        shape = (2, 2)
+        space_order = 0
+        numpy_array = np.ones(shape, dtype=np.float32)
+        g = Grid(shape)
+        f = Function(name='f', space_order=space_order, grid=g,
+                     allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+
+        # Ensure the two arrays have the same value
+        assert(np.array_equal(f.data, numpy_array))
+
+        # Ensure the original numpy array is unchanged
+        assert(np.array_equal(numpy_array, np.ones(shape, dtype=np.float32)))
+
+        # Change the underlying numpy array
+        numpy_array[:] = 3.
+        # Ensure the function.data changes too
+        assert(np.array_equal(f.data, numpy_array))
+
+        # Change the function.data
+        f.data[:] = 4.
+        # Ensure the underlying numpy array changes too
+        assert(np.array_equal(f.data, numpy_array))
+
+
 def test_scalar_arg_substitution():
     """
     Tests the relaxed (compared to other devito sympy subclasses)
@@ -1517,31 +1565,6 @@ def test_numpy_c_contiguous():
     grid = Grid(shape=(4, 4))
     u = Function(name='u', grid=grid, space_order=2)
     assert(u._data_allocated.flags.c_contiguous)
-
-
-def test_external_allocator():
-    shape = (2, 2)
-    space_order = 0
-    numpy_array = np.ones(shape, dtype=np.float32)
-    g = Grid(shape)
-    f = Function(name='f', space_order=space_order, grid=g,
-                 allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
-
-    # Ensure the two arrays have the same value
-    assert(np.array_equal(f.data, numpy_array))
-
-    # Ensure the original numpy array is unchanged
-    assert(np.array_equal(numpy_array, np.ones(shape, dtype=np.float32)))
-
-    # Change the underlying numpy array
-    numpy_array[:] = 3.
-    # Ensure the function.data changes too
-    assert(np.array_equal(f.data, numpy_array))
-
-    # Change the function.data
-    f.data[:] = 4.
-    # Ensure the underlying numpy array changes too
-    assert(np.array_equal(f.data, numpy_array))
 
 
 def test_boolean_masking_array():
