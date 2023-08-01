@@ -716,7 +716,6 @@ class HipCompiler(Compiler):
 class IntelCompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
-
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
@@ -787,17 +786,23 @@ class IntelKNLCompiler(IntelCompiler):
 class OneapiCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
-        IntelCompiler.__init_finalize__(self, **kwargs)
-
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
+        if language == 'sycl':
+            kwargs['cpp'] = True
+
+        super().__init_finalize__(**kwargs)
+
+        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
+        # OpenMP bug concerning reductions, hence with them we're forced
+        # to use the obsolete -fopenmp
         if self.version < Version('17.0.0') and language == 'openmp':
             self.ldflags.remove('-qopenmp')
             self.ldflags.append('-fopenmp')
 
         if language == 'sycl':
+            self.cflags.remove('-std=c99')
             self.cflags.append('-fsycl')
             if platform is NVIDIAX:
                 self.cflags.append('-fsycl-targets=nvptx64-cuda')
