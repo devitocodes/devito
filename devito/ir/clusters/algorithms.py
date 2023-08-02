@@ -451,7 +451,8 @@ def normalize_reductions(cluster, sregistry, options):
     """
     opt_mapify_reduce = options['mapify-reduce']
 
-    dims = [d for d, v in cluster.properties.items() if PARALLEL_IF_ATOMIC in v]
+    dims = [d for d in cluster.ispace.itdims
+            if cluster.properties.is_parallel_atomic(d)]
 
     if not dims:
         return cluster
