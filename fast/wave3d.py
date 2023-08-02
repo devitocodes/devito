@@ -2,7 +2,8 @@
 # Not using Devito's source injection abstraction
 import sys
 import numpy as np
-from devito import TimeFunction, Eq, Operator, solve, norm, XDSLOperator
+from devito import (TimeFunction, Eq, Operator, solve, norm,
+                    XDSLOperator, configuration)
 from examples.seismic import RickerSource
 from examples.seismic import Model, TimeAxis
 
@@ -124,9 +125,10 @@ print("Init linalg norm 0 :", np.linalg.norm(u.data[0]))
 print("Init linalg norm 1 :", np.linalg.norm(u.data[1]))
 print("Init linalg norm 2 :", np.linalg.norm(u.data[2]))
 
-print("Norm of initial data:", norm(u))
-import pdb;pdb.set_trace()
+print("Norm of initial data:", np.linalg.norm(u.data[:]))
+configuration['mpi'] = 0
 u2.data[:] = u.data[:]
+configuration['mpi'] = 'basic'
 
 # Run more with no sources now (Not supported in xdsl)
 op1 = Operator([stencil], name='DevitoOperator')
@@ -142,15 +144,13 @@ print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
 print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
 print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
-import pdb;pdb.set_trace()
-
-
 # Reset initial data
+configuration['mpi'] = 0
 u.data[:] = u2.data[:]
+configuration['mpi'] = 'basic'
 #v[:, ..., :] = 1
 
-
-print("Reinitialise data: Devito norm:", norm(u))
+print("Reinitialise data: Devito norm:", np.linalg.norm(u.data[:]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
@@ -160,10 +160,9 @@ xdslop = XDSLOperator([stencil], name='xDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 xdsl_output = u.copy()
+
 print("XDSL norm:", norm(u))
 print(f"xdsl output norm: {norm(xdsl_output)}")
-import pdb;pdb.set_trace()
-
 print("XDSL output linalg norm:", np.linalg.norm(u.data[0]))
 print("XDSL output linalg norm:", np.linalg.norm(u.data[1]))
 print("XDSL output linalg norm:", np.linalg.norm(u.data[2]))

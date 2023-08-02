@@ -20,12 +20,11 @@ from devito.types.basic import IndexedData
 # XDSL specific imports
 from xdsl.irdl import AnyOf, Operation, SSAValue
 from xdsl.dialects.builtin import (ContainerOf, Float16Type, Float32Type,
-                                   Float64Type, Builtin, i32, f32)
+                                   Float64Type, i32, f32)
 
-from xdsl.dialects.arith import Muli, Addi
 from devito.ir.ietxdsl import iet_ssa
 
-from xdsl.dialects import memref, arith, builtin, llvm
+from xdsl.dialects import memref, arith, builtin
 from xdsl.dialects.experimental import math
 
 import devito.types
@@ -74,7 +73,7 @@ def print_calls(cgen, calldefs):
             print("Call not translated in calldefs")
             return
 
-        call = Call.get(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
+        call = Call(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
 
         cgen.printCall(call, True)
 
@@ -180,10 +179,10 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
             # reconcile differences
 
             if isinstance(rhs.typ, builtin.IntegerType):
-                rhs = arith.SIToFPOp.get(rhs, lhs.typ)
+                rhs = arith.SIToFPOp(rhs, lhs.typ)
                 result.append(rhs)
             else:
-                lhs = arith.SIToFPOp.get(lhs, rhs.typ)
+                lhs = arith.SIToFPOp(lhs, rhs.typ)
                 result.append(lhs)
 
         
@@ -426,7 +425,7 @@ def myVisit(node, block: Block, ssa_vals={}):
             print(f"Call {node.name} instance translated as comment")
             return
 
-        call = Call.get(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
+        call = Call(call_name, C_names, C_typenames, C_typeqs, prefix, retval)
         block.add_ops([call])
 
         print(f"Call {node.name} translated")

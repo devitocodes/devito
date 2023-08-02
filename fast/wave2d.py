@@ -1,8 +1,11 @@
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
 import sys
+
 import numpy as np
-from devito import TimeFunction, Eq, Operator, solve, norm, XDSLOperator
+
+from devito import (TimeFunction, Eq, Operator, solve, norm,
+                    XDSLOperator, configuration)
 from examples.seismic import RickerSource
 from examples.seismic import Model, TimeAxis
 
@@ -92,7 +95,7 @@ src.coordinates.data[0, :] = np.array(model.domain_size) * .5
 
 # Define the wavefield with the size of the model and the time dimension
 u = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
-
+# Another one to clone data
 u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
 
 # We can now write the PDE
@@ -101,18 +104,19 @@ u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
 pde = u.dt2 - u.laplace
 
 # The PDE representation is as on paper
-pde
+# pde
 
 stencil = Eq(u.forward, solve(pde, u.forward))
-stencil
+# stencil
 
 # Finally we define the source injection and receiver read function to generate
 # the corresponding code
 print(time_range)
 
-print("Init norm:", norm(u))
+print("Init norm:", np.linalg.norm(u.data[:]))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 op0 = Operator([stencil] + src_term, subs=model.spacing_map, name='SourceDevitoOperator')
+
 # Run with source and plot
 op0.apply(time=time_range.num-1, dt=model.critical_dt)
 
@@ -125,8 +129,10 @@ print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
 print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
 
 print("Norm of initial data:", norm(u))
-# import pdb;pdb.set_trace()
+
+configuration['mpi'] = 0
 u2.data[:] = u.data[:]
+configuration['mpi'] = 'basic'
 
 # Run more with no sources now (Not supported in xdsl)
 op1 = Operator([stencil], name='DevitoOperator')
@@ -146,7 +152,9 @@ print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
 
 # Reset initial data
+configuration['mpi'] = 0
 u.data[:] = u2.data[:]
+configuration['mpi'] = 'basic'
 #v[:, ..., :] = 1
 
 
