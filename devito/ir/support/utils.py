@@ -1,4 +1,5 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from itertools import product
 
 from devito.finite_differences import IndexDerivative
 from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
@@ -8,7 +9,8 @@ from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimensio
                           StencilDimension)
 
 __all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'sdims_free', 'sdims_min', 'sdims_max', 'minmax_index']
+           'pull_dims', 'sdims_free', 'sdims_min', 'sdims_max', 'minmax_index',
+           'extrema', 'erange']
 
 
 class AccessMode(object):
@@ -306,6 +308,9 @@ def sdims_max(expr, sdims=None):
     return expr.subs(mapper)
 
 
+Extrema = namedtuple('Extrema', 'm M')
+
+
 def minmax_index(expr, d):
     """
     Return the minimum and maximum indices along the `d` Dimension
@@ -318,5 +323,26 @@ def minmax_index(expr, d):
         except KeyError:
             pass
 
-    return (min(sdims_min(i) for i in indices),
-            max(sdims_max(i) for i in indices))
+    return Extrema(min(sdims_min(i) for i in indices),
+                   max(sdims_max(i) for i in indices))
+
+
+def extrema(expr):
+    """
+    The minimum and maximum extrema assumed by `expr` once the unbounded
+    StencilDimensions are resolved.
+    """
+    return Extrema(sdims_min(expr), sdims_max(expr))
+
+
+def erange(expr):
+    """
+    A tuple with all possible values that `expr` can assume along its
+    unbounded StencilDimensions.
+    """
+    sdims = sdims_free(expr)
+    if not sdims:
+        return (expr,)
+    ranges = [i.range for i in sdims]
+    mappers = [dict(zip(sdims, i)) for i in product(*ranges)]
+    return tuple(expr.subs(m) for m in mappers)
