@@ -311,8 +311,15 @@ class Operator(Callable):
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
-        # Lower functional DSL
+        # Lower FD derivatives
+        # NOTE: we force expansion of derivatives along SteppingDimensions
+        # because it drastically simplifies the subsequent lowering into
+        # ModuloDimensions
+        if not expand:
+            expand = lambda d: d.is_Stepping
         expressions = flatten([i._evaluate(expand=expand) for i in expressions])
+
+        # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
 
         # A second round of specialization is performed on evaluated expressions

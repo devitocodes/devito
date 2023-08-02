@@ -207,9 +207,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                            matvec, x0, symbolic, expand)
 
 
-def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic, expand):
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic,
+                    expand):
     # The stencil indices
-    indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec, x0=x0)
+    indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
+                                   x0=x0)
 
     # Finite difference weights from Taylor approximation given these positions
     if symbolic:
@@ -226,6 +228,10 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
 
     # Shift index due to staggering, if any
     indices = indices.shift(-(expr.indices_ref[dim] - dim))
+
+    # The user may wish to restrict expansion to selected derivatives
+    if callable(expand):
+        expand = expand(dim)
 
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim, initvalue=weights)
