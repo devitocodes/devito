@@ -92,8 +92,12 @@ class MemoryAllocator(AbstractMemoryAllocator):
         return
 
     def alloc(self, shape, dtype, padding=0):
-        datasize = int(reduce(mul, shape))
-        ctype = dtype_to_ctype(dtype)
+        # For complex number, allocate double the size of its real/imaginary part
+        alloc_dtype = dtype(0).real.__class__
+        c_scale = 2 if np.issubdtype(dtype, np.complexfloating) else 1
+
+        datasize = int(reduce(mul, shape) * c_scale)
+        ctype = dtype_to_ctype(alloc_dtype)
 
         # Add padding, if any
         try:
