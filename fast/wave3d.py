@@ -36,7 +36,7 @@ def plot_3dfunc(u):
     import pyvista as pv
     cmap = plt.colormaps["viridis"]
     values = u.data[0, :, :, :]
-    vistagrid = pv.UniformGrid()
+    vistagrid = pv.ImageData()
     vistagrid.dimensions = np.array(values.shape) + 1
     vistagrid.spacing = (1, 1, 1)
     vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
@@ -102,14 +102,14 @@ u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
 pde = u.dt2 - u.laplace
 
 # The PDE representation is as on paper
-pde
+# pde
 
 stencil = Eq(u.forward, solve(pde, u.forward))
 stencil
 
 # Finally we define the source injection and receiver read function to generate
 # the corresponding code
-print(time_range)
+# print(time_range)
 
 print("Init norm:", np.linalg.norm(u.data[:]))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
@@ -121,6 +121,8 @@ if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
+devito_norm = norm(u)
+print("Init linalg norm 0 (inlined) :", norm(u))
 print("Init linalg norm 0 :", np.linalg.norm(u.data[0]))
 print("Init linalg norm 1 :", np.linalg.norm(u.data[1]))
 print("Init linalg norm 2 :", np.linalg.norm(u.data[2]))
@@ -151,18 +153,19 @@ configuration['mpi'] = 'basic'
 #v[:, ..., :] = 1
 
 print("Reinitialise data for XDSL:", np.linalg.norm(u.data[:]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
+print("Init XDSL linalg norm 0:", np.linalg.norm(u.data[0]))
+print("Init XDSL linalg norm 1:", np.linalg.norm(u.data[1]))
+print("Init XDSL linalg norm 2:", np.linalg.norm(u.data[2]))
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil], name='xDSLOperator')
+xdslop = Operator([stencil], name='Operator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
 xdsl_output = u.copy()
 
 print("XDSL norm:", norm(u))
 print(f"xdsl output norm: {norm(xdsl_output)}")
-print("XDSL output linalg norm:", np.linalg.norm(u.data[0]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[1]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[2]))
+print("XDSL output linalg norm 0:", np.linalg.norm(u.data[0]))
+print("XDSL output linalg norm 1:", np.linalg.norm(u.data[1]))
+print("XDSL output linalg norm 2:", np.linalg.norm(u.data[2]))
+print("devito-norm:", devito_norm)
