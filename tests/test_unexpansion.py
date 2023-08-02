@@ -5,6 +5,22 @@ from devito import Buffer, Eq, Function, TimeFunction, Grid, Operator, cos, sin
 from devito.types import Symbol
 
 
+class TestLoopScheduling(object):
+
+    def test_backward_dt2(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        v = TimeFunction(name='v', grid=grid, time_order=2)
+
+        eqns = [Eq(v.backward, v + 1.),
+                Eq(f, v.dt2)]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True,
+                                              'expand': False}))
+        assert_structure(op, ['t,x,y'], 't,x,y')
+
+
 class Test1Pass(object):
 
     def test_v0(self):
