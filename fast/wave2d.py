@@ -142,7 +142,6 @@ if len(shape) == 2:
     if args.plot:
         plot_3dfunc(u)
 
-#devito_output = u.data[:]
 print("After Operator 1: Devito norm:", norm(u))
 print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
 print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))

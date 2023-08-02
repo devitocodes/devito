@@ -93,7 +93,7 @@ src.coordinates.data[0, :] = np.array(model.domain_size) * .5
 
 # Define the wavefield with the size of the model and the time dimension
 u = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
-
+# Another one to clone data
 u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
 
 # We can now write the PDE
@@ -111,7 +111,7 @@ stencil
 # the corresponding code
 print(time_range)
 
-print("Init norm:", norm(u))
+print("Init norm:", np.linalg.norm(u.data[:]))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 op0 = Operator([stencil] + src_term, subs=model.spacing_map, name='SourceDevitoOperator')
 # Run with source and plot
@@ -124,8 +124,8 @@ if len(shape) == 3:
 print("Init linalg norm 0 :", np.linalg.norm(u.data[0]))
 print("Init linalg norm 1 :", np.linalg.norm(u.data[1]))
 print("Init linalg norm 2 :", np.linalg.norm(u.data[2]))
-
 print("Norm of initial data:", np.linalg.norm(u.data[:]))
+
 configuration['mpi'] = 0
 u2.data[:] = u.data[:]
 configuration['mpi'] = 'basic'
@@ -139,7 +139,7 @@ if len(shape) == 3:
         plot_3dfunc(u)
 
 #devito_output = u.data[:]
-print("After Operator 1: Devito norm:", norm(u))
+print("After Operator 1: Devito norm:", np.linalg.norm(u.data[:]))
 print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
 print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
 print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
@@ -150,7 +150,7 @@ u.data[:] = u2.data[:]
 configuration['mpi'] = 'basic'
 #v[:, ..., :] = 1
 
-print("Reinitialise data: Devito norm:", np.linalg.norm(u.data[:]))
+print("Reinitialise data for XDSL:", np.linalg.norm(u.data[:]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
 print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
