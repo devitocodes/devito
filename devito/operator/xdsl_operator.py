@@ -53,9 +53,9 @@ MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-m
 # gpu-launch-sink-index-computations seemed to have no impact
 MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,expand-strided-metadata,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
-XDSL_CPU_PIPELINE = '"stencil-shape-inference,convert-stencil-to-ll-mlir{tile-sizes=64,64},printf-to-llvm"'
+XDSL_CPU_PIPELINE = lambda nb_tiled_dims: f'"stencil-shape-inference,convert-stencil-to-ll-mlir{{tile-sizes={",".join(["64"]*nb_tiled_dims)}}},printf-to-llvm"'
 XDSL_GPU_PIPELINE = '"stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},printf-to-llvm"'
-XDSL_MPI_PIPELINE = lambda decomp: f'"dmp-decompose-2d{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{tile-sizes=64,64}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
+XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose-2d{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{tile-sizes={",".join(["64"]*nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
 
 
 class XDSLOperator(Operator):
@@ -114,7 +114,9 @@ class XDSLOperator(Operator):
             Printer(stream=module_str).print(self._module)
             module_str = module_str.getvalue()
 
-            xdsl_pipeline = XDSL_CPU_PIPELINE
+            to_tile = len(list(filter(lambda s : str(s) in ["x", "y", "z"], self.dimensions)))-1
+
+            xdsl_pipeline = XDSL_CPU_PIPELINE(to_tile)
             mlir_pipeline = MLIR_CPU_PIPELINE
 
             if is_omp:
@@ -126,7 +128,7 @@ class XDSLOperator(Operator):
                 # reduce the domain of the computation (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
                 decomp = f"{{strategy=2d-grid slices={slices} restrict_domain=false}}"
-                xdsl_pipeline = XDSL_MPI_PIPELINE(decomp)
+                xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
             elif is_gpu:
                 xdsl_pipeline = XDSL_GPU_PIPELINE
                 mlir_pipeline = MLIR_GPU_PIPELINE
