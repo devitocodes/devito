@@ -3,7 +3,9 @@ from functools import singledispatch
 import cgen
 import numpy as np
 import sympy
+import numpy as np
 
+from devito import configuration
 from devito.finite_differences import Max, Min
 from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
                        FindNodes, FindSymbols, Transformer, Uxreplace,
@@ -16,7 +18,7 @@ from devito.tools import Bunch, as_mapper, filter_ordered, split
 from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
-           'generate_macros', 'minimize_symbols']
+           'generate_macros', 'minimize_symbols', 'complex_include']
 
 
 @iet_pass
@@ -237,6 +239,28 @@ def minimize_symbols(iet):
     iet = remove_redundant_moddims(iet)
     iet = abridge_dim_names(iet)
 
+    return iet, {}
+
+
+@iet_pass
+def complex_include(iet):
+    """
+    Add headers for complex arithmetic
+    """
+    if configuration['language'] == 'cuda':
+        lib = 'cuComplex.h'
+    elif configuration['language'] == 'hip':
+        lib = 'hip/hip_complex.h'
+    else:
+        lib = 'complex.h'
+
+    functions = FindSymbols().visit(iet)
+    for f in functions:
+        try:
+            if np.issubdtype(f.dtype, np.complexfloating):
+                return iet, {'includes': (lib,)}
+        except TypeError:
+            pass
     return iet, {}
 
 
