@@ -74,7 +74,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def dtype(self):
-        dtypes = {f.dtype for f in self.find(Indexed)} - {None}
+        dtypes = {f.dtype for f in self._functions} - {None}
         return infer_dtype(dtypes)
 
     @cached_property
