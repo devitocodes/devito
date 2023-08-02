@@ -4,7 +4,7 @@ from cached_property import cached_property
 from sympy import S
 
 from devito.ir.support.space import Backward, IterationSpace
-from devito.ir.support.utils import AccessMode
+from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_affine, q_routine, search, uxreplace)
@@ -237,7 +237,7 @@ class TimedAccess(IterationInstance, AccessMode):
         # which might require expensive comparisons of Vector entries (i.e.,
         # SymPy expressions)
 
-        return (self.access is other.access and  # => self.function is other.function
+        return (self.access is other.access and
                 self.mode == other.mode and
                 self.ispace == other.ispace)
 
@@ -899,7 +899,8 @@ class Scope(object):
         return self.getwrites(function) + self.getreads(function)
 
     def __repr__(self):
-        tracked = filter_sorted(set(self.reads) | set(self.writes), key=lambda i: i.name)
+        tracked = filter_sorted(set(self.reads) | set(self.writes),
+                                key=lambda i: i.name)
         maxlen = max(1, max([len(i.name) for i in tracked]))
         out = "{:>%d} =>  W : {}\n{:>%d}     R : {}" % (maxlen, maxlen)
         pad = " "*(maxlen + 9)
@@ -923,6 +924,19 @@ class Scope(object):
             writes[i] = '\033[1;37;31m%s\033[0m' % (first + shifted)
         return "\n".join([out.format(i.name, w, '', r)
                           for i, r, w in zip(tracked, reads, writes)])
+
+    @cached_property
+    def reads_extremaed(self):
+        """
+        A view of the Scope's reads in which StencilDimensions are replaced
+        with their extrema.
+        """
+        ret = {f: [] for f in self.reads}
+        for f, v in self.reads.items():
+            for i in v:
+                for j in set(extrema(i.access)):
+                    ret[f].append(TimedAccess(j, i.mode, i.timestamp, i.ispace))
+        return ret
 
     @cached_property
     def accesses(self):
@@ -949,7 +963,7 @@ class Scope(object):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads.get(k, []):
+                for r in self.reads_extremaed.get(k, []):
                     dependence = Dependence(w, r)
 
                     if dependence.is_imaginary:
@@ -979,7 +993,7 @@ class Scope(object):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads.get(k, []):
+                for r in self.reads_extremaed.get(k, []):
                     dependence = Dependence(r, w)
 
                     if dependence.is_imaginary:
@@ -1051,7 +1065,7 @@ class Scope(object):
         accesses = as_tuple(accesses)
         for d in self.d_all_gen():
             for i in accesses:
-                if d.source is i or d.sink is i:
+                if d.source == i or d.sink == i:
                     yield d
                     break
 
