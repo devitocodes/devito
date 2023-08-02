@@ -186,7 +186,7 @@ class Fusion(Queue):
         if isinstance(c, Cluster):
             syncs = (c.syncs,)
         else:
-            syncs = c.syncs
+            syncs = tuple(i.syncs for i in c)
         for i in syncs:
             mapper = defaultdict(set)
             for k, v in i.items():
