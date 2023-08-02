@@ -469,6 +469,12 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+
+        # Complex header if needed. Needs to be done specialization
+        # as some specific cases requires complex to be loaded first
+        complex_include(graph)
+
+        # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

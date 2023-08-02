@@ -13,7 +13,8 @@ from sympy.core.decorators import call_highest_priority
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex)
+                          frozendict, memoized_meth, sympy_mutex, dtype_to_cstr,
+                          CustomDtype)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
@@ -432,7 +433,16 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     @property
     def _C_ctype(self):
-        return dtype_to_ctype(self.dtype)
+        if isinstance(self.dtype, CustomDtype):
+            return self.dtype
+        elif np.issubdtype(self.dtype, np.complexfloating):
+            rtype = self.dtype(0).real.__class__
+            ctname = '%s _Complex' % dtype_to_cstr(rtype)
+            ctype = dtype_to_ctype(rtype)
+            r = type(ctname, (ctype,), {})
+            return r
+        else:
+            return dtype_to_ctype(self.dtype)
 
     def _subs(self, old, new, **hints):
         """
@@ -1470,7 +1480,14 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     @cached_property
     def _C_ctype(self):
         try:
-            return POINTER(dtype_to_ctype(self.dtype))
+            if np.issubdtype(self.dtype, np.complexfloating):
+                rtype = self.dtype(0).real.__class__
+                ctname = '%s _Complex' % dtype_to_cstr(rtype)
+                ctype = dtype_to_ctype(rtype)
+                r = type(ctname, (ctype,), {})
+                return POINTER(r)
+            else:
+                return POINTER(dtype_to_ctype(self.dtype))
         except TypeError:
             # `dtype` is a ctypes-derived type!
             return self.dtype

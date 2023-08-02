@@ -3,6 +3,8 @@ from functools import singledispatch
 import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
+from sympy.core.operations import AssocOp
+from sympy.core.numbers import ImaginaryUnit
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -167,6 +169,7 @@ def _(expr, estimate, seen):
     return 0, True
 
 
+@_estimate_cost.register(ImaginaryUnit)
 @_estimate_cost.register(Number)
 @_estimate_cost.register(ReservedWord)
 def _(expr, estimate, seen):
@@ -189,6 +192,8 @@ def _(expr, estimate, seen):
     flops, flags = _estimate_cost.registry[object](expr, estimate, seen)
     if {S.One, S.NegativeOne}.intersection(expr.args):
         flops -= 1
+    if ImaginaryUnit in expr.args:
+        flops *= 2
     return flops, flags
 
 
