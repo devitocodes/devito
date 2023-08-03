@@ -6,6 +6,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions
                     Dimension, solve, Operator, NODE)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
+from devito.passes.equations.linearity import factorize_derivatives
 
 _PRECISION = 9
 
@@ -344,3 +345,17 @@ class TestSC(object):
         Operator([eq_f, eq_g])(t_m=0, t_M=1)
 
         assert np.allclose(f.data[-1], -g.data[-1], atol=1e-7)
+
+    def test_collect_w_custom_coeffs(self):
+        grid = Grid(shape=(11, 11, 11))
+        p = TimeFunction(name='p', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        expr = p.dx2 + q.dx2
+        collected = factorize_derivatives(expr)
+        assert collected == expr
+        assert collected.is_Add
+        Operator([Eq(p.forward, expr)])(time_M=2)  # noqa
