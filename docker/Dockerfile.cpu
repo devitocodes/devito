@@ -16,7 +16,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && \
     apt-get install -y vim wget git flex libnuma-dev tmux \
         numactl hwloc curl \
-        autoconf libtool build-essential
+        autoconf libtool build-essential procps
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -65,20 +65,8 @@ FROM base as oneapi
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
 
-# Set en vars by hand since we can't use entrypoint for intermediate image
-ENV I_ICC_ROOT=/opt/intel/oneapi/compiler/latest/
-ENV I_MPI_ROOT=/opt/intel/oneapi/mpi/latest/
-ENV PATH $I_MPI_ROOT/libfabric/bin:$I_MPI_ROOT/bin:$I_ICC_ROOT/linux/bin/intel64:$I_ICC_ROOT/linux/bin:${PATH}
-ENV CPATH $I_MPI_ROOT/libfabric/include:$I_MPI_ROOT/include:$I_ICC_ROOT/linux/include:${CPATH}
-ENV LD_LIBRARY_PATH $I_MPI_ROOT/libfabric/lib:$I_MPI_ROOT/lib/release:$I_MPI_ROOT/lib:$I_ICC_ROOT/linux/lib:$I_ICC_ROOT/linux/lib/x64:$I_ICC_ROOT/linux/compiler/lib/intel64_lin:${LD_LIBRARY_PATH}
-ENV FI_PROVIDER_PATH $I_MPI_ROOT/libfabric/lib/prov:/usr/lib64/libfabric:${LD_LIBRARY_PATH}
-
 # Intel advisor
 RUN apt-get update -y && apt-get install -y intel-oneapi-advisor
-ENV PATH ${PATH}:/opt/intel/oneapi/advisor/latest/bin64
-ENV CPATH ${CPATH}:/opt/intel/oneapi/advisor/latest/include
-ENV LD_LIBRARY_PATH LD_LIBRARY_PATH:/opt/intel/oneapi/advisor/latest/lib64
-
 ##############################################################
 # ICC image
 # This is a legacy setup that is not built anymore but kept for reference
@@ -93,8 +81,8 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-
 ENV DEVITO_ARCH="icc"
 ENV DEVITO_LANGUAGE="openmp"
 # MPICC compiler for mpi4py
-ENV MPICC=$I_MPI_ROOT/bin/mpiicc
-ENV MPI4PY_FLAGS='CFLAGS="-cc=icc"'
+ENV MPICC=mpiicc
+ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icc"'
 
 ##############################################################
 # ICX image
@@ -109,5 +97,5 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp inte
 ENV DEVITO_ARCH="icx"
 ENV DEVITO_LANGUAGE="openmp"
 # MPICC compiler for mpi4py
-ENV MPICC=$I_MPI_ROOT/bin/mpiicc
-ENV MPI4PY_FLAGS='CFLAGS="-cc=icx"'
+ENV MPICC=mpiicc
+ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icx"'
