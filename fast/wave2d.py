@@ -1,7 +1,6 @@
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
 import sys
-
 import numpy as np
 
 from devito import (TimeFunction, Eq, Operator, solve, norm,
@@ -97,21 +96,19 @@ src.coordinates.data[0, :] = np.array(model.domain_size) * .5
 u = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
 # Another one to clone data
 u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
+ub = TimeFunction(name="ub", grid=model.grid, time_order=to, space_order=so)
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
 # import pdb;pdb.set_trace()
 pde = u.dt2 - u.laplace
 
-# The PDE representation is as on paper
-# pde
-
 stencil = Eq(u.forward, solve(pde, u.forward))
 # stencil
 
 # Finally we define the source injection and receiver read function to generate
 # the corresponding code
-print(time_range)
+# print(time_range)
 
 print("Init norm:", np.linalg.norm(u.data[:]))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
@@ -124,11 +121,10 @@ if len(shape) == 2:
     if args.plot:
         plot_2dfunc(u)
 
-print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
-print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
-print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
-
-print("Norm of initial data:", norm(u))
+#print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
+#print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
+#print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
+# print("Norm of initial data:", norm(u))
 
 configuration['mpi'] = 0
 u2.data[:] = u.data[:]
@@ -138,14 +134,14 @@ configuration['mpi'] = 'basic'
 op1 = Operator([stencil], name='DevitoOperator')
 op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
-if len(shape) == 2:
-    if args.plot:
-        plot_3dfunc(u)
+configuration['mpi'] = 0
+ub.data[:] = u.data[:]
+configuration['mpi'] = 'basic'
 
-print("After Operator 1: Devito norm:", norm(u))
-print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
-print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
-print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
+#print("After Operator 1: Devito norm:", norm(u))
+#print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
+#print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
+#print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
 # import pdb;pdb.set_trace()
 
@@ -157,21 +153,15 @@ configuration['mpi'] = 'basic'
 #v[:, ..., :] = 1
 
 
-print("Reinitialise data: Devito norm:", norm(u))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
+#print("Reinitialise data: Devito norm:", norm(u))
+#print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
+#print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
+#print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil], name='xDSLOperator')
+xdslop = Operator([stencil], name='xDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
-xdsl_output = u.copy()
-print("XDSL norm:", norm(u))
-print(f"xdsl output norm: {norm(xdsl_output)}")
-
-print("XDSL output linalg norm:", np.linalg.norm(u.data[0]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[1]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[2]))
-
-
+print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
+print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
+print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))

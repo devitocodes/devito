@@ -102,11 +102,6 @@ pde = u.dt2 - u.laplace
 
 stencil = Eq(u.forward, solve(pde, u.forward))
 
-# Finally we define the source injection and receiver read function to generate
-# the corresponding code
-# print(time_range)
-
-# print("Init norm:", np.linalg.norm(u.data[:]))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 op0 = Operator([stencil] + src_term, subs=model.spacing_map, name='SourceDevitoOperator')
 # Run with source and plot
