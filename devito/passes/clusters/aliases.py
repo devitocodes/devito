@@ -10,7 +10,7 @@ from devito.finite_differences import EvalDerivative, IndexDerivative
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
                        IntervalGroup, LabeledVector, normalize_properties,
-                       relax_properties, sdims_free, sdims_min, sdims_max)
+                       relax_properties, unbounded, minimum, maximum, extrema)
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
                               uxreplace, sympy_dtype)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
@@ -991,13 +991,13 @@ class Group(tuple):
         # Expand out the StencilDimensions, if any
         processed = []
         for c in items:
-            sdims = sdims_free(c.expr)
+            sdims = [d for d in unbounded(c.expr) if d.is_Stencil]
             if not sdims:
                 processed.append(c)
                 continue
 
-            f0 = lambda e: sdims_min(e, sdims)
-            f1 = lambda e: sdims_max(e, sdims)
+            f0 = lambda e: minimum(e, sdims)
+            f1 = lambda e: maximum(e, sdims)
 
             for f in (f0, f1):
                 expr = f(c.expr)
@@ -1083,7 +1083,8 @@ class Group(tuple):
     def naliases(self):
         na = len(self._items)
 
-        sdims = set().union(*[sdims_free(c.expr) for c in self._items])
+        udims = set().union(*[unbounded(c.expr) for c in self._items])
+        sdims = [d for d in udims if d.is_Stencil]
         implicit = int(np.prod([i._size for i in sdims])) - 1
 
         return na + implicit
@@ -1160,8 +1161,7 @@ class Group(tuple):
                 # Any `ofs`'s shift due to non-[0,0] iteration space
                 lower, upper = self._ispace.intervals[l].offsets
 
-                ofs0 = sdims_min(ofs[l])
-                ofs1 = sdims_max(ofs[l])
+                ofs0, ofs1 = extrema(ofs[l])
 
                 try:
                     # Assume `ofs[l]` is a number (typical case)
