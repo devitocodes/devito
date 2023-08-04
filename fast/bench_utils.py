@@ -7,6 +7,7 @@ __all__ = ['plot_2dfunc', 'plot_3dfunc']
 def plot_2dfunc(u):
     # Plot a 2D image using devito's machinery
     plot_image(u.data[0], cmap='seismic')
+    plot_image(u.data[1], cmap='seismic')
 
 
 def plot_3dfunc(u):
