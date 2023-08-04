@@ -56,6 +56,8 @@ def _set_log_level(level):
 
     logger.setLevel(level)
 
+    return level
+
 
 def set_log_level(level, comm=None):
     """

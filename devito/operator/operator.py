@@ -1186,7 +1186,9 @@ def parse_kwargs(**kwargs):
 
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        '%s.%s' % (kwargs['compiler'].__class__.__name__, kwargs['language'])
+        '%s.%s.%s' % (kwargs['compiler'].name,
+                      kwargs['language'],
+                      kwargs['platform'])
     )
 
     return kwargs

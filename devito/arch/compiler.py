@@ -216,6 +216,10 @@ class Compiler(GCCToolchain):
                               mpi=kwargs.pop('mpi', configuration['mpi']),
                               **kwargs)
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
     @memoized_meth
     def get_jit_dir(self):
         """A deterministic temporary directory for jit-compiled objects."""

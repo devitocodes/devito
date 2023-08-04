@@ -254,6 +254,14 @@ class DeviceID(DeviceSymbol):
     def default_value(self):
         return -1
 
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        elif configuration['deviceid'] != self.default_value:
+            return {self.name: configuration['deviceid']}
+        else:
+            return {self.name: self.default_value}
+
 
 class DeviceRM(DeviceSymbol):
 
