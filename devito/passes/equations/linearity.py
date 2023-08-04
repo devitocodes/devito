@@ -187,6 +187,11 @@ def _(expr):
     if not derivs:
         return reuse_if_untouched(expr, args)
 
+    # Cannot factorize derivatives with symbolic coefficients since
+    # they may have different coefficient values at evaluation
+    if any(d._uses_symbolic_coefficients for d in derivs):
+        return reuse_if_untouched(expr, args)
+
     # Map by type of derivative
     # Note: `D0(a) + D1(b) == D(a + b)` <=> `D0` and `D1`'s metadata match,
     # i.e. they are the same type of derivative
