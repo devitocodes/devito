@@ -6,6 +6,7 @@ from devito import (TimeFunction, Eq, Operator, solve, norm,
                     XDSLOperator, configuration)
 from examples.seismic import RickerSource
 from examples.seismic import Model, TimeAxis
+from fast.bench_utils import plot_3dfunc
 
 from devito.tools import as_tuple
 
@@ -26,24 +27,12 @@ parser.add_argument("-nt", "--nt", default=200,
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
 
-def plot_3dfunc(u):
-    # Plot a 3D structured grid using pyvista
-
-    import matplotlib.pyplot as plt
-    import pyvista as pv
-    cmap = plt.colormaps["viridis"]
-    values = u.data[0, :, :, :]
-    vistagrid = pv.ImageData()
-    vistagrid.dimensions = np.array(values.shape) + 1
-    vistagrid.spacing = (1, 1, 1)
-    vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
-    vistagrid.cell_data["values"] = values.flatten(order="F")
-    vistaslices = vistagrid.slice_orthogonal()
-    # vistagrid.plot(show_edges=True)
-    vistaslices.plot(cmap=cmap)
+mpiconf = configuration['mpi']
 
 
 # Define a physical size
@@ -121,7 +110,7 @@ if len(shape) == 3:
 
 configuration['mpi'] = 0
 u2.data[:] = u.data[:]
-configuration['mpi'] = 'basic'
+configuration['mpi'] = mpiconf
 
 # Run more with no sources now (Not supported in xdsl)
 op1 = Operator([stencil], name='DevitoOperator')
@@ -129,7 +118,7 @@ op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
 configuration['mpi'] = 0
 ub.data[:] = u.data[:]
-configuration['mpi'] = 'basic'
+configuration['mpi'] = mpiconf
 
 if len(shape) == 3:
     if args.plot:
@@ -143,7 +132,7 @@ if len(shape) == 3:
 # Reset initial data
 configuration['mpi'] = 0
 u.data[:] = u2.data[:]
-configuration['mpi'] = 'basic'
+configuration['mpi'] = mpiconf
 
 # print("Reinitialise data for XDSL:", np.linalg.norm(u.data[:]))
 # print("Init XDSL linalg norm 0:", np.linalg.norm(u.data[0]))
