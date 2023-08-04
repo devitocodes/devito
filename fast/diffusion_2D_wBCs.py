@@ -21,7 +21,9 @@ parser.add_argument("-nt", "--nt", default=40,
                     type=int, help="Simulation time in millisecond")
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
-parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
+parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot2D")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
 # Some variable declarations
@@ -55,15 +57,17 @@ eq_stencil = Eq(u.forward, stencil)
 x, y = grid.dimensions
 t = grid.stepping_dim
 
-initdata = u.data[:]
-op = Operator([eq_stencil], name='DevitoOperator')
-op.apply(time=nt, dt=dt, a=nu)
+import pdb;pdb.set_trace()
 
-print("Devito Field norm is:", norm(u))
+# initdata = u.data[:]
+if args.devito:
+    op = Operator([eq_stencil], name='DevitoOperator')
+    op.apply(time=nt, dt=dt, a=nu)
+    print("Devito Field norm is:", norm(u))
 
-# Reset data and run XDSLOperator
-init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
-xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
-xdslop.apply(time=nt, dt=dt, a=nu)
-
-print("XDSL Field norm is:", norm(u))
+if args.xdsl:
+    # Reset data and run XDSLOperator
+    #init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+    xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
+    xdslop.apply(time=nt, dt=dt, a=nu)
+    print("XDSL Field norm is:", norm(u))

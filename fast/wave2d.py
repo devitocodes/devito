@@ -27,6 +27,7 @@ parser.add_argument("-nt", "--nt", default=20,
 parser.add_argument("-bls", "--blevels", default=1, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot2D")
+parser.add_argument("-mode", "--mode", default='devito', type=str, help="Operator mode")
 args = parser.parse_args()
 
 
