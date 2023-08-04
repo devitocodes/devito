@@ -6,8 +6,8 @@ import argparse
 import numpy as np
 
 from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator
-from examples.seismic import plot_image
 from examples.cfd import init_hat
+from fast.bench_utils import plot_2dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
@@ -57,6 +57,9 @@ if args.devito:
     op = Operator([eq_stencil], name='DevitoOperator')
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
+
+    if args.plot:
+        plot_2dfunc(u)
 
 # Reset data
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)

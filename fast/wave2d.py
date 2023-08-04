@@ -6,8 +6,8 @@ import numpy as np
 from devito import (TimeFunction, Eq, Operator, solve, norm,
                     XDSLOperator, configuration)
 from examples.seismic import RickerSource
-from examples.seismic import Model, TimeAxis
-
+from examples.seismic import Model, TimeAxis, plot_image
+from fast.bench_utils import plot_2dfunc
 from devito.tools import as_tuple
 
 import argparse
@@ -27,26 +27,12 @@ parser.add_argument("-nt", "--nt", default=20,
 parser.add_argument("-bls", "--blevels", default=1, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot2D")
-parser.add_argument("-mode", "--mode", default='devito', type=str, help="Operator mode")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
 
-def plot_2dfunc(u):
-    # Plot a 3D structured grid using pyvista
-
-    import matplotlib.pyplot as plt
-    import pyvista as pv
-    cmap = plt.colormaps["viridis"]
-    values = u.data[0, :, :, :]
-    vistagrid = pv.UniformGrid()
-    vistagrid.dimensions = np.array(values.shape) + 1
-    vistagrid.spacing = (1, 1, 1)
-    vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
-    vistagrid.cell_data["values"] = values.flatten(order="F")
-    vistaslices = vistagrid.slice_orthogonal()
-    # vistagrid.plot(show_edges=True)
-    vistaslices.plot(cmap=cmap)
-
+mpiconf = configuration['mpi']
 
 # Define a physical size
 # nx, ny, nz = args.shape
@@ -122,47 +108,51 @@ if len(shape) == 2:
     if args.plot:
         plot_2dfunc(u)
 
-#print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
-#print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
-#print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
+# print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
+# print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
+# print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
 # print("Norm of initial data:", norm(u))
 
 configuration['mpi'] = 0
 u2.data[:] = u.data[:]
-configuration['mpi'] = 'basic'
+configuration['mpi'] = mpiconf
 
-# Run more with no sources now (Not supported in xdsl)
-op1 = Operator([stencil], name='DevitoOperator')
-op1.apply(time=time_range.num-1, dt=model.critical_dt)
+if args.devito:
+    # Run more with no sources now (Not supported in xdsl)
+    op1 = Operator([stencil], name='DevitoOperator')
+    op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
-configuration['mpi'] = 0
-ub.data[:] = u.data[:]
-configuration['mpi'] = 'basic'
+    configuration['mpi'] = 0
+    ub.data[:] = u.data[:]
+    configuration['mpi'] = mpiconf
 
-#print("After Operator 1: Devito norm:", norm(u))
-#print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
-#print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
-#print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
+    if len(shape) == 2 and args.plot:
+        plot_2dfunc(u)
 
-# import pdb;pdb.set_trace()
-
-
-# Reset initial data
-configuration['mpi'] = 0
-u.data[:] = u2.data[:]
-configuration['mpi'] = 'basic'
-#v[:, ..., :] = 1
+    # print("After Operator 1: Devito norm:", norm(u))
+    # print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
+    # print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
+    # print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
 
-#print("Reinitialise data: Devito norm:", norm(u))
-#print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
-#print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
-#print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
+if args.xdsl:
+    # Reset initial data
+    configuration['mpi'] = 0
+    u.data[:] = u2.data[:]
+    configuration['mpi'] = mpiconf
+    # v[:, ..., :] = 1
+    # print("Reinitialise data: Devito norm:", norm(u))
+    # print("XDSL init linalg norm:", np.linalg.norm(u.data[0]))
+    # print("XDSL init linalg norm:", np.linalg.norm(u.data[1]))
+    # print("XDSL init linalg norm:", np.linalg.norm(u.data[2]))
 
-# Run more with no sources now (Not supported in xdsl)
-xdslop = Operator([stencil], name='xDSLOperator')
-xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
+    # Run more with no sources now (Not supported in xdsl)
+    xdslop = Operator([stencil], name='xDSLOperator')
+    xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
-print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
-print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
-print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+    if len(shape) == 2 and args.plot:
+        plot_2dfunc(u)
+
+    print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
+    print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
+    print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
