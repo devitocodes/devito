@@ -11,7 +11,7 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression,
                        retrieve_iteration_tree, IMask, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
-                                        make_sections_from_imask)
+                                        ShmTransformer, make_sections_from_imask)
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
@@ -189,128 +189,16 @@ class PragmaIteration(ParallelIteration):
         return tuple(ret)
 
 
-class PragmaShmTransformer(PragmaSimdTransformer):
+class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
     """
-    Abstract base class for PragmaTransformers capable of emitting SIMD-parallel
-    and shared-memory-parallel IETs.
+    PragmaTransformer capable of emitting SIMD-parallel and shared-memory-parallel
+    IETs for CPUs.
     """
 
     def __init__(self, sregistry, options, platform, compiler):
-        """
-        Parameters
-        ----------
-        sregistry : SymbolRegistry
-            The symbol registry, to access the symbols appearing in an IET.
-        options : dict
-             The optimization options. Accepted: ['par-collapse-ncores',
-             'par-collapse-work', 'par-chunk-nonaffine', 'par-dynamic-work', 'par-nested']
-             * 'par-collapse-ncores': use a collapse clause if the number of
-               available physical cores is greater than this threshold.
-             * 'par-collapse-work': use a collapse clause if the trip count of the
-               collapsable Iterations is statically known to exceed this threshold.
-             * 'par-chunk-nonaffine': coefficient to adjust the chunk size in
-               non-affine parallel Iterations.
-             * 'par-dynamic-work': use dynamic scheduling if the operation count per
-               iteration exceeds this threshold. Otherwise, use static scheduling.
-             * 'par-nested': nested parallelism if the number of hyperthreads per core
-               is greater than this threshold.
-        platform : Platform
-            The underlying platform.
-        compiler : Compiler
-            The underlying JIT compiler.
-        """
         key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
-        super().__init__(key, sregistry, platform, compiler)
-
-        self.collapse_ncores = options['par-collapse-ncores']
-        self.collapse_work = options['par-collapse-work']
-        self.chunk_nonaffine = options['par-chunk-nonaffine']
-        self.dynamic_work = options['par-dynamic-work']
-        self.nested = options['par-nested']
-
-    @property
-    def ncores(self):
-        return self.platform.cores_physical
-
-    @property
-    def nhyperthreads(self):
-        return self.platform.threads_per_core
-
-    @property
-    def nthreads(self):
-        return self.sregistry.nthreads
-
-    @property
-    def nthreads_nested(self):
-        return self.sregistry.nthreads_nested
-
-    @property
-    def nthreads_nonaffine(self):
-        return self.sregistry.nthreads_nonaffine
-
-    @property
-    def threadid(self):
-        return self.sregistry.threadid
-
-    def _select_candidates(self, candidates):
-        assert candidates
-
-        if self.ncores < self.collapse_ncores:
-            return candidates[0], []
-
-        mapper = {}
-        for n0, root in enumerate(candidates):
-
-            collapsable = []
-            for n, i in enumerate(candidates[n0+1:], n0+1):
-                # The Iteration nest [root, ..., i] must be perfect
-                if not IsPerfectIteration(depth=i).visit(root):
-                    break
-
-                # Loops are collapsable only if none of the iteration variables appear
-                # in initializer expressions. For example, the following two loops
-                # cannot be collapsed
-                #
-                # for (i = ... )
-                #   for (j = i ...)
-                #     ...
-                #
-                # Here, we make sure this won't happen
-                if any(j.dim in i.symbolic_min.free_symbols for j in candidates[n0:n]):
-                    break
-
-                # Also, we do not want to collapse SIMD-vectorized Iterations
-                if i.is_Vectorized:
-                    break
-
-                # Would there be enough work per parallel iteration?
-                nested = candidates[n+1:]
-                if nested:
-                    try:
-                        work = prod([int(j.dim.symbolic_size) for j in nested])
-                        if work < self.collapse_work:
-                            break
-                    except TypeError:
-                        pass
-
-                collapsable.append(i)
-
-            # Give a score to this candidate, based on the number of fully-parallel
-            # Iterations and their position (i.e. outermost to innermost) in the nest
-            score = (
-                int(root.is_ParallelNoAtomic),
-                int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
-                int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
-                -(n0 + 1)  # The outermost, the better
-            )
-
-            mapper[(root, tuple(collapsable))] = score
-
-        # Retrieve the candidates with highest score
-        root, collapsable = max(mapper, key=mapper.get)
-
-        return root, list(collapsable)
+        super().__init__(key, sregistry, options, platform, compiler)
 
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
