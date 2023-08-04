@@ -9,7 +9,7 @@ from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimensio
                           StencilDimension)
 
 __all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'sdims_free', 'sdims_min', 'sdims_max', 'minmax_index',
+           'pull_dims', 'unbounded', 'minimum', 'maximum', 'minmax_index',
            'extrema', 'erange']
 
 
@@ -276,40 +276,62 @@ def pull_dims(exprs, flag=True):
 
 # *** Utility functions for expressions that potentially contain StencilDimensions
 
-def sdims_free(expr):
+def unbounded(expr):
     """
-    Retrieve all unbounded StencilDimensions in `expr`.
+    Retrieve all unbounded Dimensions in `expr`.
     """
+    # At the moment we only have logic to retrieve unbounded StencilDimensions,
+    # but in the future this might change
     bound = set().union(*[i.dimensions for i in search(expr, IndexDerivative)])
     sdims = search(expr, StencilDimension, mode='unique', deep=True)
+
     return sdims - bound
 
 
-def sdims_min(expr, sdims=None):
-    """
-    Replace StencilDimensions in `expr` with their minimum point.
-    """
-    if not sdims:
-        sdims = sdims_free(expr)
-    if not sdims:
-        return expr
-    mapper = {e: e._min for e in sdims}
-    return expr.subs(mapper)
-
-
-def sdims_max(expr, sdims=None):
-    """
-    Replace StencilDimensions in `expr` with their maximum point.
-    """
-    if not sdims:
-        sdims = sdims_free(expr)
-    if not sdims:
-        return expr
-    mapper = {e: e._max for e in sdims}
-    return expr.subs(mapper)
-
-
 Extrema = namedtuple('Extrema', 'm M')
+
+
+def _minmax(expr, callback, udims=None):
+    """
+    Helper for `minimum`, `maximum`, and potential future utilities that share
+    a significant chunk of logic.
+    """
+    if not udims:
+        udims = unbounded(expr)
+
+    # Resolution rule 1: StencilDimensions
+    sdims = [d for d in udims if d.is_Stencil]
+    if not sdims:
+        return expr
+    mapper = {e: callback(e) for e in sdims}
+
+    return expr.subs(mapper)
+
+
+def minimum(expr, udims=None):
+    """
+    Substitute the unbounded Dimensions in `expr` with their minimum point.
+
+    Unbounded Dimensions whose possible minimum value is not known are ignored.
+    """
+    return _minmax(expr, lambda e: e._min, udims)
+
+
+def maximum(expr, udims=None):
+    """
+    Substitute the unbounded Dimensions in `expr` with their maximum point.
+
+    Unbounded Dimensions whose possible maximum value is not known are ignored.
+    """
+    return _minmax(expr, lambda e: e._max, udims)
+
+
+def extrema(expr):
+    """
+    The minimum and maximum extrema assumed by `expr` once the unbounded
+    Dimensions are resolved.
+    """
+    return Extrema(minimum(expr), maximum(expr))
 
 
 def minmax_index(expr, d):
@@ -324,26 +346,21 @@ def minmax_index(expr, d):
         except KeyError:
             pass
 
-    return Extrema(min(sdims_min(i) for i in indices),
-                   max(sdims_max(i) for i in indices))
-
-
-def extrema(expr):
-    """
-    The minimum and maximum extrema assumed by `expr` once the unbounded
-    StencilDimensions are resolved.
-    """
-    return Extrema(sdims_min(expr), sdims_max(expr))
+    return Extrema(min(minimum(i) for i in indices),
+                   max(maximum(i) for i in indices))
 
 
 def erange(expr):
     """
-    A tuple with all possible values that `expr` can assume along its
-    unbounded StencilDimensions.
+    All possible values that `expr` can assume once its unbounded Dimensions
+    are resolved.
     """
-    sdims = sdims_free(expr)
-    if not sdims:
+    udims = unbounded(expr)
+    if not udims:
         return (expr,)
+
+    sdims = [d for d in udims if d.is_Stencil]
     ranges = [i.range for i in sdims]
     mappers = [dict(zip(sdims, i)) for i in product(*ranges)]
+
     return tuple(expr.subs(m) for m in mappers)

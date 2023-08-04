@@ -8,7 +8,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
                                DataSpace, Guards, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs,
-                               sdims_min, sdims_max)
+                               minimum, maximum)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
@@ -276,8 +276,8 @@ class Cluster(object):
                 continue
 
             intervals = [Interval(d,
-                                  min([sdims_min(i) for i in offs]),
-                                  max([sdims_max(i) for i in offs]))
+                                  min([minimum(i) for i in offs]),
+                                  max([maximum(i) for i in offs]))
                          for d, offs in v.items()]
             intervals = IntervalGroup(intervals)
 
@@ -401,14 +401,6 @@ class ClusterGroup(tuple):
         obj = super(ClusterGroup, cls).__new__(cls, flatten(as_tuple(clusters)))
         obj._ispace = ispace
         return obj
-
-    def rebuild(self, ispace=None):
-        processed = []
-        for c in self:
-            ispace = IterationSpace.union(c.ispace, ispace)
-            processed.append(c.rebuild(ispace=ispace))
-
-        return self.__class__(processed, ispace)
 
     @classmethod
     def concatenate(cls, *cgroups):
