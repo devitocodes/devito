@@ -35,8 +35,7 @@ class AnisotropicWaveSolver(object):
         self.kernel = kernel
 
         if model.fs and kernel == 'staggered':
-            raise ValueError("Bad arguments in AnisotropicWaveSolver() - " +
-                             "if model.fs is True, kernel must be centered.")
+            raise ValueError("Free surface only supported for centered TTI kernel")
 
         if space_order % 2 != 0:
             raise ValueError("space_order must be even but got %s"
