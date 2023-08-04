@@ -1263,7 +1263,9 @@
 
     <span class="c1"># `allocator`</span>
     <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;allocator&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">default_allocator</span><span class="p">(</span>
-        <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">])</span>
+        <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                      <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;language&#39;</span><span class="p">],</span>
+                      <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;platform&#39;</span><span class="p">])</span>
     <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">kwargs</span>
