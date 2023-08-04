@@ -6,7 +6,7 @@ from operator import mul
 from cached_property import cached_property
 from sympy import Expr
 
-from devito.ir.support.utils import sdims_min, sdims_max
+from devito.ir.support.utils import minimum, maximum
 from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
                           flatten, frozendict, is_integer, toposort)
@@ -286,8 +286,9 @@ class Interval(AbstractInterval):
         return self
 
     def expand(self):
-        return Interval(self.dim, sdims_min(self.lower), sdims_max(self.upper),
-                        self.stamp)
+        return Interval(
+            self.dim, minimum(self.lower), maximum(self.upper), self.stamp
+        )
 
 
 class IntervalGroup(PartialOrderTuple):
