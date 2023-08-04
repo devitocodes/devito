@@ -20,6 +20,8 @@ parser.add_argument("-nt", "--nt", default=40,
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
 
@@ -77,21 +79,21 @@ t = grid.stepping_dim
 print(eq_stencil)
 
 # Create Operator
-op = Operator([eq_stencil], name='DevitoOperator')
-# Apply the operator for a number of timesteps
-op.apply(time=nt, dt=dt, a=nu)
-print("Devito Field norm is:", norm(u))
+if args.devito:
+    op = Operator([eq_stencil], name='DevitoOperator')
+    # Apply the operator for a number of timesteps
+    op.apply(time=nt, dt=dt, a=nu)
+    print("Devito Field norm is:", norm(u))
 
-# Reset field
-u.data[:, :, :, :] = 0
-u.data[:, :, :, int(nz/2)] = 1
-xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
-# Apply the xdsl operator for a number of timesteps
-xdslop.apply(time=nt, dt=dt, a=nu)
+if args.xdsl:
+    # Reset field
+    u.data[:, :, :, :] = 0
+    u.data[:, :, :, int(nz/2)] = 1
+    xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
+    # Apply the xdsl operator for a number of timesteps
+    xdslop.apply(time=nt, dt=dt, a=nu)
 
-if args.plot:
-    plot_3dfunc(u)
+    if args.plot:
+        plot_3dfunc(u)
 
-print("XDSL Field norm is:", norm(u))
-
-# import pdb;pdb.set_trace()
+    print("XDSL Field norm is:", norm(u))

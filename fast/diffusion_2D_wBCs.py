@@ -53,21 +53,15 @@ eq = Eq(u.dt, a * u.laplace)
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
 
-# Create boundary condition expressions
-x, y = grid.dimensions
-t = grid.stepping_dim
-
-import pdb;pdb.set_trace()
-
-# initdata = u.data[:]
 if args.devito:
     op = Operator([eq_stencil], name='DevitoOperator')
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
 
+# Reset data
+init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+
 if args.xdsl:
-    # Reset data and run XDSLOperator
-    #init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
     xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
     xdslop.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))
