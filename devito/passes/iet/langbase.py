@@ -1,4 +1,5 @@
 from functools import singledispatch
+from itertools import takewhile
 from abc import ABC
 
 import cgen as c
@@ -6,12 +7,12 @@ import cgen as c
 from devito.data import FULL
 from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
                        ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       AsyncCallable, FindNodes, FindSymbols)
+                       AsyncCallable, FindNodes, FindSymbols, IsPerfectIteration)
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
-from devito.tools import as_list, prod
+from devito.tools import as_list, is_integer, prod
 from devito.types import Symbol, QueueID, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
@@ -160,7 +161,8 @@ class LangTransformer(ABC):
         Parameters
         ----------
         key : callable, optional
-            Return True if an Iteration can and should be parallelized, False otherwise.
+            Return True if an Iteration can and should be parallelized,
+            False otherwise.
         sregistry : SymbolRegistry
             The symbol registry, to access the symbols appearing in an IET.
         platform : Platform
@@ -213,6 +215,169 @@ class LangTransformer(ABC):
     @property
     def Prodder(self):
         return self.lang.Prodder
+
+
+class ShmTransformer(LangTransformer):
+
+    """
+    Abstract base class for LangTransformers that want to emit
+    shared-memory-parallel IETs for CPUs.
+    """
+
+    def __init__(self, key, sregistry, options, platform, compiler):
+        """
+        Parameters
+        ----------
+        key : callable, optional
+            Return True if an Iteration can and should be parallelized,
+            False otherwise.
+        sregistry : SymbolRegistry
+            The symbol registry, to access the symbols appearing in an IET.
+        options : dict
+             The optimization options.
+             Accepted: ['par-collapse-ncores', 'par-collapse-work',
+             'par-chunk-nonaffine', 'par-dynamic-work', 'par-nested']
+             * 'par-collapse-ncores': use a collapse clause if the number of
+               available physical cores is greater than this threshold.
+             * 'par-collapse-work': use a collapse clause if the trip count of the
+               collapsable Iterations is statically known to exceed this threshold.
+             * 'par-chunk-nonaffine': coefficient to adjust the chunk size in
+               non-affine parallel Iterations.
+             * 'par-dynamic-work': use dynamic scheduling if the operation count per
+               iteration exceeds this threshold. Otherwise, use static scheduling.
+             * 'par-nested': nested parallelism if the number of hyperthreads
+               per core is greater than this threshold.
+        platform : Platform
+            The underlying platform.
+        compiler : Compiler
+            The underlying JIT compiler.
+        """
+        super().__init__(key, sregistry, platform, compiler)
+
+        self.collapse_ncores = options['par-collapse-ncores']
+        self.collapse_work = options['par-collapse-work']
+        self.chunk_nonaffine = options['par-chunk-nonaffine']
+        self.dynamic_work = options['par-dynamic-work']
+        self.nested = options['par-nested']
+
+    @property
+    def ncores(self):
+        return self.platform.cores_physical
+
+    @property
+    def nhyperthreads(self):
+        return self.platform.threads_per_core
+
+    @property
+    def nthreads(self):
+        return self.sregistry.nthreads
+
+    @property
+    def nthreads_nested(self):
+        return self.sregistry.nthreads_nested
+
+    @property
+    def nthreads_nonaffine(self):
+        return self.sregistry.nthreads_nonaffine
+
+    @property
+    def threadid(self):
+        return self.sregistry.threadid
+
+    def _score_candidate(self, n0, root, collapsable=()):
+        """
+        The score of a collapsable nest depends on the number of fully-parallel
+        Iterations and their position in the nest (the outer, the better).
+        """
+        nest = [root] + list(collapsable)
+        n = len(nest)
+
+        # Number of fully-parallel collapsable Iterations
+        key = lambda i: i.is_ParallelNoAtomic
+        fp_iters = list(takewhile(key, nest))
+        n_fp_iters = len(fp_iters)
+
+        # Number of parallel-if-atomic collapsable Iterations
+        key = lambda i: i.is_ParallelAtomic
+        pia_iters = list(takewhile(key, nest))
+        n_pia_iters = len(pia_iters)
+
+        # Prioritize the Dimensions that are more likely to define larger
+        # iteration spaces
+        key = lambda d: (not d.is_Derived or
+                         (d.is_Custom and not is_integer(d.symbolic_size)) or
+                         (d.is_Block and d._depth == 1))
+
+        fpdims = [i.dim for i in fp_iters]
+        n_fp_iters_large = len([d for d in fpdims if key(d)])
+
+        piadims = [i.dim for i in pia_iters]
+        n_pia_iters_large = len([d for d in piadims if key(d)])
+
+        return (
+            int(n_fp_iters == n),  # Fully-parallel nest
+            n_fp_iters_large,
+            n_fp_iters,
+            n_pia_iters_large,
+            n_pia_iters,
+            -(n0 + 1),  # The outer, the better
+            n,
+        )
+
+    def _select_candidates(self, candidates):
+        assert candidates
+
+        if self.ncores < self.collapse_ncores:
+            return candidates[0], []
+
+        mapper = {}
+        for n0, root in enumerate(candidates):
+
+            # Score `root` in isolation
+            mapper[(root, ())] = self._score_candidate(n0, root)
+
+            collapsable = []
+            for n, i in enumerate(candidates[n0+1:], n0+1):
+                # The Iteration nest [root, ..., i] must be perfect
+                if not IsPerfectIteration(depth=i).visit(root):
+                    break
+
+                # Loops are collapsable only if none of the iteration variables
+                # appear in initializer expressions. For example, the following
+                # two loops cannot be collapsed
+                #
+                # for (i = ... )
+                #   for (j = i ...)
+                #     ...
+                #
+                # Here, we make sure this won't happen
+                if any(j.dim in i.symbolic_min.free_symbols for j in candidates[n0:n]):
+                    break
+
+                # Can't collapse SIMD-vectorized Iterations
+                if i.is_Vectorized:
+                    break
+
+                # Would there be enough work per parallel iteration?
+                nested = candidates[n+1:]
+                if nested:
+                    try:
+                        work = prod([int(j.dim.symbolic_size) for j in nested])
+                        if work < self.collapse_work:
+                            break
+                    except TypeError:
+                        pass
+
+                collapsable.append(i)
+
+                # Score `root + collapsable`
+                v = tuple(collapsable)
+                mapper[(root, v)] = self._score_candidate(n0, root, v)
+
+        # Retrieve the candidates with highest score
+        root, collapsable = max(mapper, key=mapper.get)
+
+        return root, list(collapsable)
 
 
 class DeviceAwareMixin(object):
