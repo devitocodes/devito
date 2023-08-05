@@ -7,7 +7,7 @@ from devito import (TimeFunction, Eq, Operator, solve, norm,
                     XDSLOperator, configuration, Grid)
 from examples.seismic import RickerSource
 from examples.seismic import Model, TimeAxis, plot_image
-from fast.bench_utils import plot_2dfunc
+from fast.bench_utils import plot_3dfunc
 from devito.tools import as_tuple
 
 import argparse
@@ -16,7 +16,7 @@ np.set_printoptions(threshold=np.inf)
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
-parser.add_argument("-d", "--shape", default=(16, 16), type=int, nargs="+",
+parser.add_argument("-d", "--shape", default=(16, 16, 16), type=int, nargs="+",
                     help="Number of grid points along each axis")
 parser.add_argument("-so", "--space_order", default=4,
                     type=int, help="Space order of the simulation")
@@ -85,10 +85,14 @@ dt = np.load("so%s_critical_dt%s.npy" % (so, shape_str), allow_pickle=True)
 # np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
 # np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
 
-if len(shape) == 2 and args.plot:
-    plot_2dfunc(u)
+if len(shape) == 3 and args.plot:
+    plot_3dfunc(u)
 
 print("Init norm:", np.linalg.norm(u.data[:]))
+# print("Init linalg norm:", np.linalg.norm(u.data[0]))
+# print("Init linalg norm:", np.linalg.norm(u.data[1]))
+# print("Init linalg norm:", np.linalg.norm(u.data[2]))
+
 
 if args.devito:
     # Run more with no sources now (Not supported in xdsl)
@@ -100,8 +104,8 @@ if args.devito:
     ub.data[:] = u.data[:]
     configuration['mpi'] = mpiconf
 
-    if len(shape) == 2 and args.plot:
-        plot_2dfunc(u)
+    if len(shape) == 3 and args.plot:
+        plot_3dfunc(u)
 
     print("Devito norm:", norm(u))
     # print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
@@ -110,20 +114,16 @@ if args.devito:
 
 
 if args.xdsl:
-    # print("Reinitialise data: Devito norm:", norm(u))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[0]))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[1]))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[2]))
 
     # Run more with no sources now (Not supported in xdsl)
-    xdslop = Operator([stencil], name='xDSLOperator')
+    xdslop = XDSLOperator([stencil], name='xDSLOperator')
     xdslop.apply(time=nt, dt=dt)
 
-    if len(shape) == 2 and args.plot:
-        plot_2dfunc(u)
+    if len(shape) == 3 and args.plot:
+        plot_3dfunc(u)
 
     print("XDSL norm:", norm(u))
 
-    # print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
-    # print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
-    # print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+    # print("XDSL output norm 0:", np.linalg.norm(u.data[0]))
+    # print("XDSL output norm 1:", np.linalg.norm(u.data[1]))
+    # print("XDSL output norm 2:", np.linalg.norm(u.data[2]))
