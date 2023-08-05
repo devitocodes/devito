@@ -57,30 +57,8 @@ v[:, :] = 1
 so = args.space_order
 to = args.time_order
 
-#model = Model(vp=v, origin=origin, shape=shape, spacing=spacing,
-#              space_order=so, nbl=0)
-
-# plot_velocity(model)
-
 t0 = 0.  # Simulation starts a t=0
 tn = nt  # Simulation last 1 second (1000 ms)
-# dt = model.critical_dt  # Time step from model grid spacing
-# print("dt is:", dt)
-
-#time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-# The source is positioned at a $20m$ depth and at the middle of the
-# $x$ axis ($x_{src}=500m$),
-# with a peak wavelet frequency of $10Hz$.
-f0 = 0.010  # Source peak frequency is 10Hz (0.010 kHz)
-#src = RickerSource(name='src', grid=model.grid, f0=f0,
-#                   npoint=1, time_range=time_range)
-
-# First, position source centrally in all dimensions, then set depth
-#src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-
-# We can plot the time signature to see the wavelet
-# src.show()
 
 # Define the wavefield with the size of the model and the time dimension
 u = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
@@ -94,19 +72,6 @@ ub = TimeFunction(name="ub", grid=grid, time_order=to, space_order=so)
 pde = u.dt2 - u.laplace
 
 stencil = Eq(u.forward, solve(pde, u.forward))
-# stencil
-
-# Finally we define the source injection and receiver read function to generate
-# the corresponding code
-# print(time_range)
-
-#src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
-#op0 = Operator([stencil] + src_term, subs=model.spacing_map, name='SourceDevitoOperator')
-
-# Run with source and plot
-#op0.apply(time=time_range.num-1, dt=model.critical_dt)
-
-
 
 # print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
 # print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
@@ -117,8 +82,13 @@ configuration['mpi'] = 0
 u2.data[:] = u.data[:]
 configuration['mpi'] = mpiconf
 
-import pdb;pdb.set_trace()
-u.data[:] = np.load("wave_dat2.npy", allow_pickle=True)
+# import pdb;pdb.set_trace()
+shape_str = '_'.join(str(item) for item in shape)
+u.data[:] = np.load("wave_dat%s.npy" % shape_str, allow_pickle=True)
+dt = np.load("critical_dt%s.npy" % shape_str, allow_pickle=True)
+
+# np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
+# np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
 
 if len(shape) == 2:
     if args.plot:
@@ -130,7 +100,7 @@ if args.devito:
     # Run more with no sources now (Not supported in xdsl)
     #op1 = Operator([stencil], name='DevitoOperator', subs=grid.spacing_map)
     op1 = Operator([stencil], name='DevitoOperator')
-    op1.apply(time=10, dt=5.54)
+    op1.apply(time=nt, dt=dt)
 
     configuration['mpi'] = 0
     ub.data[:] = u.data[:]
