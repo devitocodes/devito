@@ -37,13 +37,14 @@ mpiconf = configuration['mpi']
 # Define a physical size
 # nx, ny, nz = args.shape
 nt = args.nt
+so = args.so
 
 shape = (args.shape)  # Number of grid point (nx, ny, nz)
 shape_str = '_'.join(str(item) for item in shape)
 spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
 origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
-extent = np.load("grid_extent%s.npy" % shape_str, allow_pickle=True)
+extent = np.load("so%s_grid_extent%s.npy" % (so, shape_str), allow_pickle=True)
 
 grid = Grid(shape=shape, extent=as_tuple(extent))
 
@@ -78,8 +79,8 @@ configuration['mpi'] = 0
 u2.data[:] = u.data[:]
 configuration['mpi'] = mpiconf
 
-u.data[:] = np.load("wave_dat%s.npy" % shape_str, allow_pickle=True)
-dt = np.load("critical_dt%s.npy" % shape_str, allow_pickle=True)
+u.data[:] = np.load("so%s_wave_dat%s.npy" % (so, shape_str), allow_pickle=True)
+dt = np.load("so%s_critical_dt%s.npy" % (so, shape_str), allow_pickle=True)
 
 # np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
 # np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
@@ -102,18 +103,13 @@ if args.devito:
     if len(shape) == 2 and args.plot:
         plot_2dfunc(u)
 
-    print("After Operator 1: Devito norm:", norm(u))
+    print("Devito norm:", norm(u))
     # print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
     # print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
     # print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
 
 
 if args.xdsl:
-    # Reset initial data
-    configuration['mpi'] = 0
-    u.data[:] = u2.data[:]
-    configuration['mpi'] = mpiconf
-    # v[:, ..., :] = 1
     # print("Reinitialise data: Devito norm:", norm(u))
     # print("XDSL init linalg norm:", np.linalg.norm(u.data[0]))
     # print("XDSL init linalg norm:", np.linalg.norm(u.data[1]))
@@ -126,7 +122,7 @@ if args.xdsl:
     if len(shape) == 2 and args.plot:
         plot_2dfunc(u)
 
-    print("After Operator 1: Devito norm:", norm(u))
+    print("XDSL norm:", norm(u))
 
     # print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
     # print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))

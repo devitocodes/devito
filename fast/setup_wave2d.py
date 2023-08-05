@@ -58,7 +58,6 @@ to = args.time_order
 model = Model(vp=v, origin=origin, shape=shape, spacing=spacing,
               space_order=so, nbl=0)
 
-import pdb;pdb.set_trace()
 # plot_velocity(model)
 
 t0 = 0.  # Simulation starts a t=0
@@ -111,6 +110,6 @@ if len(shape) == 2:
 
 # Save Data here
 shape_str = '_'.join(str(item) for item in shape)
-np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
-np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
-np.save("grid_extent%s.npy" % shape_str, model.grid.extent, allow_pickle=True)
+np.save("so%s_critical_dt%s.npy" % (so, shape_str), model.critical_dt, allow_pickle=True)
+np.save("so%s_wave_dat%s.npy" % (so, shape_str), u.data[:], allow_pickle=True)
+np.save("so%s_grid_extent%s.npy" % (so, shape_str), model.grid.extent, allow_pickle=True)
