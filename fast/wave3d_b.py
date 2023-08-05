@@ -44,8 +44,7 @@ shape_str = '_'.join(str(item) for item in shape)
 spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
 origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
-extent = np.load("so%s_grid_extent%s.npy" % (so, shape_str), allow_pickle=True)
-
+extent = np.load("so%s_grid_extent%s.npz" % (so, shape_str), allow_pickle=True)['arr_0']
 grid = Grid(shape=shape, extent=as_tuple(extent))
 
 # With the velocity and model size defined, we can create the seismic model that

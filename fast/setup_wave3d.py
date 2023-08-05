@@ -112,4 +112,6 @@ if len(shape) == 3:
 shape_str = '_'.join(str(item) for item in shape)
 np.save("so%s_critical_dt%s.npy" % (so, shape_str), model.critical_dt, allow_pickle=True)
 np.save("so%s_wave_dat%s.npy" % (so, shape_str), u.data[:], allow_pickle=True)
-np.save("so%s_grid_extent%s.npy" % (so, shape_str), model.grid.extent, allow_pickle=True)
+
+np.savez_compressed("so%s_grid_extent%s" % (so, shape_str), model.grid.extent,
+                    allow_pickle=True)
