@@ -58,6 +58,7 @@ to = args.time_order
 model = Model(vp=v, origin=origin, shape=shape, spacing=spacing,
               space_order=so, nbl=0)
 
+import pdb;pdb.set_trace()
 # plot_velocity(model)
 
 t0 = 0.  # Simulation starts a t=0
@@ -88,7 +89,6 @@ ub = TimeFunction(name="ub", grid=model.grid, time_order=to, space_order=so)
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
-# import pdb;pdb.set_trace()
 pde = u.dt2 - u.laplace
 
 stencil = Eq(u.forward, solve(pde, u.forward))
@@ -109,8 +109,8 @@ if len(shape) == 2:
     if args.plot:
         plot_2dfunc(u)
 
-import pdb;pdb.set_trace()
 # Save Data here
 shape_str = '_'.join(str(item) for item in shape)
 np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
 np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
+np.save("grid_extent%s.npy" % shape_str, model.grid.extent, allow_pickle=True)
