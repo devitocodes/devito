@@ -76,7 +76,7 @@ eq_stencil = Eq(u.forward, stencil)
 x, y, z = grid.dimensions
 t = grid.stepping_dim
 
-print(eq_stencil)
+# print(eq_stencil)
 
 # Create Operator
 if args.devito:
