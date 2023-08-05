@@ -44,7 +44,7 @@ shape_str = '_'.join(str(item) for item in shape)
 spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
 origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
-extent = np.load("so%s_grid_extent%s.npz" % (so, shape_str), allow_pickle=True)['arr_0']
+extent = np.load("so%s_grid_extent%s.npz" % (so, shape_str))['arr_0']
 grid = Grid(shape=shape, extent=as_tuple(extent))
 
 # With the velocity and model size defined, we can create the seismic model that
@@ -78,7 +78,7 @@ configuration['mpi'] = 0
 u2.data[:] = u.data[:]
 configuration['mpi'] = mpiconf
 
-u.data[:] = np.load("so%s_wave_dat%s.npy" % (so, shape_str), allow_pickle=True)
+u.data[:] = np.load("so%s_wave_dat%s.npz" % (so, shape_str), allow_pickle=True)['arr_0']
 dt = np.load("so%s_critical_dt%s.npy" % (so, shape_str), allow_pickle=True)
 
 # np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
