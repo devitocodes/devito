@@ -6,7 +6,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions
                     Dimension, solve, Operator, NODE)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
-from devito.passes.equations.linearity import factorize_derivatives
+from devito.passes.equations.linearity import factorize_derivatives, aggregate_coeffs
 
 _PRECISION = 9
 
@@ -359,3 +359,18 @@ class TestSC(object):
         assert collected == expr
         assert collected.is_Add
         Operator([Eq(p.forward, expr)])(time_M=2)  # noqa
+
+    def test_aggregate_w_custom_coeffs(self):
+        grid = Grid(shape=(11, 11, 11))
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        expr = 0.5 * q.dx2
+        aggregated = aggregate_coeffs(expr, {})
+
+        assert aggregated == expr
+        assert aggregated.is_Mul
+        assert aggregated.args[0] == .5
+        assert aggregated.args[1] == q.dx2
+
+        Operator([Eq(q.forward, expr)])(time_M=2)  # noqa
