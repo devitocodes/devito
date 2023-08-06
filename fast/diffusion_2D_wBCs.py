@@ -43,15 +43,15 @@ print("dx %s, dy %s" % (dx, dy))
 grid = Grid(shape=(nx, ny), extent=(2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
 
-# Reset our data field and ICs
-init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
-
 a = Constant(name='a')
 # Create an equation with second-order derivatives
 # eq = Eq(u.dt, a * u.laplace, subdomain=grid.interior)
 eq = Eq(u.dt, a * u.laplace)
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
+
+# Reset our data field and ICs
+init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 if args.devito:
     op = Operator([eq_stencil], name='DevitoOperator')
