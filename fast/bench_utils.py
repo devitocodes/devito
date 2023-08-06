@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import pyvista as pv
 import numpy as np
 from examples.seismic import plot_image
 
@@ -14,7 +13,7 @@ def plot_2dfunc(u):
 
 def plot_3dfunc(u):
     # Plot a 3D structured grid using pyvista
-
+    import pyvista as pv
     cmap = plt.colormaps["viridis"]
     values = u.data[0, :, :, :]
     vistagrid = pv.ImageData()
