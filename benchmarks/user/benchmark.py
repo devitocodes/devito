@@ -3,7 +3,6 @@ import click
 import os
 
 from devito import Device, configuration, info, warning, set_log_level, switchconfig, norm
-from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
@@ -170,11 +169,6 @@ def option_performance(f):
         if isinstance(configuration['platform'], Device):
             normalized_value = []
         elif value:
-            # Block innermost loops if a full block shape is provided
-            # Note: see https://github.com/devitocodes/devito/issues/320 for why
-            # we use blockinner=True only if the backend compiler is Intel
-            flag = isinstance(configuration['compiler'], IntelCompiler)
-            configuration['opt-options']['blockinner'] = flag
             # Normalize value:
             # 1. integers, not strings
             # 2. sanity check the (hierarchical) blocking shape
@@ -209,11 +203,6 @@ def option_performance(f):
             else:
                 # Make sure to always run in preemptive mode
                 configuration['autotuning'] = [value, 'preemptive']
-                # We apply blocking to all parallel loops, including the innermost ones
-                # Note: see https://github.com/devitocodes/devito/issues/320 for why
-                # we use blockinner=True only if the backend compiler is Intel
-                flag = isinstance(configuration['compiler'], IntelCompiler)
-                configuration['opt-options']['blockinner'] = flag
                 level = value
         else:
             level = False
