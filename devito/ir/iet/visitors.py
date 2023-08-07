@@ -1175,12 +1175,22 @@ class Uxreplace(Transformer):
         return o._rebuild(body=body, parameters=parameters)
 
     def visit_Call(self, o):
-        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        arguments = []
+        for i in o.arguments:
+            if isinstance(i, (Call, Lambda)):
+                arguments.append(self._visit(i))
+            else:
+                arguments.append(uxreplace(i, self.mapper))
         if o.retobj is not None:
             retobj = uxreplace(o.retobj, self.mapper)
             return o._rebuild(arguments=arguments, retobj=retobj)
         else:
             return o._rebuild(arguments=arguments)
+
+    def visit_Lambda(self, o):
+        body = self._visit(o.body)
+        parameters = [self.mapper.get(i, i) for i in o.parameters]
+        return o._rebuild(body, parameters=parameters)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)
