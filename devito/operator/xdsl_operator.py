@@ -12,7 +12,7 @@ from collections import OrderedDict
 from io import StringIO
 
 from devito.exceptions import InvalidOperator
-from devito.logger import perf
+from devito.logger import perf, info
 from devito.ir.iet import Callable, MetaCall
 from devito.ir.support import SymbolRegistry
 from devito.operator.operator import IRs
@@ -62,8 +62,9 @@ class XDSLOperator(Operator):
 
     def __new__(cls, expressions, **kwargs):
         self = super(XDSLOperator, cls).__new__(cls, expressions, **kwargs)
-        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so')
-        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o")
+        delete=not os.getenv("XDSL_SKIP_CLEAN", False)
+        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so', delete=delete)
+        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o", delete=delete)
         self._make_interop_o()
         self.__class__ = cls
         return self
@@ -142,6 +143,10 @@ class XDSLOperator(Operator):
             # allow jit backdooring to provide your own xdsl code
             backdoor = os.getenv('XDSL_JIT_BACKDOOR')
             if backdoor is not None:
+                if os.path.splitext(backdoor)[1] == ".so":
+                    info(f"JIT Backdoor: skipping compilation and using {backdoor}")
+                    self._tf.name = backdoor
+                    return
                 print("JIT Backdoor: loading xdsl file from: " + backdoor)
                 with open(backdoor, 'r') as f:
                     module_str = f.read()
