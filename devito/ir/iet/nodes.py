@@ -905,16 +905,19 @@ class Definition(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        if not self.function.is_Array or self.function.initvalue is None:
+        if self.function.is_LocalObject:
+            return tuple(set(flatten(i.free_symbols for i in self.function.cargs)))
+        elif self.function.is_Array and self.function.initvalue is not None:
+            # These are just a handful of values so it's OK to iterate them over
+            ret = set()
+            for i in self.function.initvalue:
+                try:
+                    ret.update(i.free_symbols)
+                except AttributeError:
+                    pass
+            return tuple(ret)
+        else:
             return ()
-        # These are just a handful of values so it's OK to iterate them over
-        ret = set()
-        for i in self.function.initvalue:
-            try:
-                ret.update(i.free_symbols)
-            except AttributeError:
-                pass
-        return tuple(ret)
 
 
 class PointerCast(ExprStmt, Node):
