@@ -187,7 +187,8 @@ class LocalObject(AbstractObject):
 
     @property
     def free_symbols(self):
-        return super().free_symbols | set(self.cargs)
+        return (super().free_symbols |
+                set().union(*[i.free_symbols for i in self.cargs]))
 
     @property
     def _C_init(self):
