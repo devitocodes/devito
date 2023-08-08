@@ -745,6 +745,8 @@ class FindSections(Visitor):
             ret = self._visit(i, ret=ret, queue=queue)
         return ret
 
+    visit_Call = visit_Conditional
+
 
 class MapKind(FindSections):
 
@@ -767,7 +769,16 @@ class MapKind(FindSections):
 
 
 class MapExprStmts(MapKind):
+
     visit_ExprStmt = MapKind.visit_dummy
+
+    def visit_Call(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
+        ret[o] = as_tuple(queue)
+        for i in o.children:
+            ret = self._visit(i, ret=ret, queue=queue)
+        return ret
 
 
 class MapHaloSpots(MapKind):
@@ -1177,7 +1188,7 @@ class Uxreplace(Transformer):
     def visit_Call(self, o):
         arguments = []
         for i in o.arguments:
-            if isinstance(i, (Call, Lambda)):
+            if i in o.children:
                 arguments.append(self._visit(i))
             else:
                 arguments.append(uxreplace(i, self.mapper))

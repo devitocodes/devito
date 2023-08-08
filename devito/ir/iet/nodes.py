@@ -264,6 +264,16 @@ class Call(ExprStmt, Node):
         ret = "" if self.retobj is None else "%s = " % self.retobj
         return "%sCall::\n\t%s(...)" % (ret, self.name)
 
+    def _rebuild(self, *args, **kwargs):
+        if args:
+            # Not elegant, but basically it handles the fact that a Call might
+            # have nested Calls/Lambdas among its `arguments`, and this might
+            # change, and we are in such a case *if and only if* we have `args`
+            assert len(args) == len(self.children)
+            mapper = dict(zip(self.children, args))
+            kwargs['arguments'] = [mapper.get(i, i) for i in self.arguments]
+        return super()._rebuild(**kwargs)
+
     @property
     def children(self):
         return tuple(i for i in self.arguments if isinstance(i, (Call, Lambda)))

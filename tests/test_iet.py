@@ -8,7 +8,8 @@ from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # no
                     switchconfig)
 from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
                            KernelLaunch, Lambda, ElementalFunction, CGen, FindSymbols,
-                           filter_iterations, make_efunc, retrieve_iteration_tree)
+                           filter_iterations, make_efunc, retrieve_iteration_tree,
+                           Transformer)
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
@@ -300,6 +301,28 @@ def test_call_retobj_indexed():
     assert str(call) == "v[x][y] = foo(u_vec);"
 
     assert not call.defines
+
+
+def test_call_lambda_transform():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    e0 = DummyExpr(x, 1)
+    e1 = DummyExpr(y, 1)
+
+    body = List(body=[e0, e1])
+    call = Call('foo', [u, Lambda(body)])
+
+    subs = {e0: DummyExpr(x, 2), e1: DummyExpr(y, 2)}
+
+    assert str(Transformer(subs).visit(call)) == """\
+foo(u_vec,[]()
+{
+  x = 2;
+  y = 2;
+});"""
 
 
 def test_null_init():
