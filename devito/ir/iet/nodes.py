@@ -336,8 +336,6 @@ class Call(ExprStmt, Node):
     @property
     def defines(self):
         ret = ()
-        if self.base is not None:
-            ret += (self.base,)
         if isinstance(self.retobj, Basic):
             ret += (self.retobj,)
         return ret
