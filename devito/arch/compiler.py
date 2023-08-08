@@ -401,10 +401,10 @@ class GNUCompiler(Compiler):
             self.cflags.append('-mprefer-vector-width=512')
 
         if platform in [POWER8, POWER9]:
-           # -march isn't supported on power architectures, is -mtune needed?
-           self.cflags = ['-mcpu=native']  + self.cflags
+            # -march isn't supported on power architectures, is -mtune needed?
+            self.cflags = ['-mcpu=native'] + self.cflags
         else:
-           self.cflags = ['-march=native'] + self.cflags
+            self.cflags = ['-march=native'] + self.cflags
 
         language = kwargs.pop('language', configuration['language'])
         try:
