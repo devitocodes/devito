@@ -132,12 +132,12 @@ class Node(Signer):
 
     @property
     def functions(self):
-        """All AbstractFunction objects used by this node."""
+        """All AbstractFunctions and AbstractObjects used by this node."""
         return ()
 
     @property
     def expr_symbols(self):
-        """All symbols appearing in an expression within this node."""
+        """All symbols appearing within this node."""
         return ()
 
     @property
@@ -904,7 +904,12 @@ class Definition(ExprStmt, Node):
 
     @property
     def functions(self):
-        return (self.function,)
+        ret = [self.function]
+        for i in self.expr_symbols:
+            f = i.function
+            if f.is_AbstractFunction or f.is_AbstractObject:
+                ret.append(i.function)
+        return tuple(ret)
 
     @property
     def defines(self):
