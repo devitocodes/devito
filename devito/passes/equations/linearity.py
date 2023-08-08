@@ -128,6 +128,11 @@ def _(expr, mapper, nn_derivs=None):
     if len(with_derivs) > 1:
         return expr
 
+    # Cannot factorize derivatives with symbolic coefficients since
+    # they may have different coefficient values at evaluation
+    if any(d._uses_symbolic_coefficients for w in with_derivs for d in w[1]):
+        return expr
+
     try:
         with_deriv, derivs, others = with_derivs.pop(0)
     except IndexError:

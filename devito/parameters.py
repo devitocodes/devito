@@ -244,7 +244,7 @@ class switchconfig(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         for k, v in self.params.items():
             try:
-                configuration.update(k, self.previous[k])
+                configuration[k] = self.previous[k]
             except ValueError:
                 # E.g., `platform` and `compiler` will end up here
                 super(Parameters, configuration).__setitem__(k, self.previous[k])
