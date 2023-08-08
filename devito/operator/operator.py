@@ -136,6 +136,7 @@ class Operator(Callable):
     _default_headers = [('_POSIX_C_SOURCE', '200809L')]
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
+    _default_namespaces = []
 
     def __new__(cls, expressions, **kwargs):
         if expressions is None:
@@ -191,6 +192,8 @@ class Operator(Callable):
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
+        op._namespaces = OrderedSet(*cls._default_namespaces)
+        op._namespaces.update(byproduct.namespaces)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']

@@ -46,6 +46,7 @@ class Graph(object):
 
         self.includes = []
         self.headers = []
+        self.namespaces = []
         self.globals = []
 
         # Stash immutable information useful for one or more compiler passes
@@ -86,6 +87,7 @@ class Graph(object):
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
+            self.namespaces.extend(as_tuple(metadata.get('namespaces')))
             self.globals.extend(as_tuple(metadata.get('globals')))
 
             # Update jit-compiler if necessary
@@ -119,6 +121,7 @@ class Graph(object):
         # Uniqueness
         self.includes = filter_ordered(self.includes)
         self.headers = filter_ordered(self.headers, key=str)
+        self.namespaces = filter_ordered(self.namespaces, key=str)
         self.globals = filter_ordered(self.globals)
 
     def visit(self, func, **kwargs):

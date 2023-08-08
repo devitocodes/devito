@@ -645,6 +645,11 @@ class CGen(Visitor):
         # Header files
         includes = self._operator_includes(o) + [blankline]
 
+        # Namespaces
+        namespaces = [c.Statement('using namespace %s' % i) for i in o._namespaces]
+        if namespaces:
+            namespaces.append(blankline)
+
         # Type declarations
         typedecls = self._operator_typedecls(o, mode)
         if mode in ('all', 'public') and o._compiler.src_ext in ('cpp', 'cu'):
@@ -656,7 +661,7 @@ class CGen(Visitor):
         if globs:
             globs.append(blankline)
 
-        return c.Module(headers + includes + typedecls + globs +
+        return c.Module(headers + includes + namespaces + typedecls + globs +
                         esigns + [blankline, kernel] + efuncs)
 
 
