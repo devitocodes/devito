@@ -56,7 +56,7 @@ eq_stencil = Eq(u.forward, stencil)
 if args.devito:
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    op = Operator([eq_stencil], name='DevitoOperator')
+    op = Operator([eq_stencil], name='DevitoOperator', opt=('advanced', {'par-tile': (32,4,8)}))
     # Apply the operator for a number of timesteps
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))

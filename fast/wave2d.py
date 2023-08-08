@@ -108,7 +108,6 @@ if len(shape) == 2:
     if args.plot:
         plot_2dfunc(u)
 
-import pdb;pdb.set_trace()
 # print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
 # print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
 # print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
@@ -120,7 +119,7 @@ configuration['mpi'] = mpiconf
 
 if args.devito:
     # Run more with no sources now (Not supported in xdsl)
-    op1 = Operator([stencil], name='DevitoOperator')
+    op1 = Operator([stencil], name='DevitoOperator', opt=('advanced', {'par-tile': (32,4,8)}))
     op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
     configuration['mpi'] = 0
@@ -148,7 +147,7 @@ if args.xdsl:
     # print("XDSL init linalg norm:", np.linalg.norm(u.data[2]))
 
     # Run more with no sources now (Not supported in xdsl)
-    xdslop = Operator([stencil], name='xDSLOperator')
+    xdslop = XDSLOperator([stencil], name='xDSLOperator')
     xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
     if len(shape) == 2 and args.plot:

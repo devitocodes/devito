@@ -113,7 +113,7 @@ u2.data[:] = u.data[:]
 configuration['mpi'] = mpiconf
 
 # Run more with no sources now (Not supported in xdsl)
-op1 = Operator([stencil], name='DevitoOperator')
+op1 = Operator([stencil], name='DevitoOperator', opt=('advanced', {'par-tile': (32,4,8)}))
 op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
 configuration['mpi'] = 0
