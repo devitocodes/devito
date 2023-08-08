@@ -1060,8 +1060,17 @@ class Lambda(Node):
     def __repr__(self):
         return "Lambda[%s](%s)" % (self.captures, self.parameters)
 
+    @property
+    def functions(self):
+        return tuple(i.function for i in self.parameters
+                     if isinstance(i.function, AbstractFunction))
+
     @cached_property
     def expr_symbols(self):
+        return tuple(self.parameters)
+
+    @property
+    def defines(self):
         return tuple(self.parameters)
 
 
