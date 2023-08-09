@@ -2,9 +2,11 @@
 # Not using Devito's source injection abstraction
 import sys
 import numpy as np
-from devito import TimeFunction, Eq, Operator, solve, norm, XDSLOperator
+from devito import (TimeFunction, Eq, Operator, solve, norm,
+                    XDSLOperator, configuration)
 from examples.seismic import RickerSource
 from examples.seismic import Model, TimeAxis
+from fast.bench_utils import plot_3dfunc
 
 from devito.tools import as_tuple
 
@@ -25,24 +27,12 @@ parser.add_argument("-nt", "--nt", default=200,
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
 
-def plot_3dfunc(u):
-    # Plot a 3D structured grid using pyvista
-
-    import matplotlib.pyplot as plt
-    import pyvista as pv
-    cmap = plt.colormaps["viridis"]
-    values = u.data[0, :, :, :]
-    vistagrid = pv.UniformGrid()
-    vistagrid.dimensions = np.array(values.shape) + 1
-    vistagrid.spacing = (1, 1, 1)
-    vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
-    vistagrid.cell_data["values"] = values.flatten(order="F")
-    vistaslices = vistagrid.slice_orthogonal()
-    # vistagrid.plot(show_edges=True)
-    vistaslices.plot(cmap=cmap)
+mpiconf = configuration['mpi']
 
 
 # Define a physical size
@@ -87,83 +77,72 @@ src = RickerSource(name='src', grid=model.grid, f0=f0,
 # First, position source centrally in all dimensions, then set depth
 src.coordinates.data[0, :] = np.array(model.domain_size) * .5
 
-# We can plot the time signature to see the wavelet
-# src.show()
-
 # Define the wavefield with the size of the model and the time dimension
 u = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
-
+# Another one to clone data
 u2 = TimeFunction(name="u", grid=model.grid, time_order=to, space_order=so)
+ub = TimeFunction(name="ub", grid=model.grid, time_order=to, space_order=so)
+
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
 # import pdb;pdb.set_trace()
 pde = u.dt2 - u.laplace
 
-# The PDE representation is as on paper
-pde
-
 stencil = Eq(u.forward, solve(pde, u.forward))
-stencil
 
-# Finally we define the source injection and receiver read function to generate
-# the corresponding code
-print(time_range)
-
-print("Init norm:", norm(u))
 src_term = src.inject(field=u.forward, expr=src * dt**2 / model.m)
 op0 = Operator([stencil] + src_term, subs=model.spacing_map, name='SourceDevitoOperator')
 # Run with source and plot
 op0.apply(time=time_range.num-1, dt=model.critical_dt)
 
+
 if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
-print("Init linalg norm 0 :", np.linalg.norm(u.data[0]))
-print("Init linalg norm 1 :", np.linalg.norm(u.data[1]))
-print("Init linalg norm 2 :", np.linalg.norm(u.data[2]))
+# devito_norm = norm(u)
+# print("Init linalg norm 0 (inlined) :", norm(u))
+# print("Init linalg norm 0 :", np.linalg.norm(u.data[0]))
+# print("Init linalg norm 1 :", np.linalg.norm(u.data[1]))
+# print("Init linalg norm 2 :", np.linalg.norm(u.data[2]))
+# print("Norm of initial data:", np.linalg.norm(u.data[:]))
 
-print("Norm of initial data:", norm(u))
-import pdb;pdb.set_trace()
+configuration['mpi'] = 0
 u2.data[:] = u.data[:]
+configuration['mpi'] = mpiconf
 
 # Run more with no sources now (Not supported in xdsl)
 op1 = Operator([stencil], name='DevitoOperator')
 op1.apply(time=time_range.num-1, dt=model.critical_dt)
 
+configuration['mpi'] = 0
+ub.data[:] = u.data[:]
+configuration['mpi'] = mpiconf
+
 if len(shape) == 3:
     if args.plot:
         plot_3dfunc(u)
 
-#devito_output = u.data[:]
-print("After Operator 1: Devito norm:", norm(u))
-print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
-print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
-print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
-
-import pdb;pdb.set_trace()
-
+# print("After Operator 1: Devito norm:", np.linalg.norm(u.data[:]))
+#print("Devito norm 0:", np.linalg.norm(u.data[0]))
+#print("Devito norm 1:", np.linalg.norm(u.data[1]))
+#print("Devito norm 2:", np.linalg.norm(u.data[2]))
 
 # Reset initial data
+configuration['mpi'] = 0
 u.data[:] = u2.data[:]
-#v[:, ..., :] = 1
+configuration['mpi'] = mpiconf
 
-
-print("Reinitialise data: Devito norm:", norm(u))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[0]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[1]))
-print("Init XDSL linalg norm:", np.linalg.norm(u.data[2]))
+# print("Reinitialise data for XDSL:", np.linalg.norm(u.data[:]))
+# print("Init XDSL linalg norm 0:", np.linalg.norm(u.data[0]))
+# print("Init XDSL linalg norm 1:", np.linalg.norm(u.data[1]))
+# print("Init XDSL linalg norm 2:", np.linalg.norm(u.data[2]))
 
 # Run more with no sources now (Not supported in xdsl)
-xdslop = XDSLOperator([stencil], name='xDSLOperator')
+xdslop = XDSLOperator([stencil], name='XDSLOperator')
 xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
 
-xdsl_output = u.copy()
-print("XDSL norm:", norm(u))
-print(f"xdsl output norm: {norm(xdsl_output)}")
-import pdb;pdb.set_trace()
-
-print("XDSL output linalg norm:", np.linalg.norm(u.data[0]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[1]))
-print("XDSL output linalg norm:", np.linalg.norm(u.data[2]))
+print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
+print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
+print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))

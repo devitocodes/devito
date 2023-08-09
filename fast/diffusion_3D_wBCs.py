@@ -5,7 +5,9 @@
 import argparse
 import numpy as np
 
-from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator
+from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
+                    norm, XDSLOperator)
+from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
@@ -20,26 +22,9 @@ parser.add_argument("-nt", "--nt", default=40,
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
+parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
+parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
-
-
-def plot_3dfunc(u):
-    # Plot a 3D structured grid using pyvista
-
-    import matplotlib.pyplot as plt
-    import pyvista as pv
-
-    cmap = plt.cm.get_cmap("viridis")
-    values = u.data[0, :, :, :]
-    vistagrid = pv.ImageData()
-    vistagrid.dimensions = np.array(values.shape) + 1
-    vistagrid.spacing = (1, 1, 1)
-    vistagrid.origin = (0, 0, 0)  # The bottom left corner of the data set
-    vistagrid.cell_data["values"] = values.flatten(order="F")
-    vistaslices = vistagrid.slice_orthogonal()
-    # vistagrid.plot(show_edges=True)
-    vistaslices.plot(cmap=cmap)
-
 
 # Some variable declarations
 nx, ny, nz = args.shape
@@ -59,39 +44,32 @@ print("dx %s, dy %s, dz %s" % (dx, dy, dz))
 
 grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
-# init_hat(field=u.data[0], dx=dx, dy=dy, value=2.)
-u.data[:, :, :, :] = 0
-u.data[:, :, :, int(nz/2)] = 1
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
 eq = Eq(u.dt, a * u.laplace)
-
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
 
-# Create boundary condition expressions
-x, y, z = grid.dimensions
-t = grid.stepping_dim
-
-print(eq_stencil)
 
 # Create Operator
-op = Operator([eq_stencil], name='DevitoOperator')
-# Apply the operator for a number of timesteps
-op.apply(time=nt, dt=dt, a=nu)
-print("Devito Field norm is:", norm(u))
+if args.devito:
+    u.data[:, :, :, :] = 0
+    u.data[:, :, :, int(nz/2)] = 1
+    op = Operator([eq_stencil], name='DevitoOperator')
+    # Apply the operator for a number of timesteps
+    op.apply(time=nt, dt=dt, a=nu)
+    print("Devito Field norm is:", norm(u))
+    if args.plot:
+        plot_3dfunc(u)
 
-# Reset field
-u.data[:, :, :, :] = 0
-u.data[:, :, :, int(nz/2)] = 1
-xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
-# Apply the xdsl operator for a number of timesteps
-xdslop.apply(time=nt, dt=dt, a=nu)
-
-if args.plot:
-    plot_3dfunc(u)
-
-print("XDSL Field norm is:", norm(u))
-
-# import pdb;pdb.set_trace()
+if args.xdsl:
+    # Reset field
+    u.data[:, :, :, :] = 0
+    u.data[:, :, :, int(nz/2)] = 1
+    xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
+    # Apply the xdsl operator for a number of timesteps
+    xdslop.apply(time=nt, dt=dt, a=nu)
+    print("XDSL Field norm is:", norm(u))
+    if args.plot:
+        plot_3dfunc(u)

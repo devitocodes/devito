@@ -371,7 +371,7 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
                     ssa_indices=[idx],
                     result_type=llvm.LLVMPointerType.typed(op.memref.memref.element_type)
                 ),
-                store := llvm.StoreOp.get(op.value, gep),
+                store := llvm.StoreOp(op.value, gep),
             ],
             [],
         )

@@ -272,7 +272,7 @@ class ExtractDevitoStencilConversion:
                 new_vals.append(val)
                 continue
             # insert an integer to float cast op
-            conv = arith.SIToFPOp.get(val, builtin.f32)
+            conv = arith.SIToFPOp(val, builtin.f32)
             self.block.add_op(conv)
             new_vals.append(conv.result)
         return new_vals
@@ -340,7 +340,7 @@ class MakeFunctionTimed(RewritePattern):
         self.seen_ops.add(op)
         
         rewriter.insert_op_at_start([
-            t0 := func.Call.get('timer_start', [], [builtin.f64])
+            t0 := func.Call('timer_start', [], [builtin.f64])
         ], op.body.block)
 
         ret = op.get_return_op()
@@ -348,8 +348,8 @@ class MakeFunctionTimed(RewritePattern):
 
         rewriter.insert_op_before([
             timers := iet_ssa.LoadSymbolic.get('timers', llvm.LLVMPointerType.typed(builtin.f64)),
-            t1 := func.Call.get('timer_end', [t0], [builtin.f64]),
-            llvm.StoreOp.get(t1, timers),
+            t1 := func.Call('timer_end', [t0], [builtin.f64]),
+            llvm.StoreOp(t1, timers),
         ], ret)
 
         rewriter.insert_op_after_matched_op([

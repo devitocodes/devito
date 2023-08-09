@@ -1,3 +1,4 @@
+# Script to save initial data for the Acoustic wave execution benchmark
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
 import sys
@@ -87,7 +88,6 @@ ub = TimeFunction(name="ub", grid=model.grid, time_order=to, space_order=so)
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
-# import pdb;pdb.set_trace()
 pde = u.dt2 - u.laplace
 
 stencil = Eq(u.forward, solve(pde, u.forward))
@@ -108,52 +108,8 @@ if len(shape) == 2:
     if args.plot:
         plot_2dfunc(u)
 
-import pdb;pdb.set_trace()
-# print("Init Devito linalg norm 0 :", np.linalg.norm(u.data[0]))
-# print("Init Devito linalg norm 1 :", np.linalg.norm(u.data[1]))
-# print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
-# print("Norm of initial data:", norm(u))
-
-configuration['mpi'] = 0
-u2.data[:] = u.data[:]
-configuration['mpi'] = mpiconf
-
-if args.devito:
-    # Run more with no sources now (Not supported in xdsl)
-    op1 = Operator([stencil], name='DevitoOperator')
-    op1.apply(time=time_range.num-1, dt=model.critical_dt)
-
-    configuration['mpi'] = 0
-    ub.data[:] = u.data[:]
-    configuration['mpi'] = mpiconf
-
-    if len(shape) == 2 and args.plot:
-        plot_2dfunc(u)
-
-    # print("After Operator 1: Devito norm:", norm(u))
-    # print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
-    # print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
-    # print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
-
-
-if args.xdsl:
-    # Reset initial data
-    configuration['mpi'] = 0
-    u.data[:] = u2.data[:]
-    configuration['mpi'] = mpiconf
-    # v[:, ..., :] = 1
-    # print("Reinitialise data: Devito norm:", norm(u))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[0]))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[1]))
-    # print("XDSL init linalg norm:", np.linalg.norm(u.data[2]))
-
-    # Run more with no sources now (Not supported in xdsl)
-    xdslop = Operator([stencil], name='xDSLOperator')
-    xdslop.apply(time=time_range.num-1, dt=model.critical_dt)
-
-    if len(shape) == 2 and args.plot:
-        plot_2dfunc(u)
-
-    print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
-    print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
-    print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+# Save Data here
+shape_str = '_'.join(str(item) for item in shape)
+np.save("so%s_critical_dt%s.npy" % (so, shape_str), model.critical_dt, allow_pickle=True)
+np.save("so%s_wave_dat%s.npy" % (so, shape_str), u.data[:], allow_pickle=True)
+np.save("so%s_grid_extent%s.npy" % (so, shape_str), model.grid.extent, allow_pickle=True)
