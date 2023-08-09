@@ -9,7 +9,6 @@ from .source import *
 __all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
 
 
-
 def setup_geometry(model, tn, f0=0.010):
     # Source and receiver geometries
     src_coordinates = np.empty((1, model.dim))

@@ -17,10 +17,13 @@ def matrix_init(model):
     return Matrix(Cij)
 
 
-
 def D(self, shift=None):
     """
     Returns the result of matrix D applied over the TensorFunction.
+
+    Where the D operator is based on:
+    1 - Ke Chen and Mauricio D. Sacchi: Time-domain elastic Gauss–Newton full-waveform
+    inversion: a matrix-free approach (https://doi.org/10.1093/gji/ggaa330)
     """
     if not self.is_TensorValued:
         raise TypeError("The object must be a Tensor object")
@@ -38,6 +41,10 @@ def D(self, shift=None):
 def S(self, shift=None):
     """
     Returns the result of transposed matrix D applied over the VectorFunction.
+
+    Where the D operator is based on:
+    1 - Ke Chen and Mauricio D. Sacchi: Time-domain elastic Gauss–Newton full-waveform
+    inversion: a matrix-free approach (https://doi.org/10.1093/gji/ggaa330)
     """
     if not self.is_VectorValued:
         raise TypeError("The object must be a Vector object")
