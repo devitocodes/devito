@@ -395,10 +395,14 @@ class GNUCompiler(Compiler):
             self.cflags.append('-ffast-math')
 
         if platform.isa == 'avx512':
-            # The default is `=256` because avx512 slows down the CPU frequency;
-            # however, we empirically found that stencils generally benefit
-            # from `=512`
-            self.cflags.append('-mprefer-vector-width=512')
+            if self.version >= Version("8.0.0"):
+                # The default is `=256` because avx512 slows down the CPU frequency;
+                # however, we empirically found that stencils generally benefit
+                # from `=512`
+                self.cflags.append('-mprefer-vector-width=512')
+            else:
+                # Unsupported on earlier versions
+                pass
 
         if platform in [POWER8, POWER9]:
             # -march isn't supported on power architectures, is -mtune needed?
@@ -698,6 +702,7 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
         self.cflags.append("-xHost")
