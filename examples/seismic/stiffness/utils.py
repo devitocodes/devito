@@ -4,7 +4,7 @@ import numpy as np
 from sympy import symbols, Matrix
 
 
-def matriz_init(model):
+def matrix_init(model):
     def cij(i, j):
         ii, jj = min(i, j), max(i, j)
         if (ii == jj or (model.dim == 3 and ii < 4 and jj < 4) or

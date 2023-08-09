@@ -1,7 +1,7 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import solve
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import D, S, vec, matriz_init
+from examples.seismic.stiffness.utils import D, S, vec, matrix_init
 
 
 def iso_elastic_tensor(model):
@@ -22,7 +22,7 @@ def iso_elastic_tensor(model):
                 'C33': mu,
                 'C12': lmbda}
 
-    matriz = matriz_init(model)
+    matriz = matrix_init(model)
     lmbda = model.lam
     mu = model.mu
 
