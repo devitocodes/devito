@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain, call_capture_output
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
-                         INTELGPUX, IntelSkylake, get_nvidia_cc, check_cuda_runtime,
+                         INTELGPUX, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
@@ -394,7 +394,7 @@ class GNUCompiler(Compiler):
         else:
             self.cflags.append('-ffast-math')
 
-        if isinstance(platform, IntelSkylake):
+        if platform.isa == 'avx512':
             # The default is `=256` because avx512 slows down the CPU frequency;
             # however, we empirically found that stencils generally benefit
             # from `=512`
@@ -698,7 +698,6 @@ class IntelCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
         self.cflags.append("-xHost")
@@ -708,8 +707,8 @@ class IntelCompiler(Compiler):
         else:
             self.cflags.append('-fp-model=fast')
 
-        if isinstance(platform, IntelSkylake):
-            # Systematically use 512-bit vectors on skylake
+        if platform.isa == 'avx512':
+            # Systematically use 512-bit vectors if avx512 is available.
             self.cflags.append("-qopt-zmm-usage=high")
 
         if language == 'openmp':
