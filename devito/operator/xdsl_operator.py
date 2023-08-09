@@ -12,7 +12,7 @@ from collections import OrderedDict
 from io import StringIO
 
 from devito.exceptions import InvalidOperator
-from devito.logger import perf
+from devito.logger import perf, info
 from devito.ir.iet import Callable, MetaCall
 from devito.ir.support import SymbolRegistry
 from devito.operator.operator import IRs
@@ -51,10 +51,10 @@ CFLAGS = "-O3 -march=native -mtune=native -lmlir_c_runner_utils"
 MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm{use-bare-ptr-memref-call-conv},finalize-memref-to-llvm,canonicalize,cse)"'
 MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-func-to-llvm{use-bare-ptr-memref-call-conv},convert-openmp-to-llvm,convert-math-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
 # gpu-launch-sink-index-computations seemed to have no impact
-MLIR_GPU_PIPELINE = '"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{parallel-loop-tile-sizes=128,1,1},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,fold-memref-alias-ops,expand-strided-metadata,lower-affine,gpu-kernel-outlining,canonicalize,cse,convert-arith-to-llvm{index-bitwidth=64},finalize-memref-to-llvm{index-bitwidth=64},convert-scf-to-cf,convert-cf-to-llvm{index-bitwidth=64},canonicalize,cse,gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
+MLIR_GPU_PIPELINE = lambda block_sizes: f'"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,lower-affine, canonicalize,cse, fold-memref-alias-ops, gpu-launch-sink-index-computations, gpu-kernel-outlining, canonicalize{{region-simplify}},cse,fold-memref-alias-ops,expand-strided-metadata,lower-affine,canonicalize,cse,func.func(gpu-async-region),canonicalize,cse,convert-arith-to-llvm{{index-bitwidth=64}},convert-scf-to-cf,convert-cf-to-llvm{{index-bitwidth=64}},canonicalize,cse,convert-func-to-llvm{{use-bare-ptr-memref-call-conv}},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
 
 XDSL_CPU_PIPELINE = lambda nb_tiled_dims: f'"stencil-shape-inference,convert-stencil-to-ll-mlir{{tile-sizes={",".join(["64"]*nb_tiled_dims)}}},printf-to-llvm"'
-XDSL_GPU_PIPELINE = '"stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},printf-to-llvm"'
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},reconcile-unrealized-casts,printf-to-llvm"
 XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose-2d{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{tile-sizes={",".join(["64"]*nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
 
 
@@ -62,8 +62,9 @@ class XDSLOperator(Operator):
 
     def __new__(cls, expressions, **kwargs):
         self = super(XDSLOperator, cls).__new__(cls, expressions, **kwargs)
-        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so')
-        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o")
+        delete=not os.getenv("XDSL_SKIP_CLEAN", False)
+        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so', delete=delete)
+        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o", delete=delete)
         self._make_interop_o()
         self.__class__ = cls
         return self
@@ -110,7 +111,7 @@ class XDSLOperator(Operator):
                 raise RuntimeError("Cannot run OMP+GPU!")
 
             # specialize the code for the specific apply parameters
-            finalize_module_with_globals(self._module, self._jit_kernel_constants)
+            finalize_module_with_globals(self._module, self._jit_kernel_constants, gpu_boilerplate=is_gpu)
 
             # print module as IR
             module_str = StringIO()
@@ -121,6 +122,9 @@ class XDSLOperator(Operator):
 
             xdsl_pipeline = XDSL_CPU_PIPELINE(to_tile)
             mlir_pipeline = MLIR_CPU_PIPELINE
+
+            block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]
+            block_sizes = ','.join(str(bs) for bs in block_sizes)
 
             if is_omp:
                 mlir_pipeline = MLIR_OPENMP_PIPELINE
@@ -134,11 +138,15 @@ class XDSLOperator(Operator):
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
             elif is_gpu:
                 xdsl_pipeline = XDSL_GPU_PIPELINE
-                mlir_pipeline = MLIR_GPU_PIPELINE
+                mlir_pipeline = MLIR_GPU_PIPELINE(block_sizes)
 
             # allow jit backdooring to provide your own xdsl code
             backdoor = os.getenv('XDSL_JIT_BACKDOOR')
             if backdoor is not None:
+                if os.path.splitext(backdoor)[1] == ".so":
+                    info(f"JIT Backdoor: skipping compilation and using {backdoor}")
+                    self._tf.name = backdoor
+                    return
                 print("JIT Backdoor: loading xdsl file from: " + backdoor)
                 with open(backdoor, 'r') as f:
                     module_str = f.read()
@@ -273,7 +281,7 @@ class XDSLOperator(Operator):
         from devito.ir.ietxdsl.cluster_to_ssa import ExtractDevitoStencilConversion, convert_devito_stencil_to_xdsl_stencil
         conv = ExtractDevitoStencilConversion(expressions)
         module = conv.convert()
-        convert_devito_stencil_to_xdsl_stencil(module)
+        convert_devito_stencil_to_xdsl_stencil(module, timed=True)
 
         # [LoweredEq] -> [Clusters]
         clusters = cls._lower_clusters(expressions, **kwargs)
