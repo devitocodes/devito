@@ -20,7 +20,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            # Intel
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
-           'SKX', 'KLX', 'CLX', 'CLK',
+           'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
            # ARM
            'AMD', 'ARM', 'M1', 'GRAVITON',
            # Other loosely supported CPU architectures
@@ -616,7 +616,7 @@ class IntelSkylake(Intel64):
     pass
 
 
-class IntelGoldenCode(Intel64):
+class IntelGoldenCove(Intel64):
     pass
 
 
@@ -744,6 +744,7 @@ SKX = IntelSkylake('skx')
 KLX = IntelSkylake('klx')
 CLX = IntelSkylake('clx')
 CLK = IntelSkylake('clk')
+SPR = IntelGoldenCove('spr')
 
 ARM = Arm('arm')
 GRAVITON = Arm('graviton')
@@ -771,6 +772,7 @@ platform_registry = {
     'klx': KLX,  # Kaby Lake
     'clx': CLX,  # Coffee Lake
     'clk': CLK,  # Cascade Lake
+    'spr': SPR,  # Sapphire Rapids
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,  # Generic ARM CPU
