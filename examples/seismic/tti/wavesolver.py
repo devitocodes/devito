@@ -34,6 +34,9 @@ class AnisotropicWaveSolver(object):
         self.geometry = geometry
         self.kernel = kernel
 
+        if model.fs and kernel == 'staggered':
+            raise ValueError("Free surface only supported for centered TTI kernel")
+
         if space_order % 2 != 0:
             raise ValueError("space_order must be even but got %s"
                              % space_order)
