@@ -1,3 +1,7 @@
 matplotlib
 pandas
 pyrevolve
+sotb-wrapper
+segyio
+h5py
+pooch
