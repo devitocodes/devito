@@ -1,8 +1,8 @@
-import sympy
 import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences import generate_indices
+from devito.finite_differences.tools import numeric_weights, symbolic_weights
 from devito.tools import filter_ordered, as_tuple
 
 __all__ = ['Coefficient', 'Substitutions', 'default_rules']
@@ -245,15 +245,25 @@ def default_rules(obj, functions):
         subs = {}
 
         mapper = {dim: index}
+        # Get full range of indices and weights
+        indices, x0 = generate_indices(function, dim,
+                                       fd_order, side=None, x0=mapper)
+        sweights = symbolic_weights(function, deriv_order, indices, x0)
+
+        # Actual FD used indices and weights
+        if deriv_order == 1 and fd_order == 2:
+            fd_order = 1
 
         indices, x0 = generate_indices(function, dim,
                                        fd_order, side=None, x0=mapper)
 
-        coeffs = sympy.finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+        coeffs = numeric_weights(deriv_order, indices, x0)
 
-        for j in range(len(coeffs)):
-            subs.update({function._coeff_symbol
-                        (indices[j], deriv_order, function, index): coeffs[j]})
+        for (c, i) in zip(coeffs, indices):
+            subs.update({function._coeff_symbol(i, deriv_order, function, index): c})
+
+        # Set all unused weights to zero
+        subs.update({w: 0 for w in sweights if w not in subs})
 
         return subs
 

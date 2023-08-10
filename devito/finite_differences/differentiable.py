@@ -728,6 +728,9 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
 
+    def _coeff_symbol(self, *args, **kwargs):
+        return self.base._coeff_symbol(*args, **kwargs)
+
 
 class diffify(object):
 
