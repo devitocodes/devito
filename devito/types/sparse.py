@@ -57,11 +57,17 @@ class AbstractSparseFunction(DiscreteFunction):
         return generate_fd_shortcuts(self.dimensions, self.space_order)
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         dimensions = as_tuple(kwargs.get('dimensions'))
         if not dimensions:
             dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
-        return dimensions, dimensions
+
+        if args:
+            indices = args
+        else:
+            indices = dimensions
+
+        return dimensions, indices
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -319,12 +325,18 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         return self._time_dim
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         dimensions = as_tuple(kwargs.get('dimensions'))
         if not dimensions:
             dimensions = (kwargs['grid'].time_dim,
                           Dimension(name='p_%s' % kwargs["name"]))
-        return dimensions, dimensions
+
+        if args:
+            indices = args
+        else:
+            indices = dimensions
+
+        return dimensions, indices
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1582,7 +1594,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         return out
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         """
         Return the default dimension indices for a given data shape.
         """
@@ -1590,7 +1602,13 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         if dimensions is None:
             dimensions = (kwargs['grid'].time_dim, Dimension(
                 name='p_%s' % kwargs["name"]))
-        return dimensions, dimensions
+
+        if args:
+            indices = args
+        else:
+            indices = dimensions
+
+        return dimensions, indices
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

@@ -263,12 +263,16 @@ class TestCaching(object):
         # Make sure ub is u0
         assert ub is u0
         assert hash(ub) == hash(u0)
-        # Three new cache entries: u, u(t,x,y), u(t, x+h_x, y)
-        ncreated = 3
+        # With the legacy caching model we would have created three
+        # entries: u, u(t,x,y), u(t, x+h_x, y)
+        # But now Devito doesn't cache AbstractFunctions anymore!
+        ncreated = 0
         assert len(_SymbolCache) == _cache_size + ncreated
-        # shift again, no new entry should be created
+        # With the legacy caching model identical shifts such as two
+        # `u(x + h_x, y)` would have been the same physical object. Now they
+        # are two distinct objects, both uncached
         uf2 = ub.subs({x: x + x.spacing})
-        assert uf is uf2
+        assert uf is not uf2
         assert len(_SymbolCache) == _cache_size + ncreated
 
     def test_symbols(self):
@@ -546,8 +550,11 @@ class TestCaching(object):
             assert(len(_SymbolCache) == cache_size)
 
             Function(name='u', grid=grid, space_order=2)
-            # Both u and u(inds) added to cache
-            assert(len(_SymbolCache) == cache_size + 2)
+            # With the legacy caching model we would have created two new
+            # entries in the cache, u and u(inds)
+            # But now Devito doesn't cache AbstractFunctions anymore!
+            ncreated = 0
+            assert(len(_SymbolCache) == cache_size + ncreated)
 
             clear_cache()
 
@@ -556,13 +563,16 @@ class TestCaching(object):
         cache_size = len(_SymbolCache)
 
         u = Function(name='u', grid=grid, space_order=2)
-        # Both u and u(inds) added to cache
-        assert(len(_SymbolCache) == cache_size + 2)
+        # With the legacy caching model we would have created two new
+        # entries in the cache, u and u(inds)
+        # But now Devito doesn't cache AbstractFunctions anymore!
+        ncreated = 0
+        assert(len(_SymbolCache) == cache_size + ncreated)
 
         u._C_symbol
         # Cache size won't change since _C_symbol isn't cached by devito to
         # avoid circular references in the cache
-        assert(len(_SymbolCache) == cache_size + 2)
+        assert(len(_SymbolCache) == cache_size + ncreated)
 
     def test_clear_cache_with_alive_symbols(self, operate_on_empty_cache,
                                             nx=1000, ny=1000):
@@ -617,8 +627,10 @@ class TestCaching(object):
 
         u = SparseFunction(name='u', grid=grid, npoint=1, nt=10)
 
-        # created: u, u(inds), p_u, h_p_u, u_coords, u_coords(inds), d, h_d
-        ncreated = 8
+        # created: p_u, h_p_u, d, h_d
+        # With the legacy caching model also u, u(inds), u_coords, and
+        # u_coords(inds) would have been added to the cache; not anymore!
+        ncreated = 4
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
         cur_cache_size = len(_SymbolCache)
@@ -642,11 +654,12 @@ class TestCaching(object):
         del u
         del i
         clear_cache()
-        # At this point, not all children objects have been cleared. In particular, the
-        # ii_u_* Symbols are still alive, as well as p_u and h_p_u. This is because
-        # in the first clear_cache they were still referenced by their "parent" objects
-        # (e.g., ii_u_* by ConditionalDimensions, through `condition`)
-        assert len(_SymbolCache) == init_cache_size + 8
+        # At this point, not all children objects have been cleared. In
+        # particular, the ii_u_* Symbols are still alive, as well as p_u and
+        # h_p_u. This is because in the first clear_cache they were still
+        # referenced by their "parent" objects (e.g., ii_u_* by
+        # ConditionalDimensions, through `condition`)
+        assert len(_SymbolCache) == init_cache_size + 6
         clear_cache()
         # Now we should be back to the original state
         assert len(_SymbolCache) == init_cache_size
@@ -795,17 +808,15 @@ class TestMemoryLeaks(object):
         del eqn
         del grid
 
-        # We only deleted `u`, however we also cache shifted version created by the
-        # finite difference (u.dt, u.dx2). In this case we have three extra references
-        # to u(t + dt), u(x - h_x) and u(x + h_x) that have to be cleared.
-        # Then `u` points to the various Dimensions, the Dimensions point to the various
-        # spacing symbols, hence, we need four sweeps to clear up the cache.
-        assert len(_SymbolCache) == 14
+        # We deleted `u`.
+        # With the legacy caching model, we would also have cache shifted versions
+        # created by the finite difference (u.dt, u.dx2). We would have had
+        # three extra references to u(t + dt), u(x - h_x) and u(x + h_x).
+        # But this is not the case anymore!
+        assert len(_SymbolCache) == 11
         clear_cache()
-        assert len(_SymbolCache) == 9
+        assert len(_SymbolCache) == 8
         clear_cache()
-        assert len(_SymbolCache) == 3
-        clear_cache()
-        assert len(_SymbolCache) == 1
+        assert len(_SymbolCache) == 2
         clear_cache()
         assert len(_SymbolCache) == 0

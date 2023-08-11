@@ -106,8 +106,18 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
-        obj._ppsubs = as_tuple(frozendict(i) for i in
-                               kwargs.get("subs", kwargs.get("_ppsubs", [])))
+
+        ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
+        processed = []
+        if ppsubs:
+            for i in ppsubs:
+                try:
+                    processed.append(frozendict(i))
+                except AttributeError:
+                    # E.g. `i` is a Transform object
+                    processed.append(i)
+        obj._ppsubs = tuple(processed)
+
         obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 

@@ -102,7 +102,7 @@ def _(expr):
 
 @singledispatch
 def factorize_target(expr, target):
-    return 1 if expr is target else 0
+    return 1 if expr == target else 0
 
 
 @factorize_target.register(Add)
@@ -114,6 +114,7 @@ def _(expr, target):
 
     for a in expr.args:
         c += factorize_target(a, target)
+
     return c
 
 
@@ -125,4 +126,5 @@ def _(expr, target):
     c = 1
     for a in expr.args:
         c *= a if not a.has(target) else factorize_target(a, target)
+
     return c
