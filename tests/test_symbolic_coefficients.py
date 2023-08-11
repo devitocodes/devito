@@ -32,9 +32,12 @@ class TestSC(object):
                           staggered=staggered)
         u1 = TimeFunction(name='u', grid=grid, time_order=order, space_order=order,
                           staggered=staggered, coefficients='symbolic')
-        eq0 = Eq(-u0.dx+u0.dt)
+
+        eq0 = Eq(u0.dt-u0.dx)
         eq1 = Eq(u1.dt-u1.dx)
-        assert(eq0.evalf(_PRECISION).__repr__() == eq1.evalf(_PRECISION).__repr__())
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
 
     @pytest.mark.parametrize('expr, sorder, dorder, dim, weights, expected', [
         ('u.dx', 2, 1, 0, (-0.6, 0.1, 0.6),
@@ -374,3 +377,15 @@ class TestSC(object):
         assert aggregated.args[1] == q.dx2
 
         Operator([Eq(q.forward, expr)])(time_M=2)  # noqa
+
+    def test_cross_derivs(self):
+        grid = Grid(shape=(11, 11, 11))
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+        q0 = TimeFunction(name='q', grid=grid, space_order=8, time_order=2)
+
+        eq0 = Eq(q0.forward, q0.dx.dy)
+        eq1 = Eq(q.forward, q.dx.dy)
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
