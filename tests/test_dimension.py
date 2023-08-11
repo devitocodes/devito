@@ -657,7 +657,7 @@ class TestSubDimension(object):
         f = Function(name='f', grid=grid)
         a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
-                      openmp=False)
+                      opt=('advanced', {'openmp': False}))
         assert len(op.parameters) == 6
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
@@ -1625,7 +1625,7 @@ class TestConditionalDimension(object):
                 Eq(a1, 1),
                 Eq(a1, 2, implicit_dims=(cd0,))]
 
-        op = Operator(eqns, openmp=True)
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
 
         assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
