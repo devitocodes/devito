@@ -2,7 +2,8 @@ from devito.tools import memoized_meth
 from devito import VectorTimeFunction, TensorTimeFunction, Function
 from examples.seismic import PointSource
 from devito.logger import info
-from examples.seismic.stiffness.operators import ForwardOperator, AdjointOperator, GradientOperator
+from examples.seismic.stiffness.operators import (ForwardOperator, AdjointOperator,
+                                                  GradientOperator)
 
 
 class IsoElasticWaveSolver(object):
@@ -38,14 +39,14 @@ class IsoElasticWaveSolver(object):
     def op_fwd(self, save=None, par=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
-                               space_order=self.space_order, par=par,  **self._kwargs)
+                               space_order=self.space_order, par=par, **self._kwargs)
 
     @memoized_meth
     def op_adj(self, par=None):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=None, geometry=self.geometry,
                                space_order=self.space_order, par=par, **self._kwargs)
-    
+
     @memoized_meth
     def op_grad(self, save=True, par=None):
         """Cached operator for gradient runs"""
@@ -112,25 +113,26 @@ class IsoElasticWaveSolver(object):
 
         parameters = model.physical_params(**kwargs)
         info("par: {}".format(par))
-        if par=='lam-mu':
+        if par == 'lam-mu':
             remove_par = ['vp', 'vs', 'rho']
 
-        elif par=='vp-vs-rho':
+        elif par == 'vp-vs-rho':
             remove_par = ['lam', 'mu']
 
         # Pick specifics physical parameters from model unless explicitly provided
         new_p = {k: v for k, v in parameters.items() if k not in remove_par}
         kwargs.update(new_p)
-        
+
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save, par).apply(src=src, rec_tau=rec_tau, rec_vx=rec_vx,
-                                          rec_vz=rec_vz, dt=kwargs.pop('dt', self.dt),
-                                          **kwargs)
+        summary = self.op_fwd(save, par).apply(src=src, rec_tau=rec_tau,
+                                               rec_vx=rec_vx, rec_vz=rec_vz,
+                                               dt=kwargs.pop('dt', self.dt), **kwargs)
         if self.model.grid.dim == 3:
             return rec_tau, rec_vx, rec_vz, v, tau, summary, rec_vy
         return rec_tau, rec_vx, rec_vz, v, tau, summary
 
-    def adjoint(self, rec, srca=None, u=None, sig=None, model=None, par='lam-mu', **kwargs):
+    def adjoint(self, rec, srca=None, u=None, sig=None, model=None, par='lam-mu',
+                **kwargs):
         """
         Adjoint modelling function that creates the necessary
         data objects for running an adjoint modelling operator.
@@ -175,10 +177,10 @@ class IsoElasticWaveSolver(object):
 
         parameters = model.physical_params(**kwargs)
         info("par: {}".format(par))
-        if par=='lam-mu':
+        if par == 'lam-mu':
             remove_par = ['vp', 'vs', 'rho']
 
-        elif par=='vp-vs-rho':
+        elif par == 'vp-vs-rho':
             remove_par = ['lam', 'mu']
 
         # Pick specifics physical parameters from model unless explicitly provided
@@ -186,8 +188,8 @@ class IsoElasticWaveSolver(object):
         kwargs.update(new_p)
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj(par=par).apply(src=srca, rec=rec, dt=kwargs.pop('dt', self.dt),
-                                      **kwargs)
+        summary = self.op_adj(par=par).apply(src=srca, rec=rec,
+                                             dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, u, sig, summary
 
     def jacobian_adjoint(self, rec_vx, rec_vz, v, u=None, sig=None, rec_vy=None,
@@ -245,19 +247,18 @@ class IsoElasticWaveSolver(object):
 
         parameters = model.physical_params(**kwargs)
         info("par: {}".format(par))
-        if par=='lam-mu':
+        if par == 'lam-mu':
             remove_par = ['vp', 'vs', 'rho']
 
-        elif par=='vp-vs-rho':
+        elif par == 'vp-vs-rho':
             remove_par = ['lam', 'mu']
 
         # Pick specifics physical parameters from model unless explicitly provided
         new_p = {k: v for k, v in parameters.items() if k not in remove_par}
         kwargs.update(new_p)
-        
 
         summary = self.op_grad(par=par).apply(rec_vx=rec_vx, rec_vz=rec_vz, grad1=grad1,
-                                       grad2=grad2, grad3=grad3,
-                                       dt=kwargs.pop('dt', self.dt), **kwargs)
+                                              grad2=grad2, grad3=grad3,
+                                              dt=kwargs.pop('dt', self.dt), **kwargs)
 
         return grad1, grad2, grad3, summary

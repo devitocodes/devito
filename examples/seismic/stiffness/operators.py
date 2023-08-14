@@ -1,8 +1,8 @@
-from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction, Function, TimeFunction, Derivative
-from devito import solve, div
+from devito import (Eq, Operator, VectorTimeFunction, TensorTimeFunction,
+                    Function, TimeFunction)
+from devito import solve
 from examples.seismic import PointSource, Receiver
 from examples.seismic.stiffness.utils import D, S, vec, C_Matrix, gather
-
 
 
 def src_rec(v, tau, model, geometry, forward=True):
@@ -99,11 +99,11 @@ def elastic_stencil(model, v, tau, forward=True, par='lam-mu'):
 
 def EqsLamMu(model, sig, u, v, grad_lam, grad_mu, grad_rho, C, space_order=8):
     hl = TimeFunction(name='hl', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                      time_order=1)
     hm = TimeFunction(name='hm', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                      time_order=1)
     hr = TimeFunction(name='hr', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                      time_order=1)
 
     Wl = gather(0, C.dlam * S(v))
     Wm = gather(0, C.dmu * S(v))
@@ -111,13 +111,13 @@ def EqsLamMu(model, sig, u, v, grad_lam, grad_mu, grad_rho, C, space_order=8):
 
     W2 = gather(u, sig)
 
-    wl_update = Eq(hl , Wl.T * W2)
+    wl_update = Eq(hl, Wl.T * W2)
     gradient_lam = Eq(grad_lam, grad_lam + hl)
 
-    wm_update = Eq(hm , Wm.T * W2)
+    wm_update = Eq(hm, Wm.T * W2)
     gradient_mu = Eq(grad_mu, grad_mu + hm)
 
-    wr_update = Eq(hr , Wr.T * W2)
+    wr_update = Eq(hr, Wr.T * W2)
     gradient_rho = Eq(grad_rho, grad_rho + hr)
 
     return [wl_update, gradient_lam, wm_update, gradient_mu, wr_update, gradient_rho]
@@ -125,11 +125,11 @@ def EqsLamMu(model, sig, u, v, grad_lam, grad_mu, grad_rho, C, space_order=8):
 
 def EqsVpVsRho(model, sig, u, v, grad_vp, grad_vs, grad_rho, C, space_order=8):
     hvp = TimeFunction(name='hvp', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                       time_order=1)
     hvs = TimeFunction(name='hvs', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                       time_order=1)
     hr = TimeFunction(name='hr', grid=model.grid, space_order=space_order,
-                           time_order=1)
+                      time_order=1)
 
     Wvp = gather(0, C.dvp * S(v))
     Wvs = gather(0, C.dvs * S(v))
@@ -137,13 +137,13 @@ def EqsVpVsRho(model, sig, u, v, grad_vp, grad_vs, grad_rho, C, space_order=8):
 
     W2 = gather(u, sig)
 
-    wvp_update = Eq(hvp , Wvp.T * W2)
-    gradient_lam= Eq(grad_vp, grad_vp + hvp)
+    wvp_update = Eq(hvp, Wvp.T * W2)
+    gradient_lam = Eq(grad_vp, grad_vp + hvp)
 
-    wvs_update = Eq(hvs , Wvs.T * W2)
+    wvs_update = Eq(hvs, Wvs.T * W2)
     gradient_mu = Eq(grad_vs, grad_vs + hvs)
 
-    wr_update = Eq(hr , Wr.T * W2)
+    wr_update = Eq(hr, Wr.T * W2)
     gradient_rho = Eq(grad_rho, grad_rho + hr)
 
     return [wvp_update, gradient_lam, wvs_update, gradient_mu, wr_update, gradient_rho]
@@ -227,7 +227,7 @@ def GradientOperator(model, geometry, space_order=4, save=True, par='lam-mu', **
     save : int or Buffer, optional
         Option to store the entire (unrolled) wavefield.
     """
-   # Gradient symbol and wavefield symbols
+    # Gradient symbol and wavefield symbols
     grad1 = Function(name='grad1', grid=model.grid)
     grad2 = Function(name='grad2', grid=model.grid)
     grad3 = Function(name='grad3', grid=model.grid)
@@ -246,7 +246,7 @@ def GradientOperator(model, geometry, space_order=4, save=True, par='lam-mu', **
     if model.grid.dim == 3:
         rec_vy = Receiver(name='rec_vy', grid=model.grid, time_range=geometry.time_axis,
                           npoint=geometry.nrec)
-        
+
     s = model.grid.time_dim.spacing
     b = model.b
 
@@ -256,7 +256,8 @@ def GradientOperator(model, geometry, space_order=4, save=True, par='lam-mu', **
     sig = vec(sig)
 
     kernel = kernels[par]
-    gradient_update = kernel(model, sig, u, v, grad1, grad2 ,grad3, C, space_order=space_order)
+    gradient_update = kernel(model, sig, u, v, grad1, grad2,
+                             grad3, C, space_order=space_order)
 
     # Construct expression to inject receiver values
     rec_term_vx = rec_vx.inject(field=u[0].backward, expr=s*rec_vx*b)
