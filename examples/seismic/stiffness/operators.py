@@ -118,7 +118,7 @@ def EqsLamMu(model, sig, u, v, grad_lam, grad_mu, grad_rho, C, space_order=8):
     gradient_mu = Eq(grad_mu, grad_mu + hm)
 
     wr_update = Eq(hr, Wr.T * W2)
-    gradient_rho = Eq(grad_rho, grad_rho + hr)
+    gradient_rho = Eq(grad_rho, grad_rho - hr)
 
     return [wl_update, gradient_lam, wm_update, gradient_mu, wr_update, gradient_rho]
 
@@ -133,7 +133,7 @@ def EqsVpVsRho(model, sig, u, v, grad_vp, grad_vs, grad_rho, C, space_order=8):
 
     Wvp = gather(0, C.dvp * S(v))
     Wvs = gather(0, C.dvs * S(v))
-    Wr = gather(0, C.drho * S(v))
+    Wr = gather(v.dt, - C.drho * S(v))
 
     W2 = gather(u, sig)
 
@@ -144,7 +144,7 @@ def EqsVpVsRho(model, sig, u, v, grad_vp, grad_vs, grad_rho, C, space_order=8):
     gradient_mu = Eq(grad_vs, grad_vs + hvs)
 
     wr_update = Eq(hr, Wr.T * W2)
-    gradient_rho = Eq(grad_rho, grad_rho + hr)
+    gradient_rho = Eq(grad_rho, grad_rho - hr)
 
     return [wvp_update, gradient_lam, wvs_update, gradient_mu, wr_update, gradient_rho]
 
