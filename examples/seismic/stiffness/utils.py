@@ -6,24 +6,17 @@ from sympy import symbols, Matrix, ones
 
 class C_Matrix():
 
-    accepted_parameters_set = [['lam', 'mu'], [ 'vp', 'vs', 'rho']]
+    C_matrix_dependency = {'lam-mu':'C_lambda_mu', 'vp-vs-rho':'C_vp_vs_rho'}
 
 
     def __new__(cls, model, parameters):
         c_m_gen = cls.C_matrix_gen(parameters)
         return c_m_gen(model)
     
-
+    
     @classmethod
     def C_matrix_gen(cls, parameters):
-        parameters_names = [p.name for p in parameters]
-        if set(parameters_names) == set(cls.accepted_parameters_set[0]):
-            return cls.C_lambda_mu
-        elif set(parameters_names) == set(cls.accepted_parameters_set[1]):
-            return cls.C_vp_vs_rho
-        else:
-            raise Exception("These parameters are not accepted to generate C matrix")
-
+        return getattr(cls, cls.C_matrix_dependency[parameters])
 
     def _matrix_init(dim):
         def cij(i, j):

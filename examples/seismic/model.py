@@ -300,7 +300,7 @@ class SeismicModel(GenericModel):
         b = kwargs.get('b', 1)
 
         self.rho = self._gen_phys_param(1/b, 'rho', space_order)
-        self._physical_parameters.remove(self.rho.name) ############### 
+
         # Initialize elastic with Lame parametrization
         if 'vs' in kwargs:
             vs = kwargs.pop('vs')
@@ -308,9 +308,7 @@ class SeismicModel(GenericModel):
                                             is_param=True)
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
             self.vs = self._gen_phys_param(vs, 'vs', space_order)
-            self._physical_parameters.remove(self.vs.name)
             self.vp = self._gen_phys_param(vp, 'vp', space_order)
-            self._physical_parameters.remove(self.vp.name)
         else:
             # All other seismic models have at least a velocity
             self.vp = self._gen_phys_param(vp, 'vp', space_order)
