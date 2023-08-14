@@ -1,4 +1,5 @@
-from devito.types.tensor import TensorFunction, TensorTimeFunction, VectorFunction, VectorTimeFunction, tens_func
+from devito.types.tensor import (TensorFunction, TensorTimeFunction,
+                                 VectorFunction, VectorTimeFunction, tens_func)
 import numpy as np
 
 from sympy import symbols, Matrix, ones
@@ -6,24 +7,15 @@ from sympy import symbols, Matrix, ones
 
 class C_Matrix():
 
-    accepted_parameters_set = [['lam', 'mu'], [ 'vp', 'vs', 'rho']]
-
+    C_matrix_dependency = {'lam-mu': 'C_lambda_mu', 'vp-vs-rho': 'C_vp_vs_rho'}
 
     def __new__(cls, model, parameters):
         c_m_gen = cls.C_matrix_gen(parameters)
         return c_m_gen(model)
-    
 
     @classmethod
     def C_matrix_gen(cls, parameters):
-        parameters_names = [p.name for p in parameters]
-        if set(parameters_names) == set(cls.accepted_parameters_set[0]):
-            return cls.C_lambda_mu
-        elif set(parameters_names) == set(cls.accepted_parameters_set[1]):
-            return cls.C_vp_vs_rho
-        else:
-            raise Exception("These parameters are not accepted to generate C matrix")
-
+        return getattr(cls, cls.C_matrix_dependency[parameters])
 
     def _matrix_init(dim):
         def cij(i, j):
@@ -35,7 +27,6 @@ class C_Matrix():
         d = dim*2 + dim-2
         Cij = [[cij(i, j) for i in range(1, d)] for j in range(1, d)]
         return Matrix(Cij)
-
 
     @classmethod
     def C_lambda_mu(cls, model):
@@ -68,7 +59,6 @@ class C_Matrix():
         M.inv = cls._inverse_C_lam(model)
         return M
 
-
     @staticmethod
     def _inverse_C_lam(model):
         def subs3D():
@@ -95,7 +85,6 @@ class C_Matrix():
         subs = subs3D() if model.dim == 3 else subs2D()
         return matrix.subs(subs)
 
-
     @staticmethod
     def _generate_Dlam(model):
         def d_lam(i, j):
@@ -108,22 +97,20 @@ class C_Matrix():
         Dlam = [[d_lam(i, j) for i in range(1, d)] for j in range(1, d)]
         return Matrix(Dlam)
 
-
     @staticmethod
     def _generate_Dmu(model):
         def d_mu(i, j):
             ii, jj = min(i, j), max(i, j)
             if (ii == jj):
-                if  ii <= model.dim:
+                if ii <= model.dim:
                     return 2
-                else: 
+                else:
                     return 1
             return 0
 
         d = model.dim*2 + model.dim-2
         Dmu = [[d_mu(i, j) for i in range(1, d)] for j in range(1, d)]
         return Matrix(Dmu)
-
 
     @classmethod
     def C_vp_vs_rho(cls, model):
@@ -141,7 +128,7 @@ class C_Matrix():
         def subs2D():
             return {'C11': rho*vp*vp,
                     'C22': rho*vp*vp,
-                    'C33': rho*vs*vs ,
+                    'C33': rho*vs*vs,
                     'C12': rho*vp*vp - 2*rho*vs*vs}
 
         matrix = C_Matrix._matrix_init(model.dim)
@@ -158,25 +145,24 @@ class C_Matrix():
         M.inv = cls._inverse_C_vp_vs(model)
         return M
 
-
     @staticmethod
     def _inverse_C_vp_vs(model):
         def subs3D():
-            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
-                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
-                    'C33': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp - 4*vs*vs)),
+                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp - 4*vs*vs)),
+                    'C33': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp - 4*vs*vs)),
                     'C44': 1/(rho*vs*vs),
                     'C55': 1/(rho*vs*vs),
                     'C66': 1/(rho*vs*vs),
-                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs)),
-                    'C13': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs)),
-                    'C23': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs))}
+                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp - 8*vs*vs)),
+                    'C13': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp - 8*vs*vs)),
+                    'C23': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp - 8*vs*vs))}
 
         def subs2D():
-            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
-                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp -4*vs*vs)),
+            return {'C11': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp - 4*vs*vs)),
+                    'C22': (vp*vp - vs*vs)/((rho*vs*vs)*(3*vp*vp - 4*vs*vs)),
                     'C33': 1/(rho*vs*vs),
-                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp -8*vs*vs))}
+                    'C12': (vp*vp - vs*vs)/((rho*vs*vs)*(6*vp*vp - 8*vs*vs))}
 
         matrix = C_Matrix._matrix_init(model.dim)
         vp = model.vp
@@ -185,7 +171,6 @@ class C_Matrix():
 
         subs = subs3D() if model.dim == 3 else subs2D()
         return matrix.subs(subs)
-
 
     @staticmethod
     def _generate_Dvp(model):
@@ -198,7 +183,6 @@ class C_Matrix():
         d = model.dim*2 + model.dim-2
         Dvp = [[d_vp(i, j) for i in range(1, d)] for j in range(1, d)]
         return Matrix(Dvp)
-    
 
     @staticmethod
     def _generate_Dvs(model):
@@ -225,7 +209,6 @@ class C_Matrix():
 
         subs = subs3D() if model.dim == 3 else subs2D()
         return Dvs.subs(subs)
-    
 
     @staticmethod
     def _generate_Drho(model):
@@ -252,7 +235,6 @@ class C_Matrix():
 
         subs = subs3D() if model.dim == 3 else subs2D()
         return Dvs.subs(subs)
-
 
 
 def D(self, shift=None):
@@ -340,21 +322,20 @@ def gather(a1, a2):
         raise ValueError("a1 must be a VectorFunction or a Integer")
     if type(a2) not in expected_a2_types:
         raise ValueError("a2 must be a TensorFunction or a Integer")
-    if  type(a1) is int and  type(a2) is int:
+    if type(a1) is int and type(a2) is int:
         raise ValueError("Both a2 and a1 cannot be Integers simultaneously")
 
-
     if type(a1) is int:
-        a1_m = Matrix([ones(len(a2.space_dimensions), 1)*a1])    
+        a1_m = Matrix([ones(len(a2.space_dimensions), 1)*a1])
     else:
         a1_m = Matrix(a1)
 
     if type(a2) is int:
         ndim = len(a1.space_dimensions)
-        a2_m = Matrix([ones((3*ndim-3), 1)*a2])    
+        a2_m = Matrix([ones((3*ndim-3), 1)*a2])
     else:
         a2_m = Matrix(a2)
-    
+
     if a1_m.cols > 1:
         a1_m = a1_m.T
     if a2_m.cols > 1:

@@ -1,8 +1,8 @@
-from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction, Function, Derivative
-from devito import solve, div
+from devito import (Eq, Operator, VectorTimeFunction, TensorTimeFunction,
+                    Function, TimeFunction)
+from devito import solve
 from examples.seismic import PointSource, Receiver
-from examples.seismic.stiffness.utils import D, S, vec, C_Matrix
-
+from examples.seismic.stiffness.utils import D, S, vec, C_Matrix, gather
 
 
 def src_rec(v, tau, model, geometry, forward=True):
@@ -60,14 +60,15 @@ def src_rec(v, tau, model, geometry, forward=True):
     return src_expr, rec_expr
 
 
-def elastic_stencil(model, v, tau, forward=True):
+def elastic_stencil(model, v, tau, forward=True, par='lam-mu'):
 
     damp = model.damp
     b = model.b
 
     rho = 1. / b
 
-    C = C_Matrix(model, [model.lam, model.mu])
+    C = C_Matrix(model, par)
+
     tau = vec(tau)
     if forward:
 
@@ -96,7 +97,59 @@ def elastic_stencil(model, v, tau, forward=True):
         return [u_v, u_t]
 
 
-def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
+def EqsLamMu(model, sig, u, v, grad_lam, grad_mu, grad_rho, C, space_order=8):
+    hl = TimeFunction(name='hl', grid=model.grid, space_order=space_order,
+                      time_order=1)
+    hm = TimeFunction(name='hm', grid=model.grid, space_order=space_order,
+                      time_order=1)
+    hr = TimeFunction(name='hr', grid=model.grid, space_order=space_order,
+                      time_order=1)
+
+    Wl = gather(0, C.dlam * S(v))
+    Wm = gather(0, C.dmu * S(v))
+    Wr = gather(v.dt, 0)
+
+    W2 = gather(u, sig)
+
+    wl_update = Eq(hl, Wl.T * W2)
+    gradient_lam = Eq(grad_lam, grad_lam + hl)
+
+    wm_update = Eq(hm, Wm.T * W2)
+    gradient_mu = Eq(grad_mu, grad_mu + hm)
+
+    wr_update = Eq(hr, Wr.T * W2)
+    gradient_rho = Eq(grad_rho, grad_rho - hr)
+
+    return [wl_update, gradient_lam, wm_update, gradient_mu, wr_update, gradient_rho]
+
+
+def EqsVpVsRho(model, sig, u, v, grad_vp, grad_vs, grad_rho, C, space_order=8):
+    hvp = TimeFunction(name='hvp', grid=model.grid, space_order=space_order,
+                       time_order=1)
+    hvs = TimeFunction(name='hvs', grid=model.grid, space_order=space_order,
+                       time_order=1)
+    hr = TimeFunction(name='hr', grid=model.grid, space_order=space_order,
+                      time_order=1)
+
+    Wvp = gather(0, C.dvp * S(v))
+    Wvs = gather(0, C.dvs * S(v))
+    Wr = gather(v.dt, - C.drho * S(v))
+
+    W2 = gather(u, sig)
+
+    wvp_update = Eq(hvp, Wvp.T * W2)
+    gradient_lam = Eq(grad_vp, grad_vp + hvp)
+
+    wvs_update = Eq(hvs, Wvs.T * W2)
+    gradient_mu = Eq(grad_vs, grad_vs + hvs)
+
+    wr_update = Eq(hr, Wr.T * W2)
+    gradient_rho = Eq(grad_rho, grad_rho - hr)
+
+    return [wvp_update, gradient_lam, wvs_update, gradient_mu, wr_update, gradient_rho]
+
+
+def ForwardOperator(model, geometry, space_order=4, save=False, par='lam-mu', **kwargs):
     """
     Construct method for the forward modelling operator in an elastic media.
 
@@ -121,7 +174,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
                              save=geometry.nt if save else None,
                              space_order=space_order, time_order=1)
 
-    eqn = elastic_stencil(model, v, tau)
+    eqn = elastic_stencil(model, v, tau, par=par)
 
     src_expr, rec_expr = src_rec(v, tau, model, geometry)
 
@@ -131,7 +184,7 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     return op
 
 
-def AdjointOperator(model, geometry, space_order=4, **kwargs):
+def AdjointOperator(model, geometry, space_order=4, par='lam-mu', **kwargs):
     """
     Construct an adjoint modelling operator in a viscoacoustic medium.
     Parameters
@@ -150,7 +203,7 @@ def AdjointOperator(model, geometry, space_order=4, **kwargs):
     sig = TensorTimeFunction(name='sig', grid=model.grid, space_order=space_order,
                              time_order=1)
 
-    eqn = elastic_stencil(model, u, sig, forward=False)
+    eqn = elastic_stencil(model, u, sig, forward=False, par=par)
 
     src_expr, rec_expr = src_rec(u, sig, model, geometry, forward=False)
 
@@ -158,7 +211,8 @@ def AdjointOperator(model, geometry, space_order=4, **kwargs):
     return Operator(eqn + src_expr + rec_expr, subs=model.spacing_map,
                     name='AdjointIsoElastic', **kwargs)
 
-def GradientOperator(model, geometry, space_order=4, save=True, **kwargs):
+
+def GradientOperator(model, geometry, space_order=4, save=True, par='lam-mu', **kwargs):
     """
     Construct a gradient operator in an elastic media.
     Parameters
@@ -174,9 +228,10 @@ def GradientOperator(model, geometry, space_order=4, save=True, **kwargs):
         Option to store the entire (unrolled) wavefield.
     """
     # Gradient symbol and wavefield symbols
-    grad_lam = Function(name='grad_lam', grid=model.grid)
-    grad_mu = Function(name='grad_mu', grid=model.grid)
-    grad_rho = Function(name='grad_rho', grid=model.grid)
+    grad1 = Function(name='grad1', grid=model.grid)
+    grad2 = Function(name='grad2', grid=model.grid)
+    grad3 = Function(name='grad3', grid=model.grid)
+
     v = VectorTimeFunction(name='v', grid=model.grid,
                            save=geometry.nt if save else None,
                            space_order=space_order, time_order=1)
@@ -195,25 +250,14 @@ def GradientOperator(model, geometry, space_order=4, save=True, **kwargs):
     s = model.grid.time_dim.spacing
     b = model.b
 
-    eqn = elastic_stencil(model, u, sig, forward=False)
+    C = C_Matrix(model, par)
 
-    expr_sig = sig[0, 0] + sig[-1, -1]
-    if model.grid.dim == 3:
-        expr_sig += sig[1, 1]
-    gradient_lam = Eq(grad_lam, grad_lam - div(v) * expr_sig)
+    eqn = elastic_stencil(model, u, sig, forward=False, par=par)
+    sig = vec(sig)
 
-    expr_vsig = v[0].dx * sig[0, 0] + v[1].dy * sig[1, 1]
-    expr_cross = (v[0].dy + v[1].dx) * sig[0, 1]
-    if model.grid.dim == 3:
-        expr_vsig += v[2].dz * sig[2, 2]
-        expr_cross += ((v[0].dz + v[2].dx) * sig[0, 2]) + \
-            ((v[1].dz + v[2].dy) * sig[1, 2])
-
-    gradient_mu = Eq(grad_mu, grad_mu - (2 * expr_vsig + expr_cross))
-
-    gradient_rho = Eq(grad_rho, grad_rho - expr_vsig)
-
-    gradient_update = [gradient_lam, gradient_mu, gradient_rho]
+    kernel = kernels[par]
+    gradient_update = kernel(model, sig, u, v, grad1, grad2,
+                             grad3, C, space_order=space_order)
 
     # Construct expression to inject receiver values
     rec_term_vx = rec_vx.inject(field=u[0].backward, expr=s*rec_vx*b)
@@ -225,3 +269,6 @@ def GradientOperator(model, geometry, space_order=4, save=True, **kwargs):
     # Substitute spacing terms to reduce flops
     return Operator(eqn + rec_expr + gradient_update, subs=model.spacing_map,
                     name='GradientElastic', **kwargs)
+
+
+kernels = {'lam-mu': EqsLamMu, 'vp-vs-rho': EqsVpVsRho}
