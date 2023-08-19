@@ -83,7 +83,9 @@ def sum(f, dims=None):
     elif f.is_SparseTimeFunction:
         if f.time_dim in dims:
             # Sum over time -> SparseFunction
-            new_coords = f.coordinates._rebuild(name="%ssum_coords" % f.name)
+            new_coords = f.coordinates._rebuild(
+                name="%ssum_coords" % f.name, initializer=f.coordinates.initializer
+            )
             out = dv.SparseFunction(name="%ssum" % f.name, grid=f.grid,
                                     dimensions=new_dims, npoint=f.shape[1],
                                     coordinates=new_coords)

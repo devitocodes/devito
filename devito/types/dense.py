@@ -57,7 +57,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'initializer')
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered',)
 
     def __init_finalize__(self, *args, function=None, **kwargs):
         # Staggering metadata
@@ -638,7 +638,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def initializer(self):
-        if self._data is not None:
+        if isinstance(self._data, np.ndarray):
             return self.data_with_halo.view(np.ndarray)
         else:
             return self._initializer
@@ -867,6 +867,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     def _arg_finalize(self, args, alias=None):
         key = alias or self
         return {key.name: self._C_make_dataobj(args[key.name])}
+
+    # Pickling support
+
+    @property
+    def _pickle_rkwargs(self):
+        # Picklying carries data over, if available
+        return tuple(self.__rkwargs__) + ('initializer',)
 
 
 class Function(DiscreteFunction):
