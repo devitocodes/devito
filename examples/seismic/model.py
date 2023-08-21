@@ -305,7 +305,7 @@ class SeismicModel(GenericModel):
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
                                             is_param=True)
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
-            
+
         else:
             # All other seismic models have at least a velocity
             self.vp = self._gen_phys_param(vp, 'vp', space_order)

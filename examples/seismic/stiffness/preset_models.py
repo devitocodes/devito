@@ -24,7 +24,7 @@ def demo_model(preset, **kwargs):
     dtype = kwargs.pop('dtype', np.float32)
     vp = kwargs.pop('vp', 1.5)
     nlayers = kwargs.pop('nlayers', 3)
-    print("DEMO MODEL NOVO")
+
     if preset.lower() in ['constant-elastic']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5 km/s.
@@ -32,8 +32,8 @@ def demo_model(preset, **kwargs):
         b = 1.0
 
         return ISOSeismicModel(space_order=space_order, vp=vp, vs=vs, b=b,
-                            origin=origin, shape=shape, dtype=dtype, spacing=spacing,
-                            nbl=nbl, **kwargs)
+                               origin=origin, shape=shape, dtype=dtype, spacing=spacing,
+                               nbl=nbl, **kwargs)
 
     elif preset.lower() in ['layers-elastic']:
         # A n-layers model in a 2D or 3D domain with two different
@@ -56,8 +56,8 @@ def demo_model(preset, **kwargs):
         vs[v < 1.51] = 0.0
 
         return ISOSeismicModel(space_order=space_order, vp=v, vs=vs, b=b,
-                            origin=origin, shape=shape,
-                            dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
+                               origin=origin, shape=shape,
+                               dtype=dtype, spacing=spacing, nbl=nbl, **kwargs)
 
     else:
         raise ValueError("Unknown model preset name")
