@@ -539,6 +539,13 @@ class TestFD(object):
         expr3 = expr.subs({f.dx: f.dx2, 'x0': 2})
         assert simplify(expr3 - (f.dx2(x0=2) + f + 1)) == 0
 
+        # Test substitution with reconstructed objects
+        x, y = grid.dimensions
+        f1 = f.func(x + 1, y)
+        f2 = f.func(x + 1, y)
+        assert f1 is not f2
+        assert f1.subs(f2, -1) == -1
+
 
 class TestTwoStageEvaluation(object):
 
