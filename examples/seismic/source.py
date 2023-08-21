@@ -110,7 +110,7 @@ class PointSource(SparseTimeFunction):
         kwargs['nt'] = kwargs['time_range'].num
 
         # Either `npoint` or `coordinates` must be provided
-        npoint = kwargs.get('npoint')
+        npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         if npoint is None:
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if coordinates is None:

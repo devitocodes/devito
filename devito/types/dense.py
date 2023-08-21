@@ -287,6 +287,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *global* domain region shape, which is
         therefore identical on all MPI ranks.
+
+        Issues
+        ------
+        * https://github.com/devitocodes/devito/issues/1498
         """
         if self.grid is None:
             return self.shape

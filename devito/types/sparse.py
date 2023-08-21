@@ -40,11 +40,11 @@ class AbstractSparseFunction(DiscreteFunction):
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
-    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint', 'space_order')
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint_global', 'space_order')
 
     def __init_finalize__(self, *args, **kwargs):
         super(AbstractSparseFunction, self).__init_finalize__(*args, **kwargs)
-        self._npoint = kwargs['npoint']
+        self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
 
         # Dynamically add derivative short-cuts
@@ -76,7 +76,7 @@ class AbstractSparseFunction(DiscreteFunction):
         if grid is None:
             raise TypeError('Need `grid` argument')
         shape = kwargs.get('shape')
-        npoint = kwargs['npoint']
+        npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         if shape is None:
             glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
             shape = (glb_npoint[grid.distributor.myrank],)
@@ -89,6 +89,17 @@ class AbstractSparseFunction(DiscreteFunction):
     @property
     def npoint(self):
         return self.shape[self._sparse_position]
+
+    @property
+    def npoint_global(self):
+        """
+        Global `npoint`s. This only differs from `self.npoint` in an MPI context.
+
+        Issues
+        ------
+        * https://github.com/devitocodes/devito/issues/1498
+        """
+        return self._npoint
 
     @property
     def space_order(self):
@@ -490,8 +501,11 @@ class SparseFunction(AbstractSparseFunction):
         A `SparseDistributor` handles the SparseFunction decomposition based on
         physical ownership, and allows to convert between global and local indices.
         """
-        return SparseDistributor(kwargs['npoint'], self._sparse_dim,
-                                 kwargs['grid'].distributor)
+        return SparseDistributor(
+            kwargs.get('npoint', kwargs.get('npoint_global')),
+            self._sparse_dim,
+            kwargs['grid'].distributor
+        )
 
     @property
     def coordinates(self):
@@ -831,8 +845,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
     is_SparseTimeFunction = True
 
-    __rkwargs__ = (AbstractSparseTimeFunction.__rkwargs__ +
-                   SparseFunction.__rkwargs__)
+    __rkwargs__ = tuple(filter_ordered(AbstractSparseTimeFunction.__rkwargs__ +
+                                       SparseFunction.__rkwargs__))
 
     def interpolate(self, expr, offset=0, u_t=None, p_t=None, increment=False):
         """
