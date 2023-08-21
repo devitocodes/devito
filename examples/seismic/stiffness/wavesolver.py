@@ -112,15 +112,9 @@ class IsoElasticWaveSolver(object):
         # Pick Lame parameters from model unless explicitly provided
 
         parameters = model.physical_params(**kwargs)
-        info("par: {}".format(par))
-        if par == 'lam-mu':
-            remove_par = ['vp', 'vs', 'rho']
-
-        elif par == 'vp-vs-rho':
-            remove_par = ['lam', 'mu']
 
         # Pick specifics physical parameters from model unless explicitly provided
-        new_p = {k: v for k, v in parameters.items() if k not in remove_par}
+        new_p = {k: v for k, v in parameters.items() if k not in remove_par[par]}
         kwargs.update(new_p)
 
         # Execute operator and return wavefield and receiver data
@@ -176,15 +170,9 @@ class IsoElasticWaveSolver(object):
         model = model or self.model
 
         parameters = model.physical_params(**kwargs)
-        info("par: {}".format(par))
-        if par == 'lam-mu':
-            remove_par = ['vp', 'vs', 'rho']
-
-        elif par == 'vp-vs-rho':
-            remove_par = ['lam', 'mu']
-
+        
         # Pick specifics physical parameters from model unless explicitly provided
-        new_p = {k: v for k, v in parameters.items() if k not in remove_par}
+        new_p = {k: v for k, v in parameters.items() if k not in remove_par[par]}
         kwargs.update(new_p)
 
         # Execute operator and return wavefield and receiver data
@@ -246,15 +234,9 @@ class IsoElasticWaveSolver(object):
         model = model or self.model
 
         parameters = model.physical_params(**kwargs)
-        info("par: {}".format(par))
-        if par == 'lam-mu':
-            remove_par = ['vp', 'vs', 'rho']
-
-        elif par == 'vp-vs-rho':
-            remove_par = ['lam', 'mu']
 
         # Pick specifics physical parameters from model unless explicitly provided
-        new_p = {k: v for k, v in parameters.items() if k not in remove_par}
+        new_p = {k: v for k, v in parameters.items() if k not in remove_par[par]}
         kwargs.update(new_p)
 
         summary = self.op_grad(par=par).apply(rec_vx=rec_vx, rec_vz=rec_vz, grad1=grad1,
@@ -262,3 +244,5 @@ class IsoElasticWaveSolver(object):
                                               dt=kwargs.pop('dt', self.dt), **kwargs)
 
         return grad1, grad2, grad3, summary
+
+remove_par = {'lam-mu':['vp', 'vs', 'rho'], 'vp-vs-rho':['lam', 'mu']}
