@@ -1386,8 +1386,10 @@ class StencilDimension(BasicDimension):
     is_Stencil = True
 
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
+    __rkwargs__ = BasicDimension.__rkwargs__ + ('backward',)
 
-    def __init_finalize__(self, name, _min, _max, spacing=None, **kwargs):
+    def __init_finalize__(self, name, _min, _max, spacing=None, backward=False,
+                          **kwargs):
         self._spacing = sympy.sympify(spacing) or sympy.S.One
 
         if not is_integer(_min):
@@ -1399,13 +1401,21 @@ class StencilDimension(BasicDimension):
 
         self._min = _min
         self._max = _max
+
         self._size = _max - _min + 1
+
+        self._backward = backward
 
         if self._size < 1:
             raise ValueError("Expected size greater than 0 (got %s)" % self._size)
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self._min, self._max, self._spacing)
+        return (super()._hashable_content() +
+                (self._min, self._max, self._spacing, self._backward))
+
+    @cached_property
+    def backward(self):
+        return self._backward
 
     @cached_property
     def symbolic_size(self):
