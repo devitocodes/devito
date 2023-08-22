@@ -197,6 +197,24 @@ class IndexSet(tuple):
 
         return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim)
 
+    def transpose(self):
+        """
+        Transpose the IndexSet.
+        """
+        indices = tuple(reversed(self))
+
+        free_dim = StencilDimension(self.free_dim.name,
+                                    -self.free_dim._max,
+                                    -self.free_dim._min,
+                                    backward=True)
+
+        try:
+            expr = self.expr._subs(self.free_dim, -free_dim)
+        except AttributeError:
+            expr = None
+
+        return IndexSet(self.dim, indices, expr=expr, fd=free_dim)
+
     def shift(self, v):
         """
         Construct a new IndexSet with all indices shifted by `v`.
