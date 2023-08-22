@@ -6,6 +6,7 @@ from operator import mul
 
 import numpy as np
 import sympy
+
 from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 
@@ -855,10 +856,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     __repr__ = __str__
 
-    def _sympystr(self, printer):
+    def _sympystr(self, printer, **kwargs):
         return str(self)
 
     _latex = _sympystr
+
+    def _pretty(self, printer, **kwargs):
+        return printer._print_Function(self, func_name=self.name)
 
     def __eq__(self, other):
         try:

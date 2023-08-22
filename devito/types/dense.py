@@ -57,7 +57,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered',)
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
 
     def __init_finalize__(self, *args, function=None, **kwargs):
         # Staggering metadata
