@@ -858,6 +858,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def _sympystr(self, printer):
         return str(self)
 
+    _latex = _sympystr
+
     def __eq__(self, other):
         try:
             return (self.function is other.function and
