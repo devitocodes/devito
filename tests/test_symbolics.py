@@ -364,7 +364,7 @@ def test_solve_time():
     # contains some Dummy in the Derivative subs that make equality break.
     assert len(retrieve_derivatives(sol)) == 1
     assert sympy.simplify(u.dx - retrieve_derivatives(sol)[0]) == 0
-    assert sympy.simplify(sol - (-dt**2*u.dx/m + 2.0*u - u.backward)) == 0
+    assert sympy.simplify(sympy.expand(sol - (-dt**2*u.dx/m + 2.0*u - u.backward))) == 0
 
 
 @pytest.mark.parametrize('expr,subs,expected', [
