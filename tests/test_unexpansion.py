@@ -204,6 +204,28 @@ class Test1Pass(object):
 
         op.cfunction
 
+    def test_transpose(self):
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape)
+        x, _, _ = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u1 = TimeFunction(name='u', grid=grid, space_order=4)
+
+        # Chessboard-like init
+        u.data[:] = np.indices(shape).sum(axis=0) % 10 + 1
+        u1.data[:] = np.indices(shape).sum(axis=0) % 10 + 1
+
+        eqn = Eq(u.forward, u.dx(x0=x+x.spacing/2).T + 1.)
+
+        op0 = Operator(eqn)
+        op1 = Operator(eqn, opt=('advanced', {'expand': False}))
+
+        op0.apply(time_M=10)
+        op1.apply(time_M=10, u=u1)
+
+        assert np.allclose(u.data, u1.data, rtol=10e-6)
+
 
 class Test2Pass(object):
 
