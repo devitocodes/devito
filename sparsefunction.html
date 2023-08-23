@@ -12,11 +12,11 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="_static/jquery.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -105,10 +105,10 @@
            <div itemprop="articleBody">
              
   <section id="sparsefunction">
-<h1>SparseFunction<a class="headerlink" href="#sparsefunction" title="Permalink to this heading"></a></h1>
+<h1>SparseFunction<a class="headerlink" href="#sparsefunction" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.SparseFunction">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">SparseFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseFunction" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">SparseFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseFunction" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">AbstractSparseFunction</span></code></p>
 <p>Tensor symbol representing a sparse array in symbolic equations.</p>
 <p>A SparseFunction carries multi-dimensional data that are not aligned with
@@ -182,7 +182,7 @@ updates the physically owned sparse points in <code class="docutils literal notr
 the values computed during <code class="docutils literal notranslate"><span class="pre">op.apply</span></code> from different MPI ranks.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.data">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#devito.types.SparseFunction.data" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#devito.types.SparseFunction.data" title="Link to this definition"></a></dt>
 <dd><p>The domain data values, as a numpy.ndarray.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -193,7 +193,7 @@ instead.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.data_domain">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_domain</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_domain" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_domain</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_domain" title="Link to this definition"></a></dt>
 <dd><p>The domain data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -205,19 +205,19 @@ get back. If you only need to look at the values, use
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.data_ro_domain">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_domain</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_ro_domain" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_domain</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_ro_domain" title="Link to this definition"></a></dt>
 <dd><p>Read-only view of the domain data values.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.data_ro_with_halo">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_with_halo</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_ro_with_halo" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_ro_with_halo</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_ro_with_halo" title="Link to this definition"></a></dt>
 <dd><p>Read-only view of the domain+outhalo data values.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.data_with_halo">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_with_halo</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_with_halo" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data_with_halo</span></span><a class="headerlink" href="#devito.types.SparseFunction.data_with_halo" title="Link to this definition"></a></dt>
 <dd><p>The domain+outhalo data values.</p>
 <p>Elements are stored in row-major format.</p>
 <p class="rubric">Notes</p>
@@ -228,13 +228,13 @@ get back. If you only need to look at the values, use
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.dimensions">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.types.SparseFunction.dimensions" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.types.SparseFunction.dimensions" title="Link to this definition"></a></dt>
 <dd><p>Tuple of Dimensions representing the object indices.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.dtype">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.SparseFunction.dtype" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#devito.types.SparseFunction.dtype" title="Link to this definition"></a></dt>
 <dd><p>The data type of the object in the generated code, represented as a
 Python class:</p>
 <blockquote>
@@ -247,13 +247,13 @@ Python class:</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.grid">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">grid</span></span><a class="headerlink" href="#devito.types.SparseFunction.grid" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">grid</span></span><a class="headerlink" href="#devito.types.SparseFunction.grid" title="Link to this definition"></a></dt>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.gridpoints">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gridpoints</span></span><a class="headerlink" href="#devito.types.SparseFunction.gridpoints" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gridpoints</span></span><a class="headerlink" href="#devito.types.SparseFunction.gridpoints" title="Link to this definition"></a></dt>
 <dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
 <p class="rubric">Notes</p>
 <p>When using MPI, this property refers to the <em>physically</em> owned
@@ -262,7 +262,7 @@ sparse points.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.guard">
-<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction.guard"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseFunction.guard" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction.guard"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseFunction.guard" title="Link to this definition"></a></dt>
 <dd><p>Generate guarded expressions, that is expressions that are evaluated
 by an Operator only if certain conditions are met.  The introduced
 condition, here, is that all grid points in the support of a sparse
@@ -280,25 +280,25 @@ If not specified, defaults to <code class="docutils literal notranslate"><span c
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.inject">
-<span class="sig-name descname"><span class="pre">inject</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.inject" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">inject</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.inject" title="Link to this definition"></a></dt>
 <dd><p>Implement an injection operation from a sparse point onto the grid</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.interpolate">
-<span class="sig-name descname"><span class="pre">interpolate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.interpolate" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">interpolate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.interpolate" title="Link to this definition"></a></dt>
 <dd><p>Implement an interpolation operation from the grid onto the given sparse points</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.name">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#devito.types.SparseFunction.name" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#devito.types.SparseFunction.name" title="Link to this definition"></a></dt>
 <dd><p>The name of the object.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.shape">
-<span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#devito.types.SparseFunction.shape" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#devito.types.SparseFunction.shape" title="Link to this definition"></a></dt>
 <dd><p>Shape of the domain region. The domain constitutes the area of the
 data written to by an Operator.</p>
 <p class="rubric">Notes</p>
@@ -307,7 +307,7 @@ data written to by an Operator.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.space_order">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.SparseFunction.space_order" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.SparseFunction.space_order" title="Link to this definition"></a></dt>
 <dd><p>The space order.</p>
 </dd></dl>
 

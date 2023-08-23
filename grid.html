@@ -12,11 +12,11 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="_static/jquery.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -95,10 +95,10 @@
            <div itemprop="articleBody">
              
   <section id="grid">
-<h1>Grid<a class="headerlink" href="#grid" title="Permalink to this heading"></a></h1>
+<h1>Grid<a class="headerlink" href="#grid" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.Grid">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extent=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">origin=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimensions=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dimension=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomains=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comm=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topology=None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">Grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extent=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">origin=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimensions=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_dimension=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype=&lt;class</span> <span class="pre">'numpy.float32'&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subdomains=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">comm=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topology=None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">CartesianDiscretization</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ArgProvider</span></code></p>
 <p>A cartesian grid that encapsulates a computational domain over which
 to discretize a Function.</p>
@@ -169,110 +169,110 @@ conventions for defining the coordinate space in 2D are:</p>
 </div></blockquote>
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.comm">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">comm</span></span><a class="headerlink" href="#devito.types.Grid.comm" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">comm</span></span><a class="headerlink" href="#devito.types.Grid.comm" title="Link to this definition"></a></dt>
 <dd><p>The MPI communicator inherited from the distributor.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.dimension_map">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimension_map</span></span><a class="headerlink" href="#devito.types.Grid.dimension_map" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dimension_map</span></span><a class="headerlink" href="#devito.types.Grid.dimension_map" title="Link to this definition"></a></dt>
 <dd><p>Map between SpaceDimensions and their global/local size.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.distributor">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distributor</span></span><a class="headerlink" href="#devito.types.Grid.distributor" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">distributor</span></span><a class="headerlink" href="#devito.types.Grid.distributor" title="Link to this definition"></a></dt>
 <dd><p>The Distributor used for MPI-decomposing the CartesianDiscretization.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.extent">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">extent</span></span><a class="headerlink" href="#devito.types.Grid.extent" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">extent</span></span><a class="headerlink" href="#devito.types.Grid.extent" title="Link to this definition"></a></dt>
 <dd><p>Physical extent of the domain in m.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.interior">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">interior</span></span><a class="headerlink" href="#devito.types.Grid.interior" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">interior</span></span><a class="headerlink" href="#devito.types.Grid.interior" title="Link to this definition"></a></dt>
 <dd><p>The interior SubDomain of the Grid.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.Grid.is_distributed">
-<span class="sig-name descname"><span class="pre">is_distributed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dim</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid.is_distributed"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid.is_distributed" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">is_distributed</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dim</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/grid.html#Grid.is_distributed"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.Grid.is_distributed" title="Link to this definition"></a></dt>
 <dd><p>True if <cite>dim</cite> is a distributed Dimension for this CartesianDiscretization,
 False otherwise.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.origin">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin</span></span><a class="headerlink" href="#devito.types.Grid.origin" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin</span></span><a class="headerlink" href="#devito.types.Grid.origin" title="Link to this definition"></a></dt>
 <dd><p>Physical coordinates of the domain origin.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.origin_map">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_map</span></span><a class="headerlink" href="#devito.types.Grid.origin_map" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_map</span></span><a class="headerlink" href="#devito.types.Grid.origin_map" title="Link to this definition"></a></dt>
 <dd><p>Map between origin symbols and their values.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.origin_offset">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_offset</span></span><a class="headerlink" href="#devito.types.Grid.origin_offset" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_offset</span></span><a class="headerlink" href="#devito.types.Grid.origin_offset" title="Link to this definition"></a></dt>
 <dd><p>Offset of the local (per-process) origin from the domain origin.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.origin_symbols">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_symbols</span></span><a class="headerlink" href="#devito.types.Grid.origin_symbols" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">origin_symbols</span></span><a class="headerlink" href="#devito.types.Grid.origin_symbols" title="Link to this definition"></a></dt>
 <dd><p>Symbols representing the grid origin in each SpaceDimension.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.shape_local">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shape_local</span></span><a class="headerlink" href="#devito.types.Grid.shape_local" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shape_local</span></span><a class="headerlink" href="#devito.types.Grid.shape_local" title="Link to this definition"></a></dt>
 <dd><p>Shape of the local (per-process) physical domain.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.spacing">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">spacing</span></span><a class="headerlink" href="#devito.types.Grid.spacing" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">spacing</span></span><a class="headerlink" href="#devito.types.Grid.spacing" title="Link to this definition"></a></dt>
 <dd><p>Spacing between grid points in m.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.types.Grid.spacing_map">
-<span class="sig-name descname"><span class="pre">spacing_map</span></span><a class="headerlink" href="#devito.types.Grid.spacing_map" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">spacing_map</span></span><a class="headerlink" href="#devito.types.Grid.spacing_map" title="Link to this definition"></a></dt>
 <dd><p>Map between spacing symbols and their values for each SpaceDimension.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.types.Grid.spacing_symbols">
-<span class="sig-name descname"><span class="pre">spacing_symbols</span></span><a class="headerlink" href="#devito.types.Grid.spacing_symbols" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">spacing_symbols</span></span><a class="headerlink" href="#devito.types.Grid.spacing_symbols" title="Link to this definition"></a></dt>
 <dd><p>Symbols representing the grid spacing in each SpaceDimension.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.stepping_dim">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">stepping_dim</span></span><a class="headerlink" href="#devito.types.Grid.stepping_dim" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">stepping_dim</span></span><a class="headerlink" href="#devito.types.Grid.stepping_dim" title="Link to this definition"></a></dt>
 <dd><p>Stepping dimension associated with this Grid.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.subdomains">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">subdomains</span></span><a class="headerlink" href="#devito.types.Grid.subdomains" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">subdomains</span></span><a class="headerlink" href="#devito.types.Grid.subdomains" title="Link to this definition"></a></dt>
 <dd><p>The SubDomains defined in this Grid.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.time_dim">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">time_dim</span></span><a class="headerlink" href="#devito.types.Grid.time_dim" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">time_dim</span></span><a class="headerlink" href="#devito.types.Grid.time_dim" title="Link to this definition"></a></dt>
 <dd><p>Time dimension associated with this Grid.</p>
 </dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.Grid.volume_cell">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">volume_cell</span></span><a class="headerlink" href="#devito.types.Grid.volume_cell" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">volume_cell</span></span><a class="headerlink" href="#devito.types.Grid.volume_cell" title="Link to this definition"></a></dt>
 <dd><p>Volume of a single cell e.g  h_x*h_y*h_z in 3D.</p>
 </dd></dl>
 

@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -945,7 +945,9 @@
         <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_make_dataobj</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">name</span><span class="p">])}</span>
 
 
-<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
+<div class="viewcode-block" id="Function">
+<a class="viewcode-back" href="../../../function.html#devito.types.Function">[docs]</a>
+<span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">DiscreteFunction</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
@@ -1215,7 +1217,9 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The space order.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_order</span>
 
-<div class="viewcode-block" id="Function.sum"><a class="viewcode-back" href="../../../function.html#devito.types.Function.sum">[docs]</a>    <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Function.sum">
+<a class="viewcode-back" href="../../../function.html#devito.types.Function.sum">[docs]</a>
+    <span class="k">def</span> <span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate a symbolic expression computing the sum of ``p`` points</span>
 <span class="sd">        along the spatial dimensions ``dims``.</span>
@@ -1241,7 +1245,10 @@
             <span class="n">points</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">d</span><span class="p">:</span> <span class="n">i</span><span class="p">})</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">])</span>
         <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">points</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Function.avg"><a class="viewcode-back" href="../../../function.html#devito.types.Function.avg">[docs]</a>    <span class="k">def</span> <span class="nf">avg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Function.avg">
+<a class="viewcode-back" href="../../../function.html#devito.types.Function.avg">[docs]</a>
+    <span class="k">def</span> <span class="nf">avg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate a symbolic expression computing the average of ``p`` points</span>
 <span class="sd">        along the spatial dimensions ``dims``.</span>
@@ -1255,10 +1262,14 @@
 <span class="sd">            ``self``&#39;s spatial dimensions.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">tot</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">dims</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">tot</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">tot</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">tot</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">tot</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
+</div>
 
 
-<div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../../timefunction.html#devito.types.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+
+<div class="viewcode-block" id="TimeFunction">
+<a class="viewcode-back" href="../../../timefunction.html#devito.types.TimeFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a discrete function in symbolic equations.</span>
@@ -1500,6 +1511,7 @@
             <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected `time_size=</span><span class="si">%d</span><span class="s2">` for runtime &quot;</span>
                                   <span class="s2">&quot;value `</span><span class="si">%s</span><span class="s2">`, found `</span><span class="si">%d</span><span class="s2">` instead&quot;</span>
                                   <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">key_time_size</span><span class="p">))</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">SubFunction</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>

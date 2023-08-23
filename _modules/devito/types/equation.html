@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -88,7 +88,9 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Inc&#39;</span><span class="p">,</span> <span class="s1">&#39;ReduceMax&#39;</span><span class="p">,</span> <span class="s1">&#39;ReduceMin&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="Eq"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq">[docs]</a><span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
+<div class="viewcode-block" id="Eq">
+<a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq">[docs]</a>
+<span class="k">class</span> <span class="nc">Eq</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Evaluable</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An equal relation between two objects, the left-hand side and the</span>
@@ -232,13 +234,17 @@
 
     <span class="n">func</span> <span class="o">=</span> <span class="n">Evaluable</span><span class="o">.</span><span class="n">_rebuild</span>
 
-<div class="viewcode-block" id="Eq.xreplace"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq.xreplace">[docs]</a>    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
+<div class="viewcode-block" id="Eq.xreplace">
+<a class="viewcode-back" href="../../../equation.html#devito.types.equation.Eq.xreplace">[docs]</a>
+    <span class="k">def</span> <span class="nf">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">rules</span><span class="p">))</span></div>
+
 
     <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
 
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">Reduction</span><span class="p">(</span><span class="n">Eq</span><span class="p">):</span>
@@ -256,7 +262,9 @@
     <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span>
 
 
-<div class="viewcode-block" id="Inc"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.Inc">[docs]</a><span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+<div class="viewcode-block" id="Inc">
+<a class="viewcode-back" href="../../../equation.html#devito.types.equation.Inc">[docs]</a>
+<span class="k">class</span> <span class="nc">Inc</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An increment Reduction.</span>
@@ -284,12 +292,19 @@
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="ReduceMax"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMax">[docs]</a><span class="k">class</span> <span class="nc">ReduceMax</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ReduceMax">
+<a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMax">[docs]</a>
+<span class="k">class</span> <span class="nc">ReduceMax</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="ReduceMin"><a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMin">[docs]</a><span class="k">class</span> <span class="nc">ReduceMin</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ReduceMin">
+<a class="viewcode-back" href="../../../equation.html#devito.types.equation.ReduceMin">[docs]</a>
+<span class="k">class</span> <span class="nc">ReduceMin</span><span class="p">(</span><span class="n">Reduction</span><span class="p">):</span>
     <span class="k">pass</span></div>
+
 </pre></div>
 
            </div>

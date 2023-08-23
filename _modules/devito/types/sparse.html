@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -432,7 +432,9 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape_allocated</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_position</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
+<div class="viewcode-block" id="SparseFunction">
+<a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a sparse array in symbolic equations.</span>
 
@@ -654,7 +656,9 @@
             <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span>
         <span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
 
-<div class="viewcode-block" id="SparseFunction.guard"><a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.guard">[docs]</a>    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+<div class="viewcode-block" id="SparseFunction.guard">
+<a class="viewcode-back" href="../../../sparsefunction.html#devito.types.SparseFunction.guard">[docs]</a>
+    <span class="k">def</span> <span class="nf">guard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate guarded expressions, that is expressions that are evaluated</span>
 <span class="sd">        by an Operator only if certain conditions are met.  The introduced</span>
@@ -698,6 +702,7 @@
                       <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">points</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">conditions</span><span class="p">])</span>
 
         <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">temps</span></div>
+
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_decomposition</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -810,12 +815,15 @@
                            <span class="p">[</span><span class="n">gathered</span><span class="p">,</span> <span class="n">scount</span><span class="p">,</span> <span class="n">sdisp</span><span class="p">,</span> <span class="n">mpitype</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_coordinates</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_local</span><span class="p">[</span><span class="n">mask</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_sparse_position</span><span class="p">]]</span> <span class="o">=</span> <span class="n">gathered</span><span class="p">[:]</span></div>
 
+
         <span class="c1"># Note: this method &quot;mirrors&quot; `_dist_scatter`: a sparse point that is sent</span>
         <span class="c1"># in `_dist_scatter` is here received; a sparse point that is received in</span>
         <span class="c1"># `_dist_scatter` is here sent.</span>
 
 
-<div class="viewcode-block" id="SparseTimeFunction"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span> <span class="n">SparseFunction</span><span class="p">):</span>
+<div class="viewcode-block" id="SparseTimeFunction">
+<a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">SparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span> <span class="n">SparseFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a space- and time-varying sparse array in symbolic</span>
 <span class="sd">    equations.</span>
@@ -899,7 +907,9 @@
     <span class="n">__rkwargs__</span> <span class="o">=</span> <span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="o">.</span><span class="n">__rkwargs__</span> <span class="o">+</span>
                    <span class="n">SparseFunction</span><span class="o">.</span><span class="n">__rkwargs__</span><span class="p">)</span>
 
-<div class="viewcode-block" id="SparseTimeFunction.interpolate"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="SparseTimeFunction.interpolate">
+<a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.interpolate">[docs]</a>
+    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
 
@@ -930,7 +940,10 @@
                                                            <span class="n">increment</span><span class="o">=</span><span class="n">increment</span><span class="p">,</span>
                                                            <span class="n">self_subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="SparseTimeFunction.inject"><a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.inject">[docs]</a>    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+<div class="viewcode-block" id="SparseTimeFunction.inject">
+<a class="viewcode-back" href="../../../sparsetimefunction.html#devito.types.SparseTimeFunction.inject">[docs]</a>
+    <span class="k">def</span> <span class="nf">inject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations injecting an arbitrary expression into a field.</span>
 
@@ -957,10 +970,14 @@
         <span class="k">if</span> <span class="n">p_t</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">:</span> <span class="n">p_t</span><span class="p">})</span>
 
-        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="n">implicit_dims</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span> <span class="n">implicit_dims</span><span class="o">=</span><span class="n">implicit_dims</span><span class="p">)</span></div>
+</div>
 
 
-<div class="viewcode-block" id="PrecomputedSparseFunction"><a class="viewcode-back" href="../../../precsparsefunction.html#devito.types.PrecomputedSparseFunction">[docs]</a><span class="k">class</span> <span class="nc">PrecomputedSparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="PrecomputedSparseFunction">
+<a class="viewcode-back" href="../../../precsparsefunction.html#devito.types.PrecomputedSparseFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">PrecomputedSparseFunction</span><span class="p">(</span><span class="n">AbstractSparseFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a sparse array in symbolic equations; unlike</span>
 <span class="sd">    SparseFunction, PrecomputedSparseFunction uses externally-defined data</span>
@@ -1068,7 +1085,10 @@
         <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
-<div class="viewcode-block" id="PrecomputedSparseTimeFunction"><a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">PrecomputedSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span>
+
+<div class="viewcode-block" id="PrecomputedSparseTimeFunction">
+<a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">PrecomputedSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">,</span>
                                     <span class="n">PrecomputedSparseFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor symbol representing a space- and time-varying sparse array in symbolic</span>
@@ -1127,7 +1147,9 @@
 
     <span class="n">is_PrecomputedSparseTimeFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
-<div class="viewcode-block" id="PrecomputedSparseTimeFunction.interpolate"><a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.interpolate">[docs]</a>    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="PrecomputedSparseTimeFunction.interpolate">
+<a class="viewcode-back" href="../../../precsparsetimefunction.html#devito.types.PrecomputedSparseTimeFunction.interpolate">[docs]</a>
+    <span class="k">def</span> <span class="nf">interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">u_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">p_t</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Generate equations interpolating an arbitrary expression into ``self``.</span>
 
@@ -1155,7 +1177,9 @@
 
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">PrecomputedSparseTimeFunction</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span>
             <span class="n">expr</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span> <span class="n">increment</span><span class="o">=</span><span class="n">increment</span><span class="p">,</span> <span class="n">self_subs</span><span class="o">=</span><span class="n">subs</span>
-        <span class="p">)</span></div></div>
+        <span class="p">)</span></div>
+</div>
+
 
 
 <span class="k">class</span> <span class="nc">MatrixSparseTimeFunction</span><span class="p">(</span><span class="n">AbstractSparseTimeFunction</span><span class="p">):</span>

@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -99,7 +99,9 @@
 <span class="n">SubDimensionOffset</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;SubDimensionOffset&#39;</span><span class="p">,</span> <span class="s1">&#39;value extreme thickness&#39;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="Dimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension">[docs]</a>
+<span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">ArgProvider</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -204,7 +206,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">BasicDimension</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Dimension.class_key"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension.class_key">[docs]</a>    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Dimension.class_key">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Dimension.class_key">[docs]</a>
+    <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">class_key</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Overrides sympy.Symbol.class_key such that Dimensions always</span>
@@ -212,6 +216,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">class_key</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">c</span></div>
+
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">__dtype_setup__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -419,8 +424,12 @@
     <span class="n">__getnewargs_ex__</span> <span class="o">=</span> <span class="n">Pickable</span><span class="o">.</span><span class="n">__getnewargs_ex__</span></div>
 
 
-<div class="viewcode-block" id="Spacing"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Spacing">[docs]</a><span class="k">class</span> <span class="nc">Spacing</span><span class="p">(</span><span class="n">Scalar</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Spacing">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.Spacing">[docs]</a>
+<span class="k">class</span> <span class="nc">Spacing</span><span class="p">(</span><span class="n">Scalar</span><span class="p">):</span>
     <span class="k">pass</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">BasicDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
@@ -434,7 +443,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_spacing</span> <span class="o">=</span> <span class="n">spacing</span> <span class="ow">or</span> <span class="n">Spacing</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;h_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">is_const</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="DefaultDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.DefaultDimension">[docs]</a><span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">DataSymbol</span><span class="p">):</span>
+<div class="viewcode-block" id="DefaultDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.DefaultDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">DefaultDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">,</span> <span class="n">DataSymbol</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space with statically-known size.</span>
@@ -474,7 +485,10 @@
                 <span class="n">dim</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">size</span> <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">}</span></div>
 
 
-<div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
+
+<div class="viewcode-block" id="SpaceDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SpaceDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -496,7 +510,10 @@
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
-<div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
+
+<div class="viewcode-block" id="TimeDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.TimeDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining an iteration space.</span>
@@ -515,6 +532,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">True</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">DerivedDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
@@ -572,7 +590,9 @@
 <span class="c1"># the user</span>
 
 
-<div class="viewcode-block" id="SubDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SubDimension">[docs]</a><span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SubDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">SubDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
@@ -786,7 +806,10 @@
         <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">,</span> <span class="p">(</span><span class="n">ltkn</span><span class="p">,</span> <span class="n">rtkn</span><span class="p">))}</span></div>
 
 
-<div class="viewcode-block" id="ConditionalDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ConditionalDimension">[docs]</a><span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+
+<div class="viewcode-block" id="ConditionalDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ConditionalDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">ConditionalDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a non-convex iteration sub-space derived from a ``parent``</span>
@@ -928,12 +951,15 @@
         <span class="k">return</span> <span class="n">defaults</span></div>
 
 
+
 <span class="c1"># ***</span>
 <span class="c1"># The Dimensions below are for internal use only. They are created by the compiler</span>
 <span class="c1"># during the construction of an Operator</span>
 
 
-<div class="viewcode-block" id="ModuloDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ModuloDimension">[docs]</a><span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="ModuloDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.ModuloDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">ModuloDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing a non-contiguous sub-region of a given</span>
@@ -1075,6 +1101,7 @@
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__sub__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></div>
 
 
+
 <span class="k">class</span> <span class="nc">AbstractIncrDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1180,7 +1207,9 @@
         <span class="k">return</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="IncrDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a><span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="IncrDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.IncrDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">IncrDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A concrete implementation of an AbstractIncrDimension.</span>
@@ -1193,7 +1222,10 @@
     <span class="n">is_SubIterator</span> <span class="o">=</span> <span class="kc">True</span></div>
 
 
-<div class="viewcode-block" id="BlockDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.BlockDimension">[docs]</a><span class="k">class</span> <span class="nc">BlockDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
+
+<div class="viewcode-block" id="BlockDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.BlockDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">BlockDimension</span><span class="p">(</span><span class="n">AbstractIncrDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol for lowering TILABLE Dimensions.</span>
@@ -1267,7 +1299,10 @@
                                       <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span></div>
 
 
-<div class="viewcode-block" id="CustomDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a><span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
+
+<div class="viewcode-block" id="CustomDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.CustomDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">CustomDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension defining an iteration space with known size. Unlike a</span>
@@ -1373,6 +1408,7 @@
         <span class="k">return</span></div>
 
 
+
 <span class="k">class</span> <span class="nc">DynamicDimensionMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1404,7 +1440,9 @@
                 <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_rtkn&quot;</span> <span class="o">%</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">nonnegative</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
 
 
-<div class="viewcode-block" id="StencilDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.StencilDimension">[docs]</a><span class="k">class</span> <span class="nc">StencilDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="StencilDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.StencilDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">StencilDimension</span><span class="p">(</span><span class="n">BasicDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Dimension symbol representing the points of a stencil.</span>
@@ -1472,12 +1510,15 @@
         <span class="k">return</span> <span class="p">{}</span></div>
 
 
+
 <span class="c1"># ***</span>
 <span class="c1"># The Dimensions below are created by Devito and may eventually be</span>
 <span class="c1"># accessed in user code to e.g. construct or manipulate Eqs</span>
 
 
-<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SteppingDimension">
+<a class="viewcode-back" href="../../../dimension.html#devito.types.dimension.SteppingDimension">[docs]</a>
+<span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">DerivedDimension</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Symbol defining a convex iteration sub-space derived from a ``parent``</span>
@@ -1545,6 +1586,7 @@
             <span class="n">values</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">values</span></div>
+
 
 
 <span class="c1"># *** Utils</span>

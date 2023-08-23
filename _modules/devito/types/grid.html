@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -134,7 +134,9 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span>
 
 
-<div class="viewcode-block" id="Grid"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid">[docs]</a><span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">CartesianDiscretization</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="Grid">
+<a class="viewcode-back" href="../../../grid.html#devito.types.Grid">[docs]</a>
+<span class="k">class</span> <span class="nc">Grid</span><span class="p">(</span><span class="n">CartesianDiscretization</span><span class="p">,</span> <span class="n">ArgProvider</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A cartesian grid that encapsulates a computational domain over which</span>
@@ -381,12 +383,15 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;The MPI communicator inherited from the distributor.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span><span class="o">.</span><span class="n">comm</span>
 
-<div class="viewcode-block" id="Grid.is_distributed"><a class="viewcode-back" href="../../../grid.html#devito.types.Grid.is_distributed">[docs]</a>    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
+<div class="viewcode-block" id="Grid.is_distributed">
+<a class="viewcode-back" href="../../../grid.html#devito.types.Grid.is_distributed">[docs]</a>
+    <span class="k">def</span> <span class="nf">is_distributed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        True if `dim` is a distributed Dimension for this CartesianDiscretization,</span>
 <span class="sd">        False otherwise.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">dim</span> <span class="ow">is</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span></div>
+
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">_arg_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -441,6 +446,7 @@
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_distributor</span> <span class="o">=</span> <span class="n">Distributor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">,</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_SELF</span><span class="p">)</span></div>
+
 
 
 <span class="k">class</span> <span class="nc">AbstractSubDomain</span><span class="p">(</span><span class="n">CartesianDiscretization</span><span class="p">):</span>
@@ -508,7 +514,9 @@
         <span class="k">return</span> <span class="p">{</span><span class="n">d</span><span class="o">.</span><span class="n">root</span><span class="p">:</span> <span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">}</span>
 
 
-<div class="viewcode-block" id="SubDomain"><a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain">[docs]</a><span class="k">class</span> <span class="nc">SubDomain</span><span class="p">(</span><span class="n">AbstractSubDomain</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDomain">
+<a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain">[docs]</a>
+<span class="k">class</span> <span class="nc">SubDomain</span><span class="p">(</span><span class="n">AbstractSubDomain</span><span class="p">):</span>
 
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class to define Grid subdomains.</span>
@@ -601,7 +609,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_dimensions</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sub_dimensions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_dtype</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">dtype</span>
 
-<div class="viewcode-block" id="SubDomain.define"><a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain.define">[docs]</a>    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
+<div class="viewcode-block" id="SubDomain.define">
+<a class="viewcode-back" href="../../../subdomain.html#devito.types.SubDomain.define">[docs]</a>
+    <span class="k">def</span> <span class="nf">define</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dimensions</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Parametrically describe the SubDomain w.r.t. a generic Grid.</span>
 
@@ -610,7 +620,9 @@
 <span class="sd">        This method should be overridden by each SubDomain subclass. For more</span>
 <span class="sd">        information, refer to ``SubDomain.__doc__``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
+</div>
+
 
 
 <span class="k">class</span> <span class="nc">MultiSubDimension</span><span class="p">(</span><span class="n">SubDimension</span><span class="p">):</span>

@@ -11,11 +11,11 @@
     <script src="../../../_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="../../../_static/jquery.js"></script>
-        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
-        <script src="../../../_static/doctools.js"></script>
-        <script src="../../../_static/sphinx_highlight.js"></script>
+        <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -90,7 +90,9 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TensorFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;TensorTimeFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;VectorFunction&#39;</span><span class="p">,</span> <span class="s1">&#39;VectorTimeFunction&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="TensorFunction"><a class="viewcode-back" href="../../../tensorfunction.html#devito.types.TensorFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractTensor</span><span class="p">):</span>
+<div class="viewcode-block" id="TensorFunction">
+<a class="viewcode-back" href="../../../tensorfunction.html#devito.types.TensorFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">AbstractTensor</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Tensor valued Function represented as a Matrix.</span>
 <span class="sd">    Each component is a Function or TimeFunction.</span>
@@ -304,7 +306,10 @@
         <span class="k">return</span> <span class="n">mat_time_dict</span><span class="p">[(</span><span class="n">is_time</span><span class="p">,</span> <span class="n">is_mat</span><span class="p">)]</span></div>
 
 
-<div class="viewcode-block" id="VectorFunction"><a class="viewcode-back" href="../../../vectorfunction.html#devito.types.VectorFunction">[docs]</a><span class="k">class</span> <span class="nc">VectorFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="VectorFunction">
+<a class="viewcode-back" href="../../../vectorfunction.html#devito.types.VectorFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">VectorFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Vector valued space varying Function as a rank 1 tensor of Function.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -410,7 +415,10 @@
         <span class="k">return</span> <span class="n">func</span><span class="o">.</span><span class="n">_new</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">mat</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="TensorTimeFunction"><a class="viewcode-back" href="../../../tensortimefunction.html#devito.types.TensorTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorTimeFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="TensorTimeFunction">
+<a class="viewcode-back" href="../../../tensortimefunction.html#devito.types.TensorTimeFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">TensorTimeFunction</span><span class="p">(</span><span class="n">TensorFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Time varying TensorFunction.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -427,7 +435,10 @@
         <span class="k">return</span> <span class="p">({</span><span class="n">a</span><span class="o">.</span><span class="n">time_order</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">}</span> <span class="o">-</span> <span class="p">{</span><span class="kc">None</span><span class="p">})</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
 
 
-<div class="viewcode-block" id="VectorTimeFunction"><a class="viewcode-back" href="../../../vectortimefunction.html#devito.types.VectorTimeFunction">[docs]</a><span class="k">class</span> <span class="nc">VectorTimeFunction</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="n">TensorTimeFunction</span><span class="p">):</span>
+
+<div class="viewcode-block" id="VectorTimeFunction">
+<a class="viewcode-back" href="../../../vectortimefunction.html#devito.types.VectorTimeFunction">[docs]</a>
+<span class="k">class</span> <span class="nc">VectorTimeFunction</span><span class="p">(</span><span class="n">VectorFunction</span><span class="p">,</span> <span class="n">TensorTimeFunction</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Time varying VectorFunction.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -439,6 +450,7 @@
 
     <span class="n">_is_TimeDependent</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">_time_position</span> <span class="o">=</span> <span class="mi">0</span></div>
+
 
 
 <span class="n">mat_time_dict</span> <span class="o">=</span> <span class="p">{(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span> <span class="n">TensorTimeFunction</span><span class="p">,</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span> <span class="n">VectorTimeFunction</span><span class="p">,</span>

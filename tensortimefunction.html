@@ -12,11 +12,11 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="_static/jquery.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -105,21 +105,21 @@
            <div itemprop="articleBody">
              
   <section id="tensortimefunction">
-<h1>TensorTimeFunction<a class="headerlink" href="#tensortimefunction" title="Permalink to this heading"></a></h1>
+<h1>TensorTimeFunction<a class="headerlink" href="#tensortimefunction" title="Link to this heading"></a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="devito.types.TensorTimeFunction">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">TensorTimeFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/tensor.html#TensorTimeFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.TensorTimeFunction" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.types.</span></span><span class="sig-name descname"><span class="pre">TensorTimeFunction</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/tensor.html#TensorTimeFunction"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.TensorTimeFunction" title="Link to this definition"></a></dt>
 <dd><p>Bases: <a class="reference internal" href="tensorfunction.html#devito.types.TensorFunction" title="devito.types.tensor.TensorFunction"><code class="xref py py-class docutils literal notranslate"><span class="pre">TensorFunction</span></code></a></p>
 <p>Time varying TensorFunction.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TensorTimeFunction.is_diagonal">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_diagonal</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.is_diagonal" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_diagonal</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.is_diagonal" title="Link to this definition"></a></dt>
 <dd><p>Whether the tensor is diagonal.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.TensorTimeFunction.is_symmetric">
-<span class="sig-name descname"><span class="pre">is_symmetric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simplify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.TensorTimeFunction.is_symmetric" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">is_symmetric</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">simplify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.TensorTimeFunction.is_symmetric" title="Link to this definition"></a></dt>
 <dd><p>Check if matrix is symmetric matrix,
 that is square matrix and is equal to its transpose.</p>
 <p>By default, simplifications occur before testing symmetry.
@@ -178,13 +178,13 @@ test by using ‘simplify=False’.</p>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.TensorTimeFunction.space_dimensions">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">space_dimensions</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.space_dimensions" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">space_dimensions</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.space_dimensions" title="Link to this definition"></a></dt>
 <dd><p>Spatial dimensions.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.types.TensorTimeFunction.space_order">
-<span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.space_order" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">space_order</span></span><a class="headerlink" href="#devito.types.TensorTimeFunction.space_order" title="Link to this definition"></a></dt>
 <dd><p>The space order for all components.</p>
 </dd></dl>
 

@@ -12,11 +12,11 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="_static/jquery.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -102,11 +102,11 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="module-devito.operator.operator">
-<span id="operator"></span><h1>Operator<a class="headerlink" href="#module-devito.operator.operator" title="Permalink to this heading"></a></h1>
-<dl class="py class">
+  <section id="operator">
+<h1>Operator<a class="headerlink" href="#operator" title="Link to this heading"></a></h1>
+<dl class="py class" id="module-devito.operator.operator">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.operator.operator.</span></span><span class="sig-name descname"><span class="pre">Operator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expressions</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">devito.operator.operator.</span></span><span class="sig-name descname"><span class="pre">Operator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expressions</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator" title="Link to this definition"></a></dt>
 <dd><p>Generate, JIT-compile and run C code starting from an ordered sequence
 of symbolic expressions.</p>
 <dl class="field-list simple">
@@ -225,7 +225,7 @@ automatically discovered and handled by the Devito compiler. For more informatio
 refer to the relevant documentation.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.apply">
-<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.apply" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.apply"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.apply" title="Link to this definition"></a></dt>
 <dd><p>Execute the Operator.</p>
 <p>With no arguments provided, the Operator runs using the data carried by the
 objects appearing in the input expressions – these are referred to as the
@@ -283,24 +283,24 @@ iteration point along the time dimension must be explicitly specified
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.arguments">
-<span class="sig-name descname"><span class="pre">arguments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.arguments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.arguments" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">arguments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.arguments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.arguments" title="Link to this definition"></a></dt>
 <dd><p>Arguments to run the Operator.</p>
 </dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.ccode">
-<span class="sig-name descname"><span class="pre">ccode</span></span><a class="headerlink" href="#devito.operator.operator.Operator.ccode" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">ccode</span></span><a class="headerlink" href="#devito.operator.operator.Operator.ccode" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.cfunction">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cfunction</span></span><a class="headerlink" href="#devito.operator.operator.Operator.cfunction" title="Permalink to this definition"></a></dt>
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cfunction</span></span><a class="headerlink" href="#devito.operator.operator.Operator.cfunction" title="Link to this definition"></a></dt>
 <dd><p>The JIT-compiled C function as a ctypes.FuncPtr object.</p>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.cinterface">
-<span class="sig-name descname"><span class="pre">cinterface</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.cinterface"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.cinterface" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">cinterface</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator/operator.html#Operator.cinterface"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.operator.operator.Operator.cinterface" title="Link to this definition"></a></dt>
 <dd><p>Generate two files under the prescribed temporary directory:</p>
 <blockquote>
 <div><ul class="simple">
@@ -318,32 +318,32 @@ iteration point along the time dimension must be explicitly specified
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.dimensions">
-<span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.operator.operator.Operator.dimensions" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">dimensions</span></span><a class="headerlink" href="#devito.operator.operator.Operator.dimensions" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.input">
-<span class="sig-name descname"><span class="pre">input</span></span><a class="headerlink" href="#devito.operator.operator.Operator.input" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">input</span></span><a class="headerlink" href="#devito.operator.operator.Operator.input" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.objects">
-<span class="sig-name descname"><span class="pre">objects</span></span><a class="headerlink" href="#devito.operator.operator.Operator.objects" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">objects</span></span><a class="headerlink" href="#devito.operator.operator.Operator.objects" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.reads">
-<span class="sig-name descname"><span class="pre">reads</span></span><a class="headerlink" href="#devito.operator.operator.Operator.reads" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">reads</span></span><a class="headerlink" href="#devito.operator.operator.Operator.reads" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.temporaries">
-<span class="sig-name descname"><span class="pre">temporaries</span></span><a class="headerlink" href="#devito.operator.operator.Operator.temporaries" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">temporaries</span></span><a class="headerlink" href="#devito.operator.operator.Operator.temporaries" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="devito.operator.operator.Operator.writes">
-<span class="sig-name descname"><span class="pre">writes</span></span><a class="headerlink" href="#devito.operator.operator.Operator.writes" title="Permalink to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">writes</span></span><a class="headerlink" href="#devito.operator.operator.Operator.writes" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 </dd></dl>
