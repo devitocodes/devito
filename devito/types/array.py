@@ -19,8 +19,15 @@ class ArrayBasic(AbstractFunction):
     is_ArrayBasic = True
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
-        return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
+    def __indices_setup__(cls, *args, **kwargs):
+        dimensions = kwargs['dimensions']
+
+        if args:
+            indices = args
+        else:
+            indices = dimensions
+
+        return as_tuple(dimensions), as_tuple(indices)
 
     @property
     def _C_name(self):

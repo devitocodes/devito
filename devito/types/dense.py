@@ -57,9 +57,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'initializer')
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
 
-    def __init_finalize__(self, *args, **kwargs):
+    def __init_finalize__(self, *args, function=None, **kwargs):
         # Staggering metadata
         self._staggered = self.__staggered_setup__(**kwargs)
 
@@ -72,12 +72,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self._coefficients not in ('standard', 'symbolic'):
             raise ValueError("coefficients must be `standard` or `symbolic`")
 
-        # Data-related properties and data initialization
+        # Data-related properties
         self._data = None
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
         self._allocator = kwargs.get('allocator') or default_allocator()
+
+        # Data initialization
         initializer = kwargs.get('initializer')
-        if initializer is None or callable(initializer) or self.alias:
+        if self.alias:
+            self._initializer = None
+        elif function is not None:
+            # An object derived from user-level AbstractFunction (e.g.,
+            # `f(x+1)`), so we just copy the reference to the original data
+            self._initializer = None
+            self._data = function._data
+        elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
         elif isinstance(initializer, (np.ndarray, list, tuple)):
@@ -95,14 +104,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         else:
             raise ValueError("`initializer` must be callable or buffer, not %s"
                              % type(initializer))
-
-    def __eq__(self, other):
-        # The only possibility for two DiscreteFunctions to be considered equal
-        # is that they are indeed the same exact object
-        return self is other
-
-    def __hash__(self):
-        return id(self)
 
     _subs = Differentiable._subs
 
@@ -286,6 +287,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *global* domain region shape, which is
         therefore identical on all MPI ranks.
+
+        Issues
+        ------
+        * https://github.com/devitocodes/devito/issues/1498
         """
         if self.grid is None:
             return self.shape
@@ -637,7 +642,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def initializer(self):
-        if self._data is not None:
+        if isinstance(self._data, np.ndarray):
             return self.data_with_halo.view(np.ndarray)
         else:
             return self._initializer
@@ -867,6 +872,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         key = alias or self
         return {key.name: self._C_make_dataobj(args[key.name])}
 
+    # Pickling support
+
+    @property
+    def _pickle_rkwargs(self):
+        # Picklying carries data over, if available
+        return tuple(self.__rkwargs__) + ('initializer',)
+
 
 class Function(DiscreteFunction):
 
@@ -1018,7 +1030,7 @@ class Function(DiscreteFunction):
         return self
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
         if grid is None:
@@ -1026,6 +1038,9 @@ class Function(DiscreteFunction):
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
+
+        if args:
+            return tuple(dimensions), tuple(args)
 
         # Staggered indices
         staggered = kwargs.get("staggered", None)
@@ -1324,9 +1339,10 @@ class TimeFunction(Function):
                                      to=self.time_order)
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         dimensions = kwargs.get('dimensions')
         staggered = kwargs.get('staggered')
+
         if dimensions is None:
             save = kwargs.get('save')
             grid = kwargs.get('grid')
@@ -1338,7 +1354,10 @@ class TimeFunction(Function):
                 raise TypeError("`time_dim` must be a time dimension")
             dimensions = list(Function.__indices_setup__(**kwargs)[0])
             dimensions.insert(cls._time_position, time_dim)
-        return Function.__indices_setup__(dimensions=dimensions, staggered=staggered)
+
+        return Function.__indices_setup__(
+            *args, dimensions=dimensions, staggered=staggered
+        )
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

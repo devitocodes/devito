@@ -1,9 +1,10 @@
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
-                                      q_symbol, q_dimension)
+                                      q_symbol, q_dimension, q_derivative)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions', 'search']
+           'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions',
+           'retrieve_derivatives', 'search']
 
 
 class Search(object):
@@ -170,3 +171,8 @@ def retrieve_terminals(exprs, mode='all', deep=False):
 def retrieve_dimensions(exprs, mode='all', deep=False):
     """Shorthand to retrieve the dimensions in ``exprs``."""
     return search(exprs, q_dimension, mode, 'dfs', deep)
+
+
+def retrieve_derivatives(exprs, mode='all', deep=False):
+    """Shorthand to retrieve the Derivatives in ``exprs``."""
+    return search(exprs, q_derivative, mode, 'dfs', deep)

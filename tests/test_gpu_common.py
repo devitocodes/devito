@@ -220,7 +220,7 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
@@ -412,7 +412,7 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 9, 5),
+        (('buffering', 'streaming', 'orchestrate'), 8, 5),
         (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 6, 5),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
@@ -724,7 +724,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 8
         assert len(retrieve_iteration_tree(op2)) == 5
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree

@@ -106,8 +106,18 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
-        obj._ppsubs = as_tuple(frozendict(i) for i in
-                               kwargs.get("subs", kwargs.get("_ppsubs", [])))
+
+        ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
+        processed = []
+        if ppsubs:
+            for i in ppsubs:
+                try:
+                    processed.append(frozendict(i))
+                except AttributeError:
+                    # E.g. `i` is a Transform object
+                    processed.append(i)
+        obj._ppsubs = tuple(processed)
+
         obj._x0 = frozendict(kwargs.get('x0', {}))
         return obj
 
@@ -207,27 +217,43 @@ class Derivative(sympy.Derivative, Differentiable):
     def func(self, expr, *args, **kwargs):
         return self._new_from_self(expr=expr, **kwargs)
 
-    def subs(self, *args, **kwargs):
-        """
-        Bypass sympy.Subs as Devito has its own lazy evaluation mechanism.
-        """
-        # Check if we are calling subs(self, old, new, **hint) in which case
-        # return the standard substitution. Need to check `==` rather than `is`
-        # because a new derivative could be created i.e `f.dx.subs(f.dx, y)`
-        if len(args) == 2 and args[0] == self:
-            return args[1]
-        try:
-            rules = dict(*args)
-        except TypeError:
-            rules = dict((args,))
-        kwargs.pop('simultaneous', None)
-        return self.xreplace(rules, **kwargs)
+    def _subs(self, old, new, **hints):
+        # Basic case
+        if old == self:
+            return new
+        # Is it in expr?
+        if self.expr.has(old):
+            newexpr = self.expr._subs(old, new, **hints)
+            try:
+                return self._new_from_self(expr=newexpr)
+            except ValueError:
+                # Expr replacement leads to non-differentiable expression
+                # e.g `f.dx.subs(f: 1) = 1.dx = 0`
+                # returning zero
+                return sympy.S.Zero
+
+        # In case `x0` was passed as a substitution instead of `(x0=`
+        if str(old) == 'x0':
+            return self._new_from_self(x0={self.dims[0]: new})
+
+        # Trying to substitute by another derivative with different metadata
+        # Only need to check if is a Derivative since one for the cases above would
+        # have found it
+        if isinstance(old, Derivative):
+            return self
+
+        # Fall back if we didn't catch any special case
+        return self.xreplace({old: new}, **hints)
 
     def _xreplace(self, subs):
         """
         This is a helper method used internally by SymPy. We exploit it to postpone
         substitutions until evaluation.
         """
+        # Return if no subs
+        if not subs:
+            return self, False
+
         # Check if trying to replace the whole expression
         if self in subs:
             new = subs.pop(self)
@@ -235,6 +261,7 @@ class Derivative(sympy.Derivative, Differentiable):
                 return new._xreplace(subs)
             except AttributeError:
                 return new, True
+
         subs = self._ppsubs + (subs,)  # Postponed substitutions
         return self._new_from_self(subs=subs), True
 

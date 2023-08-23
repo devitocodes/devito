@@ -10,7 +10,8 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
-                              INT, FieldFromComposite, IntDiv, ccode, uxreplace)
+                              INT, FieldFromComposite, IntDiv, ccode, uxreplace,
+                              retrieve_derivatives)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           Symbol as dSymbol)
@@ -360,10 +361,10 @@ def test_solve_time():
     eq = m * u.dt2 + u.dx
     sol = solve(eq, u.forward)
     # Check u.dx is not evaluated. Need to simplify because the solution
-    # contains some Dummy in the Derivatibe subs that make equality break.
-    # TODO: replace by retreive_derivatives after Fabio's PR
-    assert sympy.simplify(u.dx - sol.args[2].args[0].args[1]) == 0
-    assert sympy.simplify(sol - (-dt**2*u.dx/m + 2.0*u - u.backward)) == 0
+    # contains some Dummy in the Derivative subs that make equality break.
+    assert len(retrieve_derivatives(sol)) == 1
+    assert sympy.simplify(u.dx - retrieve_derivatives(sol)[0]) == 0
+    assert sympy.simplify(sympy.expand(sol - (-dt**2*u.dx/m + 2.0*u - u.backward))) == 0
 
 
 @pytest.mark.parametrize('expr,subs,expected', [

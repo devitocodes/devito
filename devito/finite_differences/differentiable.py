@@ -121,9 +121,9 @@ class Differentiable(sympy.Expr, Evaluable):
         return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
 
     def _subs(self, old, new, **hints):
-        if old is self:
+        if old == self:
             return new
-        if old is new:
+        if old == new:
             return self
         args = list(self.args)
         for i, arg in enumerate(args):
@@ -613,15 +613,15 @@ class Weights(Array):
 
     def __eq__(self, other):
         return (isinstance(other, Weights) and
-                self.dimension is other.dimension and
                 self.name == other.name and
+                self.dimension == other.dimension and
                 self.indices == other.indices and
                 self.weights == other.weights)
 
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.name,) + tuple(self.weights)
+        return (self.name, self.dimension, hash(tuple(self.weights)))
 
     @property
     def dimension(self):

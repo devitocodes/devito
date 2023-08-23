@@ -10,7 +10,7 @@ import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import GCCToolchain, call_capture_output
+from codepy.toolchain import GCCToolchain, call_capture_output as _call_capture_output
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
                          INTELGPUX, get_nvidia_cc, check_cuda_runtime,
@@ -19,7 +19,7 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_func, memoized_meth, make_tempdir)
+                          memoized_func, make_tempdir)
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
@@ -123,6 +123,15 @@ def sniff_mpi_flags(mpicc='mpicc'):
     return compile_flags.split(), link_flags.split()
 
 
+@memoized_func
+def call_capture_output(cmd):
+    """
+    Memoize calls to codepy's `call_capture_output` to avoid leaking memory due
+    to some prefork/subprocess voodoo.
+    """
+    return _call_capture_output(cmd)
+
+
 class Compiler(GCCToolchain):
     """
     Base class for all compiler classes.
@@ -220,12 +229,16 @@ class Compiler(GCCToolchain):
     def name(self):
         return self.__class__.__name__
 
-    @memoized_meth
+    def get_version(self):
+        result, stdout, stderr = call_capture_output((self.cc, "--version"))
+        if result != 0:
+            raise RuntimeError(f"version query failed: {stderr}")
+        return stdout
+
     def get_jit_dir(self):
         """A deterministic temporary directory for jit-compiled objects."""
         return make_tempdir('jitcache')
 
-    @memoized_meth
     def get_codepy_dir(self):
         """A deterministic temporary directory for the codepy cache."""
         return make_tempdir('codepy')
@@ -729,9 +742,9 @@ class IntelCompiler(Compiler):
 
     def get_version(self):
         if configuration['mpi']:
-            cmd = [self.cc, "-cc=%s" % self.CC, "--version"]
+            cmd = (self.cc, "-cc=%s" % self.CC, "--version")
         else:
-            cmd = [self.cc, "--version"]
+            cmd = (self.cc, "--version")
         result, stdout, stderr = call_capture_output(cmd)
         if result != 0:
             raise RuntimeError(f"version query failed: {stderr}")
