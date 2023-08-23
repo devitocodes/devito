@@ -6,15 +6,15 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
-from devito.finite_differences import EvalDerivative, IndexDerivative
+from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
                        IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties, unbounded, minimum, maximum, extrema)
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
                               uxreplace, sympy_dtype)
-from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
-                          split, timed_pass)
+from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
+                          generator, split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
                           ModuloDimension, CustomDimension, IncrDimension,
                           StencilDimension, Indexed, Hyperplane)
@@ -340,43 +340,46 @@ class CireSops(CireTransformer):
 
         return processed
 
-    def _generate(self, exprs, exclude):
-        # E.g., extract `u.dx*a*b` and `u.dx*a*c` from `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
-        def cbk_search(expr):
-            if isinstance(expr, EvalDerivative) and not expr.base.is_Function:
-                return expr.args
-            else:
-                return flatten(e for e in [cbk_search(a) for a in expr.args] if e)
+    def _compose(self, expr):
+        return split_coeff(expr)[1]
 
-        cbk_compose = lambda e: split_coeff(e)[1]
-        basextr = self._do_generate(exprs, exclude, cbk_search, cbk_compose)
+    def _search(self, expr):
+        if isinstance(expr, EvalDerivative) and not expr.base.is_Function:
+            return expr.args
+        else:
+            return flatten(e for e in [self._search(a) for a in expr.args] if e)
+
+    def _search2(self, expr, rank):
+        ret = []
+        for e in self._search(expr):
+            mapper = deindexify(e)
+            for i in rank:
+                if i in mapper:
+                    ret.extend(mapper[i])
+                    break
+        return ret
+
+    def _generate(self, exprs, exclude):
+        # E.g., extract `u.dx*a*b` and `u.dx*a*c` from
+        # `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
+        basextr = self._do_generate(exprs, exclude, self._search, self._compose)
         if not basextr:
             return
         yield basextr
 
         # E.g., extract `u.dx*a` from `[(u.dx*a*b).dy, (u.dx*a*c).dy]`
-        # That is, attempt extracting the largest common derivative-induced subexprs
+        # I.e., attempt extracting the largest common derivative-induced subexprs
         mappers = [deindexify(e) for e in basextr.extracted]
         counter = Counter(flatten(m.keys() for m in mappers))
         groups = as_mapper(counter, key=counter.get)
         grank = {k: sorted(v, key=lambda e: estimate_cost(e), reverse=True)
                  for k, v in groups.items()}
 
-        def cbk_search2(expr, rank):
-            ret = []
-            for e in cbk_search(expr):
-                mapper = deindexify(e)
-                for i in rank:
-                    if i in mapper:
-                        ret.extend(mapper[i])
-                        break
-            return ret
-
         candidates = sorted(grank, reverse=True)[:2]
         for i in candidates:
             lower_pri_elems = flatten([grank[j] for j in candidates if j != i])
-            cbk_search_i = lambda e: cbk_search2(e, grank[i] + lower_pri_elems)
-            yield self._do_generate(exprs, exclude, cbk_search_i, cbk_compose)
+            search_i = lambda e: self._search2(e, grank[i] + lower_pri_elems)
+            yield self._do_generate(exprs, exclude, search_i, self._compose)
 
     def _lookup_key(self, c):
         return AliasKey(c.ispace, None, c.dtype, c.guards, c.properties)
@@ -394,30 +397,33 @@ class CireSops(CireTransformer):
 
 class CireIndexDerivatives(CireSops):
 
-    def _generate(self, exprs, exclude):
-        # E.g., extract `u.dx*a*b` and `u.dx*a*c` from `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
-        def cbk_search(expr):
-            if isinstance(expr, IndexDerivative):
-                return (expr.base,)
-            else:
-                return flatten(e for e in [cbk_search(a) for a in expr.args] if e)
+    def _compose(self, expr):
+        terms = []
+        for a in expr.args:
+            try:
+                if not isinstance(a.function, Weights):
+                    terms.append(a)
+            except AttributeError:
+                terms.append(a)
+        return tuple(terms)
 
-        basextr = self._do_generate(exprs, exclude, cbk_search)
-        if not basextr:
-            return
-        yield basextr
+    def _search(self, expr):
+        if isinstance(expr, IndexDerivative):
+            return (expr.expr,)
+        else:
+            return flatten(e for e in [self._search(a) for a in expr.args] if e)
 
-        # E.g., extract `u.dx` from `u.dx*a*b`, which in turn was extracted
-        # from `(u.dx*a*b).dy`. That is, the inner derivatives only
-        def cbk_search2(expr):
-            if isinstance(expr, IndexDerivative):
-                return (expr,)
-            else:
-                return flatten(e for e in [cbk_search2(a) for a in expr.args] if e)
-
-        sndxtr = self._do_generate(list(basextr), exclude, cbk_search2)
-        if sndxtr:
-            yield sndxtr
+    def _search2(self, expr, rank):
+        ret = []
+        for e in self._search(expr):
+            mapper = deindexify(e)
+            for i in rank:
+                found = [v.expr if isinstance(v, IndexDerivative) else v
+                         for v in mapper.get(i, [])]
+                if found:
+                    ret.extend(found)
+                    break
+        return ret
 
 
 def collect(extracted, ispace, minstorage):
@@ -955,7 +961,7 @@ def pick_best(variants, schedule_strategy, eval_variants_delta):
     best_ws_score = None
 
     for i in variants:
-        i_flops_score = sum(sa.score for sa in i.schedule)
+        i_flops_score = i.schedule.score
 
         # The working set score depends on the number and dimensionality of
         # temporaries required by the Schedule
@@ -1085,9 +1091,9 @@ class Group(tuple):
 
         udims = set().union(*[unbounded(c.expr) for c in self._items])
         sdims = [d for d in udims if d.is_Stencil]
-        implicit = int(np.prod([i._size for i in sdims])) - 1
+        implicit = int(np.prod([i._size for i in sdims]))
 
-        return na + implicit
+        return na*max(implicit, 1)
 
     @cached_property
     def _pivot_legal_rotations(self):
@@ -1285,6 +1291,10 @@ class Schedule(tuple):
             rmapper=rmapper or self.rmapper,
             is_frame=is_frame or self.is_frame
         )
+
+    @property
+    def score(self):
+        return sum(i.score for i in self)
 
 
 def make_rotations_table(d, v):
