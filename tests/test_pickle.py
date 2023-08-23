@@ -598,7 +598,7 @@ class TestOperator(object):
     def test_threadid(self, pickle):
         grid = Grid(shape=(4, 4, 4))
         f = TimeFunction(name='f', grid=grid)
-        op = Operator(Eq(f.forward, f + 1.), openmp=True)
+        op = Operator(Eq(f.forward, f + 1.), opt=('advanced', {'openmp': True}))
 
         tid = ThreadID(op.nthreads)
 

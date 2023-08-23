@@ -53,7 +53,7 @@ def test_mode_runtime_forward():
     g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f + g + 1.), openmp=False)
+    op = Operator(Eq(f.forward, f + g + 1.), opt=('advanced', {'openmp': False}))
     summary = op.apply(time=100, autotune=('basic', 'runtime'))
 
     # AT is expected to have attempted 6 block shapes
@@ -72,7 +72,7 @@ def test_mode_runtime_backward():
     g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.backward, f + g + 1.), openmp=False)
+    op = Operator(Eq(f.backward, f + g + 1.), opt=('advanced', {'openmp': False}))
     summary = op.apply(time=101, autotune=('basic', 'runtime'))
 
     # AT is expected to have attempted 6 block shapes
@@ -91,7 +91,7 @@ def test_mode_destructive():
     g = Function(name='g', grid=grid)
     f = TimeFunction(name='f', grid=grid, time_order=0)
 
-    op = Operator(Eq(f, f + g + 1.), openmp=False)
+    op = Operator(Eq(f, f + g + 1.), opt=('advanced', {'openmp': False}))
     op.apply(time=100, autotune=('basic', 'destructive'))
 
     # AT is expected to have executed 30 timesteps (6 block shapes, 5 timesteps each)
@@ -104,7 +104,7 @@ def test_blocking_only():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f.dx + 1.), openmp=False)
+    op = Operator(Eq(f.forward, f.dx + 1.), opt=('advanced', {'openmp': False}))
     op.apply(time=0, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
@@ -117,7 +117,7 @@ def test_mixed_blocking_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f.dx + 1.), openmp=True)
+    op = Operator(Eq(f.forward, f.dx + 1.), opt=('advanced', {'openmp': True}))
     op.apply(time=100, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6
@@ -312,7 +312,7 @@ def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
 
-    op = Operator(Eq(f.forward, f.dx + 1.), openmp=True)
+    op = Operator(Eq(f.forward, f.dx + 1.), opt=('advanced', {'openmp': True}))
     op.apply(time=10, autotune=True)
 
     assert op._state['autotuning'][0]['runs'] == 6

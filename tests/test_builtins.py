@@ -340,8 +340,8 @@ class TestBuiltinsResult(object):
         f = TimeFunction(name='f', grid=grid)
         f.data[:] = np.arange(10000).reshape((100, 100))
 
-        assert np.isclose(norm(f),
-                          switchconfig(openmp=True)(norm)(f),
+        assert np.isclose(switchconfig(language='C')(norm)(f),
+                          switchconfig(language='openmp')(norm)(f),
                           rtol=1e-5)
 
     def test_inner_sparse(self):
