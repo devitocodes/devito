@@ -8,6 +8,7 @@ from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
+from devito.tools import as_list
 from devito.types import Eq, Temp as Temp0
 
 __all__ = ['cse']
@@ -52,13 +53,18 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     # also ensuring some form of post-processing
     assert mode == 'default'  # Only supported mode ATM
 
-    # Just for flexibility, accept either Clusters or exprs
+    # Accept Clusters, Eqs or even just exprs
     if isinstance(maybe_exprs, Cluster):
         processed = list(maybe_exprs.exprs)
         scope = maybe_exprs.scope
     else:
-        processed = list(maybe_exprs)
-        scope = Scope(maybe_exprs)
+        maybe_exprs = as_list(maybe_exprs)
+        if all(e.is_Equality for e in maybe_exprs):
+            processed = maybe_exprs
+            scope = Scope(maybe_exprs)
+        else:
+            processed = [Eq(make(), e) for e in maybe_exprs]
+            scope = Scope([])
 
     # Some sub-expressions aren't really "common" -- that's the case of Dimension-
     # independent data dependences. For example:
