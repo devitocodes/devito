@@ -405,6 +405,8 @@ class CireEvalDerivatives(CireDerivatives):
 class CireIndexDerivatives(CireDerivatives):
 
     def _compose(self, expr):
+        if expr.is_Pow:
+            return (expr,)
         terms = []
         for a in expr.args:
             try:
