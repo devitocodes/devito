@@ -82,11 +82,13 @@ def cire(clusters, mode, sregistry, options, platform):
     t0 = 2.0*t2[x,y,z]
     t1 = 3.0*t2[x,y,z+1]
     """
-    modes = {
-        'invariants': [CireInvariantsElementary, CireInvariantsDivs],
-        'sops': [CireSops,  # TODO: one day, we'll get rid of this legacy pass
-                 CireIndexDerivatives],
-    }
+    # NOTE: Handle prematurely expanded derivatives -- current default on
+    # several backends, but soon to become legacy
+    if mode == 'sops':
+        if options['expand']:
+            mode = 'eval-derivs'
+        else:
+            mode = 'index-derivs'
 
     for cls in modes[mode]:
         transformer = cls(sregistry, options, platform)
@@ -310,7 +312,7 @@ class CireInvariantsDivs(CireInvariants):
         yield self._do_generate(exprs, exclude, cbk_search)
 
 
-class CireSops(CireTransformer):
+class CireDerivatives(CireTransformer):
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -339,25 +341,6 @@ class CireSops(CireTransformer):
             processed.extend(flatten(made) or [c])
 
         return processed
-
-    def _compose(self, expr):
-        return split_coeff(expr)[1]
-
-    def _search(self, expr):
-        if isinstance(expr, EvalDerivative) and not expr.base.is_Function:
-            return expr.args
-        else:
-            return flatten(e for e in [self._search(a) for a in expr.args] if e)
-
-    def _search2(self, expr, rank):
-        ret = []
-        for e in self._search(expr):
-            mapper = deindexify(e)
-            for i in rank:
-                if i in mapper:
-                    ret.extend(mapper[i])
-                    break
-        return ret
 
     def _generate(self, exprs, exclude):
         # E.g., extract `u.dx*a*b` and `u.dx*a*c` from
@@ -390,12 +373,36 @@ class CireSops(CireTransformer):
         # comes at the price of using more temporaries, then we have to apply
         # heuristics, in particular we estimate how many flops a temporary would
         # allow to save
-        return ((delta_flops >= 0 and delta_ws > 0 and delta_flops / delta_ws < 15) or
-                (delta_flops <= 0 and delta_ws < 0 and delta_flops / delta_ws > 15) or
-                (delta_flops <= 0 and delta_ws >= 0))
+        return (
+            (delta_flops >= 0 and delta_ws > 0 and delta_flops / delta_ws < 15) or
+            (delta_flops <= 0 and delta_ws < 0 and delta_flops / delta_ws > 15) or
+            (delta_flops <= 0 and delta_ws >= 0)
+        )
 
 
-class CireIndexDerivatives(CireSops):
+class CireEvalDerivatives(CireDerivatives):
+
+    def _compose(self, expr):
+        return split_coeff(expr)[1]
+
+    def _search(self, expr):
+        if isinstance(expr, EvalDerivative) and not expr.base.is_Function:
+            return expr.args
+        else:
+            return flatten(e for e in [self._search(a) for a in expr.args] if e)
+
+    def _search2(self, expr, rank):
+        ret = []
+        for e in self._search(expr):
+            mapper = deindexify(e)
+            for i in rank:
+                if i in mapper:
+                    ret.extend(mapper[i])
+                    break
+        return ret
+
+
+class CireIndexDerivatives(CireDerivatives):
 
     def _compose(self, expr):
         terms = []
@@ -424,6 +431,15 @@ class CireIndexDerivatives(CireSops):
                     ret.extend(found)
                     break
         return ret
+
+
+# Subpass mapper
+modes = {
+    'invariants': [CireInvariantsElementary,
+                   CireInvariantsDivs],
+    'eval-derivs': [CireEvalDerivatives],   # TODO: legacy pass
+    'index-derivs': [CireIndexDerivatives],
+}
 
 
 def collect(extracted, ispace, minstorage):
@@ -573,8 +589,7 @@ def collect(extracted, ispace, minstorage):
             na = g.naliases
             nr = nredundants(ispace, pivot)
             score = estimate_cost(pivot, True)*((na - 1) + nr)
-            if score > 0:
-                aliases.add(pivot, aliaseds, list(mapper), distances, score)
+            aliases.add(pivot, aliaseds, list(mapper), distances, score)
 
     return aliases
 
@@ -587,17 +602,17 @@ def choose(aliases, exprs, mapper, mingain):
     """
     aliases = AliasList(aliases)
 
-    # `score < m` => discarded
-    # `score > M` => optimized
-    # `m <= score <= M` => maybe discarded, maybe optimized -- depends on heuristics
-    m = mingain
-    M = mingain*3
-
     if not aliases:
         return exprs, aliases
 
+    # `score <= m` => discarded
+    # `score > M` => optimized
+    # `m <= score <= M` => maybe discarded, maybe optimized; depends on heuristics
+    m = mingain
+    M = mingain*3
+
     # Filter off the aliases with low score
-    key = lambda a: a.score >= m
+    key = lambda a: a.score > m
     aliases.filter(key)
 
     # Project the candidate aliases into `exprs` to derive the final working set
@@ -608,7 +623,7 @@ def choose(aliases, exprs, mapper, mingain):
     # Filter off the aliases with a weak flop-reduction / working-set tradeoff
     key = lambda a: \
         a.score > M or \
-        m <= a.score <= M and max(len(wset(a.pivot)), 1) > len(wset(a.pivot) & owset)
+        m < a.score <= M and max(len(wset(a.pivot)), 1) > len(wset(a.pivot) & owset)
     aliases.filter(key)
 
     if not aliases:
