@@ -527,6 +527,7 @@ class TestAliases(object):
         ispace = exprs[0].ispace
 
         aliases = collect(extracted, ispace, False)
+        aliases.filter(lambda a: a.score > 0)
 
         assert len(aliases) == len(expected)
         assert all(i.pivot in expected for i in aliases)
