@@ -80,6 +80,16 @@ class AbstractSparseFunction(DiscreteFunction):
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
 
+    def func(self, *args, **kwargs):
+        # Rebuild subfunctions first to avoid new data creation as we have to use `_data`
+        # as a reconstruction kwargs to avoid the circular dependency
+        # with the parent in SubFunction
+        # This is also necessary to avoid shaoe issue in the SubFunction with mpi
+        for s in self._sub_functions:
+            if getattr(self, s) is not None:
+                kwargs.update({s: getattr(self, s).func(*args, **kwargs)})
+        return super().func(*args, **kwargs)
+
     def __fd_setup__(self):
         """
         Dynamically add derivative short-cuts.
