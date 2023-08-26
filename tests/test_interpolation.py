@@ -689,7 +689,6 @@ def test_msf_interpolate():
 
     eqn_inject = sf.inject(field=u, expr=sf)
     op2 = Operator(eqn_inject)
-
     op2(time_m=0, time_M=4)
 
     # There should be 4 points touched for each source point

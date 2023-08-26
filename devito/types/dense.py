@@ -20,7 +20,7 @@ from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
-from devito.types.dimension import Dimension
+from devito.types.dimension import Dimension, DynamicDimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
@@ -1449,15 +1449,9 @@ class SubFunction(Function):
     """
     A Function bound to a "parent" DiscreteFunction.
 
-    A SubFunction hands control of argument binding and halo exchange to its
-    parent DiscreteFunction.
+    A SubFunction hands control of argument binding and halo exchange to the
+    DiscreteFunction it's bound to.
     """
-
-    __rkwargs__ = Function.__rkwargs__ + ('parent',)
-
-    def __init_finalize__(self, *args, **kwargs):
-        super(SubFunction, self).__init_finalize__(*args, **kwargs)
-        self._parent = kwargs['parent']
 
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops
@@ -1470,12 +1464,8 @@ class SubFunction(Function):
         if self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
                                "a value dynamically" % self.name)
-        else:
-            return self._parent._arg_defaults(alias=self._parent).reduce_all()
 
-    @property
-    def parent(self):
-        return self._parent
+        return self._arg_defaults(alias=self)
 
     @property
     def origin(self):

@@ -1179,6 +1179,15 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
                                        PrecomputedSparseFunction.__rkwargs__))
 
 
+# *** MatrixSparse*Function API
+# This is mostly legacy stuff which often escapes the devito's modus operandi
+
+class DynamicSubFunction(SubFunction):
+
+    def _arg_defaults(self, **kwargs):
+        return {}
+
+
 class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
     """
     A specialised type of SparseTimeFunction where the interpolation is externally
@@ -1378,7 +1387,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         else:
             nnz_size = 1
 
-        self._mrow = SubFunction(
+        self._mrow = DynamicSubFunction(
             name='mrow_%s' % self.name,
             dtype=np.int32,
             dimensions=(self.nnzdim,),
@@ -1387,7 +1396,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             parent=self,
             allocator=self._allocator,
         )
-        self._mcol = SubFunction(
+        self._mcol = DynamicSubFunction(
             name='mcol_%s' % self.name,
             dtype=np.int32,
             dimensions=(self.nnzdim,),
@@ -1396,7 +1405,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             parent=self,
             allocator=self._allocator,
         )
-        self._mval = SubFunction(
+        self._mval = DynamicSubFunction(
             name='mval_%s' % self.name,
             dtype=self.dtype,
             dimensions=(self.nnzdim,),
@@ -1413,8 +1422,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         self.par_dim_to_nnz_dim = DynamicDimension('par_dim_to_nnz_%s' % self.name)
 
         # This map acts as an indirect sort of the sources according to their
-        # position along the parallelisation Dimension
-        self._par_dim_to_nnz_map = SubFunction(
+        # position along the parallelisation dimension
+        self._par_dim_to_nnz_map = DynamicSubFunction(
             name='par_dim_to_nnz_map_%s' % self.name,
             dtype=np.int32,
             dimensions=(self.par_dim_to_nnz_dim,),
@@ -1423,7 +1432,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             space_order=0,
             parent=self,
         )
-        self._par_dim_to_nnz_m = SubFunction(
+        self._par_dim_to_nnz_m = DynamicSubFunction(
             name='par_dim_to_nnz_m_%s' % self.name,
             dtype=np.int32,
             dimensions=(self._par_dim,),
@@ -1432,7 +1441,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             space_order=0,
             parent=self,
         )
-        self._par_dim_to_nnz_M = SubFunction(
+        self._par_dim_to_nnz_M = DynamicSubFunction(
             name='par_dim_to_nnz_M_%s' % self.name,
             dtype=np.int32,
             dimensions=(self._par_dim,),
