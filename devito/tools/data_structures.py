@@ -357,6 +357,10 @@ class DAG(object):
         return tuple(self.graph)
 
     @property
+    def roots(self):
+        return tuple(n for n in self.nodes if not self.predecessors(n))
+
+    @property
     def edges(self):
         ret = []
         for k, v in self.graph.items():
