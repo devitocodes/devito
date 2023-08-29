@@ -345,7 +345,8 @@ class CireDerivatives(CireTransformer):
     def _generate(self, exprs, exclude):
         # E.g., extract `u.dx*a*b` and `u.dx*a*c` from
         # `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
-        basextr = self._do_generate(exprs, exclude, self._search, self._compose)
+        basextr = self._do_generate(exprs, exclude, self._cbk_search,
+                                    self._cbk_compose)
         if not basextr:
             return
         yield basextr
@@ -361,8 +362,8 @@ class CireDerivatives(CireTransformer):
         candidates = sorted(grank, reverse=True)[:2]
         for i in candidates:
             lower_pri_elems = flatten([grank[j] for j in candidates if j != i])
-            search_i = lambda e: self._search2(e, grank[i] + lower_pri_elems)
-            yield self._do_generate(exprs, exclude, search_i, self._compose)
+            cbk_search = lambda e: self._cbk_search2(e, grank[i] + lower_pri_elems)
+            yield self._do_generate(exprs, exclude, cbk_search, self._cbk_compose)
 
     def _lookup_key(self, c):
         return AliasKey(c.ispace, None, c.dtype, c.guards, c.properties)
@@ -382,18 +383,18 @@ class CireDerivatives(CireTransformer):
 
 class CireEvalDerivatives(CireDerivatives):
 
-    def _compose(self, expr):
+    def _cbk_compose(self, expr):
         return split_coeff(expr)[1]
 
-    def _search(self, expr):
+    def _cbk_search(self, expr):
         if isinstance(expr, EvalDerivative) and not expr.base.is_Function:
             return expr.args
         else:
-            return flatten(e for e in [self._search(a) for a in expr.args] if e)
+            return flatten(e for e in [self._cbk_search(a) for a in expr.args] if e)
 
-    def _search2(self, expr, rank):
+    def _cbk_search2(self, expr, rank):
         ret = []
-        for e in self._search(expr):
+        for e in self._cbk_search(expr):
             mapper = deindexify(e)
             for i in rank:
                 if i in mapper:
@@ -404,7 +405,7 @@ class CireEvalDerivatives(CireDerivatives):
 
 class CireIndexDerivatives(CireDerivatives):
 
-    def _compose(self, expr):
+    def _cbk_compose(self, expr):
         if expr.is_Pow:
             return (expr,)
         terms = []
@@ -416,15 +417,15 @@ class CireIndexDerivatives(CireDerivatives):
                 terms.append(a)
         return tuple(terms)
 
-    def _search(self, expr):
+    def _cbk_search(self, expr):
         if isinstance(expr, IndexDerivative):
             return (expr.expr,)
         else:
-            return flatten(e for e in [self._search(a) for a in expr.args] if e)
+            return flatten(e for e in [self._cbk_search(a) for a in expr.args] if e)
 
-    def _search2(self, expr, rank):
+    def _cbk_search2(self, expr, rank):
         ret = []
-        for e in self._search(expr):
+        for e in self._cbk_search(expr):
             mapper = deindexify(e)
             for i in rank:
                 found = [v.expr if isinstance(v, IndexDerivative) else v
