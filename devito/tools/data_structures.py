@@ -336,11 +336,13 @@ class DAG(object):
         https://github.com/thieman/py-dag/
     """
 
-    def __init__(self, nodes=None, edges=None):
+    def __init__(self, nodes=None, edges=None, labels=None):
         self.graph = OrderedDict()
         self.labels = DefaultOrderedDict(dict)
+
         for node in as_tuple(nodes):
             self.add_node(node)
+
         for i in as_tuple(edges):
             try:
                 ind_node, dep_node = i
@@ -348,6 +350,11 @@ class DAG(object):
                 ind_node, dep_node, label = i
                 self.labels[ind_node][dep_node] = label
             self.add_edge(ind_node, dep_node)
+
+        for ind_node, i in (labels or {}).items():
+            for dep_node, v in i.items():
+                if dep_node in self.graph.get(ind_node, []):
+                    self.labels[ind_node][dep_node] = v
 
     def __contains__(self, key):
         return key in self.graph
@@ -370,6 +377,9 @@ class DAG(object):
     @property
     def size(self):
         return len(self.graph)
+
+    def clone(self):
+        return self.__class__(self.nodes, self.edges, self.labels)
 
     def add_node(self, node_name, ignore_existing=False):
         """Add a node if it does not exist yet, or error out."""
