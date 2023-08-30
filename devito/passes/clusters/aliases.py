@@ -123,19 +123,17 @@ class CireTransformer(object):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
             pexprs, aliases = choose(found, exprs, mapper, self.opt_mingain)
-            if not aliases:
-                continue
 
             # AliasList -> Schedule
             schedule = lower_aliases(aliases, meta, self.opt_maxpar)
 
             variants.append(Variant(schedule, pexprs))
 
-        # [Schedule]_m -> Schedule (s.t. best memory/flops trade-off)
         if not variants:
             return []
-        schedule, exprs = pick_best(variants, self.opt_schedule_strategy,
-                                    self._eval_variants_delta)
+
+        # [Schedule]_m -> Schedule (s.t. best memory/flops trade-off)
+        schedule, exprs = self._select(variants)
 
         # Schedule -> Schedule (optimization)
         if self.opt_rotate:
@@ -143,7 +141,8 @@ class CireTransformer(object):
         schedule = optimize_schedule_padding(schedule, meta, self.platform)
 
         # Schedule -> [Clusters]_k
-        processed, subs = lower_schedule(schedule, meta, self.sregistry, self.opt_ftemps)
+        processed, subs = lower_schedule(schedule, meta, self.sregistry,
+                                         self.opt_ftemps)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -164,6 +163,46 @@ class CireTransformer(object):
         assert len(exprs) == 0
 
         return processed
+
+    def process(self, clusters):
+        raise NotImplementedError
+
+    def _generate(self, exprs, exclude):
+        """
+        Generate one or more extractions from ``exprs``. An extraction is a
+        set of CIRE candidates which may be turned into aliases. Two different
+        extractions may contain overlapping sub-expressions and, therefore,
+        should be processed and evaluated indipendently. An extraction won't
+        contain any of the symbols appearing in ``exclude``.
+        """
+        raise NotImplementedError
+
+    def _lookup_key(self, c):
+        """
+        Create a key for the given Cluster. Clusters with same key may be
+        processed together in the search for CIRE candidates. Clusters should
+        have a different key if they must not be processed together, e.g.,
+        when this would lead to violation of data dependencies.
+        """
+        raise NotImplementedError
+
+    def _select(self, variants):
+        """
+        Select the best variant out of a set of variants, weighing flops
+        and working set.
+        """
+        raise NotImplementedError
+
+    def _eval_variants_delta(self, delta_flops, delta_ws):
+        """
+        Given the deltas in flop reduction and working set size increase of two
+        Variants, return True if the second variant is estimated to deliever
+        better performance, False otherwise.
+        """
+        raise NotImplementedError
+
+
+class CireTransformerLegacy(CireTransformer):
 
     def _do_generate(self, exprs, exclude, cbk_search, cbk_compose=None):
         """
@@ -195,38 +234,8 @@ class CireTransformer(object):
 
         return mapper
 
-    def _generate(self, exprs, exclude):
-        """
-        Generate one or more extractions from ``exprs``. An extraction is a
-        set of CIRE candidates which may be turned into aliases. Two different
-        extractions may contain overlapping sub-expressions and, therefore,
-        should be processed and evaluated indipendently. An extraction won't
-        contain any of the symbols appearing in ``exclude``.
-        """
-        raise NotImplementedError
 
-    def _lookup_key(self, c):
-        """
-        Create a key for the given Cluster. Clusters with same key may be
-        processed together in the search for CIRE candidates. Clusters should
-        have a different key if they must not be processed together, e.g.,
-        when this would lead to violation of data dependencies.
-        """
-        raise NotImplementedError
-
-    def _eval_variants_delta(self, delta_flops, delta_ws):
-        """
-        Given the deltas in flop reduction and working set size increase of two
-        Variants, return True if the second variant is estimated to deliever
-        better performance, False otherwise.
-        """
-        raise NotImplementedError
-
-    def process(self, clusters):
-        raise NotImplementedError
-
-
-class CireInvariants(CireTransformer, Queue):
+class CireInvariants(CireTransformerLegacy, Queue):
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -274,6 +283,9 @@ class CireInvariants(CireTransformer, Queue):
 
         return AliasKey(ispace, intervals, c.dtype, c.guards, properties)
 
+    def _select(self, variants):
+        return pick_best(variants, self._eval_variants_delta)
+
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # Always prefer the Variant with fewer temporaries
         return ((delta_ws == 0 and delta_flops < 0) or
@@ -312,7 +324,7 @@ class CireInvariantsDivs(CireInvariants):
         yield self._do_generate(exprs, exclude, cbk_search)
 
 
-class CireDerivatives(CireTransformer):
+class CireDerivatives(CireTransformerLegacy):
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -367,6 +379,17 @@ class CireDerivatives(CireTransformer):
 
     def _lookup_key(self, c):
         return AliasKey(c.ispace, None, c.dtype, c.guards, c.properties)
+
+    def _select(self, variants):
+        if isinstance(self.opt_schedule_strategy, int):
+            try:
+                return variants[self.opt_schedule_strategy]
+            except IndexError:
+                raise ValueError("Illegal schedule %d; "
+                                 "generated %d schedules in total"
+                                 % (self.opt_schedule_strategy, len(variants)))
+
+        return pick_best(variants, self._eval_variants_delta)
 
     def _eval_variants_delta(self, delta_flops, delta_ws):
         # If there's a greater flop reduction using fewer temporaries, no doubts
@@ -440,7 +463,7 @@ class CireIndexDerivatives(CireDerivatives):
 modes = {
     'invariants': [CireInvariantsElementary,
                    CireInvariantsDivs],
-    'eval-derivs': [CireEvalDerivatives],   # TODO: legacy pass
+    'eval-derivs': [CireEvalDerivatives],   # NOTE: legacy pass
     'index-derivs': [CireIndexDerivatives],
 }
 
@@ -962,18 +985,11 @@ def optimize_clusters_msds(clusters):
     return processed
 
 
-def pick_best(variants, schedule_strategy, eval_variants_delta):
+def pick_best(variants, eval_variants_delta):
     """
     Return the variant with the best trade-off between operation count
     reduction and working set increase. Heuristics may be applied.
     """
-    if type(schedule_strategy) is int:
-        try:
-            return variants[schedule_strategy]
-        except IndexError:
-            raise ValueError("Illegal schedule strategy %d; accepted `[0, %d]`"
-                             % (schedule_strategy, len(variants) - 1))
-
     best = None
     best_flops_score = None
     best_ws_score = None
@@ -984,7 +1000,8 @@ def pick_best(variants, schedule_strategy, eval_variants_delta):
         # The working set score depends on the number and dimensionality of
         # temporaries required by the Schedule
         i_ws_count = Counter([len(sa.writeto) for sa in i.schedule])
-        i_ws_score = tuple(i_ws_count[sa + 1] for sa in reversed(range(max(i_ws_count))))
+        i_ws_score = [i_ws_count[sa + 1]
+                      for sa in reversed(range(max(i_ws_count, default=0)))]
         # TODO: For now, we assume the performance impact of an N-dimensional
         # temporary is always the same regardless of the value N, but this might
         # change in the future
