@@ -1181,6 +1181,7 @@ class TestNestedParallelism(object):
                                _R(u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3.*f) + 1.)
         op = Operator(eqn, opt=('advanced', {'openmp': True,
                                              'cire-mingain': 0,
+                                             'cire-schedule': 1,
                                              'par-nested': 0,
                                              'par-collapse-ncores': 1,
                                              'par-dynamic-work': 0}))
@@ -1216,6 +1217,7 @@ class TestNestedParallelism(object):
                                _R(u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3.*f) + 1.)
         op = Operator(eqn, opt=('advanced', {'openmp': True,
                                              'cire-mingain': 0,
+                                             'cire-schedule': 1,
                                              'cire-rotate': True,
                                              'par-nested': 0,
                                              'par-collapse-ncores': 1,
