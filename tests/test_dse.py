@@ -2234,7 +2234,8 @@ class TestAliases(object):
 
         eqn = Eq(v.forward, f*(1. + v).dx + 2.*f*((1. + v).dx + f))
 
-        op = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+        op = Operator(eqn, opt=('advanced', {'cire-mingain': 0,
+                                             'cire-schedule': 0}))
 
         # Check code generation
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
