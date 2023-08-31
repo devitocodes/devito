@@ -9,12 +9,13 @@ import sympy
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
-                       IntervalGroup, LabeledVector, normalize_properties,
-                       relax_properties, unbounded, minimum, maximum, extrema)
+                       IntervalGroup, LabeledVector, Vector, normalize_properties,
+                       relax_properties, unbounded, minimum, maximum, extrema,
+                       vmax, vmin)
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
                               uxreplace)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
-                          generator, split, timed_pass)
+                          is_integer, generator, split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
                           ModuloDimension, CustomDimension, IncrDimension,
                           StencilDimension, Indexed, Hyperplane)
@@ -1096,7 +1097,13 @@ class Group(tuple):
                     if len(set(v)) == 1:
                         continue
                     else:
-                        raise ValueError
+                        # Worst-case scenario, we raraly end up here
+                        # Resort to the fast vector-based comparison machinery
+                        # (rather than the slower sympy.simplify)
+                        items = [Vector(i) for i in v]
+                        distance, = vmax(*items) - vmin(*items)
+                        if not is_integer(distance):
+                            raise ValueError
                 ret[d] = max(ret[d], distance)
 
         return ret
@@ -1110,7 +1117,7 @@ class Group(tuple):
 
     @property
     def dimensions(self):
-        return self.pivot.dimensions
+        return frozenset(self.diameter)
 
     @property
     def dimensions_translated(self):
