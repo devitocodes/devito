@@ -826,6 +826,26 @@ class TestDependenceAnalysis(object):
         scope = Scope(eqns)
         assert len(scope.d_all) == 1
 
+    def test_2194(self):
+        grid = Grid(shape=(10, ))
+        u = TimeFunction(name='u', grid=grid)
+
+        x = grid.dimensions[0]
+        h_x = x.spacing
+
+        eq_1 = Eq(u[0, x], 1)
+        eq_3 = Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])
+
+        op = Operator([eq_1, eq_3])
+        op.apply()
+
+        expected = np.array([[ 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.],
+                             [-1., 0., 0., 0., 0., 0., 0., 0., 0., -1.]])
+
+        assert(np.all(u.data[:] == expected[:]))
+
+
+
 
 class TestParallelismAnalysis(object):
 
