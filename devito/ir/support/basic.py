@@ -426,7 +426,8 @@ class TimedAccess(IterationInstance, AccessMode):
             else:
                 v = i - j
                 if v.is_Number and v.is_finite:
-                    return Vector(S.ImaginaryUnit)
+                    ret.append(v)
+                    return Vector(*ret)
 
         return Vector(*ret)
 
