@@ -32,6 +32,10 @@ class Bunch(object):
     def __repr__(self):
         return "Bunch(%s)" % ", ".join(["%s=%s" % i for i in self.__dict__.items()])
 
+    def __iter__(self):
+        for i in self.__dict__.values():
+            yield i
+
 
 class EnrichedTuple(tuple, Pickable):
 
