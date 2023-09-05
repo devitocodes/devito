@@ -84,7 +84,7 @@ class AbstractSparseFunction(DiscreteFunction):
         # Rebuild subfunctions first to avoid new data creation as we have to use `_data`
         # as a reconstruction kwargs to avoid the circular dependency
         # with the parent in SubFunction
-        # This is also necessary to avoid shaoe issue in the SubFunction with mpi
+        # This is also necessary to avoid shape issue in the SubFunction with mpi
         for s in self._sub_functions:
             if getattr(self, s) is not None:
                 kwargs.update({s: getattr(self, s).func(*args, **kwargs)})
@@ -724,7 +724,7 @@ class SparseFunction(AbstractSparseFunction):
         Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
         Shape of the object. Defaults to ``(npoint,)``.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
@@ -845,7 +845,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         Discretisation order for time derivatives. Defaults to 1.
     shape : tuple of ints, optional
         Shape of the object. Defaults to ``(nt, npoint)``.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
@@ -992,7 +992,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         Discretisation order for space derivatives. Defaults to 0.
     shape : tuple of ints, optional
         Shape of the object. Defaults to `(npoint,)`.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional
@@ -1156,7 +1156,7 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         Discretisation order for time derivatives. Default to 1.
     shape : tuple of ints, optional
         Shape of the object. Defaults to `(npoint,)`.
-    Dimensions : tuple of Dimension, optional
+    dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
     dtype : data-type, optional

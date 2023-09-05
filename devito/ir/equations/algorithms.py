@@ -74,10 +74,18 @@ def dimension_sort(expr):
     # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering
     # `(x, time, xi)` might be returned instead, which would be non-sense
     for i in relations:
-        dims = [di for d in i for di in (d.index, d)]
+        dims = []
+        for d in i:
+            # Only add index if a different Dimension name to avoid dropping conditionals
+            # with the same name as the parent
+            if d.index.name == d.name:
+                dims.append(d)
+            else:
+                dims.extend([d.index, d])
+
         implicit_relations.update({tuple(filter_ordered(dims))})
 
-    ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
+    ordering = PartialOrderTuple(extra, relations=implicit_relations)
 
     return ordering
 

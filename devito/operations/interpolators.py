@@ -176,11 +176,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         mapper = {}
         pos = self.sfunction._position_map.values()
-        # Temporaries for the position
-        temps = self._positions(implicit_dims)
 
-        # Coefficient symbol expression
-        temps.extend(self._coeff_temps(implicit_dims))
         for ((di, d), rd, p) in zip(enumerate(self._gdims), self._rdim, pos):
             # Add conditional to avoid OOB
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
@@ -188,10 +184,17 @@ class WeightedInterpolator(GenericInterpolator):
             cond = sympy.And(lb, ub, evaluate=False)
             mapper[d] = ConditionalDimension(rd.name, rd, condition=cond, indirect=True)
 
+        # Temporaries for the position
+        temps = self._positions(implicit_dims)
+
+        # Coefficient symbol expression
+        temps.extend(self._coeff_temps(implicit_dims))
+
         # Substitution mapper for variables
         idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
+        idx_subs.update(dict(zip(self._rdim, mapper.values())))
 
         return idx_subs, temps
 
