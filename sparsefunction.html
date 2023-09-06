@@ -164,7 +164,7 @@ to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 </div>
 <p class="rubric">Notes</p>
 <p>The parameters must always be given as keyword arguments, since SymPy
-uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.
+uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the Dimension arguments of the symbolic object.
 About SparseFunction and MPI. There is a clear difference between:</p>
 <blockquote>
 <div><ul class="simple">
@@ -251,29 +251,17 @@ Python class:</p>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
-<dl class="py property">
-<dt class="sig sig-object py" id="devito.types.SparseFunction.gridpoints">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gridpoints</span></span><a class="headerlink" href="#devito.types.SparseFunction.gridpoints" title="Link to this definition"></a></dt>
-<dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
-<p class="rubric">Notes</p>
-<p>When using MPI, this property refers to the <em>physically</em> owned
-sparse points.</p>
-</dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseFunction.guard">
-<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseFunction.guard"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseFunction.guard" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseFunction.guard" title="Link to this definition"></a></dt>
 <dd><p>Generate guarded expressions, that is expressions that are evaluated
 by an Operator only if certain conditions are met.  The introduced
 condition, here, is that all grid points in the support of a sparse
 value must fall within the grid domain (i.e., <em>not</em> on the halo).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
-If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Relax the guard condition by introducing a tolerance offset.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
+If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>

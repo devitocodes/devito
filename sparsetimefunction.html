@@ -123,7 +123,7 @@ between TimeFunctions and sparse data points. These are based upon standard
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>name</strong> (<em>str</em>) – Name of the symbol.</p></li>
 <li><p><strong>npoint</strong> (<em>int</em>) – Number of sparse points.</p></li>
-<li><p><strong>nt</strong> (<em>int</em>) – Number of timesteps along the time dimension.</p></li>
+<li><p><strong>nt</strong> (<em>int</em>) – Number of timesteps along the time Dimension.</p></li>
 <li><p><strong>grid</strong> (<a class="reference internal" href="grid.html#devito.types.Grid" title="devito.types.Grid"><em>Grid</em></a>) – The computational domain from which the sparse points are sampled.</p></li>
 <li><p><strong>coordinates</strong> (<em>np.ndarray</em><em>, </em><em>optional</em>) – The coordinates of each sparse point.</p></li>
 <li><p><strong>space_order</strong> (<em>int</em><em>, </em><em>optional</em>) – Discretisation order for space derivatives. Defaults to 0.</p></li>
@@ -170,7 +170,7 @@ to take advantage of the memory hierarchy in a NUMA architecture. Refer to
 </div>
 <p class="rubric">Notes</p>
 <p>The parameters must always be given as keyword arguments, since SymPy
-uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the dimension arguments of the symbolic object.</p>
+uses <code class="docutils literal notranslate"><span class="pre">*args</span></code> to (re-)create the Dimension arguments of the symbolic object.</p>
 <dl class="py property">
 <dt class="sig sig-object py" id="devito.types.SparseTimeFunction.data">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">data</span></span><a class="headerlink" href="#devito.types.SparseTimeFunction.data" title="Link to this definition"></a></dt>
@@ -242,43 +242,30 @@ Python class:</p>
 <dd><p>The Grid on which the discretization occurred.</p>
 </dd></dl>
 
-<dl class="py property">
-<dt class="sig sig-object py" id="devito.types.SparseTimeFunction.gridpoints">
-<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">gridpoints</span></span><a class="headerlink" href="#devito.types.SparseTimeFunction.gridpoints" title="Link to this definition"></a></dt>
-<dd><p>The <em>reference</em> grid point corresponding to each sparse point.</p>
-<p class="rubric">Notes</p>
-<p>When using MPI, this property refers to the <em>physically</em> owned
-sparse points.</p>
-</dd></dl>
-
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseTimeFunction.guard">
-<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseTimeFunction.guard" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">guard</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#devito.types.SparseTimeFunction.guard" title="Link to this definition"></a></dt>
 <dd><p>Generate guarded expressions, that is expressions that are evaluated
 by an Operator only if certain conditions are met.  The introduced
 condition, here, is that all grid points in the support of a sparse
 value must fall within the grid domain (i.e., <em>not</em> on the halo).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
-If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Relax the guard condition by introducing a tolerance offset.</p></li>
-</ul>
+<dd class="field-odd"><p><strong>expr</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Input expression, from which the guarded expression is derived.
+If not specified, defaults to <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseTimeFunction.inject">
-<span class="sig-name descname"><span class="pre">inject</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.inject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.inject" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">inject</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">field</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">implicit_dims</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.inject"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.inject" title="Link to this definition"></a></dt>
 <dd><p>Generate equations injecting an arbitrary expression into a field.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>field</strong> (<a class="reference internal" href="function.html#devito.types.Function" title="devito.types.Function"><em>Function</em></a>) – Input field into which the injection is performed.</p></li>
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Injected expression.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
 <li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
 <li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
 <li><p><strong>implicit_dims</strong> (<a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em> or </em><em>list</em><em> of </em><a class="reference internal" href="dimension.html#devito.types.dimension.Dimension" title="devito.types.dimension.Dimension"><em>Dimension</em></a><em>, </em><em>optional</em>) – An ordered list of Dimensions that do not explicitly appear in the
@@ -291,13 +278,12 @@ the operator.</p></li>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="devito.types.SparseTimeFunction.interpolate">
-<span class="sig-name descname"><span class="pre">interpolate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">offset</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">increment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.interpolate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.interpolate" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">interpolate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_t</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">increment</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types/sparse.html#SparseTimeFunction.interpolate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#devito.types.SparseTimeFunction.interpolate" title="Link to this definition"></a></dt>
 <dd><p>Generate equations interpolating an arbitrary expression into <code class="docutils literal notranslate"><span class="pre">self</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>expr</strong> (<em>expr-like</em>) – Input expression to interpolate.</p></li>
-<li><p><strong>offset</strong> (<em>int</em><em>, </em><em>optional</em>) – Additional offset from the boundary.</p></li>
 <li><p><strong>u_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the interpolation is performed.</p></li>
 <li><p><strong>p_t</strong> (<em>expr-like</em><em>, </em><em>optional</em>) – Time index at which the result of the interpolation is stored.</p></li>
 <li><p><strong>increment</strong> (<em>bool</em><em>, </em><em>optional</em>) – If True, generate increments (Inc) rather than assignments (Eq).</p></li>
