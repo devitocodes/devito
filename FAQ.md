@@ -10,6 +10,7 @@
 - [Does Devito optimize complex expressions](#does-devito-optimize-complex-expressions)
 - [How are abstractions used in the seismic examples](#how-are-abstractions-used-in-the-seismic-examples)
 - [What environment variables control how Devito works](#what-environment-variables-control-how-devito-works)
+- [What are the accepted combinations of PLATFORM, ARCH, and LANGUAGE](#what-are-the-accepted-combinations-of-platform-arch-and-language)
 - [How do you run the unit tests from the command line](#how-do-you-run-the-unit-tests-from-the-command-line)
 - [What is the difference between f() and f[] notation](#what-is-the-difference-between-f-and-f-notation)
 - [What is the indexed notation](#what-is-the-indexed-notation)
@@ -301,6 +302,37 @@ Set `DEVITO_IGNORE_UNKNOWN_PARAMS=1` to avoid Devito raising an exception if one
 
 [top](#Frequently-Asked-Questions)
 
+
+## What are the accepted combinations of PLATFORM, ARCH, and LANGUAGE
+
+#### LANGUAGE={C,openmp}
+
+These two languages can be used with virtually any PLATFORM and ARCH.
+
+With a device PLATFORM (e.g., `nvidiaX` or `amdgpuX`), the compiler will generate OpenMP code for device offloading.
+
+When using OpenMP offloading, it is however recommended to stick to the corresponding vendor compiler, so `ARCH=amdclang` for AMD, `ARCH={icc,icx,intel}` for Intel, and `ARCH=nvc` for NVidia.
+
+#### LANGUAGE=openacc
+
+Recommended: `PLATFORM=nvidiaX` and `ARCH=nvc`.
+
+The legacy PGI compiler is also supported via `ARCH=pgcc`.
+
+#### LANGUAGE=cuda
+
+Requires: `PLATFORM=nvidiaX` and `ARCH=cuda`.
+
+Also requires DevitoPRO.
+
+#### LANGUAGE=hip
+
+Requires: `PLATFORM=amdgpuX` and `ARCH=hip`.
+
+Also requires DevitoPRO.
+
+
+[top](#Frequently-Asked-Questions)
 
 ## How do you run the unit tests from the command line
 In addition to the [tutorials]( https://www.devitoproject.org/devito/tutorials.html), the unit tests provide an excellent way to see how the Devito API works with small self-contained examples. You can exercise individual unit tests with the following python code:
