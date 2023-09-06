@@ -271,8 +271,8 @@ def test_over_injection():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) ==\
-        6 + bool(configuration['language'] != 'C')
+    assert len(retrieve_iteration_tree(op1)) == \
+        7 + int(configuration['language'] != 'C')
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 

@@ -954,7 +954,7 @@ class TestParallelismAnalysis(object):
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [
-        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d, x, y]')
+        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d]')
     ])
     def test_dimension_sort(self, expr, expected):
         """

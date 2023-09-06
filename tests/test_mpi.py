@@ -6,7 +6,7 @@ from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
-                    switchconfig, generic_derivative)
+                    switchconfig, generic_derivative, PrecomputedSparseFunction)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -555,6 +555,35 @@ class TestSparseFunction(object):
         Operator([Eq(u, u+1)]+rec.interpolate(u))()
 
         assert np.allclose(rec.coordinates.data[:], ref.coordinates.data)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('r', [2])
+    def test_precomputed_sparse(self, r):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        coords = np.array([(1.0, 1.0), (2.0, 2.0), (1.0, 2.0), (2.0, 1.0)])
+        points = np.array([(1, 1), (2, 2), (1, 2), (2, 1)])
+        coeffs = np.ones((4, 2, r))
+
+        sf1 = PrecomputedSparseFunction(name="sf1", grid=grid, coordinates=coords,
+                                        npoint=4, interpolation_coeffs=coeffs, r=r)
+        sf2 = PrecomputedSparseFunction(name="sf2", grid=grid, gridpoints=points,
+                                        npoint=4, interpolation_coeffs=coeffs, r=r)
+
+        assert sf1.npoint == 1
+        assert sf2.npoint == 1
+        assert np.all(sf1.coordinates.data.shape == (1, 2))
+        assert np.all(sf2.gridpoints.data.shape == (1, 2))
+        assert np.all(sf1._coords_indices == sf2.gridpoints_data)
+        assert np.all(sf1.interpolation_coeffs.shape == (1, 2, r))
+        assert np.all(sf2.interpolation_coeffs.shape == (1, 2, r))
+
+        u = Function(name="u", grid=grid, space_order=r)
+        u._data_with_outhalo[:] = 1
+        Operator(sf2.interpolate(u))()
+        assert np.all(sf2.data == 4)
+        Operator(sf1.interpolate(u))()
+        assert np.all(sf1.data == 4)
 
 
 class TestOperatorSimple(object):
@@ -2470,8 +2499,10 @@ class TestIsotropicAcoustic(object):
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        assert len(fwd_calls) == 1
-        assert len(adj_calls) == 1
+        # one halo, ndim memalign and free (pos temp rec)
+        sf_calls = 2 * len(shape)
+        assert len(fwd_calls) == 1 + sf_calls
+        assert len(adj_calls) == 1 + sf_calls
 
     def run_adjoint_F(self, nd):
         """
@@ -2523,10 +2554,11 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = 'overlap'
+    # configuration['mpi'] = 'overlap'
     # TestDecomposition().test_reshape_left_right()
-    TestOperatorSimple().test_trivial_eq_2d()
+    # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
-    # TestSparseFunction().test_scatter_gather()
+    TestSparseFunction().test_sparse_coords()
+    # TestSparseFunction().test_precomputed_sparse(2)
     # TestOperatorAdvanced().test_fission_due_to_antidep()
-    # TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    # TestIsotropicAcoustic().test_adjoint_F(1)

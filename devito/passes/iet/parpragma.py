@@ -14,6 +14,7 @@ from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixi
                                         make_sections_from_imask)
 from devito.symbolics import INT, ccode
 from devito.tools import as_tuple, flatten, is_integer, prod
+from devito.tools.data_structures import UnboundTuple
 from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
@@ -294,7 +295,10 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
-                collapsable.append(i)
+                # At least one inner loop (nested) or
+                # we do not collapse most inner loop if it is an atomic reduction
+                if not i.is_ParallelAtomic or nested:
+                    collapsable.append(i)
 
             # Give a score to this candidate, based on the number of fully-parallel
             # Iterations and their position (i.e. outermost to innermost) in the nest
@@ -347,7 +351,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         partree = Transformer(mapper).visit(partree)
         return partree
 
-    def _make_partree(self, candidates, nthreads=None, index=None):
+    def _make_partree(self, candidates, nthreads=None):
         assert candidates
 
         # Get the collapsable Iterations
@@ -424,6 +428,11 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if self.nhyperthreads <= self.nested:
             return partree
 
+        # Loop nest with atomic reductions are more likely to have less latency
+        # keep outer loop parallel
+        if partree.root.is_ParallelAtomic:
+            return partree
+
         # Note: there might be multiple sub-trees amenable to nested parallelism,
         # hence we loop over all of them
         #
@@ -465,7 +474,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_parallel(self, iet):
         mapper = {}
         parrays = {}
-        for i, tree in enumerate(retrieve_iteration_tree(iet, mode='superset')):
+        for tree in retrieve_iteration_tree(iet, mode='superset'):
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
             if not candidates:
@@ -477,7 +486,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 continue
 
             # Outer parallelism
-            root, partree = self._make_partree(candidates, index=i)
+            root, partree = self._make_partree(candidates)
             if partree is None or root in mapper:
                 continue
 
@@ -566,7 +575,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
-        self.par_tile = options['par-tile']
+        self.par_tile = UnboundTuple(options['par-tile'])
         self.par_disabled = options['par-disabled']
 
     def _make_threaded_prodders(self, partree):

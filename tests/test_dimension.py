@@ -5,15 +5,14 @@ from sympy import And, Or
 import pytest
 
 from conftest import assert_blocking, assert_structure, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
                     CustomDimension, dimensions, configuration)
-from devito.arch.compiler import IntelCompiler, OneapiCompiler
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
-from devito.symbolics import indexify, retrieve_functions, IntDiv
+from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.dimension import AffineIndexAccessFunction
 
@@ -1051,10 +1050,11 @@ class TestConditionalDimension(object):
         # 0 --- 0 --- 0 --- 0
 
         radius = 1
-        indices = [(i, i+radius) for i in sf._coordinate_indices]
+        indices = [(INT(floor(i)), INT(floor(i))+radius)
+                   for i in sf._position_map.keys()]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
-        eqs = []
+        eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
             args.extend([j < k for j, k in zip(i, bounds)])
@@ -1416,8 +1416,7 @@ class TestConditionalDimension(object):
         iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
         assert all(i.is_Affine for i in iterations)
 
-    @switchconfig(condition=isinstance(configuration['compiler'],
-                  (IntelCompiler, OneapiCompiler)), safe_math=True)
+    @switchconfig(safe_math=True)
     def test_sparse_time_function(self):
         nt = 20
 
@@ -1449,9 +1448,11 @@ class TestConditionalDimension(object):
 
         assert np.all(p.data[0] == 0)
         # Note the endpoint of the range is 12 because we inject at p.forward
-        assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
-        assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
-        assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+        for i in range(1, 12):
+            assert p.data[i].sum() == i - 1
+            assert p.data[i, 10, 10, 10] == i - 1
+        for i in range(12, 20):
+            assert np.all(p.data[i] == 0)
 
     @pytest.mark.parametrize('init_value,expected', [
         ([2, 1, 3], [2, 2, 0]),  # updates f1, f2

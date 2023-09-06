@@ -1477,6 +1477,11 @@ class SubFunction(Function):
     def parent(self):
         return self._parent
 
+    @property
+    def origin(self):
+        # SubFunction have zero origin
+        return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
+
 
 class TempFunction(DiscreteFunction):
 

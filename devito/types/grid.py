@@ -222,11 +222,16 @@ class Grid(CartesianDiscretization, ArgProvider):
         return dict(zip(self.origin_symbols, self.origin))
 
     @property
-    def origin_offset(self):
-        """Offset of the local (per-process) origin from the domain origin."""
+    def origin_ioffset(self):
+        """Offset index of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
-        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
+        return tuple(grid_origin)
+
+    @property
+    def origin_offset(self):
+        """Physical offset of the local (per-process) origin from the domain origin."""
+        return tuple(i*h for i, h in zip(self.origin_ioffset, self.spacing))
 
     @property
     def time_dim(self):

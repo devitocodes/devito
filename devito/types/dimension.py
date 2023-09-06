@@ -182,6 +182,14 @@ class Dimension(ArgProvider):
         return "%s_M" % self.name
 
     @property
+    def indirect(self):
+        return False
+
+    @property
+    def index(self):
+        return self
+
+    @property
     def is_const(self):
         return False
 
@@ -470,6 +478,10 @@ class DerivedDimension(BasicDimension):
         return self._parent
 
     @property
+    def index(self):
+        return self if self.indirect else self.parent
+
+    @property
     def root(self):
         return self._parent.root
 
@@ -485,7 +497,7 @@ class DerivedDimension(BasicDimension):
     def _arg_names(self):
         return self.parent._arg_names
 
-    def _arg_check(self, *args):
+    def _arg_check(self, *args, **kwargs):
         """A DerivedDimension performs no runtime checks."""
         return
 
@@ -816,13 +828,9 @@ class ConditionalDimension(DerivedDimension):
     def indirect(self):
         return self._indirect
 
-    @property
-    def index(self):
-        return self if self.indirect is True else self.parent
-
     @cached_property
     def free_symbols(self):
-        retval = set(super(ConditionalDimension, self).free_symbols)
+        retval = set(super().free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
         try:
@@ -1213,7 +1221,7 @@ class CustomDimension(BasicDimension):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
-        self._parent = parent
+        self._parent = parent or BOTTOM
         super().__init_finalize__(name)
 
     @property
@@ -1223,6 +1231,10 @@ class CustomDimension(BasicDimension):
     @property
     def parent(self):
         return self._parent
+
+    @property
+    def index(self):
+        return self.parent or self
 
     @property
     def root(self):
@@ -1581,9 +1593,12 @@ class AffineIndexAccessFunction(IndexAccessFunction):
             return None
 
 
-def dimensions(names):
-    assert type(names) is str
-    return tuple(Dimension(i) for i in names.split())
+def dimensions(names, n=1):
+    if n > 1:
+        return tuple(Dimension('%s%s' % (names, i)) for i in range(n))
+    else:
+        assert type(names) is str
+        return tuple(Dimension(i) for i in names.split())
 
 
 BOTTOM = Dimension(name='⊥')

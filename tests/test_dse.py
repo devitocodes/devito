@@ -2627,6 +2627,21 @@ class TestAliases(object):
                          subdomain=grid.interior))
         assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
 
+    def test_dtype_aliases(self):
+        a = np.arange(64).reshape((8, 8))
+        grid = Grid(shape=a.shape, extent=(7, 7))
+
+        so = 2
+        f = Function(name='f', grid=grid, space_order=so, dtype=np.int32)
+        f.data[:] = a
+
+        fo = Function(name='fo', grid=grid, space_order=so, dtype=np.int32)
+        op = Operator(Eq(fo, f.dx))
+        op.apply()
+
+        assert FindNodes(Expression).visit(op)[0].dtype == np.float32
+        assert np.all(fo.data[:-1, :-1] == 8)
+
 
 class TestIsoAcoustic(object):
 
@@ -2670,11 +2685,13 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 148
+        assert summary0[('section1', None)].ops == 44
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
-        assert summary1[('section0', None)].ops == 31
-        assert np.isclose(summary1[('section0', None)].oi, 1.767, atol=0.001)
+        assert summary1[('section0', None)].ops == 9
+        assert summary1[('section1', None)].ops == 31
+        assert summary1[('section2', None)].ops == 88
+        assert np.isclose(summary1[('section1', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -2734,8 +2751,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 92
-        assert np.isclose(summary[('section1', None)].oi, 2.074, atol=0.001)
+        assert summary[('section2', None)].ops == 92
+        assert np.isclose(summary[('section2', None)].oi, 2.074, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
@@ -2746,12 +2763,14 @@ class TestTTI(object):
         assert y.parent is y0_blk0
         assert not x._defines & y._defines
 
-        # Also, in this operator, we expect seven temporary Arrays:
-        # * all of the seven Arrays are allocated on the heap
-        # * with OpenMP, five Arrays are defined globally, and two additional
-        #   Arrays are defined locally
+        # Also, in this operator, we expect six temporary Arrays:
+        # * all of the six Arrays are allocated on the heap
+        # * with OpenMP:
+        #   four Arrays are defined globally for the cos/sin temporaries
+        #   3 Arrays are defined globally for the sparse positions temporaries
+        # and two additional bock-sized Arrays are defined locally
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        extra_arrays = 2
+        extra_arrays = 2+3
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         bns, pbs = assert_blocking(op, {'x0_blk0'})
@@ -2787,7 +2806,7 @@ class TestTTI(object):
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
         sections = list(op.op_fwd()._profiler._sections.values())
-        assert sections[1].sops == expected
+        assert sections[2].sops == expected
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
@@ -2797,8 +2816,8 @@ class TestTTI(object):
         wavesolver = self.tti_operator(opt=('advanced', {'openmp': False}))
         op = wavesolver.op_adj()
 
-        assert op._profiler._sections['section1'].sops == expected
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7
+        assert op._profiler._sections['section2'].sops == expected
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7+3
 
 
 class TestTTIv2(object):

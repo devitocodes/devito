@@ -105,6 +105,10 @@ class CodePrinter(C99CodePrinter):
         args = ['(%s)' % self._print(a) for a in expr.args]
         return '%'.join(args)
 
+    def _print_Mul(self, expr):
+        term = super()._print_Mul(expr)
+        return term.replace("(-1)*", "-")
+
     def _print_Min(self, expr):
         if has_integer_args(*expr.args) and len(expr.args) == 2:
             return "MIN(%s)" % self._print(expr.args)[1:-1]

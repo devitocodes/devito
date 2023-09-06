@@ -17,12 +17,7 @@ def src_rec(v, tau, model, geometry):
                     npoint=geometry.nrec)
 
     # The source injection term
-    src_xx = src.inject(field=tau[0, 0].forward, expr=src * s)
-    src_zz = src.inject(field=tau[-1, -1].forward, expr=src * s)
-    src_expr = src_xx + src_zz
-    if model.grid.dim == 3:
-        src_yy = src.inject(field=tau[1, 1].forward, expr=src * s)
-        src_expr += src_yy
+    src_expr = src.inject(tau.forward.diagonal(), expr=src * s)
 
     # Create interpolation expression for receivers
     rec_term1 = rec1.interpolate(expr=tau[-1, -1])
