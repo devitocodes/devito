@@ -624,7 +624,7 @@ class Weights(Array):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-        return (self.name, self.dimension, hash(tuple(self.weights)))
+        return (self.name, self.dimension, str(self.weights))
 
     @property
     def dimension(self):
