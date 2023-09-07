@@ -425,8 +425,14 @@ class TimedAccess(IterationInstance, AccessMode):
                 ret.append(S.Zero)
             else:
                 v = i - j
-                if v.is_Number and v.is_finite:
+                # If i or j are numbers, we append an (I) distance
+                if v.is_Number and v.is_finite and i.is_Number and j.is_Number:
                     return Vector(S.ImaginaryUnit)
+                # If i or j are not numbers, there may be dimension-dependent
+                # dpendencies, so we append the distance
+                elif v.is_Number and v.is_finite:
+                    ret.append(v)
+                    return Vector(*ret)
 
         return Vector(*ret)
 
