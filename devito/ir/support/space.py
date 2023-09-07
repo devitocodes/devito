@@ -926,12 +926,8 @@ class IterationSpace(Space):
                 self.nonderived_directions == other.nonderived_directions)
 
     @property
-    def itdimensions(self):
-        return self.intervals.dimensions
-
-    @property
     def itdims(self):
-        return self.itdimensions
+        return self.intervals.dimensions
 
     @property
     def relations(self):
@@ -947,12 +943,12 @@ class IterationSpace(Space):
 
     @cached_property
     def itintervals(self):
-        return tuple(self[d] for d in self.itdimensions)
+        return tuple(self[d] for d in self.itdims)
 
     @cached_property
     def dimensions(self):
         sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
-        return tuple(filter_ordered(self.itdimensions + tuple(sub_dims)))
+        return tuple(filter_ordered(self.itdims + tuple(sub_dims)))
 
     @cached_property
     def nonderived_directions(self):

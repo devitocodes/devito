@@ -90,7 +90,7 @@ def _core(expr, c, weights, mapper, sregistry):
     directions = {d: Backward if d.backward else Forward for d in dims}
     ispace0 = IterationSpace(intervals, directions=directions)
 
-    extra = (c.ispace.itdimensions + dims,)
+    extra = (c.ispace.itdims + dims,)
     ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
 
     name = sregistry.make_name(prefix='r')

@@ -472,6 +472,10 @@ class ClusterGroup(tuple):
 # *** Utils
 
 def reduce_properties(clusters):
+    """
+    The normalized intersection (basically, a reduction) of the Properties in
+    `clusters`.
+    """
     properties = {}
     for c in clusters:
         for d, v in c.properties.items():
@@ -481,12 +485,16 @@ def reduce_properties(clusters):
 
 
 def tailor_properties(properties, ispace):
-    for d in ispace.itdimensions:
+    """
+    Create a new Properties object off `properties` that retains all and only
+    the iteration dimensions in `ispace`.
+    """
+    for d in ispace.itdims:
         properties = properties.add(d)
 
     for i in properties:
         for d in as_tuple(i):
-            if d not in ispace.itdimensions:
+            if d not in ispace.itdims:
                 properties = properties.drop(d)
 
     return properties

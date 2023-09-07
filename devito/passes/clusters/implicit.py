@@ -109,7 +109,7 @@ class LowerMultiSubDimensions(Queue):
             # The IterationSpace induced by the MultiSubDomain
             if dims:
                 intervals = [Interval(i) for i in dims]
-                relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
+                relations = (ispace0.itdims + dims, dims + ispace1.itdims)
                 ispaceN = IterationSpace(
                     IntervalGroup(intervals, relations=relations), sub_iterators
                 )

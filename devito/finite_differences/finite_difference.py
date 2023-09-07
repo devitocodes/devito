@@ -236,7 +236,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
         weights = Weights(name='w', dimensions=indices.free_dim, initvalue=weights)
 
         if matvec == transpose:
-            # For homogenity, always generate e.g. `x + i0` rather than `x - i0`
+            # For homogeneity, always generate e.g. `x + i0` rather than `x - i0`
             # for transpose and `x + i0` for direct
             indices = indices.transpose()
             weights = weights._subs(indices.free_dim, -indices.free_dim)

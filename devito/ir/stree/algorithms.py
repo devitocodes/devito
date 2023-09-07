@@ -142,7 +142,7 @@ def preprocess(clusters, options=None, **kwargs):
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
             queue.append(c.rebuild(halo_scheme=hs))
         else:
-            dims = set(c.ispace.promote(lambda d: d.is_Block).itdimensions)
+            dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
 
             found = []
             for c1 in list(queue):
