@@ -203,7 +203,7 @@ class Buffering(Queue):
             expr = lower_exprs(Eq(lhs, rhs))
             ispace = b.writeto
             guards[pd] = GuardBound(dim.root.symbolic_min, dim.root.symbolic_max)
-            properties = {d: {AFFINE, PARALLEL} for d in ispace.itdimensions}
+            properties = {d: {AFFINE, PARALLEL} for d in ispace.itdims}
 
             init.append(Cluster(expr, ispace, guards=guards, properties=properties))
 
@@ -307,7 +307,7 @@ class Buffering(Queue):
             for c in processed:
                 if b.buffer in c.functions:
                     key1 = lambda d: d not in b.dim._defines
-                    dims = c.ispace.project(key1).itdimensions
+                    dims = c.ispace.project(key1).itdims
                     ispace = c.ispace.lift(dims, key0())
                     processed1.append(c.rebuild(ispace=ispace))
                 else:
@@ -614,7 +614,7 @@ class Buffer(object):
         ispace0 = self.written.project(lambda d: d in self.xd._defines)
         ispace1 = self.writeto.project(lambda d: d not in self.xd._defines)
 
-        extra = (ispace0.itdimensions + ispace1.itdimensions,)
+        extra = (ispace0.itdims + ispace1.itdims,)
         ispace = IterationSpace.union(ispace0, ispace1, relations=extra)
 
         return ispace

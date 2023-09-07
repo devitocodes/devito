@@ -291,7 +291,7 @@ def unbounded(expr):
 Extrema = namedtuple('Extrema', 'm M')
 
 
-def _minmax(expr, callback, udims=None):
+def _relational(expr, callback, udims=None):
     """
     Helper for `minimum`, `maximum`, and potential future utilities that share
     a significant chunk of logic.
@@ -314,7 +314,7 @@ def minimum(expr, udims=None):
 
     Unbounded Dimensions whose possible minimum value is not known are ignored.
     """
-    return _minmax(expr, lambda e: e._min, udims)
+    return _relational(expr, lambda e: e._min, udims)
 
 
 def maximum(expr, udims=None):
@@ -323,7 +323,7 @@ def maximum(expr, udims=None):
 
     Unbounded Dimensions whose possible maximum value is not known are ignored.
     """
-    return _minmax(expr, lambda e: e._max, udims)
+    return _relational(expr, lambda e: e._max, udims)
 
 
 def extrema(expr):

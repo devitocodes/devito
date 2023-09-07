@@ -228,7 +228,7 @@ class Guards(frozendict):
             return Guards(m)
 
         try:
-            m[d] = and_smart(m[d], guard)
+            m[d] = simplify_and(m[d], guard)
         except KeyError:
             m[d] = guard
 
@@ -273,7 +273,7 @@ class Guards(frozendict):
 
 # *** Utils
 
-def and_smart(relation, v):
+def simplify_and(relation, v):
     """
     Given `x = And(*relation.args, v)`, return `relation` if `x ≡ relation`,
     `x` otherwise.

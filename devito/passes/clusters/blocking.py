@@ -392,7 +392,7 @@ def decompose(ispace, d, block_dims):
     # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`
     # NOTE: this is perfectly legal since:
     # TILABLE => (perfect nest & PARALLEL) => interchangeable
-    for i in ispace.itdimensions:
+    for i in ispace.itdims:
         if not i.is_Block:
             continue
         for bd in block_dims:

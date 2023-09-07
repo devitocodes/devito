@@ -905,7 +905,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
             # Aside from ugly generated code, the reason we do not rather shift the
             # indices is that it prevents future passes to transform the loop bounds
             # (e.g., MPI's comp/comm overlap does that)
-            dimensions = [d.parent if d.is_Sub else d for d in writeto.itdimensions]
+            dimensions = [d.parent if d.is_Sub else d for d in writeto.itdims]
 
             # The halo must be set according to the size of `writeto`
             halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
@@ -945,12 +945,12 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         for d, v in meta.properties.items():
             if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                 properties[d] = normalize_properties(v, {SEQUENTIAL})
-            elif d not in writeto.itdimensions:
+            elif d not in writeto.itdims:
                 properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
 
         # Track star-shaped stencils for potential future optimization
         if len(writeto) > 1 and schedule.is_frame:
-            properties[Hyperplane(writeto.itdimensions)] = {SEPARABLE}
+            properties[Hyperplane(writeto.itdims)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, meta.guards, properties))
@@ -966,7 +966,7 @@ def optimize_clusters_msds(clusters):
     """
     processed = []
     for c in clusters:
-        msds = [d for d in c.ispace.itdimensions if isinstance(d, MultiSubDimension)]
+        msds = [d for d in c.ispace.itdims if isinstance(d, MultiSubDimension)]
 
         if msds:
             mapper = {d: d.root for d in msds}

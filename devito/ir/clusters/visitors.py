@@ -50,7 +50,7 @@ class Queue(object):
             guards = None
 
         if self._q_properties_in_key:
-            properties = cluster.properties.drop(cluster.ispace[level:].itdimensions)
+            properties = cluster.properties.drop(cluster.ispace[level:].itdims)
         else:
             properties = None
 
