@@ -632,14 +632,14 @@ def choose(aliases, exprs, mapper, mingain):
     if not aliases:
         return exprs, aliases
 
-    # `score <= m` => discarded
+    # `score < m` => discarded
     # `score > M` => optimized
     # `m <= score <= M` => maybe discarded, maybe optimized; depends on heuristics
     m = mingain
     M = mingain*3
 
     # Filter off the aliases with low score
-    key = lambda a: a.score > m
+    key = lambda a: a.score >= m
     aliases.filter(key)
 
     # Project the candidate aliases into `exprs` to derive the final working set
@@ -650,7 +650,7 @@ def choose(aliases, exprs, mapper, mingain):
     # Filter off the aliases with a weak flop-reduction / working-set tradeoff
     key = lambda a: \
         a.score > M or \
-        m < a.score <= M and max(len(wset(a.pivot)), 1) > len(wset(a.pivot) & owset)
+        m <= a.score <= M and max(len(wset(a.pivot)), 1) > len(wset(a.pivot) & owset)
     aliases.filter(key)
 
     if not aliases:
