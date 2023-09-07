@@ -61,11 +61,9 @@ class AbstractSparseFunction(DiscreteFunction):
             dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
 
         if args:
-            indices = args
+            return tuple(dimensions), tuple(args)
         else:
-            indices = dimensions
-
-        return dimensions, indices
+            return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -79,16 +77,6 @@ class AbstractSparseFunction(DiscreteFunction):
             glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
             shape = (glb_npoint[grid.distributor.myrank],)
         return shape
-
-    def func(self, *args, **kwargs):
-        # Rebuild subfunctions first to avoid new data creation as we have to use `_data`
-        # as a reconstruction kwargs to avoid the circular dependency
-        # with the parent in SubFunction
-        # This is also necessary to avoid shape issue in the SubFunction with mpi
-        for s in self._sub_functions:
-            if getattr(self, s) is not None:
-                kwargs.update({s: getattr(self, s).func(*args, **kwargs)})
-        return super().func(*args, **kwargs)
 
     def __fd_setup__(self):
         """
@@ -108,24 +96,39 @@ class AbstractSparseFunction(DiscreteFunction):
         )
 
     def __subfunc_setup__(self, key, suffix, dtype=None):
+        # Shape and dimensions from args
+        name = '%s_%s' % (self.name, suffix)
+
+        if key is not None and not isinstance(key, SubFunction):
+            key = np.array(key)
+
+        if key is not None:
+            dimensions = (self._sparse_dim, Dimension(name='d'))
+            if key.ndim > 2:
+                dimensions = (self._sparse_dim, Dimension(name='d'),
+                              *mkdims("i", n=key.ndim-2))
+            else:
+                dimensions = (self._sparse_dim, Dimension(name='d'))
+            shape = (self.npoint, self.grid.dim, *key.shape[2:])
+        else:
+            dimensions = (self._sparse_dim, Dimension(name='d'))
+            shape = (self.npoint, self.grid.dim)
+
+        # Check if already a SubFunction
         if isinstance(key, SubFunction):
-            return key
+            # Need to rebuild so the dimensions match the parent SparseFunction
+            indices = (self.indices[self._sparse_position], *key.indices[1:])
+            return key._rebuild(*indices, name=name, shape=shape,
+                                alias=self.alias, halo=None)
         elif key is not None and not isinstance(key, Iterable):
             raise ValueError("`%s` must be either SubFunction "
                              "or iterable (e.g., list, np.ndarray)" % key)
-
-        name = '%s_%s' % (self.name, suffix)
-        dimensions = (self._sparse_dim, Dimension(name='d'))
-        shape = (self.npoint, self.grid.dim)
 
         if key is None:
             # Fallback to default behaviour
             dtype = dtype or self.dtype
         else:
-            if key is not None:
-                key = np.array(key)
-
-            if (shape != key.shape[:2] and key.shape != (shape[1],)) and \
+            if (shape != key.shape and key.shape != (shape[1],)) and \
                     self._distributor.nprocs == 1:
                 raise ValueError("Incompatible shape for %s, `%s`; expected `%s`" %
                                  (suffix, key.shape[:2], shape))
@@ -136,12 +139,8 @@ class AbstractSparseFunction(DiscreteFunction):
             else:
                 dtype = dtype or self.dtype
 
-        if key is not None and key.ndim > 2:
-            shape = (*shape, *key.shape[2:])
-            dimensions = (*dimensions, *mkdims("i", n=key.ndim-2))
-
         sf = SubFunction(
-            name=name, parent=self, dtype=dtype, dimensions=dimensions,
+            name=name, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
             distributor=self._distributor
         )
@@ -658,20 +657,6 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         return self._time_dim
 
     @classmethod
-    def __indices_setup__(cls, *args, **kwargs):
-        dimensions = as_tuple(kwargs.get('dimensions'))
-        if not dimensions:
-            dimensions = (kwargs['grid'].time_dim,
-                          Dimension(name='p_%s' % kwargs["name"]))
-
-        if args:
-            indices = args
-        else:
-            indices = dimensions
-
-        return dimensions, indices
-
-    @classmethod
     def __shape_setup__(cls, **kwargs):
         shape = kwargs.get('shape')
         if shape is None:
@@ -685,6 +670,18 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
             shape.insert(cls._time_position, nt)
 
         return tuple(shape)
+
+    @classmethod
+    def __indices_setup__(cls, *args, **kwargs):
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if not dimensions:
+            dimensions = (kwargs['grid'].time_dim,
+                          Dimension(name='p_%s' % kwargs["name"]),)
+
+        if args:
+            return tuple(dimensions), tuple(args)
+        else:
+            return dimensions, dimensions
 
     @property
     def nt(self):
@@ -1032,13 +1029,14 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         if r <= 0:
             raise ValueError('`r` must be > 0')
         # Make sure radius matches the coefficients size
-        nr = interpolation_coeffs.shape[-1]
-        if nr // 2 != r:
-            if nr == r:
-                r = r // 2
-            else:
-                raise ValueError("Interpolation coefficients shape %d do "
-                                 "not match specified radius %d" % (r, nr))
+        if interpolation_coeffs is not None:
+            nr = interpolation_coeffs.shape[-1]
+            if nr // 2 != r:
+                if nr == r:
+                    r = r // 2
+                else:
+                    raise ValueError("Interpolation coefficients shape %d do "
+                                     "not match specified radius %d" % (r, nr))
         self._radius = r
 
         if coordinates is not None and gridpoints is not None:
@@ -1679,23 +1677,6 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         ]
 
         return out
-
-    @classmethod
-    def __indices_setup__(cls, *args, **kwargs):
-        """
-        Return the default Dimension indices for a given data shape.
-        """
-        dimensions = kwargs.get('dimensions')
-        if dimensions is None:
-            dimensions = (kwargs['grid'].time_dim, Dimension(
-                name='p_%s' % kwargs["name"]))
-
-        if args:
-            indices = args
-        else:
-            indices = dimensions
-
-        return dimensions, indices
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

@@ -242,8 +242,8 @@ def test_precomputed_injection_time(r):
     sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
                                        gridpoints=gridpoints, nt=nt,
                                        interpolation_coeffs=interpolation_coeffs)
-
-    expr = sf.inject(m, Float(1.))
+    sf.data.fill(1.)
+    expr = sf.inject(m, sf)
 
     op = Operator(expr)
 

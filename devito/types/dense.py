@@ -20,7 +20,7 @@ from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
-from devito.types.dimension import Dimension, DynamicDimension
+from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
@@ -1040,6 +1040,7 @@ class Function(DiscreteFunction):
             dimensions = grid.dimensions
 
         if args:
+            assert len(args) == len(dimensions)
             return tuple(dimensions), tuple(args)
 
         # Staggered indices

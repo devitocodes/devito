@@ -111,7 +111,7 @@ class TestBasic(object):
 
         sf = PrecomputedSparseTimeFunction(
             name='sf', grid=grid, r=2, npoint=3, nt=5,
-            interpolation_coeffs=np.ndarray(shape=(3, 2, 2)), **kw
+            interpolation_coeffs=np.random.randn(3, 2, 2), **kw
         )
         sf.data[2, 1] = 5.
 
