@@ -366,7 +366,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
     if nbl == 0:
-        for f in functions:
+        for f, data in zip(functions, datas):
             if isinstance(data, dv.Function):
                 f.data[:] = data.data[:]
             else:
@@ -382,7 +382,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
         assert len(lhss) == len(rhss) == len(optionss)
 
-        name = name or 'pad_%s' % '_'.join(f.name for f in functions)
+        name = name or 'initialize_%s' % '_'.join(f.name for f in functions)
         assign(lhss, rhss, options=optionss, name=name, **kwargs)
 
     if pad_halo:

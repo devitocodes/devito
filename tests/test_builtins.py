@@ -333,8 +333,8 @@ class TestInitializeFunction(object):
         a = np.arange(16).reshape((4, 4))
 
         f = Function(name='f', grid=grid, dtype=np.int32)
-        g = Function(name='g', grid=grid, dtype=np.int32)
-        h = Function(name='h', grid=grid, dtype=np.int32)
+        g = Function(name='g', grid=grid, dtype=np.float32)
+        h = Function(name='h', grid=grid, dtype=np.float64)
 
         initialize_function([f, g, h], [a, a, a], 4, mode='reflect')
 

@@ -191,7 +191,7 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
-        idx_subs = {v: v.subs({k: c - v.origin.get(k, 0) + p
+        idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
         idx_subs.update(dict(zip(self._rdim, mapper.values())))
