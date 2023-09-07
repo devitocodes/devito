@@ -30,21 +30,20 @@ jobs:
 
       matrix:
         name: [
-           pytest-ubuntu-py39-gcc11-noomp,
+           pytest-ubuntu-py311-gcc11-noomp,
            pytest-ubuntu-py38-gcc12-omp,
-           pytest-ubuntu-py39-gcc7-omp,
+           pytest-ubuntu-py37-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py38-gcc8-omp,
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
-           pytest-docker-py37-gcc-omp,
-           pytest-docker-py37-icc-omp,
-           pytest-docker-py38-icx-omp
+           pytest-docker-py39-gcc-omp,
+           pytest-docker-py39-icx-omp
         ]
         set: [base, adjoint]
         include:
-        - name: pytest-ubuntu-py39-gcc11-noomp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py311-gcc11-noomp
+          python-version: '3.11'
           os: ubuntu-22.04
           arch: "gcc-11"
           language: "C"
@@ -57,8 +56,8 @@ jobs:
           language: "openmp"
           sympy: "1.10"
 
-        - name: pytest-ubuntu-py39-gcc7-omp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py37-gcc7-omp
+          python-version: '3.7'
           os: ubuntu-20.04
           arch: "gcc-7"
           language: "openmp"
@@ -92,26 +91,19 @@ jobs:
           language: "C"
           sympy: "1.9"
 
-        - name: pytest-docker-py37-gcc-omp
-          python-version: '3.7'
+        - name: pytest-docker-py39-gcc-omp
+          python-version: '3.9'
           os: ubuntu-latest
           arch: "gcc"
           language: "openmp"
-          sympy: "1.10"
+          sympy: "1.12"
 
-        - name: pytest-docker-py37-icc-omp
-          python-version: '3.7'
-          os: ubuntu-22.04
-          arch: "icc"
-          language: "openmp"
-          sympy: "1.11"
-
-        - name: pytest-docker-py38-icx-omp
-          python-version: '3.8'
+        - name: pytest-docker-py39-icx-omp
+          python-version: '3.9'
           os: ubuntu-22.04
           arch: "icx"
           language: "openmp"
-          sympy: "1.11"
+          sympy: "1.12"
 
         - set: base
           test-set: 'not adjoint'
@@ -141,7 +133,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e DEVITO_ARCH=${{ matrix.arch }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi
@@ -171,6 +163,7 @@ jobs:
     - name: Test with pytest
       run: |
         ${{ env.RUN_CMD }} ${{ matrix.arch }} --version
+        ${{ env.RUN_CMD }} python3 --version
         ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Upload coverage to Codecov

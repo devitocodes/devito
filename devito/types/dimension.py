@@ -321,7 +321,8 @@ class Dimension(ArgProvider):
                 upper = interval.upper
             else:
                 # Autopadding causes non-integer upper limit
-                upper = interval.upper.subs(args)
+                from devito.symbolics import normalize_args
+                upper = interval.upper.subs(normalize_args(args))
             if args[self.max_name] + upper >= size:
                 raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
                                                                      args[self.max_name]))
@@ -1581,7 +1582,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
 
 def dimensions(names):
-    assert type(names) == str
+    assert type(names) is str
     return tuple(Dimension(i) for i in names.split())
 
 

@@ -220,7 +220,7 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
@@ -412,7 +412,7 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 9, 5),
+        (('buffering', 'streaming', 'orchestrate'), 8, 5),
         (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 6, 5),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
@@ -576,6 +576,34 @@ class TestStreaming(object):
 
         assert np.all(grad.data == grad1.data)
 
+    def test_streaming_multi_input_conddim_foward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+        x, y = grid.dimensions
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=nt, time_dim=time_sub)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        for i in range(u.save):
+            u.data[i, :] = i
+
+        expr = u.dt2 + 3.*u.dt(x0=time_sub - time_sub.spacing)
+
+        eqns = [Eq(v.forward, v + expr + 1.)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': u}))
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt, dt=.01)
+        op1.apply(time_M=nt, dt=.01, v=v1)
+
+        assert np.all(v.data == v1.data)
+
     def test_streaming_multi_input_conddim_backward(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -696,7 +724,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 8
         assert len(retrieve_iteration_tree(op2)) == 5
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree

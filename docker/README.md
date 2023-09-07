@@ -10,9 +10,9 @@ Devito provides several images that target different architectures and compilers
 
 We provide two CPU images:
 - `devito:gcc-*` with the standard GNU gcc compiler.
-- `devito:icc-*` with the Intel C compiler for Intel architectures.
+- `devito:icx-*` with the Intel C compiler for Intel architectures.
 
-These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icc` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
+These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icx` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
 
 To run this image locally, you will first need to install `docker`. Then, the following commands will get you started:
 
@@ -40,10 +40,9 @@ In addition, the following legacy tags are available:
 
 ### [Devito] on GPU
 
-Second, we provide three images to run [Devito] on GPUs, tagged `devito:nvidia-nvc-*`, `devito:nvidia-clang-*`, and `devito:amd-*`.
+Second, we provide three images to run [Devito] on GPUs, tagged `devito:nvidia-nvc-*`, and `devito:amd-*`.
 
 - `devito:nvidia-nvc-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `nvc` compiler for `openacc` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
-- `devito:nvidia-clang-*` is intended to be used on NVidia GPUs. It comes with the configuration to use the `clang` compiler for `openmp` offloading. This image also comes with CUDA-aware MPI for multi-GPU deployment.
 - `devito:amd-*` is intended to be used on AMD GPUs. It comes with the configuration to use the `aoompcc` compiler for `openmp` offloading. This image also comes with ROCm-aware MPI for multi-GPU deployment. This image can also be used on AMD CPUs since the ROCm compilers are preinstalled.
 
 #### NVidia
@@ -93,18 +92,11 @@ To build the GPU image with `openacc` offloading and the `nvc` compiler, run:
 docker build --build-arg base=devitocodes/bases:nvidia-nvc --network=host --file docker/Dockerfile.devito --tag devito .
 ```
 
-or if you wish to use the `clang` compiler with `openmp` offloading:
-
-```bash
-docker build --build-arg base=devitocodes/bases:nvidia-clang --network=host --file docker/Dockerfile --tag devito .
-```
-
-and finally, for AMD architectures:
+or if you wish to use the `amdclang` compiler with `openmp` offloading for AMD architectures:
 
 ```bash
 docker build --build-arg base=devitocodes/bases:amd --network=host --file docker/Dockerfile --tag devito .
 ```
-
 
 ## Debugging a base image
 

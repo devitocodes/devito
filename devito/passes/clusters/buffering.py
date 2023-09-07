@@ -167,6 +167,8 @@ class Buffering(Queue):
             b = Buffer(f, dim, d, accessv, cache, self.options, self.sregistry)
             buffers.append(b)
 
+            guards = {}
+
             if b.is_read or not b.has_uniform_subdims:
                 # Special case: avoid initialization if not strictly necessary
                 # See docstring for more info about what this implies
@@ -176,6 +178,8 @@ class Buffering(Queue):
                 dims = b.function.dimensions
                 lhs = b.indexed[dims]._subs(dim, b.firstidx.b)
                 rhs = b.function[dims]._subs(dim, b.firstidx.f)
+
+                guards[b.xd] = GuardBound(0, b.firstidx.f)
 
             elif b.is_write and init_onwrite(b.function):
                 dims = b.buffer.dimensions
@@ -191,7 +195,7 @@ class Buffering(Queue):
 
             expr = lower_exprs(Eq(lhs, rhs))
             ispace = b.writeto
-            guards = {pd: GuardBound(dim.root.symbolic_min, dim.root.symbolic_max)}
+            guards[pd] = GuardBound(dim.root.symbolic_min, dim.root.symbolic_max)
             properties = {d: {AFFINE, PARALLEL} for d in ispace.itdimensions}
 
             init.append(Cluster(expr, ispace, guards=guards, properties=properties))
@@ -224,10 +228,15 @@ class Buffering(Queue):
 
                 expr = lower_exprs(Eq(lhs, rhs))
                 ispace = b.readfrom
+                try:
+                    guards = c.guards.xandg(b.xd, GuardBound(0, b.firstidx.f))
+                except KeyError:
+                    guards = c.guards
                 properties = c.properties.sequentialize(d)
 
                 processed.append(
-                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                    c.rebuild(exprs=expr, ispace=ispace,
+                              guards=guards, properties=properties)
                 )
 
             # Substitute buffered Functions with the newly created buffers
@@ -256,10 +265,15 @@ class Buffering(Queue):
 
                 expr = lower_exprs(uxreplace(Eq(lhs, rhs), b.subdims_mapper))
                 ispace = b.written
+                try:
+                    guards = c.guards.xandg(b.xd, GuardBound(0, b.firstidx.f))
+                except KeyError:
+                    guards = c.guards
                 properties = c.properties.sequentialize(d)
 
                 processed.append(
-                    c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+                    c.rebuild(exprs=expr, ispace=ispace,
+                              guards=guards, properties=properties)
                 )
 
         # Lift {write,read}-only buffers into separate IterationSpaces

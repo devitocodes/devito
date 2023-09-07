@@ -21,7 +21,7 @@ def test_read_write():
     op1 = Operator(eqn, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
     assert buffers.pop().symbolic_shape[0] == 2
@@ -77,7 +77,7 @@ def test_read_only():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -126,7 +126,7 @@ def test_read_only_backwards():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -157,7 +157,7 @@ def test_read_only_backwards_unstructured():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -181,7 +181,7 @@ def test_async_degree(async_degree):
     op1 = Operator(eqn, opt=('buffering', {'buf-async-degree': async_degree}))
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
     assert buffers.pop().symbolic_shape[0] == async_degree
@@ -209,8 +209,8 @@ def test_two_homogeneous_buffers():
     op2 = Operator(eqns, opt=('buffering', 'fuse'))
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
-    assert len(retrieve_iteration_tree(op2)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op2)) == 3
     buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
 
@@ -241,7 +241,7 @@ def test_two_heterogeneous_buffers():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 5
     buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
 
@@ -272,7 +272,7 @@ def test_over_injection():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) ==\
-        5 + bool(configuration['language'] != 'C')
+        6 + bool(configuration['language'] != 'C')
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -442,7 +442,7 @@ def test_subdims():
     op1 = Operator(eqn, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
 
     op0.apply(time_M=nt-2)
@@ -474,7 +474,7 @@ def test_conddim_backwards():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -507,7 +507,7 @@ def test_conddim_backwards_multi_slots():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -544,7 +544,7 @@ def test_conddim_backwards_unstructured():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -589,7 +589,7 @@ def test_conddim_w_shifting():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -628,7 +628,7 @@ def test_multi_access():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 2
+    assert len(retrieve_iteration_tree(op1)) == 3
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -652,10 +652,10 @@ def test_issue_1901():
     op = Operator(eq, opt='buffering')
 
     trees = retrieve_iteration_tree(op)
-    assert len(trees) == 2
-    assert trees[1].root.dim is time
-    assert not trees[1].root.is_Parallel
-    assert trees[1].root.is_Sequential  # Obv
+    assert len(trees) == 3
+    assert trees[2].root.dim is time
+    assert not trees[2].root.is_Parallel
+    assert trees[2].root.is_Sequential  # Obv
 
 
 def test_everything():

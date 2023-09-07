@@ -142,7 +142,7 @@ class TestCodeGen(object):
         a_dense = Function(name='a_dense', grid=grid)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
-        op = Operator(eqn, openmp=False)
+        op = Operator(eqn, opt=('advanced', {'openmp': False}))
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_AbstractFunction
@@ -738,7 +738,7 @@ class TestApplyArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(f.forward, g + f), openmp=False)
+        op = Operator(Eq(f.forward, g + f), opt=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -1875,7 +1875,7 @@ class TestLoopScheduling(object):
 
         # No surprises here -- the third equation gets swapped with the second
         # one so as to be fused with the first equation
-        op0 = Operator(eqns0, openmp=True)
+        op0 = Operator(eqns0, opt=('advanced', {'openmp': True}))
         assert_structure(op0, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
         class DummyBarrier(sympy.Function, Barrier):
@@ -1884,14 +1884,14 @@ class TestLoopScheduling(object):
         eqns1 = list(eqns0)
         eqns1[1] = Eq(Symbol('dummy'), DummyBarrier(time))
 
-        op1 = Operator(eqns1, openmp=True)
+        op1 = Operator(eqns1, opt=('advanced', {'openmp': True}))
         assert_structure(op1, ['t,x,y,z', 't', 't,x,y,z'], 't,x,y,z,x,y,z')
 
         # Again, but now a swap is performed *before* the barrier so it's legal
         eqns2 = list(eqns0)
         eqns2.append(eqns1[1])
 
-        op2 = Operator(eqns2, openmp=True)
+        op2 = Operator(eqns2, opt=('advanced', {'openmp': True}))
         assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
 
     def test_array_shared_w_topofuse(self):
@@ -1913,7 +1913,7 @@ class TestLoopScheduling(object):
         # For thread-shared Arrays, WAR dependencies shouldn't prevent topo-fusion
         # opportunities, since they're not really WAR's as classic Lamport
         # theory would tag
-        op = Operator(eqns, openmp=True)
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
         assert_structure(op, ['x,y', 'i,x,y'], 'x,y,i,x,y')
 
     def test_topofuse_w_numeric_dim(self):

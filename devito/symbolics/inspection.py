@@ -42,7 +42,7 @@ def compare_ops(e1, e2):
     >>> compare_ops(u[x] + u[x+1], u[x] + u[y+10])
     True
     """
-    if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+    if type(e1) is type(e2) and len(e1.args) == len(e2.args):
         if e1.is_Atom:
             return True if e1 == e2 else False
         elif e1.is_Indexed and e2.is_Indexed:

@@ -11,7 +11,9 @@ from examples.seismic.viscoacoustic import viscoacoustic_setup
 presets = {
     'constant': {'preset': 'constant-isotropic'},
     'layers': {'preset': 'layers-isotropic', 'nlayers': 2},
+    'layers-fs': {'preset': 'layers-isotropic', 'nlayers': 2, 'fs': True},
     'layers-tti': {'preset': 'layers-tti', 'nlayers': 2},
+    'layers-tti-fs': {'preset': 'layers-tti', 'nlayers': 2, 'fs': True},
     'layers-viscoacoustic': {'preset': 'layers-viscoacoustic', 'nlayers': 2},
 }
 
@@ -27,6 +29,8 @@ class TestAdjoint(object):
         ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
         ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
         ('layers', (60, 70), 'OT4', 2, 2, acoustic_setup),
+        # 2D test with 2 layers and freesurface
+        ('layers-fs', (60, 70), 'OT2', 4, 2, acoustic_setup),
         # 3D tests with varying time and space orders
         ('layers', (60, 70, 80), 'OT2', 8, 2, acoustic_setup),
         ('layers', (60, 70, 80), 'OT2', 6, 2, acoustic_setup),
@@ -42,6 +46,8 @@ class TestAdjoint(object):
         ('layers-tti', (30, 35), 'centered', 4, 2, tti_setup),
         ('layers-tti', (30, 35), 'staggered', 8, 1, tti_setup),
         ('layers-tti', (30, 35), 'staggered', 4, 1, tti_setup),
+        # 2D TTI test with 2 layers and freesurface
+        ('layers-tti-fs', (30, 35), 'centered', 4, 2, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (30, 35, 40), 'centered', 8, 2, tti_setup),
         ('layers-tti', (30, 35, 40), 'centered', 4, 2, tti_setup),
@@ -123,6 +129,8 @@ class TestAdjoint(object):
         ('layers', (60, 70), 'OT2', 12, 2, acoustic_setup),
         ('layers', (60, 70), 'OT2', 8, 2, acoustic_setup),
         ('layers', (60, 70), 'OT2', 4, 2, acoustic_setup),
+        # 2D test with 2 layers and freesurface
+        ('layers-fs', (60, 70), 'OT2', 4, 2, acoustic_setup),
         # 3D tests with varying time and space orders
         ('layers', (40, 50, 30), 'OT2', 12, 2, acoustic_setup),
         ('layers', (40, 50, 30), 'OT2', 8, 2, acoustic_setup),
@@ -130,6 +138,8 @@ class TestAdjoint(object):
         # 2D TTI tests with varying space orders
         ('layers-tti', (20, 25), 'centered', 8, 2, tti_setup),
         ('layers-tti', (20, 25), 'centered', 4, 2, tti_setup),
+        # 2D TTI test with 2 layers and freesurface
+        ('layers-tti-fs', (20, 25), 'centered', 4, 2, tti_setup),
         # 3D TTI tests with varying space orders
         ('layers-tti', (20, 25, 30), 'centered', 8, 2, tti_setup),
         ('layers-tti', (20, 25, 30), 'centered', 4, 2, tti_setup),

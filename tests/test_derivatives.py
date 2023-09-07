@@ -197,7 +197,7 @@ class TestFD(object):
 
         s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert type(expr) == EvalDerivative
+        assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
 
@@ -217,7 +217,7 @@ class TestFD(object):
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
         s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert type(expr) == EvalDerivative
+        assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
 
@@ -521,8 +521,12 @@ class TestFD(object):
         grid = Grid((11, 11))
         f = Function(name="f", grid=grid, space_order=4)
         expr = f.dx + f + 1
+
         assert simplify(expr.subs(f.dx, 1) - (f + 2)) == 0
-        assert simplify(expr.subs(f, -1) - f.dx) == 0
+        # f.dx.subs(f, -1) = 0 and f.subs(f, -1) = -1 so
+        # expr.subs(f, -1) = 0
+        assert simplify(expr.subs(f, -1)) == 0
+        # f.dx -> 1, f -> -1
         assert simplify(expr.subs({f.dx: 1, f: -1}) - 1) == 0
 
         expr2 = expr.subs({'x0': 2})
@@ -534,6 +538,13 @@ class TestFD(object):
         # x0 and f.dx
         expr3 = expr.subs({f.dx: f.dx2, 'x0': 2})
         assert simplify(expr3 - (f.dx2(x0=2) + f + 1)) == 0
+
+        # Test substitution with reconstructed objects
+        x, y = grid.dimensions
+        f1 = f.func(x + 1, y)
+        f2 = f.func(x + 1, y)
+        assert f1 is not f2
+        assert f1.subs(f2, -1) == -1
 
 
 class TestTwoStageEvaluation(object):

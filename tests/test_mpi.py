@@ -7,6 +7,7 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
                     switchconfig, generic_derivative)
+from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
@@ -220,6 +221,7 @@ class TestDistributor(object):
         (256, ('*', '*', 2), (16, 8, 2)),
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
+    @pytest.mark.parallel(mode=[2])
     def test_custom_topology_v2(self, comm_size, topology, dist_topology):
         dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
@@ -514,6 +516,8 @@ class TestSparseFunction(object):
         assert np.all(sf.data == data[sf.local_indices]*2)
 
     @pytest.mark.parallel(mode=4)
+    @switchconfig(condition=isinstance(configuration['compiler'],
+                  (OneapiCompiler)), safe_math=True)
     def test_sparse_coords(self):
         grid = Grid(shape=(21, 31, 21), extent=(20, 30, 20))
         x, y, z = grid.dimensions
@@ -1492,6 +1496,8 @@ class TestOperatorAdvanced(object):
         assert np.all(f.data == 1.25)
 
     @pytest.mark.parallel(mode=4)
+    @switchconfig(condition=isinstance(configuration['compiler'],
+                  (OneapiCompiler)), safe_math=True)
     def test_injection_wodup_wtime(self):
         """
         Just like ``test_injection_wodup``, but using a SparseTimeFunction

@@ -340,8 +340,8 @@ class TestBuiltinsResult(object):
         f = TimeFunction(name='f', grid=grid)
         f.data[:] = np.arange(10000).reshape((100, 100))
 
-        assert np.isclose(norm(f),
-                          switchconfig(openmp=True)(norm)(f),
+        assert np.isclose(switchconfig(language='C')(norm)(f),
+                          switchconfig(language='openmp')(norm)(f),
                           rtol=1e-5)
 
     def test_inner_sparse(self):
@@ -490,7 +490,7 @@ class TestBuiltinsResult(object):
         assert v0 == v1
         assert v0 == v2
         assert v0 == v3
-        assert type(v0) == np.int16
-        assert type(v1) == np.int32
-        assert type(v2) == np.float32
-        assert type(v3) == np.float64
+        assert type(v0) is np.int16
+        assert type(v1) is np.int32
+        assert type(v2) is np.float32
+        assert type(v3) is np.float64

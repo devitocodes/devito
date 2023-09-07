@@ -418,6 +418,19 @@ class TestLifting(object):
                 for j in trees] == expected
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
 
+    def test_implicit_only(self):
+        grid = Grid(shape=(5, 5))
+        time = grid.time_dim
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        idimeq = Eq(Symbol('s'), 1, implicit_dims=time)
+
+        op = Operator([Eq(u.forward, u + 1.), idimeq])
+        trees = retrieve_iteration_tree(op)
+
+        assert len(trees) == 2
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+        assert trees[1].dimensions == [time]
+
 
 class TestAliases(object):
 
@@ -1110,7 +1123,7 @@ class TestAliases(object):
         expr = 1./(5.*dt*sqrt(a)*b/hx + 2.*dt**2*b**2*a/hx**2 + 3.)
         eq = Eq(e.forward, 2.*expr*sqrt(a) + 3.*expr + e*sqrt(a)).subs({x: xright})
 
-        op = Operator(eq, openmp=False)
+        op = Operator(eq, opt=('advanced', {'openmp': False}))
 
         # Check generated code
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
@@ -1764,7 +1777,7 @@ class TestAliases(object):
 
         eqn = Eq(p0.forward, update_p)
 
-        op = Operator(eqn, subs=grid.spacing_map, openmp=True)
+        op = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         bns, pbs = assert_blocking(op, {'x0_blk0'})
@@ -1810,7 +1823,7 @@ class TestAliases(object):
 
         eqn = Eq(p0.forward, update_p)
 
-        op = Operator(eqn, subs=grid.spacing_map, openmp=True)
+        op = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
@@ -1854,7 +1867,7 @@ class TestAliases(object):
 
         eqn = Eq(p0.forward, update_p)
 
-        op = Operator(eqn, subs=grid.spacing_map, openmp=True)
+        op = Operator(eqn, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
@@ -1921,7 +1934,7 @@ class TestAliases(object):
         eqns = [Eq(p0.forward, update_p),
                 Eq(m0.forward, update_m)]
 
-        op = Operator(eqns, subs=grid.spacing_map, openmp=True)
+        op = Operator(eqns, subs=grid.spacing_map, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         assert op._profiler._sections['section1'].sops == exp_ops
@@ -2604,6 +2617,16 @@ class TestAliases(object):
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 1
         assert op._profiler._sections['section0'].sops == 16
 
+    def test_issue_2163(self):
+        grid = Grid((3, 3))
+        z = grid.dimensions[-1]
+        mapper = {z: INT(abs(z-1))}
+
+        u = TimeFunction(name="u", grid=grid)
+        op = Operator(Eq(u.forward, u.dy.dy.subs(mapper),
+                         subdomain=grid.interior))
+        assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
+
 
 class TestIsoAcoustic(object):
 
@@ -2819,7 +2842,7 @@ class TestTTIv2(object):
 
         eqns = [Eq(u.forward, (2*u - u.backward) + s**2/m * (e * H2u + H1v)),
                 Eq(v.forward, (2*v - v.backward) + s**2/m * (d * H2v + H1v))]
-        op = Operator(eqns, openmp=True)
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
 
         # Check code generation
         _, pbs = assert_blocking(op, {'x0_blk0'})

@@ -38,6 +38,9 @@ from devito.logger import logger_registry, _set_log_level  # noqa
 from devito.mpi.routines import mpi_registry
 from devito.operator import profiler_registry, operator_registry
 
+# Apply monkey-patching while we wait for our patches to be upstreamed and released
+from devito.mpatches import *  # noqa
+
 
 from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
@@ -50,6 +53,7 @@ def reinit_compiler(val):
     """
     configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
                                        mpi=configuration['mpi'])
+    return val
 
 
 # Setup target platform and compiler
@@ -94,6 +98,9 @@ configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_com
 
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])
+
+# Select target device
+configuration.add('deviceid', -1, preprocessor=int, impacts_jit=False)
 
 
 def autotune_callback(val):  # noqa

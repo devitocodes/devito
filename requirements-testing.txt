@@ -2,3 +2,6 @@ pytest>=7.2,<8.0
 pytest-runner
 pytest-cov
 codecov
+flake8>=2.1.0
+nbval
+scipy

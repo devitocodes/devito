@@ -531,7 +531,7 @@ class TestNodeParallelism(object):
 
         eq = Eq(f.forward, f + 1)
 
-        op0 = Operator(eq, openmp=True)
+        op0 = Operator(eq, opt=('advanced', {'openmp': True}))
 
         # `nthreads` must appear among the Operator parameters
         assert op0.nthreads in op0.parameters

@@ -58,10 +58,10 @@ class TimeAxis(object):
         if not isinstance(num, int):
             raise TypeError("input argument must be of type int")
 
-        self.start = start
-        self.stop = stop
-        self.step = step
-        self.num = num
+        self.start = float(start)
+        self.stop = float(stop)
+        self.step = float(step)
+        self.num = int(num)
 
     def __str__(self):
         return "TimeAxis: start=%g, stop=%g, step=%g, num=%g" % \
@@ -110,7 +110,7 @@ class PointSource(SparseTimeFunction):
         kwargs['nt'] = kwargs['time_range'].num
 
         # Either `npoint` or `coordinates` must be provided
-        npoint = kwargs.get('npoint')
+        npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         if npoint is None:
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if coordinates is None:

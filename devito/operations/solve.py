@@ -73,9 +73,9 @@ def linsolve(expr, target, **kwargs):
         The symbol w.r.t. which the equation is rearranged. May be a `Function`
         or any other symbolic object.
     """
-    c = factorize_target(expr, target)
+    c, expr = factorize_target(expr, target)
     if c != 0:
-        return -expr.xreplace({target: 0})/c
+        return -expr/c
     raise SolveError("No linear solution found")
 
 
@@ -102,7 +102,7 @@ def _(expr):
 
 @singledispatch
 def factorize_target(expr, target):
-    return 1 if expr is target else 0
+    return (1, 0) if expr == target else (0, expr)
 
 
 @factorize_target.register(Add)
@@ -110,19 +110,31 @@ def factorize_target(expr, target):
 def _(expr, target):
     c = 0
     if not expr.has(target):
-        return c
+        return c, expr
 
+    args = []
     for a in expr.args:
-        c += factorize_target(a, target)
-    return c
+        c1, a1 = factorize_target(a, target)
+        c += c1
+        args.append(a1)
+
+    return c, expr.func(*args, evaluate=False)
 
 
 @factorize_target.register(Mul)
 def _(expr, target):
     if not expr.has(target):
-        return 0
+        return 0, expr
 
     c = 1
+    args = []
     for a in expr.args:
-        c *= a if not a.has(target) else factorize_target(a, target)
-    return c
+        if not a.has(target):
+            c *= a
+            args.append(a)
+        else:
+            c1, a1 = factorize_target(a, target)
+            c *= c1
+            args.append(a1)
+
+    return c, expr.func(*args, evaluate=False)
