@@ -7,7 +7,8 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer, prod
+from devito.tools import (UnboundedMultiTuple, as_tuple, filter_ordered,
+                          flatten, is_integer, prod)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -386,7 +387,13 @@ def decompose(ispace, d, block_dims):
             if any(i._depth < bd._depth for i in r if i.is_Block):
                 continue
 
-            relations.append(tuple(bd if i in d._defines else i for i in r))
+            # E.g., `r=(z, i0z)` -> `[i0z0_blk0, i0z0_blk0]`
+            v = [bd if i in d._defines else i for i in r]
+
+            # E.g., `v=[i0z0_blk0, i0z0_blk0]` -> `v=(i0z0_blk0,)`
+            v = tuple(filter_ordered(v))
+
+            relations.append(v)
 
     # 3: Make sure BlockDimensions at same depth stick next to each other
     # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`
