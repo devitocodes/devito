@@ -826,6 +826,62 @@ class TestDependenceAnalysis(object):
         scope = Scope(eqns)
         assert len(scope.d_all) == 1
 
+    def test_2194(self):
+        grid = Grid(shape=(3, ))
+        u = TimeFunction(name='u', grid=grid)
+
+        x = grid.dimensions[0]
+        h_x = x.spacing
+
+        eq_1 = Eq(u[0, x], 1)
+        eq_3 = Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])
+
+        op = Operator([eq_1, eq_3])
+        op.apply()
+
+        expected = np.array([[ 1., 1., 1.],
+                             [-1., 0., -1.]])
+
+        assert(np.all(u.data[:] == expected[:]))
+
+
+    @pytest.mark.parametrize('eqns', [
+        ['Eq(u0[0, y], 1)', 'Eq(u0[1, y], u0[0, y + 1])'],
+    ])
+    def test_2194_v2(self, eqns):
+        grid = Grid(shape=(2, 2))
+
+        u0 = Function(name='u0', grid=grid)
+        x, y = grid.dimensions
+
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = eval(e)
+
+        op = Operator(eqns)
+        op.apply()
+
+        expected = np.array([[1., 1.],
+                             [1., 0.]])
+        assert(np.all(u0.data[:] == expected[:]))
+
+    def test_2194_v3(self):
+        grid = Grid(shape=(3, 3))
+
+        u = Function(name='u', grid=grid)
+        x, y = grid.dimensions
+
+        eq0 = Eq(u[0, y], 1)
+        eq1 = Eq(u[1, y], u[0, 2])
+
+        op = Operator([eq0, eq1])
+        op.apply()    
+
+        expected = np.array([[1.,1.,1.],
+                             [1.,1.,1.],
+                             [0.,0.,0.]])
+        
+        assert(np.all(u.data[:] == expected[:]))
+
 
 class TestParallelismAnalysis(object):
 
@@ -954,7 +1010,7 @@ class TestParallelismAnalysis(object):
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [
-        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d]')
+        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d, x, y]')
     ])
     def test_dimension_sort(self, expr, expected):
         """
