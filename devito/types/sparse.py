@@ -791,7 +791,7 @@ class SparseFunction(AbstractSparseFunction):
 
     _sub_functions = ('coordinates',)
 
-    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates_data',)
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates',)
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -1014,8 +1014,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
-                   ('r', 'gridpoints_data', 'coordinates_data',
-                    'interpolation_coeffs_data'))
+                   ('r', 'gridpoints', 'coordinates',
+                    'interpolation_coeffs'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
