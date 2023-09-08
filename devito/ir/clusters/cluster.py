@@ -266,6 +266,9 @@ class Cluster(object):
         Derive the DataSpace of the Cluster from its expressions, IterationSpace,
         and Guards.
         """
+        if self.is_halo_touch:
+            return DataSpace([])
+
         accesses = detect_accesses(self.exprs)
 
         # Construct the `parts` of the DataSpace, that is a projection of the data
@@ -308,7 +311,8 @@ class Cluster(object):
 
             # Special case: if the factor of a ConditionalDimension has value 1,
             # then we can safely resort to the parent's Interval
-            intervals = intervals.promote(lambda d: d.is_Conditional and d.factor == 1)
+            key = lambda d: d.is_Conditional and d.factor == 1
+            intervals = intervals.promote(key)
 
             parts[f] = intervals
 
@@ -335,6 +339,7 @@ class Cluster(object):
         # Construct the `intervals` of the DataSpace, that is a global,
         # Dimension-centric view of the data space
         intervals = IntervalGroup.generate('union', *parts.values())
+
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
