@@ -835,11 +835,11 @@ def optimize_schedule_rotations(schedule, sregistry):
 
             # Extend `ispace` to iterate over rotations
             d1 = writeto[ridx+1].dim  # Note: we're by construction in-bounds here
-            intervals = IntervalGroup(Interval(cd, 0, 0), relations={(d, cd, d1)})
+            intervals = IntervalGroup(Interval(cd))
             rispace = IterationSpace(intervals, {cd: dsi}, {cd: Forward})
             aispace = i.ispace.zero(d)
             aispace = aispace.augment({d: mds + [ii]})
-            ispace = IterationSpace.union(rispace, aispace)
+            ispace = IterationSpace.union(rispace, aispace, relations={(d, cd, d1)})
 
             processed.append(ScheduledAlias(pivot, writeto, ispace, i.aliaseds,
                                             indicess, i.score))

@@ -14,7 +14,7 @@ from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, timed_pass)
+                          is_integer, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -29,6 +29,7 @@ def clusterize(exprs, **kwargs):
     clusters = [Cluster(e, e.ispace) for e in exprs]
 
     # Setup the IterationSpaces based on data dependence analysis
+    clusters = impose_total_ordering(clusters)
     clusters = Schedule().process(clusters)
 
     # Handle SteppingDimensions
@@ -47,6 +48,29 @@ def clusterize(exprs, **kwargs):
     clusters = Communications().process(clusters)
 
     return ClusterGroup(clusters)
+
+
+def impose_total_ordering(clusters):
+    """
+    Create a new sequence of Clusters whose IterationSpaces are totally ordered
+    according to a global set of relations.
+    """
+    global_relations = set().union(*[c.ispace.relations for c in clusters])
+    ordering = toposort(global_relations)
+
+    processed = []
+    for c in clusters:
+        key = lambda d: ordering.index(d)
+        try:
+            relations = {tuple(sorted(c.ispace.itdims, key=key))}
+        except ValueError:
+            # See issue #X
+            relations = c.ispace.relations
+        ispace = c.ispace.reorder(relations=relations)
+
+        processed.append(c.rebuild(ispace=ispace))
+
+    return processed
 
 
 class Schedule(QueueStateful):

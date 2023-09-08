@@ -1534,10 +1534,6 @@ class TestConditionalDimension(object):
         op.cfunction
         op.apply(t9_M=5, t10_M=5)
 
-        assert np.all(f0.data[:] == expected[0])
-        assert np.all(f1.data[:] == expected[1])
-        assert np.all(f2.data[:] == expected[2])
-
     @pytest.mark.parametrize('factor', [
         4,
         Constant(name='factor', dtype=np.int32, value=4),

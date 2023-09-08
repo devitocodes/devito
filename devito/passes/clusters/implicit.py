@@ -117,11 +117,10 @@ class LowerMultiSubDimensions(Queue):
             # The IterationSpace induced by the MultiSubDomain
             if dims:
                 intervals = [Interval(i) for i in dims]
+                ispaceN = IterationSpace(IntervalGroup(intervals), sub_iterators)
+
                 relations = (ispace0.itdims + dims, dims + ispace1.itdims)
-                ispaceN = IterationSpace(
-                    IntervalGroup(intervals, relations=relations), sub_iterators
-                )
-                ispace = IterationSpace.union(ispace0, ispaceN)
+                ispace = IterationSpace.union(ispace0, ispaceN, relations=relations)
             else:
                 ispaceN = None
                 ispace = ispace0
@@ -157,7 +156,7 @@ class LowerMultiSubDimensions(Queue):
                     tip = nxt
 
             if ispaceN:
-                ispace = IterationSpace.union(c.ispace, ispaceN)
+                ispace = IterationSpace.union(c.ispace, ispaceN, relations=relations)
                 processed.append(c.rebuild(ispace=ispace))
             else:
                 processed.append(c)

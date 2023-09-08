@@ -8,8 +8,8 @@ from sympy import Expr
 
 from devito.ir.support.utils import minimum, maximum
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
-                          flatten, frozendict, is_integer, toposort)
+from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple,
+                          filter_ordered, flatten, frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
@@ -294,23 +294,21 @@ class Interval(AbstractInterval):
 class IntervalGroup(PartialOrderTuple):
 
     """
-    A partially-ordered sequence of Intervals equipped with set-like
-    operations.
+    A sequence of Intervals equipped with set-like operations.
     """
 
     @classmethod
     def reorder(cls, items, relations):
         if not all(isinstance(i, AbstractInterval) for i in items):
-            raise ValueError("Cannot create an IntervalGroup from objects of type [%s]" %
+            raise ValueError("Cannot create IntervalGroup from objs of type [%s]" %
                              ', '.join(str(type(i)) for i in items))
+
         # The relations are between dimensions, not intervals. So we take
         # care of that here
         ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
         return sorted(items, key=lambda i: ordering.index(i.dim))
 
     def __eq__(self, o):
-        # No need to look at the relations -- if the partial ordering is the same,
-        # then the IntervalGroups are considered equal
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
 
     def __contains__(self, d):
@@ -342,7 +340,7 @@ class IntervalGroup(PartialOrderTuple):
         return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *interval_groups, relations=None):
+    def generate(cls, op, *interval_groups, relations=None):
         """
         Create a new IntervalGroup from the iterative application of an
         operation to some IntervalGroups.
@@ -355,8 +353,7 @@ class IntervalGroup(PartialOrderTuple):
         *interval_groups
             Input IntervalGroups.
         relations : tuple, optional
-            Relations to be used in the newly constructed IntervalGroup, in addition
-            to the ones inherited via each element in `interval_groups`.
+            Additional relations to build the new IntervalGroup.
 
         Examples
         --------
@@ -388,8 +385,7 @@ class IntervalGroup(PartialOrderTuple):
 
     def is_compatible(self, o):
         """
-        Two IntervalGroups are compatible iff they can be ordered according
-        to some common partial ordering.
+        Two IntervalGroups are compatible iff they can be totally ordered.
         """
         if set(self) != set(o):
             return False
@@ -400,7 +396,7 @@ class IntervalGroup(PartialOrderTuple):
             self.add(o)
             return True
         except ValueError:
-            # Cyclic dependence detected, there is no common partial ordering
+            # Cyclic dependence detected, there is no possible total ordering
             return False
 
     def _normalize(func):
@@ -437,12 +433,13 @@ class IntervalGroup(PartialOrderTuple):
         intervals = [i.relaxed if i.dim in d else i for i in self]
         return IntervalGroup(intervals, relations=self.relations)
 
-    def promote(self, cond):
+    def promote(self, cond, relations=None):
         intervals = IntervalGroup([i.promote(cond) for i in self],
-                                  relations=self.relations)
+                                  relations=relations)
 
-        # There could be duplicate Dimensions at this point, so we sum up the Intervals
-        # defined over the same Dimension to produce a well-defined IntervalGroup
+        # There could be duplicate Dimensions at this point, so we sum up the
+        # Intervals defined over the same Dimension to produce a well-defined
+        # IntervalGroup
         intervals = IntervalGroup.generate('add', intervals)
 
         return intervals
@@ -772,7 +769,7 @@ class IterationSpace(Space):
     def generate(self, op, *others, relations=None):
         if not others:
             return IterationSpace(IntervalGroup())
-        elif len(others) == 1:
+        elif len(others) == 1 and not relations:
             return others[0]
 
         intervals = [i.intervals for i in others]
@@ -916,6 +913,11 @@ class IterationSpace(Space):
             return None
 
         return self[:self.index(i.dim) + 1]
+
+    def reorder(self, relations):
+        intervals = IntervalGroup(self.intervals, relations=relations)
+
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def is_compatible(self, other):
         """

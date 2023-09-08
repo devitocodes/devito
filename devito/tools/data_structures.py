@@ -305,8 +305,10 @@ class PartialOrderTuple(tuple):
         items = as_tuple(items)
         if relations:
             items = cls.reorder(items, relations)
-        obj = super(PartialOrderTuple, cls).__new__(cls, items)
-        obj._relations = set(tuple(i) for i in as_tuple(relations))
+
+        obj = super().__new__(cls, items)
+        obj._relations = frozenset(tuple(i) for i in as_tuple(relations))
+
         return obj
 
     @classmethod

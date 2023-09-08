@@ -404,7 +404,11 @@ def decompose(ispace, d, block_dims):
             continue
         for bd in block_dims:
             if i._depth < bd._depth:
+                # E.g. `(zb, y)`
                 relations.append((i, bd))
+            elif i._depth == bd._depth:
+                # E.g. `(y, z)` (i.e., honour input ordering)
+                relations.append((bd, i))
 
     intervals = IntervalGroup(intervals, relations=relations)
 
