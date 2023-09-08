@@ -359,8 +359,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         self._is_const = kwargs.get('is_const', False)
 
     def __eq__(self, other):
-        return (super().__eq__(other) and
-                isinstance(other, AbstractSymbol) and
+        return (isinstance(other, AbstractSymbol) and
+                super().__eq__(other) and
                 self.dtype is other.dtype and
                 self.is_const == other.is_const)
 
