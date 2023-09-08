@@ -242,8 +242,8 @@ def test_precomputed_injection_time(r):
     sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
                                        gridpoints=gridpoints, nt=nt,
                                        interpolation_coeffs=interpolation_coeffs)
-
-    expr = sf.inject(m, Float(1.))
+    sf.data.fill(1.)
+    expr = sf.inject(m, sf)
 
     op = Operator(expr)
 
@@ -689,7 +689,6 @@ def test_msf_interpolate():
 
     eqn_inject = sf.inject(field=u, expr=sf)
     op2 = Operator(eqn_inject)
-
     op2(time_m=0, time_M=4)
 
     # There should be 4 points touched for each source point
