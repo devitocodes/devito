@@ -839,7 +839,7 @@ class TestDependenceAnalysis(object):
         op = Operator([eq_1, eq_3])
         op.apply()
 
-        expected = np.array([[ 1., 1., 1.],
+        expected = np.array([[1., 1., 1.],
                              [-1., 0., -1.]])
 
         assert(np.all(u.data[:] == expected[:]))
@@ -874,13 +874,14 @@ class TestDependenceAnalysis(object):
         eq1 = Eq(u[1, y], u[0, 2])
 
         op = Operator([eq0, eq1])
-        op.apply()    
+        op.apply()
 
-        expected = np.array([[1.,1.,1.],
-                             [1.,1.,1.],
-                             [0.,0.,0.]])
-        
+        expected = np.array([[1., 1., 1.],
+                             [1., 1., 1.],
+                             [0., 0., 0.]])
+
         assert(np.all(u.data[:] == expected[:]))
+
 
 class TestParallelismAnalysis(object):
 

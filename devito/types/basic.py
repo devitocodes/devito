@@ -1245,8 +1245,15 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
         # Indices after substitutions
-        indices = [sympy.sympify(a.subs(d, d - o).xreplace(s)) for a, d, o, s in
-                   zip(self.args, self.dimensions, self.origin, subs)]
+        indices = []
+        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
+            if d in a.free_symbols:
+                # Shift by origin d -> d - o.
+                indices.append(sympy.sympify(a.subs(d, d - o).xreplace(s)))
+            else:
+                # Dimension has been removed, e.g. u[10], plain shift by origin
+                indices.append(sympy.sympify(a - o).xreplace(s))
+
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
 
