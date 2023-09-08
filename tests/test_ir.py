@@ -882,7 +882,6 @@ class TestDependenceAnalysis(object):
         
         assert(np.all(u.data[:] == expected[:]))
 
-
 class TestParallelismAnalysis(object):
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
