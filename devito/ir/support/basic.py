@@ -237,8 +237,9 @@ class TimedAccess(IterationInstance, AccessMode):
         # which might require expensive comparisons of Vector entries (i.e.,
         # SymPy expressions)
 
-        return (self.access is other.access and
-                self.mode == other.mode and
+        return (self.mode == other.mode and
+                self.timestamp == other.timestamp and
+                self.access == other.access and
                 self.ispace == other.ispace)
 
     def __hash__(self):
@@ -925,18 +926,21 @@ class Scope(object):
         return "\n".join([out.format(i.name, w, '', r)
                           for i, r, w in zip(tracked, reads, writes)])
 
-    @cached_property
-    def reads_extremaed(self):
+    @memoized_meth
+    def getreads_extremaed(self, f):
         """
-        A view of the Scope's reads in which StencilDimensions are replaced
+        A view of the Scope's reads in which the StencilDimensions are replaced
         with their extrema.
         """
-        ret = {f: [] for f in self.reads}
-        for f, v in self.reads.items():
-            for i in v:
-                for j in set(extrema(i.access)):
-                    ret[f].append(TimedAccess(j, i.mode, i.timestamp, i.ispace))
-        return ret
+        ret = set()
+
+        if f.is_Symbol:
+            return self.reads.get(f, ret)
+        else:
+            for i in self.reads.get(f, []):
+                for j in extrema(i.access):
+                    ret.add(TimedAccess(j, i.mode, i.timestamp, i.ispace))
+            return ret
 
     @cached_property
     def accesses(self):
@@ -963,7 +967,7 @@ class Scope(object):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads_extremaed.get(k, []):
+                for r in self.getreads_extremaed(k):
                     dependence = Dependence(w, r)
 
                     if dependence.is_imaginary:
@@ -993,7 +997,7 @@ class Scope(object):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads_extremaed.get(k, []):
+                for r in self.getreads_extremaed(k):
                     dependence = Dependence(r, w)
 
                     if dependence.is_imaginary:
