@@ -144,6 +144,14 @@ class Dimension(ArgProvider):
     def __str__(self):
         return self.name
 
+    def _hashable_content(self):
+        # No need to make dtype and is_const part of the hash as they're
+        # always the same in all kinds of Dimension. This makes __eq__ and
+        # other comparison methods a bit more robust, since they rely on
+        # _hashable_content, and e.g. np.int32 < np.int32 would raise
+        # a stupid, avoidable exception
+        return sympy.Symbol._hashable_content(self)
+
     @property
     def spacing(self):
         """Symbol representing the physical spacing along the Dimension."""
