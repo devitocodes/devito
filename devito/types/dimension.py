@@ -298,13 +298,19 @@ class Dimension(ArgProvider):
         # may represent sets of legal values. If that's the case, here we just
         # pick one. Note that we sort for determinism
         try:
-            loc_minv = sorted(loc_minv).pop(0)
-        except TypeError:
-            pass
+            loc_minv = loc_minv.start
+        except AttributeError:
+            try:
+                loc_minv = sorted(loc_minv).pop(0)
+            except TypeError:
+                pass
         try:
-            loc_maxv = sorted(loc_maxv).pop(0)
-        except TypeError:
-            pass
+            loc_maxv = loc_maxv.start
+        except AttributeError:
+            try:
+                loc_maxv = sorted(loc_maxv).pop(0)
+            except TypeError:
+                pass
 
         return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
@@ -853,8 +859,7 @@ class ConditionalDimension(DerivedDimension):
             factor = defaults[dim._factor.name] = dim._factor.data
         except AttributeError:
             factor = dim._factor
-        defaults[dim.parent.max_name] = \
-            frozenset(range(factor*(size - 1), factor*(size)))
+        defaults[dim.parent.max_name] = range(1, factor*(size))
 
         return defaults
 
@@ -977,8 +982,9 @@ class ModuloDimension(DerivedDimension):
     def bound_symbols(self):
         return set(self.parent.bound_symbols)
 
-    def _arg_defaults(self, **kwargs):
-        return {}
+    def _arg_defaults(self, alias=None, **kwargs):
+        dim = alias or self
+        return {dim.parent.size_name: range(self.symbolic_size, np.iinfo(np.int64).max)}
 
     def _arg_values(self, *args, **kwargs):
         return {}
@@ -1446,7 +1452,7 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, _min=None, **kwargs):
+    def _arg_defaults(self, _min=None, size=None, **kwargs):
         """
         A map of default argument values defined by this dimension.
 
@@ -1460,7 +1466,10 @@ class SteppingDimension(DerivedDimension):
         A SteppingDimension does not know its max point and therefore
         does not have a size argument.
         """
-        return {self.parent.min_name: _min}
+        args = {self.parent.min_name: _min}
+        if size:
+            args[self.parent.size_name] = range(size-1, np.iinfo(np.int32).max)
+        return args
 
     def _arg_values(self, *args, **kwargs):
         """

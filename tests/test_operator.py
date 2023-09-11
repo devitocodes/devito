@@ -707,6 +707,8 @@ class TestApplyArguments(object):
             if isinstance(v, (Function, SparseFunction)):
                 condition = v._C_as_ndarray(arguments[name])[v._mask_domain] == v.data
                 condition = condition.all()
+            elif isinstance(arguments[name], range):
+                condition = arguments[name].start <= v < arguments[name].stop
             else:
                 condition = arguments[name] == v
 
@@ -1803,7 +1805,7 @@ class TestLoopScheduling(object):
         # `trees` than 6
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 5
+        assert len(trees) == 6
         # Time loop not shared due to the WAR
         assert trees[0][0].dim is time and trees[0][0] is trees[1][0]  # this IS shared
         assert trees[1][0] is not trees[3][0]
@@ -1813,7 +1815,7 @@ class TestLoopScheduling(object):
         eqn2 = sf1.inject(u1.forward, expr=sf1)
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 5
+        assert len(trees) == 6
         assert all(trees[0][0] is i[0] for i in trees)
 
     def test_scheduling_with_free_dims(self):

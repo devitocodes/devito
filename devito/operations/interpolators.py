@@ -155,7 +155,19 @@ class WeightedInterpolator(GenericInterpolator):
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in self._gdims]
 
-        return DimensionTuple(*dims, getters=self._gdims)
+        # Make radius dimension conditional to avoid OOB
+        rdims = []
+        pos = self.sfunction._position_map.values()
+
+        for (d, rd, p) in zip(self._gdims, dims, pos):
+            # Add conditional to avoid OOB
+            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
+            cond = sympy.And(lb, ub, evaluate=False)
+            rdims.append(ConditionalDimension(rd.name, rd, condition=cond,
+                                              indirect=True))
+
+        return DimensionTuple(*rdims, getters=self._gdims)
 
     def _augment_implicit_dims(self, implicit_dims):
         if self.sfunction._sparse_position == -1:
@@ -177,13 +189,6 @@ class WeightedInterpolator(GenericInterpolator):
         mapper = {}
         pos = self.sfunction._position_map.values()
 
-        for ((di, d), rd, p) in zip(enumerate(self._gdims), self._rdim, pos):
-            # Add conditional to avoid OOB
-            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
-            cond = sympy.And(lb, ub, evaluate=False)
-            mapper[d] = ConditionalDimension(rd.name, rd, condition=cond, indirect=True)
-
         # Temporaries for the position
         temps = self._positions(implicit_dims)
 
@@ -191,10 +196,10 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
+        mapper = self._rdim._getters
         idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
-        idx_subs.update(dict(zip(self._rdim, mapper.values())))
 
         return idx_subs, temps
 
@@ -290,7 +295,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims) + self._rdim
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))
@@ -380,5 +385,6 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        return Mul(*[self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd.symbolic_min})
+        return Mul(*[self.interpolation_coeffs.subs({ddim: ri,
+                                                     cdim: rd-rd.parent.symbolic_min})
                      for (ri, rd) in enumerate(self._rdim)])

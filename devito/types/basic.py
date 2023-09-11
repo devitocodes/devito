@@ -838,12 +838,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         newobj._dimensions = dimensions
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(*args, **kwargs)
 
         # All objects created off an existing AbstractFunction `f` (e.g.,
         # via .func, or .subs, such as `f(x + 1)`) keep a reference to `f`
         # through the `function` field
         newobj.function = function or newobj
+
+        # Initialization
+        newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
 
