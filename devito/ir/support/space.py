@@ -304,9 +304,13 @@ class IntervalGroup(Ordering):
             raise ValueError("Cannot create IntervalGroup from objs of type [%s]" %
                              ', '.join(str(type(i)) for i in items))
 
-        # The relations are between dimensions, not intervals. So we take
-        # care of that here
-        ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
+        if len(relations) == 1:
+            # Special case: avoid expensive topological sorting if possible
+            relation, = relations
+            ordering = filter_ordered(list(relation) + [i.dim for i in items])
+        else:
+            ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
+
         return sorted(items, key=lambda i: ordering.index(i.dim))
 
     @classmethod
