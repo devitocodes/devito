@@ -13,7 +13,8 @@ from devito.tools import (Ordering, Stamp, as_list, as_tuple, filter_ordered,
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any']
+           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
+           'null_ispace']
 
 
 # The default Stamp, used by all new Intervals
@@ -989,3 +990,6 @@ class IterationSpace(Space):
     @cached_property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
+
+
+null_ispace = IterationSpace([])

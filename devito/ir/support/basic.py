@@ -3,7 +3,7 @@ from itertools import chain, product
 from cached_property import cached_property
 from sympy import S
 
-from devito.ir.support.space import Backward, IterationSpace
+from devito.ir.support.space import Backward, IterationSpace, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
@@ -218,12 +218,12 @@ class TimedAccess(IterationInstance, AccessMode):
         AccessMode.__init__(obj, mode=mode)
         return obj
 
-    def __init__(self, access, mode, timestamp, ispace=None):
+    def __init__(self, access, mode, timestamp, ispace=null_ispace):
         assert is_integer(timestamp)
 
         self.access = access
         self.timestamp = timestamp
-        self.ispace = ispace or IterationSpace([])
+        self.ispace = ispace
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'

@@ -8,7 +8,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
                                DataSpace, Guards, Properties, Scope, detect_accesses,
                                detect_io, normalize_properties, normalize_syncs,
-                               minimum, maximum)
+                               minimum, maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
@@ -41,10 +41,8 @@ class Cluster(object):
         The halo exchanges required by the Cluster.
     """
 
-    def __init__(self, exprs, ispace=None, guards=None, properties=None, syncs=None,
-                 halo_scheme=None):
-        ispace = ispace or IterationSpace([])
-
+    def __init__(self, exprs, ispace=null_ispace, guards=None, properties=None,
+                 syncs=None, halo_scheme=None):
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
         self._guards = Guards(guards or {})
