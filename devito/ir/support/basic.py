@@ -8,10 +8,10 @@ from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_affine, q_routine, search, uxreplace)
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
-                          memoized_meth, memoized_generator)
+from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
+                          flatten, memoized_meth, memoized_generator)
 from devito.types import (Barrier, ComponentAccess, Dimension, DimensionTuple,
-                          Jump, Symbol)
+                          Function, Jump, Symbol, Temp, TempArray, TBArray)
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -820,26 +820,19 @@ class Scope(object):
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
-        exprs = as_tuple(exprs)
+        self.exprs = as_tuple(exprs)
 
-        self.reads = {}
-        self.writes = {}
+        # A set of rules to drive the collection of dependencies
+        self.rules = as_tuple(rules)
+        assert all(callable(i) for i in self.rules)
 
-        self.initialized = set()
-
-        for i, e in enumerate(exprs):
-            # Reads
-            terminals = retrieve_accesses(e.rhs, deep=True)
-            try:
-                terminals.update(retrieve_accesses(e.lhs.indices))
-            except AttributeError:
-                pass
-            for j in terminals:
-                v = self.reads.setdefault(j.function, [])
-                mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
-                v.append(TimedAccess(j, mode, i, e.ispace))
-
-            # Write
+    @cached_property
+    def writes(self):
+        """
+        Create a mapper from functions to write accesses.
+        """
+        ret = {}
+        for i, e in enumerate(self.exprs):
             terminals = retrieve_accesses(e.lhs)
             if q_routine(e.rhs):
                 try:
@@ -848,47 +841,122 @@ class Scope(object):
                     # E.g., foreign routines, such as `cos` or `sin`
                     pass
             for j in terminals:
-                v = self.writes.setdefault(j.function, [])
-                mode = 'WR' if e.is_Reduction else 'W'
+                v = ret.setdefault(j.function, [])
+                if e.is_Reduction:
+                    mode = 'WR'
+                else:
+                    mode = 'W'
                 v.append(TimedAccess(j, mode, i, e.ispace))
+
+        # Objects altering the control flow (e.g., synchronization barriers,
+        # break statements, ...) are converted into mock dependences
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, (Barrier, Jump)):
+                ret.setdefault(mocksym, []).append(
+                    TimedAccess(mocksym, 'W', i, e.ispace)
+                )
+
+        return ret
+
+    @memoized_generator
+    def reads_explicit_gen(self):
+        """
+        Generate all explicit reads. These are the read accesses to the
+        AbstractFunctions and Symbols appearing in the Scope's symbolic
+        expressions.
+        """
+        for i, e in enumerate(self.exprs):
+            # Reads
+            terminals = retrieve_accesses(e.rhs, deep=True)
+            try:
+                terminals.update(retrieve_accesses(e.lhs.indices))
+            except AttributeError:
+                pass
+            for j in terminals:
+                if j.function is e.lhs.function and e.is_Reduction:
+                    mode = 'RR'
+                else:
+                    mode = 'R'
+                yield TimedAccess(j, mode, i, e.ispace)
 
             # If a reduction, we got one implicit read
             if e.is_Reduction:
-                v = self.reads.setdefault(e.lhs.function, [])
-                v.append(TimedAccess(e.lhs, 'RR', i, e.ispace))
-
-            # If writing to a scalar, we have an initialization
-            if not e.is_Reduction and e.is_scalar:
-                self.initialized.add(e.lhs.function)
+                yield TimedAccess(e.lhs, 'RR', i, e.ispace)
 
             # Look up ConditionalDimensions
             for v in e.conditionals.values():
                 for j in retrieve_accesses(v):
-                    v = self.reads.setdefault(j.function, [])
-                    v.append(TimedAccess(j, 'R', -1, e.ispace))
+                    yield TimedAccess(j, 'R', -1, e.ispace)
 
-        # The iteration symbols too
-        dimensions = set().union(*[e.dimensions for e in exprs])
+    @memoized_generator
+    def reads_implicit_gen(self):
+        """
+        Generate all implicit reads. These are for examples the reads accesses
+        to the iteration symbols bounded to the Dimensions used in the Scope's
+        symbolic expressions.
+        """
+        # The iteration symbols
+        dimensions = set().union(*[e.dimensions for e in self.exprs])
         for d in dimensions:
             for i in d.free_symbols | d.bound_symbols:
-                v = self.reads.setdefault(i.function, [])
-                v.append(TimedAccess(i, 'R', -1))
+                yield TimedAccess(i, 'R', -1)
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
-        for i, e in enumerate(exprs):
+        for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, (Barrier, Jump)):
-                self.writes.setdefault(mocksym, []).append(
-                    TimedAccess(mocksym, 'W', i, e.ispace)
-                )
-                self.reads.setdefault(mocksym, []).extend([
-                    TimedAccess(mocksym, 'R', max(i, 0), e.ispace),
-                    TimedAccess(mocksym, 'R', i+1, e.ispace),
-                ])
+                yield TimedAccess(mocksym, 'R', max(i, 0), e.ispace)
+                yield TimedAccess(mocksym, 'R', i+1, e.ispace)
 
-        # A set of rules to drive the collection of dependencies
-        self.rules = as_tuple(rules)
-        assert all(callable(i) for i in self.rules)
+    @memoized_generator
+    def reads_gen(self):
+        """
+        Generate all read accesses.
+        """
+        # NOTE: The reason to keep the explicit and implict reads separated
+        # is efficiency. Sometimes we wish to extract all reads to a given
+        # AbstractFunction, and we know that by construction these can't
+        # appear among the implicit reads
+        return chain(self.reads_explicit_gen(), self.reads_implicit_gen())
+
+    @memoized_generator
+    def reads_smart_gen(self, f):
+        """
+        Generate all read access to a given function.
+
+        StencilDimensions, if any, are replaced with their extrema.
+
+        Notes
+        -----
+        The implementation is smart, in the sense that, depending on the
+        given function type, it will not necessarily look everywhere inside
+        the scope to retrieve the corresponding read accesses. Instead, it
+        will only look in the places where the given type is expected to
+        be found. For example, a DiscreteFunction would never appear among
+        the iteration symbols.
+        """
+        if isinstance(f, (Function, Temp, TempArray, TBArray)):
+            for i in self.reads_explicit_gen():
+                if f is i.function:
+                    for j in extrema(i.access):
+                        yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
+
+        else:
+            for i in self.reads_gen():
+                if f is i.function:
+                    yield i
+
+    @cached_property
+    def reads(self):
+        """
+        Create a mapper from functions to read accesses.
+        """
+        return as_mapper(self.reads_gen(), key=lambda i: i.function)
+
+    @cached_property
+    def initialized(self):
+        return frozenset(e.lhs.function for e in self.exprs
+                         if not e.is_Reduction and e.is_scalar)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -926,22 +994,6 @@ class Scope(object):
         return "\n".join([out.format(i.name, w, '', r)
                           for i, r, w in zip(tracked, reads, writes)])
 
-    @memoized_meth
-    def getreads_extremaed(self, f):
-        """
-        A view of the Scope's reads in which the StencilDimensions are replaced
-        with their extrema.
-        """
-        ret = set()
-
-        if f.is_Symbol:
-            return self.reads.get(f, ret)
-        else:
-            for i in self.reads.get(f, []):
-                for j in extrema(i.access):
-                    ret.add(TimedAccess(j, i.mode, i.timestamp, i.ispace))
-            return ret
-
     @cached_property
     def accesses(self):
         groups = list(self.reads.values()) + list(self.writes.values())
@@ -967,7 +1019,7 @@ class Scope(object):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.getreads_extremaed(k):
+                for r in self.reads_smart_gen(k):
                     dependence = Dependence(w, r)
 
                     if dependence.is_imaginary:
@@ -997,7 +1049,7 @@ class Scope(object):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.getreads_extremaed(k):
+                for r in self.reads_smart_gen(k):
                     dependence = Dependence(r, w)
 
                     if dependence.is_imaginary:
