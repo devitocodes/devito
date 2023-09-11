@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from functools import reduce
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
+import sys
 import types
 
 import numpy as np
@@ -13,6 +14,11 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
            'humanbytes', 'contains_val']
+
+
+# Some utils run faster with Python>=3.7
+vi = sys.version_info
+py_ge_37 = (vi.major, vi.minor) >= (3, 7)
 
 
 def prod(iterable, initial=1):
@@ -157,32 +163,49 @@ def single_or(l):
     return any(i) and not any(i)
 
 
-def filter_ordered(elements, key=None):
-    """
-    Filter elements in a list while preserving order.
+if py_ge_37:
+    def filter_ordered(elements, key=None):
+        # This method exploits the fact that dictionary keys are unique and ordered
+        # (since Python 3.7). It's concise and often faster for larger lists
 
-    Parameters
-    ----------
-    key : callable, optional
-        Conversion key used during equality comparison.
-    """
-    if isinstance(elements, types.GeneratorType):
-        elements = list(elements)
-    seen = set()
-    if key is None:
-        try:
-            unordered, inds = np.unique(elements, return_index=True)
-            return unordered[np.argsort(inds)].tolist()
-        except:
-            return sorted(list(set(elements)), key=elements.index)
-    else:
-        ret = []
-        for e in elements:
-            k = key(e)
-            if k not in seen:
-                ret.append(e)
-                seen.add(k)
-        return ret
+        if isinstance(elements, types.GeneratorType):
+            elements = list(elements)
+
+        if key is None:
+            return list(dict.fromkeys(elements))
+        else:
+            return list(dict(zip([key(i) for i in elements], elements)).values())
+
+else:
+    def filter_ordered(elements, key=None):
+        if isinstance(elements, types.GeneratorType):
+            elements = list(elements)
+
+        seen = set()
+        if key is None:
+            try:
+                unordered, inds = np.unique(elements, return_index=True)
+                return unordered[np.argsort(inds)].tolist()
+            except:
+                return sorted(list(set(elements)), key=elements.index)
+        else:
+            ret = []
+            for e in elements:
+                k = key(e)
+                if k not in seen:
+                    ret.append(e)
+                    seen.add(k)
+            return ret
+
+
+filter_ordered.__doc__ = """\
+Filter elements in a list while preserving order.
+
+Parameters
+----------
+key : callable, optional
+    Conversion key used during equality comparison.
+"""
 
 
 def filter_sorted(elements, key=None):
