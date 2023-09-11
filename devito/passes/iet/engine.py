@@ -5,6 +5,7 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
+from devito.mpi.distributed import MPINeighborhood
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
                           Temp)
@@ -316,6 +317,11 @@ def _(i, mapper, sregistry):
     v = i._rebuild(name)
 
     mapper[i] = v
+
+
+@abstract_object.register(MPINeighborhood)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild()
 
 
 @abstract_object.register(BlockDimension)
