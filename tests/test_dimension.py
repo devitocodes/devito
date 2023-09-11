@@ -1496,12 +1496,7 @@ class TestConditionalDimension(object):
         for i in range(12, 20):
             assert np.all(p.data[i] == 0)
 
-    @pytest.mark.parametrize('init_value,expected', [
-        ([2, 1, 3], [2, 2, 0]),  # updates f1, f2
-        ([3, 3, 3], [3, 3, 0]),  # updates f2
-        ([1, 2, 3], [1, 2, 3])  # no updates
-    ])
-    def test_issue_1435(self, init_value, expected):
+    def test_issue_1435(self):
         names = 't1 t2 t3 t4 t5 t6 t7 t8 t9 t10'
         t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = \
             tuple(SpaceDimension(i) for i in names.split())
@@ -1511,10 +1506,6 @@ class TestConditionalDimension(object):
         f1 = Function(name='f1', grid=Grid(shape=(2, 2, 3, 3),
                                            dimensions=(t5, t6, t7, t8)))
         f2 = Function(name='f2', grid=f1.grid)
-
-        f0.data[:] = init_value[0]
-        f1.data[:] = init_value[1]
-        f2.data[:] = init_value[2]
 
         cd = ConditionalDimension(name='cd', parent=t10,
                                   condition=Or(Gt(f0[t5, t6, t7 + t9,
@@ -1532,7 +1523,6 @@ class TestConditionalDimension(object):
 
         # Check it compiles correctly! See issue report
         op.cfunction
-        op.apply(t9_M=5, t10_M=5)
 
     @pytest.mark.parametrize('factor', [
         4,

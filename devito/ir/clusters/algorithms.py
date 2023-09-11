@@ -66,7 +66,7 @@ def impose_total_ordering(clusters):
         except ValueError:
             # See issue #X
             relations = c.ispace.relations
-        ispace = c.ispace.reorder(relations=relations)
+        ispace = c.ispace.reorder(relations=relations, mode='total')
 
         processed.append(c.rebuild(ispace=ispace))
 
