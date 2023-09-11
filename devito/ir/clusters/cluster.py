@@ -259,9 +259,6 @@ class Cluster(object):
         Derive the DataSpace of the Cluster from its expressions, IterationSpace,
         and Guards.
         """
-        if self.is_halo_touch:
-            return DataSpace([])
-
         accesses = detect_accesses(self.exprs)
 
         # Construct the `parts` of the DataSpace, that is a projection of the data
@@ -357,6 +354,10 @@ class Cluster(object):
         reads, writes = detect_io(self.exprs, relax=True)
         accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
 
+        # Ordering isn't important at this point, so returning an unordered
+        # collection makes the caller's life easier
+        uispace = self.ispace.reorder(mode='unordered')
+
         ret = {}
         for i, mode in accesses:
             if not i.is_AbstractFunction:
@@ -366,7 +367,8 @@ class Cluster(object):
                 intervals = self.dspace.parts[i]
 
                 # Assume that invariant dimensions always cause new loads/stores
-                invariants = self.ispace.intervals.drop(intervals.dimensions)
+                invariants = uispace.intervals.drop(intervals.dimensions)
+
                 intervals = intervals.generate('union', invariants, intervals)
 
                 # Bundles impact depends on the number of components
@@ -378,7 +380,8 @@ class Cluster(object):
                 for n in range(v):
                     ret[(i, mode, n)] = intervals
             else:
-                ret[(i, mode, 0)] = self.ispace.intervals
+                ret[(i, mode, 0)] = uispace.intervals
+
         return ret
 
 

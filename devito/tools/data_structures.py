@@ -10,8 +10,7 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'PartialOrderTuple', 'DAG', 'frozendict',
-           'UnboundedMultiTuple']
+           'OrderedSet', 'Ordering', 'DAG', 'frozendict', 'UnboundedMultiTuple']
 
 
 class Bunch(object):
@@ -286,7 +285,7 @@ class OrderedSet(OrderedDict, MutableSet):
     union = property(lambda self: self.__or__)
 
 
-class PartialOrderTuple(tuple):
+class Ordering(tuple):
 
     """
     A tuple whose elements are ordered according to a set of relations.
@@ -296,18 +295,31 @@ class PartialOrderTuple(tuple):
     items : object or iterable of objects
         The elements of the tuple.
     relations : iterable of tuples, optional
-        One or more binary relations between elements in ``items``. If not
-        provided, then ``items`` is interpreted as a totally ordered sequence.
+        One or more n-ary relations between the elements in `items`. If not
+        provided, then `items` is interpreted as a totally ordered sequence.
         If provided, then a (partial) ordering is computed and all elements in
-        ``items`` for which a relation is not provided are appended.
+        `items` for which a relation is not provided are appended.
+    mode : str, optional
+        If 'total' (default), the resulting object is interpreted as a totally
+        ordered sequence; the object's relations are simplified away and no
+        subsequent operation involving the Ordering will ever be able to alter
+        the obtained sequence. If 'partial', the outcome is a partially ordered
+        sequence; the relations as provided by the user are preserved, which
+        leaves room for further reordering upon future operations. If 'unordered',
+        the `relations` are ignored and the resulting object degenerates to an
+        unordered collection.
     """
-    def __new__(cls, items=None, relations=None):
+    def __new__(cls, items=None, relations=None, mode='total'):
+        assert mode in ('total', 'partial', 'unordered')
+
         items = as_tuple(items)
         if relations:
             items = cls.reorder(items, relations)
 
         obj = super().__new__(cls, items)
-        obj._relations = frozenset(tuple(i) for i in as_tuple(relations))
+
+        obj._relations = frozenset(cls.simplify_relations(relations, items, mode))
+        obj._mode = mode
 
         return obj
 
@@ -315,19 +327,30 @@ class PartialOrderTuple(tuple):
     def reorder(cls, items, relations):
         return filter_ordered(toposort(relations) + list(items))
 
+    @classmethod
+    def simplify_relations(cls, relations, items, mode):
+        if mode == 'total':
+            return [tuple(items)]
+        elif mode == 'partial':
+            return [tuple(i) for i in as_tuple(relations)]
+        else:
+            return []
+
     def __eq__(self, other):
-        return super(PartialOrderTuple, self).__eq__(other) and\
-            self.relations == other.relations
+        return (super().__eq__(other) and
+                self.relations == other.relations and
+                self.mode == other.mode)
 
     def __hash__(self):
-        return hash(*([i for i in self] + list(self.relations)))
+        return hash(*([i for i in self] + list(self.relations) + [self.mode]))
 
     @property
     def relations(self):
         return self._relations
 
-    def generate_ordering(self):
-        raise NotImplementedError
+    @property
+    def mode(self):
+        return self._mode
 
 
 class DAG(object):

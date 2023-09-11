@@ -178,8 +178,8 @@ class LoweredEq(IREq):
                 iterators.setdefault(d, set())
 
         # Construct the IterationSpace
-        intervals = IntervalGroup([Interval(d, 0, 0) for d in iterators],
-                                  relations=ordering.relations)
+        intervals = IntervalGroup([Interval(d) for d in iterators],
+                                  relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
         # Construct the conditionals and replace the ConditionalDimensions in `expr`
