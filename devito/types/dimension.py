@@ -145,12 +145,7 @@ class Dimension(ArgProvider):
         return self.name
 
     def _hashable_content(self):
-        # No need to make dtype and is_const part of the hash as they're
-        # always the same in all kinds of Dimension. This makes __eq__ and
-        # other comparison methods a bit more robust, since they rely on
-        # _hashable_content, and e.g. np.int32 < np.int32 would raise
-        # a stupid, avoidable exception
-        return sympy.Symbol._hashable_content(self)
+        return tuple(getattr(self, i) for i in self.__rargs__ + self.__rkwargs__)
 
     @property
     def spacing(self):
@@ -377,6 +372,20 @@ class BasicDimension(Dimension, Symbol):
 
     def __init_finalize__(self, name, spacing=None, **kwargs):
         self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
+
+    def __eq__(self, other):
+        # Being of type Cached, Dimensions are by construction unique. But unlike
+        # Symbols, equality is much stricter -- we consider any two Dimensions
+        # equal iff they are the very same object. This has several advantages.
+        # First of all, it makes it much more difficult to trick the compiler
+        # to generate buggy code (e.g., using two different "x" Dimensions that
+        # actually represent the same iteration space). Secondly, comparison
+        # is much cheaper, since we avoid having to go through all of the
+        # __rargs__/__rkwargs__, and there can be quite a few depending on the
+        # specific Dimension type
+        return self is other
+
+    __hash__ = Symbol.__hash__
 
 
 class DefaultDimension(Dimension, DataSymbol):
@@ -1416,10 +1425,6 @@ class StencilDimension(BasicDimension):
 
         if self._size < 1:
             raise ValueError("Expected size greater than 0 (got %s)" % self._size)
-
-    def _hashable_content(self):
-        return (super()._hashable_content() +
-                (self._min, self._max, self._spacing, self._backward))
 
     @cached_property
     def backward(self):
