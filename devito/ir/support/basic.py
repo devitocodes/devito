@@ -1022,10 +1022,10 @@ class Scope(object):
                 for r in self.reads_smart_gen(k):
                     dependence = Dependence(w, r)
 
-                    if dependence.is_imaginary:
+                    if any(not rule(dependence) for rule in self.rules):
                         continue
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
@@ -1052,10 +1052,10 @@ class Scope(object):
                 for r in self.reads_smart_gen(k):
                     dependence = Dependence(r, w)
 
-                    if dependence.is_imaginary:
+                    if any(not rule(dependence) for rule in self.rules):
                         continue
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
@@ -1082,10 +1082,10 @@ class Scope(object):
                 for w2 in self.writes.get(k, []):
                     dependence = Dependence(w2, w1)
 
-                    if dependence.is_imaginary:
+                    if any(not rule(dependence) for rule in self.rules):
                         continue
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
