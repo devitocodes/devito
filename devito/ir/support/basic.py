@@ -826,12 +826,11 @@ class Scope(object):
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
-    @cached_property
-    def writes(self):
+    @memoized_generator
+    def writes_gen(self):
         """
-        Create a mapper from functions to write accesses.
+        Generate all write accesses.
         """
-        ret = {}
         for i, e in enumerate(self.exprs):
             terminals = retrieve_accesses(e.lhs)
             if q_routine(e.rhs):
@@ -841,22 +840,24 @@ class Scope(object):
                     # E.g., foreign routines, such as `cos` or `sin`
                     pass
             for j in terminals:
-                v = ret.setdefault(j.function, [])
                 if e.is_Reduction:
                     mode = 'WR'
                 else:
                     mode = 'W'
-                v.append(TimedAccess(j, mode, i, e.ispace))
+                yield TimedAccess(j, mode, i, e.ispace)
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, (Barrier, Jump)):
-                ret.setdefault(mocksym, []).append(
-                    TimedAccess(mocksym, 'W', i, e.ispace)
-                )
+                yield TimedAccess(mocksym, 'W', i, e.ispace)
 
-        return ret
+    @cached_property
+    def writes(self):
+        """
+        Create a mapper from functions to write accesses.
+        """
+        return as_mapper(self.writes_gen(), key=lambda i: i.function)
 
     @memoized_generator
     def reads_explicit_gen(self):
