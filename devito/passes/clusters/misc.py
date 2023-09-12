@@ -317,10 +317,10 @@ class Fusion(Queue):
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
 
-            def is_cross(dep):
+            def is_cross(source, sink):
                 # True if a cross-ClusterGroup dependence, False otherwise
-                t0 = dep.source.timestamp
-                t1 = dep.sink.timestamp
+                t0 = source.timestamp
+                t1 = sink.timestamp
                 v = len(cg0.exprs)
                 return t0 < v <= t1 or t1 < v <= t0
 
