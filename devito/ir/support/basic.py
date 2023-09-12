@@ -897,9 +897,11 @@ class Scope(object):
         """
         # The iteration symbols
         dimensions = set().union(*[e.dimensions for e in self.exprs])
+        symbols = set()
         for d in dimensions:
-            for i in d.free_symbols | d.bound_symbols:
-                yield TimedAccess(i, 'R', -1)
+            symbols.update(d.free_symbols | d.bound_symbols)
+        for i in symbols:
+            yield TimedAccess(i, 'R', -1)
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
