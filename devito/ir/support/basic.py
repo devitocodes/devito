@@ -1022,10 +1022,10 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads_smart_gen(k):
-                    dependence = Dependence(w, r)
-
-                    if any(not rule(dependence) for rule in self.rules):
+                    if any(not rule(w, r) for rule in self.rules):
                         continue
+
+                    dependence = Dependence(w, r)
 
                     if dependence.is_imaginary:
                         continue
@@ -1052,10 +1052,10 @@ class Scope(object):
         for k, v in self.writes.items():
             for w in v:
                 for r in self.reads_smart_gen(k):
-                    dependence = Dependence(r, w)
-
-                    if any(not rule(dependence) for rule in self.rules):
+                    if any(not rule(r, w) for rule in self.rules):
                         continue
+
+                    dependence = Dependence(r, w)
 
                     if dependence.is_imaginary:
                         continue
@@ -1082,10 +1082,10 @@ class Scope(object):
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
-                    dependence = Dependence(w2, w1)
-
-                    if any(not rule(dependence) for rule in self.rules):
+                    if any(not rule(w2, w1) for rule in self.rules):
                         continue
+
+                    dependence = Dependence(w2, w1)
 
                     if dependence.is_imaginary:
                         continue
