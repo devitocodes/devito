@@ -897,8 +897,12 @@ class IterationSpace(Space):
         dims = [i.dim for i in self if not func(i.dim)]
         intervals = self.intervals.drop(dims, strict=strict)
 
-        sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
-        directions = {k: v for k, v in self.directions.items() if func(k)}
+        sub_iterators = {}
+        directions = {}
+        for i in intervals:
+            d = i.dim
+            sub_iterators[d] = self.sub_iterators[d]
+            directions[d] = self.directions[d]
 
         return IterationSpace(intervals, sub_iterators, directions)
 
