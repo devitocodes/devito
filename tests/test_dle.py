@@ -390,10 +390,10 @@ class TestBlockingParTile(object):
                                                   'blockinner': True,
                                                   'blockrelax': True}))
 
-        # Check generated code. By having specified "1" as rule, we expect the
-        # given par-tile to be applied to the kernel with id 1
-        bns, _ = assert_blocking(op, {'z0_blk0', 'x1_blk0', 'x2_blk0', 'x3_blk0'})
-        for i in ['x1_blk0', 'x2_blk0', 'x3_blk0']:
+        # Check generated code. By having specified "time" as rule, we expect the
+        # given par-tile to be applied to the kernel within the time loop
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+        for i in ['x0_blk0', 'x1_blk0', 'x2_blk0']:
             root = bns[i]
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]

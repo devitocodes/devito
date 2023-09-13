@@ -12,6 +12,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forwar
                        IntervalGroup, LabeledVector, Vector, normalize_properties,
                        relax_properties, unbounded, minimum, maximum, extrema,
                        vmax, vmin)
+from devito.passes.clusters.cse import _cse
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
                               uxreplace, sympy_dtype)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
@@ -194,14 +195,6 @@ class CireTransformer(object):
         """
         raise NotImplementedError
 
-    def _eval_variants_delta(self, delta_flops, delta_ws):
-        """
-        Given the deltas in flop reduction and working set size increase of two
-        Variants, return True if the second variant is estimated to deliever
-        better performance, False otherwise.
-        """
-        raise NotImplementedError
-
 
 class CireTransformerLegacy(CireTransformer):
 
@@ -210,7 +203,7 @@ class CireTransformerLegacy(CireTransformer):
         Carry out the bulk of the work of ``_generate``.
         """
         counter = generator()
-        make = lambda: Symbol(name='dummy%d' % counter())
+        make = lambda: Symbol(name='dummy%d' % counter(), dtype=np.float32)
 
         if cbk_compose is None:
             cbk_compose = lambda *args: None
@@ -285,12 +278,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
         return AliasKey(ispace, intervals, c.dtype, c.guards, properties)
 
     def _select(self, variants):
-        return pick_best(variants, self._eval_variants_delta)
-
-    def _eval_variants_delta(self, delta_flops, delta_ws):
-        # Always prefer the Variant with fewer temporaries
-        return ((delta_ws == 0 and delta_flops < 0) or
-                (delta_ws > 0))
+        return pick_best(variants)
 
 
 class CireInvariantsElementary(CireInvariants):
@@ -390,19 +378,7 @@ class CireDerivatives(CireTransformerLegacy):
                                  "generated %d schedules in total"
                                  % (self.opt_schedule_strategy, len(variants)))
 
-        return pick_best(variants, self._eval_variants_delta)
-
-    def _eval_variants_delta(self, delta_flops, delta_ws):
-        # If there's a greater flop reduction using fewer temporaries, no doubts
-        # what's gonna be the best variant. But if the better flop reduction
-        # comes at the price of using more temporaries, then we have to apply
-        # heuristics, in particular we estimate how many flops a temporary would
-        # allow to save
-        return (
-            (delta_flops >= 0 and delta_ws > 0 and delta_flops / delta_ws < 15) or
-            (delta_flops <= 0 and delta_ws < 0 and delta_flops / delta_ws > 15) or
-            (delta_flops <= 0 and delta_ws >= 0)
-        )
+        return pick_best(variants)
 
 
 class CireEvalDerivatives(CireDerivatives):
@@ -757,8 +733,9 @@ def lower_aliases(aliases, meta, maxpar):
                                 meta.ispace.directions)
         ispace = ispace.augment(sub_iterators)
 
-        processed.append(ScheduledAlias(a.pivot, writeto, ispace, a.aliaseds,
-                                        indicess, a.score))
+        processed.append(
+            ScheduledAlias(a.pivot, writeto, ispace, a.aliaseds, indicess)
+        )
 
     # The [ScheduledAliases] must be ordered so as to reuse as many of the
     # `ispace`'s IterationIntervals as possible in order to honor the
@@ -841,8 +818,9 @@ def optimize_schedule_rotations(schedule, sregistry):
             aispace = aispace.augment({d: mds + [ii]})
             ispace = IterationSpace.union(rispace, aispace, relations={(d, cd, d1)})
 
-            processed.append(ScheduledAlias(pivot, writeto, ispace, i.aliaseds,
-                                            indicess, i.score))
+            processed.append(ScheduledAlias(
+                pivot, writeto, ispace, i.aliaseds, indicess,
+            ))
 
         # Update the rotations mapper
         rmapper[d].extend(list(mapper.values()))
@@ -865,8 +843,9 @@ def optimize_schedule_padding(schedule, meta, platform):
                 ispace = i.ispace.add(Interval(it.dim, 0, it.size % vl))
             else:
                 ispace = i.ispace
-            processed.append(ScheduledAlias(i.pivot, i.writeto, ispace, i.aliaseds,
-                                            i.indicess, i.score))
+            processed.append(ScheduledAlias(
+                i.pivot, i.writeto, ispace, i.aliaseds, i.indicess,
+            ))
         except (TypeError, KeyError, IndexError):
             processed.append(i)
 
@@ -885,12 +864,12 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
 
     clusters = []
     subs = {}
-    for pivot, writeto, ispace, aliaseds, indicess, _ in schedule:
+    for pivot, writeto, ispace, aliaseds, indicess in schedule:
         name = sregistry.make_name()
         # Infer the dtype for the pivot
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
-        # that would creat a temporary `int r = b` leading to erronous numerical results
-        # Such cases happen with the positions for sparse functions for example.
+        # that would creat a temporary `int r = b` leading to erronous
+        # numerical results
         dtype = sympy_dtype(pivot, meta.dtype)
 
         if writeto:
@@ -986,36 +965,42 @@ def optimize_clusters_msds(clusters):
     return processed
 
 
-def pick_best(variants, eval_variants_delta):
+def pick_best(variants):
     """
-    Return the variant with the best trade-off between operation count
-    reduction and working set increase. Heuristics may be applied.
+    Return the variant with the best theoretical performance.
     """
     best = None
-    best_flops_score = None
-    best_ws_score = None
-
     for i in variants:
-        i_flops_score = i.schedule.score
+        # Flops in the two sweeps
+        flops0 = i.schedule.cost
+        flops1 = estimate_cost(i.exprs, True)
 
-        # The working set score depends on the number and dimensionality of
-        # temporaries required by the Schedule
-        i_ws_count = Counter([len(sa.writeto) for sa in i.schedule])
-        i_ws_score = [i_ws_count[sa + 1]
-                      for sa in reversed(range(max(i_ws_count, default=0)))]
-        # TODO: For now, we assume the performance impact of an N-dimensional
-        # temporary is always the same regardless of the value N, but this might
-        # change in the future
-        i_ws_score = sum(i_ws_score)
+        flops = flops0 + flops1
+
+        # Data movement in the two sweeps
+        indexeds0 = search([sa.pivot for sa in i.schedule], Indexed)
+        indexeds1 = search(i.exprs, Indexed)
+
+        ntemps = len(i.schedule)
+        nfunctions0 = len({i.function for i in indexeds0})
+        nfunctions1 = len({i.function for i in indexeds1})
+
+        ws = ntemps*2 + nfunctions0 + nfunctions1
 
         if best is None:
-            best, best_flops_score, best_ws_score = i, i_flops_score, i_ws_score
+            best, best_flops, best_ws = i, flops, ws
             continue
 
-        delta_flops = best_flops_score - i_flops_score
-        delta_ws = best_ws_score - i_ws_score
-        if eval_variants_delta(delta_flops, delta_ws):
-            best, best_flops_score, best_ws_score = i, i_flops_score, i_ws_score
+        delta_flops = flops - best_flops
+        delta_ws = ws - best_ws
+
+        # Magic sauce
+        # The coefficients were obtained empirically studying the behaviour
+        # of different variants in several kernels
+        ws_curve = lambda x: (-1 / 70)*x
+
+        if delta_ws <= ws_curve(delta_flops):
+            best, best_flops, best_ws = i, flops, ws
 
     return best
 
@@ -1230,7 +1215,7 @@ Variant = namedtuple('Variant', 'schedule exprs')
 
 class Alias(object):
 
-    def __init__(self, pivot, aliaseds, intervals, distances, score=0):
+    def __init__(self, pivot, aliaseds, intervals, distances, score):
         self.pivot = pivot
         self.aliaseds = aliaseds
         self.intervals = intervals
@@ -1290,7 +1275,7 @@ class AliasList(object):
         for i in self._list:
             yield i
 
-    def add(self, pivot, aliaseds, intervals, distances, score=0):
+    def add(self, pivot, aliaseds, intervals, distances, score):
         assert len(aliaseds) == len(distances)
         self._list.append(Alias(pivot, aliaseds, intervals, distances, score))
 
@@ -1314,7 +1299,8 @@ class AliasList(object):
         return all(i.is_frame for i in self._list)
 
 
-ScheduledAlias = namedtuple('SchedAlias', 'pivot writeto ispace aliaseds indicess score')
+ScheduledAlias = namedtuple('SchedAlias',
+                            'pivot writeto ispace aliaseds indicess')
 
 
 class Schedule(tuple):
@@ -1334,9 +1320,19 @@ class Schedule(tuple):
             is_frame=is_frame or self.is_frame
         )
 
-    @property
-    def score(self):
-        return sum(i.score for i in self)
+    @cached_property
+    def cost(self):
+        # Not just the sum for the individual items' cost! There might be
+        # redundancies, which we factor out here...
+        counter = generator()
+        make = lambda: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+
+        tot = 0
+        for v in as_mapper(self, lambda i: i.ispace).values():
+            exprs = [i.pivot for i in v]
+            tot += estimate_cost(_cse(exprs, make), True)
+
+        return tot
 
 
 def make_rotations_table(d, v):

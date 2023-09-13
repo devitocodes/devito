@@ -2501,10 +2501,8 @@ class TestIsotropicAcoustic(object):
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        # one halo, ndim memalign and free (pos temp rec/src)
-        sf_calls = 2 * len(shape)
-        assert len(fwd_calls) == 1 + sf_calls
-        assert len(adj_calls) == 1 + sf_calls
+        assert len(fwd_calls) == 1
+        assert len(adj_calls) == 1
 
     def run_adjoint_F(self, nd):
         """

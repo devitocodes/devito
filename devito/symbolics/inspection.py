@@ -111,6 +111,8 @@ estimate_values = {
     'pow': 50,
     'div': 5,
     'Abs': 5,
+    'floor': 1,
+    'ceil': 1
 }
 
 
