@@ -232,10 +232,10 @@ class Test2Pass(object):
     def test_v0(self):
         grid = Grid(shape=(10, 10, 10))
 
-        u = TimeFunction(name='u', grid=grid, space_order=4)
-        v = TimeFunction(name='v', grid=grid, space_order=4)
-        u1 = TimeFunction(name='u', grid=grid, space_order=4)
-        v1 = TimeFunction(name='v', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        v = TimeFunction(name='v', grid=grid, space_order=8)
+        u1 = TimeFunction(name='u', grid=grid, space_order=8)
+        v1 = TimeFunction(name='v', grid=grid, space_order=8)
 
         eqns = [Eq(u.forward, (u.dx.dy + v*u + 1.)),
                 Eq(v.forward, (v + u.dx.dy + 1.))]
@@ -245,7 +245,7 @@ class Test2Pass(object):
                                                'openmp': True}))
 
         # Check generated code
-        op1._profiler._sections['section0'].sops == 65
+        assert op1._profiler._sections['section0'].sops == 41
         assert_structure(op1, ['t',
                                't,x0_blk0,y0_blk0,x,y,z',
                                't,x0_blk0,y0_blk0,x,y,z,i0',

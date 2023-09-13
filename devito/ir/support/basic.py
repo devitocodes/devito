@@ -3,7 +3,7 @@ from itertools import chain, product
 from cached_property import cached_property
 from sympy import S
 
-from devito.ir.support.space import Backward, IterationSpace, null_ispace
+from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
