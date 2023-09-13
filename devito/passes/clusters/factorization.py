@@ -43,6 +43,71 @@ def factorize(cluster, *args):
     return cluster.rebuild(processed)
 
 
+def collect_special(expr):
+    """
+    Factorize elemental functions, pows, and other special symbolic objects,
+    prioritizing the most expensive entities.
+    """
+    args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+    candidates = ReducerMap.fromdicts(*candidates)
+
+    funcs = candidates.getall('funcs', [])
+    pows = candidates.getall('pows', [])
+    coeffs = candidates.getall('coeffs', [])
+
+    # Functions/Pows are collected first, coefficients afterwards
+    terms = []
+    w_funcs = []
+    w_pows = []
+    w_coeffs = []
+    for i in args:
+        _args = i.args
+        if any(j in funcs for j in _args):
+            w_funcs.append(i)
+        elif any(j in pows for j in _args):
+            w_pows.append(i)
+        elif any(j in coeffs for j in _args):
+            w_coeffs.append(i)
+        else:
+            terms.append(i)
+
+    # Collect common funcs
+    if len(w_funcs) > 1:
+        w_funcs = Add(*w_funcs, evaluate=False)
+        w_funcs = collect(w_funcs, funcs, evaluate=False)
+        try:
+            terms.extend([Mul(k, collect_const(v), evaluate=False)
+                          for k, v in w_funcs.items()])
+        except AttributeError:
+            assert w_funcs == 0
+    else:
+        terms.extend(w_funcs)
+
+    # Collect common pows
+    w_pows = Add(*w_pows, evaluate=False)
+    w_pows = collect(w_pows, pows, evaluate=False)
+    try:
+        terms.extend([Mul(k, collect_const(v), evaluate=False)
+                      for k, v in w_pows.items()])
+    except AttributeError:
+        assert w_pows == 0
+
+    # Collect common temporaries (r0, r1, ...)
+    w_coeffs = Add(*w_coeffs, evaluate=False)
+    symbols = retrieve_symbols(w_coeffs)
+    if symbols:
+        w_coeffs = collect(w_coeffs, symbols, evaluate=False)
+        try:
+            terms.extend([Mul(k, collect_const(v), evaluate=False)
+                          for k, v in w_coeffs.items()])
+        except AttributeError:
+            assert w_coeffs == 0
+    else:
+        terms.append(w_coeffs)
+
+    return Add(*terms)
+
+
 def collect_const(expr):
     """
     *Much* faster alternative to sympy.collect_const. *Potentially* slightly less
@@ -67,9 +132,10 @@ def collect_const(expr):
         if len(v) == 1 and not v[0].is_Add:
             # Special case: avoid e.g. (-2)*a
             mul = Mul(k, *v)
-        elif all(i.is_Mul and len(i.args) == 2 and i.args[0] == -1 for i in v):
+        elif all(i.is_Mul and i.args[0] == -1 for i in v):
             # Other special case: [-a, -b, -c ...]
-            add = Add(*[i.args[1] for i in v], evaluate=False)
+            operands = [Mul(*i.args[1:], evaluate=False) for i in v]
+            add = Add(*operands, evaluate=False)
             mul = Mul(-k, add, evaluate=False)
         elif k == 1:
             # 1 * (a + c)
@@ -89,105 +155,54 @@ def collect_const(expr):
     return Add(*terms)
 
 
+def strategy0(expr):
+    rebuilt = collect_special(expr)
+    rebuilt = collect_const(rebuilt)
+
+    return rebuilt
+
+
+strategies = {
+    'default': strategy0
+}
+
+
+def _collect_nested(expr):
+    """
+    Recursion helper for `collect_nested`.
+    """
+    # Return semantic (rebuilt expression, factorization candidates)
+
+    if expr.is_Number:
+        return expr, {'coeffs': expr}
+    elif expr.is_Function:
+        return expr, {'funcs': expr}
+    elif expr.is_Pow:
+        return expr, {'pows': expr}
+    elif expr.is_Symbol or expr.is_Indexed or isinstance(expr, BasicWrapperMixin):
+        return expr, {}
+    elif expr.is_Add:
+        return strategies['default'](expr), {}
+    elif expr.is_Mul:
+        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        return Mul(*args), ReducerMap.fromdicts(*candidates)
+    elif expr.is_Equality:
+        args, candidates = zip(*[_collect_nested(expr.lhs),
+                                 _collect_nested(expr.rhs)])
+        return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
+    else:
+        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        return expr.func(*args), ReducerMap.fromdicts(*candidates)
+
+
 def collect_nested(expr):
     """
-    Collect numeric coefficients, trascendental functions, and symbolic powers,
-    across all levels of the expression tree.
-
-    The collection gives precedence to (in order of importance):
-
-        1) Trascendental functions,
-        2) Symbolic powers,
-        3) Numeric coefficients.
+    Collect numeric coefficients, trascendental functions, pows, and other
+    symbolic objects across all levels of the expression tree.
 
     Parameters
     ----------
     expr : expr-like
         The expression to be factorized.
     """
-
-    def run(expr):
-        # Return semantic (rebuilt expression, factorization candidates)
-
-        if expr.is_Number:
-            return expr, {'coeffs': expr}
-        elif expr.is_Function:
-            return expr, {'funcs': expr}
-        elif expr.is_Pow:
-            return expr, {'pows': expr}
-        elif expr.is_Symbol or expr.is_Indexed or isinstance(expr, BasicWrapperMixin):
-            return expr, {}
-        elif expr.is_Add:
-            args, candidates = zip(*[run(arg) for arg in expr.args])
-            candidates = ReducerMap.fromdicts(*candidates)
-
-            funcs = candidates.getall('funcs', [])
-            pows = candidates.getall('pows', [])
-            coeffs = candidates.getall('coeffs', [])
-
-            # Functions/Pows are collected first, coefficients afterwards
-            terms = []
-            w_funcs = []
-            w_pows = []
-            w_coeffs = []
-            for i in args:
-                _args = i.args
-                if any(j in funcs for j in _args):
-                    w_funcs.append(i)
-                elif any(j in pows for j in _args):
-                    w_pows.append(i)
-                elif any(j in coeffs for j in _args):
-                    w_coeffs.append(i)
-                else:
-                    terms.append(i)
-
-            # Collect common funcs
-            if len(w_funcs) > 1:
-                w_funcs = Add(*w_funcs, evaluate=False)
-                w_funcs = collect(w_funcs, funcs, evaluate=False)
-                try:
-                    terms.extend([Mul(k, collect_const(v), evaluate=False)
-                                  for k, v in w_funcs.items()])
-                except AttributeError:
-                    assert w_funcs == 0
-            else:
-                terms.extend(w_funcs)
-
-            # Collect common pows
-            w_pows = Add(*w_pows, evaluate=False)
-            w_pows = collect(w_pows, pows, evaluate=False)
-            try:
-                terms.extend([Mul(k, collect_const(v), evaluate=False)
-                              for k, v in w_pows.items()])
-            except AttributeError:
-                assert w_pows == 0
-
-            # Collect common temporaries (r0, r1, ...)
-            w_coeffs = Add(*w_coeffs, evaluate=False)
-            symbols = retrieve_symbols(w_coeffs)
-            if symbols:
-                w_coeffs = collect(w_coeffs, symbols, evaluate=False)
-                try:
-                    terms.extend([Mul(k, collect_const(v), evaluate=False)
-                                  for k, v in w_coeffs.items()])
-                except AttributeError:
-                    assert w_coeffs == 0
-            else:
-                terms.append(w_coeffs)
-
-            # Collect common coefficients
-            rebuilt = Add(*terms)
-            rebuilt = collect_const(rebuilt)
-
-            return rebuilt, {}
-        elif expr.is_Mul:
-            args, candidates = zip(*[run(arg) for arg in expr.args])
-            return Mul(*args), ReducerMap.fromdicts(*candidates)
-        elif expr.is_Equality:
-            args, candidates = zip(*[run(expr.lhs), run(expr.rhs)])
-            return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
-        else:
-            args, candidates = zip(*[run(arg) for arg in expr.args])
-            return expr.func(*args), ReducerMap.fromdicts(*candidates)
-
-    return run(expr)[0]
+    return _collect_nested(expr)[0]
