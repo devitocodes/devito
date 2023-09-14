@@ -1933,65 +1933,53 @@ class TestLoopScheduling(object):
         op = Operator(eqns)
 
         assert_structure(op, ['r,i', 'r'], 'r,i')
-        
-    def test_2194(self):
+
+    @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
+        (['Eq(u[0, x], 1)',
+            'Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])'],
+            np.array([[1., 1., 1.],
+                      [-1., 0., -1.]]),
+            ['x', 'x'], 'x,x')
+    ])
+    def test_2194(self, eqns, expected, exp_trees, exp_iters):
         grid = Grid(shape=(3, ))
         u = TimeFunction(name='u', grid=grid)
-
         x = grid.dimensions[0]
-        h_x = x.spacing
+        h_x = x.spacing  # noqa: F841
 
-        eq_1 = Eq(u[0, x], 1)
-        eq_3 = Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = eval(e)
 
-        op = Operator([eq_1, eq_3])
-        assert_structure(op, ['x', 'x'], 'x,x')
+        op = Operator(eqns)
+        assert_structure(op, exp_trees, exp_iters)
+
         op.apply()
-
-        expected = np.array([[ 1., 1., 1.],
-                             [-1., 0., -1.]])
-
         assert(np.all(u.data[:] == expected[:]))
 
-
-    @pytest.mark.parametrize('eqns', [
-        ['Eq(u0[0, y], 1)', 'Eq(u0[1, y], u0[0, y + 1])'],
+    @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, y + 1])'],
+            np.array([[1., 1.],
+                      [1., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, 2])'],
+            np.array([[1., 1.],
+                      [0., 0.]]),
+            ['y', 'y'], 'y,y')
     ])
-    def test_2194_v2(self, eqns):
+    def test_2194_v2(self, eqns, expected, exp_trees, exp_iters):
         grid = Grid(shape=(2, 2))
-
-        u0 = Function(name='u0', grid=grid)
+        u = Function(name='u', grid=grid)
         x, y = grid.dimensions
 
         for i, e in enumerate(list(eqns)):
             eqns[i] = eval(e)
 
         op = Operator(eqns)
-        assert_structure(op, ['y', 'y'], 'y,y')
+        assert_structure(op, exp_trees, exp_iters)
+
         op.apply()
-
-        expected = np.array([[1., 1.],
-                             [1., 0.]])
-        assert(np.all(u0.data[:] == expected[:]))
-
-    def test_2194_v3(self):
-        grid = Grid(shape=(3, 3))
-
-        u = Function(name='u', grid=grid)
-        x, y = grid.dimensions
-
-        eq0 = Eq(u[0, y], 1)
-        eq1 = Eq(u[1, y], u[0, 2])
-
-        op = Operator([eq0, eq1])
-        assert_structure(op, ['y', 'y'], 'y,y')
-        op.apply()    
-
-        expected = np.array([[1.,1.,1.],
-                             [1.,1.,1.],
-                             [0.,0.,0.]])
-        
         assert(np.all(u.data[:] == expected[:]))
+
 
 class TestInternals(object):
 
