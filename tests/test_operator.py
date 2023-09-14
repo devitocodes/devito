@@ -1937,8 +1937,7 @@ class TestLoopScheduling(object):
     @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
         (['Eq(u[0, x], 1)',
             'Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])'],
-            np.array([[1., 1., 1.],
-                      [-1., 0., -1.]]),
+            np.array([[1., 1., 1.], [-1., 0., -1.]]),
             ['x', 'x'], 'x,x')
     ])
     def test_2194(self, eqns, expected, exp_trees, exp_iters):
@@ -1958,13 +1957,20 @@ class TestLoopScheduling(object):
 
     @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
         (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, y + 1])'],
-            np.array([[1., 1.],
-                      [1., 0.]]),
+            np.array([[1., 1.], [1., 0.]]),
             ['y', 'y'], 'y,y'),
         (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, 2])'],
-            np.array([[1., 1.],
-                      [0., 0.]]),
-            ['y', 'y'], 'y,y')
+            np.array([[1., 1.], [0., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, 1])'],
+            np.array([[1., 1.], [1., 1.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, 1], u[0, y + 1])'],
+            np.array([[1., 1.], [0., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, 1], 1)', 'Eq(u[x, y], u[0, y])'],
+            np.array([[0., 1.], [0., 1.]]),
+            ['xy'], 'x,y')
     ])
     def test_2194_v2(self, eqns, expected, exp_trees, exp_iters):
         grid = Grid(shape=(2, 2))

@@ -436,7 +436,7 @@ class TimedAccess(IterationInstance, AccessMode):
                         # For example:
                         # Eq(u[0, y], 1)
                         # Eq(u[1, 1], u[0, y+1])
-                        ret.append(v)
+                        ret.append(S.Infinity)
 
                 # We are writing over an entire dimension
                 # but reading from one point.
