@@ -123,7 +123,7 @@ class IterationInstance(LabeledVector):
     def aindices(self):
         retval = []
         for i, fi in zip(self, self.findices):
-            dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
+            dims = set(d.root if d.indirect else d for d in i.atoms(Dimension))
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
 
@@ -425,27 +425,24 @@ class TimedAccess(IterationInstance, AccessMode):
                 ret.append(S.Zero)
             else:
                 v = i - j
-                # If (i-j) is a finite number, then we potentially have an Imaginary dependence
                 if v.is_Number and v.is_finite:
                     # If i and j are numbers, we append an (I) distance
                     if i.is_Number and j.is_Number:
                         return Vector(S.ImaginaryUnit)
-                    # If i and j are not numbers, there may be dimension-dependent dependencies
-                    # so we append the distance
+                    # If both i and j are not numbers, there may be dimension-dependent
+                    # dependencies so we append the distance
                     else:
                         ret.append(v)
 
                 # We are writing over an entire dimension but reading from one point.
                 # If there are overlaps between the two then we would have a dependency
-                # This is a conservative estimation as there are cases (example below) where
-                # we potentially don't actually have a dependency given that we don't write
-                # over the entire dimension
-                # But we would need the exact iteration intervals to compute this,
-                # which is only known at compile time
+                # This is a conservative estimation as there are cases (example below)
+                # where we may or may not have a dependency given that we don't write
+                # depending on domain size, which is not compilation-time known
 
-                # No Dependency Example:
-                # Eq(u[0,y], 1)
-                # Eq(u[1, y+1], u[0,1])
+                # For example:
+                # Eq(u[0, y], 1)
+                # Eq(u[1, y+1], u[0, 1])
                 elif i.is_Number and not j.is_Number:
                     ret.append(S.Infinity)
 
@@ -681,9 +678,9 @@ class Dependence(Relation):
         """
         True if a constant dependence, that is no Dimensions involved, False otherwise.
         """
-        return (self.source.aindices[dim] is None and
-                self.sink.aindices[dim] is None and
-                self.distance_mapper[dim] == 0)
+        return (self.source.aindices.get(dim) is None and
+                self.sink.aindices.get(dim) is None and
+                self.distance_mapper.get(dim, 0) == 0)
 
     @memoized_meth
     def is_carried(self, dim=None):
