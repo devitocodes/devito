@@ -1933,6 +1933,10 @@ class TestLoopScheduling(object):
         op = Operator(eqns)
 
         assert_structure(op, ['r,i', 'r'], 'r,i')
+        
+    def test_2194(self):
+        grid = Grid(shape=(3, ))
+        u = TimeFunction(name='u', grid=grid)
 
     @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
         (['Eq(u[0, x], 1)',
