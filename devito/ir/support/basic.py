@@ -426,24 +426,31 @@ class TimedAccess(IterationInstance, AccessMode):
             else:
                 v = i - j
                 if v.is_Number and v.is_finite:
-                    # If i and j are numbers, we append an (I) distance
                     if i.is_Number and j.is_Number:
                         return Vector(S.ImaginaryUnit)
-                    # If both i and j are not numbers, there may be dimension-dependent
-                    # dependencies so we append the distance
                     else:
+                        # If both i and j are not numbers,
+                        # there may be dimension-dependent dependencies
+                        # so we append the distance
+
+                        # For example:
+                        # Eq(u[0, y], 1)
+                        # Eq(u[1, 1], u[0, y+1])
                         ret.append(v)
 
-                # We are writing over an entire dimension but reading from one point.
-                # If there are overlaps between the two then we would have a dependency
-                # This is a conservative estimation as there are cases (example below)
-                # where we may or may not have a dependency given that we don't write
+                # We are writing over an entire dimension
+                # but reading from one point.
+                # If there are overlaps between the two
+                # then we would have a dependency
+                # This is a conservative estimation as there are cases
+                # where we may or may not have a dependency
+                # given that we don't write
                 # depending on domain size, which is not compilation-time known
 
                 # For example:
                 # Eq(u[0, y], 1)
                 # Eq(u[1, y+1], u[0, 1])
-                elif i.is_Number and not j.is_Number:
+                elif (not i.is_Number or not j.is_Number):
                     ret.append(S.Infinity)
 
         return Vector(*ret)
