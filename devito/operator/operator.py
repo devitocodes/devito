@@ -566,6 +566,7 @@ class Operator(Callable):
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
+
         args = kwargs['args'] = args.reduce_all()
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
@@ -573,6 +574,10 @@ class Operator(Callable):
         discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         discretizations.update({getattr(p, 'grid', None) for p in defaults})
         discretizations.discard(None)
+        # Remove subgrids if multiple grids
+        if len(discretizations) > 1:
+            discretizations = {g for g in discretizations
+                               if not any(d.is_Derived for d in g.dimensions)}
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
@@ -585,6 +590,9 @@ class Operator(Callable):
             if configuration['mpi']:
                 raise ValueError("Multiple Grids found")
         try:
+            # Take biggest grid, i.e discard grids with subdimensions
+            grids = {g for g in grids if not any(d.is_Sub for d in g.dimensions)}
+            # First grid as there is no heuristic on how to choose from the leftovers
             grid = grids.pop()
         except KeyError:
             grid = None

@@ -1515,7 +1515,7 @@ class TestConditionalDimension(object):
 
         op = Operator(Eq(f, 1))
 
-        assert op.arguments()['time_M'] == 4*(save-1)  # == min legal endpoint
+        assert op.arguments()['time_M'] == 4*save-1  # == min legal endpoint
 
         # Also no issues when supplying an override
         assert op.arguments(time_M=10)['time_M'] == 10
@@ -1530,7 +1530,6 @@ class TestConditionalDimension(object):
         i = Dimension(name='i')
 
         ci = ConditionalDimension(name='ci', parent=i, factor=factor)
-
         g = Function(name='g', shape=(size,), dimensions=(i,))
         f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
 

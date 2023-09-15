@@ -137,6 +137,9 @@ class ReducerMap(MultiDict):
             return candidates[0]
         elif all(map(compare_to_first, candidates)):
             # return first non-range
+            for c in candidates:
+                if not isinstance(c, range):
+                    return c
             return candidates[0]
         else:
             raise ValueError("Unable to find unique value for key %s, candidates: %s"

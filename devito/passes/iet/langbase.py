@@ -214,6 +214,9 @@ class LangTransformer(ABC):
     def Prodder(self):
         return self.lang.Prodder
 
+    def _is_offloadable(self, *args, **kwargs):
+        return False
+
 
 class DeviceAwareMixin(object):
 

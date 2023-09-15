@@ -77,7 +77,12 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
                                          symbolic_max=d.symbolic_max + h.right)
         eqs = [eq.xreplace(subs) for eq in eqs]
 
-    dv.Operator(eqs, name=name, **kwargs)()
+    op = dv.Operator(eqs, name=name, **kwargs)
+    try:
+        op()
+    except ValueError:
+        # Corner case such as assign(u, v) with v a Buffered TimeFunction
+        op(time_M=f._time_size)
 
 
 def smooth(f, g, axis=None):

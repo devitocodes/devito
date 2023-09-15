@@ -169,11 +169,17 @@ class WeightedInterpolator(GenericInterpolator):
 
         return DimensionTuple(*rdims, getters=self._gdims)
 
-    def _augment_implicit_dims(self, implicit_dims):
-        if self.sfunction._sparse_position == -1:
-            return self.sfunction.dimensions + as_tuple(implicit_dims)
+    def _augment_implicit_dims(self, implicit_dims, extras=None):
+        if extras is not None:
+            extra = set([i for v in extras for i in v.dimensions]) - set(self._gdims)
+            extra = tuple(extra)
         else:
-            return as_tuple(implicit_dims) + self.sfunction.dimensions
+            extra = tuple()
+
+        if self.sfunction._sparse_position == -1:
+            return self.sfunction.dimensions + as_tuple(implicit_dims) + extra
+        else:
+            return as_tuple(implicit_dims) + self.sfunction.dimensions + extra
 
     def _coeff_temps(self, implicit_dims):
         return []
@@ -252,8 +258,6 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
-
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
             _expr = expr.evaluate
@@ -262,6 +266,9 @@ class WeightedInterpolator(GenericInterpolator):
             _expr = expr
 
         variables = list(retrieve_function_carriers(_expr))
+
+        # Implicit dimensions
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
@@ -295,8 +302,6 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
-
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))
         fields, exprs = as_tuple(field), as_tuple(expr)
@@ -315,6 +320,10 @@ class WeightedInterpolator(GenericInterpolator):
             _exprs = exprs
 
         variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
+
+        # Implicit dimensions
+        implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+
         variables = variables + list(fields)
 
         # List of indirection indices for all adjacent grid points
@@ -385,6 +394,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        return Mul(*[self.interpolation_coeffs.subs({ddim: ri,
-                                                     cdim: rd-rd.parent.symbolic_min})
-                     for (ri, rd) in enumerate(self._rdim)])
+        mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
+                   for (ri, rd) in enumerate(self._rdim)]
+        return Mul(*[self.interpolation_coeffs.subs(mapper)
+                     for mapper in mappers])

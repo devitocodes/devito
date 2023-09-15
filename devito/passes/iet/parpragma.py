@@ -304,6 +304,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
             # Iterations and their position (i.e. outermost to innermost) in the nest
             score = (
                 int(root.is_ParallelNoAtomic),
+                -int(self._is_offloadable(root))*(n0 + 1),  # Outermost offloadable
                 int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
                 int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
                 -(n0 + 1)  # The outermost, the better
