@@ -766,6 +766,16 @@ class TestTwoStageEvaluation(object):
         i0, = term.dimensions
         assert term.base == f.subs(x, x + i0*h_x)
 
+    def test_tensor_algebra(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, space_order=4)
+
+        v = grad(f)._evaluate(expand=False)
+
+        assert all(isinstance(i, IndexDerivative) for i in v)
+        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate))
+
 
 def bypass_uneval(expr):
     unevals = expr.find(EvalDerivative)
