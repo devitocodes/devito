@@ -855,7 +855,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # through the `function` field
         newobj.function = function or newobj
 
-        # Initialization
         newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
