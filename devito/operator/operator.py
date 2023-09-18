@@ -896,6 +896,7 @@ class Operator(Callable):
         """Produce a performance summary of the profiled sections."""
 
         # In case 'MPI0' is selected for logging, restrict result printing to one rank
+        temp = configuration['log-level']
         if configuration['mpi']:
             set_log_level(configuration['log-level'], comm=args.comm)
 
@@ -998,6 +999,10 @@ class Operator(Callable):
                  (self._mode, configuration['mpi'], perf_args))
         else:
             perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
+
+        # Restore logging configuration to all ranks
+        if configuration['mpi']:
+            set_log_level(temp, comm=None)
 
         return summary
 
