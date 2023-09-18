@@ -998,7 +998,15 @@ class Function(DiscreteFunction):
         else:
             raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-        self._fd = self.__fd_setup__()
+        # Acquire derivative shortcuts
+        if self is self.function:
+            self._fd = self.__fd_setup__()
+        else:
+            # E.g., `self is f(x + i0, y)` and `self.function is f(x, y)`
+            # Dynamically genereating derivative shortcuts is expensive; we
+            # can clearly avoid that here though!
+            self._fd = self.function._fd
+
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
