@@ -147,6 +147,12 @@ def preprocess(clusters, options=None, **kwargs):
             found = []
             for c1 in list(queue):
                 distributed_aindices = c1.halo_scheme.distributed_aindices
+                h_indices = set().union(*[(d, d.root)
+                                          for d in c1.halo_scheme.loc_indices])
+
+                # Skip if the Halo echange would end up outside its need iteration space
+                if h_indices and not h_indices & dims:
+                    continue
 
                 diff = dims - distributed_aindices
                 intersection = dims & distributed_aindices

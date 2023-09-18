@@ -295,13 +295,13 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
-                    collapsable.append(i)
+                collapsable.append(i)
 
             # Give a score to this candidate, based on the number of fully-parallel
             # Iterations and their position (i.e. outermost to innermost) in the nest
             score = (
                 int(root.is_ParallelNoAtomic),
-                -int(self._is_offloadable(root))*(n0 + 1),  # Outermost offloadable
+                self._n_device_pointers(root),  # Outermost offloadable
                 int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
                 int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
                 -(n0 + 1)  # The outermost, the better
@@ -374,6 +374,12 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 body = self.HostIteration(schedule=schedule, parallel=True,
                                           ncollapsed=ncollapsed, nthreads=nthreads,
                                           **root.args)
+            prefix = []
+        elif all(i.is_ParallelRelaxed for i in candidates) and nthreads is not None:
+            body = self.HostIteration(schedule='static',
+                                      parallel=nthreads is not self.nthreads_nested,
+                                      ncollapsed=ncollapsed, nthreads=nthreads,
+                                      **root.args)
             prefix = []
         else:
             # pragma ... for ... schedule(..., expr)
