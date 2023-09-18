@@ -295,9 +295,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
-                # At least one inner loop (nested) or
-                # we do not collapse most inner loop if it is an atomic reduction
-                if not i.is_ParallelAtomic or nested:
                     collapsable.append(i)
 
             # Give a score to this candidate, based on the number of fully-parallel
@@ -427,11 +424,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_nested_partree(self, partree):
         # Apply heuristic
         if self.nhyperthreads <= self.nested:
-            return partree
-
-        # Loop nest with atomic reductions are more likely to have less latency
-        # keep outer loop parallel
-        if partree.root.is_ParallelAtomic:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,
