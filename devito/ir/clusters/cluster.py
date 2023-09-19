@@ -488,12 +488,12 @@ def tailor_properties(properties, ispace):
     Create a new Properties object off `properties` that retains all and only
     the iteration dimensions in `ispace`.
     """
-    for d in ispace.itdims:
-        properties = properties.add(d)
-
     for i in properties:
         for d in as_tuple(i):
             if d not in ispace.itdims:
                 properties = properties.drop(d)
+
+    for d in ispace.itdims:
+        properties = properties.add(d)
 
     return properties

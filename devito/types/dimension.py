@@ -1403,9 +1403,9 @@ class StencilDimension(BasicDimension):
     is_Stencil = True
 
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
-    __rkwargs__ = BasicDimension.__rkwargs__ + ('backward',)
+    __rkwargs__ = BasicDimension.__rkwargs__ + ('step',)
 
-    def __init_finalize__(self, name, _min, _max, spacing=None, backward=False,
+    def __init_finalize__(self, name, _min, _max, spacing=None, step=1,
                           **kwargs):
         self._spacing = sympy.sympify(spacing) or sympy.S.One
 
@@ -1415,20 +1415,25 @@ class StencilDimension(BasicDimension):
             raise ValueError("Expected integer `max` (got %s)" % _max)
         if not is_integer(self._spacing):
             raise ValueError("Expected integer `spacing` (got %s)" % self._spacing)
+        if not is_integer(step):
+            raise ValueError("Expected integer `step` (got %s)" % step)
 
         self._min = _min
         self._max = _max
+        self._step = step
 
         self._size = _max - _min + 1
-
-        self._backward = backward
 
         if self._size < 1:
             raise ValueError("Expected size greater than 0 (got %s)" % self._size)
 
-    @cached_property
+    @property
+    def step(self):
+        return self._step
+
+    @property
     def backward(self):
-        return self._backward
+        return self.step < 0
 
     @cached_property
     def symbolic_size(self):
@@ -1445,6 +1450,9 @@ class StencilDimension(BasicDimension):
     @property
     def range(self):
         return range(self._min, self._max + 1)
+
+    def transpose(self):
+        return StencilDimension(self.name, -self._max, -self._min, step=-1)
 
     @property
     def _arg_names(self):
