@@ -64,7 +64,7 @@ def impose_total_ordering(clusters):
         try:
             relations = {tuple(sorted(c.ispace.itdims, key=key))}
         except ValueError:
-            # See issue #X
+            # See issue #2204
             relations = c.ispace.relations
         ispace = c.ispace.reorder(relations=relations, mode='total')
 

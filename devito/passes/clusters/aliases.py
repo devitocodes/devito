@@ -996,7 +996,8 @@ def pick_best(variants):
 
         # Magic sauce
         # The coefficients were obtained empirically studying the behaviour
-        # of different variants in several kernels
+        # of different variants in several kernels and platforms
+        # Intuitively, it's like trading 70 operations for 1 temporary
         ws_curve = lambda x: (-1 / 70)*x
 
         if delta_ws <= ws_curve(delta_flops):

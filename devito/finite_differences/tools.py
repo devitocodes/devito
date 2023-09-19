@@ -203,10 +203,7 @@ class IndexSet(tuple):
         """
         indices = tuple(reversed(self))
 
-        free_dim = StencilDimension(self.free_dim.name,
-                                    -self.free_dim._max,
-                                    -self.free_dim._min,
-                                    backward=True)
+        free_dim = self.free_dim.transpose()
 
         try:
             expr = self.expr._subs(self.free_dim, -free_dim)
