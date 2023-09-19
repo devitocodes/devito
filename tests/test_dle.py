@@ -187,19 +187,12 @@ def test_cache_blocking_structure_optrelax():
 
     op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
 
-    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0', 'p_src1_blk0'})
+    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
 
     iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
-    assert len(iters) == 2
-    assert iters[0].dim.is_Block
-    assert iters[1].dim.is_Block
-
-    iters = FindNodes(Iteration).visit(bns['p_src1_blk0'])
     assert len(iters) == 5
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
-    for i in range(2, 5):
-        assert not iters[i].dim.is_Block
 
 
 def test_cache_blocking_structure_optrelax_customdim():
@@ -965,7 +958,7 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
-        assert 'omp for collapse' in iterations[2].pragmas[0].value
+        assert 'omp for collapse' in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):

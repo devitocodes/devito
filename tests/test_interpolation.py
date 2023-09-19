@@ -5,7 +5,7 @@ import pytest
 from sympy import Float
 
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
-                    Function, TimeFunction, DefaultDimension, Eq,
+                    Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
                     MatrixSparseTimeFunction)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
@@ -736,6 +736,7 @@ def test_sparse_first():
     assert np.allclose(s.data, expected)
 
 
+@switchconfig(safe_math=True)
 def test_inject_function():
     nt = 11
 

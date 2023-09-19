@@ -305,6 +305,7 @@ class WeightedInterpolator(GenericInterpolator):
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))
         fields, exprs = as_tuple(field), as_tuple(expr)
+
         # Provide either one expr per field or on expr for all fields
         if len(fields) > 1:
             if len(exprs) == 1:
@@ -323,6 +324,10 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+        # Move all temporaries inside inner loop to improve parallelism
+        # Can only be done for inject as interpolation need a temporary
+        # summing temp that wouldn't allow collapsing
+        implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
 
         variables = variables + list(fields)
 

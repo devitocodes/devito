@@ -2500,7 +2500,7 @@ class TestIsotropicAcoustic(object):
         adj_calls = FindNodes(Call).visit(op_adj)
 
         # one halo, ndim memalign and free (pos temp rec/src)
-        sf_calls = 2 * len(shape) * 2
+        sf_calls = 2 * len(shape)
         assert len(fwd_calls) == 1 + sf_calls
         assert len(adj_calls) == 1 + sf_calls
 
