@@ -47,6 +47,9 @@ rec_coordinates[:, 0] = 980.
 geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
                                t0, tn, f0=f0, src_type='Ricker')
 
+#from IPython import embed; embed()
+print(geometry.rec._distributor.glb_slices)
+
 # Wave solver
 solver = AcousticWaveSolver(model, geometry, space_order=4)
 
