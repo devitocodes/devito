@@ -586,7 +586,7 @@ class SubDimension(DerivedDimension):
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
-                   thickness=((lst, thickness), (rst, 0)),
+                   thickness=((lst, thickness), (rst, None)),
                    local=local)
 
     @classmethod
@@ -595,7 +595,7 @@ class SubDimension(DerivedDimension):
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
-                   thickness=((lst, 0), (rst, thickness)),
+                   thickness=((lst, None), (rst, thickness)),
                    local=local)
 
     @classmethod
@@ -627,6 +627,18 @@ class SubDimension(DerivedDimension):
     @property
     def thickness(self):
         return self._thickness
+
+    @property
+    def is_left(self):
+        return self.thickness.right[1] is None
+
+    @property
+    def is_right(self):
+        return self.thickness.left[1] is None
+
+    @property
+    def is_middle(self):
+        return not self.is_left and not self.is_right
 
     @cached_property
     def bound_symbols(self):
@@ -701,7 +713,7 @@ class SubDimension(DerivedDimension):
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
-        requested_ltkn, requested_rtkn = (
+        r_ltkn, r_rtkn = (
             kwargs.get(k.name, v) for k, v in self.thickness
         )
 
@@ -710,19 +722,24 @@ class SubDimension(DerivedDimension):
             if self.local:
                 # dimension is of type ``left``/right`` - compute the 'offset'
                 # and then add 1 to get the appropriate thickness
-                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn-1, LEFT)
-                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn-1, RIGHT)
-                ltkn = ltkn+1 if ltkn is not None else 0
-                rtkn = rtkn+1 if rtkn is not None else 0
+                if r_ltkn is not None:
+                    ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
+                    ltkn = ltkn+1 if ltkn is not None else 0
+                else:
+                    ltkn = 0
+
+                if r_rtkn is not None:
+                    rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
+                    rtkn = rtkn+1 if rtkn is not None else 0
+                else:
+                    rtkn = 0
             else:
                 # dimension is of type ``middle``
-                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn,
-                                                   LEFT) or 0
-                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn,
-                                                   RIGHT) or 0
+                ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
+                rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
         else:
-            ltkn = requested_ltkn
-            rtkn = requested_rtkn
+            ltkn = r_ltkn or 0
+            rtkn = r_rtkn or 0
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 

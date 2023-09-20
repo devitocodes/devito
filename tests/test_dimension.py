@@ -243,6 +243,10 @@ class TestSubDimension(object):
         xi = SubDimension.middle(name='xi', parent=x,
                                  thickness_left=1,
                                  thickness_right=1)
+        assert xi.is_middle
+        assert not xi.is_left
+        assert not xi.is_right
+
         eqs = [Eq(u.forward, u + 1)]
         eqs = [e.subs(x, xi) for e in eqs]
 
@@ -261,6 +265,8 @@ class TestSubDimension(object):
         thickness = 4
 
         xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        assert xleft.is_left
+        assert not xleft.is_middle
         assert xleft.symbolic_size == xleft.thickness.left[0]
 
         xi = SubDimension.middle(name='xi', parent=x,
@@ -289,7 +295,8 @@ class TestSubDimension(object):
         xi = SubDimension.middle(name='xi', parent=x,
                                  thickness_left=thickness, thickness_right=thickness)
         xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
-
+        assert xright.is_right
+        assert not xright.is_middle
         yi = SubDimension.middle(name='yi', parent=y,
                                  thickness_left=thickness, thickness_right=thickness)
 
