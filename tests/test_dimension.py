@@ -9,7 +9,7 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
                     SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension, dimensions, configuration)
+                    CustomDimension, dimensions, configuration, norm, Inc, sum)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
 from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
@@ -1635,6 +1635,25 @@ class TestConditionalDimension(object):
         op = Operator(eqns, opt=('advanced', {'openmp': True}))
 
         assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
+
+    def test_cond_notime(self):
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        time_under = ConditionalDimension(name='timeu', parent=time, factor=5)
+        nt = 10
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        usaved = TimeFunction(name='usaved', grid=grid, space_order=2,
+                              time_dim=time_under, save=nt//5+1)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(usaved, u)])
+        op(time_m=1, time_M=nt-1, dt=1)
+
+        op = Operator([Inc(g, usaved)])
+        op(time_m=1, time_M=nt-1, dt=1)
+        assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
 
 
 class TestCustomDimension(object):

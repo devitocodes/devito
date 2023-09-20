@@ -111,6 +111,8 @@ class ReducerMap(MultiDict):
         """
         candidates = self.getall(key)
         candidates = [c for c in candidates if c is not None]
+        if not candidates:
+            return None
 
         def compare_to_first(v):
             first = candidates[0]
