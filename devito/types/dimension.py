@@ -983,7 +983,7 @@ class ModuloDimension(DerivedDimension):
     def bound_symbols(self):
         return set(self.parent.bound_symbols)
 
-    def _arg_defaults(self, alias=None, **kwargs):
+    def _arg_defaults(self, **kwargs):
         return {}
 
     def _arg_values(self, *args, **kwargs):
@@ -1452,7 +1452,7 @@ class SteppingDimension(DerivedDimension):
     def _arg_names(self):
         return (self.min_name, self.max_name, self.name) + self.parent._arg_names
 
-    def _arg_defaults(self, _min=None, size=None, **kwargs):
+    def _arg_defaults(self, _min=None, **kwargs):
         """
         A map of default argument values defined by this dimension.
 

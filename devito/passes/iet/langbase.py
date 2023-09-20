@@ -214,8 +214,8 @@ class LangTransformer(ABC):
     def Prodder(self):
         return self.lang.Prodder
 
-    def _n_device_pointers(self, *args, **kwargs):
-        return 0
+    def _device_pointers(self, *args, **kwargs):
+        return {}
 
 
 class DeviceAwareMixin(object):
@@ -328,11 +328,10 @@ class DeviceAwareMixin(object):
 
         return _initialize(iet)
 
-    def _n_device_pointers(self, iet):
+    def _device_pointers(self, iet):
         functions = FindSymbols().visit(iet)
         devfuncs = [f for f in functions if f.is_Array and f._mem_local]
-
-        return len(devfuncs)
+        return set(devfuncs)
 
     def _is_offloadable(self, iet):
         """
@@ -345,8 +344,7 @@ class DeviceAwareMixin(object):
         functions = FindSymbols().visit(iet)
         buffers = [f for f in functions if f.is_Array and f._mem_mapped]
         hostfuncs = [f for f in functions if not is_on_device(f, self.gpu_fit)]
-
-        return not (hostfuncs and buffers)
+        return not (buffers and hostfuncs)
 
 
 class Sections(tuple):
