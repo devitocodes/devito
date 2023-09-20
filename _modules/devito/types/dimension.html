@@ -380,13 +380,19 @@
         <span class="c1"># may represent sets of legal values. If that&#39;s the case, here we just</span>
         <span class="c1"># pick one. Note that we sort for determinism</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">loc_minv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_minv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-            <span class="k">pass</span>
+            <span class="n">loc_minv</span> <span class="o">=</span> <span class="n">loc_minv</span><span class="o">.</span><span class="n">stop</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">loc_minv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_minv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">loc_maxv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_maxv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-            <span class="k">pass</span>
+            <span class="n">loc_maxv</span> <span class="o">=</span> <span class="n">loc_maxv</span><span class="o">.</span><span class="n">stop</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">loc_maxv</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">loc_maxv</span><span class="p">)</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">pass</span>
 
         <span class="k">return</span> <span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">min_name</span><span class="p">:</span> <span class="n">loc_minv</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_name</span><span class="p">:</span> <span class="n">loc_maxv</span><span class="p">}</span>
 
@@ -677,7 +683,7 @@
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                    <span class="n">left</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="p">,</span>
                    <span class="n">right</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_min</span><span class="o">+</span><span class="n">lst</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span>
-                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span>
+                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="kc">None</span><span class="p">)),</span>
                    <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
@@ -686,7 +692,7 @@
         <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span>
                    <span class="n">left</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="o">-</span><span class="n">rst</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span>
                    <span class="n">right</span><span class="o">=</span><span class="n">parent</span><span class="o">.</span><span class="n">symbolic_max</span><span class="p">,</span>
-                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">)),</span>
+                   <span class="n">thickness</span><span class="o">=</span><span class="p">((</span><span class="n">lst</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">thickness</span><span class="p">)),</span>
                    <span class="n">local</span><span class="o">=</span><span class="n">local</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
@@ -718,6 +724,18 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">thickness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thickness</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_left</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness</span><span class="o">.</span><span class="n">right</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_right</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness</span><span class="o">.</span><span class="n">left</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_middle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_left</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_right</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">bound_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -792,7 +810,7 @@
         <span class="c1"># However, arguments from the user are considered global</span>
         <span class="c1"># So overriding the thickness to a nonzero value should not cause</span>
         <span class="c1"># boundaries to exist between ranks where they did not before</span>
-        <span class="n">requested_ltkn</span><span class="p">,</span> <span class="n">requested_rtkn</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">r_ltkn</span><span class="p">,</span> <span class="n">r_rtkn</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">thickness</span>
         <span class="p">)</span>
 
@@ -801,19 +819,24 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
                 <span class="c1"># dimension is of type ``left``/right`` - compute the &#39;offset&#39;</span>
                 <span class="c1"># and then add 1 to get the appropriate thickness</span>
-                <span class="n">ltkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">requested_ltkn</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">)</span>
-                <span class="n">rtkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">requested_rtkn</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">)</span>
-                <span class="n">ltkn</span> <span class="o">=</span> <span class="n">ltkn</span><span class="o">+</span><span class="mi">1</span> <span class="k">if</span> <span class="n">ltkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
-                <span class="n">rtkn</span> <span class="o">=</span> <span class="n">rtkn</span><span class="o">+</span><span class="mi">1</span> <span class="k">if</span> <span class="n">rtkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="k">if</span> <span class="n">r_ltkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">ltkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">r_ltkn</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">)</span>
+                    <span class="n">ltkn</span> <span class="o">=</span> <span class="n">ltkn</span><span class="o">+</span><span class="mi">1</span> <span class="k">if</span> <span class="n">ltkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ltkn</span> <span class="o">=</span> <span class="mi">0</span>
+
+                <span class="k">if</span> <span class="n">r_rtkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">rtkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">r_rtkn</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">)</span>
+                    <span class="n">rtkn</span> <span class="o">=</span> <span class="n">rtkn</span><span class="o">+</span><span class="mi">1</span> <span class="k">if</span> <span class="n">rtkn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">rtkn</span> <span class="o">=</span> <span class="mi">0</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="c1"># dimension is of type ``middle``</span>
-                <span class="n">ltkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">requested_ltkn</span><span class="p">,</span>
-                                                   <span class="n">LEFT</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span>
-                <span class="n">rtkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">requested_rtkn</span><span class="p">,</span>
-                                                   <span class="n">RIGHT</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span>
+                <span class="n">ltkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">r_ltkn</span><span class="p">,</span> <span class="n">LEFT</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span>
+                <span class="n">rtkn</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">distributor</span><span class="o">.</span><span class="n">glb_to_loc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">r_rtkn</span><span class="p">,</span> <span class="n">RIGHT</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">ltkn</span> <span class="o">=</span> <span class="n">requested_ltkn</span>
-            <span class="n">rtkn</span> <span class="o">=</span> <span class="n">requested_rtkn</span>
+            <span class="n">ltkn</span> <span class="o">=</span> <span class="n">r_ltkn</span> <span class="ow">or</span> <span class="mi">0</span>
+            <span class="n">rtkn</span> <span class="o">=</span> <span class="n">r_rtkn</span> <span class="ow">or</span> <span class="mi">0</span>
 
         <span class="k">return</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_thickness_map</span><span class="p">,</span> <span class="p">(</span><span class="n">ltkn</span><span class="p">,</span> <span class="n">rtkn</span><span class="p">))}</span></div>
 
@@ -953,8 +976,8 @@
             <span class="n">factor</span> <span class="o">=</span> <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span><span class="o">.</span><span class="n">data</span>
         <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
             <span class="n">factor</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">_factor</span>
-        <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> \
-            <span class="nb">frozenset</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">factor</span><span class="o">*</span><span class="p">(</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">factor</span><span class="o">*</span><span class="p">(</span><span class="n">size</span><span class="p">)))</span>
+
+        <span class="n">defaults</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">max_name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">factor</span><span class="o">*</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">defaults</span></div>
 
