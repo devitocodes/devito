@@ -429,28 +429,17 @@ class TimedAccess(IterationInstance, AccessMode):
                     if i.is_Number and j.is_Number:
                         return Vector(S.ImaginaryUnit)
                     else:
-                        # If both i and j are not numbers,
-                        # there may be dimension-dependent dependencies
-                        # so we append the distance
-
                         # For example:
-                        # Eq(u[0, y], 1)
-                        # Eq(u[1, 1], u[0, y+1])
-                        ret.append(S.Infinity)
+                        # self=W<u,[0,y]> and other=R<u,[0,y+1]>
+                        ret.append(v)
 
-                # We are writing over an entire dimension
-                # but reading from one point.
-                # If there are overlaps between the two
-                # then we would have a dependency
-                # This is a conservative estimation as there are cases
-                # where we may or may not have a dependency
-                # given that we don't write
-                # depending on domain size, which is not compilation-time known
+                # Writing (reading) over an entire dimension, reading (writing)
+                # from one point
 
                 # For example:
-                # Eq(u[0, y], 1)
-                # Eq(u[1, y+1], u[0, 1])
+                # self=R<u,[1,2]> and other=W<u,[1, y+1]>
                 elif (not i.is_Number or not j.is_Number):
+                    import pdb; pdb.set_trace()
                     ret.append(S.Infinity)
 
         return Vector(*ret)
