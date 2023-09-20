@@ -426,7 +426,20 @@ class TimedAccess(IterationInstance, AccessMode):
             else:
                 v = i - j
                 if v.is_Number and v.is_finite:
-                    return Vector(S.ImaginaryUnit)
+                    if i.is_Number and j.is_Number:
+                        return Vector(S.ImaginaryUnit)
+                    else:
+                        # For example:
+                        # self=W<u,[0,y]> and other=R<u,[0,y+1]>
+                        ret.append(v)
+
+                # Writing (reading) over an entire dimension, reading (writing)
+                # from one point
+
+                # For example:
+                # self=R<u,[1,2]> and other=W<u,[1, y+1]>
+                elif (not i.is_Number or not j.is_Number):
+                    ret.append(S.Infinity)
 
         return Vector(*ret)
 
