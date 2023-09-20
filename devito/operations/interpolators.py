@@ -155,13 +155,31 @@ class WeightedInterpolator(GenericInterpolator):
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in self._gdims]
 
-        return DimensionTuple(*dims, getters=self._gdims)
+        # Make radius dimension conditional to avoid OOB
+        rdims = []
+        pos = self.sfunction._position_map.values()
 
-    def _augment_implicit_dims(self, implicit_dims):
-        if self.sfunction._sparse_position == -1:
-            return self.sfunction.dimensions + as_tuple(implicit_dims)
+        for (d, rd, p) in zip(self._gdims, dims, pos):
+            # Add conditional to avoid OOB
+            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
+            cond = sympy.And(lb, ub, evaluate=False)
+            rdims.append(ConditionalDimension(rd.name, rd, condition=cond,
+                                              indirect=True))
+
+        return DimensionTuple(*rdims, getters=self._gdims)
+
+    def _augment_implicit_dims(self, implicit_dims, extras=None):
+        if extras is not None:
+            extra = set([i for v in extras for i in v.dimensions]) - set(self._gdims)
+            extra = tuple(extra)
         else:
-            return as_tuple(implicit_dims) + self.sfunction.dimensions
+            extra = tuple()
+
+        if self.sfunction._sparse_position == -1:
+            return self.sfunction.dimensions + as_tuple(implicit_dims) + extra
+        else:
+            return as_tuple(implicit_dims) + self.sfunction.dimensions + extra
 
     def _coeff_temps(self, implicit_dims):
         return []
@@ -177,13 +195,6 @@ class WeightedInterpolator(GenericInterpolator):
         mapper = {}
         pos = self.sfunction._position_map.values()
 
-        for ((di, d), rd, p) in zip(enumerate(self._gdims), self._rdim, pos):
-            # Add conditional to avoid OOB
-            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
-            cond = sympy.And(lb, ub, evaluate=False)
-            mapper[d] = ConditionalDimension(rd.name, rd, condition=cond, indirect=True)
-
         # Temporaries for the position
         temps = self._positions(implicit_dims)
 
@@ -191,10 +202,10 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
+        mapper = self._rdim._getters
         idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
-        idx_subs.update(dict(zip(self._rdim, mapper.values())))
 
         return idx_subs, temps
 
@@ -247,8 +258,6 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
-
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
             _expr = expr.evaluate
@@ -257,6 +266,9 @@ class WeightedInterpolator(GenericInterpolator):
             _expr = expr
 
         variables = list(retrieve_function_carriers(_expr))
+
+        # Implicit dimensions
+        implicit_dims = self._augment_implicit_dims(implicit_dims)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
@@ -290,11 +302,10 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        implicit_dims = self._augment_implicit_dims(implicit_dims) + self._rdim
-
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))
         fields, exprs = as_tuple(field), as_tuple(expr)
+
         # Provide either one expr per field or on expr for all fields
         if len(fields) > 1:
             if len(exprs) == 1:
@@ -310,6 +321,14 @@ class WeightedInterpolator(GenericInterpolator):
             _exprs = exprs
 
         variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
+
+        # Implicit dimensions
+        implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+        # Move all temporaries inside inner loop to improve parallelism
+        # Can only be done for inject as interpolation need a temporary
+        # summing temp that wouldn't allow collapsing
+        implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
+
         variables = variables + list(fields)
 
         # List of indirection indices for all adjacent grid points
@@ -380,5 +399,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        return Mul(*[self.interpolation_coeffs.subs({ddim: ri, cdim: rd-rd.symbolic_min})
-                     for (ri, rd) in enumerate(self._rdim)])
+        mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
+                   for (ri, rd) in enumerate(self._rdim)]
+        return Mul(*[self.interpolation_coeffs.subs(mapper)
+                     for mapper in mappers])

@@ -2499,7 +2499,7 @@ class TestIsotropicAcoustic(object):
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        # one halo, ndim memalign and free (pos temp rec)
+        # one halo, ndim memalign and free (pos temp rec/src)
         sf_calls = 2 * len(shape)
         assert len(fwd_calls) == 1 + sf_calls
         assert len(adj_calls) == 1 + sf_calls
@@ -2558,7 +2558,8 @@ if __name__ == "__main__":
     # TestDecomposition().test_reshape_left_right()
     # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
-    TestSparseFunction().test_sparse_coords()
+    # TestSparseFunction().test_sparse_coords()
     # TestSparseFunction().test_precomputed_sparse(2)
     # TestOperatorAdvanced().test_fission_due_to_antidep()
+    TestOperatorAdvanced().test_injection_wodup_wtime()
     # TestIsotropicAcoustic().test_adjoint_F(1)

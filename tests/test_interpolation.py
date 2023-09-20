@@ -5,7 +5,7 @@ import pytest
 from sympy import Float
 
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
-                    Function, TimeFunction, DefaultDimension, Eq,
+                    Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
                     MatrixSparseTimeFunction)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
@@ -734,3 +734,30 @@ def test_sparse_first():
     op(time_M=10)
     expected = 10*11/2  # n (n+1)/2
     assert np.allclose(s.data, expected)
+
+
+@switchconfig(safe_math=True)
+def test_inject_function():
+    nt = 11
+
+    grid = Grid(shape=(5, 5))
+    u = TimeFunction(name="u", grid=grid, time_order=2)
+    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                             coordinates=[[0.5, 0.5]])
+
+    nfreq = 5
+    freq_dim = DefaultDimension(name="freq", default_value=nfreq)
+    omega = Function(name="omega", dimensions=(freq_dim,), shape=(nfreq,), grid=grid)
+    omega.data.fill(1.)
+
+    inj = src.inject(field=u.forward, expr=omega)
+
+    op = Operator([inj])
+
+    op(time_M=0)
+    assert u.data[1, 2, 2] == nfreq
+    assert np.all(u.data[0] == 0)
+    assert np.all(u.data[2] == 0)
+    for i in [0, 1, 3, 4]:
+        for j in [0, 1, 3, 4]:
+            assert u.data[1, i, j] == 0

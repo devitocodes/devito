@@ -94,7 +94,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # a reference to the user-provided buffer
             self._initializer = None
             if len(initializer) > 0:
-                self.data_with_halo[:] = initializer
+                self.data_with_halo[:] = initializer[:]
             else:
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after

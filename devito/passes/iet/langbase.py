@@ -214,6 +214,9 @@ class LangTransformer(ABC):
     def Prodder(self):
         return self.lang.Prodder
 
+    def _device_pointers(self, *args, **kwargs):
+        return {}
+
 
 class DeviceAwareMixin(object):
 
@@ -324,6 +327,11 @@ class DeviceAwareMixin(object):
             return iet, {}
 
         return _initialize(iet)
+
+    def _device_pointers(self, iet):
+        functions = FindSymbols().visit(iet)
+        devfuncs = [f for f in functions if f.is_Array and f._mem_local]
+        return set(devfuncs)
 
     def _is_offloadable(self, iet):
         """

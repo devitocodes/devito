@@ -2713,6 +2713,7 @@ class TestIsoAcoustic(object):
         assert summary1[('section0', None)].ops == 9
         assert summary1[('section1', None)].ops == 31
         assert summary1[('section2', None)].ops == 88
+        assert summary1[('section3', None)].ops == 22
         assert np.isclose(summary1[('section1', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)

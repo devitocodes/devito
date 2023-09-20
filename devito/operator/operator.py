@@ -24,7 +24,7 @@ from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
-                          timed_region)
+                          timed_region, contains_val)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -526,6 +526,7 @@ class Operator(Callable):
         edges = [(i, i.parent) for i in self.dimensions
                  if i.is_Derived and i.parent in set(nodes)]
         toposort = DAG(nodes, edges).topological_sort()
+
         futures = {}
         for d in reversed(toposort):
             if set(d._arg_names).intersection(kwargs):
@@ -560,11 +561,12 @@ class Operator(Callable):
                     # a TimeFunction `usave(t_sub, x, y)`, an override for `fact` is
                     # supplied w/o overriding `usave`; that's legal
                     pass
-                elif is_integer(args[k]) and args[k] not in as_tuple(v):
+                elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
+
         args = kwargs['args'] = args.reduce_all()
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
@@ -572,6 +574,11 @@ class Operator(Callable):
         discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         discretizations.update({getattr(p, 'grid', None) for p in defaults})
         discretizations.discard(None)
+        # Remove subgrids if multiple grids
+        if len(discretizations) > 1:
+            discretizations = {g for g in discretizations
+                               if not any(d.is_Derived for d in g.dimensions)}
+
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 

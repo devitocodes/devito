@@ -110,7 +110,7 @@ class TestCodeGeneration(object):
             'acc parallel loop tile(32,4) present(u)'
         # Only the AFFINE Iterations are tiled
         assert trees[3][1].pragmas[0].value ==\
-            'acc parallel loop collapse(3) present(src,src_coords,u)'
+            'acc parallel loop collapse(4) present(src,src_coords,u)'
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
                                           ((32, 4, 4), (8, 8, 8))])
@@ -136,6 +136,8 @@ class TestCodeGeneration(object):
             'acc parallel loop tile(32,4,4) present(u)'
         assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(8,8) present(u)'
+        assert trees[3][1].pragmas[0].value ==\
+            'acc parallel loop collapse(4) present(src,src_coords,u)'
 
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))

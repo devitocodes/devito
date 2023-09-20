@@ -295,15 +295,13 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                     except TypeError:
                         pass
 
-                # At least one inner loop (nested) or
-                # we do not collapse most inner loop if it is an atomic reduction
-                if not i.is_ParallelAtomic or nested:
-                    collapsable.append(i)
+                collapsable.append(i)
 
             # Give a score to this candidate, based on the number of fully-parallel
             # Iterations and their position (i.e. outermost to innermost) in the nest
             score = (
                 int(root.is_ParallelNoAtomic),
+                len(self._device_pointers(root)),  # Outermost offloadable
                 int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
                 int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
                 -(n0 + 1)  # The outermost, the better
@@ -377,9 +375,14 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                                           ncollapsed=ncollapsed, nthreads=nthreads,
                                           **root.args)
             prefix = []
+        elif nthreads is not None:
+            body = self.HostIteration(schedule='static',
+                                      parallel=nthreads is not self.nthreads_nested,
+                                      ncollapsed=ncollapsed, nthreads=nthreads,
+                                      **root.args)
+            prefix = []
         else:
             # pragma ... for ... schedule(..., expr)
-            assert nthreads is None
             nthreads = self.nthreads_nonaffine
             chunk_size = Symbol(name='chunk_size')
             body = self.HostIteration(ncollapsed=ncollapsed, chunk_size=chunk_size,
@@ -426,11 +429,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_nested_partree(self, partree):
         # Apply heuristic
         if self.nhyperthreads <= self.nested:
-            return partree
-
-        # Loop nest with atomic reductions are more likely to have less latency
-        # keep outer loop parallel
-        if partree.root.is_ParallelAtomic:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,

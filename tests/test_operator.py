@@ -707,6 +707,8 @@ class TestApplyArguments(object):
             if isinstance(v, (Function, SparseFunction)):
                 condition = v._C_as_ndarray(arguments[name])[v._mask_domain] == v.data
                 condition = condition.all()
+            elif isinstance(arguments[name], range):
+                condition = arguments[name].start <= v < arguments[name].stop
             else:
                 condition = arguments[name] == v
 

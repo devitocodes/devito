@@ -110,6 +110,7 @@ class ReducerMap(MultiDict):
             Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
+        candidates = [c for c in candidates if c is not None]
 
         def compare_to_first(v):
             first = candidates[0]
@@ -122,12 +123,23 @@ class ReducerMap(MultiDict):
                     return first in v
             elif isinstance(first, Set):
                 return v in first
+            elif isinstance(v, range):
+                if isinstance(first, range):
+                    return first.stop > v.start or v.stop > first.start
+                else:
+                    return first >= v.start and first < v.stop
+            elif isinstance(first, range):
+                return v >= first.start and v < first.stop
             else:
                 return first == v
 
         if len(candidates) == 1:
             return candidates[0]
         elif all(map(compare_to_first, candidates)):
+            # return first non-range
+            for c in candidates:
+                if not isinstance(c, range):
+                    return c
             return candidates[0]
         else:
             raise ValueError("Unable to find unique value for key %s, candidates: %s"

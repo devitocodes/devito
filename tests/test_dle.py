@@ -193,8 +193,6 @@ def test_cache_blocking_structure_optrelax():
     assert len(iters) == 5
     assert iters[0].dim.is_Block
     assert iters[1].dim.is_Block
-    for i in range(2, 5):
-        assert not iters[i].dim.is_Block
 
 
 def test_cache_blocking_structure_optrelax_customdim():
@@ -286,7 +284,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
+    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
                      't,p_s0_blk0,p_s,rsx,rsy')
 
 
@@ -816,12 +814,13 @@ class TestNodeParallelism(object):
                                                      'par-collapse-ncores': 1,
                                                      'par-collapse-work': 0}))
 
-        assert 'collapse(2)' in str(op0)
+        assert 'collapse(3)' in str(op0)
         assert 'atomic' in str(op0)
 
         # Now only `x` is parallelized
         op1 = Operator([Eq(v[t, x, 0, 0], v[t, x, 0, 0] + 1), Inc(uf, 1)],
                        opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
+
         assert 'omp for' in str(op1)
         assert 'collapse' not in str(op1)
         assert 'atomic' not in str(op1)
@@ -946,11 +945,12 @@ class TestNodeParallelism(object):
         eqns = sf.inject(field=u.forward, expr=sf * dt**2)
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
-                                               'par-collapse-ncores': 1}))
+                                               'par-collapse-ncores': 20}))
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
         assert 'omp for' in iterations[1].pragmas[0].value
+        assert 'collapse' not in iterations[1].pragmas[0].value
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1,
@@ -958,7 +958,7 @@ class TestNodeParallelism(object):
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
-        assert 'omp for collapse(2)' in iterations[1].pragmas[0].value
+        assert 'omp for collapse' in iterations[1].pragmas[0].value
 
 
 class TestNestedParallelism(object):
