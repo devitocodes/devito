@@ -10,7 +10,8 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'Ordering', 'DAG', 'frozendict', 'UnboundedMultiTuple']
+           'OrderedSet', 'Ordering', 'DAG', 'frozendict',
+           'UnboundTuple', 'UnboundedMultiTuple']
 
 
 class Bunch(object):

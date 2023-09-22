@@ -78,14 +78,6 @@ class DeviceOmpIteration(OmpIteration):
 
         return clauses
 
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('gpu_fit', None)
-
-        return kwargs
-
 
 class ThreadedProdder(Conditional, Prodder):
 
