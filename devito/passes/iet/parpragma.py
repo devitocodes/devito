@@ -658,7 +658,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
                                         ncollapsed=len(collapsable) + 1,
-                                        tile=self.par_tile,
+                                        tile=self.par_tile.next(),
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 

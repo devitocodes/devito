@@ -728,6 +728,8 @@ class UnboundTuple(object):
         self.current = 0
 
     def next(self):
+        if self.last == 0:
+            return None
         item = self.items[self.current]
         self.current = min(self.last - 1, self.current+1)
         return item
