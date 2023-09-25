@@ -13,7 +13,7 @@ from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLan
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, UnboundTuple
 from devito.types import DeviceMap, Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
@@ -30,7 +30,8 @@ class DeviceAccIteration(PragmaIteration):
         clauses = []
 
         if tile:
-            clauses.append('tile(%s)' % ','.join(str(i) for i in tile))
+            stile = [str(tile[i]) for i in range(ncollapsed)]
+            clauses.append('tile(%s)' % ','.join(stile))
         elif ncollapsed > 1:
             clauses.append('collapse(%d)' % ncollapsed)
 
@@ -159,18 +160,13 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         assert candidates
 
         root, collapsable = self._select_candidates(candidates)
-        ncollapsable = len(collapsable)
+        ncollapsable = len(collapsable) + 1
 
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
             tile = self.par_tile.next()
-            assert isinstance(tile, tuple)
-            nremainder = (ncollapsable + 1) - len(tile)
-            if nremainder >= 0:
-                tile += (tile[-1],)*nremainder
-            else:
-                tile = tile[:ncollapsable + 1]
+            assert isinstance(tile, UnboundTuple)
 
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile,
                                         ncollapsed=ncollapsable, **root.args)

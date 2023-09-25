@@ -329,7 +329,9 @@ class OptOption(object):
 
 class ParTileArg(tuple):
 
-    def __new__(cls, items, rule=None, tag=None):
+    def __new__(cls, items, shm=0, tag=None):
+        if items is None:
+            items = tuple()
         obj = super().__new__(cls, items)
         obj.rule = rule
         obj.tag = tag
@@ -340,7 +342,7 @@ class ParTile(tuple, OptOption):
 
     def __new__(cls, items, default=None):
         if not items:
-            return None
+            return tuple()
         elif isinstance(items, bool):
             if not default:
                 raise ValueError("Expected `default` value, got None")

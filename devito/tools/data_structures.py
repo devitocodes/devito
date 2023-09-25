@@ -639,7 +639,80 @@ class frozendict(Mapping):
         return self._hash
 
 
-class UnboundedMultiTuple(object):
+class UnboundTuple(object):
+    """
+    An UnboundedTuple is a tuple that can be
+    infinitely iterated over.
+
+    Examples
+    --------
+    >>> ub = UnboundTuple((1, 2),(3, 4))
+    >>> ub
+    UnboundTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
+    >>> ub.next()
+    UnboundTuple(1, 2)
+    >>> ub.next()
+    UnboundTuple(3, 4)
+    >>> ub.next()
+    UnboundTuple(3, 4)
+    """
+
+    def __init__(self, *items):
+        nitems = []
+        for i in as_tuple(items):
+            if isinstance(i, Iterable):
+                nitems.append(UnboundTuple(*i))
+            elif i is not None:
+                nitems.append(i)
+
+        self.items = tuple(nitems)
+        self.last = len(self.items)
+        self.current = 0
+
+    @property
+    def default(self):
+        return self.items[0]
+
+    @property
+    def prod(self):
+        return np.prod(self.items)
+
+    def next(self):
+        if self.last == 0:
+            return None
+        item = self.items[self.current]
+        if self.current == self.last-1 or self.current == -1:
+            self.current = -1
+        else:
+            self.current += 1
+        return item
+
+    def __len__(self):
+        return self.last
+
+    def __repr__(self):
+        sitems = [s.__repr__() for s in self.items]
+        return "%s(%s)" % (self.__class__.__name__, ", ".join(sitems))
+
+    def __getitem__(self, idx):
+        if isinstance(idx, slice):
+            start = idx.start or 0
+            stop = idx.stop or self.last
+            if stop < 0:
+                stop = self.last + stop
+            step = idx.step or 1
+            return UnboundTuple(*[self[i] for i in range(start, stop, step)])
+        try:
+            if idx >= self.last-1:
+                return self.items[self.last-1]
+            else:
+                return self.items[idx]
+        except TypeError:
+            # Slice, ...
+            return UnboundTuple(self[i] for i in idx)
+
+
+class UnboundedMultiTuple(UnboundTuple):
 
     """
     An UnboundedMultiTuple is an ordered collection of tuples that can be
@@ -649,10 +722,10 @@ class UnboundedMultiTuple(object):
     --------
     >>> ub = UnboundedMultiTuple([1, 2], [3, 4])
     >>> ub
-    UnboundedMultiTuple((1, 2), (3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.iter()
     >>> ub
-    UnboundedMultiTuple(*(1, 2), (3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.next()
     1
     >>> ub.next()
@@ -661,7 +734,7 @@ class UnboundedMultiTuple(object):
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub
-    UnboundedMultiTuple((1, 2), *(3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.next()
     3
     >>> ub.next()
@@ -672,27 +745,8 @@ class UnboundedMultiTuple(object):
     """
 
     def __init__(self, *items):
-        # Normalize input
-        nitems = []
-        for i in as_tuple(items):
-            if isinstance(i, Iterable):
-                if isinstance(i, tuple):
-                    # Honours tuple subclasses
-                    nitems.append(i)
-                else:
-                    nitems.append(tuple(i))
-            else:
-                raise ValueError("Expected sequence, got %s" % type(i))
-
-        self.items = tuple(nitems)
-        self.tip = -1
-        self.curiter = None
-
-    def __repr__(self):
-        items = [str(i) for i in self.items]
-        if self.curiter is not None:
-            items[self.tip] = "*%s" % items[self.tip]
-        return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
+        super().__init__(*items)
+        self.current = -1
 
     @property
     def curitem(self):
@@ -706,33 +760,11 @@ class UnboundedMultiTuple(object):
         return self.items.index(item)
 
     def iter(self):
-        if not self.items:
-            raise ValueError("No tuples available")
-        self.tip = min(self.tip + 1, max(len(self.items) - 1, 0))
-        self.curiter = iter(self.items[self.tip])
+        self.current = min(self.current + 1, self.last - 1)
+        self.items[self.current].current = 0
+        return
 
     def next(self):
-        if self.curiter is None:
+        if self.items[self.current].current == -1:
             raise StopIteration
-        return next(self.curiter)
-
-
-class UnboundTuple(object):
-    """
-    A simple data structure that returns the last element forever once reached
-    """
-
-    def __init__(self, items):
-        self.items = as_tuple(items)
-        self.last = len(self.items)
-        self.current = 0
-
-    def next(self):
-        if self.last == 0:
-            return None
-        item = self.items[self.current]
-        self.current = min(self.last - 1, self.current+1)
-        return item
-
-    def __len__(self):
-        return self.last
+        return self.items[self.current].next()

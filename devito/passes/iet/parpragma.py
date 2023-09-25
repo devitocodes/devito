@@ -622,7 +622,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
-        self.par_tile = UnboundTuple(options['par-tile'])
+        self.par_tile = UnboundTuple(*options['par-tile'])
         self.par_disabled = options['par-disabled']
 
     def _score_candidate(self, n0, root, collapsable=()):
@@ -657,7 +657,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
-                                        ncollapsed=len(collapsable) + 1,
+                                        ncollapsed=len(collapsable)+1,
                                         tile=self.par_tile.next(),
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
