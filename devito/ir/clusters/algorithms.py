@@ -458,7 +458,7 @@ def normalize_reductions(cluster, sregistry, options):
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and e.lhs.is_Indexed and cluster.is_sparse:
+        if e.is_Reduction and (e.lhs.is_Indexed or cluster.is_sparse):
             # Transform `e` such that we reduce into a scalar (ultimately via
             # atomic ops, though this part is carried out by a much later pass)
             # For example, given `i = m[p_src]` (i.e., indirection array), turn:
