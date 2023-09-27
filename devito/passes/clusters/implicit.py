@@ -107,20 +107,25 @@ class LowerMultiSubDimensions(Queue):
             exprs, dims, sub_iterators = make_implicit_exprs(d.msd, c)
 
             # The IterationSpace induced by the MultiSubDomain
-            intervals = [Interval(i, 0, 0) for i in dims]
-            relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
-            ispaceN = IterationSpace(
-                IntervalGroup(intervals, relations=relations), sub_iterators
-            )
+            if dims:
+                intervals = [Interval(i) for i in dims]
+                relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
+                ispaceN = IterationSpace(
+                    IntervalGroup(intervals, relations=relations), sub_iterators
+                )
+                ispace = IterationSpace.union(ispace0, ispaceN)
+            else:
+                ispaceN = None
+                ispace = ispace0
 
-            ispace = IterationSpace.union(ispace0, ispaceN)
             properties = {i.dim: {SEQUENTIAL} for i in ispace}
-            if len(ispaceN) == 0:
+
+            if not ispaceN:
                 # Special case: we can factorize the thickness assignments
                 # once and for all at the top of the current IterationInterval,
                 # and reuse them for one or more (potentially non-consecutive)
                 # `clusters`
-                if ispaceN not in seen:
+                if d not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
                     retained = {None} | set(c.ispace[:n-1].dimensions)
 
@@ -143,8 +148,12 @@ class LowerMultiSubDimensions(Queue):
                     )
                     tip = nxt
 
-            ispace = IterationSpace.union(c.ispace, ispaceN)
-            processed.append(c.rebuild(ispace=ispace))
+            if ispaceN:
+                ispace = IterationSpace.union(c.ispace, ispaceN)
+                processed.append(c.rebuild(ispace=ispace))
+            else:
+                processed.append(c)
+            seen.add(d)
 
         return processed
 

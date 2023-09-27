@@ -447,7 +447,7 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n0', 't,n0,xi,yi'], 'x,y,t,n0,xi,yi')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,xi2,yi2'], 'x,y,t,n0,xi2,yi2')
 
     def test_issue_1761_b(self):
         """
@@ -486,8 +486,8 @@ class TestMultiSubDomain(object):
         op.cfunction
 
         assert_structure(op,
-                         ['x,y', 't,n0', 't,n0,xi,yi', 't,n1', 't,n1,xi,yi'],
-                         'x,y,t,n0,xi,yi,n1,xi,yi')
+                         ['x,y', 't,n0', 't,n0,xi2,yi2', 't,n1', 't,n1,xi3,yi3'],
+                         'x,y,t,n0,xi2,yi2,n1,xi3,yi3')
 
     def test_issue_1761_c(self):
         """
@@ -522,9 +522,9 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n0', 't,n0,xi,yi',
-                              't,n1', 't,n1,xi,yi', 't,n0', 't,n0,xi,yi'],
-                         'x,y,t,n0,xi,yi,n1,xi,yi,n0,xi,yi')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,xi2,yi2',
+                              't,n1', 't,n1,xi3,yi3', 't,n0', 't,n0,xi2,yi2'],
+                         'x,y,t,n0,xi2,yi2,n1,xi3,yi3,n0,xi2,yi2')
 
     def test_issue_1761_d(self):
         """
@@ -549,7 +549,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi,yi', 't,n0,xi,yi'], 't,n0,xi,yi,xi,yi')
+        assert_structure(op, ['t,n0', 't,n0,xi2,yi2', 't,n0,xi2,yi2'],
+                         't,n0,xi2,yi2,xi2,yi2')
 
     def test_guarding(self):
 
@@ -576,8 +577,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t', 't,n0', 't,n0,xi,yi', 't,n0', 't,n0,xi,yi'],
-                         't,n0,xi,yi,n0,xi,yi')
+        assert_structure(op, ['t', 't,n0', 't,n0,xi2,yi2', 't,n0', 't,n0,xi2,yi2'],
+                         't,n0,xi2,yi2,n0,xi2,yi2')
 
     def test_3D(self):
 
@@ -597,8 +598,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi0_blk0,yi0_blk0,xi,yi,zi'],
-                         't,n0,xi0_blk0,yi0_blk0,xi,yi,zi')
+        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,xi2,yi2,zi2'],
+                         't,n0,xi20_blk0,yi20_blk0,xi2,yi2,zi2')
 
     def test_sequential_implicit(self):
         """
