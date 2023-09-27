@@ -458,7 +458,7 @@ def normalize_reductions(cluster, sregistry, options):
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and (e.lhs.is_Indexed or cluster.is_sparse):
+        if e.is_Reduction and e.lhs.is_Indexed and cluster.is_sparse:
             # Transform `e` such that we reduce into a scalar (ultimately via
             # atomic ops, though this part is carried out by a much later pass)
             # For example, given `i = m[p_src]` (i.e., indirection array), turn:
@@ -471,7 +471,8 @@ def normalize_reductions(cluster, sregistry, options):
             processed.extend([e.func(v, e.rhs, operation=None),
                               e.func(e.lhs, v)])
 
-        elif e.is_Reduction and e.lhs.is_Symbol and opt_mapify_reduce:
+        elif e.is_Reduction and e.lhs.is_Symbol and opt_mapify_reduce \
+                and not cluster.is_sparse:
             # Transform `e` into what is in essence an explicit map-reduce
             # For example, turn:
             # `s += f(u[x], v[x], ...)`

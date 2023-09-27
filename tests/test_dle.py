@@ -11,7 +11,7 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimen
                     configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
-                           retrieve_iteration_tree)
+                           retrieve_iteration_tree, Expression)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -764,6 +764,30 @@ class TestNodeParallelism(object):
             return
 
         assert np.allclose(f.data, 18)
+
+    def test_reduction_local(self):
+        grid = Grid((11, 11))
+        d = Dimension("i")
+        n = Function(name="n", dimensions=(d,), shape=(1,))
+        u = Function(name="u", grid=grid)
+        u.data.fill(1.)
+
+        op = Operator(Inc(n[0], u))
+        op()
+
+        cond = FindNodes(Expression).visit(op)
+        iterations = FindNodes(Iteration).visit(op)
+        # Should not creat any temporary for the reduction
+        assert len(cond) == 1
+        if configuration['language'] == 'C':
+            pass
+        elif Ompizer._support_array_reduction(configuration['compiler']):
+            assert "reduction(+:n[0])" in iterations[0].pragmas[0].value
+        else:
+            # E.g. old GCC's
+            assert "atomic update" in str(iterations[-1])
+
+        assert n.data[0] == 11*11
 
     def test_array_max_reduction(self):
         """

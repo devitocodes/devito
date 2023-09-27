@@ -338,11 +338,11 @@ class AbstractSparseFunction(DiscreteFunction):
                                   condition=condition, indirect=True)
 
         if expr is None:
-            out = self.indexify().xreplace({self._sparse_dim: cd})
+            out = self.indexify()._subs(self._sparse_dim, cd)
         else:
             functions = {f for f in retrieve_function_carriers(expr)
                          if f.is_SparseFunction}
-            out = indexify(expr).xreplace({f._sparse_dim: cd for f in functions})
+            out = indexify(expr).subs({f._sparse_dim: cd for f in functions})
 
         return out, temps
 
