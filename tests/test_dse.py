@@ -24,7 +24,7 @@ from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               IndexedPointer, Keyword, SizeOf, estimate_cost,
                               pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Array, Scalar, Symbol
+from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -2663,6 +2663,18 @@ class TestAliases(object):
 
         assert FindNodes(Expression).visit(op)[0].dtype == np.float32
         assert np.all(fo.data[:-1, :-1] == 8)
+
+    def test_sparse_const(self):
+        grid = Grid((11, 11, 11))
+
+        u = TimeFunction(name="u", grid=grid)
+        src = PrecomputedSparseTimeFunction(name="src", grid=grid, npoint=1, nt=11,
+                                            r=2, interpolation_coeffs=np.ones((1, 3, 2)))
+        op = Operator(src.interpolate(u))
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 1
+        assert all(e.is_scalar for e in cond[0].args['then_body'][0].exprs)
 
 
 class TestIsoAcoustic(object):
