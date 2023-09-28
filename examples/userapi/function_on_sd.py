@@ -7,11 +7,11 @@ grid = Grid(shape=(11, 11))
 
 subdims = grid.subdomains['interior'].dimensions
 
-xdecomp, ydecomp = grid._distributor.decomposition
+#xdecomp, ydecomp = grid._distributor.decomposition
 
-sd_decomp = (xdecomp.reshape(slice(1,-1)), ydecomp.reshape(slice(1,-1)))
+#sd_decomp = (xdecomp.reshape(slice(1,-1)), ydecomp.reshape(slice(1,-1)))
 
-f = Function(name='f', dimensions=subdims, shape=grid.subdomains['interior'].shape, space_order=0)
+f = Function(name='f', grid=grid.subdomains['interior'], space_order=0)
 
 #f._distributor = grid._distributor
 #f.data._decomposition = sd_decomp

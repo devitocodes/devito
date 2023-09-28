@@ -431,6 +431,36 @@ class AbstractSubDomain(CartesianDiscretization):
         """
         raise NotImplementedError
 
+    def _arg_values(self, **kwargs):
+        values = dict(self._arg_defaults())
+
+        # Override spacing and origin if necessary
+        values.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
+
+        return values
+
+    def _arg_defaults(self):
+        """A map of default argument values defined by this Grid."""
+        args = ReducerMap()
+
+        # Dimensions size
+        for k, v in self.dimension_map.items():
+            args.update(k._arg_defaults(_min=0, size=v.loc))
+
+        # Dimensions spacing
+        args.update({k.name: v for k, v in self.spacing_map.items()})
+
+        # Grid origin
+        args.update({k.name: v for k, v in self.origin_map.items()})
+
+        # MPI-related objects
+        if self.distributor.is_parallel:
+            distributor = self.distributor
+            args[distributor._obj_comm.name] = distributor._obj_comm.value
+            args[distributor._obj_neighborhood.name] = distributor._obj_neighborhood.value
+
+        return args
+
     @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
@@ -539,6 +569,11 @@ class SubDomain(AbstractSubDomain):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
+
+    @property
+    def shape_local(self):
+        # FIXME: Fix for MPI
+        return self._shape
 
 
 class MultiSubDimension(SubDimension):
