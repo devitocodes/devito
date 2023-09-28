@@ -725,7 +725,8 @@ class SubDomainSet(MultiSubDomain):
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si' % d.name, d, self) for d in grid.dimensions
+            MultiSubDimension('%si%d' % (d.name, counter), d, self)
+            for d in grid.dimensions
         )
 
         # Compute the SubDomainSet shapes
