@@ -2669,12 +2669,19 @@ class TestAliases(object):
 
         u = TimeFunction(name="u", grid=grid)
         src = PrecomputedSparseTimeFunction(name="src", grid=grid, npoint=1, nt=11,
-                                            r=2, interpolation_coeffs=np.ones((1, 3, 2)))
+                                            r=2, interpolation_coeffs=np.ones((1, 3, 2)),
+                                            gridpoints=[[5, 5, 5]])
+        u.data.fill(1.)
+
         op = Operator(src.interpolate(u))
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 1
+        assert len(cond[0].args['then_body'][0].exprs) == 1
         assert all(e.is_scalar for e in cond[0].args['then_body'][0].exprs)
+
+        op()
+        assert np.all(src.data == 8)
 
 
 class TestIsoAcoustic(object):
