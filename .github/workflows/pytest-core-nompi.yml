@@ -100,7 +100,7 @@ jobs:
 
         - name: pytest-docker-py39-icx-omp
           python-version: '3.9'
-          os: ubuntu-22.04
+          os: ["self-hosted", "docker"]
           arch: "icx"
           language: "openmp"
           sympy: "1.12"
