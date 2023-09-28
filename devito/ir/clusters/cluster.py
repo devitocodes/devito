@@ -228,7 +228,7 @@ class Cluster(object):
                 not self.is_halo_touch and
                 all(a.is_regular for a in self.scope.accesses))
 
-    @property
+    @cached_property
     def is_sparse(self):
         """
         A cluster is sparse if it represent a sparse operation i.e if both

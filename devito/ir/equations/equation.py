@@ -76,8 +76,11 @@ class IREq(sympy.Eq, Pickable):
     def __repr__(self):
         if not self.is_Reduction:
             return super().__repr__()
+        elif self.operation is OpInc:
+            return '%s += %s' % (self.lhs, self.rhs)
         else:
             return '%s = %s(%s, %s)' % (self.lhs, self.operation, self.lhs, self.rhs)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
