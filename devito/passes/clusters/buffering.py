@@ -572,8 +572,8 @@ class Buffer(object):
     @cached_property
     def lastidx(self):
         """
-        A 2-tuple of indices representing, respectively, the "last" write to the
-        buffer and the "last" read from the buffered Function. For example,
+        A 2-tuple of indices representing, respectively, the *last* write to the
+        buffer and the *last* read from the buffered Function. For example,
         `(sb1, time+1)` in the case of a forward-propagating `time` Dimension.
         """
         try:
