@@ -14,7 +14,7 @@ from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree, Expression)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
-from devito.types import Scalar
+from devito.types import Scalar, Symbol
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
@@ -788,6 +788,32 @@ class TestNodeParallelism(object):
             assert "atomic update" in str(iterations[-1])
 
         assert n.data[0] == 11*11
+
+    def test_mapify_reduction_sparse(self):
+        grid = Grid((11, 11))
+        s = SparseTimeFunction(name="s", grid=grid, npoint=1, nt=11)
+        s.data.fill(1.)
+        r = Symbol(name="r", dtype=np.float32)
+        n0 = Function(name="n0", dimensions=(Dimension("noi"),), shape=(1,))
+
+        eqns = [Eq(r, 0), Inc(r, s*s), Eq(n0[0], r)]
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
+        
+        expr0 = FindNodes(Expression).visit(op0)
+        assert len(expr0) == 3
+        assert expr0[1].is_reduction
+
+        expr1 = FindNodes(Expression).visit(op1)
+        assert len(expr1) == 4
+        assert expr1[1].expr.lhs.indices == s.indices
+        assert expr1[2].expr.rhs.is_Indexed
+        assert expr1[2].is_reduction
+        
+        op0()
+        assert n0.data[0] == 11
+        op1()
+        assert n0.data[0] == 11  
 
     def test_array_max_reduction(self):
         """
