@@ -799,7 +799,7 @@ class TestNodeParallelism(object):
         eqns = [Eq(r, 0), Inc(r, s*s), Eq(n0[0], r)]
         op0 = Operator(eqns)
         op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
-        
+
         expr0 = FindNodes(Expression).visit(op0)
         assert len(expr0) == 3
         assert expr0[1].is_reduction
@@ -809,11 +809,11 @@ class TestNodeParallelism(object):
         assert expr1[1].expr.lhs.indices == s.indices
         assert expr1[2].expr.rhs.is_Indexed
         assert expr1[2].is_reduction
-        
+
         op0()
         assert n0.data[0] == 11
         op1()
-        assert n0.data[0] == 11  
+        assert n0.data[0] == 11
 
     def test_array_max_reduction(self):
         """

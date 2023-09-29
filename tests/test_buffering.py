@@ -268,7 +268,7 @@ def test_over_injection():
             rec.interpolate(expr=u.forward))
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
+    op1 = Operator(eqns, opt=('buffering', {'par-collapse-work': 0}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == \
