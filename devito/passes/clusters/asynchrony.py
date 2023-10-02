@@ -4,7 +4,8 @@ from sympy import And
 
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
-from devito.symbolics import uxreplace
+from devito.passes.clusters.utils import is_memcpy
+from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
@@ -125,7 +126,7 @@ class Tasker(Asynchronous):
                     assert lock.size == 1
                     indices = [0]
 
-                if is_memcpy(c0):
+                if wraps_memcpy(c0):
                     e = c0.exprs[0]
                     function = e.lhs.function
                     findex = e.lhs.indices[d]
@@ -177,7 +178,7 @@ class Streaming(Asynchronous):
             for c in clusters:
                 dims = self.key(c)
                 if d._defines & dims:
-                    if is_memcpy(c):
+                    if wraps_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
                         self._actions_from_init(c, prefix, actions)
                     else:
@@ -186,7 +187,7 @@ class Streaming(Asynchronous):
 
         # Case 2
         else:
-            mapper = OrderedDict([(c, is_memcpy(c)) for c in clusters
+            mapper = OrderedDict([(c, wraps_memcpy(c)) for c in clusters
                                   if d in self.key(c)])
 
             # Case 2A (special case, leading to more efficient streaming)
@@ -257,7 +258,7 @@ class Streaming(Asynchronous):
 
         # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
         tindex0 = e.lhs.indices[d]
-        if is_integer(tindex0):
+        if is_integer(tindex0) or isinstance(tindex0, IntDiv):
             tindex = tindex0
         else:
             assert tindex0.is_Modulo
@@ -321,16 +322,8 @@ class Actions(object):
         self.insert = insert or []
 
 
-def is_memcpy(cluster):
-    """
-    True if `cluster` emulates a memcpy involving an Array, False otherwise.
-    """
+def wraps_memcpy(cluster):
     if len(cluster.exprs) != 1:
         return False
 
-    a, b = cluster.exprs[0].args
-
-    if not (a.is_Indexed and b.is_Indexed):
-        return False
-
-    return a.function.is_Array or b.function.is_Array
+    return is_memcpy(cluster.exprs[0])

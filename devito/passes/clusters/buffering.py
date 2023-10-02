@@ -9,6 +9,7 @@ from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,
                        lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
+from devito.passes.clusters.utils import is_memcpy
 from devito.symbolics import IntDiv, retrieve_function_carriers, uxreplace
 from devito.tools import (Bunch, DefaultOrderedDict, Stamp, as_tuple,
                           filter_ordered, flatten, is_integer, timed_pass)
@@ -173,6 +174,12 @@ class Buffering(Queue):
                 # Special case: avoid initialization if not strictly necessary
                 # See docstring for more info about what this implies
                 if b.size == 1 and not init_onread(b.function):
+                    continue
+
+                # Special case: avoid initialization in the case of double
+                # (or multiple levels of) buffering because it will have been
+                # already performed
+                if b.size > 1 and b.multi_buffering:
                     continue
 
                 dims = b.function.dimensions
@@ -347,64 +354,14 @@ class Buffer(object):
         self.sub_iterators = defaultdict(list)
         self.subdims_mapper = DefaultOrderedDict(set)
 
-        # Create the necessary ModuloDimensions for indexing into the buffer
-        # E.g., `u[time,x] + u[time+1,x] -> `ub[sb0,x] + ub[sb1,x]`, where `sb0`
-        # and `sb1` are ModuloDimensions starting at `time` and `time+1` respectively
-        dims = list(function.dimensions)
-        assert dim in function.dimensions
-
-        # Determine the buffer size, and therefore the span of the ModuloDimension,
-        # along the contracting Dimension `d`
-        indices = filter_ordered(i.indices[dim] for i in accessv.accesses)
-        slots = [i.subs({dim: 0, dim.spacing: 1}) for i in indices]
-        try:
-            size = max(slots) - min(slots) + 1
-        except TypeError:
-            # E.g., special case `slots=[-1 + time/factor, 2 + time/factor]`
-            # Resort to the fast vector-based comparison machinery (rather than
-            # the slower sympy.simplify)
-            slots = [Vector(i) for i in slots]
-            size = int((vmax(*slots) - vmin(*slots) + 1)[0])
-
-        if async_degree is not None:
-            if async_degree < size:
-                warning("Ignoring provided asynchronous degree as it'd be "
-                        "too small for the required buffer (provided %d, "
-                        "but need at least %d for `%s`)"
-                        % (async_degree, size, function.name))
-            else:
-                size = async_degree
-
-        # Create `xd` -- a contraction Dimension for `dim`
-        try:
-            xd = sregistry.get('xds', (dim, size))
-        except KeyError:
-            name = sregistry.make_name(prefix='db')
-            v = CustomDimension(name, 0, size-1, size, dim)
-            xd = sregistry.setdefault('xds', (dim, size), v)
-        self.xd = dims[dims.index(dim)] = xd
-
-        # Finally create the ModuloDimensions as children of `xd`
-        if size > 1:
-            # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
-            # follows SymPy's index ordering (time, time-1, time+1) after modulo
-            # replacement, so that associativity errors are consistent. This very
-            # same strategy is also applied in clusters/algorithms/Stepper
-            p, _ = offset_from_centre(d, indices)
-            indices = sorted(indices,
-                             key=lambda i: -np.inf if i - p == 0 else (i - p))
-            for i in indices:
-                try:
-                    md = sregistry.get('mds', (xd, i))
-                except KeyError:
-                    name = sregistry.make_name(prefix='sb')
-                    v = ModuloDimension(name, xd, i, size)
-                    md = sregistry.setdefault('mds', (xd, i), v)
-                self.index_mapper[i] = md
-                self.sub_iterators[d.root].append(md)
+        # Initialize the buffer metadata. Depending on whether it's multi-level
+        # buffering (e.g., double buffering) or first-level, we need to perform
+        # different actions. Multi-level is trivial, because it essentially
+        # inherits metadata from the previous buffering level
+        if self.multi_buffering:
+            self.__init_multi_buffering__()
         else:
-            assert len(indices) == 1
-            self.index_mapper[indices[0]] = 0
+            self.__init_firstlevel_buffering__(async_degree, sregistry)
 
         # Track the SubDimensions used to index into `function`
         for e in accessv.mapper:
@@ -444,6 +401,11 @@ class Buffer(object):
             for i in d0._defines:
                 self.itintervals_mapper.setdefault(i, (interval.relaxed, (), Forward))
 
+        # The buffer dimensions
+        dims = list(function.dimensions)
+        assert dim in function.dimensions
+        dims[dims.index(dim)] = self.xd
+
         # Finally create the actual buffer
         if function in cache:
             self.buffer = cache[function]
@@ -461,6 +423,82 @@ class Buffer(object):
                 self.buffer = cache[function] = callback(function, **kwargs)
             except TypeError:
                 self.buffer = cache[function] = Array(**kwargs)
+
+    def __init_multi_buffering__(self):
+        #TODO
+        if self.is_read:
+            self.xd = xd = self.accessv.firstread.lhs.function.indices[self.dim]
+
+            index0 = self.accessv.firstread.rhs.indices[self.dim]
+            index1 = self.accessv.firstread.lhs.indices[self.dim]
+            if is_integer(index1) or isinstance(index1, ModuloDimension):
+                #TODO;Optimization
+                self.index_mapper[index0] = 0
+            else:
+                self.index_mapper[index0] = index0
+        else:
+            self.xd = xd = self.accessv.lastwrite.lhs.function.indices[self.dim]
+
+            index0 = self.accessv.lastwrite.lhs.indices[self.dim]
+            index1 = self.accessv.lastwrite.rhs.indices[self.dim]
+            self.index_mapper[index0] = index1
+
+    def __init_firstlevel_buffering__(self, async_degree, sregistry):
+        d = self.d
+        dim = self.dim
+        function = self.function
+
+        indices = filter_ordered(i.indices[dim] for i in self.accessv.accesses)
+        slots = [i.subs({dim: 0, dim.spacing: 1}) for i in indices]
+
+        try:
+            size = max(slots) - min(slots) + 1
+        except TypeError:
+            # E.g., special case `slots=[-1 + time/factor, 2 + time/factor]`
+            # Resort to the fast vector-based comparison machinery (rather than
+            # the slower sympy.simplify)
+            slots = [Vector(i) for i in slots]
+            size = int((vmax(*slots) - vmin(*slots) + 1)[0])
+
+        if async_degree is not None:
+            if async_degree < size:
+                warning("Ignoring provided asynchronous degree as it'd be "
+                        "too small for the required buffer (provided %d, "
+                        "but need at least %d for `%s`)"
+                        % (async_degree, size, function.name))
+            else:
+                size = async_degree
+
+        # Create `xd` -- a contraction Dimension for `dim`
+        try:
+            xd = sregistry.get('xds', (dim, size))
+        except KeyError:
+            name = sregistry.make_name(prefix='db')
+            v = CustomDimension(name, 0, size-1, size, dim)
+            xd = sregistry.setdefault('xds', (dim, size), v)
+        self.xd = xd
+
+        # Create the ModuloDimensions to step through the buffer
+        if size > 1:
+            # Note: indices are sorted so that the semantic order (sb0, sb1, sb2)
+            # follows SymPy's index ordering (time, time-1, time+1) after modulo
+            # replacement, so that associativity errors are consistent. This very
+            # same strategy is also applied in clusters/algorithms/Stepper
+            p, _ = offset_from_centre(d, indices)
+            indices = sorted(indices,
+                             key=lambda i: -np.inf if i - p == 0 else (i - p))
+            for i in indices:
+                try:
+                    md = sregistry.get('mds', (xd, i))
+                except KeyError:
+                    name = sregistry.make_name(prefix='sb')
+                    v = ModuloDimension(name, xd, i, size)
+                    md = sregistry.setdefault('mds', (xd, i), v)
+                self.index_mapper[i] = md
+                self.sub_iterators[d.root].append(md)
+        else:
+            assert len(indices) == 1
+            self.index_mapper[indices[0]] = 0
 
     def __repr__(self):
         return "Buffer[%s,<%s>]" % (self.buffer.name, self.xd)
@@ -497,6 +535,13 @@ class Buffer(object):
     def has_uniform_subdims(self):
         return self.subdims_mapper is not None
 
+    @property
+    def multi_buffering(self):
+        """
+        True if double-buffering or more, False otherwise.
+        """
+        return all(is_memcpy(e) for e in self.accessv.exprs)
+
     @cached_property
     def indexed(self):
         return self.buffer.indexed
@@ -517,7 +562,7 @@ class Buffer(object):
                 # in principle this could be accessed through a stencil
                 interval = Interval(i.dim, -h.left, h.right, i.stamp)
             except KeyError:
-                assert d is self.xd
+                assert d in self.xd._defines
                 interval, si, direction = Interval(d), (), Forward
             intervals.append(interval)
             sub_iterators[d] = si
@@ -549,6 +594,8 @@ class Buffer(object):
             intervals.append(interval)
             sub_iterators[d] = si + as_tuple(self.sub_iterators[d])
             directions[d] = direction
+
+            directions[d.root] = direction
 
         relations = (tuple(i.dim for i in intervals),)
         intervals = IntervalGroup(intervals, relations=relations)

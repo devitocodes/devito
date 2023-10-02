@@ -94,7 +94,7 @@ class SyncCopyIn(SyncOp):
                 if self.target.is_regular:
                     ret.append((self.tindex, self.size))
                 else:
-                    ret.append((self.tindex, 1))
+                    ret.append((0, 1))
             else:
                 ret.append(FULL)
 
