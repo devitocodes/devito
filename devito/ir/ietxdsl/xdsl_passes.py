@@ -143,7 +143,7 @@ def _op_to_func(op: Operator):
             ietxdsl_functions.myVisit(i, block=block, ssa_vals=ssa_val_dict)
 
     # add a trailing return
-    block.add_op(func.Return.get())
+    block.add_op(func.Return())
 
     func_op = func.FuncOp.from_region(str(op.name), arg_types, [], Region([block]))
 

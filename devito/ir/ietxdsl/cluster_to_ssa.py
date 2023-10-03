@@ -1,7 +1,9 @@
 # ------------- devito import -------------#
 
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
-from xdsl.dialects import arith, builtin, func, memref, scf, stencil
+from devito.arch.archinfo import NvidiaDevice
+from devito.parameters import configuration
+from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
 from xdsl.dialects.experimental import dmp, math
 from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 from typing import Any
@@ -113,7 +115,7 @@ class ExtractDevitoStencilConversion:
         ), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
         self.block.add_op(stencil.ReturnOp.get([rhs_result]))
-        outermost_block.add_op(func.Return.get())
+        outermost_block.add_op(func.Return())
 
         return func.FuncOp.from_region(
             "apply_kernel", [], [], Region([outermost_block])
@@ -272,7 +274,7 @@ class ExtractDevitoStencilConversion:
                 new_vals.append(val)
                 continue
             # insert an integer to float cast op
-            conv = arith.SIToFPOp.get(val, builtin.f32)
+            conv = arith.SIToFPOp(val, builtin.f32)
             self.block.add_op(conv)
             new_vals.append(conv.result)
         return new_vals
@@ -324,6 +326,38 @@ from devito.ir.ietxdsl.lowering import (
 from xdsl.dialects import llvm
 
 @dataclass
+class WrapFunctionWithTransfers(RewritePattern):
+    func_name: str
+    done: bool = field(default=False)
+
+    @op_type_rewrite_pattern
+    def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter):
+        if op.sym_name.data != self.func_name or self.done:
+            return
+        self.done = True
+
+        op.sym_name = builtin.StringAttr("gpu_kernel")
+        print("Doing GPU STUFF")
+        # GPU STUFF
+        wrapper = func.FuncOp(self.func_name, op.function_type, Region(Block([func.Return()], arg_types=op.function_type.inputs)))
+        body = wrapper.body.block
+        wrapper.body.block.insert_op_before(func.Call("gpu_kernel", body.args, []), body.last_op)
+        for arg in wrapper.args:
+            shapetype = arg.type
+            if isinstance(shapetype, stencil.FieldType):
+                memref_type = memref.MemRefType.from_element_type_and_shape(shapetype.get_element_type(), shapetype.get_shape())
+                alloc = gpu.AllocOp(memref.MemRefType.from_element_type_and_shape(shapetype.get_element_type(), shapetype.get_shape()))
+                outcast = builtin.UnrealizedConversionCastOp.get(alloc, shapetype)
+                arg.replace_by(outcast.results[0])
+                incast = builtin.UnrealizedConversionCastOp.get(arg, memref_type)
+                copy = gpu.MemcpyOp(source=incast, destination=alloc)
+                body.insert_ops_before([alloc, outcast, incast, copy], body.ops.first)
+
+                copy_out = gpu.MemcpyOp(source=alloc, destination=incast)
+                dealloc = gpu.DeallocOp(alloc)
+                body.insert_ops_before([copy_out, dealloc], body.ops.last)
+        rewriter.insert_op_after_matched_op(wrapper)
+@dataclass
 class MakeFunctionTimed(RewritePattern):
     """
     Populate the section0 devito timer with the total runtime of the function
@@ -340,7 +374,7 @@ class MakeFunctionTimed(RewritePattern):
         self.seen_ops.add(op)
         
         rewriter.insert_op_at_start([
-            t0 := func.Call.get('timer_start', [], [builtin.f64])
+            t0 := func.Call('timer_start', [], [builtin.f64])
         ], op.body.block)
 
         ret = op.get_return_op()
@@ -348,8 +382,8 @@ class MakeFunctionTimed(RewritePattern):
 
         rewriter.insert_op_before([
             timers := iet_ssa.LoadSymbolic.get('timers', llvm.LLVMPointerType.typed(builtin.f64)),
-            t1 := func.Call.get('timer_end', [t0], [builtin.f64]),
-            llvm.StoreOp.get(t1, timers),
+            t1 := func.Call('timer_end', [t0], [builtin.f64]),
+            llvm.StoreOp(t1, timers),
         ], ret)
 
         rewriter.insert_op_after_matched_op([
@@ -405,8 +439,8 @@ class _DevitoStencilToStencilStencil(RewritePattern):
 
         for field in op.input_indices:
             rewriter.insert_op_before_matched_op(load_op := stencil.LoadOp.get(field))
-            input_temps.append(load_op.res)
             load_op.res.name_hint = field.name_hint + "_temp"
+            input_temps.insert(0, load_op.res)
 
         rewriter.replace_matched_op(
             [
@@ -479,8 +513,10 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
         if symb_name not in args:
             body = parent.body.blocks[0]
             args[symb_name] = body.insert_arg(op.result.type, len(body.args))
+            
 
         op.result.replace_by(args[symb_name])
+
         rewriter.erase_matched_op()
         parent.update_function_type()
         # attach information on parameter names to func
@@ -492,14 +528,14 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
         )
 
 
-def convert_devito_stencil_to_xdsl_stencil(module):
-    grpa = GreedyRewritePatternApplier(
-        [
-            _DevitoStencilToStencilStencil(),
-            LowerIetForToScfFor(),
-            MakeFunctionTimed('apply_kernel'),
+def convert_devito_stencil_to_xdsl_stencil(module, timed:bool=True):
+    patterns:list[RewritePattern] = [
+        _DevitoStencilToStencilStencil(),
+        LowerIetForToScfFor(),
         ]
-    )
+    if timed:
+        patterns.append(MakeFunctionTimed('apply_kernel'))
+    grpa = GreedyRewritePatternApplier(patterns)
     perf("DevitoStencil to stencil.stencil")
     perf("LowerIetForToScfFor")
 
@@ -507,11 +543,13 @@ def convert_devito_stencil_to_xdsl_stencil(module):
 
 
 
-def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any]):
-    grpa = GreedyRewritePatternApplier(
-        [
-            _InsertSymbolicConstants(known_symbols),
-            _LowerLoadSymbolidToFuncArgs(),
-        ]
-    )
+def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any], gpu_boilerplate):
+    patterns = [
+        _InsertSymbolicConstants(known_symbols),
+        _LowerLoadSymbolidToFuncArgs(),
+    ]
+    grpa = GreedyRewritePatternApplier(patterns)
     PatternRewriteWalker(grpa).rewrite_module(module)
+    if gpu_boilerplate:
+        walker = PatternRewriteWalker(GreedyRewritePatternApplier([WrapFunctionWithTransfers('apply_kernel')]))
+        walker.rewrite_module(module)

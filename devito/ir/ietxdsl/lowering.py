@@ -116,6 +116,9 @@ class LowerIetForToScfFor(RewritePattern):
         ]
         rewriter.insert_op_before_matched_op(subindice_vals)
 
+        subindice_vals = list(reversed(subindice_vals))
+        subindice_vals.append(subindice_vals.pop(0))
+
         rewriter.replace_matched_op([
             cst1    := arith.Constant.from_int_and_width(1, builtin.IndexType()),
             new_ub  := arith.Addi(op.ub, cst1),
@@ -368,7 +371,7 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
                     ssa_indices=[idx],
                     result_type=llvm.LLVMPointerType.typed(op.memref.memref.element_type)
                 ),
-                store := llvm.StoreOp.get(op.value, gep),
+                store := llvm.StoreOp(op.value, gep),
             ],
             [],
         )

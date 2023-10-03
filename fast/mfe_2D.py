@@ -6,8 +6,8 @@ import argparse
 import numpy as np
 
 from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator
+from examples.seismic import plot_image
 from examples.cfd import init_hat
-from fast.bench_utils import plot_2dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
@@ -21,9 +21,7 @@ parser.add_argument("-nt", "--nt", default=40,
                     type=int, help="Simulation time in millisecond")
 parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
                     help="Block levels")
-parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot2D")
-parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
-parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
+parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 args = parser.parse_args()
 
 # Some variable declarations
@@ -43,6 +41,10 @@ print("dx %s, dy %s" % (dx, dy))
 grid = Grid(shape=(nx, ny), extent=(2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
 
+# Reset our data field and ICs
+#init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+u.data[:, 2:3, 2:3] = 1
+
 a = Constant(name='a')
 # Create an equation with second-order derivatives
 # eq = Eq(u.dt, a * u.laplace, subdomain=grid.interior)
@@ -50,21 +52,22 @@ eq = Eq(u.dt, a * u.laplace)
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
 
-# Reset our data field and ICs
-init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+# Create boundary condition expressions
+x, y = grid.dimensions
+t = grid.stepping_dim
 
-if args.devito:
-    op = Operator([eq_stencil], name='DevitoOperator', opt=('advanced', {'par-tile': (32,4,8)}))
-    op.apply(time=nt, dt=dt, a=nu)
-    print("Devito Field norm is:", norm(u))
+initdata = u.data[:]
+op = Operator([eq_stencil], name='DevitoOperator')
+op.apply(time=nt, dt=dt, a=nu)
+print(u.data[0, :])
+print("Devito Field norm is:", norm(u))
 
-    if args.plot:
-        plot_2dfunc(u)
+u.data[:, : , :] = 0
+u.data[:, 2:3 , 2:3] = 1
+# Reset data and run XDSLOperator
+#init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
+xdslop = Operator([eq_stencil], name='XDSLOperator')
+xdslop.apply(time=nt, dt=dt, a=nu)
+print(u.data[0, :])
 
-# Reset data
-init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
-
-if args.xdsl:
-    xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
-    xdslop.apply(time=nt, dt=dt, a=nu)
-    print("XDSL Field norm is:", norm(u))
+print("XDSL Field norm is:", norm(u))
