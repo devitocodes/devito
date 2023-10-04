@@ -12,17 +12,19 @@ import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain
 
-from devito.arch import (AMDGPUX, NVIDIAX, M1, SKX, POWER8, POWER9, get_nvidia_cc,
-                         check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9,
+                         INTELGPUX, get_nvidia_cc, check_cuda_runtime,
+                         get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_meth, make_tempdir)
+                          memoized_func, memoized_meth, make_tempdir)
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
+@memoized_func
 def sniff_compiler_version(cc):
     """
     Detect the compiler version.
@@ -54,6 +56,8 @@ def sniff_compiler_version(cc):
         compiler = "icc"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
+    elif ver.startswith("cray"):
+        compiler = "cray"
     else:
         compiler = "unknown"
 
@@ -83,6 +87,7 @@ def sniff_compiler_version(cc):
     return ver
 
 
+@memoized_func
 def sniff_mpi_distro(mpiexec):
     """
     Detect the MPI version.
@@ -98,6 +103,20 @@ def sniff_mpi_distro(mpiexec):
     except (CalledProcessError, UnicodeDecodeError):
         pass
     return 'unknown'
+
+
+@memoized_func
+def sniff_mpi_flags(mpicc='mpicc'):
+    mpi_distro = sniff_mpi_distro('mpiexec')
+    if mpi_distro != 'OpenMPI':
+        raise NotImplementedError("Unable to detect MPI compile and link flags")
+
+    # OpenMPI's CC wrapper, namely mpicc, takes the --showme argument to find out
+    # the flags used for compiling and linking
+    compile_flags = check_output(['mpicc', "--showme:compile"]).decode("utf-8")
+    link_flags = check_output(['mpicc', "--showme:link"]).decode("utf-8")
+
+    return compile_flags.split(), link_flags.split()
 
 
 class Compiler(GCCToolchain):
@@ -355,10 +374,11 @@ class Compiler(GCCToolchain):
 class GNUCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(GNUCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.cflags += ['-march=native', '-Wno-unused-result', '-Wno-unused-variable',
-                        '-Wno-unused-but-set-variable']
+        self.cflags += ['-march=native', '-Wno-unused-result',
+                        '-Wno-unused-variable', '-Wno-unused-but-set-variable']
+
         if configuration['safe-math']:
             self.cflags.append('-fno-unsafe-math-optimizations')
         else:
@@ -382,10 +402,22 @@ class GNUCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class ArmCompiler(GNUCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        # Graviton flag
+        if platform is GRAVITON:
+            self.cflags += ['-mcpu=neoverse-n1']
+
+
 class ClangCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(ClangCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -436,38 +468,49 @@ class ClangCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class CrayCompiler(ClangCompiler):
+
+    """HPE Cray's Clang compiler."""
+
+    def __lookup_cmds__(self):
+        self.CC = 'cc'
+        self.CXX = 'CC'
+        self.MPICC = 'cc'
+        self.MPICXX = 'CC'
+
+
 class AOMPCompiler(Compiler):
 
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
 
     def __init__(self, *args, **kwargs):
-        super(AOMPCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
+
+        language = kwargs.pop('language', configuration['language'])
+        platform = kwargs.pop('platform', configuration['platform'])
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        platform = kwargs.pop('platform', configuration['platform'])
-
-        if platform in [NVIDIAX, AMDGPUX]:
+        if platform is NVIDIAX:
             self.cflags.remove('-std=c99')
+        elif platform is AMDGPUX:
+            self.cflags.remove('-std=c99')
+            # Add flags for OpenMP offloading
+            if language in ['C', 'openmp']:
+                self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
+                self.ldflags += ['-fopenmp']
+                self.ldflags += ['--offload-arch=%s' % platform.march]
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
             self.cflags.append('-mcpu=native')
         else:
             self.cflags.append('-march=native')
 
-        # For MPI, mpicc is compiled against amdclang not aompcc, so need the flags back.
-        if kwargs.get('mpi'):
-            self.ldflags.extend(['-target', 'x86_64-pc-linux-gnu'])
-            self.ldflags.extend(['-fopenmp',
-                                 '-fopenmp-targets=amdgcn-amd-amdhsa',
-                                 '-Xopenmp-target=amdgcn-amd-amdhsa'])
-            self.ldflags.append('-march=%s' % platform.march)
-
     def __lookup_cmds__(self):
-        self.CC = 'aompcc'
-        self.CXX = 'aompcc'
+        self.CC = 'amdclang'
+        self.CXX = 'amdclang++'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
 
@@ -491,7 +534,7 @@ class DPCPPCompiler(Compiler):
 class PGICompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(PGICompiler, self).__init__(*args, cpp=True, **kwargs)
+        super().__init__(*args, cpp=True, **kwargs)
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
@@ -508,6 +551,9 @@ class PGICompiler(Compiler):
                 self.cflags.extend(['-mp', '-acc:gpu'])
             elif language == 'openmp':
                 self.cflags.extend(['-mp=gpu'])
+        elif isinstance(platform, Cpu64):
+            if language == 'openmp':
+                self.cflags.append('-mp')
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
@@ -541,35 +587,45 @@ class CudaCompiler(Compiler):
         self.cflags.remove('-fPIC')
         self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
 
+        if configuration['mpi']:
+            # We rather use `nvcc` to compile MPI, but for this we have to
+            # explicitly pass the flags that an `mpicc` would implicitly use
+            compile_flags, link_flags = sniff_mpi_flags('mpicxx')
+
+            try:
+                # No idea why `-pthread` would pop up among the `compile_flags`
+                compile_flags.remove('-pthread')
+            except ValueError:
+                # Just in case they fix it, we wrap it up within a try-except
+                pass
+            self.cflags.extend(compile_flags)
+
+            # Some arguments are for the host compiler
+            proc_link_flags = []
+            for i in link_flags:
+                if i == '-pthread':
+                    proc_link_flags.extend(['-Xcompiler', '-pthread'])
+                elif i.startswith('-Wl'):
+                    # E.g., `-Wl,-rpath` -> `-Xcompiler "-Wl\,-rpath"`
+                    proc_link_flags.extend([
+                        '-Xcompiler', '"%s"' % i.replace(',', r'\,')
+                    ])
+                else:
+                    proc_link_flags.append(i)
+            self.ldflags.extend(proc_link_flags)
+
+        self.cflags.append('-arch=native')
+
         # Disable `warning #1650-D: result of call is not used`
         # See `https://gist.github.com/gavinb/f2320f9eaa0e0a7efca6877a34047a9d` about
         # disabling specific warnings with nvcc
-        if configuration['mpi']:
-            # mpicc/mpicxx default to `nvc++ ...` (add `--showme` to print out the
-            # actual command line that results from expanding out the mpicc/mpicxx
-            # wrappers). However, mpicc/mpicxx also use the `'-Wl,-rpath'`
-            # GCC-specific options, which means we can't use `nvc++` as host
-            # compiler via `-ccbin=nvc++` either, as otherwise it will complain that
-            # `nvcc fatal   : Unknown option '-Wl,-rpath'`. So the simplest option
-            # for now is to avoid adding the flags below in the `else` branch as
-            # they are `nvcc` specific; `nvc++`, used by mpicc/mpicxx+, will use
-            # `nvcc` eventually (since it reads the file suffix .cu), but somehow
-            # it won't digest the options provided in this format...
+        self.cflags.extend(['-Xcudafe', '--display_error_number',
+                            '--diag-suppress', '1650'])
+        # Same as above but for the host compiler
+        self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
 
-            # Also, no need to specify the compute capability via e.g. `-gpu=cc70`,
-            # as nvc++ will automatically compile for the GPU installed in this
-            # system by default
-
-            pass
-        else:
-            self.cflags.append('-arch=native')
-            self.cflags.extend(['-Xcudafe', '--display_error_number',
-                                '--diag-suppress', '1650'])
-            # Same as above but for the host compiler
-            self.cflags.extend(['-Xcompiler', '-Wno-unused-result'])
-
-            if not configuration['safe-math']:
-                self.cflags.append('--use_fast_math')
+        if not configuration['safe-math']:
+            self.cflags.append('--use_fast_math')
 
         self.src_ext = 'cu'
 
@@ -582,46 +638,63 @@ class CudaCompiler(Compiler):
     def __lookup_cmds__(self):
         self.CC = 'nvcc'
         self.CXX = 'nvcc'
-        self.MPICC = 'mpic++'
-        self.MPICXX = 'mpicxx'
+        self.MPICC = 'nvcc'
+        self.MPICXX = 'nvcc'
+
+
+class HipCompiler(Compiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, cpp=True, **kwargs)
+
+        self.cflags.remove('-std=c99')
+        self.cflags.remove('-Wall')
+        self.cflags.remove('-fPIC')
+        self.cflags.extend(['-std=c++14', '-fPIC'])
+
+        if configuration['mpi']:
+            # We rather use `hipcc` to compile MPI, but for this we have to
+            # explicitly pass the flags that an `mpicc` would implicitly use
+            compile_flags, link_flags = sniff_mpi_flags()
+            self.cflags.extend(compile_flags)
+            self.ldflags.extend(link_flags)
+        else:
+            if not configuration['safe-math']:
+                self.cflags.append('-DHIP_FAST_MATH')
+
+        self.src_ext = 'cpp'
+
+    def __lookup_cmds__(self):
+        self.CC = 'hipcc'
+        self.CXX = 'hipcc'
+        self.MPICC = 'hipcc'
+        self.MPICXX = 'hipcc'
 
 
 class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelCompiler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.cflags.append("-xhost")
-
-        language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+
+        self.cflags.append("-xHost")
 
         if configuration['safe-math']:
             self.cflags.append("-fp-model=strict")
         else:
-            self.cflags.append('-fast')
+            self.cflags.append('-fp-model=fast')
 
-        if platform is SKX:
-            # Systematically use 512-bit vectors on skylake
-            self.cflags.append("-qopt-zmm-usage=high")
-
-        try:
-            if self.version >= Version("15.0.0"):
-                # Append the OpenMP flag regardless of configuration['language'],
-                # since icc15 and later versions implement OpenMP 4.0, hence
-                # they support `#pragma omp simd`
-                self.ldflags.append('-qopenmp')
-        except (TypeError, ValueError):
-            if language == 'openmp':
-                # Note: fopenmp, not qopenmp, is what is needed by icc versions < 15.0
-                self.ldflags.append('-fopenmp')
+        if language == 'openmp':
+            self.ldflags.append('-qopenmp')
 
         # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
-            ver = check_output([self.MPICC, "--version"]).decode("utf-8")
-            if not ver.startswith("icc"):
-                warning("The MPI compiler `%s` doesn't use the Intel "
-                        "C/C++ compiler underneath" % self.MPICC)
+            mpi_distro = sniff_mpi_distro('mpiexec')
+            if mpi_distro != 'IntelMPI':
+                warning("Expected Intel MPI distribution with `%s`, but found `%s`"
+                        % (self.__class__.__name__, mpi_distro))
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
@@ -645,14 +718,53 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init__(self, *args, **kwargs):
-        super(IntelKNLCompiler, self).__init__(*args, **kwargs)
-
-        self.cflags += ["-xMIC-AVX512"]
+        super().__init__(*args, **kwargs)
 
         language = kwargs.pop('language', configuration['language'])
 
+        self.cflags.append('-xMIC-AVX512')
+
         if language != 'openmp':
             warning("Running on Intel KNL without OpenMP is highly discouraged")
+
+
+class OneapiCompiler(IntelCompiler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+
+        if language == 'openmp':
+            self.ldflags.remove('-qopenmp')
+            self.ldflags.append('-fopenmp')
+
+        if language == 'sycl':
+            self.cflags.append('-fsycl')
+            if platform is NVIDIAX:
+                self.cflags.append('-fsycl-targets=nvptx64-cuda')
+            else:
+                self.cflags.append('-fsycl-targets=spir64')
+
+            if platform is NVIDIAX:
+                self.cflags.append('-fopenmp-targets=nvptx64-cuda')
+            if platform is INTELGPUX:
+                self.cflags.append('-fopenmp-targets=spir64')
+                self.cflags.append('-fopenmp-target-simd')
+
+        if platform is INTELGPUX:
+            self.cflags.remove('-g')  # -g disables some optimizations in IGC
+            self.cflags.append('-gline-tables-only')
+            self.cflags.append('-fdebug-info-for-profiling')
+
+    def __lookup_cmds__(self):
+        # OneAPI HPC ToolKit comes with icpx, which is clang++,
+        # and icx, which is clang
+        self.CC = 'icx'
+        self.CXX = 'icpx'
+        self.MPICC = 'mpicc'
+        self.MPICX = 'mpicx'
 
 
 class CustomCompiler(Compiler):
@@ -705,8 +817,12 @@ compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
+    'arm': ArmCompiler,
     'clang': ClangCompiler,
+    'cray': CrayCompiler,
     'aomp': AOMPCompiler,
+    'amdclang': AOMPCompiler,
+    'hip': HipCompiler,
     'pgcc': PGICompiler,
     'pgi': PGICompiler,
     'nvc': NvidiaCompiler,
@@ -714,9 +830,11 @@ compiler_registry = {
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
     'osx': ClangCompiler,
-    'intel': IntelCompiler,
-    'icpc': IntelCompiler,
+    'intel': OneapiCompiler,
+    'icx': OneapiCompiler,
+    'icpx': OneapiCompiler,
     'icc': IntelCompiler,
+    'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
     'knl': IntelKNLCompiler,
     'dpcpp': DPCPPCompiler,
@@ -726,4 +844,4 @@ Registry dict for deriving Compiler classes according to the environment variabl
 DEVITO_ARCH. Developers should add new compiler classes here.
 """
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
-                          for i in ['4.9', '5', '6', '7', '8', '9', '10', '11']})
+                          for i in ['4.9', '5', '6', '7', '8', '9', '10', '11', '12']})

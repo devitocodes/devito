@@ -144,6 +144,11 @@ class Operator(Callable):
 
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
+        
+        # Terrible hack, but necessary because devito is cursed.
+        is_xdsl = 'xdsl' in cls.__name__.lower()
+        # Save _build and _lower classes
+        _build = cls._build
 
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
@@ -152,9 +157,13 @@ class Operator(Callable):
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
 
+        # Use the selected classes _build and _lower methods if not XDSL
+        if not is_xdsl:
+            _build = cls._build
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
-            op = cls._build(expressions, **kwargs)
+            op = _build(expressions, **kwargs)
         op._profiler.py_timers.update(r.timings)
 
         # Emit info about how long it took to perform the lowering
@@ -777,11 +786,12 @@ class Operator(Callable):
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
+            self._jit_kernel_constants = args
 
-        # Invoke kernel function with args
-        arg_values = [args[p.name] for p in self.parameters]
+        cfunction = self.cfunction
         try:
-            cfunction = self.cfunction
+            # Invoke kernel function with args
+            arg_values = self._construct_cfunction_args(args)
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
         except ctypes.ArgumentError as e:
@@ -802,6 +812,9 @@ class Operator(Callable):
         return self._emit_apply_profiling(args)
 
     # Performance profiling
+
+    def _construct_cfunction_args(self, args):
+        return [args[p.name] for p in self.parameters]
 
     def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):

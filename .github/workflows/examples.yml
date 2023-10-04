@@ -35,7 +35,7 @@ jobs:
     - name: Setup conda
       uses: conda-incubator/setup-miniconda@v2
       with:
-       python-version: 3.8
+       python-version: "3.10"
        activate-environment: devito
        environment-file: environment-dev.yml
        auto-activate-base: false

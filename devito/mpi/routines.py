@@ -291,7 +291,6 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         if sendrecv is not None:
             self._efuncs.append(sendrecv)
         self._efuncs.extend([gather, scatter])
-
         return haloupdate, halowait
 
     def _make_copy(self, f, hse, key, swap=False):
