@@ -607,6 +607,65 @@ class SubDimension(DerivedDimension):
                    thickness=((lst, thickness_left), (rst, thickness_right)),
                    local=local)
 
+    @classmethod
+    def intersection(cls, sdims):
+        # Check all SubDimensions supplied overlap
+        # NOTE: Think the test for overlap isn't strict enough?
+        if not all([sdims[0].overlap(sdim) for sdim in sdims[1:]]):
+            raise ValueError("SubDimensions do not all overlap")
+
+        name = '_n_'.join([sdim.name for sdim in sdims])
+        try:
+            [parent] = set([sdim.parent for sdim in sdims])
+        except ValueError:
+            raise ValueError("Inconsistent SubDimension parents")
+
+        local = any([sdim.local for sdim in sdims])
+
+        if all([sdim.is_left for sdim in sdims]):
+            # Only left SubDimensions results in left SubDimension
+            thickness = sympy.Min(*[sdim.thickness.left[1]
+                                    for sdim in sdims])
+            return cls.left(name, parent,
+                            thickness,
+                            local=local)
+        elif all([sdim.is_right for sdim in sdims]):
+            # Only right SubDimensions results in right SubDimension
+            thickness = sympy.Min(*[sdim.thickness.right[1]
+                                    for sdim in sdims])
+            return cls.right(name, parent,
+                             thickness,
+                             local=local)
+        else:
+            # Intersection of different types of subdimension or two middle
+            # will always be middle
+            width = parent.symbolic_max - parent.symbolic_min + 1
+
+            def get_left_thickness(sdim):
+                if sdim.is_left:
+                    return 0
+                elif sdim.is_right:
+                    return width - sdim.thickness.right[1]
+                else:
+                    return sdim.thickness.left[1]
+
+            def get_right_thickness(sdim):
+                if sdim.is_left:
+                    return width - sdim.thickness.left[1]
+                elif sdim.is_right:
+                    return 0
+                else:
+                    return sdim.thickness.right[1]
+
+            thickness_left = sympy.Max(*[get_left_thickness(sdim)
+                                         for sdim in sdims])
+            thickness_right = sympy.Max(*[get_right_thickness(sdim)
+                                          for sdim in sdims])
+            return cls.middle(name, parent,
+                              thickness_left,
+                              thickness_right,
+                              local=local)
+
     @cached_property
     def symbolic_min(self):
         return self._interval.left
