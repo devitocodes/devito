@@ -15,6 +15,6 @@ jobs:
     - name: Repository Dispatch
       uses: peter-evans/repository-dispatch@v2
       with:
-        token: ${{ secrets.PERSONAL_TOKEN }}
+        token: ${{ secrets.DEPLOY_DOC_PAT }}
         repository: devitocodes/devitoproject.org
         event-type: deploy-docs
