@@ -29,7 +29,7 @@ class TensorFunction(AbstractTensor):
         Carries shape, dimensions, and dtype of the TensorFunction. When grid is not
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
-    space_order : int or 3-tuple of ints, optional
+    space_order : int or 3-tuple of ints, optional, default=1
         Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
         impacts the number of points available around a generic point of interest.  By
         default, ``space_order`` points are available on both sides of a generic point of
@@ -42,7 +42,7 @@ class TensorFunction(AbstractTensor):
         Shape of the domain region in grid points. Only necessary if ``grid`` isn't given.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if ``grid`` isn't given.
-    dtype : data-type, optional
+    dtype : data-type, optional, default=np.float32
         Any object that can be interpreted as a numpy data type. Defaults
         to ``np.float32``.
     staggered : Dimension or tuple of Dimension or Stagger, optional
@@ -56,9 +56,9 @@ class TensorFunction(AbstractTensor):
     padding : int or tuple of ints, optional
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
-    symmetric : bool, optional
+    symmetric : bool, optional, default=True
         Whether the tensor is symmetric or not. Defaults to True.
-    diagonal : Bool, optional
+    diagonal : Bool, optional, default=False
         Whether the tensor is diagonal or not. Defaults to False.
     staggered: tuple of Dimension, optional
         Staggering of each component, needs to have the size of the tensor. Defaults

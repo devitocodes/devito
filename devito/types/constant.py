@@ -18,7 +18,7 @@ class Constant(DataSymbol, ArgProvider):
     ----------
     name : str
         Name of the symbol.
-    dtype : data-type, optional
+    dtype : data-type, optional, default=np.float32
         Any object that can be interpreted as a numpy data type. Defaults
         to ``np.float32``.
 
