@@ -863,7 +863,6 @@ class TestNodeParallelism(object):
         op0 = Operator(Inc(uf, 1), opt=('advanced', {'openmp': True,
                                                      'par-collapse-ncores': 1,
                                                      'par-collapse-work': 0}))
-
         assert 'collapse(3)' in str(op0)
         assert 'atomic' in str(op0)
 
@@ -874,6 +873,28 @@ class TestNodeParallelism(object):
         assert 'omp for' in str(op1)
         assert 'collapse' not in str(op1)
         assert 'atomic' not in str(op1)
+
+    def test_incr_perfect_outer(self):
+        grid = Grid((5, 5))
+        d = Dimension(name="d")
+        u = Function(name="u", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5), )
+        v = Function(name="v", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5))
+        u.data.fill(1)
+        v.data.fill(2)
+
+        w = Function(name="w", grid=grid)
+
+        summation = Inc(w, u*v)
+
+        op0 = Operator([summation])
+        assert 'reduction' not in str(op0)
+        assert 'collapse(2)' in str(op0)
+        assert 'omp for' in str(op0)
+
+        op0()
+        assert np.all(w.data == 10)
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',

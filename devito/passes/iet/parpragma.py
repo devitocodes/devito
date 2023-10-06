@@ -318,6 +318,16 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
 
+        # We bypass the corner case where a reduction might not be optimal, mainly:
+        # - Only the most inner loop is atomic
+        # In which case we can parallelize the perfect nest
+        # The opposite corner case (most outer loop atomic)
+        # should be detected before this pass
+        nc = len(partree.collapsed)
+        if all(i.is_ParallelNoAtomic for i in partree.collapsed[:nc-1]):
+            mapper = {partree.root: partree.root._rebuild(ncollapsed=nc-1)}
+            return Transformer(mapper).visit(partree)
+
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
 
         reductions = []
