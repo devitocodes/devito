@@ -995,7 +995,7 @@ class TestNodeParallelism(object):
         eqns = sf.inject(field=u.forward, expr=sf * dt**2)
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
-                                               'par-collapse-ncores': 20}))
+                                               'par-collapse-ncores': 2000}))
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
