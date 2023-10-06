@@ -32,7 +32,8 @@ class Lift(Queue):
             # No iteration space to be lifted from
             return clusters
 
-        hope_invariant = prefix[-1].dim._defines
+        dim = prefix[-1].dim
+        hope_invariant = dim._defines
         outer = set().union(*[i.dim._defines for i in prefix[:-1]])
 
         lifted = []
@@ -40,6 +41,11 @@ class Lift(Queue):
         for n, c in enumerate(clusters):
             # Increments prevent lifting
             if c.has_increments:
+                processed.append(c)
+                continue
+
+            # Synchronization operations prevent lifting
+            if c.syncs.get(dim):
                 processed.append(c)
                 continue
 

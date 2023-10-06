@@ -1252,6 +1252,10 @@ class CustomDimension(BasicDimension):
         return self._parent is not None
 
     @property
+    def is_NonlinearDerived(self):
+        return self.is_Derived and self.parent.is_NonlinearDerived
+
+    @property
     def parent(self):
         return self._parent
 
