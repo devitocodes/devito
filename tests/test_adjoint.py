@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Operator, norm, Function, Grid, SparseFunction
+from devito import Operator, norm, Function, Grid, SparseFunction, inner
 from devito.logger import info
 from examples.seismic import demo_model, Receiver
 from examples.seismic.acoustic import acoustic_setup
@@ -114,7 +114,7 @@ class TestAdjoint(object):
         solver.adjoint(rec=rec, srca=srca)
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = np.dot(srca.data.reshape(-1), solver.geometry.src.data)
+        term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec) ** 2
         info('<x, A^Ty>: %f, <Ax,y>: %f, difference: %4.4e, ratio: %f'
              % (term1, term2, (term1 - term2)/term1, term1 / term2))
@@ -231,6 +231,6 @@ class TestAdjoint(object):
         # y => p
         # x => c
         # P^T y => a
-        term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
-        term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
+        term1 = inner(p2, p)
+        term2 = inner(c, a)
         assert np.isclose((term1-term2) / term1, 0., atol=1.e-6)

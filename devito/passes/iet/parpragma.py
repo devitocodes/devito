@@ -324,7 +324,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         # The opposite corner case (most outer loop atomic)
         # should be detected before this pass
         nc = len(partree.collapsed)
-        if all(i.is_ParallelNoAtomic for i in partree.collapsed[:nc-1]):
+        if nc > 1 and all(i.is_ParallelNoAtomic for i in partree.collapsed[:nc-1]):
             mapper = {partree.root: partree.root._rebuild(ncollapsed=nc-1)}
             return Transformer(mapper).visit(partree)
 

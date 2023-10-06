@@ -888,9 +888,8 @@ class TestNodeParallelism(object):
 
         summation = Inc(w, u*v)
 
-        op0 = Operator([summation])
+        op0 = Operator([summation], opt=('advanced', {'openmp': True}))
         assert 'reduction' not in str(op0)
-        assert 'collapse(2)' in str(op0)
         assert 'omp for' in str(op0)
 
         op0()
