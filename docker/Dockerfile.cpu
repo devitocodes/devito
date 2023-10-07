@@ -72,7 +72,7 @@ RUN echo "deb [trusted=yes arch=amd64] https://repositories.intel.com/graphics/u
 # Intel advisor and drivers
 RUN apt-get update -y && \
     # advisor
-    apt-get install -y intel-oneapi-advisor \
+    apt-get install -y intel-oneapi-advisor && \
     # drivers
     apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero level-zero-dev
 
