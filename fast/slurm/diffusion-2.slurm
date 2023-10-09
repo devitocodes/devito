@@ -3,7 +3,7 @@
 # Slurm job options (job-name, compute nodes, job time)
 #SBATCH --job-name=Devito_MPI_Job
 #SBATCH --time=00:10:00
-#SBATCH --nodes=16
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=16
 #SBATCH --switches=1@360 # Each group has 128 nodes
@@ -12,7 +12,7 @@
 #SBATCH --account=d011
 #SBATCH --partition=standard
 #SBATCH --qos=standard
-#SBATCH -o ./jobs-output/output-16.%j.out # STDOUT
+#SBATCH -o ./jobs-output/diffusion-2.%j.out # STDOUT
 
 # Propagate the cpus-per-task setting from script to srun commands
 #    By default, Slurm does not propagate this setting from the sbatch

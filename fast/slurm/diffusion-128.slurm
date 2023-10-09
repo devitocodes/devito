@@ -12,7 +12,7 @@
 #SBATCH --account=d011
 #SBATCH --partition=standard
 #SBATCH --qos=standard
-#SBATCH -o ./jobs-output/output-128.%j.out # STDOUT
+#SBATCH -o ./jobs-output/diffusion-128.%j.out # STDOUT
 
 # Propagate the cpus-per-task setting from script to srun commands
 #    By default, Slurm does not propagate this setting from the sbatch

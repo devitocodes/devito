@@ -2,8 +2,8 @@
 
 # Slurm job options (job-name, compute nodes, job time)
 #SBATCH --job-name=Devito_MPI_Job
-#SBATCH --time=00:10:00
-#SBATCH --nodes=64
+#SBATCH --time=00:15:00
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=16
 #SBATCH --switches=1@360 # Each group has 128 nodes
@@ -12,7 +12,7 @@
 #SBATCH --account=d011
 #SBATCH --partition=standard
 #SBATCH --qos=standard
-#SBATCH -o ./jobs-output/output-64.%j.out # STDOUT
+#SBATCH -o ./jobs-output/diffusion-1.%j.out # STDOUT
 
 # Propagate the cpus-per-task setting from script to srun commands
 #    By default, Slurm does not propagate this setting from the sbatch
@@ -24,6 +24,7 @@ export SHARED=/work/d011/d011/shared
 module use $SHARED/modules
 module load sc-23
 module load cray-mpich
+
 
 cd $SHARED/software/devito/fast
 
@@ -39,7 +40,6 @@ export DEVITO_LANGUAGE=openmp
 export DEVITO_LOGGING=DEBUG
 export DEVITO_MPI=1
 export DEVITO_AUTOTUNING=aggressive
-
 # export DEVITO_PROFILING=advanced2
 
 # Archer specific
@@ -57,5 +57,5 @@ export SLURM_CPU_FREQ_REQ=2250000
 #   16 OpenMP threads per MPI process
 #   Additional srun options to pin one thread per physical core
 
-DEVITO_MPI=diag2 srun --distribution=block:block --hint=nomultithread python3 wave3d_b.py -d 1024 1024 1024 --nt 512 -so 4 --devito 1
-srun --distribution=block:block --hint=nomultithread python3 wave3d_b.py -d 1024 1024 1024 --nt 512 -so 4 --xdsl 1
+srun --distribution=block:block --hint=nomultithread python3 diffusion_3D_wBCs.py -d 1024 1024 1024 --nt 512 -so 4 --devito 1
+srun --distribution=block:block --hint=nomultithread python3 diffusion_3D_wBCs.py -d 1024 1024 1024 --nt 512 -so 4 --xdsl 1

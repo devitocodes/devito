@@ -2,8 +2,8 @@
 
 # Slurm job options (job-name, compute nodes, job time)
 #SBATCH --job-name=Devito_MPI_Job
-#SBATCH --time=00:15:00
-#SBATCH --nodes=32
+#SBATCH --time=00:08:00
+#SBATCH --nodes=8
 #SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=16
 #SBATCH --switches=1@360 # Each group has 128 nodes
@@ -12,7 +12,7 @@
 #SBATCH --account=d011
 #SBATCH --partition=standard
 #SBATCH --qos=standard
-#SBATCH -o ./jobs-output/output-32.%j.out # STDOUT
+#SBATCH -o ./jobs-output/wave-8.%j.out # STDOUT
 
 # Propagate the cpus-per-task setting from script to srun commands
 #    By default, Slurm does not propagate this setting from the sbatch
@@ -40,7 +40,6 @@ export DEVITO_LANGUAGE=openmp
 export DEVITO_LOGGING=DEBUG
 export DEVITO_MPI=1
 export DEVITO_AUTOTUNING=aggressive
-
 # export DEVITO_PROFILING=advanced2
 
 # Archer specific
