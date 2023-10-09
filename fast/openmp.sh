@@ -9,10 +9,10 @@ export DEVITO_LANGUAGE=openmp
 export DEVITO_ARCH=cray
 # Enable debug logging.
 export DEVITO_LOGGING=DEBUG
-# Disable (tile size) autotuning for iteration speed.
-# I enable it sometimes; NB enabling it requires that no explicit tile size
+# Enable (tile size) autotuning.
+# I disable it for speed sometimes; NB enabling it requires that no explicit tile size
 # is specified in the Operator constructor args.
-unset DEVITO_AUTOTUNING
+export DEVITO_AUTOTUNING="aggressive"
 
 # Bind threads to physical cores
 export OMP_PLACES=cores
