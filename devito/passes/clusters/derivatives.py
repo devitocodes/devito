@@ -74,7 +74,7 @@ def _core(expr, c, weights, mapper, sregistry):
     try:
         w = weights[k]
     except KeyError:
-        w = weights[k] = w0._rebuild(name=name)
+        w = weights[k] = w0._rebuild(name=name, dtype=expr.dtype)
     expr = uxreplace(expr, {w0.indexed: w.indexed})
 
     dims = retrieve_dimensions(expr, deep=True)
@@ -94,7 +94,7 @@ def _core(expr, c, weights, mapper, sregistry):
     ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
 
     name = sregistry.make_name(prefix='r')
-    s = Symbol(name=name, dtype=c.dtype)
+    s = Symbol(name=name, dtype=w.dtype)
     expr0 = Eq(s, 0.)
     ispace1 = ispace.project(lambda d: d is not dims[-1])
     processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
