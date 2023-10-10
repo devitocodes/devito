@@ -11,6 +11,7 @@ import atexit
 import numpy as np
 from cgen import Struct, Value
 
+from devito.logger import set_log_level
 from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered
@@ -225,11 +226,19 @@ class Distributor(AbstractDistributor):
             # First time we enter here, we make sure MPI is initialized
             devito_mpi_init()
 
+                # If BENCH logging is selected, only emit from rank 0
+                if configuration['log-level'] == 'BENCH':
+                    set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+
             # Note: the cloned communicator doesn't need to be explicitly freed;
             # mpi4py takes care of that when the object gets out of scope
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
-            topology = ('*', '*', 1)
+            # if len(shape) == 3:
+            #     topology = ('*', '*', 1)
+
+            # topology = ('*', '*', 1)
+            # topology = ('*', '*', 8)
 
             if topology is None:
                 # `MPI.Compute_dims` sets the dimension sizes to be as close to
