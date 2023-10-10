@@ -266,23 +266,33 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
         # Number of fully-parallel collapsable Iterations
         key = lambda i: i.is_ParallelNoAtomic
-        fpiters = list(takewhile(key, nest))
-        nfpiters = len(fpiters)
+        fp_iters = list(takewhile(key, nest))
+        n_fp_iters = len(fp_iters)
+
+        # Number of parallel-if-atomic collapsable Iterations
+        key = lambda i: i.is_ParallelAtomic
+        pia_iters = list(takewhile(key, nest))
+        n_pia_iters = len(pia_iters)
 
         # Prioritize the Dimensions that are more likely to define larger
         # iteration spaces
-        fpdims = [i.dim for i in fpiters]
         key = lambda d: (not d.is_Derived or
-                         d.is_Custom or  # NOTE: might use a refinement
+                         (d.is_Custom and not is_integer(d.symbolic_size)) or
                          (d.is_Block and d._depth == 1))
-        nfpiters_large = len([d for d in fpdims if key(d)])
+
+        fpdims = [i.dim for i in fp_iters]
+        n_fp_iters_large = len([d for d in fpdims if key(d)])
+
+        piadims = [i.dim for i in pia_iters]
+        n_pia_iters_large = len([d for d in piadims if key(d)])
 
         return (
-            int(nfpiters == n),  # Fully-parallel nest
-            int(nfpiters == 0 and n),  # Fully-atomic nest
-            nfpiters_large,
+            int(n_fp_iters == n),  # Fully-parallel nest
+            n_fp_iters_large,
+            n_pia_iters_large,
+            n_pia_iters,
             -(n0 + 1),  # The outer, the better
-            nfpiters,
+            n_fp_iters,
             n,
         )
 

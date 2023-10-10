@@ -284,7 +284,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
+    assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
                      't,p_s0_blk0,p_s,rsx,rsy')
 
 
@@ -896,6 +896,23 @@ class TestNodeParallelism(object):
 
         op()
         assert np.all(w.data == 10)
+
+    def test_incr_perfect_sparse_outer(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+        s = SparseTimeFunction(name='u', grid=grid, npoint=1, nt=11)
+
+        eqns = s.inject(u, expr=s)
+
+        op = Operator(eqns, opt=('advanced', {'par-collapse-ncores': 0}))
+
+        iters = FindNodes(Iteration).visit(op)
+        assert len(iters) == 5
+        assert iters[0].is_Sequential
+        assert all(i.is_ParallelAtomic for i in iters[1:])
+        assert iters[1].pragmas[0].value == 'omp for schedule(dynamic,chunk_size)'
+        assert all(not i.pragmas for i in iters[2:])
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
