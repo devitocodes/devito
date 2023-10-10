@@ -7,7 +7,7 @@ from devito.builtins.utils import nbl_to_padsize, pad_outhalo
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.

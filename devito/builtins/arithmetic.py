@@ -6,7 +6,7 @@ from devito.builtins.utils import make_retval
 __all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def norm(f, order=2):
     """
     Compute the norm of a Function.
@@ -40,7 +40,7 @@ def norm(f, order=2):
     return f.dtype(v)
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def sum(f, dims=None):
     """
     Compute the sum of the Function data over specified dimensions.
@@ -93,7 +93,7 @@ def sum(f, dims=None):
     return out
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def sumall(f):
     """
     Compute the sum of all Function data.
@@ -122,7 +122,7 @@ def sumall(f):
     return f.dtype(n.data[0])
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def inner(f, g):
     """
     Inner product of two Functions.
@@ -176,7 +176,7 @@ def inner(f, g):
     return f.dtype(n.data[0])
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def mmin(f):
     """
     Retrieve the minimum.
@@ -199,7 +199,7 @@ def mmin(f):
         raise ValueError("Expected Function, got `%s`" % type(f))
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 def mmax(f):
     """
     Retrieve the maximum.
