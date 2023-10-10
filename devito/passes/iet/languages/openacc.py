@@ -34,6 +34,7 @@ class DeviceAccIteration(PragmaIteration):
         elif ncollapsed > 1:
             clauses.append('collapse(%d)' % ncollapsed)
 
+        # import pdb;pdb.set_trace()
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
 

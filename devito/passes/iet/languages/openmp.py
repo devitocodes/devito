@@ -69,6 +69,7 @@ class DeviceOmpIteration(OmpIteration):
     @classmethod
     def _make_clauses(cls, **kwargs):
         kwargs['chunk_size'] = False
+
         clauses = super()._make_clauses(**kwargs)
 
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])

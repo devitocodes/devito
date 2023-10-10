@@ -51,6 +51,8 @@ class PragmaSimdTransformer(PragmaTransformer):
         for tree in retrieve_iteration_tree(iet):
             candidates = [i for i in tree if i.is_ParallelRelaxed]
 
+            import pdb;pdb.set_trace()
+
             # As long as there's an outer level of parallelism, the innermost
             # PARALLEL Iteration gets vectorized
             if len(candidates) < 2:
@@ -116,7 +118,6 @@ class PragmaSimdTransformer(PragmaTransformer):
             mapper[candidate] = candidate._rebuild(pragmas=pragmas, properties=properties)
 
         iet = Transformer(mapper).visit(iet)
-
         return iet, {}
 
 
@@ -132,6 +133,8 @@ class PragmaIteration(ParallelIteration):
             reduction=reduction, schedule=schedule, tile=tile, gpu_fit=gpu_fit,
             **kwargs
         )
+        import pdb;pdb.set_trace()
+
         pragma = c.Pragma(' '.join([construct] + clauses))
         kwargs['pragmas'] = pragma
 
@@ -315,30 +318,69 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         return root, list(collapsable)
 
     def _make_reductions(self, partree):
-        if not any(i.is_ParallelAtomic for i in partree.collapsed):
-            return partree
 
-        exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
+        import pdb;pdb.set_trace()
+        mapper = {}
+        for tree in retrieve_iteration_tree(partree):
+            candidates = [i for i in tree if i.is_ParallelRelaxed]
 
-        reductions = []
-        for e in exprs:
-            f = e.write
-            items = [i if i.is_Number else FULL for i in e.output.indices]
-            imask = IMask(*items, getters=f.dimensions)
-            reductions.append((e.output, imask, e.operation))
+            # As long as there's an outer level of parallelism, the innermost
+            # PARALLEL Iteration gets vectorized
+            if len(candidates) < 2:
+                continue
+            candidate = candidates[-1]
 
-        test0 = all(not i.is_Indexed for i, _, _ in reductions)
-        test1 = (self._support_array_reduction(self.compiler) and
-                 all(i.is_Affine for i in partree.collapsed))
+            if any(i.is_ParallelAtomic for i in candidates[:-1]) and \
+               not self._support_array_reduction(self.compiler):
+                exprs = FindNodes(Expression).visit(candidate)
+                reductions = [i.output for i in exprs if i.is_reduction]
+                if any(i.is_Indexed for i in reductions):
+                    continue
+            
 
-        if test0 or test1:
-            # Implement reduction
-            mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
-        elif all(i is OpInc for _, _, i in reductions):
-            # Use atomic increments
-            mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
-        else:
-            raise NotImplementedError
+            # Reduction
+            import pdb;pdb.set_trace()
+
+            # Add SIMD pragma
+            indexeds = FindSymbols('indexeds').visit(candidate)
+            aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
+
+            if aligned:
+                simd = self.lang['simd-for-aligned']
+                simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_size))
+            else:
+                simd = as_tuple(self.lang['simd-for'])
+
+
+
+            # REVISIT HERE
+            import pdb;pdb.set_trace()
+
+
+            if not any(i.is_ParallelAtomic for i in partree.collapsed):
+                return partree
+
+            exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
+
+            reductions = []
+            for e in exprs:
+                f = e.write
+                items = [i if i.is_Number else FULL for i in e.output.indices]
+                imask = IMask(*items, getters=f.dimensions)
+                reductions.append((e.output, imask, e.operation))
+
+            test0 = all(not i.is_Indexed for i, _, _ in reductions)
+            test1 = (self._support_array_reduction(self.compiler) and
+                     all(i.is_Affine for i in partree.collapsed))
+
+            if test0 or test1:
+                # Implement reduction
+                mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
+            elif all(i is OpInc for _, _, i in reductions):
+                # Use atomic increments
+                mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
+            else:
+                raise NotImplementedError
 
         partree = Transformer(mapper).visit(partree)
 
@@ -472,6 +514,8 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_parallel(self, iet):
         mapper = {}
         parrays = {}
+        import pdb;pdb.set_trace()
+
         for tree in retrieve_iteration_tree(iet, mode='superset'):
             # Get the parallelizable Iterations in `tree`
             candidates = filter_iterations(tree, key=self.key)
@@ -652,11 +696,12 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         return parregion
 
     def _make_nested_partree(self, partree):
-        if isinstance(partree.root, self.DeviceIteration):
+        # if isinstance(partree.root, self.DeviceIteration):
+
             # no-op for now
-            return partree
-        else:
-            return super()._make_nested_partree(partree)
+        #     return partree
+        # else:
+        return super()._make_nested_partree(partree)
 
 
 class PragmaLangBB(LangBB):
