@@ -289,10 +289,10 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         return (
             int(n_fp_iters == n),  # Fully-parallel nest
             n_fp_iters_large,
+            n_fp_iters,
             n_pia_iters_large,
             n_pia_iters,
             -(n0 + 1),  # The outer, the better
-            n_fp_iters,
             n,
         )
 

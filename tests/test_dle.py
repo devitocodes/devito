@@ -905,7 +905,8 @@ class TestNodeParallelism(object):
 
         eqns = s.inject(u, expr=s)
 
-        op = Operator(eqns, opt=('advanced', {'par-collapse-ncores': 0}))
+        op = Operator(eqns, opt=('advanced', {'par-collapse-ncores': 0,
+                                              'openmp': True}))
 
         iters = FindNodes(Iteration).visit(op)
         assert len(iters) == 5
