@@ -284,7 +284,7 @@ def test_cache_blocking_structure_optrelax_prec_inject():
                                           'openmp': True,
                                           'par-collapse-ncores': 1}))
 
-    assert_structure(op, ['t,p_s0_blk0,p_s', 't,p_s0_blk0,p_s,rsx,rsy'],
+    assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
                      't,p_s0_blk0,p_s,rsx,rsy')
 
 
@@ -863,9 +863,9 @@ class TestNodeParallelism(object):
         op0 = Operator(Inc(uf, 1), opt=('advanced', {'openmp': True,
                                                      'par-collapse-ncores': 1,
                                                      'par-collapse-work': 0}))
-
-        assert 'collapse(3)' in str(op0)
-        assert 'atomic' in str(op0)
+        assert 'omp for schedule' in str(op0)
+        assert 'collapse' not in str(op0)
+        assert 'atomic' not in str(op0)
 
         # Now only `x` is parallelized
         op1 = Operator([Eq(v[t, x, 0, 0], v[t, x, 0, 0] + 1), Inc(uf, 1)],
@@ -874,6 +874,46 @@ class TestNodeParallelism(object):
         assert 'omp for' in str(op1)
         assert 'collapse' not in str(op1)
         assert 'atomic' not in str(op1)
+
+    def test_incr_perfect_outer(self):
+        grid = Grid((5, 5))
+        d = Dimension(name="d")
+
+        u = Function(name="u", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5), )
+        v = Function(name="v", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5))
+        w = Function(name="w", grid=grid)
+
+        u.data.fill(1)
+        v.data.fill(2)
+
+        summation = Inc(w, u*v)
+
+        op = Operator([summation], opt=('advanced', {'openmp': True}))
+        assert 'reduction' not in str(op)
+        assert 'omp for' in str(op)
+
+        op()
+        assert np.all(w.data == 10)
+
+    def test_incr_perfect_sparse_outer(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+        s = SparseTimeFunction(name='u', grid=grid, npoint=1, nt=11)
+
+        eqns = s.inject(u, expr=s)
+
+        op = Operator(eqns, opt=('advanced', {'par-collapse-ncores': 0,
+                                              'openmp': True}))
+
+        iters = FindNodes(Iteration).visit(op)
+        assert len(iters) == 5
+        assert iters[0].is_Sequential
+        assert all(i.is_ParallelAtomic for i in iters[1:])
+        assert iters[1].pragmas[0].value == 'omp for schedule(dynamic,chunk_size)'
+        assert all(not i.pragmas for i in iters[2:])
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
