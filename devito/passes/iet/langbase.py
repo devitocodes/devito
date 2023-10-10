@@ -214,9 +214,6 @@ class LangTransformer(ABC):
     def Prodder(self):
         return self.lang.Prodder
 
-    def _device_pointers(self, *args, **kwargs):
-        return {}
-
 
 class DeviceAwareMixin(object):
 

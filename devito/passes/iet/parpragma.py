@@ -1,3 +1,5 @@
+from itertools import takewhile
+
 import numpy as np
 import cgen as c
 from cached_property import cached_property
@@ -254,6 +256,36 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def threadid(self):
         return self.sregistry.threadid
 
+    def _score_candidate(self, n0, root, collapsable=()):
+        """
+        The score of a collapsable nest depends on the number of fully-parallel
+        Iterations and their position in the nest (the outer, the better).
+        """
+        nest = [root] + list(collapsable)
+        n = len(nest)
+
+        # Number of fully-parallel collapsable Iterations
+        key = lambda i: i.is_ParallelNoAtomic
+        fpiters = list(takewhile(key, nest))
+        nfpiters = len(fpiters)
+
+        # Prioritize the Dimensions that are more likely to define larger
+        # iteration spaces
+        fpdims = [i.dim for i in fpiters]
+        key = lambda d: (not d.is_Derived or
+                         d.is_Custom or  # NOTE: might use a refinement
+                         (d.is_Block and d._depth == 1))
+        nfpiters_large = len([d for d in fpdims if key(d)])
+
+        return (
+            int(nfpiters == n),  # Fully-parallel nest
+            int(nfpiters == 0 and n),  # Fully-atomic nest
+            nfpiters_large,
+            -(n0 + 1),  # The outer, the better
+            nfpiters,
+            n,
+        )
+
     def _select_candidates(self, candidates):
         assert candidates
 
@@ -263,15 +295,18 @@ class PragmaShmTransformer(PragmaSimdTransformer):
         mapper = {}
         for n0, root in enumerate(candidates):
 
+            # Score `root` in isolation
+            mapper[(root, ())] = self._score_candidate(n0, root)
+
             collapsable = []
             for n, i in enumerate(candidates[n0+1:], n0+1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
                     break
 
-                # Loops are collapsable only if none of the iteration variables appear
-                # in initializer expressions. For example, the following two loops
-                # cannot be collapsed
+                # Loops are collapsable only if none of the iteration variables
+                # appear in initializer expressions. For example, the following
+                # two loops cannot be collapsed
                 #
                 # for (i = ... )
                 #   for (j = i ...)
@@ -281,7 +316,7 @@ class PragmaShmTransformer(PragmaSimdTransformer):
                 if any(j.dim in i.symbolic_min.free_symbols for j in candidates[n0:n]):
                     break
 
-                # Also, we do not want to collapse SIMD-vectorized Iterations
+                # Can't collapse SIMD-vectorized Iterations
                 if i.is_Vectorized:
                     break
 
@@ -297,17 +332,9 @@ class PragmaShmTransformer(PragmaSimdTransformer):
 
                 collapsable.append(i)
 
-            # Give a score to this candidate, based on the number of fully-parallel
-            # Iterations and their position (i.e. outermost to innermost) in the nest
-            score = (
-                int(root.is_ParallelNoAtomic),
-                len(self._device_pointers(root)),  # Outermost offloadable
-                int(len([i for i in collapsable if i.is_ParallelNoAtomic]) >= 1),
-                int(len([i for i in collapsable if i.is_ParallelRelaxed]) >= 1),
-                -(n0 + 1)  # The outermost, the better
-            )
-
-            mapper[(root, tuple(collapsable))] = score
+                # Score `root + collapsable`
+                v = tuple(collapsable)
+                mapper[(root, v)] = self._score_candidate(n0, root, v)
 
         # Retrieve the candidates with highest score
         root, collapsable = max(mapper, key=mapper.get)
@@ -317,16 +344,6 @@ class PragmaShmTransformer(PragmaSimdTransformer):
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
             return partree
-
-        # We bypass the corner case where a reduction might not be optimal, mainly:
-        # - Only the most inner loop is atomic
-        # In which case we can parallelize the perfect nest
-        # The opposite corner case (most outer loop atomic)
-        # should be detected before this pass
-        nc = len(partree.collapsed)
-        if nc > 1 and all(i.is_ParallelNoAtomic for i in partree.collapsed[:nc-1]):
-            mapper = {partree.root: partree.root._rebuild(ncollapsed=nc-1)}
-            return Transformer(mapper).visit(partree)
 
         exprs = [i for i in FindNodes(Expression).visit(partree) if i.is_reduction]
 
@@ -585,6 +602,13 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.gpu_fit = options['gpu-fit']
         self.par_tile = UnboundTuple(options['par-tile'])
         self.par_disabled = options['par-disabled']
+
+    def _score_candidate(self, n0, root, collapsable=()):
+        # `ndptrs`, the number of device pointers, part of the score too to
+        # ensure the outermost loop is offloaded
+        ndptrs = len(self._device_pointers(root))
+
+        return (ndptrs,) + super()._score_candidate(n0, root, collapsable)
 
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):
