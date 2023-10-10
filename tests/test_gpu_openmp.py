@@ -268,28 +268,6 @@ class TestCodeGeneration(object):
             ('omp target teams distribute parallel for collapse(3)'
              ' reduction(+:f[0])')
 
-    def test_incr_perfect_outer(self):
-        grid = Grid((5, 5))
-        d = Dimension(name="d")
-        u = Function(name="u", dimensions=(*grid.dimensions, d),
-                     grid=grid, shape=(*grid.shape, 5), )
-        v = Function(name="v", dimensions=(*grid.dimensions, d),
-                     grid=grid, shape=(*grid.shape, 5))
-        u.data.fill(1)
-        v.data.fill(2)
-
-        w = Function(name="w", grid=grid)
-
-        summation = Inc(w, u*v)
-
-        op0 = Operator([summation])
-        assert 'reduction' not in str(op0)
-        assert 'collapse(2)' in str(op0)
-        assert 'omp target teams distribute parallel' in str(op0)
-
-        op0()
-        assert np.all(w.data == 10)
-
 
 class TestOperator(object):
 

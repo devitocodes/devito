@@ -6,9 +6,9 @@ import scipy.sparse
 
 from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration,
-                    switchconfig)
+                    Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
+                    SubDimension, SubDomain, SubDomainSet, TimeFunction,
+                    Operator, configuration, switchconfig)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -109,6 +109,30 @@ class TestPassesEdgeCases(object):
 
         assert np.all(usave.data[5:] == expected[5:])
         assert np.all(vsave.data[:5] == expected[:5])
+
+    def test_incr_perfect_outer(self):
+        grid = Grid((5, 5))
+        d = Dimension(name="d")
+
+        u = Function(name="u", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5), )
+        v = Function(name="v", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5))
+        w = Function(name="w", grid=grid)
+
+        u.data.fill(1)
+        v.data.fill(2)
+
+        summation = Inc(w, u*v)
+
+        op = Operator([summation])
+
+        assert 'reduction' not in str(op)
+        assert 'collapse(2)' in str(op)
+        assert 'parallel' in str(op)
+
+        op()
+        assert np.all(w.data == 10)
 
 
 class Bundle(SubDomain):
