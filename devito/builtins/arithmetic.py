@@ -6,7 +6,7 @@ from devito.builtins.utils import make_retval, check_builtins_args
 __all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def norm(f, order=2):
     """
@@ -41,7 +41,7 @@ def norm(f, order=2):
     return f.dtype(v)
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def sum(f, dims=None):
     """
@@ -95,7 +95,7 @@ def sum(f, dims=None):
     return out
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def sumall(f):
     """
@@ -125,7 +125,7 @@ def sumall(f):
     return f.dtype(n.data[0])
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def inner(f, g):
     """
@@ -180,7 +180,7 @@ def inner(f, g):
     return f.dtype(n.data[0])
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def mmin(f):
     """
@@ -204,7 +204,7 @@ def mmin(f):
         raise ValueError("Expected Function, got `%s`" % type(f))
 
 
-@dv.switchconfig(log_level='ERROR')
+#@dv.switchconfig(log_level='ERROR')
 @check_builtins_args
 def mmax(f):
     """

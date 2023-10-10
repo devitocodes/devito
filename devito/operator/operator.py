@@ -1065,10 +1065,18 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
+
         if is_integer(self.npthreads):
             perf_args['pthreads'] = self.npthreads
         perf_args = {k: perf_args[k] for k in sorted(perf_args)}
-        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
+
+        if configuration['mpi']:
+            perf("Performance[mode=%s, mpi=%s] arguments: %s" % (self._mode,
+                 configuration['mpi'], perf_args))
+        else:
+            perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
+
+        # perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
 
