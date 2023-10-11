@@ -1,0 +1,55 @@
+diff --git a/devito/logger.py b/devito/logger.py
+index 2a7eed95a..b104efd34 100644
+--- a/devito/logger.py
++++ b/devito/logger.py
+@@ -16,12 +16,15 @@ logger.addHandler(stream_handler)
+ # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
+ DEBUG = logging.DEBUG
+ PERF = 19
++BENCH = logging.DEBUG
+ INFO = logging.INFO
+ WARNING = logging.WARNING
+ ERROR = logging.ERROR
+ CRITICAL = logging.CRITICAL
+ 
+ logging.addLevelName(PERF, "PERF")
++logging.addLevelName(BENCH, "BENCH")
++
+ 
+ logger_registry = {
+     'DEBUG': DEBUG,
+@@ -29,7 +32,8 @@ logger_registry = {
+     'INFO': INFO,
+     'WARNING': WARNING,
+     'ERROR': ERROR,
+-    'CRITICAL': CRITICAL
++    'CRITICAL': CRITICAL,
++    'BENCH': BENCH
+ }
+ 
+ NOCOLOR = '%s'
+@@ -133,6 +137,8 @@ def warning(msg, *args, **kwargs):
+ def error(msg, *args, **kwargs):
+     log(msg, ERROR, *args, **kwargs)
+ 
++def bench(msg, *args, **kwargs):
++    log(msg, BENCH, *args, **kwargs)
+ 
+ def debug(msg, *args, **kwargs):
+     log(msg, DEBUG, *args, **kwargs)
+diff --git a/devito/operator/profiling.py b/devito/operator/profiling.py
+index f7633a740..2d576df5e 100644
+--- a/devito/operator/profiling.py
++++ b/devito/operator/profiling.py
+@@ -460,7 +460,7 @@ class PerformanceSummary(OrderedDict):
+ 
+ def create_profile(name):
+     """Create a new Profiler."""
+-    if configuration['log-level'] in ['DEBUG', 'PERF'] and \
++    if configuration['log-level'] in ['DEBUG', 'PERF', 'BENCH'] and \
+        configuration['profiling'] == 'basic':
+         # Enforce performance profiling in DEBUG mode
+         level = 'advanced'
+* Unmerged path fast/slurm/diffusion-16.slurm
+* Unmerged path fast/slurm/diffusion-2.slurm
+* Unmerged path fast/slurm/diffusion-32.slurm

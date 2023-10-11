@@ -37,7 +37,7 @@ export OMP_PLACES=cores
 # Devito-specific env variables
 export DEVITO_ARCH=cray
 export DEVITO_LANGUAGE=openmp
-export DEVITO_LOGGING=DEBUG
+export DEVITO_LOGGING=BENCH
 export DEVITO_MPI=diag2
 export DEVITO_AUTOTUNING=aggressive
 
