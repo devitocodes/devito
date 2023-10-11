@@ -41,7 +41,8 @@ do
 
       # To uncomment to check what's going on without capturing the output.
       # echo OMP_NUM_THREADS=$threads
-       mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --devito 1
+      #  mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --devito 1
+      #  mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --xdsl 1
 
       # Get the runtimes
       devito_time=$(get_runtime mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --devito 1)
