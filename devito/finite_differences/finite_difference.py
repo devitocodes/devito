@@ -220,10 +220,11 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
         weights = numeric_weights(deriv_order, indices, x0)
 
     # Enforce fixed precision FD coefficients to avoid variations in results
-    weights = [sympify(w).evalf(_PRECISION) for w in weights]
+    weights = [sympify(w).evalf(_PRECISION) for w in weights][::matvec.val]
 
     # Transpose the FD, if necessary
-    indices = indices.scale(matvec.val)
+    if matvec == transpose:
+        indices = indices.transpose()
 
     # Shift index due to staggering, if any
     indices = indices.shift(-(expr.indices_ref[dim] - dim))
@@ -234,15 +235,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
 
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim, initvalue=weights)
-
-        if matvec == transpose:
-            # For homogeneity, always generate e.g. `x + i0` rather than `x - i0`
-            # for transpose and `x + i0` for direct
-            indices = indices.transpose()
-
-            # Do the same for the Weights, though this is more than just a
-            # transposition, we also must switch to the transposed StencilDimension
-            weights = weights._subs(weights.dimension, -indices.free_dim)
 
         # Inject the StencilDimension
         # E.g. `x + i*h_x` into `f(x)` s.t. `f(x + i*h_x)`
