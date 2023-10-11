@@ -221,7 +221,8 @@ You will note that this method uses placeholders for the material parameter arra
 ## What environment variables control how Devito works
 
 ### How to get the list of Devito environment variables
-You can get the list of environment variables with the following python code:
+
+You can get the list of environment variables and all their possible values with the following python code:
 ```
 from devito import print_defaults
 print_defaults()
@@ -238,26 +239,6 @@ These environment variables can either be set from the shell or programmatically
 | programmatically | configuration['language'] = 'openmp' |
 
 
-### Table of values for Devito environment variables
-
-Note the default values are in **bold**. Links in the table take you to a section describing how the variables controls the behavior of Devito execution.
-
-| Variable | Values |
-|:---|:---|
-| [DEVITO_ARCH](#DEVITO_ARCH) | **custom**, gnu, gcc, clang, pgcc, pgi, nvc, cuda, osx, intel, icpc, icc, intel-knl, knl, gcc-4.9, gcc-5, gcc-6, gcc-7, gcc-8, gcc-9, gcc-10, gcc-11, gcc-12 |
-| [DEVITO_PLATFORM](#DEVITO_PLATFORM) | **cpu64**, cpu64-dummy, intel64, snb, ivb, hsw, bdw, skx, klx, clx, knl, knl7210, arm, power8, power9, nvidiaX] | 
-| [DEVITO_PROFILING](#DEVITO_PROFILING) | **basic**, advanced, advisor | 
-| [DEVITO_BACKEND](#DEVITO_BACKEND) | **core**, void | 
-| [DEVITO_DEVELOP](#DEVITO_DEVELOP) | **True**, False | 
-| [DEVITO_OPT](#DEVITO_OPT) | noop, **advanced**, advanced-fsg, (noop, C), (noop, openmp), (noop, openacc), (advanced, C), (advanced, openmp), (advanced, openacc), (advanced-fsg, C), (advanced-fsg, openmp), (advanced-fsg, openacc)] | 
-| [DEVITO_MPI](#DEVITO_MPI) | **0**, 1, basic, diag, overlap, overlap2, full | 
-| [DEVITO_LANGUAGE](#DEVITO_LANGUAGE) | 0, 1, **C**, openmp, openacc (0==C, 1==openmp)| 
-| [DEVITO_AUTOTUNING](#DEVITO_AUTOTUNING) | **off**, basic, aggressive, max, [off, preemptive], [off, destructive], [off, runtime], [basic, preemptive], [basic, destructive], [basic, runtime], [aggressive, preemptive], [aggressive, destructive], [aggressive, runtime], [max, preemptive], [max, destructive], [max, runtime] | 
-| [DEVITO_LOGGING](#DEVITO_LOGGING) | DEBUG, PERF, **INFO**, WARNING, ERROR, CRITICAL | 
-| [DEVITO_FIRST_TOUCH](#DEVITO_FIRST_TOUCH) | **0**, 1 | 
-| [DEVITO_JIT_BACKDOOR](#DEVITO_JIT_BACKDOOR) | **0**, 1 | 
-| [DEVITO_IGNORE_UNKNOWN_PARAMS](#DEVITO_IGNORE_UNKNOWN_PARAMS) | **0**, 1 | 
-
 ### Description of Devito environment variables
 
 #### DEVITO_ARCH
@@ -266,11 +247,11 @@ Used to select a specific "backend compiler". The backend compiler takes as inpu
 #### DEVITO_PLATFORM
 This environment variable is mostly needed when running on GPUs, to ask Devito to generate code for a particular device (see for example this [tutorial](https://github.com/devitocodes/devito/blob/master/examples/gpu/01_diffusion_with_openmp_offloading.ipynb)). Can be also used to specify CPU architectures such as Intel's -- Haswell, Broadwell, SKL and KNL -- ARM, AMD, and Power. Often one can ignore this variable because Devito typically does a decent job at auto-detecting the underlying platform.
 
+#### DEVITO_LANGUAGE
+Specify the generated code language. The default is `C`, which means sequential C. Use `openmp` to emit C+OpenMP or `openacc` for C+OpenACC.
+
 #### DEVITO_PROFILING
 Choose the performance profiling level. This is also automatically increased with `DEVITO_LOGGING=PERF` or `DEVITO_LOGGING=DEBUG`, in which case this environment variable can be ignored.
-
-#### DEVITO_BACKEND
-The execution backend. Since Devito v4.2, this environment variable can be ignored.
 
 #### DEVITO_DEVELOP
 Mostly useful for developers when chasing [segfaults](https://github.com/devitocodes/devito/blob/24ede9131473f69c1e44ba3b852f8654d3fd953e/devito/data/allocators.py#L373).
@@ -280,9 +261,6 @@ Choose the performance optimization level. By default set to the maximum level, 
 
 #### DEVITO_MPI
 Controls MPI in Devito. Use `1` to enable MPI. The most powerful MPI mode is called "full", and is activated setting `DEVITO_MPI=full`. The "full" mode implements a number of optimizations including computation/communication overlap.
-
-#### DEVITO_LANGUAGE
-Specify the generated code language. The default is `C`, which means sequential C. Use `openmp` to emit C+OpenMP or `openacc` for C+OpenACC.
 
 #### DEVITO_AUTOTUNING
 Search across a set of block shapes to maximize the effectiveness of loop tiling (aka cache blocking). You can choose between `off` (default), `basic`, `aggressive`, `max`. A more aggressive autotuning should eventually result in better runtime performance, though the search phase will take longer. 
@@ -309,28 +287,27 @@ Set `DEVITO_IGNORE_UNKNOWN_PARAMS=1` to avoid Devito raising an exception if one
 
 These two languages can be used with virtually any PLATFORM and ARCH.
 
-With a device PLATFORM (e.g., `nvidiaX` or `amdgpuX`), the compiler will generate OpenMP code for device offloading.
+With a device PLATFORM (e.g., `nvidiaX`, `amdgpuX`, or `intelgpuX`), the compiler will generate OpenMP code for device offloading.
 
-When using OpenMP offloading, it is however recommended to stick to the corresponding vendor compiler, so `ARCH=amdclang` for AMD, `ARCH={icc,icx,intel}` for Intel, and `ARCH=nvc` for NVidia.
+When using OpenMP offloading, it is recommended to stick to the corresponding vendor compiler, so `ARCH=amdclang` for AMD, `ARCH={icc,icx,intel}` for Intel, and `ARCH=nvc` for NVidia.
 
 #### LANGUAGE=openacc
 
-Recommended: `PLATFORM=nvidiaX` and `ARCH=nvc`.
+Requires: `PLATFORM=nvidiaX` and `ARCH=nvc`.
 
 The legacy PGI compiler is also supported via `ARCH=pgcc`.
 
 #### LANGUAGE=cuda
 
-Requires: `PLATFORM=nvidiaX` and `ARCH=cuda`.
+_DevitoPRO only._
 
-Also requires DevitoPRO.
+Requires: `PLATFORM=nvidiaX` and `ARCH=cuda`.
 
 #### LANGUAGE=hip
 
+_DevitoPRO only._
+
 Requires: `PLATFORM=amdgpuX` and `ARCH=hip`.
-
-Also requires DevitoPRO.
-
 
 [top](#Frequently-Asked-Questions)
 
