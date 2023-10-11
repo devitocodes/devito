@@ -102,7 +102,7 @@ def _core(expr, c, weights, mapper, sregistry):
     # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
     # StencilDimensions starting points
     subs = {expr.weights:
-            expr.weights.subs(d, d - (d._max if d.backward else d._min))
+            expr.weights.subs(d, d - d._min)
             for d in dims}
     expr1 = Inc(s, uxreplace(expr.expr, subs))
     processed.append(c.rebuild(exprs=expr1, ispace=ispace))
