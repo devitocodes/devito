@@ -12,7 +12,8 @@ from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forwar
                        Queue, IntervalGroup, LabeledVector, normalize_properties,
                        relax_properties, sdims_min, sdims_max)
 from devito.symbolics import (Uxmapper, compare_ops, estimate_cost, q_constant,
-                              reuse_if_untouched, retrieve_indexed, search, uxreplace)
+                              reuse_if_untouched, retrieve_indexed, search, uxreplace,
+                              sympy_dtype)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
                           split, timed_pass)
 from devito.types import (Array, TempFunction, Eq, Symbol, Temp, ModuloDimension,
@@ -832,7 +833,11 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
     subs = {}
     for pivot, writeto, ispace, aliaseds, indicess, _ in schedule:
         name = sregistry.make_name()
-        dtype = meta.dtype
+        # Infer the dtype for the pivot
+        # This prevents cases such as `floor(a*b)` with `a` and `b` floats
+        # that would creat a temporary `int r = b` leading to erronous numerical results
+        # Such cases happen with the positions for sparse functions for example.
+        dtype = sympy_dtype(pivot, meta.dtype)
 
         if writeto:
             # The Dimensions defining the shape of Array

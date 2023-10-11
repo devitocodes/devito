@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from scipy import misc
+from scipy.misc import ascent
 
 from conftest import skipif
 from devito import ConditionalDimension, Grid, Function, TimeFunction, switchconfig
@@ -154,7 +154,7 @@ class TestGaussianSmooth(object):
     def test_gs_2d_int(self, sigma):
         """Test the Gaussian smoother in 2d."""
 
-        a = misc.ascent()
+        a = ascent()
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
 
@@ -168,7 +168,7 @@ class TestGaussianSmooth(object):
     def test_gs_2d_float(self, sigma):
         """Test the Gaussian smoother in 2d."""
 
-        a = misc.ascent()
+        a = ascent()
         a = a+0.1
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
@@ -326,6 +326,23 @@ class TestInitializeFunction(object):
         else:
             expected = np.pad(a[na//2:, na//2:], [(0, 1+nbl), (0, 1+nbl)], 'edge')
             assert np.all(f._data_with_outhalo._local == expected)
+
+    def test_batching(self):
+        grid = Grid(shape=(12, 12))
+
+        a = np.arange(16).reshape((4, 4))
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        g = Function(name='g', grid=grid, dtype=np.float32)
+        h = Function(name='h', grid=grid, dtype=np.float64)
+
+        initialize_function([f, g, h], [a, a, a], 4, mode='reflect')
+
+        for i in [f, g, h]:
+            assert np.all(a[:, ::-1] - np.array(i.data[4:8, 0:4]) == 0)
+            assert np.all(a[:, ::-1] - np.array(i.data[4:8, 8:12]) == 0)
+            assert np.all(a[::-1, :] - np.array(i.data[0:4, 4:8]) == 0)
+            assert np.all(a[::-1, :] - np.array(i.data[8:12, 4:8]) == 0)
 
 
 class TestBuiltinsResult(object):

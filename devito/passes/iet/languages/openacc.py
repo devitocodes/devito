@@ -155,7 +155,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
     lang = AccBB
 
-    def _make_partree(self, candidates, nthreads=None, index=0):
+    def _make_partree(self, candidates, nthreads=None):
         assert candidates
 
         root, collapsable = self._select_candidates(candidates)
@@ -164,8 +164,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
-            idx = min(index, len(self.par_tile) - 1)
-            tile = self.par_tile[idx]
+            tile = self.par_tile.next()
             assert isinstance(tile, tuple)
             nremainder = (ncollapsable + 1) - len(tile)
             if nremainder >= 0:

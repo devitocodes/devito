@@ -66,9 +66,16 @@ class SyncCopyOut(SyncOp):
 
     @property
     def imask(self):
-        ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
-               for d in self.target.dimensions]
-        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+        ret = []
+        for d in self.target.dimensions:
+            if d.root in self.lock.locked_dimensions:
+                ret.append(self.handle.indices[d])
+            else:
+                ret.append(FULL)
+
+        return IMask(*ret,
+                     getters=self.target.dimensions,
+                     function=self.function,
                      findex=self.findex)
 
 
@@ -81,9 +88,19 @@ class SyncCopyIn(SyncOp):
 
     @property
     def imask(self):
-        ret = [(self.tindex, self.size) if d.root is self.dim.root else FULL
-               for d in self.target.dimensions]
-        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+        ret = []
+        for d in self.target.dimensions:
+            if d.root is self.dim.root:
+                if self.target.is_regular:
+                    ret.append((self.tindex, self.size))
+                else:
+                    ret.append((0, 1))
+            else:
+                ret.append(FULL)
+
+        return IMask(*ret,
+                     getters=self.target.dimensions,
+                     function=self.function,
                      findex=self.findex)
 
 

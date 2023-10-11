@@ -182,6 +182,14 @@ class Dimension(ArgProvider):
         return "%s_M" % self.name
 
     @property
+    def indirect(self):
+        return False
+
+    @property
+    def index(self):
+        return self
+
+    @property
     def is_const(self):
         return False
 
@@ -290,13 +298,19 @@ class Dimension(ArgProvider):
         # may represent sets of legal values. If that's the case, here we just
         # pick one. Note that we sort for determinism
         try:
-            loc_minv = sorted(loc_minv).pop(0)
-        except TypeError:
-            pass
+            loc_minv = loc_minv.stop
+        except AttributeError:
+            try:
+                loc_minv = sorted(loc_minv).pop(0)
+            except TypeError:
+                pass
         try:
-            loc_maxv = sorted(loc_maxv).pop(0)
-        except TypeError:
-            pass
+            loc_maxv = loc_maxv.stop
+        except AttributeError:
+            try:
+                loc_maxv = sorted(loc_maxv).pop(0)
+            except TypeError:
+                pass
 
         return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
@@ -470,6 +484,10 @@ class DerivedDimension(BasicDimension):
         return self._parent
 
     @property
+    def index(self):
+        return self if self.indirect else self.parent
+
+    @property
     def root(self):
         return self._parent.root
 
@@ -485,7 +503,7 @@ class DerivedDimension(BasicDimension):
     def _arg_names(self):
         return self.parent._arg_names
 
-    def _arg_check(self, *args):
+    def _arg_check(self, *args, **kwargs):
         """A DerivedDimension performs no runtime checks."""
         return
 
@@ -568,7 +586,7 @@ class SubDimension(DerivedDimension):
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
-                   thickness=((lst, thickness), (rst, 0)),
+                   thickness=((lst, thickness), (rst, None)),
                    local=local)
 
     @classmethod
@@ -577,7 +595,7 @@ class SubDimension(DerivedDimension):
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
-                   thickness=((lst, 0), (rst, thickness)),
+                   thickness=((lst, None), (rst, thickness)),
                    local=local)
 
     @classmethod
@@ -609,6 +627,18 @@ class SubDimension(DerivedDimension):
     @property
     def thickness(self):
         return self._thickness
+
+    @property
+    def is_left(self):
+        return self.thickness.right[1] is None
+
+    @property
+    def is_right(self):
+        return self.thickness.left[1] is None
+
+    @property
+    def is_middle(self):
+        return not self.is_left and not self.is_right
 
     @cached_property
     def bound_symbols(self):
@@ -683,7 +713,7 @@ class SubDimension(DerivedDimension):
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
-        requested_ltkn, requested_rtkn = (
+        r_ltkn, r_rtkn = (
             kwargs.get(k.name, v) for k, v in self.thickness
         )
 
@@ -692,19 +722,24 @@ class SubDimension(DerivedDimension):
             if self.local:
                 # dimension is of type ``left``/right`` - compute the 'offset'
                 # and then add 1 to get the appropriate thickness
-                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn-1, LEFT)
-                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn-1, RIGHT)
-                ltkn = ltkn+1 if ltkn is not None else 0
-                rtkn = rtkn+1 if rtkn is not None else 0
+                if r_ltkn is not None:
+                    ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
+                    ltkn = ltkn+1 if ltkn is not None else 0
+                else:
+                    ltkn = 0
+
+                if r_rtkn is not None:
+                    rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
+                    rtkn = rtkn+1 if rtkn is not None else 0
+                else:
+                    rtkn = 0
             else:
                 # dimension is of type ``middle``
-                ltkn = grid.distributor.glb_to_loc(self.root, requested_ltkn,
-                                                   LEFT) or 0
-                rtkn = grid.distributor.glb_to_loc(self.root, requested_rtkn,
-                                                   RIGHT) or 0
+                ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
+                rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
         else:
-            ltkn = requested_ltkn
-            rtkn = requested_rtkn
+            ltkn = r_ltkn or 0
+            rtkn = r_rtkn or 0
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
@@ -816,13 +851,9 @@ class ConditionalDimension(DerivedDimension):
     def indirect(self):
         return self._indirect
 
-    @property
-    def index(self):
-        return self if self.indirect is True else self.parent
-
     @cached_property
     def free_symbols(self):
-        retval = set(super(ConditionalDimension, self).free_symbols)
+        retval = set(super().free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
         try:
@@ -845,8 +876,8 @@ class ConditionalDimension(DerivedDimension):
             factor = defaults[dim._factor.name] = dim._factor.data
         except AttributeError:
             factor = dim._factor
-        defaults[dim.parent.max_name] = \
-            frozenset(range(factor*(size - 1), factor*(size)))
+
+        defaults[dim.parent.max_name] = range(1, factor*size - 1)
 
         return defaults
 
@@ -1213,7 +1244,7 @@ class CustomDimension(BasicDimension):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
-        self._parent = parent
+        self._parent = parent or BOTTOM
         super().__init_finalize__(name)
 
     @property
@@ -1221,8 +1252,16 @@ class CustomDimension(BasicDimension):
         return self._parent is not None
 
     @property
+    def is_NonlinearDerived(self):
+        return self.is_Derived and self.parent.is_NonlinearDerived
+
+    @property
     def parent(self):
         return self._parent
+
+    @property
+    def index(self):
+        return self.parent or self
 
     @property
     def root(self):
@@ -1581,9 +1620,12 @@ class AffineIndexAccessFunction(IndexAccessFunction):
             return None
 
 
-def dimensions(names):
-    assert type(names) is str
-    return tuple(Dimension(i) for i in names.split())
+def dimensions(names, n=1):
+    if n > 1:
+        return tuple(Dimension('%s%s' % (names, i)) for i in range(n))
+    else:
+        assert type(names) is str
+        return tuple(Dimension(i) for i in names.split())
 
 
 BOTTOM = Dimension(name='⊥')

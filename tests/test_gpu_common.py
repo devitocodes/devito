@@ -6,9 +6,9 @@ import scipy.sparse
 
 from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration,
-                    switchconfig)
+                    Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
+                    SubDimension, SubDomain, SubDomainSet, TimeFunction,
+                    Operator, configuration, switchconfig)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -109,6 +109,30 @@ class TestPassesEdgeCases(object):
 
         assert np.all(usave.data[5:] == expected[5:])
         assert np.all(vsave.data[:5] == expected[:5])
+
+    def test_incr_perfect_outer(self):
+        grid = Grid((5, 5))
+        d = Dimension(name="d")
+
+        u = Function(name="u", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5), )
+        v = Function(name="v", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5))
+        w = Function(name="w", grid=grid)
+
+        u.data.fill(1)
+        v.data.fill(2)
+
+        summation = Inc(w, u*v)
+
+        op = Operator([summation])
+
+        assert 'reduction' not in str(op)
+        assert 'collapse(2)' in str(op)
+        assert 'parallel' in str(op)
+
+        op()
+        assert np.all(w.data == 10)
 
 
 class Bundle(SubDomain):
@@ -1403,7 +1427,9 @@ class TestEdgeCases(object):
         f = TimeFunction(name='f', grid=grid, space_order=0)
         f.data[:] = 1.
         sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=0, nt=10)
-        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10,
+                                 coordinates=sf1.coordinates,
+                                 dimensions=sf1.dimensions)
         assert sf1.size == 0
         assert sf2.size == 0
 

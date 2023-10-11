@@ -57,6 +57,7 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .[extras,mpi,tests]
+        python3 scripts/clear_devito_cache.py
 
     - name: Test mpi notebooks
       continue-on-error: true

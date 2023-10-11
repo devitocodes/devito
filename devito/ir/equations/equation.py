@@ -73,6 +73,14 @@ class IREq(sympy.Eq, Pickable):
         kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
         return self.func(*args, **kwargs)
 
+    def __repr__(self):
+        if not self.is_Reduction:
+            return super().__repr__()
+        elif self.operation is OpInc:
+            return '%s += %s' % (self.lhs, self.rhs)
+        else:
+            return '%s = %s(%s, %s)' % (self.lhs, self.operation, self.lhs, self.rhs)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 

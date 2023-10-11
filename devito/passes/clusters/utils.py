@@ -1,7 +1,7 @@
 from devito.symbolics import uxreplace
 from devito.types import Symbol, Wildcard
 
-__all__ = ['makeit_ssa']
+__all__ = ['makeit_ssa', 'is_memcpy']
 
 
 def makeit_ssa(exprs):
@@ -36,3 +36,15 @@ def makeit_ssa(exprs):
         else:
             processed.append(e.func(e.lhs, rhs))
     return processed
+
+
+def is_memcpy(expr):
+    """
+    True if `expr` implements a memcpy involving an Array, False otherwise.
+    """
+    a, b = expr.args
+
+    if not (a.is_Indexed and b.is_Indexed):
+        return False
+
+    return a.function.is_Array or b.function.is_Array

@@ -8,7 +8,8 @@ from sympy import Symbol
 from conftest import skipif
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve)
+                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
+                    PrecomputedSparseTimeFunction)
 from devito.ir import GuardFactor
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
@@ -97,6 +98,60 @@ class TestBasic(object):
         assert sf.space_order == new_sf.space_order
         assert sf.dtype == new_sf.dtype
         assert sf.npoint == new_sf.npoint
+
+    @pytest.mark.parametrize('mode', ['coordinates', 'gridpoints'])
+    def test_precomputed_sparse_function(self, mode, pickle):
+        grid = Grid(shape=(11, 11))
+
+        coords = [(0., 0.), (.5, .5), (.7, .2)]
+        gridpoints = [(0, 0), (6, 6), (8, 3)]
+        keys = {'coordinates': coords, 'gridpoints': gridpoints}
+        kw = {mode: keys[mode]}
+        othermode = 'coordinates' if mode == 'gridpoints' else 'gridpoints'
+
+        sf = PrecomputedSparseTimeFunction(
+            name='sf', grid=grid, r=2, npoint=3, nt=5,
+            interpolation_coeffs=np.random.randn(3, 2, 2), **kw
+        )
+        sf.data[2, 1] = 5.
+
+        pkl_sf = pickle.dumps(sf)
+        new_sf = pickle.loads(pkl_sf)
+
+        # .data is initialized, so it should have been pickled too
+        assert new_sf.data[2, 1] == 5.
+
+        # gridpoints and interpolation coefficients must have been pickled
+        assert np.all(sf.interpolation_coeffs.data == new_sf.interpolation_coeffs.data)
+
+        # coordinates, since they were given, should also have been pickled
+        assert np.all(getattr(sf, mode).data == getattr(new_sf, mode).data)
+        assert getattr(sf, othermode) is None
+        assert getattr(new_sf, othermode) is None
+
+        assert sf._radius == new_sf._radius == 1
+        assert sf.space_order == new_sf.space_order
+        assert sf.time_order == new_sf.time_order
+        assert sf.dtype == new_sf.dtype
+        assert sf.npoint == new_sf.npoint == 3
+
+    def test_alias_sparse_function(self, pickle):
+        grid = Grid(shape=(3,))
+        sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
+                            coordinates=[(0.,), (1.,), (2.,)])
+        sf.data[0] = 1.
+
+        # Create alias
+        f0 = sf._rebuild(name='f0', alias=True)
+        pkl_f0 = pickle.dumps(f0)
+        new_f0 = pickle.loads(pkl_f0)
+
+        assert f0.data is None and new_f0.data is None
+        assert f0.coordinates.data is None and new_f0.coordinates.data is None
+
+        assert sf.space_order == f0.space_order == new_f0.space_order
+        assert sf.dtype == f0.dtype == new_f0.dtype
+        assert sf.npoint == f0.npoint == new_f0.npoint
 
     def test_internal_symbols(self, pickle):
         s = dSymbol(name='s', dtype=np.float32)
@@ -392,25 +447,6 @@ class TestBasic(object):
 
         assert np.all(new_rec.data == 1)
         assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
-
-    def test_alias_sparse_function(self, pickle):
-        grid = Grid(shape=(3,))
-        sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
-                            coordinates=[(0.,), (1.,), (2.,)])
-        sf.data[0] = 1.
-
-        # Create alias
-        f0 = sf._rebuild(name='f0', alias=True)
-
-        pkl_f0 = pickle.dumps(f0)
-        new_f0 = pickle.loads(pkl_f0)
-
-        assert f0.data is None and new_f0.data is None
-        assert f0.coordinates.data is None and new_f0.coordinates.data is None
-
-        assert sf.space_order == f0.space_order == new_f0.space_order
-        assert sf.dtype == f0.dtype == new_f0.dtype
-        assert sf.npoint == f0.npoint == new_f0.npoint
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])

@@ -49,7 +49,8 @@ jobs:
         pip install -e .[tests,extras]
 
     - name: Tests in examples
-      run: py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
+      run: |
+        py.test --cov --cov-config=.coveragerc --cov-report=xml examples/
 
     - name: Seismic acoustic examples
       run: |

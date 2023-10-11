@@ -15,6 +15,7 @@ from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 class TestGradient(object):
 
     @skipif(['chkpnt', 'cpu64-icc'])
+    @switchconfig(safe_math=True)
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('opt', [('advanced', {'openmp': True}),
                                      ('noop', {'openmp': True})])

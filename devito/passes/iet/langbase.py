@@ -325,6 +325,11 @@ class DeviceAwareMixin(object):
 
         return _initialize(iet)
 
+    def _device_pointers(self, iet):
+        functions = FindSymbols().visit(iet)
+        devfuncs = [f for f in functions if f.is_Array and f._mem_local]
+        return set(devfuncs)
+
     def _is_offloadable(self, iet):
         """
         True if the IET computation is offloadable to device, False otherwise.

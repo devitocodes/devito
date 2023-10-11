@@ -2,23 +2,29 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
+from sympy import Mul  # noqa
+
 from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
                       get_params, get_arrays, check_array)
-from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction, SparseTimeFunction,  # noqa
-                    Dimension, SubDimension, ConditionalDimension, DefaultDimension, Grid,
-                    Operator, norm, grad, div, dimensions, switchconfig, configuration,
-                    centered, first_derivative, solve, transpose, Abs, cos, sin, sqrt)
+from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
+                    SparseTimeFunction, Dimension, SubDimension,
+                    ConditionalDimension, DefaultDimension, Grid, Operator,
+                    norm, grad, div, dimensions, switchconfig, configuration,
+                    centered, first_derivative, solve, transpose, Abs, cos,
+                    sin, sqrt)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.factorization import collect_nested
 from devito.passes.clusters.cse import Temp, _cse
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
-                              Keyword, SizeOf, estimate_cost, pow_to_mul, indexify)
+                              IndexedPointer, Keyword, SizeOf, estimate_cost,
+                              pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Array, Scalar, Symbol
+from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -161,6 +167,9 @@ def test_cse(exprs, expected, min_cost):
     ('fa[x]**(-s)', 'fa[x]**(-s)'),
     ('-2/(s**2)', '-2/(s*s)'),
     ('-fa[x]', '-fa[x]'),
+    ('Mul(SizeOf("char"), '
+     '-IndexedPointer(FieldFromPointer("size", fa._C_symbol), x), evaluate=False)',
+     'sizeof(char)*(-fa_vec->size[x])'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
@@ -171,6 +180,19 @@ def test_pow_to_mul(expr, expected):
     fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
 
     assert str(pow_to_mul(eval(expr))) == expected
+
+
+@pytest.mark.parametrize('expr,expected', [
+    ('s - SizeOf("int")*fa[x]', 's - fa[x]*sizeof(int)'),
+])
+def test_factorize(expr, expected):
+    grid = Grid((4, 5))
+    x, y = grid.dimensions
+
+    s = Scalar(name='s')  # noqa
+    fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+
+    assert str(collect_nested(eval(expr))) == expected
 
 
 @pytest.mark.parametrize('expr,expected,estimate', [
@@ -2627,6 +2649,40 @@ class TestAliases(object):
                          subdomain=grid.interior))
         assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
 
+    def test_dtype_aliases(self):
+        a = np.arange(64).reshape((8, 8))
+        grid = Grid(shape=a.shape, extent=(7, 7))
+
+        so = 2
+        f = Function(name='f', grid=grid, space_order=so, dtype=np.int32)
+        f.data[:] = a
+
+        fo = Function(name='fo', grid=grid, space_order=so, dtype=np.int32)
+        op = Operator(Eq(fo, f.dx))
+        op.apply()
+
+        assert FindNodes(Expression).visit(op)[0].dtype == np.float32
+        assert np.all(fo.data[:-1, :-1] == 8)
+
+    def test_sparse_const(self):
+        grid = Grid((11, 11, 11))
+
+        u = TimeFunction(name="u", grid=grid)
+        src = PrecomputedSparseTimeFunction(name="src", grid=grid, npoint=1, nt=11,
+                                            r=2, interpolation_coeffs=np.ones((1, 3, 2)),
+                                            gridpoints=[[5, 5, 5]])
+        u.data.fill(1.)
+
+        op = Operator(src.interpolate(u))
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 1
+        assert len(cond[0].args['then_body'][0].exprs) == 1
+        assert all(e.is_scalar for e in cond[0].args['then_body'][0].exprs)
+
+        op()
+        assert np.all(src.data == 8)
+
 
 class TestIsoAcoustic(object):
 
@@ -2670,11 +2726,14 @@ class TestIsoAcoustic(object):
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 148
+        assert summary0[('section1', None)].ops == 44
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
-        assert summary1[('section0', None)].ops == 31
-        assert np.isclose(summary1[('section0', None)].oi, 1.767, atol=0.001)
+        assert summary1[('section0', None)].ops == 9
+        assert summary1[('section1', None)].ops == 31
+        assert summary1[('section2', None)].ops == 88
+        assert summary1[('section3', None)].ops == 22
+        assert np.isclose(summary1[('section1', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
         assert np.allclose(rec0.data, rec1.data, atol=10e-5)
@@ -2734,8 +2793,8 @@ class TestTTI(object):
         assert np.allclose(self.tti_noopt[1].data, rec.data, atol=10e-1)
 
         # Check expected opcount/oi
-        assert summary[('section1', None)].ops == 92
-        assert np.isclose(summary[('section1', None)].oi, 2.074, atol=0.001)
+        assert summary[('section2', None)].ops == 92
+        assert np.isclose(summary[('section2', None)].oi, 2.074, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
@@ -2746,12 +2805,14 @@ class TestTTI(object):
         assert y.parent is y0_blk0
         assert not x._defines & y._defines
 
-        # Also, in this operator, we expect seven temporary Arrays:
-        # * all of the seven Arrays are allocated on the heap
-        # * with OpenMP, five Arrays are defined globally, and two additional
-        #   Arrays are defined locally
+        # Also, in this operator, we expect six temporary Arrays:
+        # * all of the six Arrays are allocated on the heap
+        # * with OpenMP:
+        #   four Arrays are defined globally for the cos/sin temporaries
+        #   3 Arrays are defined globally for the sparse positions temporaries
+        # and two additional bock-sized Arrays are defined locally
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
-        extra_arrays = 2
+        extra_arrays = 2+3
         assert len(arrays) == 4 + extra_arrays
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         bns, pbs = assert_blocking(op, {'x0_blk0'})
@@ -2787,7 +2848,7 @@ class TestTTI(object):
     def test_opcounts(self, space_order, expected):
         op = self.tti_operator(opt='advanced', space_order=space_order)
         sections = list(op.op_fwd()._profiler._sections.values())
-        assert sections[1].sops == expected
+        assert sections[2].sops == expected
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
@@ -2797,8 +2858,8 @@ class TestTTI(object):
         wavesolver = self.tti_operator(opt=('advanced', {'openmp': False}))
         op = wavesolver.op_adj()
 
-        assert op._profiler._sections['section1'].sops == expected
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7
+        assert op._profiler._sections['section2'].sops == expected
+        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == 7+3
 
 
 class TestTTIv2(object):

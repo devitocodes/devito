@@ -65,8 +65,17 @@ FROM base as oneapi
 RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg
 RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
 
-# Intel advisor
-RUN apt-get update -y && apt-get install -y intel-oneapi-advisor
+# Drivers mandatory for intel gpus
+RUN curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | apt-key add -
+RUN echo "deb [trusted=yes arch=amd64] https://repositories.intel.com/graphics/ubuntu focal main" > /etc/apt/sources.list.d/intel-graphics.list
+
+# Intel advisor and drivers
+RUN apt-get update -y && \
+    # advisor
+    apt-get install -y intel-oneapi-advisor && \
+    # drivers
+    apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero level-zero-dev
+
 ##############################################################
 # ICC image
 # This is a legacy setup that is not built anymore but kept for reference

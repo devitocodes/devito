@@ -94,7 +94,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # a reference to the user-provided buffer
             self._initializer = None
             if len(initializer) > 0:
-                self.data_with_halo[:] = initializer
+                self.data_with_halo[:] = initializer[:]
             else:
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after
@@ -1040,6 +1040,7 @@ class Function(DiscreteFunction):
             dimensions = grid.dimensions
 
         if args:
+            assert len(args) == len(dimensions)
             return tuple(dimensions), tuple(args)
 
         # Staggered indices
@@ -1449,15 +1450,9 @@ class SubFunction(Function):
     """
     A Function bound to a "parent" DiscreteFunction.
 
-    A SubFunction hands control of argument binding and halo exchange to its
-    parent DiscreteFunction.
+    A SubFunction hands control of argument binding and halo exchange to the
+    DiscreteFunction it's bound to.
     """
-
-    __rkwargs__ = Function.__rkwargs__ + ('parent',)
-
-    def __init_finalize__(self, *args, **kwargs):
-        super(SubFunction, self).__init_finalize__(*args, **kwargs)
-        self._parent = kwargs['parent']
 
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops
@@ -1470,12 +1465,13 @@ class SubFunction(Function):
         if self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
                                "a value dynamically" % self.name)
-        else:
-            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+
+        return self._arg_defaults(alias=self)
 
     @property
-    def parent(self):
-        return self._parent
+    def origin(self):
+        # SubFunction have zero origin
+        return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
 
 
 class TempFunction(DiscreteFunction):

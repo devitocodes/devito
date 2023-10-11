@@ -7,7 +7,7 @@ import sympy
 
 from devito.exceptions import InvalidOperator
 from devito.ir.support import (Any, Backward, Forward, IterationSpace,
-                               PARALLEL_IF_ATOMIC, pull_dims)
+                               pull_dims)
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
@@ -402,7 +402,8 @@ def normalize(clusters, **kwargs):
     sregistry = kwargs['sregistry']
 
     clusters = normalize_nested_indexeds(clusters, sregistry)
-    clusters = normalize_reductions(clusters, sregistry, options)
+    clusters = normalize_reductions_dense(clusters, sregistry, options)
+    clusters = normalize_reductions_sparse(clusters, sregistry, options)
 
     return clusters
 
@@ -444,34 +445,22 @@ def normalize_nested_indexeds(cluster, sregistry):
     return cluster.rebuild(processed)
 
 
-@cluster_pass(mode='all')
-def normalize_reductions(cluster, sregistry, options):
+@cluster_pass(mode='dense')
+def normalize_reductions_dense(cluster, sregistry, options):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
     """
     opt_mapify_reduce = options['mapify-reduce']
 
-    dims = [d for d, v in cluster.properties.items() if PARALLEL_IF_ATOMIC in v]
+    dims = [d for d in cluster.properties.dimensions
+            if cluster.properties.is_parallel_atomic(d)]
 
     if not dims:
         return cluster
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and e.lhs.is_Indexed and cluster.is_sparse:
-            # Transform `e` such that we reduce into a scalar (ultimately via
-            # atomic ops, though this part is carried out by a much later pass)
-            # For example, given `i = m[p_src]` (i.e., indirection array), turn:
-            # `u[t, i] += f(u[t, i], src, ...)`
-            # into
-            # `s = f(u[t, i], src, ...)`
-            # `u[t, i] += s`
-            name = sregistry.make_name()
-            v = Symbol(name=name, dtype=e.dtype)
-            processed.extend([e.func(v, e.rhs, operation=None),
-                              e.func(e.lhs, v)])
-
-        elif e.is_Reduction and e.lhs.is_Symbol and opt_mapify_reduce:
+        if e.is_Reduction and e.lhs.is_Symbol and opt_mapify_reduce:
             # Transform `e` into what is in essence an explicit map-reduce
             # For example, turn:
             # `s += f(u[x], v[x], ...)`
@@ -484,7 +473,31 @@ def normalize_reductions(cluster, sregistry, options):
             a = Array(name=name, dtype=e.dtype, dimensions=dims)
             processed.extend([Eq(a.indexify(), e.rhs),
                               e.func(e.lhs, a.indexify())])
+        else:
+            processed.append(e)
 
+    return cluster.rebuild(processed)
+
+
+@cluster_pass(mode='sparse')
+def normalize_reductions_sparse(cluster, sregistry, options):
+    """
+    Extract the right-hand sides of reduction Eq's in to temporaries.
+    """
+    processed = []
+    for e in cluster.exprs:
+        if e.is_Reduction and e.lhs.is_Indexed:
+            # Transform `e` such that we reduce into a scalar (ultimately via
+            # atomic ops, though this part is carried out by a much later pass)
+            # For example, given `i = m[p_src]` (i.e., indirection array), turn:
+            # `u[t, i] += f(u[t, i], src, ...)`
+            # into
+            # `s = f(u[t, i], src, ...)`
+            # `u[t, i] += s`
+            name = sregistry.make_name()
+            v = Symbol(name=name, dtype=e.dtype)
+            processed.extend([e.func(v, e.rhs, operation=None),
+                              e.func(e.lhs, v)])
         else:
             processed.append(e)
 

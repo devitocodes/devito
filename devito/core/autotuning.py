@@ -209,8 +209,9 @@ def init_time_bounds(stepper, at_args, args):
     else:
         at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
         if dim.size_name in args:
-            # May need to shrink to avoid OOB accesses
-            at_args[dim.max_name] = min(at_args[dim.max_name], args[dim.max_name])
+            if not isinstance(args[dim.size_name], range):
+                # May need to shrink to avoid OOB accesses
+                at_args[dim.max_name] = min(at_args[dim.max_name], args[dim.max_name])
         if at_args[dim.min_name] > at_args[dim.max_name]:
             warning("too few time iterations; skipping")
             return False

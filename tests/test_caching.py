@@ -631,15 +631,16 @@ class TestCaching(object):
         # With the legacy caching model also u, u(inds), u_coords, and
         # u_coords(inds) would have been added to the cache; not anymore!
         ncreated = 4
+
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
         cur_cache_size = len(_SymbolCache)
 
         i = u.inject(expr=u, field=u)
 
-        # created: ii_u_0*2 (Symbol and ConditionalDimension), ii_u_1*2, ii_u_2*2,
-        # ii_u_3*2, px, py, posx, posy, u_coords (as indexified),
-        ncreated = 2+2+2+2+2+1+1+1
+        # created: rux, ruy (radius dimensions) and spacings
+        # posx, posy, px, py, u_coords (as indexified),
+        ncreated = 2+1+2+2+2+1
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
         i.evaluate
@@ -654,12 +655,16 @@ class TestCaching(object):
         del u
         del i
         clear_cache()
-        # At this point, not all children objects have been cleared. In
-        # particular, the ii_u_* Symbols are still alive, as well as p_u and
-        # h_p_u. This is because in the first clear_cache they were still
-        # referenced by their "parent" objects (e.g., ii_u_* by
-        # ConditionalDimensions, through `condition`)
-        assert len(_SymbolCache) == init_cache_size + 6
+        # At this point, not all children objects have been cleared. In particular, the
+        # ru* Symbols are still alive, as well as p_u and h_p_u and pos*. This is because
+        # in the first clear_cache they were still referenced by their "parent" objects
+        # (e.g., ru* by ConditionalDimensions, through `condition`)
+
+        assert len(_SymbolCache) == init_cache_size + 8
+        clear_cache()
+        # Now we should be back to the original state except for
+        # pos* that belong to the abstract class
+        assert len(_SymbolCache) == init_cache_size + 2
         clear_cache()
         # Now we should be back to the original state
         assert len(_SymbolCache) == init_cache_size

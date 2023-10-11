@@ -100,7 +100,7 @@ jobs:
 
         - name: pytest-docker-py39-icx-omp
           python-version: '3.9'
-          os: ubuntu-22.04
+          os: ubuntu-latest
           arch: "icx"
           language: "openmp"
           sympy: "1.12"
@@ -159,6 +159,10 @@ jobs:
         pip install --upgrade pip
         pip install -e .[tests]
         pip install sympy==${{matrix.sympy}}
+
+    - name: Check configuration
+      run: |
+        ${{ env.RUN_CMD }} python3 -c "from devito import configuration; print(''.join(['%s: %s \n' % (k, v) for (k, v) in configuration.items()]))"
 
     - name: Test with pytest
       run: |

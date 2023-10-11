@@ -8,7 +8,7 @@ import numpy as np
 from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
-           'double3', 'double4', 'dtypes_vector_mapper',
+           'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype']
@@ -104,6 +104,7 @@ def dtype_to_ctype(dtype):
         return ctypes_vector_mapper[dtype]
     except KeyError:
         pass
+
     if issubclass(dtype, ctypes._SimpleCData):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
@@ -126,6 +127,14 @@ def dtype_to_mpitype(dtype):
         np.int64: 'MPI_LONG',
         np.float64: 'MPI_DOUBLE'
     }[dtype]
+
+
+def dtype_to_mpidtype(dtype):
+    """
+    Map numpy type to MPI internal types for communication
+    """
+    from devito.mpi import MPI
+    return MPI._typedict[np.dtype(dtype).char]
 
 
 def dtype_len(dtype):

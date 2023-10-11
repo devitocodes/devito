@@ -66,7 +66,7 @@ class EnrichedTuple(tuple, Pickable):
         # objects with varying number of attributes
         return (tuple(self), dict(self.__dict__))
 
-    def get(self, key, val):
+    def get(self, key, val=None):
         return self._getters.get(key, val)
 
 
@@ -110,6 +110,9 @@ class ReducerMap(MultiDict):
             Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
+        candidates = [c for c in candidates if c is not None]
+        if not candidates:
+            return None
 
         def compare_to_first(v):
             first = candidates[0]
@@ -122,12 +125,23 @@ class ReducerMap(MultiDict):
                     return first in v
             elif isinstance(first, Set):
                 return v in first
+            elif isinstance(v, range):
+                if isinstance(first, range):
+                    return first.stop > v.start or v.stop > first.start
+                else:
+                    return first >= v.start and first < v.stop
+            elif isinstance(first, range):
+                return v >= first.start and v < first.stop
             else:
                 return first == v
 
         if len(candidates) == 1:
             return candidates[0]
         elif all(map(compare_to_first, candidates)):
+            # return first non-range
+            for c in candidates:
+                if not isinstance(c, range):
+                    return c
             return candidates[0]
         else:
             raise ValueError("Unable to find unique value for key %s, candidates: %s"
@@ -599,3 +613,22 @@ class UnboundedMultiTuple(object):
         if self.curiter is None:
             raise StopIteration
         return next(self.curiter)
+
+
+class UnboundTuple(object):
+    """
+    A simple data structure that returns the last element forever once reached
+    """
+
+    def __init__(self, items):
+        self.items = as_tuple(items)
+        self.last = len(self.items)
+        self.current = 0
+
+    def next(self):
+        item = self.items[self.current]
+        self.current = min(self.last - 1, self.current+1)
+        return item
+
+    def __len__(self):
+        return self.last

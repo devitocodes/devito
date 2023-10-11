@@ -132,6 +132,17 @@ def test_indexed():
     assert ub.indexed.free_symbols == {ub.indexed}
 
 
+def test_indexed_staggered():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+    hx, hy = x.spacing, y.spacing
+
+    u = Function(name='u', grid=grid, staggered=(x, y))
+    u0 = u.subs({x: 1, y: 2})
+    assert u0.indices == (1 + hx / 2, 2 + hy / 2)
+    assert u0.indexify().indices == (1, 2)
+
+
 def test_bundle():
     grid = Grid(shape=(4, 4))
 

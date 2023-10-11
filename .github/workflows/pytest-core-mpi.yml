@@ -56,10 +56,17 @@ jobs:
 
   test-mpi-docker:
       name: pytest-mpi
-      runs-on: ubuntu-latest
+      runs-on: ${{ matrix.os }}
       strategy:
         matrix:
-          arch: [gcc, icx]
+          name: [gcc, icx]
+          include:
+            - name: gcc
+              arch: gcc
+              os: ubuntu-latest
+            - name: icx
+              arch: icx
+              os: ubuntu-latest
       
       steps:
       - name: Checkout devito

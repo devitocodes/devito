@@ -1,7 +1,9 @@
 from functools import singledispatch
 
 import numpy as np
-from sympy import Function, Indexed, Integer, Mul, Number, Pow, S, Symbol, Tuple
+from sympy import (Function, Indexed, Integer, Mul, Number,
+                   Pow, S, Symbol, Tuple)
+from sympy.core.operations import AssocOp
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -10,8 +12,9 @@ from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
+from devito.tools.dtypes_lowering import infer_dtype
 
-__all__ = ['compare_ops', 'estimate_cost', 'has_integer_args']
+__all__ = ['compare_ops', 'estimate_cost', 'has_integer_args', 'sympy_dtype']
 
 
 def compare_ops(e1, e2):
@@ -260,3 +263,23 @@ def has_integer_args(*args):
         except AttributeError:
             res = res and has_integer_args(a)
     return res
+
+
+def sympy_dtype(expr, default):
+    """
+    Infer the dtype of the expression
+    or default if could not be determined.
+    """
+    # Symbol/... without argument, check its dtype
+    if len(expr.args) == 0:
+        try:
+            return expr.dtype
+        except AttributeError:
+            return default
+    else:
+        if not (isinstance(expr.func, AssocOp) or expr.is_Pow):
+            return default
+        else:
+            # Infer expression dtype from its arguments
+            dtype = infer_dtype([sympy_dtype(a, default) for a in expr.args])
+            return dtype or default
