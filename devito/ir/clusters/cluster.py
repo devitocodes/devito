@@ -231,17 +231,10 @@ class Cluster(object):
     @cached_property
     def is_sparse(self):
         """
-        A cluster is sparse if it represent a sparse operation i.e if both
-
-            * The cluster contains sparse functions
-            * The cluster uses dense functions
-
-        If only the first case is true, the cluster only contains operation on the sparse
-        function itself without indirection and therefore only contains dense operations.
+        A Cluster is sparse if it represents a sparse operation, i.e iff
+        There's at least one irregular access.
         """
-        return (any(f.is_SparseFunction for f in self.functions) and
-                len([f for f in self.functions
-                     if (f.is_Function and not f.is_SparseFunction)]) > 0)
+        return any(a.is_irregular for a in self.scope.accesses)
 
     @property
     def is_halo_touch(self):
