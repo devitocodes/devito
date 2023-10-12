@@ -1,17 +1,30 @@
 from abc import ABC, abstractmethod
+from functools import wraps
 
 import sympy
 from cached_property import cached_property
 
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
-from devito.symbolics import retrieve_function_carriers, INT
+from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
+
+
+def check_radius(func):
+    @wraps(func)
+    def wrapper(interp, *args, **kwargs):
+        r = interp.sfunction.r
+        funcs = set().union(*[retrieve_functions(a) for a in args])
+        so = min({f.space_order for f in funcs if not f.is_SparseFunction} or {r})
+        if so < r:
+            raise ValueError("Space order %d smaller than interpolation r %d" % (so, r))
+        return func(interp, *args, **kwargs)
+    return wrapper
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
@@ -209,6 +222,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
+    @check_radius
     def interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
@@ -226,6 +240,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         return Interpolation(expr, increment, implicit_dims, self_subs, self)
 
+    @check_radius
     def inject(self, field, expr, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.

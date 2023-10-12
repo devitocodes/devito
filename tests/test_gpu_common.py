@@ -1424,7 +1424,7 @@ class TestEdgeCases(object):
         """
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = TimeFunction(name='f', grid=grid, space_order=0)
+        f = TimeFunction(name='f', grid=grid, space_order=1)
         f.data[:] = 1.
         sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=0, nt=10)
         sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10,

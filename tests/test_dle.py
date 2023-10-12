@@ -709,7 +709,7 @@ class TestNodeParallelism(object):
         """
         grid = Grid(shape=(11, 11))
 
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
 
         eqns = [Eq(u.forward, u + 1)]

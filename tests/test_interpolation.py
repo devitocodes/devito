@@ -14,19 +14,19 @@ from examples.seismic.acoustic import AcousticWaveSolver
 import scipy.sparse
 
 
-def unit_box(name='a', shape=(11, 11), grid=None):
+def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
     """Create a field with value 0. to 1. in each dimension"""
     grid = grid or Grid(shape=shape)
-    a = Function(name=name, grid=grid)
+    a = Function(name=name, grid=grid, space_order=space_order)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]
     return a
 
 
-def unit_box_time(name='a', shape=(11, 11)):
+def unit_box_time(name='a', shape=(11, 11), space_order=1):
     """Create a field with value 0. to 1. in each dimension"""
     grid = Grid(shape=shape)
-    a = TimeFunction(name=name, grid=grid, time_order=1)
+    a = TimeFunction(name=name, grid=grid, time_order=1, space_order=space_order)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[0, :] = np.meshgrid(*dims)[1]
     a.data[1, :] = np.meshgrid(*dims)[1]
@@ -117,16 +117,15 @@ def test_precomputed_interpolation(r):
     origin = (0, 0)
 
     grid = Grid(shape=shape, origin=origin)
-    r = 2  # Constant for linear interpolation
-    #  because we interpolate across 2 neighbouring points in each dimension
 
     def init(data):
+        # This is data with halo so need to shift to match the m.data expectations
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
-                data[i, j] = sin(grid.spacing[0]*i) + sin(grid.spacing[1]*j)
+                data[i, j] = sin(grid.spacing[0]*(i-r)) + sin(grid.spacing[1]*(j-r))
         return data
 
-    m = Function(name='m', grid=grid, initializer=init, space_order=0)
+    m = Function(name='m', grid=grid, initializer=init, space_order=r)
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
                                                                        grid, origin,
@@ -154,10 +153,8 @@ def test_precomputed_interpolation_time(r):
     origin = (0, 0)
 
     grid = Grid(shape=shape, origin=origin)
-    r = 2  # Constant for linear interpolation
-    #  because we interpolate across 2 neighbouring points in each dimension
 
-    u = TimeFunction(name='u', grid=grid, space_order=0, save=5)
+    u = TimeFunction(name='u', grid=grid, space_order=r, save=5)
     for it in range(5):
         u.data[it, :] = it
 
@@ -190,11 +187,7 @@ def test_precomputed_injection(r):
     origin = (0, 0)
     result = 0.25
 
-    # Constant for linear interpolation
-    # because we interpolate across 2 neighbouring points in each dimension
-    r = 2
-
-    m = unit_box(shape=shape)
+    m = unit_box(shape=shape, space_order=r)
     m.data[:] = 0.
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
@@ -228,11 +221,7 @@ def test_precomputed_injection_time(r):
     result = 0.25
     nt = 20
 
-    # Constant for linear interpolation
-    # because we interpolate across 2 neighbouring points in each dimension
-    r = 2
-
-    m = unit_box_time(shape=shape)
+    m = unit_box_time(shape=shape, space_order=r)
     m.data[:] = 0.
 
     gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
@@ -761,3 +750,16 @@ def test_inject_function():
     for i in [0, 1, 3, 4]:
         for j in [0, 1, 3, 4]:
             assert u.data[1, i, j] == 0
+
+
+def test_interpolation_radius():
+    nt = 11
+
+    grid = Grid(shape=(5, 5))
+    u = TimeFunction(name="u", grid=grid, space_order=0)
+    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1)
+    try:
+        src.interpolate(u)
+        assert False
+    except ValueError:
+        assert True

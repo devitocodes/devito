@@ -521,7 +521,7 @@ class TestArithmetic(object):
         Test injection of a SparseFunction into a Function
         """
         grid = Grid(shape=(11, 11))
-        u = Function(name='u', grid=grid, space_order=0)
+        u = Function(name='u', grid=grid, space_order=1)
 
         sf1 = SparseFunction(name='s', grid=grid, npoint=1)
         op = Operator(sf1.inject(u, expr=sf1))
@@ -542,7 +542,7 @@ class TestArithmetic(object):
         Test interpolation of a SparseFunction from a Function
         """
         grid = Grid(shape=(11, 11))
-        u = Function(name='u', grid=grid, space_order=0)
+        u = Function(name='u', grid=grid, space_order=1)
 
         sf1 = SparseFunction(name='s', grid=grid, npoint=1)
         op = Operator(sf1.interpolate(u))
@@ -563,7 +563,7 @@ class TestArithmetic(object):
         Test injection of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
         op = Operator(sf1.interpolate(u))
@@ -586,7 +586,7 @@ class TestArithmetic(object):
         Test injection of a SparseTimeFunction from a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
         op = Operator(sf1.inject(u, expr=3*sf1))
@@ -611,7 +611,7 @@ class TestArithmetic(object):
         Test injection of the time deivative of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5, time_order=2)
 
