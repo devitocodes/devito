@@ -2010,7 +2010,7 @@ class TestInternals(object):
 
         op = Operator(eqns)
 
-        assert op._dspace[time].lower == 0
+        assert op._dspace[time].lower == 1
         assert op._dspace[time].upper == 1
         assert op.arguments()['time_M'] == nt - 2
 
