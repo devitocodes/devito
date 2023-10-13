@@ -244,6 +244,7 @@ class Operator(Callable):
         op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
         op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        # import pdb;pdb.set_trace()
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
 
