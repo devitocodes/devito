@@ -1501,7 +1501,7 @@ class TestOperatorAdvanced(object):
         """
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = Function(name='f', grid=grid, space_order=0)
+        f = Function(name='f', grid=grid, space_order=1)
         f.data[:] = 0.
         coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
@@ -1536,7 +1536,7 @@ class TestOperatorAdvanced(object):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         save = 3
-        f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
+        f = TimeFunction(name='f', grid=grid, save=save, space_order=1)
         f.data[:] = 0.
         coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
@@ -1611,7 +1611,7 @@ class TestOperatorAdvanced(object):
     def test_interpolation_wodup(self):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = Function(name='f', grid=grid, space_order=0)
+        f = Function(name='f', grid=grid, space_order=1)
         f.data[:] = 4.
         coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
