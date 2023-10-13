@@ -223,6 +223,7 @@ class Operator(Callable):
         op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
         op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        # import pdb;pdb.set_trace()
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
 
@@ -542,6 +543,7 @@ class Operator(Callable):
         for d in reversed(toposort):
             if set(d._arg_names).intersection(kwargs):
                 futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
+
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 

@@ -377,11 +377,27 @@ class Cluster:
 
         # Construct the `intervals` of the DataSpace, that is a global,
         # Dimension-centric view of the data space
+
         intervals = IntervalGroup.generate('union', *parts.values())
 
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
+
+        # Intersect with intervals from buffered dimensions. Unions of
+        # buffered dimension intervals may result in shrinking time size
+        try:
+            proc = []
+            for f, v in parts.items():
+                if f.save:
+                    for i in v:
+                        if i.dim.is_Time:
+                            proc.append(intervals[i.dim].intersection(i))
+                        else:
+                            proc.append(intervals[i.dim])
+            intervals = IntervalGroup(proc)
+        except AttributeError:
+            pass
 
         return DataSpace(intervals, parts)
 
