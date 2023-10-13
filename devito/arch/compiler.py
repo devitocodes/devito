@@ -730,7 +730,7 @@ class IntelCompiler(Compiler):
             self.cflags.append("-qopt-zmm-usage=high")
 
         if language == 'openmp':
-            self.cflags.append('-fiopenmp')
+            self.ldflags.append('-qopenmp')
 
         # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
@@ -792,8 +792,8 @@ class OneapiCompiler(IntelCompiler):
 
         # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
         if self.version < Version('17.0.0') and language == 'openmp':
-            self.cflags.remove('-fiopenmp')
-            self.cflags.append('-fopenmp')
+            self.ldflags.remove('-qopenmp')
+            self.ldflags.append('-fopenmp')
 
         if language == 'sycl':
             self.cflags.append('-fsycl')
@@ -805,10 +805,10 @@ class OneapiCompiler(IntelCompiler):
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
         if platform in [INTELGPUX, PVC]:
-            self.cflags.append('-fopenmp-targets=spir64')
-            self.cflags.append('-fopenmp-target-simd')
+            self.ldflags.append('-fiopenmp')
+            self.ldflags.append('-fopenmp-targets=spir64')
+            self.ldflags.append('-fopenmp-target-simd')
 
-        if platform is INTELGPUX:
             self.cflags.remove('-g')  # -g disables some optimizations in IGC
             self.cflags.append('-gline-tables-only')
             self.cflags.append('-fdebug-info-for-profiling')

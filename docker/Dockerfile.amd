@@ -125,7 +125,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 RUN apt-get update && \
     apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
 
-RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
