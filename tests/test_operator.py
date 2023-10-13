@@ -2014,7 +2014,34 @@ class TestInternals(object):
         assert op._dspace[time].upper == 1
         assert op.arguments()['time_M'] == nt - 2
 
-        op()
+        op.apply()
 
         assert np.all(f.data[0] == 0.)
+        assert np.all(f.data[i] == 3. for i in range(1, 10))
+
+    def test_indirection_v2(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+        x, y = grid.dimensions
+
+        f = TimeFunction(name='f', grid=grid, save=nt)
+        g = TimeFunction(name='g', grid=grid)
+
+        idx = time
+        s = Indirection(name='ofs0', mapped=idx)
+
+        eqns = [
+            Eq(s, idx),
+            Eq(f[s, x, y], g + 3.)
+        ]
+
+        op = Operator(eqns)
+
+        assert op._dspace[time].lower == 0
+        assert op._dspace[time].upper == 0
+        assert op.arguments()['time_M'] == nt - 1
+
+        op.apply()
+
         assert np.all(f.data[i] == 3. for i in range(1, 10))
