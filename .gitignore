@@ -1,5 +1,6 @@
 *.pyc
 *.npy
+*.npz
 
 *.json
 

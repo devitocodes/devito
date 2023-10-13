@@ -42,7 +42,12 @@ to = args.time_order
 
 print("dx %s, dy %s, dz %s" % (dx, dy, dz))
 
-grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
+topology = None
+#xDSL only handles 2D domain decomposition right now
+if args.xdsl:
+    topology = ('*', '*', 1)
+
+grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.), topology=topology)
 u = TimeFunction(name='u', grid=grid, space_order=so)
 
 a = Constant(name='a')
@@ -56,7 +61,7 @@ eq_stencil = Eq(u.forward, stencil)
 if args.devito:
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    op = Operator([eq_stencil], name='DevitoOperator', opt=('advanced', {'par-tile': (32,4,8)}))
+    op = Operator([eq_stencil], name='DevitoOperator')
     # Apply the operator for a number of timesteps
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
