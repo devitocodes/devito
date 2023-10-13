@@ -116,7 +116,8 @@ class AccBB(PragmaLangBB):
         'device-alloc': lambda i, *a, retobj=None:
             Call('acc_malloc', (i,), retobj=retobj, cast=True),
         'device-free': lambda i, *a:
-            Call('acc_free', (i,))
+            Call('acc_free', (i,)),
+        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))
     }
     mapper.update(CBB.mapper)
 
