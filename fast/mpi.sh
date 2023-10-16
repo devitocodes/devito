@@ -31,7 +31,7 @@ get_throughput() {
 # Iterate over benchmarks and cases, print simple CSV data to stdout
 # Copy-pastes nicely in Google Sheets
 echo bench_name,so,threads,Devito,xDSL
-for bench in "wave2d_b.py -d 2048 2048 --nt 512" "wave3d_b.py -d 512 512 512 --nt 512" "diffusion_3D_wBCs.py -d 512 512 512 --nt 512" "diffusion_2D_wBCs.py -d 2048 2048 --nt 512"
+for bench in "wave2d_b.py -d 2048 2048 --nt 512" "wave3d_b.py -d 512 512 512 --nt 512" "diffusion_2D_wBCs.py -d 2048 2048 --nt 512" "diffusion_3D_wBCs.py -d 512 512 512 --nt 512"
 do
   # Get the benchmark file for printing
   bench_name=$(echo $bench | cut -d ' ' -f1)
