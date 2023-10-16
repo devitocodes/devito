@@ -7,6 +7,7 @@ import numpy as np
 import sympy
 from sympy.core.add import _addsort
 from sympy.core.mul import _keep_coeff, _mulsort
+from sympy.core.core import ordering_of_classes
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
@@ -556,6 +557,9 @@ class IndexSum(DifferentiableOp):
 
     __str__ = __repr__
 
+    def _sympystr(self, printer):
+        return str(self)
+
     def _hashable_content(self):
         return super()._hashable_content() + (self.dimensions,)
 
@@ -621,7 +625,7 @@ class Weights(Array):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-        return (self.name, self.dimension, hash(tuple(self.weights)))
+        return (self.name, self.dimension, str(self.weights))
 
     @property
     def dimension(self):
@@ -665,6 +669,20 @@ class IndexDerivative(IndexSum):
     def _hashable_content(self):
         return super()._hashable_content() + (self.mapper,)
 
+    def compare(self, other):
+        if self is other:
+            return 0
+        n1 = self.__class__
+        n2 = other.__class__
+        if n1.__name__ == n2.__name__:
+            return self.base.compare(other.base)
+        else:
+            return super().compare(other)
+
+    @cached_property
+    def base(self):
+        return self.expr.func(*[a for a in self.expr.args if a is not self.weights])
+
     @property
     def weights(self):
         return self._weights
@@ -691,6 +709,10 @@ class IndexDerivative(IndexSum):
         expr = expr.xreplace(mapper)
 
         return expr
+
+
+ordering_of_classes.insert(ordering_of_classes.index('Derivative') + 1,
+                           'IndexDerivative')
 
 
 class EvalDerivative(DifferentiableOp, sympy.Add):

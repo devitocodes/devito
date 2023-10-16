@@ -6,7 +6,7 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
-from devito.ir.support import (Any, Backward, Forward, IterationSpace,
+from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
                                pull_dims)
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
@@ -14,7 +14,7 @@ from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, timed_pass)
+                          is_integer, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -29,6 +29,7 @@ def clusterize(exprs, **kwargs):
     clusters = [Cluster(e, e.ispace) for e in exprs]
 
     # Setup the IterationSpaces based on data dependence analysis
+    clusters = impose_total_ordering(clusters)
     clusters = Schedule().process(clusters)
 
     # Handle SteppingDimensions
@@ -47,6 +48,29 @@ def clusterize(exprs, **kwargs):
     clusters = Communications().process(clusters)
 
     return ClusterGroup(clusters)
+
+
+def impose_total_ordering(clusters):
+    """
+    Create a new sequence of Clusters whose IterationSpaces are totally ordered
+    according to a global set of relations.
+    """
+    global_relations = set().union(*[c.ispace.relations for c in clusters])
+    ordering = toposort(global_relations)
+
+    processed = []
+    for c in clusters:
+        key = lambda d: ordering.index(d)
+        try:
+            relations = {tuple(sorted(c.ispace.itdims, key=key))}
+        except ValueError:
+            # See issue #2204
+            relations = c.ispace.relations
+        ispace = c.ispace.reorder(relations=relations, mode='total')
+
+        processed.append(c.rebuild(ispace=ispace))
+
+    return processed
 
 
 class Schedule(QueueStateful):
@@ -121,10 +145,12 @@ class Schedule(QueueStateful):
             require_break = scope.d_flow.cause & maybe_break
             if require_break:
                 backlog = [clusters[-1]] + backlog
-                # Try with increasingly smaller ClusterGroups until the ambiguity is gone
+                # Try with increasingly smaller ClusterGroups until the
+                # ambiguity is gone
                 return self.callback(clusters[:-1], prefix, backlog, require_break)
 
-        # Schedule Clusters over different IterationSpaces if this increases parallelism
+        # Schedule Clusters over different IterationSpaces if this increases
+        # parallelism
         for i in range(1, len(clusters)):
             if self._break_for_parallelism(scope, candidates, i):
                 return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
@@ -146,8 +172,8 @@ class Schedule(QueueStateful):
         if not backlog:
             return processed
 
-        # Handle the backlog -- the Clusters characterized by flow- and anti-dependences
-        # along one or more Dimensions
+        # Handle the backlog -- the Clusters characterized by flow- and
+        # anti-dependences along one or more Dimensions
         idir = {d: Any for d in known_break}
         stamp = Stamp()
         for i, c in enumerate(list(backlog)):
@@ -278,7 +304,11 @@ class Stepper(Queue):
                 size = i.function.shape_allocated[d]
                 assert is_integer(size)
 
-                mapper[size][si].add(iaf)
+                # Resolve StencilDimensions in case of unexpanded expressions
+                # E.g. `i0 + t` -> `(t - 1, t, t + 1)`
+                iafs = erange(iaf)
+
+                mapper[size][si].update(iafs)
 
         # Construct the ModuloDimensions
         mds = []
@@ -288,7 +318,8 @@ class Stepper(Queue):
                 # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so
                 # that associativity errors are consistent. This corresponds to
                 # sorting offsets {-1, 0, 1} as {0, -1, 1} assigning -inf to 0
-                siafs = sorted(iafs, key=lambda i: -np.inf if i - si == 0 else (i - si))
+                key = lambda i: -np.inf if i - si == 0 else (i - si)
+                siafs = sorted(iafs, key=key)
 
                 for iaf in siafs:
                     name = '%s%d' % (si.name, len(mds))
@@ -452,7 +483,7 @@ def normalize_reductions_dense(cluster, sregistry, options):
     """
     opt_mapify_reduce = options['mapify-reduce']
 
-    dims = [d for d in cluster.properties.dimensions
+    dims = [d for d in cluster.ispace.itdims
             if cluster.properties.is_parallel_atomic(d)]
 
     if not dims:

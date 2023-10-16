@@ -479,8 +479,8 @@ def test_issue_1838():
     op1.apply(time_M=3, dt=1., p0=p1)
 
     # Check generated code
-    assert "r0L0(x, y, z) r0[(x)*y_stride1 + (y)*z_stride1 + (z)]" in str(op1)
-    assert "r4L0(x, y, z) r4[(x)*y_stride2 + (y)*z_stride1 + (z)]" in str(op1)
+    assert "r0L0(x,y,z) r0[(x)*y_stride1 + (y)*z_stride1 + (z)]" in str(op1)
+    assert "r4L0(x,y,z) r4[(x)*y_stride2 + (y)*z_stride1 + (z)]" in str(op1)
 
     assert np.allclose(p0.data, p1.data, rtol=1e-6)
 

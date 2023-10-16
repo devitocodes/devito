@@ -22,7 +22,7 @@ from devito.types.misc import VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'QueueID', 'Barrier']
+           'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
 
 
 class NThreadsBase(Scalar):
@@ -294,3 +294,15 @@ class Barrier(object):
     """
 
     pass
+
+
+class TBArray(Array):
+
+    """
+    An Array used for performance optimization within a thread block.
+    """
+
+    def __init_finalize__(self, *args, **kwargs):
+        kwargs['liveness'] = 'eager'
+
+        super().__init_finalize__(*args, **kwargs)

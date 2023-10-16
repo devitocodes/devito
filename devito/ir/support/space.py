@@ -6,14 +6,15 @@ from operator import mul
 from cached_property import cached_property
 from sympy import Expr
 
-from devito.ir.support.utils import sdims_min, sdims_max
+from devito.ir.support.utils import minimum, maximum
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (PartialOrderTuple, Stamp, as_list, as_tuple, filter_ordered,
+from devito.tools import (Ordering, Stamp, as_list, as_tuple, filter_ordered,
                           flatten, frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any']
+           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
+           'null_ispace']
 
 
 # The default Stamp, used by all new Intervals
@@ -286,30 +287,40 @@ class Interval(AbstractInterval):
         return self
 
     def expand(self):
-        return Interval(self.dim, sdims_min(self.lower), sdims_max(self.upper),
-                        self.stamp)
+        return Interval(
+            self.dim, minimum(self.lower), maximum(self.upper), self.stamp
+        )
 
 
-class IntervalGroup(PartialOrderTuple):
+class IntervalGroup(Ordering):
 
     """
-    A partially-ordered sequence of Intervals equipped with set-like
-    operations.
+    A sequence of Intervals equipped with set-like operations.
     """
 
     @classmethod
     def reorder(cls, items, relations):
         if not all(isinstance(i, AbstractInterval) for i in items):
-            raise ValueError("Cannot create an IntervalGroup from objects of type [%s]" %
+            raise ValueError("Cannot create IntervalGroup from objs of type [%s]" %
                              ', '.join(str(type(i)) for i in items))
-        # The relations are between dimensions, not intervals. So we take
-        # care of that here
-        ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
+
+        if len(relations) == 1:
+            # Special case: avoid expensive topological sorting if possible
+            relation, = relations
+            ordering = filter_ordered(list(relation) + [i.dim for i in items])
+        else:
+            ordering = filter_ordered(toposort(relations) + [i.dim for i in items])
+
         return sorted(items, key=lambda i: ordering.index(i.dim))
 
+    @classmethod
+    def simplify_relations(cls, relations, items, mode):
+        if mode == 'total':
+            return [tuple(i.dim for i in items)]
+        else:
+            return super().simplify_relations(relations, items, mode)
+
     def __eq__(self, o):
-        # No need to look at the relations -- if the partial ordering is the same,
-        # then the IntervalGroups are considered equal
         return len(self) == len(o) and all(i == j for i, j in zip(self, o))
 
     def __contains__(self, d):
@@ -341,7 +352,7 @@ class IntervalGroup(PartialOrderTuple):
         return len(self.dimensions) == len(set(self.dimensions))
 
     @classmethod
-    def generate(self, op, *interval_groups, relations=None):
+    def generate(cls, op, *interval_groups, relations=None):
         """
         Create a new IntervalGroup from the iterative application of an
         operation to some IntervalGroups.
@@ -354,8 +365,7 @@ class IntervalGroup(PartialOrderTuple):
         *interval_groups
             Input IntervalGroups.
         relations : tuple, optional
-            Relations to be used in the newly constructed IntervalGroup, in addition
-            to the ones inherited via each element in `interval_groups`.
+            Additional relations to build the new IntervalGroup.
 
         Examples
         --------
@@ -383,12 +393,19 @@ class IntervalGroup(PartialOrderTuple):
         relations = set(as_tuple(relations))
         relations.update(set().union(*[ig.relations for ig in interval_groups]))
 
-        return IntervalGroup(intervals, relations=relations)
+        modes = set(ig.mode for ig in interval_groups)
+        assert len(modes) <= 1
+        try:
+            mode = modes.pop()
+        except KeyError:
+            mode = 'total'
+
+        return IntervalGroup(intervals, relations=relations, mode=mode)
 
     def is_compatible(self, o):
         """
-        Two IntervalGroups are compatible iff they can be ordered according
-        to some common partial ordering.
+        Two IntervalGroups are compatible iff their elements are not subjected
+        to sets of relations that would prevent a reordering.
         """
         if set(self) != set(o):
             return False
@@ -399,7 +416,7 @@ class IntervalGroup(PartialOrderTuple):
             self.add(o)
             return True
         except ValueError:
-            # Cyclic dependence detected, there is no common partial ordering
+            # Cyclic dependence detected
             return False
 
     def _normalize(func):
@@ -410,38 +427,42 @@ class IntervalGroup(PartialOrderTuple):
         def wrapper(self, o):
             if not isinstance(o, IntervalGroup):
                 o = IntervalGroup(as_tuple(o))
-            return func(self, o)
+            if self.mode != o.mode:
+                raise ValueError("Incompatible ordering modes")
+            relations = self.relations | o.relations
+            return func(self, o, relations, self.mode)
         return wrapper
 
     @_normalize
-    def intersection(self, o):
+    def intersection(self, o, relations, mode):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.intersection(mapper.get(i.dim, i)) for i in self]
-        return IntervalGroup(intervals, relations=(self.relations | o.relations))
+        return IntervalGroup(intervals, relations=relations, mode=mode)
 
     @_normalize
-    def add(self, o):
+    def add(self, o, relations, mode):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.add(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
-        return IntervalGroup(intervals, relations=(self.relations | o.relations))
+        return IntervalGroup(intervals, relations=relations, mode=mode)
 
     @_normalize
-    def subtract(self, o):
+    def subtract(self, o, relations, mode):
         mapper = OrderedDict([(i.dim, i) for i in o])
         intervals = [i.subtract(mapper.get(i.dim, NullInterval(i.dim))) for i in self]
-        return IntervalGroup(intervals, relations=(self.relations | o.relations))
+        return IntervalGroup(intervals, relations=relations, mode=mode)
 
     def relaxed(self, d=None):
         d = set(self.dimensions if d is None else as_tuple(d))
         intervals = [i.relaxed if i.dim in d else i for i in self]
-        return IntervalGroup(intervals, relations=self.relations)
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def promote(self, cond):
-        intervals = IntervalGroup([i.promote(cond) for i in self],
-                                  relations=self.relations)
+        intervals = [i.promote(cond) for i in self]
+        intervals = IntervalGroup(intervals, relations=None, mode='unordered')
 
-        # There could be duplicate Dimensions at this point, so we sum up the Intervals
-        # defined over the same Dimension to produce a well-defined IntervalGroup
+        # There could be duplicate Dimensions at this point, so we sum up the
+        # Intervals defined over the same Dimension to produce a well-defined
+        # IntervalGroup
         intervals = IntervalGroup.generate('add', intervals)
 
         return intervals
@@ -458,23 +479,29 @@ class IntervalGroup(PartialOrderTuple):
         # Clean up relations
         relations = [tuple(i for i in r if i not in dims) for r in self.relations]
 
-        return IntervalGroup(intervals, relations=relations)
+        return IntervalGroup(intervals, relations=relations, mode=self.mode)
 
     def negate(self):
-        return IntervalGroup([i.negate() for i in self], relations=self.relations)
+        intervals = [i.negate() for i in self]
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def zero(self, d=None):
         d = self.dimensions if d is None else as_tuple(d)
-        return IntervalGroup([i.zero() if i.dim in d else i for i in self],
-                             relations=self.relations)
+        intervals = [i.zero() if i.dim in d else i for i in self]
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def lift(self, d=None, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))
-        return IntervalGroup([i.lift(v) if i.dim._defines & d else i for i in self],
-                             relations=self.relations)
+        intervals = [i.lift(v) if i.dim._defines & d else i for i in self]
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def reset(self):
-        return IntervalGroup([i.reset() for i in self], relations=self.relations)
+        intervals = [i.reset() for i in self]
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def switch(self, d0, d1):
         intervals = [i.switch(d1) if i.dim is d0 else i for i in self]
@@ -482,17 +509,20 @@ class IntervalGroup(PartialOrderTuple):
         # Update relations too
         relations = {tuple(d1 if i is d0 else i for i in r) for r in self.relations}
 
-        return IntervalGroup(intervals, relations=relations)
+        return IntervalGroup(intervals, relations=relations, mode=self.mode)
 
     def translate(self, d, v0=0, v1=None):
-        intervals = [i.translate(v0, v1) if i.dim in as_tuple(d) else i for i in self]
-        return IntervalGroup(intervals, relations=self.relations)
+        dims = as_tuple(d)
+        intervals = [i.translate(v0, v1) if i.dim in dims else i for i in self]
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def expand(self, d=None):
         if d is None:
             d = self.dimensions
         intervals = [i.expand() if i.dim in as_tuple(d) else i for i in self]
-        return IntervalGroup(intervals, relations=self.relations)
+
+        return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
     def index(self, key):
         if isinstance(key, Interval):
@@ -506,7 +536,7 @@ class IntervalGroup(PartialOrderTuple):
             return super(IntervalGroup, self).__getitem__(key)
         elif isinstance(key, slice):
             retval = super(IntervalGroup, self).__getitem__(key)
-            return IntervalGroup(retval, relations=self.relations)
+            return IntervalGroup(retval, relations=self.relations, mode=self.mode)
 
         if not self.is_well_defined:
             raise ValueError("Cannot fetch Interval from ill defined Space")
@@ -628,6 +658,14 @@ class Space(object):
         return self.intervals.size
 
     @property
+    def mode(self):
+        return self.intervals.mode
+
+    @property
+    def relations(self):
+        return self.intervals.relations
+
+    @property
     def dimension_map(self):
         """
         Map between the Space Dimensions and the size of their Interval.
@@ -650,14 +688,15 @@ class DataSpace(Space):
     """
 
     def __init__(self, intervals, parts=None):
-        super(DataSpace, self).__init__(intervals)
+        super().__init__(intervals)
 
         parts = {k: v.expand() for k, v in (parts or {}).items()}
         self._parts = frozendict(parts)
 
     def __eq__(self, other):
-        return isinstance(other, DataSpace) and\
-            self.intervals == other.intervals and self.parts == other.parts
+        return (isinstance(other, DataSpace) and
+                self.intervals == other.intervals and
+                self.parts == other.parts)
 
     def __hash__(self):
         return hash((super(DataSpace, self).__hash__(), self.parts))
@@ -771,7 +810,7 @@ class IterationSpace(Space):
     def generate(self, op, *others, relations=None):
         if not others:
             return IterationSpace(IntervalGroup())
-        elif len(others) == 1:
+        elif len(others) == 1 and not relations:
             return others[0]
 
         intervals = [i.intervals for i in others]
@@ -858,8 +897,12 @@ class IterationSpace(Space):
         dims = [i.dim for i in self if not func(i.dim)]
         intervals = self.intervals.drop(dims, strict=strict)
 
-        sub_iterators = {k: v for k, v in self.sub_iterators.items() if func(k)}
-        directions = {k: v for k, v in self.directions.items() if func(k)}
+        sub_iterators = {}
+        directions = {}
+        for i in intervals:
+            d = i.dim
+            sub_iterators[d] = self.sub_iterators[d]
+            directions[d] = self.directions[d]
 
         return IterationSpace(intervals, sub_iterators, directions)
 
@@ -904,6 +947,25 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
+    def prefix(self, key):
+        """
+        Return the IterationSpace up to and including the last Interval
+        such that `key(interval)` is True.
+        """
+        try:
+            i = self.project(key)[-1]
+        except IndexError:
+            return None
+
+        return self[:self.index(i.dim) + 1]
+
+    def reorder(self, relations=None, mode=None):
+        relations = relations or self.relations
+        mode = mode or self.mode
+        intervals = IntervalGroup(self.intervals, relations=relations, mode=mode)
+
+        return IterationSpace(intervals, self.sub_iterators, self.directions)
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions
@@ -913,12 +975,8 @@ class IterationSpace(Space):
                 self.nonderived_directions == other.nonderived_directions)
 
     @property
-    def itdimensions(self):
+    def itdims(self):
         return self.intervals.dimensions
-
-    @property
-    def relations(self):
-        return self.intervals.relations
 
     @property
     def sub_iterators(self):
@@ -930,13 +988,16 @@ class IterationSpace(Space):
 
     @cached_property
     def itintervals(self):
-        return tuple(self[d] for d in self.itdimensions)
+        return tuple(self[d] for d in self.itdims)
 
     @cached_property
     def dimensions(self):
         sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
-        return tuple(filter_ordered(self.itdimensions + tuple(sub_dims)))
+        return tuple(filter_ordered(self.itdims + tuple(sub_dims)))
 
     @cached_property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
+
+
+null_ispace = IterationSpace([])

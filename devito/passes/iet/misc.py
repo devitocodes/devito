@@ -5,11 +5,11 @@ import sympy
 
 from devito.finite_differences import Max, Min
 from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
-                       FindNodes, Transformer, Uxreplace, filter_iterations,
-                       retrieve_iteration_tree)
+                       FindNodes, FindSymbols, Transformer, Uxreplace,
+                       filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import evalrel, has_integer_args
-from devito.tools import as_mapper, split
+from devito.tools import as_mapper, filter_ordered, split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
            'generate_macros', 'minimize_symbols']
@@ -178,23 +178,29 @@ def minimize_symbols(iet):
 
 
 def remove_redundant_moddims(iet):
-    subs0 = {}
-    subs1 = {}
+    key = lambda d: d.is_Modulo and d.origin is not None
+    mds = [d for d in FindSymbols('dimensions').visit(iet) if key(d)]
+    if not mds:
+        return iet
+
+    mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
+
+    subs = {}
+    for k, v in mapper.items():
+        chosen = v.pop(0)
+        subs.update({d: chosen for d in v})
+
+    body = Uxreplace(subs).visit(iet.body)
+    iet = iet._rebuild(body=body)
+
+    # ModuloDimensions are defined in Iteration headers, hence they must be
+    # removed from there too
+    subs = {}
     for n in FindNodes(Iteration).visit(iet):
-        mds = [d for d in n.uindices
-               if d.is_Modulo and d.origin is not None]
-        if not mds:
+        if not set(n.uindices) & set(mds):
             continue
+        subs[n] = n._rebuild(uindices=filter_ordered(n.uindices))
 
-        mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
-        for k, v in mapper.items():
-            chosen = v.pop(0)
-            subs0.update({d: chosen for d in v})
-
-        uindices = [d for d in n.uindices if d not in subs0]
-        subs1[n] = n._rebuild(uindices=uindices)
-
-    iet = Transformer(subs1, nested=True).visit(iet)
-    iet = Uxreplace(subs0).visit(iet)
+    iet = Transformer(subs, nested=True).visit(iet)
 
     return iet

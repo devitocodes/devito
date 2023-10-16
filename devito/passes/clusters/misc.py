@@ -186,18 +186,18 @@ class Fusion(Queue):
         if isinstance(c, Cluster):
             syncs = (c.syncs,)
         else:
-            syncs = c.syncs
+            syncs = tuple(i.syncs for i in c)
         for i in syncs:
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if isinstance(s, (FetchUpdate, PrefetchUpdate)) or \
+                    if isinstance(s, PrefetchUpdate) or \
                        (not self.fusetasks and isinstance(s, WaitLock)):
                         # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence
                         continue
-                    elif (isinstance(s, (WaitLock, ReleaseLock)) or
+                    elif (isinstance(s, (FetchUpdate, WaitLock, ReleaseLock)) or
                           (self.fusetasks and isinstance(s, WithLock))):
                         mapper[k].add(type(s))
                     else:
@@ -307,7 +307,7 @@ class Fusion(Queue):
 
         return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
-    def _build_dag(self, cgroups, prefix, peeking=False):
+    def _build_dag(self, cgroups, prefix):
         """
         A DAG representing the data dependences across the ClusterGroups within
         a given scope.
@@ -317,10 +317,10 @@ class Fusion(Queue):
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
 
-            def is_cross(dep):
+            def is_cross(source, sink):
                 # True if a cross-ClusterGroup dependence, False otherwise
-                t0 = dep.source.timestamp
-                t1 = dep.sink.timestamp
+                t0 = source.timestamp
+                t1 = sink.timestamp
                 v = len(cg0.exprs)
                 return t0 < v <= t1 or t1 < v <= t0
 
@@ -353,9 +353,6 @@ class Fusion(Queue):
                 # Clearly, output dependences must be honored
                 elif any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
-
-            if peeking and dag.edges:
-                return dag
 
         return dag
 

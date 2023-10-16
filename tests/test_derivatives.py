@@ -457,6 +457,16 @@ class TestFD(object):
         for fd in g._fd:
             assert getattr(g, fd)
 
+    def test_transpose_simple(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        assert str(f.dx.T.evaluate) == ("-0.0833333333*f(t, x - 2*h_x, y)/h_x "
+                                        "+ 0.666666667*f(t, x - h_x, y)/h_x "
+                                        "- 0.666666667*f(t, x + h_x, y)/h_x "
+                                        "+ 0.0833333333*f(t, x + 2*h_x, y)/h_x")
+
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
     @pytest.mark.parametrize('ndim', [1, 2])
     @pytest.mark.parametrize('derivative, adjoint_name', [
@@ -742,6 +752,29 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dxdy._evaluate(expand=False)
         assert len(term1.find(IndexDerivative)) == 2
+
+    def test_transpose(self):
+        grid = Grid(shape=(4, 4))
+        x, _ = grid.dimensions
+        h_x = x.spacing
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term = f.dx.T._evaluate(expand=False)
+        assert isinstance(term, IndexDerivative)
+
+        i0, = term.dimensions
+        assert term.base == f.subs(x, x + i0*h_x)
+
+    def test_tensor_algebra(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, space_order=4)
+
+        v = grad(f)._evaluate(expand=False)
+
+        assert all(isinstance(i, IndexDerivative) for i in v)
+        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate))
 
 
 def bypass_uneval(expr):

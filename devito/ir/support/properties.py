@@ -209,11 +209,11 @@ class Properties(frozendict):
         return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
                    for d in as_tuple(dims))
 
-    def is_parallel_atomic(self, dims):
-        return any(len(self[d] & {PARALLEL_IF_ATOMIC}) > 0 for d in as_tuple(dims))
-
     def is_parallel_relaxed(self, dims):
         return any(len(self[d] & PARALLELS) > 0 for d in as_tuple(dims))
+
+    def is_parallel_atomic(self, dims):
+        return any(PARALLEL_IF_ATOMIC in self.get(d, ()) for d in as_tuple(dims))
 
     def is_affine(self, dims):
         return any(AFFINE in self.get(d, ()) for d in as_tuple(dims))

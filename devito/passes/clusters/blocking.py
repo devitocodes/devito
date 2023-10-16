@@ -1,12 +1,14 @@
 from sympy import sympify
 
+from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
                                SEQUENTIAL, SKEWABLE, TILABLES, Interval,
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
-from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten, is_integer, prod
+from devito.symbolics import search, uxreplace, xreplace_indices
+from devito.tools import (UnboundedMultiTuple, as_tuple, filter_ordered,
+                          flatten, is_integer, prod)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -99,6 +101,8 @@ class AnayzeBlockingBase(Queue):
         # is that the same Function is accessed twice at the same memory location,
         # which translates into the existance of any Relation accross Indexeds
         if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+            return True
+        if search(cluster.exprs, IndexSum):
             return True
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
@@ -314,7 +318,7 @@ class SynthesizeBlocking(Queue):
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
             try:
-                step = sympify(blk_size_gen.next(clusters, d))
+                step = sympify(blk_size_gen.next(prefix, d, clusters))
             except StopIteration:
                 return clusters
         else:
@@ -383,18 +387,28 @@ def decompose(ispace, d, block_dims):
             if any(i._depth < bd._depth for i in r if i.is_Block):
                 continue
 
-            relations.append(tuple(bd if i in d._defines else i for i in r))
+            # E.g., `r=(z, i0z)` -> `[i0z0_blk0, i0z0_blk0]`
+            v = [bd if i in d._defines else i for i in r]
+
+            # E.g., `v=[i0z0_blk0, i0z0_blk0]` -> `v=(i0z0_blk0,)`
+            v = tuple(filter_ordered(v))
+
+            relations.append(v)
 
     # 3: Make sure BlockDimensions at same depth stick next to each other
     # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`
     # NOTE: this is perfectly legal since:
     # TILABLE => (perfect nest & PARALLEL) => interchangeable
-    for i in ispace.itdimensions:
+    for i in ispace.itdims:
         if not i.is_Block:
             continue
         for bd in block_dims:
             if i._depth < bd._depth:
+                # E.g. `(zb, y)`
                 relations.append((i, bd))
+            elif i._depth == bd._depth:
+                # E.g. `(y, z)` (i.e., honour input ordering)
+                relations.append((bd, i))
 
     intervals = IntervalGroup(intervals, relations=relations)
 
@@ -418,6 +432,7 @@ class BlockSizeGenerator(object):
 
     def __init__(self, par_tile):
         self.umt = UnboundedMultiTuple(*par_tile)
+        self.tip = -1
 
         # This is for Clusters that need a small par-tile to avoid under-utilizing
         # computational resources (e.g., kernels running over iteration spaces that
@@ -430,15 +445,45 @@ class BlockSizeGenerator(object):
         else:
             self.umt_small = UnboundedMultiTuple(par_tile.default)
 
-    def next(self, clusters, d):
+    def next(self, prefix, d, clusters):
+        # If a whole new set of Dimensions, move the tip -- this means `clusters`
+        # at `d` represents a new loop nest or kernel
+        x = any(i.dim.is_Block for i in flatten(c.ispace for c in clusters))
+        if not x:
+            self.tip += 1
+
         # TODO: This is for now exceptionally rudimentary
         if all(c.properties.is_blockable_small(d) for c in clusters):
-            umt = self.umt_small
-        else:
-            umt = self.umt
+            if not x:
+                self.umt_small.iter()
+            return self.umt_small.next()
 
-        if not any(i.dim.is_Block for i in flatten(c.ispace for c in clusters)):
+        if x:
+            item = self.umt.curitem
+        else:
+            # We can't `self.umt.iter()` because we might still want to
+            # fallback to `self.umt_small`
+            item = self.umt.nextitem
+
+        # Handle user-provided rules
+        # TODO: This is also rudimentary
+        if item.rule is None:
+            umt = self.umt
+        elif is_integer(item.rule):
+            if item.rule == self.tip:
+                umt = self.umt
+            else:
+                umt = self.umt_small
+        else:
+            if item.rule in {d.name for d in prefix.itdims}:
+                umt = self.umt
+            else:
+                # This is like "pattern unmatched" -- fallback to `umt_small`
+                umt = self.umt_small
+
+        if not x:
             umt.iter()
+
         return umt.next()
 
 

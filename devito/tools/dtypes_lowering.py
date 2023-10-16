@@ -75,12 +75,15 @@ class DTypesVectorMapper(dict):
 
         self.update(build_dtypes_vector([field_name], [count]))
 
-    def get_base_dtype(self, v):
+    def get_base_dtype(self, v, default=None):
         for (base_dtype, count), dtype in self.items():
             if dtype is v:
                 return base_dtype
 
-        raise ValueError
+        if default is not None:
+            return default
+        else:
+            raise ValueError
 
 
 dtypes_vector_mapper = DTypesVectorMapper()
@@ -263,8 +266,10 @@ def infer_dtype(dtypes):
           highest precision;
         * If there's at least one floating dtype, ignore any integer dtypes.
     """
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    # Resolve the vector types, if any
+    dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:

@@ -175,14 +175,14 @@ class IndexSet(tuple):
     def spacing(self):
         return self.dim.spacing
 
-    def scale(self, v):
+    def transpose(self):
         """
-        Construct a new IndexSet with all indices scaled by `v`.
+        Transpose the IndexSet.
         """
-        mapper = {self.spacing: v*self.spacing}
+        mapper = {self.spacing: -self.spacing}
 
         indices = []
-        for i in self:
+        for i in reversed(self):
             try:
                 iloc = i.xreplace(mapper)
             except AttributeError:
@@ -191,11 +191,17 @@ class IndexSet(tuple):
             indices.append(iloc)
 
         try:
+            free_dim = self.free_dim.transpose()
+            mapper.update({self.free_dim: -free_dim})
+        except AttributeError:
+            free_dim = self.free_dim
+
+        try:
             expr = self.expr.xreplace(mapper)
         except AttributeError:
             expr = None
 
-        return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim)
+        return IndexSet(self.dim, indices, expr=expr, fd=free_dim)
 
     def shift(self, v):
         """

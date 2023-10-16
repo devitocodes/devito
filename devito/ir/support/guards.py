@@ -8,7 +8,7 @@ from sympy import And, Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
-from devito.tools import Pickable, as_tuple, frozendict
+from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
@@ -228,7 +228,7 @@ class Guards(frozendict):
             return Guards(m)
 
         try:
-            m[d] = And(m[d], guard)
+            m[d] = simplify_and(m[d], guard)
         except KeyError:
             m[d] = guard
 
@@ -269,3 +269,40 @@ class Guards(frozendict):
         m = {d: v for d, v in self.items() if key(d)}
 
         return Guards(m)
+
+
+# *** Utils
+
+def simplify_and(relation, v):
+    """
+    Given `x = And(*relation.args, v)`, return `relation` if `x ≡ relation`,
+    `x` otherwise.
+
+    SymPy doesn't have a builtin function to simplify boolean inequalities; here,
+    we run a set of simple checks to at least discard the most obvious (and thus
+    annoying to see in the generated code) redundancies.
+    """
+    if isinstance(relation, And):
+        candidates, other = split(list(relation.args), lambda a: type(a) is type(v))
+    elif type(relation) is type(v):
+        candidates, other = [relation], []
+    else:
+        candidates, other = [], [relation, v]
+
+    covered = False
+    new_args = []
+    for a in candidates:
+        if a.lhs is v.lhs:
+            covered = True
+            if type(a) in (Gt, Ge) and v.rhs > a.rhs:
+                new_args.append(v)
+            elif type(a) in (Lt, Le) and v.rhs < a.rhs:
+                new_args.append(v)
+            else:
+                new_args.append(a)
+        else:
+            new_args.append(a)
+    if not covered:
+        new_args.append(v)
+
+    return And(*(new_args + other))

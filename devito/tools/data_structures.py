@@ -10,8 +10,7 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'PartialOrderTuple', 'DAG', 'frozendict',
-           'UnboundedMultiTuple']
+           'OrderedSet', 'Ordering', 'DAG', 'frozendict', 'UnboundedMultiTuple']
 
 
 class Bunch(object):
@@ -28,6 +27,13 @@ class Bunch(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+    def __repr__(self):
+        return "Bunch(%s)" % ", ".join(["%s=%s" % i for i in self.__dict__.items()])
+
+    def __iter__(self):
+        for i in self.__dict__.values():
+            yield i
 
 
 class EnrichedTuple(tuple, Pickable):
@@ -279,7 +285,7 @@ class OrderedSet(OrderedDict, MutableSet):
     union = property(lambda self: self.__or__)
 
 
-class PartialOrderTuple(tuple):
+class Ordering(tuple):
 
     """
     A tuple whose elements are ordered according to a set of relations.
@@ -289,36 +295,62 @@ class PartialOrderTuple(tuple):
     items : object or iterable of objects
         The elements of the tuple.
     relations : iterable of tuples, optional
-        One or more binary relations between elements in ``items``. If not
-        provided, then ``items`` is interpreted as a totally ordered sequence.
+        One or more n-ary relations between the elements in `items`. If not
+        provided, then `items` is interpreted as a totally ordered sequence.
         If provided, then a (partial) ordering is computed and all elements in
-        ``items`` for which a relation is not provided are appended.
+        `items` for which a relation is not provided are appended.
+    mode : str, optional
+        If 'total' (default), the resulting object is interpreted as a totally
+        ordered sequence; the object's relations are simplified away and no
+        subsequent operation involving the Ordering will ever be able to alter
+        the obtained sequence. If 'partial', the outcome is a partially ordered
+        sequence; the relations as provided by the user are preserved, which
+        leaves room for further reordering upon future operations. If 'unordered',
+        the `relations` are ignored and the resulting object degenerates to an
+        unordered collection.
     """
-    def __new__(cls, items=None, relations=None):
+    def __new__(cls, items=None, relations=None, mode='total'):
+        assert mode in ('total', 'partial', 'unordered')
+
         items = as_tuple(items)
         if relations:
             items = cls.reorder(items, relations)
-        obj = super(PartialOrderTuple, cls).__new__(cls, items)
-        obj._relations = set(tuple(i) for i in as_tuple(relations))
+
+        obj = super().__new__(cls, items)
+
+        obj._relations = frozenset(cls.simplify_relations(relations, items, mode))
+        obj._mode = mode
+
         return obj
 
     @classmethod
     def reorder(cls, items, relations):
         return filter_ordered(toposort(relations) + list(items))
 
+    @classmethod
+    def simplify_relations(cls, relations, items, mode):
+        if mode == 'total':
+            return [tuple(items)]
+        elif mode == 'partial':
+            return [tuple(i) for i in as_tuple(relations)]
+        else:
+            return []
+
     def __eq__(self, other):
-        return super(PartialOrderTuple, self).__eq__(other) and\
-            self.relations == other.relations
+        return (super().__eq__(other) and
+                self.relations == other.relations and
+                self.mode == other.mode)
 
     def __hash__(self):
-        return hash(*([i for i in self] + list(self.relations)))
+        return hash(*([i for i in self] + list(self.relations) + [self.mode]))
 
     @property
     def relations(self):
         return self._relations
 
-    def generate_ordering(self):
-        raise NotImplementedError
+    @property
+    def mode(self):
+        return self._mode
 
 
 class DAG(object):
@@ -333,11 +365,13 @@ class DAG(object):
         https://github.com/thieman/py-dag/
     """
 
-    def __init__(self, nodes=None, edges=None):
+    def __init__(self, nodes=None, edges=None, labels=None):
         self.graph = OrderedDict()
         self.labels = DefaultOrderedDict(dict)
+
         for node in as_tuple(nodes):
             self.add_node(node)
+
         for i in as_tuple(edges):
             try:
                 ind_node, dep_node = i
@@ -346,12 +380,21 @@ class DAG(object):
                 self.labels[ind_node][dep_node] = label
             self.add_edge(ind_node, dep_node)
 
+        for ind_node, i in (labels or {}).items():
+            for dep_node, v in i.items():
+                if dep_node in self.graph.get(ind_node, []):
+                    self.labels[ind_node][dep_node] = v
+
     def __contains__(self, key):
         return key in self.graph
 
     @property
     def nodes(self):
         return tuple(self.graph)
+
+    @property
+    def roots(self):
+        return tuple(n for n in self.nodes if not self.predecessors(n))
 
     @property
     def edges(self):
@@ -363,6 +406,9 @@ class DAG(object):
     @property
     def size(self):
         return len(self.graph)
+
+    def clone(self):
+        return self.__class__(self.nodes, self.edges, self.labels)
 
     def add_node(self, node_name, ignore_existing=False):
         """Add a node if it does not exist yet, or error out."""
@@ -411,6 +457,24 @@ class DAG(object):
     def predecessors(self, node):
         """Return a list of all predecessors of the given node."""
         return [key for key in self.graph if node in self.graph[key]]
+
+    def all_predecessors(self, node):
+        """
+        Return a list of all nodes ultimately predecessors of the given node
+        in the dependency graph, in topological order.
+        """
+        found = set()
+
+        def _all_predecessors(n):
+            if n in found:
+                return
+            found.add(n)
+            for predecessor in self.predecessors(n):
+                _all_predecessors(predecessor)
+
+        _all_predecessors(node)
+
+        return found
 
     def downstream(self, node):
         """Return a list of all nodes this node has edges towards."""
@@ -507,6 +571,28 @@ class DAG(object):
         else:
             return tuple(groups)
 
+    def find_paths(self, node):
+        if node not in self.graph:
+            raise KeyError('node %s is not in graph' % node)
+
+        paths = []
+
+        def dfs(node, path):
+            path.append(node)
+
+            if not self.graph[node]:
+                paths.append(tuple(path))
+            else:
+                for child in self.graph[node]:
+                    dfs(child, path)
+
+            # Remove the node from the path to backtrack
+            path.pop()
+
+        dfs(node, [])
+
+        return tuple(paths)
+
 
 class frozendict(Mapping):
     """
@@ -589,7 +675,11 @@ class UnboundedMultiTuple(object):
         nitems = []
         for i in as_tuple(items):
             if isinstance(i, Iterable):
-                nitems.append(tuple(i))
+                if isinstance(i, tuple):
+                    # Honours tuple subclasses
+                    nitems.append(i)
+                else:
+                    nitems.append(tuple(i))
             else:
                 raise ValueError("Expected sequence, got %s" % type(i))
 
@@ -602,6 +692,17 @@ class UnboundedMultiTuple(object):
         if self.curiter is not None:
             items[self.tip] = "*%s" % items[self.tip]
         return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
+
+    @property
+    def curitem(self):
+        return self.items[self.tip]
+
+    @property
+    def nextitem(self):
+        return self.items[min(self.tip + 1, max(len(self.items) - 1, 0))]
+
+    def index(self, item):
+        return self.items.index(item)
 
     def iter(self):
         if not self.items:

@@ -363,8 +363,9 @@ class Expression(ExprStmt, Node):
         self.operation = operation
 
     def __repr__(self):
-        return "<%s::%s>" % (self.__class__.__name__,
-                             filter_ordered([f.func for f in self.functions]))
+        return "<%s::%s=%s>" % (self.__class__.__name__,
+                                type(self.write),
+                                ','.join('%s' % type(f) for f in self.functions))
 
     @property
     def dtype(self):

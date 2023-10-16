@@ -105,6 +105,25 @@ class Profiler(object):
         v = self._subsections.setdefault(sname, OrderedDict())
         v[name] = SectionData(S.Zero, S.Zero, S.Zero, S.Zero, [])
 
+    def group_as_subsections(self, sname, sections):
+        ops = sum(self._sections[i].ops for i in sections)
+        points = sum(self._sections[i].points for i in sections)
+        traffic = sum(self._sections[i].traffic for i in sections)
+        sectiondata = SectionData(ops, S.Zero, points, traffic, [])
+
+        v = self._subsections.setdefault(sname, OrderedDict())
+        v.update({i: self._sections[i] for i in sections})
+
+        new_sections = OrderedDict()
+        for k, v in self._sections.items():
+            try:
+                if sections.index(k) == len(sections) - 1:
+                    new_sections[sname] = sectiondata
+            except ValueError:
+                new_sections[k] = v
+        self._sections.clear()
+        self._sections.update(new_sections)
+
     def instrument(self, iet, timer):
         """
         Instrument the given IET for C-level performance profiling.
@@ -211,6 +230,58 @@ class AdvancedProfiler(Profiler):
 
     _supports_async_sections = True
 
+    def _evaluate_section(self, name, data, args, dtype):
+        # Time to run the section
+        time = max(getattr(args[self.name]._obj, name), 10e-7)
+
+        # Number of FLOPs performed
+        try:
+            ops = int(subs_op_args(data.ops, args))
+        except (AttributeError, TypeError):
+            # E.g., a section comprising just function calls, or at least
+            # a sequence of unrecognized or non-conventional expr statements
+            ops = np.nan
+
+        try:
+            # Number of grid points computed
+            points = int(subs_op_args(data.points, args))
+
+            # Compulsory traffic
+            traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
+        except (AttributeError, TypeError):
+            # E.g., the section has a dynamic loop size
+            points = np.nan
+
+            traffic = np.nan
+
+        # Nmber of FLOPs performed at each iteration
+        sops = data.sops
+
+        # Runtime itermaps/itershapes
+        try:
+            itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
+                                     for k, v in i.items()])
+                        for i in data.itermaps]
+            itershapes = tuple(tuple(i.values()) for i in itermaps)
+        except TypeError:
+            # E.g., a section comprising just function calls, or at least
+            # a sequence of unrecognized or non-conventional expr statements
+            itershapes = ()
+
+        return time, ops, points, traffic, sops, itershapes
+
+    def _allgather_from_comm(self, comm, time, ops, points, traffic, sops, itershapes):
+        times = comm.allgather(time)
+        assert comm.size == len(times)
+
+        opss = comm.allgather(ops)
+        pointss = comm.allgather(points)
+        traffics = comm.allgather(traffic)
+        sops = [sops]*comm.size
+        itershapess = comm.allgather(itershapes)
+
+        return list(zip(times, opss, pointss, traffics, sops, itershapess))
+
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, args, dtype, reduce_over=None):
         grid = args.grid
@@ -219,71 +290,30 @@ class AdvancedProfiler(Profiler):
         # Produce sections summary
         summary = PerformanceSummary()
         for name, data in self._sections.items():
-            # Time to run the section
-            time = max(getattr(args[self.name]._obj, name), 10e-7)
-
-            # Number of FLOPs performed
-            try:
-                ops = int(subs_op_args(data.ops, args))
-            except (AttributeError, TypeError):
-                # E.g., a section comprising just function calls, or at least
-                # a sequence of unrecognized or non-conventional expr statements
-                ops = np.nan
-
-            try:
-                # Number of grid points computed
-                points = int(subs_op_args(data.points, args))
-
-                # Compulsory traffic
-                traffic = float(subs_op_args(data.traffic, args)*dtype().itemsize)
-            except (AttributeError, TypeError):
-                # E.g., the section has a dynamic loop size
-                points = np.nan
-
-                traffic = np.nan
-
-            # Runtime itermaps/itershapes
-            try:
-                itermaps = [OrderedDict([(k, int(subs_op_args(v, args)))
-                                         for k, v in i.items()])
-                            for i in data.itermaps]
-                itershapes = tuple(tuple(i.values()) for i in itermaps)
-            except TypeError:
-                # E.g., a section comprising just function calls, or at least
-                # a sequence of unrecognized or non-conventional expr statements
-                itershapes = ()
+            items = self._evaluate_section(name, data, args, dtype)
 
             # Add local performance data
             if comm is not MPI.COMM_NULL:
                 # With MPI enabled, we add one entry per section per rank
-                times = comm.allgather(time)
-                assert comm.size == len(times)
-                opss = comm.allgather(ops)
-                pointss = comm.allgather(points)
-                traffics = comm.allgather(traffic)
-                sops = [data.sops]*comm.size
-                itershapess = comm.allgather(itershapes)
-                items = list(zip(times, opss, pointss, traffics, sops, itershapess))
+                items = self._allgather_from_comm(comm, *items)
                 for rank in range(comm.size):
                     summary.add(name, rank, *items[rank])
             else:
-                summary.add(name, None, time, ops, points, traffic, data.sops, itershapes)
+                summary.add(name, None, *items)
 
         # Enrich summary with subsections data
         for sname, v in self._subsections.items():
             for name, data in v.items():
-                # Time to run the section
-                time = max(getattr(args[self.name]._obj, name), 10e-7)
+                items = self._evaluate_section(name, data, args, dtype)
 
                 # Add local performance data
                 if comm is not MPI.COMM_NULL:
                     # With MPI enabled, we add one entry per section per rank
-                    times = comm.allgather(time)
-                    assert comm.size == len(times)
+                    items = self._allgather_from_comm(comm, *items)
                     for rank in range(comm.size):
-                        summary.add_subsection(sname, name, rank, time)
+                        summary.add_subsection(sname, name, rank, *items[rank])
                 else:
-                    summary.add_subsection(sname, name, None, time)
+                    summary.add_subsection(sname, name, None, *items)
 
         # Add global performance data
         if reduce_over is not None:
@@ -422,11 +452,11 @@ class PerformanceSummary(OrderedDict):
 
         self.input[k] = PerfInput(time, ops, points, traffic, sops, itershapes)
 
-    def add_subsection(self, sname, name, rank, time):
+    def add_subsection(self, sname, name, rank, time, *args):
         k0 = PerfKey(sname, rank)
         assert k0 in self
 
-        self.subsections[sname][name] = time
+        self.subsections[sname][name] = PerfEntry(time, None, None, None, None, [])
 
     def add_glb_vanilla(self, key, time):
         """

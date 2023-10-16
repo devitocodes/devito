@@ -358,6 +358,17 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def __init_finalize__(self, *args, **kwargs):
         self._is_const = kwargs.get('is_const', False)
 
+    def __eq__(self, other):
+        return (type(self) is type(other) and
+                self.dtype is other.dtype and
+                self.is_const == other.is_const and
+                super().__eq__(other))
+
+    __hash__ = sympy.Symbol.__hash__
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.dtype, self.is_const)
+
     @property
     def dtype(self):
         return self._dtype
@@ -844,7 +855,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # through the `function` field
         newobj.function = function or newobj
 
-        # Initialization
         newobj.__init_finalize__(*args, **kwargs)
 
         return newobj

@@ -110,6 +110,19 @@ class TestHashing(object):
         dd1 = DefaultDimension(name='dd')
         assert hash(dd0) != hash(dd1)
 
+    def test_spacing(self):
+        """
+        Test that spacing symbols from grids with different dtypes have different
+        hash value.
+        """
+        grid0 = Grid(shape=(4, 4), dtype=np.float32)
+        grid1 = Grid(shape=(4, 4), dtype=np.float64)
+
+        h_x0 = grid0.dimensions[0].spacing
+        h_x1 = grid1.dimensions[0].spacing
+
+        assert hash(h_x0) != hash(h_x1)
+
     @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
     def test_function(self, FunctionType):
         """Test that different Functions have different hash value."""

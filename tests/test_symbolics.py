@@ -303,6 +303,18 @@ def test_cast():
     assert v != v1
 
 
+def test_findexed():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+    new_fi = fi.func(strides=(3, 4))
+
+    assert new_fi.name == fi.name == 'f'
+    assert new_fi.indices == fi.indices
+    assert new_fi.strides == (3, 4)
+
+
 def test_symbolic_printing():
     b = Symbol('b')
 
@@ -315,17 +327,11 @@ def test_symbolic_printing():
     lo = MyLocalObject(name='lo')
     assert str(lo + 2) == '2 + lo'
 
-
-def test_findexed():
-    grid = Grid(shape=(3, 3, 3))
-    f = Function(name='f', grid=grid)
-
+    grid = Grid((10,))
+    f = Function(name="f", grid=grid)
     fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
-    new_fi = fi.func(strides=(3, 4))
-
-    assert new_fi.name == fi.name == 'f'
-    assert new_fi.indices == fi.indices
-    assert new_fi.strides == (3, 4)
+    df = DefFunction('aaa', arguments=[fi])
+    assert ccode(df) == 'aaa(foo(x))'
 
 
 def test_is_on_grid():

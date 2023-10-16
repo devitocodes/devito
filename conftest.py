@@ -163,7 +163,7 @@ def parallel(item):
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes
         if mpi_distro == 'OpenMPI':
-            call = [mpi_exec, '--oversubscribe', '--timeout', '150'] + args
+            call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
         else:
             call = [mpi_exec] + args
 

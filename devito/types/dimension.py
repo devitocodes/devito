@@ -144,6 +144,9 @@ class Dimension(ArgProvider):
     def __str__(self):
         return self.name
 
+    def _hashable_content(self):
+        return tuple(getattr(self, i) for i in self.__rargs__ + self.__rkwargs__)
+
     @property
     def spacing(self):
         """Symbol representing the physical spacing along the Dimension."""
@@ -369,6 +372,20 @@ class BasicDimension(Dimension, Symbol):
 
     def __init_finalize__(self, name, spacing=None, **kwargs):
         self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
+
+    def __eq__(self, other):
+        # Being of type Cached, Dimensions are by construction unique. But unlike
+        # Symbols, equality is much stricter -- we consider any two Dimensions
+        # equal iff they are the very same object. This has several advantages.
+        # First of all, it makes it much more difficult to trick the compiler
+        # to generate buggy code (e.g., using two different "x" Dimensions that
+        # actually represent the same iteration space). Secondly, comparison
+        # is much cheaper, since we avoid having to go through all of the
+        # __rargs__/__rkwargs__, and there can be quite a few depending on the
+        # specific Dimension type
+        return self is other
+
+    __hash__ = Symbol.__hash__
 
 
 class DefaultDimension(Dimension, DataSymbol):
@@ -1386,8 +1403,10 @@ class StencilDimension(BasicDimension):
     is_Stencil = True
 
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
+    __rkwargs__ = BasicDimension.__rkwargs__ + ('step',)
 
-    def __init_finalize__(self, name, _min, _max, spacing=None, **kwargs):
+    def __init_finalize__(self, name, _min, _max, spacing=None, step=1,
+                          **kwargs):
         self._spacing = sympy.sympify(spacing) or sympy.S.One
 
         if not is_integer(_min):
@@ -1396,16 +1415,25 @@ class StencilDimension(BasicDimension):
             raise ValueError("Expected integer `max` (got %s)" % _max)
         if not is_integer(self._spacing):
             raise ValueError("Expected integer `spacing` (got %s)" % self._spacing)
+        if not is_integer(step):
+            raise ValueError("Expected integer `step` (got %s)" % step)
 
         self._min = _min
         self._max = _max
+        self._step = step
+
         self._size = _max - _min + 1
 
         if self._size < 1:
             raise ValueError("Expected size greater than 0 (got %s)" % self._size)
 
-    def _hashable_content(self):
-        return super()._hashable_content() + (self._min, self._max, self._spacing)
+    @property
+    def step(self):
+        return self._step
+
+    @property
+    def backward(self):
+        return self.step < 0
 
     @cached_property
     def symbolic_size(self):
@@ -1422,6 +1450,9 @@ class StencilDimension(BasicDimension):
     @property
     def range(self):
         return range(self._min, self._max + 1)
+
+    def transpose(self):
+        return StencilDimension(self.name, -self._max, -self._min, step=-1)
 
     @property
     def _arg_names(self):
@@ -1552,7 +1583,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
         * the "main" Dimension (in practice a SpaceDimension or a TimeDimension);
         * an offset (number or symbolic expression, of dtype integer).
-        * a StencilDimension;
+        * one or more StencilDimensions;
 
     Examples
     --------
@@ -1561,39 +1592,47 @@ class AffineIndexAccessFunction(IndexAccessFunction):
     """
 
     def __new__(cls, *args, **kwargs):
+        # `args` may contain arbitrarily complicated expressions, so first of all
+        # we let SymPy simplify it, then we process the args and see if the
+        # resulting expression is indeed an AffineIndexAccessFunction
+        add = sympy.Add(*args, **kwargs)
+        if not isinstance(add, sympy.Add):
+            # E.g., reduced to a Symbol
+            return add
+
         d = 0
-        sd = 0
+        sds = []
         ofs_items = []
-        for a in args:
+        for a in add.args:
             if isinstance(a, StencilDimension):
-                if sd != 0:
-                    return sympy.Add(*args, **kwargs)
-                sd = a
+                sds.append(a)
             elif isinstance(a, Dimension):
                 d = cls._separate_dims(d, a, ofs_items)
                 if d is None:
-                    return sympy.Add(*args, **kwargs)
+                    return add
             elif isinstance(a, AffineIndexAccessFunction):
-                if sd != 0 and a.sd != 0:
-                    return sympy.Add(*args, **kwargs)
+                if sds and a.sds:
+                    return add
                 d = cls._separate_dims(d, a.d, ofs_items)
                 if d is None:
-                    return sympy.Add(*args, **kwargs)
-                sd = a.sd
+                    return add
+                sds = list(a.sds or sds)
                 ofs_items.append(a.ofs)
             else:
                 ofs_items.append(a)
 
         ofs = sympy.Add(*[i for i in ofs_items if i is not None])
         if not all(is_integer(i) or i.is_Symbol for i in ofs.free_symbols):
-            return sympy.Add(*args, **kwargs)
+            return add
 
-        obj = IndexAccessFunction.__new__(cls, d, ofs, sd)
+        sds = tuple(sds)
+
+        obj = IndexAccessFunction.__new__(cls, d, ofs, *sds)
 
         if isinstance(obj, AffineIndexAccessFunction):
             obj.d = d
             obj.ofs = ofs
-            obj.sd = sd
+            obj.sds = sds
         else:
             # E.g., SymPy simplified it to Zero or something else
             pass
@@ -1603,7 +1642,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
     @classmethod
     def _separate_dims(cls, d0, d1, ofs_items):
         if d0 == 0 and d1 == 0:
-            return None
+            return 0
         elif d0 == 0 and isinstance(d1, Dimension):
             return d1
         elif d1 == 0 and isinstance(d0, Dimension):

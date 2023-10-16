@@ -236,7 +236,7 @@ class TestBasic(object):
 
         assert di.name == new_di.name
         assert di.dtype == new_di.dtype
-        assert di.parent == new_di.parent
+        assert di.parent.name == new_di.parent.name
         assert di._thickness == new_di._thickness
         assert di._interval == new_di._interval
 
@@ -249,7 +249,7 @@ class TestBasic(object):
         new_cd = pickle.loads(pkl_cd)
 
         assert cd.name == new_cd.name
-        assert cd.parent == new_cd.parent
+        assert cd.parent.name == new_cd.parent.name
         assert cd.factor == new_cd.factor
         assert cd.condition == new_cd.condition
 
@@ -262,7 +262,7 @@ class TestBasic(object):
         new_dd = pickle.loads(pkl_dd)
 
         assert dd.name == new_dd.name
-        assert dd.parent == new_dd.parent
+        assert dd.parent.name == new_dd.parent.name
         assert dd.symbolic_min == new_dd.symbolic_min
         assert dd.symbolic_max == new_dd.symbolic_max
         assert dd.step == new_dd.step
@@ -384,7 +384,7 @@ class TestBasic(object):
         pkl_gf = pickle.dumps(gf)
         new_gf = pickle.loads(pkl_gf)
 
-        assert gf == new_gf
+        assert str(gf) == str(new_gf)
 
     def test_temp_function(self, pickle):
         grid = Grid(shape=(3, 3))

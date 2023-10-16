@@ -1,5 +1,5 @@
 from devito.finite_differences import IndexDerivative
-from devito.ir import Interval, IterationSpace, Queue
+from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
 from devito.symbolics import (retrieve_dimensions, reuse_if_untouched, q_leaf,
                               uxreplace)
@@ -74,7 +74,7 @@ def _core(expr, c, weights, mapper, sregistry):
     try:
         w = weights[k]
     except KeyError:
-        w = weights[k] = w0._rebuild(name=name)
+        w = weights[k] = w0._rebuild(name=name, dtype=expr.dtype)
     expr = uxreplace(expr, {w0.indexed: w.indexed})
 
     dims = retrieve_dimensions(expr, deep=True)
@@ -87,20 +87,23 @@ def _core(expr, c, weights, mapper, sregistry):
     dims = tuple(d for d in dims if d not in c.ispace)
 
     intervals = [Interval(d) for d in dims]
-    ispace0 = IterationSpace(intervals)
+    directions = {d: Backward if d.backward else Forward for d in dims}
+    ispace0 = IterationSpace(intervals, directions=directions)
 
-    extra = (c.ispace.itdimensions + dims,)
+    extra = (c.ispace.itdims + dims,)
     ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
 
     name = sregistry.make_name(prefix='r')
-    s = Symbol(name=name, dtype=c.dtype)
+    s = Symbol(name=name, dtype=w.dtype)
     expr0 = Eq(s, 0.)
     ispace1 = ispace.project(lambda d: d is not dims[-1])
     processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
 
     # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
     # StencilDimensions starting points
-    subs = {expr.weights: expr.weights.subs(d, d - d._min) for d in dims}
+    subs = {expr.weights:
+            expr.weights.subs(d, d - d._min)
+            for d in dims}
     expr1 = Inc(s, uxreplace(expr.expr, subs))
     processed.append(c.rebuild(exprs=expr1, ispace=ispace))
 

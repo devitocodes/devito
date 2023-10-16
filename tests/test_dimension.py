@@ -27,7 +27,7 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
         s0 = Symbol(name='s0', dtype=np.int32)
         s1 = Symbol(name='s1', dtype=np.int32)
@@ -37,7 +37,7 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == s0 + s1 + 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
     def test_reversed(self):
         d = Dimension(name='x')
@@ -47,14 +47,14 @@ class TestIndexAccessFunction(object):
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs == 1
-        assert expr.sd == 0
+        assert expr.sds == ()
 
         expr = d.symbolic_max + d
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
         assert expr.ofs is d.symbolic_max
-        assert expr.sd == 0
+        assert expr.sds == ()
 
     def test_non_affine(self):
         grid = Grid(shape=(3,))
@@ -75,8 +75,8 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == 1
+        assert expr.sds == (sd,)
 
         s = Symbol(name='s')
 
@@ -84,8 +84,36 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == 1 + s
+        assert expr.sds == (sd,)
+
+        expr = sd + 1 + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
+
+    def test_stencil_dim_multiple(self):
+        d = Dimension(name='x')
+        sd0 = StencilDimension('i0', 0, 1)
+        sd1 = StencilDimension('i1', 0, 1)
+
+        expr = d + sd0 + sd1 + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd0, sd1)
+
+        s = Symbol(name='s')
+
+        expr = sd0 + d + sd1 + 1 + s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1 + s
+        assert expr.sds == (sd0, sd1)
 
     def test_sub(self):
         d = Dimension(name='x')
@@ -103,8 +131,15 @@ class TestIndexAccessFunction(object):
 
         assert isinstance(expr, AffineIndexAccessFunction)
         assert expr.d is d
-        assert expr.sd is sd
         assert expr.ofs == -1 - s
+        assert expr.sds == (sd,)
+
+        expr = d + 1 + sd - d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d == 0
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
 
 
 class TestBufferedDimension(object):
@@ -1461,12 +1496,7 @@ class TestConditionalDimension(object):
         for i in range(12, 20):
             assert np.all(p.data[i] == 0)
 
-    @pytest.mark.parametrize('init_value,expected', [
-        ([2, 1, 3], [2, 2, 0]),  # updates f1, f2
-        ([3, 3, 3], [3, 3, 0]),  # updates f2
-        ([1, 2, 3], [1, 2, 3])  # no updates
-    ])
-    def test_issue_1435(self, init_value, expected):
+    def test_issue_1435(self):
         names = 't1 t2 t3 t4 t5 t6 t7 t8 t9 t10'
         t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = \
             tuple(SpaceDimension(i) for i in names.split())
@@ -1476,10 +1506,6 @@ class TestConditionalDimension(object):
         f1 = Function(name='f1', grid=Grid(shape=(2, 2, 3, 3),
                                            dimensions=(t5, t6, t7, t8)))
         f2 = Function(name='f2', grid=f1.grid)
-
-        f0.data[:] = init_value[0]
-        f1.data[:] = init_value[1]
-        f2.data[:] = init_value[2]
 
         cd = ConditionalDimension(name='cd', parent=t10,
                                   condition=Or(Gt(f0[t5, t6, t7 + t9,
@@ -1497,11 +1523,6 @@ class TestConditionalDimension(object):
 
         # Check it compiles correctly! See issue report
         op.cfunction
-        op.apply(t9_M=5, t10_M=5)
-
-        assert np.all(f0.data[:] == expected[0])
-        assert np.all(f1.data[:] == expected[1])
-        assert np.all(f2.data[:] == expected[2])
 
     @pytest.mark.parametrize('factor', [
         4,

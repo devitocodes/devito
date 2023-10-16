@@ -2108,7 +2108,8 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, _R(_R(u[t, x, y] + u[t, x+1, y+1])*3.*f +
                                _R(u[t, x+2, y+2] + u[t, x+3, y+3])*3.*f) + 1.)
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0,
+                                              'cire-schedule': 1}))
 
         assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
@@ -2141,7 +2142,8 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, _R(_R(u[t, x, y] + u[t, x+2, y])*3.*f +
                                _R(u[t, x+1, y+1] + u[t, x+3, y+1])*3.*f) + 1.)
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0,
+                                              'cire-schedule': 1}))
 
         assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
@@ -2499,10 +2501,8 @@ class TestIsotropicAcoustic(object):
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        # one halo, ndim memalign and free (pos temp rec/src)
-        sf_calls = 2 * len(shape)
-        assert len(fwd_calls) == 1 + sf_calls
-        assert len(adj_calls) == 1 + sf_calls
+        assert len(fwd_calls) == 1
+        assert len(adj_calls) == 1
 
     def run_adjoint_F(self, nd):
         """

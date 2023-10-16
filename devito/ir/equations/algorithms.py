@@ -3,8 +3,7 @@ from collections.abc import Iterable
 from sympy import sympify
 
 from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
-from devito.tools import (PartialOrderTuple, as_tuple, flatten,
-                          filter_sorted, filter_ordered)
+from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
 
@@ -85,7 +84,7 @@ def dimension_sort(expr):
 
         implicit_relations.update({tuple(filter_ordered(dims))})
 
-    ordering = PartialOrderTuple(extra, relations=implicit_relations)
+    ordering = Ordering(extra, relations=implicit_relations, mode='partial')
 
     return ordering
 

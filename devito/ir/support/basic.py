@@ -3,16 +3,17 @@ from itertools import chain, product
 from cached_property import cached_property
 from sympy import S
 
-from devito.ir.support.space import Backward, IterationSpace
-from devito.ir.support.utils import AccessMode
+from devito.ir.support.space import Backward, null_ispace
+from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import (retrieve_terminals, q_constant, q_affine, q_routine,
-                              q_terminal)
-from devito.tools import (Tag, as_tuple, is_integer, filter_sorted, flatten,
-                          memoized_meth, memoized_generator)
-from devito.types import Barrier, Dimension, DimensionTuple, Jump, Symbol
+from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
+                              q_constant, q_affine, q_routine, search, uxreplace)
+from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
+                          flatten, memoized_meth, memoized_generator)
+from devito.types import (Barrier, ComponentAccess, Dimension, DimensionTuple,
+                          Function, Jump, Symbol, Temp, TempArray, TBArray)
 
-__all__ = ['IterationInstance', 'TimedAccess', 'Scope']
+__all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
 
 class IndexMode(Tag):
@@ -217,12 +218,12 @@ class TimedAccess(IterationInstance, AccessMode):
         AccessMode.__init__(obj, mode=mode)
         return obj
 
-    def __init__(self, access, mode, timestamp, ispace=None):
+    def __init__(self, access, mode, timestamp, ispace=null_ispace):
         assert is_integer(timestamp)
 
         self.access = access
         self.timestamp = timestamp
-        self.ispace = ispace or IterationSpace([])
+        self.ispace = ispace
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
@@ -236,8 +237,9 @@ class TimedAccess(IterationInstance, AccessMode):
         # which might require expensive comparisons of Vector entries (i.e.,
         # SymPy expressions)
 
-        return (self.access is other.access and  # => self.function is other.function
-                self.mode == other.mode and
+        return (self.mode == other.mode and
+                self.timestamp == other.timestamp and
+                self.access == other.access and
                 self.ispace == other.ispace)
 
     def __hash__(self):
@@ -322,6 +324,12 @@ class TimedAccess(IterationInstance, AccessMode):
         other : TimedAccess
             The TimedAccess w.r.t. which the distance is computed.
         """
+        if isinstance(self.access, ComponentAccess) and \
+           isinstance(other.access, ComponentAccess) and \
+           self.access.index != other.access.index:
+            # E.g., `uv(x).x` and `uv(x).y` -- not a real dependence!
+            return Vector(S.ImaginaryUnit)
+
         ret = []
         for sit, oit in zip(self.itintervals, other.itintervals):
             n = len(ret)
@@ -812,77 +820,146 @@ class Scope(object):
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
-        exprs = as_tuple(exprs)
-
-        self.reads = {}
-        self.writes = {}
-
-        self.initialized = set()
-
-        for i, e in enumerate(exprs):
-            # Reads
-            terminals = retrieve_terminals(e.rhs, deep=True, mode='unique')
-            try:
-                terminals.update(retrieve_terminals(e.lhs.indices))
-            except AttributeError:
-                pass
-            for j in terminals:
-                v = self.reads.setdefault(j.function, [])
-                mode = 'RR' if e.is_Reduction and j.function is e.lhs.function else 'R'
-                v.append(TimedAccess(j, mode, i, e.ispace))
-
-            # Write
-            terminals = []
-            if q_terminal(e.lhs):
-                terminals.append(e.lhs)
-            if q_routine(e.rhs):
-                try:
-                    terminals.extend(e.rhs.writes)
-                except AttributeError:
-                    # E.g., foreign routines, such as `cos` or `sin`
-                    pass
-            for j in terminals:
-                v = self.writes.setdefault(j.function, [])
-                mode = 'WR' if e.is_Reduction else 'W'
-                v.append(TimedAccess(j, mode, i, e.ispace))
-
-            # If a reduction, we got one implicit read
-            if e.is_Reduction:
-                v = self.reads.setdefault(e.lhs.function, [])
-                v.append(TimedAccess(e.lhs, 'RR', i, e.ispace))
-
-            # If writing to a scalar, we have an initialization
-            if not e.is_Reduction and e.is_scalar:
-                self.initialized.add(e.lhs.function)
-
-            # Look up ConditionalDimensions
-            for v in e.conditionals.values():
-                for j in retrieve_terminals(v):
-                    v = self.reads.setdefault(j.function, [])
-                    v.append(TimedAccess(j, 'R', -1, e.ispace))
-
-        # The iteration symbols too
-        dimensions = set().union(*[e.dimensions for e in exprs])
-        for d in dimensions:
-            for i in d.free_symbols | d.bound_symbols:
-                v = self.reads.setdefault(i.function, [])
-                v.append(TimedAccess(i, 'R', -1))
-
-        # Objects altering the control flow (e.g., synchronization barriers,
-        # break statements, ...) are converted into mock dependences
-        for i, e in enumerate(exprs):
-            if e.find(Barrier) | e.find(Jump):
-                self.writes.setdefault(mocksym, []).append(
-                    TimedAccess(mocksym, 'W', i, e.ispace)
-                )
-                self.reads.setdefault(mocksym, []).extend([
-                    TimedAccess(mocksym, 'R', max(i, 0), e.ispace),
-                    TimedAccess(mocksym, 'R', i+1, e.ispace),
-                ])
+        self.exprs = as_tuple(exprs)
 
         # A set of rules to drive the collection of dependencies
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
+
+    @memoized_generator
+    def writes_gen(self):
+        """
+        Generate all write accesses.
+        """
+        for i, e in enumerate(self.exprs):
+            terminals = retrieve_accesses(e.lhs)
+            if q_routine(e.rhs):
+                try:
+                    terminals.update(e.rhs.writes)
+                except AttributeError:
+                    # E.g., foreign routines, such as `cos` or `sin`
+                    pass
+            for j in terminals:
+                if e.is_Reduction:
+                    mode = 'WR'
+                else:
+                    mode = 'W'
+                yield TimedAccess(j, mode, i, e.ispace)
+
+        # Objects altering the control flow (e.g., synchronization barriers,
+        # break statements, ...) are converted into mock dependences
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, (Barrier, Jump)):
+                yield TimedAccess(mocksym, 'W', i, e.ispace)
+
+    @cached_property
+    def writes(self):
+        """
+        Create a mapper from functions to write accesses.
+        """
+        return as_mapper(self.writes_gen(), key=lambda i: i.function)
+
+    @memoized_generator
+    def reads_explicit_gen(self):
+        """
+        Generate all explicit reads. These are the read accesses to the
+        AbstractFunctions and Symbols appearing in the Scope's symbolic
+        expressions.
+        """
+        for i, e in enumerate(self.exprs):
+            # Reads
+            terminals = retrieve_accesses(e.rhs, deep=True)
+            try:
+                terminals.update(retrieve_accesses(e.lhs.indices))
+            except AttributeError:
+                pass
+            for j in terminals:
+                if j.function is e.lhs.function and e.is_Reduction:
+                    mode = 'RR'
+                else:
+                    mode = 'R'
+                yield TimedAccess(j, mode, i, e.ispace)
+
+            # If a reduction, we got one implicit read
+            if e.is_Reduction:
+                yield TimedAccess(e.lhs, 'RR', i, e.ispace)
+
+            # Look up ConditionalDimensions
+            for v in e.conditionals.values():
+                for j in retrieve_accesses(v):
+                    yield TimedAccess(j, 'R', -1, e.ispace)
+
+    @memoized_generator
+    def reads_implicit_gen(self):
+        """
+        Generate all implicit reads. These are for examples the reads accesses
+        to the iteration symbols bounded to the Dimensions used in the Scope's
+        symbolic expressions.
+        """
+        # The iteration symbols
+        dimensions = set().union(*[e.dimensions for e in self.exprs])
+        symbols = set()
+        for d in dimensions:
+            symbols.update(d.free_symbols | d.bound_symbols)
+        for i in symbols:
+            yield TimedAccess(i, 'R', -1)
+
+        # Objects altering the control flow (e.g., synchronization barriers,
+        # break statements, ...) are converted into mock dependences
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, (Barrier, Jump)):
+                yield TimedAccess(mocksym, 'R', max(i, 0), e.ispace)
+                yield TimedAccess(mocksym, 'R', i+1, e.ispace)
+
+    @memoized_generator
+    def reads_gen(self):
+        """
+        Generate all read accesses.
+        """
+        # NOTE: The reason to keep the explicit and implict reads separated
+        # is efficiency. Sometimes we wish to extract all reads to a given
+        # AbstractFunction, and we know that by construction these can't
+        # appear among the implicit reads
+        return chain(self.reads_explicit_gen(), self.reads_implicit_gen())
+
+    @memoized_generator
+    def reads_smart_gen(self, f):
+        """
+        Generate all read access to a given function.
+
+        StencilDimensions, if any, are replaced with their extrema.
+
+        Notes
+        -----
+        The implementation is smart, in the sense that, depending on the
+        given function type, it will not necessarily look everywhere inside
+        the scope to retrieve the corresponding read accesses. Instead, it
+        will only look in the places where the given type is expected to
+        be found. For example, a DiscreteFunction would never appear among
+        the iteration symbols.
+        """
+        if isinstance(f, (Function, Temp, TempArray, TBArray)):
+            for i in self.reads_explicit_gen():
+                if f is i.function:
+                    for j in extrema(i.access):
+                        yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
+
+        else:
+            for i in self.reads_gen():
+                if f is i.function:
+                    yield i
+
+    @cached_property
+    def reads(self):
+        """
+        Create a mapper from functions to read accesses.
+        """
+        return as_mapper(self.reads_gen(), key=lambda i: i.function)
+
+    @cached_property
+    def initialized(self):
+        return frozenset(e.lhs.function for e in self.exprs
+                         if not e.is_Reduction and e.is_scalar)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -894,7 +971,8 @@ class Scope(object):
         return self.getwrites(function) + self.getreads(function)
 
     def __repr__(self):
-        tracked = filter_sorted(set(self.reads) | set(self.writes), key=lambda i: i.name)
+        tracked = filter_sorted(set(self.reads) | set(self.writes),
+                                key=lambda i: i.name)
         maxlen = max(1, max([len(i.name) for i in tracked]))
         out = "{:>%d} =>  W : {}\n{:>%d}     R : {}" % (maxlen, maxlen)
         pad = " "*(maxlen + 9)
@@ -944,10 +1022,13 @@ class Scope(object):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads.get(k, []):
+                for r in self.reads_smart_gen(k):
+                    if any(not rule(w, r) for rule in self.rules):
+                        continue
+
                     dependence = Dependence(w, r)
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
@@ -957,8 +1038,7 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_flow = (not dependence.is_imaginary and
-                                   not r.is_read_reduction)
+                        is_flow = not r.is_read_reduction
                     if is_flow:
                         yield dependence
 
@@ -972,10 +1052,13 @@ class Scope(object):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
-                for r in self.reads.get(k, []):
+                for r in self.reads_smart_gen(k):
+                    if any(not rule(r, w) for rule in self.rules):
+                        continue
+
                     dependence = Dependence(r, w)
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
@@ -985,8 +1068,7 @@ class Scope(object):
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence, unless
                         # it's a read-for-reduction
-                        is_anti = (not dependence.is_imaginary and
-                                   not r.is_read_reduction)
+                        is_anti = not r.is_read_reduction
                     if is_anti:
                         yield dependence
 
@@ -1001,9 +1083,12 @@ class Scope(object):
         for k, v in self.writes.items():
             for w1 in v:
                 for w2 in self.writes.get(k, []):
+                    if any(not rule(w2, w1) for rule in self.rules):
+                        continue
+
                     dependence = Dependence(w2, w1)
 
-                    if any(not rule(dependence) for rule in self.rules):
+                    if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
@@ -1012,7 +1097,7 @@ class Scope(object):
                     except TypeError:
                         # Non-integer vectors are not comparable.
                         # Conservatively, we assume it is a dependence
-                        is_output = not dependence.is_imaginary
+                        is_output = True
                     if is_output:
                         yield dependence
 
@@ -1039,7 +1124,7 @@ class Scope(object):
         accesses = as_tuple(accesses)
         for d in self.d_all_gen():
             for i in accesses:
-                if d.source is i or d.sink is i:
+                if d.source == i or d.sink == i:
                     yield d
                     break
 
@@ -1075,3 +1160,147 @@ class Scope(object):
         All Relations of the Scope.
         """
         return list(self.r_gen())
+
+
+class ExprGeometry(object):
+
+    """
+    Geometric representation of an expression by abstracting Indexeds as
+    LabeledVectors.
+    """
+
+    def __init__(self, expr, indexeds=None, bases=None, offsets=None):
+        self.expr = expr
+
+        if indexeds is not None:
+            self.indexeds = indexeds
+            self.bases = bases
+            self.offsets = offsets
+            return
+
+        self.indexeds = retrieve_indexed(expr)
+
+        bases = []
+        offsets = []
+        for ii in self.iinstances:
+            base = []
+            offset = []
+            for e, fi, ai in zip(ii, ii.findices, ii.aindices):
+                if ai is None:
+                    base.append((fi, e))
+                else:
+                    base.append((fi, ai))
+                    offset.append((ai, e - ai))
+            bases.append(LabeledVector(base))
+            offsets.append(LabeledVector(offset))
+
+        self.bases = bases
+        self.offsets = offsets
+
+    def __repr__(self):
+        return "ExprGeometry(expr=%s)" % self.expr
+
+    def translated(self, other, dims=None):
+        """
+        True if `self` is translated w.r.t. `other`, False otherwise.
+
+        Examples
+        --------
+        Two expressions are translated if they perform the same operations,
+        their bases are the same and their offsets are pairwise translated.
+
+        c := A[i,j] op A[i,j+1]     -> Toffsets = {i: [0,0], j: [0,1]}
+        u := A[i+1,j] op A[i+1,j+1] -> Toffsets = {i: [1,1], j: [0,1]}
+
+        Then `c` is translated w.r.t. `u` with distance `{i: 1, j: 0}`
+
+        The test may be strengthen by imposing that a translation occurs
+        only along a specific set of Dimensions through the kwarg `dims`.
+        """
+        # Check mathematical structure
+        if not compare_ops(self.expr, other.expr):
+            return False
+
+        # Use a suitable value for `dims` if not provided by user
+        if dims is None:
+            if self.aindices != other.aindices:
+                return False
+            dims = self.aindices
+        dims = set(as_tuple(dims))
+
+        # Check bases and offsets
+        for i in ['Tbases', 'Toffsets']:
+            Ti0 = getattr(self, i)
+            Ti1 = getattr(other, i)
+
+            m0 = dict(Ti0)
+            m1 = dict(Ti1)
+
+            # The only hope in presence of Dimensions appearing only in either
+            # `self` or `other` is that they have been projected away by the caller
+            for d in set(m0).symmetric_difference(set(m1)):
+                if not d._defines & dims:
+                    return False
+
+            for d in set(m0).union(set(m1)):
+                try:
+                    o0 = m0[d]
+                    o1 = m1[d]
+                except KeyError:
+                    continue
+
+                distance = set(o0 - o1)
+                if len(distance) != 1:
+                    return False
+
+                if not d._defines & dims:
+                    if distance.pop() != 0:
+                        return False
+
+        return True
+
+    @cached_property
+    def iinstances(self):
+        return tuple(IterationInstance(i) for i in self.indexeds)
+
+    @cached_property
+    def Tbases(self):
+        return LabeledVector.transpose(*self.bases)
+
+    @cached_property
+    def Toffsets(self):
+        return LabeledVector.transpose(*self.offsets)
+
+    @cached_property
+    def dimensions(self):
+        return frozenset(i for i, _ in self.Toffsets)
+
+    @cached_property
+    def aindices(self):
+        try:
+            return tuple(zip(*self.Toffsets))[0]
+        except IndexError:
+            return ()
+
+    @property
+    def is_regular(self):
+        return all(i.is_regular for i in self.iinstances)
+
+
+# *** Utils
+
+def retrieve_accesses(exprs, **kwargs):
+    """
+    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
+    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
+    """
+    kwargs['mode'] = 'unique'
+
+    compaccs = search(exprs, ComponentAccess)
+    if not compaccs:
+        return retrieve_terminals(exprs, **kwargs)
+
+    subs = {i: Symbol('dummy%d' % n) for n, i in enumerate(compaccs)}
+    exprs1 = uxreplace(exprs, subs)
+
+    return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())

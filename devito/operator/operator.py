@@ -311,8 +311,15 @@ class Operator(Callable):
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
-        # Lower functional DSL
+        # Lower FD derivatives
+        # NOTE: we force expansion of derivatives along SteppingDimensions
+        # because it drastically simplifies the subsequent lowering into
+        # ModuloDimensions
+        if not expand:
+            expand = lambda d: d.is_Stepping
         expressions = flatten([i._evaluate(expand=expand) for i in expressions])
+
+        # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
 
         # A second round of specialization is performed on evaluated expressions
@@ -930,15 +937,22 @@ class Operator(Callable):
 
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
-        for k, v in summary.items():
-            rank = "[rank%d]" % k.rank if k.rank is not None else ""
+        def lower_perfentry(v):
             if v.gflopss:
                 oi = "OI=%.2f" % fround(v.oi)
                 gflopss = "%.2f GFlops/s" % fround(v.gflopss)
                 gpointss = "%.2f GPts/s" % fround(v.gpointss)
-                metrics = "[%s]" % ", ".join([oi, gflopss, gpointss])
+                return "[%s]" % ", ".join([oi, gflopss, gpointss])
+            elif v.gpointss:
+                gpointss = "%.2f GPts/s" % fround(v.gpointss)
+                return "[%s]" % gpointss
             else:
-                metrics = ""
+                return ""
+
+        for k, v in summary.items():
+            rank = "[rank%d]" % k.rank if k.rank is not None else ""
+
+            metrics = lower_perfentry(v)
 
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
@@ -950,9 +964,12 @@ class Operator(Callable):
             name = "%s%s<%s>" % (k.name, rank, itershapes)
 
             perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
-            for n, time in summary.subsections.get(k.name, {}).items():
-                perf("%s+ %s ran in %.2f s [%.2f%%]" %
-                     (indent*2, n, time, fround(time/v.time*100)))
+            for n, v1 in summary.subsections.get(k.name, {}).items():
+                metrics = lower_perfentry(v1)
+
+                perf("%s+ %s ran in %.2f s [%.2f%%] %s" %
+                     (indent*2, n, fround(v1.time), fround(v1.time/v.time*100),
+                      metrics))
 
         # Emit performance mode and arguments
         perf_args = {}

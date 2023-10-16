@@ -1,10 +1,12 @@
-from devito.ir.iet import (BusyWait, FindNodes, FindSymbols, MapNodes, Section,
-                           TimedList, Transformer)
+from itertools import groupby
+
+from devito.ir.iet import (BusyWait, FindNodes, FindSymbols, MapNodes, Iteration,
+                           Section, TimedList, Transformer)
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall,
                                  ComputeCall)
 from devito.passes.iet.engine import iet_pass
-from devito.types import Timer
+from devito.types import TempArray, TempFunction, Timer
 
 __all__ = ['instrument']
 
@@ -25,10 +27,12 @@ def instrument(graph, **kwargs):
 @iet_pass
 def track_subsections(iet, **kwargs):
     """
-    Add custom Sections to the `profiler`. Custom Sections include:
+    Add sub-Sections to the `profiler`. Sub-Sections include:
 
         * MPI Calls (e.g., HaloUpdateCall and HaloUpdateWait)
         * Busy-waiting on While(lock) (e.g., from host-device orchestration)
+        * Multi-pass implementations -- one sub-Section for each pass, within one
+          macro Section
     """
     profiler = kwargs['profiler']
     sregistry = kwargs['sregistry']
@@ -45,6 +49,7 @@ def track_subsections(iet, **kwargs):
 
     mapper = {}
 
+    # MPI Calls, busy-waiting
     for NodeType in [MPIList, MPICall, BusyWait, ComputeCall]:
         for k, v in MapNodes(Section, NodeType).visit(iet).items():
             for i in v:
@@ -54,6 +59,37 @@ def track_subsections(iet, **kwargs):
                 name = sregistry.make_name(prefix=name_mapper[i.__class__])
                 mapper[i] = Section(name, body=i, is_subsection=True)
                 profiler.track_subsection(k.name, name)
+
+    iet = Transformer(mapper).visit(iet)
+
+    # Multi-pass implementations
+    mapper = {}
+
+    for i in FindNodes(Iteration).visit(iet):
+        for k, g in groupby(i.nodes, key=lambda n: n.is_Section):
+            if not k:
+                continue
+
+            candidates = []
+            for i in g:
+                functions = FindSymbols().visit(i)
+                if any(isinstance(f, (TempArray, TempFunction)) for f in functions):
+                    candidates.append(i)
+                else:
+                    # They must be consecutive Sections
+                    break
+            if len(candidates) < 2:
+                continue
+
+            name = sregistry.make_name(prefix='multipass')
+            body = [i._rebuild(is_subsection=True) for i in candidates]
+            section = Section(name, body=body)
+
+            profiler.group_as_subsections(name, [i.name for i in candidates])
+
+            mapper[candidates.pop(0)] = section
+            for i in candidates:
+                mapper[i] = None
 
     iet = Transformer(mapper).visit(iet)
 
@@ -100,6 +136,6 @@ def sync_sections(iet, lang=None, profiler=None, **kwargs):
         if runs_async and not unnecessary:
             mapper[tl] = tl._rebuild(body=tl.body + (sync,))
 
-    iet = Transformer(mapper).visit(iet)
+    iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet, {}
