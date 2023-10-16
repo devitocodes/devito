@@ -299,7 +299,7 @@ class Cluster(object):
 
             # Special case: if the factor of a ConditionalDimension has value 1,
             # then we can safely resort to the parent's Interval
-            key = lambda d: d.is_Conditional and d.factor == 1
+            key = lambda d: d.is_Conditional and d.condition is None and d.factor == 1
             intervals = intervals.promote(key)
 
             parts[f] = intervals
