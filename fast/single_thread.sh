@@ -8,15 +8,15 @@ unset DEVITO_LANGUAGE
 # Use the cray compiler, if available.
 export DEVITO_ARCH=cray
 # Enable debug logging.
-export DEVITO_LOGGING=DEBUG
+export DEVITO_LOGGING=BENCH
 # Enable (tile size) autotuning
 # NB enabling it requires that no explicit tile size
 # is specified in the Operator constructor args.
 export DEVITO_AUTOTUNING=aggressive
 
-# Just extract the reported runtime from the whole output of the passed command
-get_runtime() {
-    $@ |& grep 'Operator.*ran' | rev | cut -d ' ' -f2 | rev
+# Just extract the reported throughput from the whole output of the passed command
+get_throughput() {
+    $@ |& grep Global | head -n 1 | cut -d ' ' -f6
 }
 
 # Iterate over benchmarks and cases, print simple CSV data to stdout
@@ -29,9 +29,9 @@ do
   # Iterate over measured space orders
   for so in 2 4 8
     do
-      # Get the runtimes
-      devito_time=$(get_runtime python $bench -so $so --devito 1)
-      xdsl_time=$(get_runtime python $bench -so $so --xdsl 1)
+      # Get the throughputs
+      devito_time=$(get_throughput python $bench -so $so --devito 1)
+      xdsl_time=$(get_throughput python $bench -so $so --xdsl 1)
       # print CSV line
       echo $bench_name,$so,$devito_time,$xdsl_time
   done

@@ -9,7 +9,7 @@ export DEVITO_MPI=1
 # Use the default compiler here, cray and MPI doesnt work on my machine.
 unset DEVITO_ARCH
 # Enable debug logging.
-export DEVITO_LOGGING=DEBUG
+export DEVITO_LOGGING=BENCH
 # Enable (tile size) autotuning.
 # I disable it for speed sometimes; NB enabling it requires that no explicit tile size
 # is specified in the Operator constructor args.
@@ -20,12 +20,12 @@ export OMP_PLACES=cores
 export OMP_PROC_BIND=true
 
 # Doing 4 ranks X 4 threads locally here
-export OMP_NUM_THREADS=4
-export MPI_NUM_RANKS=4
+export OMP_NUM_THREADS=16
+export MPI_NUM_RANKS=8
 
-# Just extract the reported runtime from the whole output of the passed command
-get_runtime() {
-    $@ |& grep 'Operator.*ran' | head -n 1 | rev | cut -d ' ' -f2 | rev
+# Just extract the reported throughput from the whole output of the passed command
+get_throughput() {
+    $@ |& grep Global | head -n 1 | cut -d ' ' -f6
 }
 
 # Iterate over benchmarks and cases, print simple CSV data to stdout
@@ -45,8 +45,8 @@ do
       #  mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --xdsl 1
 
       # Get the runtimes
-      devito_time=$(get_runtime mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --devito 1)
-      xdsl_time=$(get_runtime mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --xdsl 1)
+      DEVITO_MPI=diag2 devito_time=$(get_throughput mpirun -np $MPI_NUM_RANKS --bind-to core python $bench -so $so --devito 1)
+      xdsl_time=$(get_throughput mpirun -np $MPI_NUM_RANKS --bind-to core python $bench -so $so --xdsl 1)
       # print CSV line
       echo $bench_name,$so,$devito_time,$xdsl_time
   done
