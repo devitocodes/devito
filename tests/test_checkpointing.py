@@ -10,7 +10,7 @@ from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
 @switchconfig(log_level='WARNING')
-def test_segmented_incremment():
+def test_segmented_increment():
     """
     Test for segmented operator execution of a one-sided first order
     function (increment). The corresponding set of stencil offsets in
