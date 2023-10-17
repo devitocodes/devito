@@ -3,8 +3,10 @@
 # Simple script to run single threaded benchmarks locally,
 # for simple sanity checks.
 
-# Don't use OpenMP
-unset DEVITO_LANGUAGE
+# Use OpenMP single-threaded
+export DEVITO_LANGUAGE=openmp
+export OMP_NUM_THREADS=1
+export OMP_PLACES=cores
 # Use the cray compiler, if available.
 export DEVITO_ARCH=cray
 # Enable debug logging.
@@ -16,13 +18,15 @@ export DEVITO_AUTOTUNING=aggressive
 
 # Just extract the reported throughput from the whole output of the passed command
 get_throughput() {
+    # echo $($@)
     $@ |& grep Global | head -n 1 | cut -d ' ' -f6
 }
 
 # Iterate over benchmarks and cases, print simple CSV data to stdout
 # Copy-pastes nicely in Google Sheets
 echo bench_name,so,Devito,xDSL
-for bench in "wave2d_b.py -d 2048 2048 --nt 512" "wave3d_b.py -d 512 512 512 --nt 512" "diffusion_2D_wBCs.py -d 2048 2048 --nt 512" "diffusion_3D_wBCs.py -d 512 512 512 --nt 512"
+for bench in "wave2d_b.py -d 8192 8192 --nt 1024" "wave3d_b.py -d 512 512 512 --nt 512" "diffusion_2D_wBCs.py -d 8192 8192 --nt 1024" "diffusion_3D_wBCs.py -d 512 512 512 --nt 512"
+# for bench in "wave2d_b.py -d 8192 8192 --nt 1024" "diffusion_2D_wBCs.py -d 8192 8192 --nt 1024"
 do
   # Get the benchmark file for printing
   bench_name=$(echo $bench | cut -d ' ' -f1)
