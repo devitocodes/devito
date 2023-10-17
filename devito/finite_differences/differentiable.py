@@ -711,6 +711,7 @@ class IndexDerivative(IndexSum):
         return expr
 
 
+# SymPy args ordering is the same for Derivatives and IndexDerivatives
 ordering_of_classes.insert(ordering_of_classes.index('Derivative') + 1,
                            'IndexDerivative')
 
