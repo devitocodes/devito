@@ -258,6 +258,11 @@ class Interval(AbstractInterval):
     def zero(self):
         return Interval(self.dim, 0, 0, self.stamp)
 
+    def ceil(self, o):
+        if o.is_Null:
+            return self._rebuild()
+        return Interval(self.dim, self.lower, o.upper, self.stamp)
+
     def flip(self):
         return Interval(self.dim, self.upper, self.lower, self.stamp)
 
@@ -490,6 +495,11 @@ class IntervalGroup(Ordering):
         intervals = [i.zero() if i.dim in d else i for i in self]
 
         return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
+
+    def ceil(self, o=None):
+        d = self.dimensions if o is None else as_tuple(o.dim)
+        return IntervalGroup([i.ceil(o) if i.dim in d else i for i in self],
+                             relations=self.relations)
 
     def lift(self, d=None, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))

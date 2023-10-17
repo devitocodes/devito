@@ -210,6 +210,25 @@ class TestBufferedDimension:
         assert np.all(f.data[3] == 2)
         assert np.all(f.data[4] == 4)
 
+    def test_default_timeM(self):
+        """
+        MFE for issue #2235
+        """
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=5)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        assert op.arguments()['time_M'] == 4
+        op.apply()
+
+        assert all(np.all(usave.data[i] == i) for i in range(4))
+
 
 class TestSubDimension:
 
@@ -763,7 +782,7 @@ class TestConditionalDimension:
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.), Eq(usave, u)]
         op = Operator(eqns)
-        op.apply()
+        op.apply(time_M=nt-2)
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
         assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
         assert np.all([np.allclose(usave.data[i], i*factor)
