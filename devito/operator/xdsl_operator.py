@@ -86,10 +86,8 @@ class XDSLOperator(Operator):
     @property
     def mpi_shape(self) -> tuple:
         dist = self.functions[0].grid.distributor
-        # temporary fix:
-        # swap dim 0 and 1 in topology because dmp.grid is row major and not column major
-
-        return (dist.topology[1], dist.topology[0], *dist.topology[2:]), dist.myrank
+        # reverse topology for row->column major
+        return tuple(reversed(dist.topology)), dist.myrank
 
     def _jit_compile(self):
         """
