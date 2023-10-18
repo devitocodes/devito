@@ -135,7 +135,7 @@ class XDSLOperator(Operator):
                 # reduce the domain of the computation (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
 
-                decomp = "2d-grid" if len(slices) == 2 else "3d-grid"
+                decomp = "2d-grid" if len(shape) == 2 else "3d-grid"
 
                 decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
