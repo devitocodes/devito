@@ -259,7 +259,7 @@ class Interval(AbstractInterval):
         return Interval(self.dim, 0, 0, self.stamp)
 
     def ceil(self, o):
-        if o.is_Null:
+        if not self.is_compatible(o):
             return self._rebuild()
         return Interval(self.dim, self.lower, o.upper, self.stamp)
 
@@ -398,7 +398,9 @@ class IntervalGroup(Ordering):
         relations.update(set().union(*[ig.relations for ig in interval_groups]))
 
         modes = set(ig.mode for ig in interval_groups)
+
         assert len(modes) <= 1
+
         try:
             mode = modes.pop()
         except KeyError:
@@ -499,7 +501,7 @@ class IntervalGroup(Ordering):
     def ceil(self, o=None):
         d = self.dimensions if o is None else as_tuple(o.dim)
         return IntervalGroup([i.ceil(o) if i.dim in d else i for i in self],
-                             relations=self.relations)
+                             relations=self.relations, mode=self.mode)
 
     def lift(self, d=None, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))
