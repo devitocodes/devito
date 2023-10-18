@@ -129,9 +129,9 @@ def test_cache_blocking_structure_subdims():
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior))
 
-    bns, _ = assert_blocking(op, {'i0x0_blk0'})
+    bns, _ = assert_blocking(op, {'x0_blk0'})
 
-    trees = retrieve_iteration_tree(bns['i0x0_blk0'])
+    trees = retrieve_iteration_tree(bns['x0_blk0'])
     tree = trees[0]
     assert len(tree) == 5
     assert tree[0].dim.is_Block and tree[0].dim.parent is xi and tree[0].dim.root is x
@@ -1266,9 +1266,9 @@ class TestNestedParallelism(object):
                             'par-collapse-ncores': 2,
                             'par-dynamic-work': 0}))
 
-        bns, _ = assert_blocking(op, {'i0x0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0'})
 
-        trees = retrieve_iteration_tree(bns['i0x0_blk0'])
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 5 + (blocklevels - 1) * 2

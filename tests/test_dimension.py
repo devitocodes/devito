@@ -403,14 +403,14 @@ class TestSubDimension(object):
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'i0y'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'y'),
         # Carried dependence in both /t/ and /y/
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y])'], 'x'),
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'i0x'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'x'),
         # Carried dependence in /y/, leading to separate /y/ loops, one
         # going forward, the other backward
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)',
-          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'i0x'),
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'x'),
     ])
     def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
@@ -1738,20 +1738,20 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
 
         exprs = FindNodes(Expression).visit(bns['x1_blk0'])
+        assert len(exprs) == 1
+        assert exprs[0].write is h
+
+        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
-
-        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
-        assert len(exprs) == 1
-        assert exprs[0].write is h
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """
@@ -1779,9 +1779,9 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
-        assert len(FindNodes(Expression).visit(bns['i0x0_blk0'])) == 3
-        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+        assert len(FindNodes(Expression).visit(bns['x0_blk0'])) == 3
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
@@ -1812,18 +1812,18 @@ class TestMashup(object):
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
-        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
 
-        exprs = FindNodes(Expression).visit(bns['x0_blk0'])
+        # Additional nest due to anti-dependence
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
+        assert len(exprs) == 2
+        assert exprs[1].write is h
+
+        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
-
-        # Additional nest due to anti-dependence
-        exprs = FindNodes(Expression).visit(bns['i0x1_blk0'])
-        assert len(exprs) == 2
-        assert exprs[1].write is h

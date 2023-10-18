@@ -172,8 +172,8 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self, counter=counter)
+        for i in subdomains:
+            i.__subdomain_finalize__(self)
         self._subdomains = subdomains
 
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -486,7 +486,6 @@ class SubDomain(AbstractSubDomain):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        counter = kwargs.get('counter', 0) - 1
         for k, v, s in zip(self.define(grid.dimensions).keys(),
                            self.define(grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
@@ -495,33 +494,28 @@ class SubDomain(AbstractSubDomain):
             else:
                 try:
                     # Case ('middle', int, int)
-                    side, thickness_left, thickness_right = v
+                    side, tkn_left, tkn_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('i%d%s' %
-                                                              (counter, k.name),
-                                                              k, thickness_left,
-                                                              thickness_right))
-                    thickness = s-thickness_left-thickness_right
-                    sdshape.append(thickness)
+                    sub_dimensions.append(
+                        SubDimension.middle(k.name, k, tkn_left, tkn_right)
+                    )
+                    tkn = s-tkn_left-tkn_right
+                    sdshape.append(tkn)
                 except ValueError:
-                    side, thickness = v
+                    side, tkn = v
                     if side == 'left':
-                        if s-thickness < 0:
+                        if s-tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%d%s' %
-                                                                (counter, k.name),
-                                                                k, thickness))
-                        sdshape.append(thickness)
+                                             "is %d, not %d" % (k.name, s, tkn))
+                        sub_dimensions.append(SubDimension.left(k.name, k, tkn))
+                        sdshape.append(tkn)
                     elif side == 'right':
-                        if s-thickness < 0:
+                        if s-tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%d%s' %
-                                                                 (counter, k.name),
-                                                                 k, thickness))
-                        sdshape.append(thickness)
+                                             "is %d, not %d" % (k.name, s, tkn))
+                        sub_dimensions.append(SubDimension.right(k.name, k, tkn))
+                        sdshape.append(tkn)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
 
