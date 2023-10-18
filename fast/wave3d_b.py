@@ -46,12 +46,7 @@ origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
 extent = np.load("so%s_grid_extent%s.npz" % (so, shape_str))['arr_0']
 
-topology = None
-# xDSL only handles 2D domain decomposition right now
-if args.xdsl:
-    topology = ('*', '*', 1)
-
-grid = Grid(shape=shape, extent=as_tuple(extent), topology=topology)
+grid = Grid(shape=shape, extent=as_tuple(extent))
 
 # With the velocity and model size defined, we can create the seismic model that
 # encapsulates this properties. We also define the size of the absorbing layer as

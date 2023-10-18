@@ -134,7 +134,10 @@ class XDSLOperator(Operator):
                 # run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
-                decomp = f"{{strategy=2d-grid slices={slices} restrict_domain=false}}"
+
+                decomp = "2d-grid" if len(slices) == 2 else "3d-grid"
+
+                decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
             elif is_gpu:
                 xdsl_pipeline = XDSL_GPU_PIPELINE
