@@ -7,7 +7,7 @@ from devito.types import Array, CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
-__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard',
+__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump']
 
 
@@ -194,7 +194,39 @@ class TempArray(Array):
     pass
 
 
-class Jump(object):
+class Fence(object):
+
+    """
+    Mixin class for generic "fence" objects.
+
+    A Fence is an object that enforces an ordering constraint on the
+    surrounding operations: the operations issued before the Fence are
+    guaranteed to be scheduled before operations issued after the Fence.
+
+    The meaning of "operation" and its relationship with the concept of
+    termination depends on the actual Fence subclass.
+
+    For example, operations could be Eq's. A Fence will definitely impair
+    topological sorting such that, e.g.
+
+        Eq(A)
+        Fence
+        Eq(B)
+
+    *cannot* get transformed into
+
+        Eq(A)
+        Eq(B)
+        Fence
+
+    However, a simple Fence won't dictate whether or not Eq(A) should also
+    terminate before Eq(B).
+    """
+
+    pass
+
+
+class Jump(Fence):
 
     """
     Mixin class for symbolic objects representing jumps in the control flow,

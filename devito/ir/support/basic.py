@@ -10,8 +10,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_affine, q_routine, search, uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator)
-from devito.types import (Barrier, ComponentAccess, Dimension, DimensionTuple,
-                          Function, Jump, Symbol, Temp, TempArray, TBArray)
+from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
+                          Function, Symbol, Temp, TempArray, TBArray)
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -849,7 +849,7 @@ class Scope(object):
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(self.exprs):
-            if isinstance(e.rhs, (Barrier, Jump)):
+            if isinstance(e.rhs, Fence):
                 yield TimedAccess(mocksym, 'W', i, e.ispace)
 
     @cached_property
@@ -907,7 +907,7 @@ class Scope(object):
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(self.exprs):
-            if isinstance(e.rhs, (Barrier, Jump)):
+            if isinstance(e.rhs, Fence):
                 yield TimedAccess(mocksym, 'R', max(i, 0), e.ispace)
                 yield TimedAccess(mocksym, 'R', i+1, e.ispace)
 
