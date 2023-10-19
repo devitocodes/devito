@@ -1,6 +1,7 @@
 from ctypes import c_double, c_void_p
 
 import numpy as np
+import sympy
 from sympy.core.core import ordering_of_classes
 
 from devito.types import Array, CompositeObject, Indexed, Symbol
@@ -8,7 +9,8 @@ from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
-           'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump']
+           'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
+           'Nop']
 
 
 class Timer(CompositeObject):
@@ -234,3 +236,10 @@ class Jump(Fence):
     """
 
     pass
+
+
+Nop = sympy.Function('NOP')
+"""
+A wildcard for use in the RHS of Eqs that encode some kind of semantics
+(e.g., a synchronization operation) but no computation.
+"""
