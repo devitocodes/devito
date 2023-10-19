@@ -908,8 +908,8 @@ class Scope(object):
         # break statements, ...) are converted into mock dependences
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, Fence):
-                yield TimedAccess(mocksym, 'R', max(i, 0), e.ispace)
-                yield TimedAccess(mocksym, 'R', i+1, e.ispace)
+                for j in range(len(self.exprs)):
+                    yield TimedAccess(mocksym, 'R', j, e.ispace)
 
     @memoized_generator
     def reads_gen(self):
