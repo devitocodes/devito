@@ -383,11 +383,14 @@ class Cluster:
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
 
-        # Buffered TimeDimensions should not shirnk their upper time offset
+        # Buffered TimeDimensions should inherit the higher upper bound
+        # of the involved parts
         for f, v in parts.items():
-            if f.is_TimeFunction:
-                if f.save and not f.time_dim.is_Conditional:
+            try:
+                if f.save:
                     intervals = intervals.ceil(v[f.time_dim])
+            except:
+                pass
 
         return DataSpace(intervals, parts)
 
