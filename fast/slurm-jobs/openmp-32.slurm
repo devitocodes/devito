@@ -4,8 +4,8 @@
 #SBATCH --job-name=Devito_OpenMP_32
 #SBATCH --time=01:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=32
-#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=32
 #SBATCH --switches=1@360 # Each group has 128 nodes
 
 # Replace [budget code] below with your project code (e.g. t01)
