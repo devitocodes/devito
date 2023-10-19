@@ -10,7 +10,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'Nop', 'WeakFence']
+           'nop', 'WeakFence']
 
 
 class Timer(CompositeObject):
@@ -249,7 +249,7 @@ class WeakFence(sympy.Function, Fence):
     pass
 
 
-Nop = sympy.Function('NOP')
+nop = sympy.Function('NOP')
 """
 A wildcard for use in the RHS of Eqs that encode some kind of semantics
 (e.g., a synchronization operation) but no computation.
