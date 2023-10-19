@@ -262,7 +262,7 @@ class Fusion(Queue):
 
         groups, processed = processed, []
         for group in groups:
-            for flag, minigroup in groupby(group, key=lambda c: c.is_halo_touch):
+            for flag, minigroup in groupby(group, key=lambda c: c.is_wild):
                 if flag:
                     processed.extend([(c,) for c in minigroup])
                 else:

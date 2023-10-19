@@ -132,8 +132,13 @@ base = IterationInterval(Interval(None), [], Any)
 
 def preprocess(clusters, options=None, **kwargs):
     """
-    Remove the HaloTouch's from `clusters` and create a mapping associating
-    each removed HaloTouch to the first Cluster necessitating it.
+    Lower the so-called "wild" Clusters, that is objects not representing a set
+    of mathematical operations. This boils down to:
+
+        * Moving the HaloTouch's from `clusters` into a mapper `M: {HT -> C}`.
+          `c = M(ht)` is the first Cluster of the sequence requiring the halo
+          exchange `ht` to have terminated before the execution can proceed.
+        * Remove the WeakFences, as they have served their purpose at this point.
     """
     queue = []
     processed = []
@@ -141,6 +146,8 @@ def preprocess(clusters, options=None, **kwargs):
         if c.is_halo_touch:
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
             queue.append(c.rebuild(halo_scheme=hs))
+        elif c.is_wild:
+            continue
         else:
             dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
 

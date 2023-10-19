@@ -198,9 +198,9 @@ class cluster_pass(object):
         self.func = func
 
         if mode == 'dense':
-            self.cond = lambda c: c.is_dense or not c.is_sparse
+            self.cond = lambda c: (c.is_dense or not c.is_sparse) and not c.is_wild
         elif mode == 'sparse':
-            self.cond = lambda c: c.is_sparse
+            self.cond = lambda c: c.is_sparse and not c.is_wild
         else:
             self.cond = lambda c: True
 
