@@ -10,7 +10,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'Nop']
+           'Nop', 'WeakFence']
 
 
 class Timer(CompositeObject):
@@ -233,6 +233,17 @@ class Jump(Fence):
     """
     Mixin class for symbolic objects representing jumps in the control flow,
     such as return and break statements.
+    """
+
+    pass
+
+
+class WeakFence(sympy.Function, Fence):
+
+    """
+    A Fence impairing topological sorting while not imposing constraints
+    on the termination of the potentially asynchronous operations initiated
+    before or after the fence.
     """
 
     pass
