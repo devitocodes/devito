@@ -1,7 +1,7 @@
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import generate_indices
+from devito.finite_differences import Weights, generate_indices
 from devito.finite_differences.tools import numeric_weights, symbolic_weights
 from devito.tools import filter_ordered, as_tuple
 
@@ -268,8 +268,13 @@ def default_rules(obj, functions):
         return subs
 
     # Determine which 'rules' are missing
+
     sym = get_sym(functions)
     terms = obj.find(sym)
+    for i in obj.find(Weights):
+        for w in i.weights:
+            terms.update(w.find(sym))
+
     args_present = filter_ordered(term.args[1:] for term in terms)
 
     subs = obj.substitutions

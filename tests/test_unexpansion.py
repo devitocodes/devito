@@ -21,6 +21,23 @@ class TestLoopScheduling(object):
         assert_structure(op, ['t,x,y'], 't,x,y')
 
 
+class TestSymbolicCoefficients(object):
+
+    def test_fallback_to_default(self):
+        grid = Grid(shape=(8, 8, 8))
+
+        u = TimeFunction(name='u', grid=grid, coefficients='symbolic',
+                         space_order=4, time_order=2)
+
+        eq = Eq(u.forward, u.dx2 + 1)
+
+        op = Operator(eq, opt=('advanced', {'expand': False}))
+
+        # Ensure all symbols have been resolved
+        op.arguments(dt=1, time_M=10)
+        op.cfunction
+
+
 class Test1Pass(object):
 
     def test_v0(self):
