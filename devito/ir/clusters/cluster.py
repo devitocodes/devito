@@ -6,9 +6,10 @@ from cached_property import cached_property
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Guards, Properties, Scope, detect_accesses,
-                               detect_io, normalize_properties, normalize_syncs,
-                               minimum, maximum, null_ispace)
+                               DataSpace, Guards, Properties, Scope, WithLock,
+                               PrefetchUpdate, detect_accesses, detect_io,
+                               normalize_properties, normalize_syncs, minimum,
+                               maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
@@ -178,16 +179,16 @@ class Cluster(object):
         return any(e.is_Increment for e in self.exprs)
 
     @cached_property
-    def is_scalar(self):
-        return not any(f.is_Function for f in self.scope.writes)
-
-    @cached_property
     def grid(self):
         grids = set(f.grid for f in self.functions if f.is_DiscreteFunction) - {None}
         if len(grids) == 1:
             return grids.pop()
         else:
             raise ValueError("Cluster has no unique Grid")
+
+    @cached_property
+    def is_scalar(self):
+        return not any(f.is_Function for f in self.scope.writes)
 
     @cached_property
     def is_dense(self):
@@ -242,6 +243,14 @@ class Cluster(object):
     def is_fence(self):
         return (len(self.exprs) > 0 and
                 all(isinstance(e.rhs, Fence) for e in self.exprs))
+
+    @property
+    def is_async(self):
+        """
+        True if an asynchronous Cluster, False otherwise.
+        """
+        return any(isinstance(s, (WithLock, PrefetchUpdate))
+                   for s in flatten(self.syncs.values()))
 
     @cached_property
     def dtype(self):
