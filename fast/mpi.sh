@@ -20,11 +20,12 @@ export OMP_PLACES=cores
 export OMP_PROC_BIND=true
 
 # Doing 4 ranks X 4 threads locally here
-export OMP_NUM_THREADS=16
-export MPI_NUM_RANKS=8
-
+export OMP_NUM_THREADS=4
+export MPI_NUM_RANKS=4
+export HYDRA_TOPO_DEBUG=1
 # Just extract the reported throughput from the whole output of the passed command
 get_throughput() {
+    #echo $($@)
     $@ |& grep Global | head -n 1 | cut -d ' ' -f6
 }
 
@@ -45,8 +46,8 @@ do
       #  mpirun -np $MPI_NUM_RANKS --bind-to=core python $bench -so $so --xdsl 1
 
       # Get the runtimes
-      DEVITO_MPI=diag2 devito_time=$(get_throughput mpirun -np $MPI_NUM_RANKS --bind-to core python $bench -so $so --devito 1)
-      xdsl_time=$(get_throughput mpirun -np $MPI_NUM_RANKS --bind-to core python $bench -so $so --xdsl 1)
+      DEVITO_MPI=diag2 devito_time=$(get_throughput mpirun -n $MPI_NUM_RANKS --bind-to core:$OMP_NUM_THREADS python $bench -so $so --devito 1)
+      xdsl_time=$(get_throughput mpirun -n $MPI_NUM_RANKS --bind-to core:$OMP_NUM_THREADS python $bench -so $so --xdsl 1)
       # print CSV line
       echo $bench_name,$so,$devito_time,$xdsl_time
   done
