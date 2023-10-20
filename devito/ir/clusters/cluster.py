@@ -13,7 +13,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
-from devito.types import Fence
+from devito.types import Fence, WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -236,13 +236,19 @@ class Cluster(object):
 
     @property
     def is_halo_touch(self):
-        return (len(self.exprs) > 0 and
-                all(isinstance(e.rhs, HaloTouch) for e in self.exprs))
+        return self.exprs and all(isinstance(e.rhs, HaloTouch) for e in self.exprs)
 
     @property
     def is_fence(self):
-        return (len(self.exprs) > 0 and
-                all(isinstance(e.rhs, Fence) for e in self.exprs))
+        return self.is_weak_fence or self.is_critical_region
+
+    @property
+    def is_weak_fence(self):
+        return self.exprs and all(isinstance(e.rhs, WeakFence) for e in self.exprs)
+
+    @property
+    def is_critical_region(self):
+        return self.exprs and all(isinstance(e.rhs, CriticalRegion) for e in self.exprs)
 
     @property
     def is_async(self):

@@ -11,7 +11,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
-                          Function, Symbol, Temp, TempArray, TBArray)
+                          CriticalRegion, Function, Symbol, Temp, TempArray,
+                          TBArray)
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -23,10 +24,9 @@ AFFINE = IndexMode('affine')  # noqa
 REGULAR = IndexMode('regular')
 IRREGULAR = IndexMode('irregular')
 
-mocksym = Symbol(name='⋈')
-"""
-A Symbol to create mock data depdendencies.
-"""
+# Symbols to create mock data depdendencies
+mocksym0 = Symbol(name='__⋈_0__')
+mocksym1 = Symbol(name='__⋈_1__')
 
 
 class IterationInstance(LabeledVector):
@@ -848,9 +848,21 @@ class Scope(object):
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
+
+        # Fences (any sort) cannot float around upon topological sorting
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, Fence):
-                yield TimedAccess(mocksym, 'W', i, e.ispace)
+                yield TimedAccess(mocksym0, 'W', i, e.ispace)
+
+        # CriticalRegions are stronger than plain Fences.
+        # We must also ensure that none of the Eqs within an opening-closing
+        # CriticalRegion pair floats outside upon topological sorting
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, CriticalRegion) and e.rhs.opening:
+                for j, e1 in enumerate(self.exprs[i+1:], 1):
+                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
+                        break
+                    yield TimedAccess(mocksym1, 'W', i+j, e1.ispace)
 
     @cached_property
     def writes(self):
@@ -906,10 +918,39 @@ class Scope(object):
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
+
+        # Fences (any sort) cannot float around upon topological sorting
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, Fence):
                 for j in range(len(self.exprs)):
-                    yield TimedAccess(mocksym, 'R', j, e.ispace)
+                    yield TimedAccess(mocksym0, 'R', j, e.ispace)
+                break
+
+        # CriticalRegions are stronger than plain Fences.
+        # We must also ensure that none of the Eqs within an opening-closing
+        # CriticalRegion pair floats outside upon topological sorting
+        for i, e in enumerate(self.exprs):
+            # Prevent floating before the opening
+            if isinstance(e.rhs, CriticalRegion) and e.rhs.opening:
+                for j, e1 in enumerate(reversed(self.exprs[:i]), 1):
+                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
+                        break
+                    yield TimedAccess(mocksym1, 'R', i-j, e1.ispace)
+
+                # Ensure that "weak uses" of Scope (e.g., when the caller looks
+                # just at the written/read objects rather than the actual data
+                # dependencies) are shielded too
+                for e1 in self.exprs[i+1:]:
+                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
+                        break
+                    yield TimedAccess(e1.lhs, 'R', i, e.ispace)
+
+            # Prevent floating after the closing
+            if isinstance(e.rhs, CriticalRegion) and e.rhs.closing:
+                for j, e1 in enumerate(self.exprs[i+1:], 1):
+                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.opening:
+                        break
+                    yield TimedAccess(mocksym1, 'R', i+j, e1.ispace)
 
     @memoized_generator
     def reads_gen(self):

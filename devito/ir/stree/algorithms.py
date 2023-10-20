@@ -138,6 +138,11 @@ def preprocess(clusters, options=None, **kwargs):
         * Moving the HaloTouch's from `clusters` into a mapper `M: {HT -> C}`.
           `c = M(ht)` is the first Cluster of the sequence requiring the halo
           exchange `ht` to have terminated before the execution can proceed.
+        * Lower the CriticalRegions:
+            * If they encode an asynchronous operation (e.g., a WaitLock), attach
+              it to a Nop Cluster for future lowering;
+            * Otherwise, simply remove them, as they have served their purpose
+              at this point.
         * Remove the WeakFences, as they have served their purpose at this point.
     """
     queue = []
@@ -146,6 +151,8 @@ def preprocess(clusters, options=None, **kwargs):
         if c.is_halo_touch:
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
             queue.append(c.rebuild(halo_scheme=hs))
+        elif c.is_critical_region and c.syncs:
+            processed.append(c.rebuild(exprs=None, syncs=c.syncs))
         elif c.is_wild:
             continue
         else:

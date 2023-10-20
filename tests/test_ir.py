@@ -9,7 +9,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym)
+                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym0)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
@@ -746,7 +746,7 @@ class TestDependenceAnalysis(object):
         assert len(scope.d_flow) == 3
         assert len(scope.d_anti) == 0
         assert any(v.function is f for v in scope.d_flow)
-        assert any(v.function is mocksym for v in scope.d_flow)
+        assert any(v.function is mocksym0 for v in scope.d_flow)
 
     def test_indirect_access(self):
         grid = Grid(shape=(4, 4))

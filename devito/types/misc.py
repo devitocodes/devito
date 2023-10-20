@@ -10,7 +10,7 @@ from devito.tools import Pickable, as_tuple
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence']
+           'nop', 'WeakFence', 'CriticalRegion']
 
 
 class Timer(CompositeObject):
@@ -241,12 +241,55 @@ class Jump(Fence):
 class WeakFence(sympy.Function, Fence):
 
     """
-    A Fence impairing topological sorting while not imposing constraints
-    on the termination of the potentially asynchronous operations initiated
-    before or after the fence.
+    The weakest of all possible fences.
+
+    Equations cannot be moved across a WeakFence.
+    However an operation initiated before a WeakFence can terminate at any
+    point in time.
     """
 
     pass
+
+
+class CriticalRegion(sympy.Function, Fence):
+
+    """
+    A fence that either opens or closes a "critical sequence of Equations".
+
+    There always are two CriticalRegions for each critical sequence of Equations:
+
+        * `CriticalRegion(init)`: opens the critical sequence
+        * `CriticalRegion(end)`: closes the critical sequence
+
+    `CriticalRegion(end)` must follow `CriticalRegion(init)`.
+
+    A CriticalRegion implements a strong form of fencing:
+
+        * Equations within a critical sequence cannot be moved outside of
+          the opening and closing CriticalRegions.
+            * However, internal rearrangements are possible
+        * An asynchronous operation initiated within the critial sequence must
+          terminate before re-entering the opening CriticalRegion.
+    """
+
+    def __init__(self, opening, **kwargs):
+        opening = bool(opening)
+
+        sympy.Function.__init__(opening)
+        self.opening = opening
+
+    def __repr__(self):
+        return "%s(%s)" % (self.__class__.__name__,
+                           'OPEN' if self.opening else 'CLOSE')
+
+    __str__ = __repr__
+
+    def _sympystr(self, printer):
+        return str(self)
+
+    @property
+    def closing(self):
+        return not self.opening
 
 
 nop = sympy.Function('NOP')

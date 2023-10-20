@@ -5,6 +5,7 @@ from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
@@ -44,8 +45,9 @@ class Lift(Queue):
                 processed.append(c)
                 continue
 
-            # Synchronization operations prevent lifting
-            if c.syncs.get(dim):
+            # Synchronization prevents lifting
+            if c.syncs.get(dim) or \
+               in_critical_region(c, clusters):
                 processed.append(c)
                 continue
 
