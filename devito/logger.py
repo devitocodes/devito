@@ -16,12 +16,14 @@ logger.addHandler(stream_handler)
 # Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
 PERF = 19
+BENCH = logging.DEBUG
 INFO = logging.INFO
 WARNING = logging.WARNING
 ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
 logging.addLevelName(PERF, "PERF")
+logging.addLevelName(BENCH, "BENCH")
 
 logger_registry = {
     'DEBUG': DEBUG,
@@ -29,7 +31,8 @@ logger_registry = {
     'INFO': INFO,
     'WARNING': WARNING,
     'ERROR': ERROR,
-    'CRITICAL': CRITICAL
+    'CRITICAL': CRITICAL,
+    'BENCH': BENCH
 }
 
 NOCOLOR = '%s'
@@ -137,6 +140,9 @@ def error(msg, *args, **kwargs):
 def debug(msg, *args, **kwargs):
     log(msg, DEBUG, *args, **kwargs)
 
+
+def bench(msg, *args, **kwargs):
+    log(msg, BENCH, *args, **kwargs)
 
 @contextmanager
 def bar():
