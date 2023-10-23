@@ -69,7 +69,7 @@ if args.devito:
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
 
-    op = Operator([eq_stencil], name='DevitoOperator', opt=opt)
+    op = Operator([eq_stencil], name='DevitoDiffusionOperator', opt=opt)
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
 
@@ -86,7 +86,7 @@ if args.devito:
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 if args.xdsl:
-    xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
+    xdslop = XDSLOperator([eq_stencil], name='XDSLDiffusionOperator')
     xdslop.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))
 
