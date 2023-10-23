@@ -56,7 +56,7 @@ def is_memcpy(expr):
     return a.function.is_Array or b.function.is_Array
 
 
-def make_critical_sequence(ispace, sequence):
+def make_critical_sequence(ispace, sequence, **kwargs):
     sequence = as_tuple(sequence)
     assert len(sequence) >= 1
 
@@ -64,13 +64,13 @@ def make_critical_sequence(ispace, sequence):
 
     # Opening
     expr = Eq(Symbol(name='⋈'), CriticalRegion(True))
-    processed.append(Cluster(exprs=expr, ispace=ispace))
+    processed.append(Cluster(exprs=expr, ispace=ispace, **kwargs))
 
     processed.extend(sequence)
 
     # Closing
     expr = Eq(Symbol(name='⋈'), CriticalRegion(False))
-    processed.append(Cluster(exprs=expr, ispace=ispace))
+    processed.append(Cluster(exprs=expr, ispace=ispace, **kwargs))
 
     return processed
 

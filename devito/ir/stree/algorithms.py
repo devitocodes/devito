@@ -152,7 +152,7 @@ def preprocess(clusters, options=None, **kwargs):
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
             queue.append(c.rebuild(halo_scheme=hs))
         elif c.is_critical_region and c.syncs:
-            processed.append(c.rebuild(exprs=None, syncs=c.syncs))
+            processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
         elif c.is_wild:
             continue
         else:
