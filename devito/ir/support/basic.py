@@ -860,7 +860,7 @@ class Scope(object):
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, CriticalRegion) and e.rhs.opening:
                 for j, e1 in enumerate(self.exprs[i+1:], 1):
-                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
+                    if isinstance(e1.rhs, CriticalRegion) and e1.rhs.closing:
                         break
                     yield TimedAccess(mocksym1, 'W', i+j, e1.ispace)
 
@@ -916,41 +916,32 @@ class Scope(object):
         for i in symbols:
             yield TimedAccess(i, 'R', -1)
 
+    @memoized_generator
+    def reads_synchro_gen(self):
+        """
+        Generate all reads due to syncronization operations. These may be explicit
+        or implicit.
+        """
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
 
         # Fences (any sort) cannot float around upon topological sorting
         for i, e in enumerate(self.exprs):
             if isinstance(e.rhs, Fence):
-                for j in range(len(self.exprs)):
-                    yield TimedAccess(mocksym0, 'R', j, e.ispace)
-                break
+                if i > 0:
+                    yield TimedAccess(mocksym0, 'R', i-1, e.ispace)
+                if i < len(self.exprs)-1:
+                    yield TimedAccess(mocksym0, 'R', i+1, e.ispace)
 
         # CriticalRegions are stronger than plain Fences.
         # We must also ensure that none of the Eqs within an opening-closing
         # CriticalRegion pair floats outside upon topological sorting
         for i, e in enumerate(self.exprs):
-            # Prevent floating before the opening
-            if isinstance(e.rhs, CriticalRegion) and e.rhs.opening:
-                for j, e1 in enumerate(reversed(self.exprs[:i]), 1):
-                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
-                        break
-                    yield TimedAccess(mocksym1, 'R', i-j, e1.ispace)
-
-                # Ensure that "weak uses" of Scope (e.g., when the caller looks
-                # just at the written/read objects rather than the actual data
-                # dependencies) are shielded too
-                for e1 in self.exprs[i+1:]:
-                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.closing:
-                        break
-                    yield TimedAccess(e1.lhs, 'R', i, e.ispace)
-
-            # Prevent floating after the closing
-            if isinstance(e.rhs, CriticalRegion) and e.rhs.closing:
-                for j, e1 in enumerate(self.exprs[i+1:], 1):
-                    if isinstance(e1.rhs, CriticalRegion) and e.rhs.opening:
-                        break
-                    yield TimedAccess(mocksym1, 'R', i+j, e1.ispace)
+            if isinstance(e.rhs, CriticalRegion):
+                if e.rhs.opening and i > 0:
+                    yield TimedAccess(mocksym1, 'R', i-1, self.exprs[i-1].ispace)
+                elif e.rhs.closing and i < len(self.exprs)-1:
+                    yield TimedAccess(mocksym1, 'R', i+1, self.exprs[i+1].ispace)
 
     @memoized_generator
     def reads_gen(self):
@@ -961,7 +952,9 @@ class Scope(object):
         # is efficiency. Sometimes we wish to extract all reads to a given
         # AbstractFunction, and we know that by construction these can't
         # appear among the implicit reads
-        return chain(self.reads_explicit_gen(), self.reads_implicit_gen())
+        return chain(self.reads_explicit_gen(),
+                     self.reads_synchro_gen(),
+                     self.reads_implicit_gen())
 
     @memoized_generator
     def reads_smart_gen(self, f):
@@ -980,7 +973,7 @@ class Scope(object):
         the iteration symbols.
         """
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
-            for i in self.reads_explicit_gen():
+            for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
                 if f is i.function:
                     for j in extrema(i.access):
                         yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
