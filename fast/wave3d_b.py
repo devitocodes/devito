@@ -138,4 +138,3 @@ if args.xdsl:
 
 if args.xdsl and args.devito:
     print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
-    
