@@ -435,8 +435,7 @@ def classify(exprs, ispace):
     for f, r in scope.reads.items():
         if not f.is_DiscreteFunction:
             continue
-        elif not isinstance(f.grid, Grid):
-            # TODO: improve me
+        elif f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't

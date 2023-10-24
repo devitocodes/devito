@@ -108,7 +108,7 @@ class AbstractSparseFunction(DiscreteFunction):
                 if i == cls._sparse_position:
                     loc_shape.append(glb_npoint[grid.distributor.myrank])
                 elif d in grid.dimensions:
-                    loc_shape.append(grid.dimension_map[d].loc)
+                    loc_shape.append(grid.size_map[d].loc)
                 else:
                     loc_shape.append(s)
         return tuple(loc_shape)
@@ -1455,7 +1455,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 coeff_shape = self._radius[d]
             else:
                 coeff_dim = d
-                coeff_shape = self.grid.dimension_map[d].glb
+                coeff_shape = self.grid.size_map[d].glb
 
             self.interpolation_coefficients[d] = SubFunction(
                 name="%s_coefficients_%s" % (self.name, d.name),
@@ -1842,7 +1842,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             dim_r = self.r[dim]
             if dim_r is None:
                 # size is the whole grid
-                dim_r = self.grid.dimension_map[dim].glb
+                dim_r = self.grid.size_map[dim].glb
 
             # Define the split
             dim_breaks[:-2:2] = [
@@ -2036,7 +2036,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # handle None radius
         r_tuple_no_none = tuple(
-            ri if ri is not None else self.grid.dimension_map[d].glb
+            ri if ri is not None else self.grid.size_map[d].glb
             for ri, d in zip(r_tuple, self.grid.dimensions)
         )
 
@@ -2094,7 +2094,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             this_dim_r = self.r[dim]
             effective_gridpoints = scattered_gp[active_mrow, idim]
             if this_dim_r is None:
-                this_dim_r = self.grid.dimension_map[dim].glb
+                this_dim_r = self.grid.size_map[dim].glb
                 effective_gridpoints = np.zeros_like(effective_gridpoints)
 
             # rewrite the matrix to remove the rows in groups 0 and 4
@@ -2119,7 +2119,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             this_dim_r = self.r[dim]
             effective_gridpoints = scattered_gp[:, idim]
             if this_dim_r is None:
-                this_dim_r = self.grid.dimension_map[dim].glb
+                this_dim_r = self.grid.size_map[dim].glb
                 effective_gridpoints = np.zeros_like(effective_gridpoints)
 
             trim_size = np.clip(_left - effective_gridpoints, 0, this_dim_r)
