@@ -194,7 +194,10 @@ def iet_pass(func):
             pass
         try:
             # Pure function case
+            print("args", args)
             graph, = args
+            print("call(graph)", call(graph))
+            print("func.__name__", func.__name__)
             return maybe_timed(call(graph), func.__name__)(func, **kwargs)
         except ValueError:
             # Instance method case
