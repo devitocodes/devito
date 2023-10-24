@@ -567,6 +567,15 @@ class SubDomain(AbstractSubDomain):
                            else dist_interval[dim].intersect(sdim_interval[dim]))
                           for dim in grid.dimensions)
 
+        for dim in grid.dimensions:
+            if self.dimension_map[dim].is_Sub:
+                if self.dimension_map[dim].local:
+                    in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
+                    off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
+                    if not in_rank and not off_rank:
+                        raise ValueError("SubDimension %s is local and cannot be"
+                                         " decomposed across MPI ranks" % dim)
+
         if any([i.is_empty for i in intervals]):
             # SubDomain does not overlap this rank
             self._shape_local = tuple(0 for d in grid.dimensions)
