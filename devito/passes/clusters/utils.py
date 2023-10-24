@@ -1,5 +1,4 @@
 from collections import defaultdict
-from itertools import groupby
 
 from devito.ir import Cluster
 from devito.symbolics import uxreplace

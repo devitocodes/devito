@@ -13,7 +13,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
-from devito.types import Fence, WeakFence, CriticalRegion
+from devito.types import WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
 
