@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 
 from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
-                    norm, XDSLOperator)
+                    norm, XDSLOperator, configuration)
 from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -61,7 +61,13 @@ eq_stencil = Eq(u.forward, stencil)
 if args.devito:
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    op = Operator([eq_stencil], name='DevitoOperator')
+
+    # To measure Devito at its best on GPU, we have to set the tile siwe manually
+    opt = None
+    if configuration['platform'].name == 'nvidiaX':
+        opt = ('advanced', {'par-tile': (32, 4, 8)})
+    op = Operator([eq_stencil], name='DevitoOperator', opt=opt)
+
     # Apply the operator for a number of timesteps
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
