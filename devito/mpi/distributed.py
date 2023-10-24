@@ -4,7 +4,7 @@ from itertools import groupby, product
 from functools import cached_property
 
 from math import ceil, pow
-from sympy import factorint
+from sympy import factorint, Interval
 
 import atexit
 
@@ -13,7 +13,8 @@ from cgen import Struct, Value
 
 from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered
+from devito.tools import (EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered,
+                          frozendict)
 from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
@@ -63,8 +64,8 @@ except ImportError as e:
             return None
 
 
-__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology',
-           'devito_mpi_init', 'devito_mpi_finalize']
+__all__ = ['Distributor', 'SubDistributor', 'SparseDistributor', 'MPI',
+           'CustomTopology', 'devito_mpi_init', 'devito_mpi_finalize']
 
 
 def devito_mpi_init():
@@ -201,11 +202,117 @@ class AbstractDistributor(ABC):
                 return args[0]
         return self.decomposition[dim].index_glb_to_loc(*args)
 
+    @cached_property
+    def loc_empty(self):
+        """This rank is empty"""
+        return any(d.loc_empty for d in self.decomposition)
 
-class Distributor(AbstractDistributor):
+
+class DenseDistributor(AbstractDistributor):
 
     """
     Decompose a domain over a set of MPI processes.
+
+    Notes
+    -----
+    This is an abstract class, which defines the interface that
+    all subclasses are expected to implement.
+    """
+
+    @property
+    def comm(self):
+        return self._comm
+
+    @property
+    def myrank(self):
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.rank
+        else:
+            return 0
+
+    @property
+    def mycoords(self):
+        if self.comm is not MPI.COMM_NULL:
+            return tuple(self.comm.coords)
+        else:
+            return tuple(0 for _ in range(self.ndim))
+
+    @property
+    def nprocs(self):
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.size
+        else:
+            return 1
+
+    @property
+    def nprocs_local(self):
+        if self.comm is not MPI.COMM_NULL:
+            local_comm = MPI.Comm.Split_type(self.comm, MPI.COMM_TYPE_SHARED)
+            node_size = local_comm.Get_size()
+            local_comm.Free()
+            return node_size
+        else:
+            return 1
+
+    @property
+    def topology(self):
+        return self._topology
+
+    @property
+    def topology_logical(self):
+        if isinstance(self.topology, CustomTopology):
+            return self.topology.logical
+        else:
+            return None
+
+    @cached_property
+    def all_coords(self):
+        """
+        The coordinates of each MPI rank in the decomposed domain, ordered
+        based on the MPI rank.
+        """
+        ret = product(*[range(i) for i in self.topology])
+        return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
+
+    @cached_property
+    def all_numb(self):
+        """The global numbering of all MPI ranks."""
+        ret = []
+        for c in self.all_coords:
+            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
+            ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
+        return tuple(ret)
+
+    @cached_property
+    def all_ranges(self):
+        """The global ranges of all MPI ranks."""
+        ret = []
+        for i in self.all_numb:
+            # In cases where ranks are empty, return a range(0, 0)
+            # FIXME: Not sure I like this, seems hacky
+            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) if len(j) > 0
+                                       else range(0, 0) for j in i],
+                                     getters=self.dimensions))
+        return tuple(ret)
+
+    @cached_property
+    def _obj_comm(self):
+        """An Object representing the MPI communicator."""
+        return MPICommObject(self.comm)
+
+    @cached_property
+    def _obj_neighborhood(self):
+        """
+        A CompositeObject describing the calling MPI rank's neighborhood
+        in the decomposed grid.
+        """
+        return MPINeighborhood(self.neighborhood)
+
+
+class Distributor(DenseDistributor):
+
+    """
+    Decompose a grid over a set of MPI processes.
 
     Parameters
     ----------
@@ -262,52 +369,6 @@ class Distributor(AbstractDistributor):
         self._decomposition = [Decomposition(np.array_split(range(i), j), c)
                                for i, j, c in zip(shape, self.topology, self.mycoords)]
 
-    @property
-    def comm(self):
-        return self._comm
-
-    @property
-    def myrank(self):
-        if self.comm is not MPI.COMM_NULL:
-            return self.comm.rank
-        else:
-            return 0
-
-    @property
-    def mycoords(self):
-        if self.comm is not MPI.COMM_NULL:
-            return tuple(self.comm.coords)
-        else:
-            return tuple(0 for _ in range(self.ndim))
-
-    @property
-    def nprocs(self):
-        if self.comm is not MPI.COMM_NULL:
-            return self.comm.size
-        else:
-            return 1
-
-    @property
-    def nprocs_local(self):
-        if self.comm is not MPI.COMM_NULL:
-            local_comm = MPI.Comm.Split_type(self.comm, MPI.COMM_TYPE_SHARED)
-            node_size = local_comm.Get_size()
-            local_comm.Free()
-            return node_size
-        else:
-            return 1
-
-    @property
-    def topology(self):
-        return self._topology
-
-    @property
-    def topology_logical(self):
-        if isinstance(self.topology, CustomTopology):
-            return self.topology.logical
-        else:
-            return None
-
     @cached_property
     def is_boundary_rank(self):
         """
@@ -317,36 +378,9 @@ class Distributor(AbstractDistributor):
                    zip(self.mycoords, self.topology)])
 
     @cached_property
-    def all_coords(self):
-        """
-        The coordinates of each MPI rank in the decomposed domain, ordered
-        based on the MPI rank.
-        """
-        ret = product(*[range(i) for i in self.topology])
-        return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
-
-    @cached_property
-    def all_numb(self):
-        """The global numbering of all MPI ranks."""
-        ret = []
-        for c in self.all_coords:
-            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
-            ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
-        return tuple(ret)
-
-    @cached_property
-    def all_ranges(self):
-        """The global ranges of all MPI ranks."""
-        ret = []
-        for i in self.all_numb:
-            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
-                                     getters=self.dimensions))
-        return tuple(ret)
-
-    @cached_property
     def glb_pos_map(self):
         """
-        A mapper ``Dimension -> DataSide`` providing the position of the calling
+        A mapper `Dimension -> DataSide` providing the position of the calling
         MPI rank in the decomposed domain.
         """
         ret = {}
@@ -395,22 +429,22 @@ class Distributor(AbstractDistributor):
     @property
     def neighborhood(self):
         """
-        A mapper ``M`` describing the calling MPI rank's neighborhood in the
+        A mapper `M` describing the calling MPI rank's neighborhood in the
         decomposed grid. Let
 
-            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the decomposed
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the decomposed
               Dimensions.
-            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
-            * ``p`` be the rank of a neighbour MPI process.
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `p` be the rank of a neighbour MPI process.
 
-        Then ``M`` can be indexed in two ways:
+        Then `M` can be indexed in two ways:
 
-            * ``M[d] -> (s -> p)``; that is, ``M[d]`` returns a further mapper
+            * `M[d] -> (s -> p)`; that is, `M[d]` returns a further mapper
               (from DataSide to MPI rank) from which the two adjacent processes
-              along ``d`` can be retrieved.
-            * ``M[(s0, s1, ..., sn)] -> p``, where ``s0`` is the DataSide along
-              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
-              useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
+              along `d` can be retrieved.
+            * `M[(s0, s1, ..., sn)] -> p`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
+              useful to retrieve the diagonal neighbours (e.g., `M[(LEFT, LEFT)]`
               gives the top-left neighbour in a 2D grid).
         """
         # Set up horizontal neighbours
@@ -432,22 +466,228 @@ class Distributor(AbstractDistributor):
 
         return ret
 
-    @cached_property
-    def _obj_comm(self):
-        """An Object representing the MPI communicator."""
-        return MPICommObject(self.comm)
-
-    @cached_property
-    def _obj_neighborhood(self):
-        """
-        A CompositeObject describing the calling MPI rank's neighborhood
-        in the decomposed grid.
-        """
-        return MPINeighborhood(self.neighborhood)
-
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
                            comm or self.comm)
+
+
+class SubDistributor(DenseDistributor):
+
+    """
+    Decompose a subset of a domain over a set of MPI processes in a manner consistent
+    with the parent distributor.
+
+    Parameters
+    ----------
+    subdomain : SubDomain
+        The subdomain to be decomposed.
+
+    Notes
+    -----
+    This class is used internally by Devito for distributing
+    Functions defined on SubDomains. It stores reference to the
+    parent Distributor from which it is created.
+    """
+
+    def __init__(self, subdomain):
+        # Does not keep reference to the SubDomain since SubDomain will point to
+        # this SubDistributor and Distributor does not point to the Grid
+
+        super().__init__(subdomain.shape, subdomain.dimensions)
+
+        self._dimension_map = frozendict({pd: sd for pd, sd
+                                          in zip(subdomain.grid.dimensions,
+                                                 subdomain.dimensions)})
+
+        self._parent = subdomain.grid.distributor
+
+        self._comm = self.parent.comm
+        self._topology = self.parent.topology
+
+        self.__decomposition_setup__()
+
+    def __decomposition_setup__(self):
+        """
+        Set up the decomposition, aligned with that of the parent Distributor.
+        """
+        def interval_bounds(interval):
+            """Extract SubDimension Interval bounds."""
+            if interval.is_empty:
+                # SubDimension has no indices. Min and max are NaN.
+                return np.NaN, np.NaN
+            elif interval.is_Interval:
+                # Interval containing two or more indices. Min and max are ends.
+                return interval.start, interval.end
+            else:
+                # Interval where start == end defaults to FiniteSet.
+                # Repeat this value for min and max
+                return interval.args[0], interval.args[0]
+
+        decompositions = []
+        for dec, i in zip(self.parent._decomposition, self.subdomain_interval):
+            if i is None:
+                decompositions.append(dec)
+            else:
+                start, end = interval_bounds(i)
+                decompositions.append([d[np.logical_and(d >= start, d <= end)]
+                                       for d in dec])
+
+        self._decomposition = [Decomposition(d, c)
+                               for d, c in zip(decompositions, self.mycoords)]
+
+    @property
+    def parent(self):
+        """The parent distributor of this SubDistributor."""
+        return self._parent
+
+    @property
+    def par_shape(self):
+        """Shape of the parent decomposition."""
+        return self.parent.glb_shape
+
+    @property
+    def par_dimensions(self):
+        """Dimensions of the parent decomposition."""
+        return self.parent.dimensions
+
+    @property
+    def par_slices(self):
+        """
+        The global indices owned by the calling MPI rank, as a mapper from
+        Dimensions to slices. Shortcut for `parent.glb_slices`.
+        """
+        return self.parent.glb_slices
+
+    @property
+    def dimension_map(self):
+        return self._dimension_map
+
+    @cached_property
+    def domain_interval(self):
+        """The interval spanned by this MPI rank."""
+        return tuple(Interval(self.par_slices[d].start, self.par_slices[d].stop-1)
+                     for d in self.par_dimensions)
+
+    @cached_property
+    def subdomain_interval(self):
+        """The interval spanned by the SubDomain."""
+        # Assumes no override of x_m and x_M supplied to operator
+        bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
+        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
+                                                               self.par_shape)})
+
+        sd_interval = []  # The Interval of SubDimension indices
+        for d in self.dimensions:
+            if d.is_Sub:
+                # Need to filter None from thicknesses as used as placeholder
+                tkn_map = {k: v for k, v in d._thickness_map.items() if v is not None}
+                tkn_map.update(bounds_map)
+                # Evaluate SubDimension thicknesses and substitute into Interval
+                sd_interval.append(d._interval.subs(tkn_map))
+            else:
+                sd_interval.append(None)
+        return tuple(sd_interval)
+
+    @cached_property
+    def intervals(self):
+        """The interval spanned by the SubDomain in each dimension on this rank."""
+        return tuple(d if s is None else d.intersect(s)
+                     for d, s in zip(self.domain_interval, self.subdomain_interval))
+
+    @cached_property
+    def crosses(self):
+        """
+        A mapper `M` indicating the sides of this MPI rank crossed by the SubDomain.
+        Let
+
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the dimensions of the parent
+              distributor.
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `c` be a bool indicating whether the SubDomain crosses the edge of the
+              rank on this side.
+
+        Then `M` can be indexed in two ways:
+
+            * `M[d] -> (s -> c)`; that is, `M[d]` returns a further mapper
+              (from DataSide to bool) used to determine whether the SubDomain crosses
+              the edge of the rank on this side.
+            * `M[(s0, s1, ..., sn)] -> c`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
+              determine whether the SubDomain crosses the edge of the rank on this side.
+        """
+        def get_crosses(d, di, si):
+            if not d.is_Sub:
+                return {LEFT: True, RIGHT: True}
+
+            # SubDomain is either fully contained by or not present on this rank
+            if di.issuperset(si) or di.isdisjoint(si):
+                return {LEFT: False, RIGHT: False}
+            elif d.local:
+                raise ValueError("SubDimension %s is local and cannot be"
+                                 " decomposed across MPI ranks" % d)
+            return {LEFT: si.left < di.left,
+                    RIGHT: si.right > di.right}
+
+        crosses = {d: get_crosses(d, di, si) for d, di, si
+                   in zip(self.dimensions, self.domain_interval,
+                          self.subdomain_interval)}
+
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
+            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
+                             if s in crosses[d])  # Skip over CENTER
+
+        return frozendict(crosses)
+
+    @cached_property
+    def is_boundary_rank(self):
+        """
+        MPI rank interfaces with the boundary of the subdomain.
+        """
+        # Note that domain edges may also be boundaries of the subdomain
+        grid_boundary = self.parent.is_boundary_rank
+        subdomain_boundary = any(not all(self.crosses[d].values())
+                                 for d in self.dimensions)
+        return grid_boundary or subdomain_boundary
+
+    @property
+    def neighborhood(self):
+        """
+        A mapper `M` describing the calling MPI rank's neighborhood in the
+        decomposed grid. Let
+
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the decomposed
+              Dimensions.
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `p` be the rank of a neighbour MPI process.
+
+        Then `M` can be indexed in two ways:
+
+            * `M[d] -> (s -> p)`; that is, `M[d]` returns a further mapper
+              (from DataSide to MPI rank) from which the two adjacent processes
+              along `d` can be retrieved.
+            * `M[(s0, s1, ..., sn)] -> p`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
+              useful to retrieve the diagonal neighbours (e.g., `M[(LEFT, LEFT)]`
+              gives the top-left neighbour in a 2D grid).
+        """
+        shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
+        ret = {}
+        for d, (src, dest) in shifts.items():
+            ret[d] = {}
+            ret[d][LEFT] = MPI.PROC_NULL if not self.crosses[d][LEFT] else src
+            ret[d][RIGHT] = MPI.PROC_NULL if not self.crosses[d][RIGHT] else dest
+
+        # Set up diagonal neighbours
+        for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
+            neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
+
+            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)) \
+               or not self.crosses[i]:
+                ret[i] = MPI.PROC_NULL
+            else:
+                ret[i] = self.comm.Get_cart_rank(neighbor)
+
+        return ret
 
 
 class SparseDistributor(AbstractDistributor):

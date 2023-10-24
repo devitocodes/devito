@@ -317,7 +317,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         w = kwargs.get('weights', kwargs.get('w'))
         order = order or self.space_order
-        space_dims = [d for d in self.dimensions if d.is_Space]
+        space_dims = [d.root if d.is_Sub else d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
