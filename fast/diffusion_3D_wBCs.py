@@ -44,12 +44,7 @@ to = args.time_order
 
 print("dx %s, dy %s, dz %s" % (dx, dy, dz))
 
-topology = None
-#xDSL only handles 2D domain decomposition right now
-if args.xdsl:
-    topology = ('*', '*', 1)
-
-grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.), topology=topology)
+grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
 devito_out = TimeFunction(name='u', grid=grid, space_order=so)
 
@@ -69,7 +64,7 @@ if args.devito:
     opt = None
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
-    op = Operator([eq_stencil], name='DevitoOperator', opt=opt)
+    op = Operator([eq_stencil], name='DevitoDiffusionOperator', opt=opt)
 
     # Apply the operator for a number of timesteps
     op.apply(time=nt, dt=dt, a=nu)
@@ -86,7 +81,7 @@ if args.xdsl:
     # Reset field
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    xdslop = XDSLOperator([eq_stencil], name='xDSLOperator')
+    xdslop = XDSLOperator([eq_stencil], name='xDSLDiffusionOperator')
     # Apply the xdsl operator for a number of timesteps
     xdslop.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))

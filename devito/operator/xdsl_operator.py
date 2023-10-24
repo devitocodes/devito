@@ -86,10 +86,8 @@ class XDSLOperator(Operator):
     @property
     def mpi_shape(self) -> tuple:
         dist = self.functions[0].grid.distributor
-        # temporary fix:
-        # swap dim 0 and 1 in topology because dmp.grid is row major and not column major
-
-        return (dist.topology[1], dist.topology[0], *dist.topology[2:]), dist.myrank
+        # reverse topology for row->column major
+        return dist.topology, dist.myrank
 
     def _jit_compile(self):
         """
@@ -134,7 +132,10 @@ class XDSLOperator(Operator):
                 # run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
-                decomp = f"{{strategy=2d-grid slices={slices} restrict_domain=false}}"
+
+                decomp = "2d-grid" if len(shape) == 2 else "3d-grid"
+
+                decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
             elif is_gpu:
                 xdsl_pipeline = XDSL_GPU_PIPELINE

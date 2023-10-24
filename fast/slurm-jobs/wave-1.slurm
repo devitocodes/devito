@@ -60,6 +60,10 @@ export SLURM_CPU_FREQ_REQ=2250000
 #   Additional srun options to pin one thread per physical core
 
 
+
+# DEVITO_MPI=0 python setup_wave3d.py -d 1024 1024 1024 --nt 512 -so 2
 # DEVITO_MPI=0 python setup_wave3d.py -d 1024 1024 1024 --nt 512 -so 4
+# DEVITO_MPI=0 python setup_wave3d.py -d 1024 1024 1024 --nt 512 -so 8
+
 DEVITO_MPI=diag2 srun --distribution=block:block --hint=nomultithread python3 wave3d_b.py -d 1024 1024 1024 --nt 512 -so 4 --devito 1
 srun --distribution=block:block --hint=nomultithread python3 wave3d_b.py -d 1024 1024 1024 --nt 512 -so 4 --xdsl 1
