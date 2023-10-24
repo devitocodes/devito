@@ -8,7 +8,7 @@ from sympy import Symbol
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction)
+                    PrecomputedSparseTimeFunction, SubDomain)
 from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import direct, transpose, left, right, centered
@@ -25,6 +25,14 @@ from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               CallFromPointer, DefFunction)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
+
+
+class SD(SubDomain):
+    name = 'sd'
+
+    def define(self, dimensions):
+        x, y, z = dimensions
+        return {x: x, y: ('middle', 1, 1), z: ('right', 2)}
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
@@ -90,9 +98,15 @@ class TestBasic:
         assert new_t.left == tup.left
         assert new_t.right == tup.right
 
-    def test_function(self, pickle):
+    @pytest.mark.parametrize('on_sd', [False, True])
+    def test_function(self, pickle, on_sd):
         grid = Grid(shape=(3, 3, 3))
-        f = Function(name='f', grid=grid)
+
+        if on_sd:
+            sd = SD(grid=grid)
+            f = Function(name='f', grid=sd)
+        else:
+            f = Function(name='f', grid=grid)
         f.data[0] = 1.
 
         pkl_f = pickle.dumps(f)
