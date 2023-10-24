@@ -4,7 +4,7 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Number, Tuple, sympify
+from sympy import Expr, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
 from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,  # noqa
@@ -278,14 +278,10 @@ class ListInitializer(sympy.Expr, Pickable):
     def __new__(cls, params):
         args = []
         for p in as_tuple(params):
-            if isinstance(p, str):
-                args.append(Symbol(p))
-            elif is_integer(p):
-                args.append(Integer(p))
-            elif not isinstance(p, Expr):
-                raise ValueError("`params` must be an iterable of Expr or str")
-            else:
-                args.append(p)
+            try:
+                args.append(sympify(p))
+            except sympy.SympifyError:
+                raise ValueError("Illegal param `%s`" % p)
         obj = sympy.Expr.__new__(cls, *args)
         obj.params = tuple(args)
         return obj

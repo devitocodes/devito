@@ -355,7 +355,9 @@ class DataManager(object):
         includes = set()
         if isinstance(iet, EntryFunction) and globs:
             for i in sorted(globs, key=lambda f: f.name):
-                includes.add(self._alloc_array_on_global_mem(iet, i, storage))
+                v = self._alloc_array_on_global_mem(iet, i, storage)
+                if v:
+                    includes.add(v)
 
         iet, efuncs = self._inject_definitions(iet, storage)
 

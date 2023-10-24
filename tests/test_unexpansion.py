@@ -1,7 +1,8 @@
 import numpy as np
 
 from conftest import assert_structure, get_params, get_arrays, check_array
-from devito import Buffer, Eq, Function, TimeFunction, Grid, Operator, cos, sin
+from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
+                    Substitutions, Coefficient, cos, sin)
 from devito.types import Symbol
 
 
@@ -35,6 +36,15 @@ class TestSymbolicCoefficients(object):
 
         # Ensure all symbols have been resolved
         op.arguments(dt=1, time_M=10)
+        op.cfunction
+
+    def test_numeric_coeffs(self):
+        grid = Grid(shape=(11,), extent=(10.,))
+        u = Function(name='u', grid=grid, coefficients='symbolic', space_order=2)
+
+        coeffs = Substitutions(Coefficient(2, u, grid.dimensions[0], np.zeros(3)))
+
+        op = Operator(Eq(u, u.dx2, coefficients=coeffs), opt=({'expand': False},))
         op.cfunction
 
 
