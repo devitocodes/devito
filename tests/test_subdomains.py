@@ -847,13 +847,16 @@ class TestSubdomainFunctions:
 
         assert f.data.shape == shape
 
+    # Note that some of the 'left' and 'right' SubDomains here are swapped
+    # with 'middle' as they are local by default and so cannot be decomposed
+    # across MPI ranks.
     @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parametrize('x', [('left', 3), ('left', 6),
-                                   ('right', 3), ('right', 6),
+    @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
+                                   ('right', 3), ('middle', 5, 0),
                                    ('middle', 2, 3), ('middle', 1, 7),
                                    None])
-    @pytest.mark.parametrize('y', [('left', 3), ('left', 6),
-                                   ('right', 3), ('right', 6),
+    @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
+                                   ('right', 3), ('middle', 5, 0),
                                    ('middle', 2, 3), ('middle', 1, 7),
                                    None])
     def test_function_data_shape_mpi(self, x, y):

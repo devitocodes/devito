@@ -507,6 +507,7 @@ class SubDomain(AbstractSubDomain):
         sub_dimensions = []
         sdshape = []
         counter = kwargs.get('counter', 0) - 1
+
         for k, v, s in zip(self.define(self.grid.dimensions).keys(),
                            self.define(self.grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
