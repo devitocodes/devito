@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 
 from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
-                    norm, XDSLOperator)
+                    norm, XDSLOperator, configuration)
 from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -25,6 +25,8 @@ parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
 parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
+
+mpiconf = configuration['mpi']
 
 # Some variable declarations
 nx, ny, nz = args.shape
@@ -49,6 +51,7 @@ if args.xdsl:
 
 grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.), topology=topology)
 u = TimeFunction(name='u', grid=grid, space_order=so)
+devito_out = TimeFunction(name='u', grid=grid, space_order=so)
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
@@ -68,6 +71,11 @@ if args.devito:
     if args.plot:
         plot_3dfunc(u)
 
+    if args.xdsl:
+        configuration['mpi'] = 0
+        devito_out.data[:] = u.data[:]
+        configuration['mpi'] = mpiconf
+
 if args.xdsl:
     # Reset field
     u.data[:, :, :, :] = 0
@@ -78,3 +86,6 @@ if args.xdsl:
     print("XDSL Field norm is:", norm(u))
     if args.plot:
         plot_3dfunc(u)
+
+if args.xdsl and args.devito:
+    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
