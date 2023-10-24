@@ -744,8 +744,8 @@ class TestDependenceAnalysis(object):
 
         scope = Scope(exprs)
         assert len(scope.d_all) == 3
-        assert len(scope.d_flow) == 3
-        assert len(scope.d_anti) == 0
+        assert len(scope.d_flow) == 2
+        assert len(scope.d_anti) == 1
         assert any(v.function is f for v in scope.d_flow)
         assert any(v.function is mocksym0 for v in scope.d_flow)
 
