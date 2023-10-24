@@ -59,7 +59,7 @@ tn = nt  # Simulation last 1 second (1000 ms)
 u = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
 # Another one to clone data
 u2 = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
-ub = TimeFunction(name="ub", grid=grid, time_order=to, space_order=so)
+devito_out = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
@@ -73,12 +73,13 @@ stencil = Eq(u.forward, solve(pde, u.forward))
 # print("Init Devito linalg norm 2 :", np.linalg.norm(u.data[2]))
 # print("Norm of initial data:", norm(u))
 
-configuration['mpi'] = 0
-u2.data[:] = u.data[:]
-configuration['mpi'] = mpiconf
-
 u.data[:] = np.load("so%s_wave_dat%s.npy" % (so, shape_str), allow_pickle=True)
 dt = np.load("so%s_critical_dt%s.npy" % (so, shape_str), allow_pickle=True)
+
+if args.xdsl and args.devito:
+    configuration['mpi'] = 0
+    u2.data[:] = u.data[:]
+    configuration['mpi'] = mpiconf
 
 # np.save("critical_dt%s.npy" % shape_str, model.critical_dt, allow_pickle=True)
 # np.save("wave_dat%s.npy" % shape_str, u.data[:], allow_pickle=True)
@@ -94,14 +95,17 @@ if args.devito:
     op1 = Operator([stencil], name='DevitoOperator')
     op1.apply(time=nt, dt=dt)
 
-    configuration['mpi'] = 0
-    ub.data[:] = u.data[:]
-    configuration['mpi'] = mpiconf
-
     if len(shape) == 2 and args.plot:
         plot_2dfunc(u)
 
     print("Devito norm:", norm(u))
+
+    if args.xdsl:
+        configuration['mpi'] = 0
+        devito_out.data[:] = u.data[:]
+        u.data[:] = u2.data[:]
+        configuration['mpi'] = mpiconf
+
     # print("Devito linalg norm 0:", np.linalg.norm(u.data[0]))
     # print("Devito linalg norm 1:", np.linalg.norm(u.data[1]))
     # print("Devito linalg norm 2:", np.linalg.norm(u.data[2]))
@@ -125,3 +129,6 @@ if args.xdsl:
     # print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
     # print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
     # print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+
+if args.xdsl and args.devito:
+    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))

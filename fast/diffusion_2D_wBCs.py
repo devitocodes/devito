@@ -5,7 +5,7 @@
 import argparse
 import numpy as np
 
-from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator
+from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator, configuration
 from examples.cfd import init_hat
 from fast.bench_utils import plot_2dfunc
 
@@ -26,6 +26,8 @@ parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devit
 parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
+mpiconf = configuration['mpi']
+
 # Some variable declarations
 nx, ny = args.shape
 nt = args.nt
@@ -42,6 +44,8 @@ print("dx %s, dy %s" % (dx, dy))
 
 grid = Grid(shape=(nx, ny), extent=(2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
+u2 = TimeFunction(name='u', grid=grid, space_order=so)
+devito_out = TimeFunction(name='u', grid=grid, space_order=so)
 
 a = Constant(name='a')
 # Create an equation with second-order derivatives
@@ -53,6 +57,11 @@ eq_stencil = Eq(u.forward, stencil)
 # Reset our data field and ICs
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
+if args.xdsl and args.devito:
+    configuration['mpi'] = 0
+    u2.data[:] = u.data[:]
+    configuration['mpi'] = mpiconf
+
 if args.devito:
     op = Operator([eq_stencil], name='DevitoOperator')
     op.apply(time=nt, dt=dt, a=nu)
@@ -61,6 +70,12 @@ if args.devito:
     if args.plot:
         plot_2dfunc(u)
 
+    if args.xdsl:
+        configuration['mpi'] = 0
+        devito_out.data[:] = u.data[:]
+        u.data[:] = u2.data[:]
+        configuration['mpi'] = mpiconf
+
 # Reset data
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
@@ -68,3 +83,6 @@ if args.xdsl:
     xdslop = XDSLOperator([eq_stencil], name='XDSLOperator')
     xdslop.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))
+
+if args.xdsl and args.devito:
+    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
