@@ -3,7 +3,7 @@ from collections import namedtuple
 from math import floor
 
 import numpy as np
-from sympy import prod
+from sympy import prod, Interval
 from cached_property import cached_property
 
 from devito.data import LEFT, RIGHT
@@ -386,6 +386,8 @@ class AbstractSubDomain(CartesianDiscretization):
         if self.name is None:
             self.name = self.__class__.__name__
 
+        self._grid = None
+
         # All other attributes get initialized upon `__subdomain_finalize__`
         super().__init__()
 
@@ -437,6 +439,21 @@ class AbstractSubDomain(CartesianDiscretization):
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
 
+    @property
+    def grid(self):
+        return self._grid
+
+    @property
+    def distributor(self):
+        if self.has_grid:
+            return self.grid._distributor
+        else:
+            return None
+
+    @property
+    def has_grid(self):
+        return self._grid is not None
+
 
 class SubDomain(AbstractSubDomain):
 
@@ -485,12 +502,16 @@ class SubDomain(AbstractSubDomain):
     """
 
     def __subdomain_finalize__(self, grid, **kwargs):
+        if self.has_grid:
+            raise ValueError("`SubDomain` has already been attached to a `Grid`")
+
+        self._grid = grid
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
         counter = kwargs.get('counter', 0) - 1
-        for k, v, s in zip(self.define(grid.dimensions).keys(),
-                           self.define(grid.dimensions).values(), grid.shape):
+        for k, v, s in zip(self.define(self.grid.dimensions).keys(),
+                           self.define(self.grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
@@ -529,7 +550,37 @@ class SubDomain(AbstractSubDomain):
 
         self._shape = tuple(sdshape)
         self._dimensions = tuple(sub_dimensions)
-        self._dtype = grid.dtype
+        self._dtype = self.grid.dtype
+
+        dist_interval = {dim: Interval(s.start, s.stop-1)
+                         for dim, s in self.distributor.glb_slices.items()}
+
+        # Assumes no override of x_m and x_M supplied to operator
+        bounds_map = {**{dim.symbolic_min: 0 for dim in grid.dimensions},
+                      **{dim.symbolic_max: sha-1 for dim, sha in zip(grid.dimensions,
+                                                                     grid.shape)}}
+
+        sdim_interval = {dim: (sdim._interval.subs({**sdim._thickness_map,
+                                                    **bounds_map})
+                               if sdim.is_Sub else None)
+                         for dim, sdim in self.dimension_map.items()}
+
+        intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
+                           else dist_interval[dim].intersect(sdim_interval[dim]))
+                          for dim in grid.dimensions)
+
+        if any([i.is_empty for i in intervals]):
+            # SubDomain does not overlap this rank
+            self._shape_local = tuple(0 for d in grid.dimensions)
+        else:
+            # Intervals of form Interval(n, n) automatically become FiniteSet
+            # +1 as intervals are in terms of indices (inclusive of endpoints)
+            self._shape_local = tuple(i.end-i.start + 1 if i.is_Interval else 1
+                                      for i in intervals)
+
+    @property
+    def shape_local(self):
+        return self._shape_local
 
     def define(self, dimensions):
         """
