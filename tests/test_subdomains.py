@@ -693,3 +693,107 @@ class TestMultiSubDimension:
         # Switch the thickness symbols between MultiSubDimensions with the rebuild
         remixed = [d._rebuild(thickness=t) for d, t in zip(sdims, tkns[::-1])]
         assert [d.thickness for d in remixed] == tkns[::-1]
+
+
+class ReducedDomain(SubDomain):
+    name = 'reduced'
+
+    def __init__(self, x_param, y_param):
+        super().__init__()
+        self._x_param = x_param
+        self._y_param = y_param
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: self._x_param if self._x_param is not None else x,
+                y: self._y_param if self._y_param is not None else y}
+
+
+class TestSubdomainFunctions:
+    """Tests for functions defined on SubDomains"""
+
+    @pytest.mark.parametrize('x', [('left', 3), ('left', 6),
+                                   ('right', 3), ('right', 6),
+                                   ('middle', 2, 3), ('middle', 1, 7),
+                                   None])
+    @pytest.mark.parametrize('y', [('left', 3), ('left', 6),
+                                   ('right', 3), ('right', 6),
+                                   ('middle', 2, 3), ('middle', 1, 7),
+                                   None])
+    def test_function_data_shape(self, x, y):
+        """
+        Check that defining a Function on a subset of a Grid results in arrays
+        of the correct shape being allocated.
+        """
+        reduced_domain = ReducedDomain(x, y)
+        grid = Grid(shape=(11, 11), extent=(10., 10.),
+                    subdomains=(reduced_domain,))
+        f = Function(name='f', grid=grid.subdomains['reduced'])
+
+        # Get thicknesses on each side
+        def get_thickness(spec, shape):
+            if spec is None:
+                return 0, 0
+            elif spec[0] == 'left':
+                return 0, shape - spec[1]
+            elif spec[0] == 'middle':
+                return spec[1], spec[2]
+            else:  # right
+                return shape - spec[1], 0
+
+        x_ltkn, x_rtkn = get_thickness(x, grid.shape[0])
+        y_ltkn, y_rtkn = get_thickness(y, grid.shape[1])
+
+        shape = (grid.shape[0] - x_ltkn - x_rtkn,
+                 grid.shape[1] - y_ltkn - y_rtkn)
+
+        assert f.data.shape == shape
+
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    @pytest.mark.parametrize('x', [('left', 3), ('left', 6),
+                                   ('right', 3), ('right', 6),
+                                   ('middle', 2, 3), ('middle', 1, 7),
+                                   None])
+    @pytest.mark.parametrize('y', [('left', 3), ('left', 6),
+                                   ('right', 3), ('right', 6),
+                                   ('middle', 2, 3), ('middle', 1, 7),
+                                   None])
+    def test_function_data_shape_mpi(self, x, y):
+        """
+        Check that defining a Function on a subset of a Grid results in arrays
+        of the correct shape being allocated when decomposed with MPI.
+        """
+        print("x: %s   y: %s" % (x, y))
+
+        reduced_domain = ReducedDomain(x, y)
+        grid = Grid(shape=(11, 11), extent=(10., 10.),
+                    subdomains=(reduced_domain,))
+        f = Function(name='f', grid=grid.subdomains['reduced'])
+
+        print("Nprocs", grid.distributor.nprocs)
+        print("Rank", grid.distributor.myrank)
+        print("Decomposition coordinates", grid.distributor.mycoords)
+        print("f shape", f.data.shape)
+        print("f size", f.data.size)
+        print("Distributor slices", grid.distributor.glb_slices)
+
+        g = Function(name='g', grid=grid)
+        Operator(Eq(g, g+1, subdomain=grid.subdomains['reduced']))()
+
+        slices = tuple(grid.distributor.glb_slices[dim]
+                       for dim in grid.dimensions)
+        check_data = g.data[slices]
+
+        print()
+        print("Check data")
+        print(check_data)
+        print(np.count_nonzero(check_data))
+
+        # Is there some way to print the whole dataset?
+
+        assert np.count_nonzero(check_data) == f.data.size
+
+        # if np.count_nonzero(check_data) != 0:
+        #     coords = np.nonzero(check_data)
+        #     shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
+        #     assert f.data.shape == shape
