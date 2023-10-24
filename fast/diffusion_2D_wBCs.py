@@ -63,7 +63,13 @@ if args.xdsl and args.devito:
     configuration['mpi'] = mpiconf
 
 if args.devito:
-    op = Operator([eq_stencil], name='DevitoOperator')
+
+    # To measure Devito at its best on GPU, we have to set the tile siwe manually
+    opt = None
+    if configuration['platform'].name == 'nvidiaX':
+        opt = ('advanced', {'par-tile': (32, 4, 8)})
+
+    op = Operator([eq_stencil], name='DevitoOperator', opt=opt)
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
 

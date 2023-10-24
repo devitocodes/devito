@@ -90,9 +90,14 @@ if len(shape) == 2 and args.plot:
 print("Init norm:", np.linalg.norm(u.data[:]))
 
 if args.devito:
+    # To measure Devito at its best on GPU, we have to set the tile siwe manually
+    opt = None
+    if configuration['platform'].name == 'nvidiaX':
+        opt = ('advanced', {'par-tile': (32, 4, 8)})
+
     # Run more with no sources now (Not supported in xdsl)
     # op1 = Operator([stencil], name='DevitoOperator', subs=grid.spacing_map)
-    op1 = Operator([stencil], name='DevitoOperator')
+    op1 = Operator([stencil], name='DevitoOperator', opt=opt)
     op1.apply(time=nt, dt=dt)
 
     if len(shape) == 2 and args.plot:

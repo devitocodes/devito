@@ -64,7 +64,13 @@ eq_stencil = Eq(u.forward, stencil)
 if args.devito:
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    op = Operator([eq_stencil], name='DevitoOperator')
+
+    # To measure Devito at its best on GPU, we have to set the tile siwe manually
+    opt = None
+    if configuration['platform'].name == 'nvidiaX':
+        opt = ('advanced', {'par-tile': (32, 4, 8)})
+    op = Operator([eq_stencil], name='DevitoOperator', opt=opt)
+
     # Apply the operator for a number of timesteps
     op.apply(time=nt, dt=dt, a=nu)
     print("Devito Field norm is:", norm(u))
