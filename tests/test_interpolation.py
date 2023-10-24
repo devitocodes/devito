@@ -6,7 +6,7 @@ from sympy import Float
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-                    MatrixSparseTimeFunction)
+                    MatrixSparseTimeFunction, SubDomain)
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
@@ -838,3 +838,291 @@ def test_sinc_accuracy(r, tol):
     assert np.isclose(err_sinc, 0, rtol=0, atol=tol)
     assert err_sinc < err_lin
     assert err_lin > 0.01
+
+
+class SD0(SubDomain):
+    name = 'sd0'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('left', 6), y: y}
+
+
+class SD1(SubDomain):
+    name = 'sd1'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 2, 1), y: ('right', 6)}
+
+
+class SD2(SubDomain):
+    name = 'sd2'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('left', 4), y: y}
+
+
+class SD3(SubDomain):
+    name = 'sd3'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 2, 1), y: ('right', 4)}
+
+
+class SD4(SubDomain):
+    name = 'sd4'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 7, 1), y: ('middle', 1, 6)}
+
+
+class SD5(SubDomain):
+    name = 'sd5'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 4, 3), y: ('middle', 4, 3)}
+
+
+class TestSubDomainInterpolation:
+    """
+    Tests for interpolation onto and off of Functions defined on
+    SubDomains.
+    """
+
+    def test_interpolate_subdomain(self):
+        """
+        Test interpolation off of a Function defined on a SubDomain.
+        """
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD0(grid=grid)
+        sd1 = SD1(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0)
+        f1 = Function(name='f1', grid=sd1)
+        f2 = Function(name='f2', grid=grid)
+
+        xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+        msh = xmsh*ymsh
+        f0.data[:] = msh[:6, :]
+        f1.data[:] = msh[2:-1, -6:]
+        f2.data[:] = msh
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
+        sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+        sr2.coordinates.data[:] = coords
+
+        rec0 = sr0.interpolate(f0)
+        rec1 = sr1.interpolate(f1)
+        rec2 = sr2.interpolate(f1 + f2)
+
+        op = Operator([rec0, rec1, rec2])
+
+        op.apply()
+
+        # Note that interpolation points can go into the halo by
+        # the radius of the SparseFunction.
+        check0 = np.array([3.75, 9., 0., 3., 0., 13.75, 6.75, 0.])
+        check1 = np.array([0., 0., 0., 0., 0., 30.25, 2.5, 63.75])
+        check2 = np.array([[0., 0., 34., 3., 30., 60.5, 9.25, 127.5]])
+
+        assert np.all(np.isclose(sr0.data, check0))
+        assert np.all(np.isclose(sr1.data, check1))
+        assert np.all(np.isclose(sr2.data, check2))
+
+    def test_inject_subdomain(self):
+        """
+        Test injection into a Function defined on a SubDomain.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD0(grid=grid)
+        sd1 = SD1(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0)
+        f1 = Function(name='f1', grid=sd1)
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+
+        src0 = sr0.inject(f0, Float(1.))
+        src1 = sr0.inject(f1, Float(1.))
+
+        op = Operator([src0, src1])
+
+        op.apply()
+
+        check0 = np.array([[0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0.25, 0.25, 0.5, 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0.25, 0.25, 0., 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0.5, 0., 0., 0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0.5, 0., 0., 0.25, 0.25, 0., 0., 0., 0.]])
+        check1 = np.array([[0.25, 0., 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0., 0.],
+                           [0.25, 0.25, 0., 0., 0., 0.],
+                           [0.25, 0.25, 0., 0., 0., 0.],
+                           [0., 0., 0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0., 0., 0.]])
+
+        assert np.all(np.isclose(f0.data, check0))
+        assert np.all(np.isclose(f1.data, check1))
+
+    @pytest.mark.parallel(mode=4)
+    def test_interpolate_subdomain_mpi(self, mode):
+        """
+        Test interpolation off of a Function defined on a SubDomain with MPI.
+        """
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd2 = SD2(grid=grid)
+        sd3 = SD3(grid=grid)
+        sd4 = SD4(grid=grid)
+
+        f0 = Function(name='f0', grid=sd2)
+        f1 = Function(name='f1', grid=sd3)
+        f2 = Function(name='f2', grid=grid)
+        f3 = Function(name='f3', grid=sd4)
+
+        xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+        msh = xmsh*ymsh
+        f0.data[:] = msh[:6, :]
+        f1.data[:] = msh[2:-1, -6:]
+        f2.data[:] = msh
+        f3.data[:] = msh[7:-1, 1:-6]
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
+        sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
+        sr3 = SparseFunction(name='sr3', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+        sr2.coordinates.data[:] = coords
+        sr3.coordinates.data[:] = coords
+
+        rec0 = sr0.interpolate(f0)
+        rec1 = sr1.interpolate(f1)
+        rec2 = sr2.interpolate(f1 + f2)
+        rec3 = sr3.interpolate(f3)
+
+        op = Operator([rec0, rec1, rec2, rec3])
+
+        op.apply()
+
+        if grid.distributor.myrank == 0:
+            assert np.all(np.isclose(sr0.data, [3.75, 0.]))
+            assert np.all(np.isclose(sr1.data, [0., 0.]))
+            assert np.all(np.isclose(sr2.data, [0., 0.]))
+            assert np.all(np.isclose(sr3.data, [0., 0.]))
+        elif grid.distributor.myrank == 1:
+            assert np.all(np.isclose(sr0.data, [0., 3.]))
+            assert np.all(np.isclose(sr1.data, [0., 0.]))
+            assert np.all(np.isclose(sr2.data, [0., 3.]))
+            assert np.all(np.isclose(sr3.data, [34., 0.]))
+        elif grid.distributor.myrank == 2:
+            assert np.all(np.isclose(sr0.data, [0., 0.]))
+            assert np.all(np.isclose(sr1.data, [0., 0.]))
+            assert np.all(np.isclose(sr2.data, [0., 16.5]))
+            assert np.all(np.isclose(sr3.data, [30., 0.]))
+        elif grid.distributor.myrank == 3:
+            assert np.all(np.isclose(sr0.data, [6.75, 0.]))
+            assert np.all(np.isclose(sr1.data, [0., 48.75]))
+            assert np.all(np.isclose(sr2.data, [0., 112.5]))
+            assert np.all(np.isclose(sr3.data, [0., 0.]))
+
+    @pytest.mark.parallel(mode=4)
+    def test_inject_subdomain_mpi(self, mode):
+        """
+        Test injection into a Function defined on a SubDomain with MPI.
+        """
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd2 = SD2(grid=grid)
+        sd3 = SD3(grid=grid)
+        sd4 = SD4(grid=grid)
+        sd5 = SD5(grid=grid)
+
+        f0 = Function(name='f0', grid=sd2)
+        f1 = Function(name='f1', grid=sd3)
+        f2 = Function(name='f2', grid=sd4)
+        f3 = Function(name='f3', grid=sd5)
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+
+        src0 = sr0.inject(f0, Float(1.))
+        src1 = sr0.inject(f1, Float(1.))
+        src2 = sr0.inject(f2, Float(1.))
+        src3 = sr0.inject(f3, Float(1.))
+
+        op = Operator([src0, src1, src2, src3])
+
+        op.apply()
+
+        check0 = np.array([[0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.,],
+                           [0., 0., 0., 0., 0.25, 0.25, 0.5, 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0.25, 0.25, 0., 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]])
+        check1 = np.array([[0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0.]])
+        check2 = np.array([[0., 0., 0., 0.5],
+                           [0., 0., 0., 1.],
+                           [0., 0., 0., 0.5]])
+        check3 = np.array([[0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0.5, 0., 0., 0.]])
+
+        # Can't gather inside the assert as it hangs due to the if condition
+        data0 = f0.data_gather()
+        data1 = f1.data_gather()
+        data2 = f2.data_gather()
+        data3 = f3.data_gather()
+
+        if grid.distributor.myrank == 0:
+            assert np.all(data0 == check0)
+            assert np.all(data1 == check1)
+            assert np.all(data2 == check2)
+            assert np.all(data3 == check3)
+        else:
+            # Size zero array of None, so can't check "is None"
+            # But check equal to None works, even though this is discouraged
+            assert data0 == None  # noqa
+            assert data1 == None  # noqa
+            assert data2 == None  # noqa
+            assert data3 == None  # noqa
