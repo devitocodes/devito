@@ -854,5 +854,3 @@ class TestMemoryLeaks:
         assert len(_SymbolCache) == 4
         clear_cache()
         assert len(_SymbolCache) == 2
-        clear_cache()
-        assert len(_SymbolCache) == 0

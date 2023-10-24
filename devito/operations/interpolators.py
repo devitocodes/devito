@@ -4,6 +4,7 @@ from functools import wraps, cached_property
 import sympy
 import numpy as np
 
+
 try:
     from scipy.special import i0
 except ImportError:
@@ -12,7 +13,7 @@ except ImportError:
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
-from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
+from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT, CondEq
 from devito.tools import as_tuple, flatten, filter_ordered, Pickable
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension, SubFunction)
@@ -31,6 +32,63 @@ def check_radius(func):
             raise ValueError("Space order %d too small for interpolation r %d" % (so, r))
         return func(interp, *args, **kwargs)
     return wrapper
+
+
+def extract_subdomain(variables):
+    """
+    Check if any of the variables provided are defined on a SubDomain
+    and extract it if this is the case.
+    """
+    sdms = set()
+    for v in variables:
+        try:
+            if v.grid.is_SubDomain:
+                sdms.add(v.grid)
+        except AttributeError:
+            # Variable not on a grid (Indexed for example)
+            pass
+
+    if len(sdms) > 1:
+        raise NotImplementedError("Sparse operation on multiple Functions defined on"
+                                  " different SubDomains currently unsupported")
+    elif len(sdms) == 1:
+        return sdms.pop()
+    return None
+
+
+def adjust_interp_indices(subdomain, mapper, smapper, cdmapper):
+    """
+    Modify the substitutions between dimensions and interpolation indices
+    to use SubDimensions in the condition and add switches. Update the
+    corresponding mappers.
+    """
+    # Rebuild the ConditionalDimensions to use the SubDomain
+    # minima and maxima in the condition
+    subs = {d.symbolic_min: sd.symbolic_min
+            for d, sd in subdomain.dimension_map.items()}
+    subs.update({d.symbolic_max: sd.symbolic_max
+                 for d, sd in subdomain.dimension_map.items()})
+
+    # Insert a check to catch cases where interpolation/injection is
+    # into an empty rank. This depends on the injection field or interpolated
+    # expression, and so must be inserted here.
+    # FIXME: The resultant switch isn't super obvious in generated code and
+    # results in different code between ranks.
+    # FIXME: This could be checked for the rank before looping over sparse
+    # footprint
+    rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
+
+    for d, cd in list(mapper.items()):
+        cond = cd.condition.subs(subs)
+        cond = sympy.And(cond, rank_populated)
+        # Rebuild the ConditionalDimension with an updated condition
+        # Note that rebuilding introduces a factor of 1 if factor is None
+        # This is not desired here.
+        sd = subdomain.dimension_map[d]
+        rebuilt_cd = cd._rebuild(condition=cond, factor=cd._factor)
+        mapper[d] = rebuilt_cd
+        smapper[sd] = rebuilt_cd
+        cdmapper[cd] = rebuilt_cd
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable, Pickable):
@@ -207,8 +265,18 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
+            # Get grid dimensions from the variables supplied
+            edims = []
+            for v in extras:
+                try:
+                    edims += [d for d in v.grid.dimensions]
+                except AttributeError:
+                    # Not on a grid, grab its space dimensions instead
+                    edims += [d for d in v.dimensions]
+
+            gdims = set([*edims, *self._gdims])
             extra = filter_ordered([i for v in extras for i in v.dimensions
-                                    if i not in self._gdims and
+                                    if i not in gdims and
                                     i not in self.sfunction.dimensions])
             extra = tuple(extra)
         else:
@@ -231,6 +299,8 @@ class WeightedInterpolator(GenericInterpolator):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
+        subdomain = extract_subdomain(variables)
+
         mapper = {}
         pos = self.sfunction._position_map.values()
 
@@ -241,10 +311,27 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
-        mapper = self._rdim.getters
+        mapper = self._rdim._getters.copy()
+
+        # Subsitution from SubDimensions to ConditionalDimensions
+        smapper = {}
+        # Substitution from ConditionalDimensions to rebuilt dimensions
+        cdmapper = {}
+        # Need to adjust bounds if Function defined on a SubDomain
+        if subdomain:
+            adjust_interp_indices(subdomain, mapper, smapper, cdmapper)
+
+        # Index substitution to make in variables
+        i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
+        if subdomain:  # Add subdimension substitutions if necessary
+            i_subs.update({k: c + p for ((k, c), p) in zip(smapper.items(), pos)})
+
         idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
+
+        # Add the mapping from old ConditionalDimension to rebuilt ConditionalDimension
+        idx_subs.update(cdmapper)
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points

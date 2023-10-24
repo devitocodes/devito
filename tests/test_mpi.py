@@ -245,6 +245,148 @@ class TestDistributor:
         assert f.shape == (4,)
 
 
+class TestSubDistributor:
+
+    sd_specs = [('middle', 2, 1), ('left', 2), ('right', 3)]
+
+    @pytest.mark.parametrize('sd_x', sd_specs)
+    @pytest.mark.parametrize('sd_y', sd_specs)
+    @pytest.mark.parallel(mode=[2])
+    def test_intervals(self, sd_x, sd_y, mode):
+        """
+        Check the interval of indices spanned by the SubDomain is correctly calculated
+        within SubDistributor. Also check that the interval of indices spanned by the
+        SubDomain on each rank is correct.
+        """
+        def check_interval(interval, spec, size, vmin=None, vmax=None):
+            if spec[0] == 'middle':
+                start = spec[1]
+                end = size - spec[2] - 1
+            elif spec[0] == 'left':
+                start = 0
+                end = spec[1] - 1
+            else:
+                start = size - spec[1]
+                end = size - 1
+
+            if vmin:
+                assert interval.start == max(start, vmin)
+            else:
+                assert interval.start == start
+
+            if vmax:
+                assert interval.end == min(end, vmax)
+            else:
+                assert interval.end == end
+
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd_x, y: sd_y}
+
+        grid = Grid(shape=(10, 10))
+        md = MyDomain(grid=grid)
+        d = md.distributor
+
+        check_interval(d.subdomain_interval[0], sd_x, grid.shape[0])
+        check_interval(d.subdomain_interval[1], sd_y, grid.shape[1])
+
+        if not d.intervals[0].is_empty:
+            check_interval(d.intervals[0], sd_x, grid.shape[0],
+                           vmin=grid.origin_ioffset[0],
+                           vmax=grid.origin_ioffset[0]+grid.shape_local[0]-1)
+        if not d.intervals[1].is_empty:
+            check_interval(d.intervals[1], sd_y, grid.shape[1],
+                           vmin=grid.origin_ioffset[1],
+                           vmax=grid.origin_ioffset[1]+grid.shape_local[1]-1)
+
+    @pytest.mark.parametrize('sd', sd_specs)
+    @pytest.mark.parallel(mode=[3])
+    def test_crosses(self, sd, mode):
+        """
+        Check that the edges of the rank crossed by the subdomain are correctly
+        identified.
+        """
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd, y: y}
+
+        grid = Grid(shape=(10, 10))
+        md = MyDomain(grid=grid)
+        xi, yi = md.dimensions
+        d = md.distributor
+
+        rank = grid.distributor.comm.rank
+        if sd[0] == 'middle':
+            if rank == 0:
+                check = {LEFT: False, RIGHT: True}
+            elif rank == 1:
+                check = {LEFT: True, RIGHT: True}
+            else:
+                check = {LEFT: True, RIGHT: False}
+        else:
+            check = {LEFT: False, RIGHT: False}
+
+        assert d.crosses[xi] == check
+
+    @pytest.mark.parametrize('sd', sd_specs)
+    @pytest.mark.parallel(mode=[3])
+    def test_decomposition(self, sd, mode):
+        """
+        Check that the subdomain is correctly decomposed.
+        """
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd, y: y}
+
+        grid = Grid(shape=(10, 10))
+        md = MyDomain(grid=grid)
+        d = md.distributor
+
+        for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
+                                      d.subdomain_interval, grid.shape):
+            # Get the global min and max
+            lower_bounds = [np.amin(i) for i in dec if i.size != 0]
+            upper_bounds = [np.amax(i) for i in dec if i.size != 0]
+
+            parent_lower_bounds = [np.amin(i) for i in pdec]
+            parent_upper_bounds = [np.amax(i) for i in pdec]
+
+            dM = np.amax(upper_bounds)
+            dm = np.amin(lower_bounds)
+
+            irange = np.arange(dm, dM+1)
+
+            # Indices increase monotonically over correct range
+            assert np.all(np.concatenate(dec) == irange)
+
+            # Inner boundaries line up with parent decomposition
+            # Skip the check if the subdomain means there are no inner boundaries
+            if len(lower_bounds) > 1:
+                assert np.all(parent_lower_bounds[1:] == lower_bounds[1:])
+            if len(upper_bounds) > 1:
+                assert np.all(parent_upper_bounds[:-1] == upper_bounds[:-1])
+
+            # Outer boundaries line up with subdomain
+            if sdi is None:
+                assert lower_bounds[0] == 0
+                assert upper_bounds[-1] == sh - 1
+            else:
+                assert lower_bounds[0] == sdi.start
+                assert upper_bounds[-1] == sdi.end
+
+
 class TestFunction:
 
     @pytest.mark.parallel(mode=2)
