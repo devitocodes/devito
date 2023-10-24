@@ -41,7 +41,7 @@ export DEVITO_LOGGING=BENCH
 # That is, we exclude the data copying to and from the device.
 get_throughput() {
     #echo $($@)
-    $@ |& grep section0 | head -n 1 | cut -d ' ' -f10
+    $@ |& grep section0 | head -n 1 | cut -d ' ' -f12
 }
 
 # Iterate over benchmarks and cases, print simple CSV data to stdout
