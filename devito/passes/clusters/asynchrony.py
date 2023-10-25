@@ -4,7 +4,7 @@ from sympy import And
 
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
-from devito.passes.clusters.utils import is_memcpy
+from devito.passes.clusters.utils import bind_critical_regions, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
@@ -138,6 +138,12 @@ class Tasker(Asynchronous):
                 for i in indices:
                     tasks[c0].append(ReleaseLock(lock[i], target))
                     tasks[c0].append(WithLock(lock[i], target, i, function, findex, d))
+
+        # CriticalRegions preempt WaitLocks, by definition
+        mapper = bind_critical_regions(clusters)
+        for c in clusters:
+            for c1 in mapper.get(c, []):
+                waits[c].update(waits.pop(c1, []))
 
         processed = []
         for c in clusters:

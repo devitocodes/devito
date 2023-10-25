@@ -10,8 +10,9 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_affine, q_routine, search, uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator)
-from devito.types import (Barrier, ComponentAccess, Dimension, DimensionTuple,
-                          Function, Jump, Symbol, Temp, TempArray, TBArray)
+from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
+                          CriticalRegion, Function, Symbol, Temp, TempArray,
+                          TBArray)
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -23,10 +24,9 @@ AFFINE = IndexMode('affine')  # noqa
 REGULAR = IndexMode('regular')
 IRREGULAR = IndexMode('irregular')
 
-mocksym = Symbol(name='⋈')
-"""
-A Symbol to create mock data depdendencies.
-"""
+# Symbols to create mock data depdendencies
+mocksym0 = Symbol(name='__⋈_0__')
+mocksym1 = Symbol(name='__⋈_1__')
 
 
 class IterationInstance(LabeledVector):
@@ -848,9 +848,21 @@ class Scope(object):
 
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
+
+        # Fences (any sort) cannot float around upon topological sorting
         for i, e in enumerate(self.exprs):
-            if isinstance(e.rhs, (Barrier, Jump)):
-                yield TimedAccess(mocksym, 'W', i, e.ispace)
+            if isinstance(e.rhs, Fence):
+                yield TimedAccess(mocksym0, 'W', i, e.ispace)
+
+        # CriticalRegions are stronger than plain Fences.
+        # We must also ensure that none of the Eqs within an opening-closing
+        # CriticalRegion pair floats outside upon topological sorting
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, CriticalRegion) and e.rhs.opening:
+                for j, e1 in enumerate(self.exprs[i+1:], 1):
+                    if isinstance(e1.rhs, CriticalRegion) and e1.rhs.closing:
+                        break
+                    yield TimedAccess(mocksym1, 'W', i+j, e1.ispace)
 
     @cached_property
     def writes(self):
@@ -904,12 +916,32 @@ class Scope(object):
         for i in symbols:
             yield TimedAccess(i, 'R', -1)
 
+    @memoized_generator
+    def reads_synchro_gen(self):
+        """
+        Generate all reads due to syncronization operations. These may be explicit
+        or implicit.
+        """
         # Objects altering the control flow (e.g., synchronization barriers,
         # break statements, ...) are converted into mock dependences
+
+        # Fences (any sort) cannot float around upon topological sorting
         for i, e in enumerate(self.exprs):
-            if isinstance(e.rhs, (Barrier, Jump)):
-                yield TimedAccess(mocksym, 'R', max(i, 0), e.ispace)
-                yield TimedAccess(mocksym, 'R', i+1, e.ispace)
+            if isinstance(e.rhs, Fence):
+                if i > 0:
+                    yield TimedAccess(mocksym0, 'R', i-1, e.ispace)
+                if i < len(self.exprs)-1:
+                    yield TimedAccess(mocksym0, 'R', i+1, e.ispace)
+
+        # CriticalRegions are stronger than plain Fences.
+        # We must also ensure that none of the Eqs within an opening-closing
+        # CriticalRegion pair floats outside upon topological sorting
+        for i, e in enumerate(self.exprs):
+            if isinstance(e.rhs, CriticalRegion):
+                if e.rhs.opening and i > 0:
+                    yield TimedAccess(mocksym1, 'R', i-1, self.exprs[i-1].ispace)
+                elif e.rhs.closing and i < len(self.exprs)-1:
+                    yield TimedAccess(mocksym1, 'R', i+1, self.exprs[i+1].ispace)
 
     @memoized_generator
     def reads_gen(self):
@@ -920,7 +952,9 @@ class Scope(object):
         # is efficiency. Sometimes we wish to extract all reads to a given
         # AbstractFunction, and we know that by construction these can't
         # appear among the implicit reads
-        return chain(self.reads_explicit_gen(), self.reads_implicit_gen())
+        return chain(self.reads_explicit_gen(),
+                     self.reads_synchro_gen(),
+                     self.reads_implicit_gen())
 
     @memoized_generator
     def reads_smart_gen(self, f):
@@ -939,7 +973,7 @@ class Scope(object):
         the iteration symbols.
         """
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
-            for i in self.reads_explicit_gen():
+            for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
                 if f is i.function:
                     for j in extrema(i.access):
                         yield TimedAccess(j, i.mode, i.timestamp, i.ispace)

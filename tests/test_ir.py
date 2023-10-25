@@ -9,13 +9,14 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym)
+                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
+                                     mocksym1)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import DefFunction, FieldFromPointer, ccode
 from devito.tools import prod
-from devito.types import Array, Jump, Scalar, Symbol
+from devito.types import Array, CriticalRegion, Jump, Scalar, Symbol
 
 
 class TestVectorHierarchy(object):
@@ -743,10 +744,10 @@ class TestDependenceAnalysis(object):
 
         scope = Scope(exprs)
         assert len(scope.d_all) == 3
-        assert len(scope.d_flow) == 3
-        assert len(scope.d_anti) == 0
+        assert len(scope.d_flow) == 2
+        assert len(scope.d_anti) == 1
         assert any(v.function is f for v in scope.d_flow)
-        assert any(v.function is mocksym for v in scope.d_flow)
+        assert any(v.function is mocksym0 for v in scope.d_flow)
 
     def test_indirect_access(self):
         grid = Grid(shape=(4, 4))
@@ -825,6 +826,65 @@ class TestDependenceAnalysis(object):
 
         scope = Scope(eqns)
         assert len(scope.d_all) == 1
+
+    def test_critical_region_v0(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+
+        exprs = [Eq(s0, CriticalRegion(True)),
+                 Eq(f.indexify(), 1),
+                 Eq(s1, CriticalRegion(False))]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+
+        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        assert len(scope.writes[mocksym0]) == 2
+        assert len(scope.reads[mocksym0]) == 2
+        assert len(scope.d_all) == 3
+
+        # No other mock depedencies because there's no other place the Eq
+        # within the critical sequence can float to
+        assert len(scope.writes[mocksym1]) == 1
+        assert mocksym1 not in scope.reads
+
+    def test_critical_region_v1(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        u = Function(name='u', grid=grid)
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+
+        exprs = [Eq(g.indexify(), 2),
+                 Eq(h.indexify(), 2),
+                 Eq(s0, CriticalRegion(True)),
+                 Eq(f.indexify(), 1),
+                 Eq(s1, CriticalRegion(False)),
+                 Eq(u.indexify(), 3)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+
+        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        assert len(scope.writes[mocksym0]) == 2
+        assert len(scope.reads[mocksym0]) == 4
+        assert len([i for i in scope.d_all
+                    if i.source.access is mocksym0
+                    or i.sink.access is mocksym0]) == 7
+
+        # More mock depedencies because Eq must not float outside of the critical
+        # sequence
+        assert len(scope.writes[mocksym1]) == 1
+        assert len(scope.reads[mocksym1]) == 2
+        assert len(scope.d_all) == 9
 
 
 class TestParallelismAnalysis(object):
