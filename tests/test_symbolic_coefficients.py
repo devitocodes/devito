@@ -407,3 +407,31 @@ class TestSC(object):
 
         assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
                eq1.evaluate.evalf(_PRECISION).__repr__())
+
+    def test_cross_derivs_different_subs(self):
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+
+        p = TimeFunction(name='p', grid=grid, space_order=2, time_order=2,
+                         coefficients='symbolic')
+
+        p0 = TimeFunction(name='p', grid=grid, space_order=2, time_order=2)
+
+        # coeffs0 = np.array([sp.Rational(1, 12), sp.Rational(-2, 3), 0, 
+        #                     sp.Rational(2, 3), sp.Rational(-1, 12)])
+        # coeffs1 = np.array([sp.Rational(1, 2), 1, 0, -1, sp.Rational(1, 2)])
+        coeffs0 = np.full(3, 1)
+        coeffs1 = np.full(3, 2)
+
+        subs = Substitutions(Coefficient(1, p, grid.dimensions[0], coeffs0),
+                             Coefficient(1, p, grid.dimensions[1], coeffs1))
+
+        # Substitute weights so that .dx2 -> .dx and .dy -> .dy3
+        eq0 = Eq(p.forward, p.dxdy, coefficients=subs)
+        # eq1 = Eq(p0.forward, p0.dxdy3)
+
+        print(sp.simplify(eq0.evaluate.rhs))
+
+        assert False
+
+        # assert(eq0.evaluate.subs(grid.spacing_map).evalf(_PRECISION).__repr__() ==
+        #        eq1.evaluate.subs(grid.spacing_map).evalf(_PRECISION).__repr__())
