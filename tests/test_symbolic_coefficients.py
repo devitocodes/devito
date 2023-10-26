@@ -380,12 +380,30 @@ class TestSC(object):
 
     def test_cross_derivs(self):
         grid = Grid(shape=(11, 11, 11))
+
         q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
                          coefficients='symbolic')
         q0 = TimeFunction(name='q', grid=grid, space_order=8, time_order=2)
 
         eq0 = Eq(q0.forward, q0.dx.dy)
         eq1 = Eq(q.forward, q.dx.dy)
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
+
+    def test_cross_derivs_imperfect(self):
+        grid = Grid(shape=(11, 11, 11))
+
+        p = TimeFunction(name='p', grid=grid, space_order=4, time_order=2,
+                         coefficients='symbolic')
+        q = TimeFunction(name='q', grid=grid, space_order=4, time_order=2,
+                         coefficients='symbolic')
+
+        p0 = TimeFunction(name='p', grid=grid, space_order=4, time_order=2)
+        q0 = TimeFunction(name='q', grid=grid, space_order=4, time_order=2)
+
+        eq0 = Eq(q0.forward, (q0.dx + p0.dx).dy)
+        eq1 = Eq(q.forward, (q.dx + p.dx).dy)
 
         assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
                eq1.evaluate.evalf(_PRECISION).__repr__())

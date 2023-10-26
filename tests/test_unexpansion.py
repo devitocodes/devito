@@ -22,7 +22,7 @@ class TestLoopScheduling(object):
         assert_structure(op, ['t,x,y'], 't,x,y')
 
 
-class TestSymbolicCoefficients(object):
+class TestSymbolicCoeffs(object):
 
     def test_fallback_to_default(self):
         grid = Grid(shape=(8, 8, 8))
@@ -40,12 +40,22 @@ class TestSymbolicCoefficients(object):
 
     def test_numeric_coeffs(self):
         grid = Grid(shape=(11,), extent=(10.,))
+
         u = Function(name='u', grid=grid, coefficients='symbolic', space_order=2)
+        v = Function(name='v', grid=grid, coefficients='symbolic', space_order=2)
 
         coeffs = Substitutions(Coefficient(2, u, grid.dimensions[0], np.zeros(3)))
 
-        op = Operator(Eq(u, u.dx2, coefficients=coeffs), opt=({'expand': False},))
-        op.cfunction
+        opt = ('advanced', {'expand': False})
+
+        # Pure derivative
+        Operator(Eq(u, u.dx2, coefficients=coeffs), opt=opt).cfunction
+
+        # Mixed derivative
+        Operator(Eq(u, u.dx.dx, coefficients=coeffs), opt=opt).cfunction
+
+        # Non-perfect mixed derivative
+        Operator(Eq(u, (u.dx + v.dx).dx, coefficients=coeffs), opt=opt).cfunction
 
 
 class Test1Pass(object):

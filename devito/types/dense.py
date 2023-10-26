@@ -199,14 +199,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return self._coefficients
 
     @cached_property
-    def _coeff_symbol(self):
-        if self.coefficients == 'symbolic':
-            return sympy.Function('W')
-        else:
-            raise ValueError("Function was not declared with symbolic "
-                             "coefficients.")
-
-    @cached_property
     def shape(self):
         """
         Shape of the domain region. The domain constitutes the area of the

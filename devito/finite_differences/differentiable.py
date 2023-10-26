@@ -115,6 +115,13 @@ class Differentiable(sympy.Expr, Evaluable):
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
+    @cached_property
+    def _coeff_symbol(self, *args, **kwargs):
+        if self._uses_symbolic_coefficients:
+            return W
+        else:
+            raise ValueError("Couldn't find any symbolic coefficients")
+
     def _eval_at(self, func):
         if not func.is_Staggered:
             # Cartesian grid, do no waste time
@@ -325,6 +332,10 @@ class Differentiable(sympy.Expr, Evaluable):
 def highest_priority(DiffOp):
     prio = lambda x: getattr(x, '_fd_priority', 0)
     return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
+
+
+# Abstract symbol representing a symbolic coefficient
+W = sympy.Function('W')
 
 
 class DifferentiableOp(Differentiable):
@@ -765,9 +776,6 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
     def _new_rawargs(self, *args, **kwargs):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
-
-    def _coeff_symbol(self, *args, **kwargs):
-        return self.base._coeff_symbol(*args, **kwargs)
 
 
 class diffify(object):
