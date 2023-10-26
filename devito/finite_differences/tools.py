@@ -226,6 +226,20 @@ def make_stencil_dimension(expr, _min, _max):
 
 
 def symbolic_weights(function, deriv_order, indices, dim):
+    # print("Inside symbolic_weights")
+    # print("Expression", function)
+    try:
+        # print("Expression base", function.base)
+        function = function.base
+    except:
+        pass
+    function = function.subs({d.spacing: 0 for d in function.dimensions})
+    # print("Expression has no base")
+    # print("Coeff symbol:", function._coeff_symbol)
+    # print("Weights produced", [function._coeff_symbol(indices[j], deriv_order, function, dim)
+    #                            for j in range(0, len(indices))])
+    # print("symbolic_weights", [function._coeff_symbol(indices[j], deriv_order, function, dim)
+    #                            for j in range(0, len(indices))])
     return [function._coeff_symbol(indices[j], deriv_order, function, dim)
             for j in range(0, len(indices))]
 

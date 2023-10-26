@@ -1,7 +1,7 @@
 import numpy as np
 from cached_property import cached_property
 
-from devito.finite_differences import Weights, generate_indices
+from devito.finite_differences import Weights, generate_indices, Differentiable, EvalDerivative
 from devito.finite_differences.tools import numeric_weights, symbolic_weights
 from devito.tools import filter_ordered, as_tuple
 
@@ -100,10 +100,10 @@ class Coefficient(object):
         if not isinstance(deriv_order, int):
             raise TypeError("Derivative order must be an integer")
         try:
-            if not function.is_Function:
-                raise TypeError("Object is not of type Function")
+            if not isinstance(function, Differentiable):
+                raise TypeError("Object is not differentiable")
         except AttributeError:
-            raise TypeError("Object is not of type Function")
+            raise TypeError("Object is not differentiable")
         try:
             if not dimension.is_Dimension:
                 raise TypeError("Coefficients must be attached to a valid dimension")
@@ -196,6 +196,17 @@ class Substitutions(object):
 
             indices, x0 = generate_indices(function, dim, fd_order, side=None)
 
+            # print("Expression:" , function)
+            # print("Coeff symbol:", function._coeff_symbol)
+            # print("Index:", index)
+            # print("Weights:", weights)
+
+            # print("Evaluating the expression")
+            # print("Evaluated expression:", function.evaluate)
+            # print("~~~~~~~~~~~~~~~~~~~")
+            # print("Expression is EvalDerivative", isinstance(function, EvalDerivative))
+            
+
             # NOTE: This implementation currently assumes that indices are ordered
             # according to their position in the FD stencil. This may not be the
             # case in all schemes and should be changed such that the weights are
@@ -204,7 +215,8 @@ class Substitutions(object):
                 for j in range(len(weights)):
                     subs.update({function._coeff_symbol
                                  (indices[j], deriv_order,
-                                  function, index): weights[j]})
+                                  function.subs({d.spacing: 0 for d in function.dimensions}),
+                                  index): weights[j]})
             else:
                 shape = weights.shape
                 x = weights.dimensions
@@ -212,7 +224,9 @@ class Substitutions(object):
                     idx = list(x)
                     idx[-1] = j
                     subs.update({function._coeff_symbol
-                                 (indices[j], deriv_order, function, index):
+                                 (indices[j], deriv_order,
+                                  function.subs({d.spacing: 0 for d in function.dimensions}),
+                                  index):
                                      weights[as_tuple(idx)]})
 
             return subs
@@ -260,7 +274,11 @@ def default_rules(obj, functions):
         coeffs = numeric_weights(deriv_order, indices, x0)
 
         for (c, i) in zip(coeffs, indices):
-            subs.update({function._coeff_symbol(i, deriv_order, function, index): c})
+            subs.update({function._coeff_symbol(i, deriv_order,
+                                                function.subs({d.spacing: 0
+                                                               for d in function.dimensions}),
+                                                index): c})
+            # subs.update({function._coeff_symbol(i, deriv_order, function, index): c})
 
         # Set all unused weights to zero
         subs.update({w: 0 for w in sweights if w not in subs})
@@ -275,7 +293,13 @@ def default_rules(obj, functions):
         for w in i.weights:
             terms.update(w.find(sym))
 
-    args_present = filter_ordered(term.args[1:] for term in terms)
+    args_present_unfiltered = [(term.args[1],
+                                term.args[2].subs({d.spacing: 0
+                                                   for d in term.args[2].dimensions}),
+                                term.args[3]) for term in terms]
+    # args_present = filter_ordered(term.args[1:] for term in terms)
+    args_present = filter_ordered(args_present_unfiltered)
+    # print(args_present)
 
     subs = obj.substitutions
     if subs:
@@ -288,6 +312,9 @@ def default_rules(obj, functions):
     # been provided twice?
     args_provided = list(set(args_provided))
     not_provided = [i for i in args_present if i not in frozenset(args_provided)]
+
+    # print("args provided", args_provided)
+    # print("not provided", not_provided)
 
     rules = {}
     for i in not_provided:

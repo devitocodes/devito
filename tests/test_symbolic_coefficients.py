@@ -408,30 +408,26 @@ class TestSC(object):
         assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
                eq1.evaluate.evalf(_PRECISION).__repr__())
 
-    def test_cross_derivs_different_subs(self):
+    def test_nested_substitutions(self):
         grid = Grid(shape=(11, 11), extent=(10., 10.))
 
         p = TimeFunction(name='p', grid=grid, space_order=2, time_order=2,
                          coefficients='symbolic')
 
-        p0 = TimeFunction(name='p', grid=grid, space_order=2, time_order=2)
-
-        # coeffs0 = np.array([sp.Rational(1, 12), sp.Rational(-2, 3), 0, 
-        #                     sp.Rational(2, 3), sp.Rational(-1, 12)])
-        # coeffs1 = np.array([sp.Rational(1, 2), 1, 0, -1, sp.Rational(1, 2)])
         coeffs0 = np.full(3, 1)
-        coeffs1 = np.full(3, 2)
+        coeffs1 = np.full(3, 1)
 
         subs = Substitutions(Coefficient(1, p, grid.dimensions[0], coeffs0),
                              Coefficient(1, p, grid.dimensions[1], coeffs1))
 
-        # Substitute weights so that .dx2 -> .dx and .dy -> .dy3
-        eq0 = Eq(p.forward, p.dxdy, coefficients=subs)
-        # eq1 = Eq(p0.forward, p0.dxdy3)
+        eq0 = Eq(p.forward, p.dx.dy, coefficients=subs)
+        eq1 = Eq(p.forward, p.dy.dx, coefficients=subs)
 
-        print(sp.simplify(eq0.evaluate.rhs))
+        print(eq0.evaluate.rhs)
+        print()
+        print(eq1.evaluate.rhs)
+        print()
 
-        assert False
+        print(eq0.evaluate.rhs-eq1.evaluate.rhs)
 
-        # assert(eq0.evaluate.subs(grid.spacing_map).evalf(_PRECISION).__repr__() ==
-        #        eq1.evaluate.subs(grid.spacing_map).evalf(_PRECISION).__repr__())
+        assert eq0.evaluate.rhs-eq1.evaluate.rhs == 0

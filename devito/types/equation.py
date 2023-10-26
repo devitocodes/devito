@@ -92,7 +92,10 @@ class Eq(sympy.Eq, Evaluable):
             # NOTE: As Coefficients.py is expanded we will not want
             # all rules to be expunged during this procress.
             rules = default_rules(eq, eq._symbolic_functions)
+            print("Eq before rules", eq)
+
             try:
+                print("Rules applied", {**eq.substitutions.rules, **rules})
                 eq = eq.xreplace({**eq.substitutions.rules, **rules})
             except AttributeError:
                 if bool(rules):
