@@ -432,7 +432,11 @@ class Buffer(object):
 
         lhs, rhs = expr.args
 
-        self.xd = lhs.function.indices[self.dim]
+        maybe_xd = lhs.function.indices[self.dim]
+        if not isinstance(maybe_xd, CustomDimension):
+            maybe_xd = rhs.function.indices[self.dim]
+            assert isinstance(maybe_xd, CustomDimension)
+        self.xd = maybe_xd
 
         idx0 = lhs.indices[self.dim]
         idx1 = rhs.indices[self.dim]
