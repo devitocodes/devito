@@ -39,12 +39,13 @@ class TestSymbolicCoeffs(object):
         op.cfunction
 
     def test_numeric_coeffs(self):
-        grid = Grid(shape=(11,), extent=(10.,))
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
 
         u = Function(name='u', grid=grid, coefficients='symbolic', space_order=2)
         v = Function(name='v', grid=grid, coefficients='symbolic', space_order=2)
 
-        coeffs = Substitutions(Coefficient(2, u, grid.dimensions[0], np.zeros(3)))
+        coeffs = Substitutions(Coefficient(2, u, grid.dimensions[0], np.zeros(3)),
+                               Coefficient(2, u, grid.dimensions[1], np.zeros(3)))
 
         opt = ('advanced', {'expand': False})
 
@@ -57,24 +58,8 @@ class TestSymbolicCoeffs(object):
         # Non-perfect mixed derivative
         Operator(Eq(u, (u.dx + v.dx).dx, coefficients=coeffs), opt=opt).cfunction
 
-    def test_compound_nested_subs(self):
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
-        x, y = grid.dimensions
-        hx, hy = grid.spacing_symbols
-
-        f = Function(name='f', grid=grid, space_order=2)
-        p = TimeFunction(name='p', grid=grid, space_order=2,
-                         coefficients='symbolic')
-
-        coeffs0 = np.full(3, 1)
-        coeffs1 = np.full(3, 2)
-
-        subs = Substitutions(Coefficient(1, p, x, coeffs0),
-                             Coefficient(1, p, y, coeffs1))
-
-        opt = ('advanced', {'expand': False})
-
-        Operator(Eq(p.forward, (f*p.dx).dy, coefficients=subs), opt=opt).cfunction
+        # Compound expression
+        Operator(Eq(u, (v*u.dx).dy, coefficients=coeffs), opt=opt).cfunction
 
 
 class Test1Pass(object):
