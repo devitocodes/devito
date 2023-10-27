@@ -558,11 +558,17 @@ class SubDomain(AbstractSubDomain):
                       **{dim.symbolic_max: sha-1 for dim, sha in zip(grid.dimensions,
                                                                      grid.shape)}}
 
-        sdim_interval = {dim: (sdim._interval.subs({**sdim._thickness_map,
-                                                    **bounds_map})
-                               if sdim.is_Sub else None)
+        sdim_interval = {dim:
+                         (sdim._interval.subs({**{k: v for k, v
+                                                  in sdim._thickness_map.items()
+                                                  if v is not None},
+                                               **bounds_map})
+                          if sdim.is_Sub else None)
                          for dim, sdim in self.dimension_map.items()}
 
+        # If the grid is set up with conditional dimensions, then dist_interval
+        # and sdim_interval end up keyed with actual dimensions I would guess?
+        # And grid.dimensions don't match
         intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
                            else dist_interval[dim].intersect(sdim_interval[dim]))
                           for dim in grid.dimensions)
