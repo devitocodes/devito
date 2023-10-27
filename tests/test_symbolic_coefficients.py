@@ -459,3 +459,34 @@ class TestSC(object):
 
         # `str` simply because some objects are of type EvalDerivative
         assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)
+
+    def test_compound_nested_subs(self):
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        hx, hy = grid.spacing_symbols
+
+        f = Function(name='f', grid=grid, space_order=2)
+        p = TimeFunction(name='p', grid=grid, space_order=2,
+                         coefficients='symbolic')
+
+        coeffs0 = np.array([100, 100, 100])
+        coeffs1 = np.array([200, 200, 200])
+
+        subs = Substitutions(Coefficient(1, p, x, coeffs0),
+                             Coefficient(1, p, y, coeffs1))
+
+        eq = Eq(p.forward, (f*p.dx).dy, coefficients=subs)
+
+        mul = lambda e, i: sp.Mul(f.subs(y, y+i*hy), e, 200, evaluate=False)
+        term0 = mul(p*100 +
+                    p.subs(x, x-hx)*100 +
+                    p.subs(x, x+hx)*100, 0)
+        term1 = mul(p.subs(y, y-hy)*100 +
+                    p.subs({x: x-hx, y: y-hy})*100 +
+                    p.subs({x: x+hx, y: y-hy})*100, -1)
+        term2 = mul(p.subs(y, y+hy)*100 +
+                    p.subs({x: x-hx, y: y+hy})*100 +
+                    p.subs({x: x+hx, y: y+hy})*100, 1)
+
+        # `str` simply because some objects are of type EvalDerivative
+        assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)
