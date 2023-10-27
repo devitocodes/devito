@@ -287,9 +287,33 @@ def default_rules(obj, functions):
     # NOTE: Do we want to throw a warning if the same arg has
     # been provided twice?
     args_provided = list(set(args_provided))
-    not_provided = [i for i in args_present if i not in frozenset(args_provided)]
 
     rules = {}
+    not_provided = []
+    for i0 in args_present:
+        if any(i0 == i1 for i1 in args_provided):
+            # Perfect match, as expected by the legacy custom coeffs API
+            continue
+
+        # TODO: to make cross-derivs work, we must relax `not_provided` by
+        # checking not for equality, but rather for inclusion. This is ugly,
+        # but basically a major revamp is the only alternative... and for now,
+        # it does the trick
+        mapper = {}
+        deriv_order, expr, dim = i0
+        try:
+            for k, v in subs.rules.items():
+                ofs, do, f, d = k.args
+                if deriv_order == do and dim is d and f in expr._functions:
+                    mapper[k.func(ofs, do, expr, d)] = v
+        except AttributeError:
+            assert subs is None
+
+        if mapper:
+            rules.update(mapper)
+        else:
+            not_provided.append(i0)
+
     for i in not_provided:
         rules = {**rules, **generate_subs(*i)}
 
