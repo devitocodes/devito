@@ -564,18 +564,19 @@ class SubDomain(AbstractSubDomain):
                                                   if v is not None},
                                                **bounds_map})
                           if sdim.is_Sub else None)
-                         for dim, sdim in self.dimension_map.items()}
+                         for dim, sdim in zip(grid.dimensions, self.dimensions)}
 
         # If the grid is set up with conditional dimensions, then dist_interval
         # and sdim_interval end up keyed with actual dimensions I would guess?
         # And grid.dimensions don't match
+
         intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
                            else dist_interval[dim].intersect(sdim_interval[dim]))
                           for dim in grid.dimensions)
 
-        for dim in grid.dimensions:
-            if self.dimension_map[dim].is_Sub:
-                if self.dimension_map[dim].local:
+        for dim, sdim in zip(grid.dimensions, self.dimensions):
+            if sdim.is_Sub:
+                if sdim.local:
                     in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
                     off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
                     if not in_rank and not off_rank:
