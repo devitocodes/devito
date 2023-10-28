@@ -13,6 +13,7 @@ from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
+from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension)
 
@@ -37,7 +38,7 @@ class CartesianDiscretization(ABC):
     @property
     def shape(self):
         """Shape of the physical domain."""
-        return self._shape
+        return DimensionTuple(*self._shape, getters=self.dimensions)
 
     @property
     def dimensions(self):
@@ -226,12 +227,13 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Offset index of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
-        return tuple(grid_origin)
+        return DimensionTuple(*grid_origin, getters=self.dimensions)
 
     @property
     def origin_offset(self):
         """Physical offset of the local (per-process) origin from the domain origin."""
-        return tuple(i*h for i, h in zip(self.origin_ioffset, self.spacing))
+        return DimensionTuple(*[i*h for i, h in zip(self.origin_ioffset, self.spacing)],
+                              getters=self.dimensions)
 
     @property
     def time_dim(self):

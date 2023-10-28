@@ -324,12 +324,16 @@ class Decomposition(tuple):
                 rel_ofs = self.glb_min + abs_ofs - base
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
+                elif abs_ofs > top:
+                    return top + 1
                 else:
                     return None
             else:
                 rel_ofs = abs_ofs - (self.glb_max - top)
                 if abs_ofs >= self.glb_max - top and abs_ofs <= self.glb_max - base:
                     return rel_ofs
+                elif abs_ofs > self.glb_max - base:
+                    return self.glb_max - base + 1
                 else:
                     return None
         else:
