@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
@@ -60,6 +61,34 @@ class TestSymbolicCoeffs(object):
 
         # Compound expression
         Operator(Eq(u, (v*u.dx).dy, coefficients=coeffs), opt=opt).cfunction
+
+    @pytest.mark.parametrize('coeffs,expected', [
+        ((7, 7, 7), 1),  # We've had a bug triggered by identical coeffs
+        ((5, 7, 9), 3),
+    ])
+    def test_multiple_cross_derivs(self, coeffs, expected):
+        grid = Grid(shape=(11, 11, 11), extent=(10., 10., 10.))
+        x, y, z = grid.dimensions
+
+        p = TimeFunction(name='p', grid=grid, space_order=4,
+                         coefficients='symbolic')
+
+        c0, c1, c2 = coeffs
+        coeffs0 = np.full(5, c0)
+        coeffs1 = np.full(5, c1)
+        coeffs2 = np.full(5, c2)
+
+        subs = Substitutions(Coefficient(1, p, x, coeffs0),
+                             Coefficient(1, p, y, coeffs1),
+                             Coefficient(1, p, z, coeffs2))
+
+        eq = Eq(p.forward, p.dy.dz + p.dx.dy, coefficients=subs)
+
+        op = Operator(eq, opt=('advanced', {'expand': False}))
+        op.cfunction
+
+        # w0, w1, ...
+        assert len(op._globals) == expected
 
 
 class Test1Pass(object):
