@@ -48,6 +48,11 @@ def compare_ops(e1, e2):
     if type(e1) is type(e2) and len(e1.args) == len(e2.args):
         if e1.is_Atom:
             return True if e1 == e2 else False
+        elif isinstance(e1, IndexDerivative) and isinstance(e2, IndexDerivative):
+            if e1.mapper == e2.mapper:
+                return compare_ops(e1.base, e2.base)
+            else:
+                return False
         elif e1.is_Indexed and e2.is_Indexed:
             return True if e1.base == e2.base else False
         else:
