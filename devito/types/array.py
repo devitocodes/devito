@@ -465,18 +465,6 @@ class Bundle(ArrayBasic):
         return len(self.components)
 
     @property
-    def symbolic_shape(self):
-        # A Bundle may be defined over a SteppingDimension, which is of unknown
-        # size, hence we gotta use the actual numeric size instead
-        ret = []
-        for d, s, v in zip(self.dimensions, super().symbolic_shape, self.c0.shape):
-            if d.is_Stepping:
-                ret.append(Number(v))
-            else:
-                ret.append(s)
-        return DimensionTuple(*ret, getters=self.dimensions)
-
-    @property
     def initvalue(self):
         return None
 
@@ -486,7 +474,8 @@ class Bundle(ArrayBasic):
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
               '_mem_shared', '_size_domain', '_size_halo', '_size_owned',
               '_size_padding', '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field']:
+              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field',
+              'symbolic_shape']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property
