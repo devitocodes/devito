@@ -406,24 +406,32 @@ def update_args(root, efuncs, dag):
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_args = derive_parameters(root)
+    new_params = derive_parameters(root)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
     defines = FindSymbols('defines').visit(root.body)
-    drop_args = [a for a in root.parameters if a in defines]
+    drop_params = [a for a in root.parameters if a in defines]
 
     # 3) removed a symbol that was previously necessary (e.g., `x_size` after
     # linearization)
     symbols = FindSymbols('basics').visit(root.body)
-    drop_args.extend(a for a in root.parameters if a.is_Symbol and a not in symbols)
+    drop_params.extend(a for a in root.parameters
+                       if a.is_Symbol and a not in symbols)
 
-    if not (new_args or drop_args):
+    # Must record the index, not the param itself, since a param may be
+    # bound to whatever arg, possibly a generic SymPy expr
+    drop_params = [root.parameters.index(a) for a in drop_params]
+
+    if not (new_params or drop_params):
         return efuncs
 
+    # Create the new parameters and arguments lists
+
     def _filter(v, efunc=None):
-        processed = list(v)
-        for a in new_args:
+        processed = [a for i, a in enumerate(v) if i not in drop_params]
+
+        for a in new_params:
             if a in processed:
                 # A child efunc trying to add a symbol alredy added by a
                 # sibling efunc
@@ -437,15 +445,10 @@ def update_args(root, efuncs, dag):
 
             processed.append(a)
 
-        processed = [a for a in processed if a not in drop_args]
-
         return processed
 
     efuncs = OrderedDict(efuncs)
-
-    # Update to use the new signature
-    parameters = _filter(root.parameters, root)
-    efuncs[root.name] = root._rebuild(parameters=parameters)
+    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
