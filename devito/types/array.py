@@ -12,7 +12,7 @@ from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess']
+           'ComponentAccess', 'Bag']
 
 
 class ArrayBasic(AbstractFunction):
@@ -457,6 +457,10 @@ class Bundle(ArrayBasic):
     # Other properties and methods
 
     @property
+    def handles(self):
+        return (self,)
+
+    @property
     def components(self):
         return self._components
 
@@ -511,6 +515,20 @@ class Bundle(ArrayBasic):
             return ArrayMapped._C_ctype
         else:
             return POINTER(dtype_to_ctype(self.dtype))
+
+
+class Bag(Bundle):
+
+    """
+    A Bag is like a Bundle but it doesn't represent a concrete object
+    in the generated code. It's used by the compiler because, in certain
+    passes, treating groups of Function homogeneously is more practical
+    than keeping them separated.
+    """
+
+    @property
+    def handles(self):
+        return self.components
 
 
 class ComponentAccess(Expr, Reconstructable):
