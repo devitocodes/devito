@@ -19,14 +19,19 @@ __all__ = ['Graph', 'iet_pass', 'iet_visit']
 class Graph(object):
 
     """
-    A special DAG representing call graphs.
+    DAG representation of a call graph.
 
-    The nodes of the graph are IET Callables; an edge from node `a` to node `b`
-    indicates that `b` calls `a`.
+    The nodes of the DAG are IET Callables.
+    An edge from node `a` to node `b` indicates that `b` calls `a`.
 
-    The `apply` method may be used to visit the Graph and apply a transformer `T`
-    to all nodes. This may change the state of the Graph: node `a` gets replaced
-    by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
+    The `apply` method visits the Graph and applies a transformation `T`
+    to all nodes. This may change the state of the Graph:
+
+        * Node `a` gets replaced by `a' = T(a)`.
+        * New nodes (Callables) may be added.
+          * Consequently, edges are added.
+        * New global objects may be introduced:
+          * Global symbols, header files, ...
 
     The `visit` method collects info about the nodes in the Graph.
     """
@@ -39,6 +44,10 @@ class Graph(object):
         self.includes = []
         self.headers = []
         self.globals = []
+
+        # Stash immutable information useful for some compiler passes
+        writes = FindSymbols('writes').visit(iet)
+        self.writes_input = frozenset(f for f in writes if f.is_Input)
 
     @property
     def root(self):

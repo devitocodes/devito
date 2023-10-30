@@ -3,7 +3,7 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
-from sympy import Expr, Number
+from sympy import Expr
 
 from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
@@ -451,8 +451,8 @@ class Bundle(ArrayBasic):
         return self.c0.is_TimeFunction
 
     @property
-    def grid(self):
-        return self.c0.grid
+    def is_Input(self):
+        return all(i.is_Input for i in self.components)
 
     # Other properties and methods
 
@@ -479,7 +479,7 @@ class Bundle(ArrayBasic):
               '_mem_shared', '_size_domain', '_size_halo', '_size_owned',
               '_size_padding', '_size_nopad', '_size_nodomain', '_offset_domain',
               '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field',
-              'symbolic_shape']:
+              'grid', 'symbolic_shape']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property
