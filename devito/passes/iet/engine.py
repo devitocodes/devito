@@ -7,8 +7,8 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
-                          Temp)
+from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
+                          Indirection, Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -295,6 +295,7 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Array)
+@abstract_object.register(Bundle)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
@@ -308,6 +309,8 @@ def _(i, mapper, sregistry):
         i.indexed: v.indexed,
         i._C_symbol: v._C_symbol,
     })
+    if i.dmap is not None:
+        mapper[i.dmap] = v.dmap
 
 
 @abstract_object.register(CompositeObject)
