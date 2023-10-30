@@ -47,7 +47,7 @@ example above being for a single equation). This code may also be compiled and
 executed
 
 ```python
->>> op(t=timesteps)
+>>> op(t=timesteps, dt=dt)
 ```
 
 There is virtually no limit to the complexity of an `Operator` -- the Devito

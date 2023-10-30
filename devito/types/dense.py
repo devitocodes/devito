@@ -890,7 +890,7 @@ class Function(DiscreteFunction):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional, default=1
-        Discretisation order for space derivatives. Defaults to 1.
+        Discretisation order for space derivatives.
         `space_order` also impacts the number of points available around a
         generic point of interest.  By default, `space_order` points are
         available on both sides of a generic point of interest, including those
@@ -911,8 +911,7 @@ class Function(DiscreteFunction):
         Dimensions associated with the object. Only necessary if `grid` isn't
         given.
     dtype : data-type, optional, default=np.float32
-        Any object that can be interpreted as a numpy data type. Defaults
-        to `np.float32`.
+        Any object that can be interpreted as a numpy data type.
     staggered : Dimension or tuple of Dimension or Stagger, optional, default=None
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, default=None
@@ -1221,7 +1220,7 @@ class TimeFunction(Function):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional, default=1
-        Discretisation order for space derivatives. Defaults to 1.
+        Discretisation order for space derivatives.
         `space_order` also impacts the number of points available around a
         generic point of interest.  By default, `space_order` points are
         available on both sides of a generic point of interest, including those
@@ -1244,8 +1243,7 @@ class TimeFunction(Function):
         Dimensions associated with the object. Only necessary if `grid` isn't
         given.
     dtype : data-type, optional, default=np.float32
-        Any object that can be interpreted as a numpy data type. Defaults
-        to `np.float32`.
+        Any object that can be interpreted as a numpy data type.
     save : int or Buffer, optional, default=None
         By default, `save=None`, which indicates the use of alternating
         buffers. This enables cyclic writes to the TimeFunction. For example,
@@ -1259,7 +1257,7 @@ class TimeFunction(Function):
         alternating buffer), an explicit value for `save` ( an integer) must be
         provided.
     time_dim : Dimension, optional, default=grid.time_dim
-        TimeDimension to be used in the TimeFunction. Defaults to `grid.time_dim`.
+        TimeDimension to be used in the TimeFunction.
     staggered : Dimension or tuple of Dimension or Stagger, optional, default=None
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, default=None

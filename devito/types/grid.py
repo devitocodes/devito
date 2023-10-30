@@ -79,10 +79,9 @@ class Grid(CartesianDiscretization, ArgProvider):
     time_dimension : TimeDimension, optional
         The dimension used to define time in a `TimeFunction` created from
         this Grid.
-    dtype : data-type, optional
+    dtype : data-type, default=np.float32
         Any object that can be interpreted as a numpy data type, used as default
         data type to be inherited by all Functions created from this Grid.
-        Defaults to ``np.float32``.
     subdomains : tuple of SubDomain, optional
         If no subdomains are specified, the Grid only defines the two default
         subdomains ``interior`` and ``domain``.

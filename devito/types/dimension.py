@@ -786,7 +786,7 @@ class ConditionalDimension(DerivedDimension):
     indirect : bool, optional, default=False
         If True, use `self`, rather than the parent Dimension, to
         index into arrays. A typical use case is when arrays are accessed
-        indirectly via the ``condition`` expression. Defaults to False.
+        indirectly via the ``condition`` expression.
 
     Examples
     --------
