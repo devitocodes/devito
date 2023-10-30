@@ -349,6 +349,21 @@ class Test2Pass(object):
 
         op.cfunction
 
+    def test_diff_first_deriv(self):
+        grid = Grid(shape=(16, 16, 16))
+
+        u = TimeFunction(name='u', grid=grid, space_order=16)
+
+        eq = Eq(u.forward, u.dy2.dz + u.dy.dx + 1)
+
+        op = Operator(eq, opt=('advanced', {'expand': False}))
+
+        xs, ys, zs = get_params(op, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = get_arrays(op)
+        assert len(arrays) == 2
+        check_array(arrays[0], ((8, 8), (0, 0), (8, 8)), (xs+16, ys, zs+16))
+        check_array(arrays[1], ((8, 8), (0, 0), (8, 8)), (xs+16, ys, zs+16))
+
 
 def tti_sa_eqns(grid):
     t = grid.stepping_dim
