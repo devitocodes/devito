@@ -483,7 +483,7 @@ class ClusterGroup(tuple):
         If two Clusters perform calculations with different precision, the
         data type with highest precision is returned.
         """
-        dtypes = {i.dtype for i in self}
+        dtypes = {i.dtype for i in self} - {None}
 
         return infer_dtype(dtypes)
 
