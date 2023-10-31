@@ -266,9 +266,9 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, kwargs=kwargs):
-            return rcompile(expressions, kwargs)
+    def _rcompile_wrapper(cls, **kwargs0):
+        def wrapper(expressions, **kwargs1):
+            return rcompile(expressions, {**kwargs0, **kwargs1})
         return wrapper
 
     @classmethod
