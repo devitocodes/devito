@@ -256,9 +256,10 @@ def abstract_objects(objects, sregistry=None):
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
     priority = {
-        DiscreteFunction: 1,
-        AbstractIncrDimension: 2,
-        BlockDimension: 3,
+        Array: 1,
+        DiscreteFunction: 2,
+        AbstractIncrDimension: 3,
+        BlockDimension: 4,
     }
 
     def key(i):
