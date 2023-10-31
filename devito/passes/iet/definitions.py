@@ -584,7 +584,7 @@ class DeviceAwareDataManager(DataManager):
         self.place_transfers(graph, mapper=mapper)
         self.place_definitions(graph, globs=set())
         self.place_devptr(graph)
-        self.place_bundling(graph)
+        self.place_bundling(graph, writes_input=graph.writes_input)
         self.place_casts(graph)
 
 

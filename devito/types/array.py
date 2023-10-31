@@ -3,7 +3,7 @@ from math import ceil
 
 import numpy as np
 from cached_property import cached_property
-from sympy import Expr, Number
+from sympy import Expr
 
 from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
@@ -12,7 +12,7 @@ from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess']
+           'ComponentAccess', 'Bag']
 
 
 class ArrayBasic(AbstractFunction):
@@ -451,10 +451,14 @@ class Bundle(ArrayBasic):
         return self.c0.is_TimeFunction
 
     @property
-    def grid(self):
-        return self.c0.grid
+    def is_Input(self):
+        return all(i.is_Input for i in self.components)
 
     # Other properties and methods
+
+    @property
+    def handles(self):
+        return (self,)
 
     @property
     def components(self):
@@ -463,18 +467,6 @@ class Bundle(ArrayBasic):
     @property
     def ncomp(self):
         return len(self.components)
-
-    @property
-    def symbolic_shape(self):
-        # A Bundle may be defined over a SteppingDimension, which is of unknown
-        # size, hence we gotta use the actual numeric size instead
-        ret = []
-        for d, s, v in zip(self.dimensions, super().symbolic_shape, self.c0.shape):
-            if d.is_Stepping:
-                ret.append(Number(v))
-            else:
-                ret.append(s)
-        return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
     def initvalue(self):
@@ -486,7 +478,8 @@ class Bundle(ArrayBasic):
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
               '_mem_shared', '_size_domain', '_size_halo', '_size_owned',
               '_size_padding', '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field']:
+              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field',
+              'grid', 'symbolic_shape']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property
@@ -522,6 +515,20 @@ class Bundle(ArrayBasic):
             return ArrayMapped._C_ctype
         else:
             return POINTER(dtype_to_ctype(self.dtype))
+
+
+class Bag(Bundle):
+
+    """
+    A Bag is like a Bundle but it doesn't represent a concrete object
+    in the generated code. It's used by the compiler because, in certain
+    passes, treating groups of Function homogeneously is more practical
+    than keeping them separated.
+    """
+
+    @property
+    def handles(self):
+        return self.components
 
 
 class ComponentAccess(Expr, Reconstructable):

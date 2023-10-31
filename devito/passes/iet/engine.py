@@ -7,8 +7,8 @@ from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import (Array, CompositeObject, Lock, IncrDimension, Indirection,
-                          Temp)
+from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
+                          Indirection, Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -19,14 +19,19 @@ __all__ = ['Graph', 'iet_pass', 'iet_visit']
 class Graph(object):
 
     """
-    A special DAG representing call graphs.
+    DAG representation of a call graph.
 
-    The nodes of the graph are IET Callables; an edge from node `a` to node `b`
-    indicates that `b` calls `a`.
+    The nodes of the DAG are IET Callables.
+    An edge from node `a` to node `b` indicates that `b` calls `a`.
 
-    The `apply` method may be used to visit the Graph and apply a transformer `T`
-    to all nodes. This may change the state of the Graph: node `a` gets replaced
-    by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
+    The `apply` method visits the Graph and applies a transformation `T`
+    to all nodes. This may change the state of the Graph:
+
+        * Node `a` gets replaced by `a' = T(a)`.
+        * New nodes (Callables) may be added.
+          * Consequently, edges are added.
+        * New global objects may be introduced:
+          * Global symbols, header files, ...
 
     The `visit` method collects info about the nodes in the Graph.
     """
@@ -39,6 +44,10 @@ class Graph(object):
         self.includes = []
         self.headers = []
         self.globals = []
+
+        # Stash immutable information useful for some compiler passes
+        writes = FindSymbols('writes').visit(iet)
+        self.writes_input = frozenset(f for f in writes if f.is_Input)
 
     @property
     def root(self):
@@ -295,6 +304,7 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Array)
+@abstract_object.register(Bundle)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
@@ -308,6 +318,8 @@ def _(i, mapper, sregistry):
         i.indexed: v.indexed,
         i._C_symbol: v._C_symbol,
     })
+    if i.dmap is not None:
+        mapper[i.dmap] = v.dmap
 
 
 @abstract_object.register(CompositeObject)
@@ -406,24 +418,32 @@ def update_args(root, efuncs, dag):
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_args = derive_parameters(root)
+    new_params = derive_parameters(root)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
     defines = FindSymbols('defines').visit(root.body)
-    drop_args = [a for a in root.parameters if a in defines]
+    drop_params = [a for a in root.parameters if a in defines]
 
     # 3) removed a symbol that was previously necessary (e.g., `x_size` after
     # linearization)
     symbols = FindSymbols('basics').visit(root.body)
-    drop_args.extend(a for a in root.parameters if a.is_Symbol and a not in symbols)
+    drop_params.extend(a for a in root.parameters
+                       if a.is_Symbol and a not in symbols)
 
-    if not (new_args or drop_args):
+    # Must record the index, not the param itself, since a param may be
+    # bound to whatever arg, possibly a generic SymPy expr
+    drop_params = [root.parameters.index(a) for a in drop_params]
+
+    if not (new_params or drop_params):
         return efuncs
 
+    # Create the new parameters and arguments lists
+
     def _filter(v, efunc=None):
-        processed = list(v)
-        for a in new_args:
+        processed = [a for i, a in enumerate(v) if i not in drop_params]
+
+        for a in new_params:
             if a in processed:
                 # A child efunc trying to add a symbol alredy added by a
                 # sibling efunc
@@ -437,15 +457,10 @@ def update_args(root, efuncs, dag):
 
             processed.append(a)
 
-        processed = [a for a in processed if a not in drop_args]
-
         return processed
 
     efuncs = OrderedDict(efuncs)
-
-    # Update to use the new signature
-    parameters = _filter(root.parameters, root)
-    efuncs[root.name] = root._rebuild(parameters=parameters)
+    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
