@@ -65,9 +65,10 @@ class TestCollectDerivatives(object):
         dt = grid.time_dim.spacing
 
         u = TimeFunction(name="u", grid=grid, space_order=4, time_order=2)
-        f = Function(name='f', grid=grid)
+        f = Function(name='f', grid=grid, space_order=4)
 
         eq = Eq(u.forward, u.laplace + dt**0.2*u.biharmonic(1/f))
+
         leq = collect_derivatives.func([eq])[0]
 
         assert len(eq.rhs.args) == 3

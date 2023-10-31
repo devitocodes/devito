@@ -105,7 +105,16 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def _fd(self):
-        return dict(ChainMap(*[getattr(i, '_fd', {}) for i in self._args_diff]))
+        # Filter out all args with fd order too high
+        fd_args = []
+        for f in self._args_diff:
+            try:
+                if f.space_order <= self.space_order and \
+                        (not f.is_TimeDependent or f.time_order <= self.time_order):
+                    fd_args.append(f)
+            except AttributeError:
+                pass
+        return dict(ChainMap(*[getattr(i, '_fd', {}) for i in fd_args]))
 
     @cached_property
     def _symbolic_functions(self):

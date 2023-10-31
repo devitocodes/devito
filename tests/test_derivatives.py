@@ -457,6 +457,21 @@ class TestFD(object):
         for fd in g._fd:
             assert getattr(g, fd)
 
+        for d in grid.dimensions:
+            assert 'd%s' % d.name in f._fd
+            assert 'd%s' % d.name in g._fd
+            for o in range(2, min(7, so+1)):
+                assert 'd%s%s' % (d.name, o) in f._fd
+                assert 'd%s%s' % (d.name, o) in g._fd
+
+    def test_shortcuts_mixed(self):
+        grid = Grid(shape=(10,))
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid, space_order=4)
+        assert 'dx4' not in (f*g)._fd
+        assert 'dx4' not in (f+g)._fd
+        assert 'dx4' not in (g*f.dx)._fd
+
     def test_transpose_simple(self):
         grid = Grid(shape=(4, 4))
 
