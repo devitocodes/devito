@@ -839,6 +839,7 @@ class CustomCompiler(Compiler):
 
     def __new__(cls, *args, **kwargs):
         platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
 
         if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
             obj = super().__new__(cls)
@@ -846,6 +847,18 @@ class CustomCompiler(Compiler):
             return obj
         elif platform is M1:
             return ClangCompiler(*args, **kwargs)
+        elif platform is INTELGPUX:
+            return OneapiCompiler(*args, **kwargs)
+        elif platform is NVIDIAX:
+            if language == 'cuda':
+                return CudaCompiler(*args, **kwargs)
+            else:
+                return NvidiaCompiler(*args, **kwargs)
+        elif platform is AMDGPUX:
+            if language == 'hip':
+                return HipCompiler(*args, **kwargs)
+            else:
+                return AOMPCompiler(*args, **kwargs)
         else:
             return GNUCompiler(*args, **kwargs)
 
