@@ -7,7 +7,7 @@ import sympy
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
 from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
-                           Lambda, ElementalFunction, CGen, FindSymbols,
+                           KernelLaunch, Lambda, ElementalFunction, CGen, FindSymbols,
                            filter_iterations, make_efunc, retrieve_iteration_tree)
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
@@ -328,6 +328,20 @@ void foo(struct dataobj *restrict u_vec)
 {
   u(x, y) = 1;
 }"""
+
+
+def test_kernel_launch():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+
+    class Dim3(LocalObject):
+        dtype = type('dim3', (c_void_p,), {})
+
+    kl = KernelLaunch('mykernel', Dim3('mygrid'), Dim3('myblock'),
+                      arguments=(u.indexed,))
+
+    assert str(kl) == 'mykernel<<<mygrid,myblock,0>>>(d_u);'
 
 
 def test_codegen_quality0():

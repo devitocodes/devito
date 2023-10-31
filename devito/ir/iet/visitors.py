@@ -576,6 +576,19 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
 
+    def visit_KernelLaunch(self, o):
+        arguments = self._args_call(o.arguments)
+        arguments = ','.join(arguments)
+
+        launch_args = [o.grid, o.block]
+        if o.shm is not None:
+            launch_args.append(o.shm)
+        if o.stream is not None:
+            launch_args.append(o.stream)
+        launch_config = ','.join(str(i) for i in launch_args)
+
+        return c.Statement('%s<<<%s>>>(%s)' % (o.name, launch_config, arguments))
+
     # Operator-handle machinery
 
     def _operator_includes(self, o):
@@ -1201,6 +1214,14 @@ class Uxreplace(Transformer):
         return o._rebuild(halo_scheme=halo_scheme, body=body)
 
     visit_ThreadedProdder = visit_Call
+
+    def visit_KernelLaunch(self, o):
+        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        grid = self.mapper.get(o.grid, o.grid)
+        block = self.mapper.get(o.block, o.block)
+        stream = self.mapper.get(o.stream, o.stream)
+        return o._rebuild(grid=grid, block=block, stream=stream,
+                          arguments=arguments)
 
 
 # Utils
