@@ -109,7 +109,6 @@ class TestCodeGeneration(object):
             'acc parallel loop tile(32,4,4) present(u)'
         assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4) present(u)'
-        # Only the AFFINE Iterations are tiled
         strtile = ','.join([str(i) for i in stile])
         assert trees[3][1].pragmas[0].value ==\
             'acc parallel loop tile(%s) present(src,src_coords,u)' % strtile

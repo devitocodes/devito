@@ -216,7 +216,7 @@ class DefaultOrderedDict(OrderedDict):
             args = tuple()
         else:
             args = self.default_factory,
-        return type(self), args, None, None, self.items()
+        return type(self), args, None, None, self()
 
     def copy(self):
         return self.__copy__()
@@ -639,7 +639,7 @@ class frozendict(Mapping):
         return self._hash
 
 
-class UnboundTuple(object):
+class UnboundTuple(tuple):
     """
     An UnboundedTuple is a tuple that can be
     infinitely iterated over.
@@ -657,30 +657,37 @@ class UnboundTuple(object):
     UnboundTuple(3, 4)
     """
 
-    def __init__(self, *items):
+    def __new__(cls, *items, **kwargs):
         nitems = []
         for i in as_tuple(items):
-            if isinstance(i, Iterable):
+            if isinstance(i, UnboundTuple):
+                nitems.append(i)
+            elif isinstance(i, Iterable):
                 nitems.append(UnboundTuple(*i))
             elif i is not None:
                 nitems.append(i)
 
-        self.items = tuple(nitems)
-        self.last = len(self.items)
-        self.current = 0
+        obj = super().__new__(cls, tuple(nitems))
+        obj.last = len(nitems)
+        obj.current = 0
+
+        return obj
 
     @property
     def default(self):
-        return self.items[0]
+        return self[0]
 
     @property
     def prod(self):
-        return np.prod(self.items)
+        return np.prod(self)
+
+    def iter(self):
+        self.current = 0
 
     def next(self):
         if self.last == 0:
             return None
-        item = self.items[self.current]
+        item = self[self.current]
         if self.current == self.last-1 or self.current == -1:
             self.current = -1
         else:
@@ -691,7 +698,7 @@ class UnboundTuple(object):
         return self.last
 
     def __repr__(self):
-        sitems = [s.__repr__() for s in self.items]
+        sitems = [s.__repr__() for s in self]
         return "%s(%s)" % (self.__class__.__name__, ", ".join(sitems))
 
     def __getitem__(self, idx):
@@ -704,9 +711,9 @@ class UnboundTuple(object):
             return UnboundTuple(*[self[i] for i in range(start, stop, step)])
         try:
             if idx >= self.last-1:
-                return self.items[self.last-1]
+                return super().__getitem__(self.last-1)
             else:
-                return self.items[idx]
+                return super().__getitem__(idx)
         except TypeError:
             # Slice, ...
             return UnboundTuple(self[i] for i in idx)
@@ -744,27 +751,28 @@ class UnboundedMultiTuple(UnboundTuple):
     3
     """
 
-    def __init__(self, *items):
-        super().__init__(*items)
-        self.current = -1
+    def __new__(cls, *items, **kwargs):
+        obj = super().__new__(cls, *items, **kwargs)
+        obj.current = -1
+        return obj
 
     @property
     def curitem(self):
-        return self.items[self.tip]
+        return self[self.current]
 
     @property
     def nextitem(self):
-        return self.items[min(self.tip + 1, max(len(self.items) - 1, 0))]
+        return self[min(self.current + 1, max(self.last - 1, 0))]
 
     def index(self, item):
-        return self.items.index(item)
+        return self.index(item)
 
     def iter(self):
         self.current = min(self.current + 1, self.last - 1)
-        self.items[self.current].current = 0
+        self[self.current].current = 0
         return
 
     def next(self):
-        if self.items[self.current].current == -1:
+        if self[self.current].current == -1:
             raise StopIteration
-        return self.items[self.current].next()
+        return self[self.current].next()
