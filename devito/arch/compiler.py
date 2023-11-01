@@ -172,19 +172,20 @@ class Compiler(GCCToolchain):
     """
 
     fields = {'cc', 'ld'}
+    _cpp = False
 
     def __init__(self, **kwargs):
-        super(Compiler, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.__lookup_cmds__()
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
-            self.cc = self.CC if kwargs.get('cpp', False) is False else self.CXX
+            self.cc = self.CC if self._cpp is False else self.CXX
             self.cc = self.cc if self.suffix is None else ('%s-%s' %
                                                            (self.cc, self.suffix))
         else:
-            self.cc = self.MPICC if kwargs.get('cpp', False) is False else self.MPICXX
+            self.cc = self.MPICC if self._cpp is False else self.MPICXX
         self.ld = self.cc  # Wanted by the superclass
 
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
@@ -196,7 +197,7 @@ class Compiler(GCCToolchain):
         self.defines = []
         self.undefines = []
 
-        self.src_ext = 'c' if kwargs.get('cpp', False) is False else 'cpp'
+        self.src_ext = 'c' if self._cpp is False else 'cpp'
 
         if platform.system() == "Linux":
             self.so_ext = '.so'
@@ -215,6 +216,11 @@ class Compiler(GCCToolchain):
         else:
             # Knowing the version may still be useful to pick supported flags
             self.version = sniff_compiler_version(self.CC)
+
+        self.__init_finalize__(**kwargs)
+
+    def __init_finalize__(self, **kwargs):
+        pass
 
     def __new_with__(self, **kwargs):
         """
@@ -394,9 +400,7 @@ class Compiler(GCCToolchain):
 
 class GNUCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def __init_finalize__(self, **kwargs):
         platform = kwargs.pop('platform', configuration['platform'])
 
         self.cflags += ['-Wno-unused-result',
@@ -443,9 +447,7 @@ class GNUCompiler(Compiler):
 
 class ArmCompiler(GNUCompiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+    def __init_finalize__(self, **kwargs):
         platform = kwargs.pop('platform', configuration['platform'])
 
         # Graviton flag
@@ -455,8 +457,7 @@ class ArmCompiler(GNUCompiler):
 
 class ClangCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
@@ -522,8 +523,7 @@ class AOMPCompiler(Compiler):
 
     """AMD's fork of Clang for OpenMP offloading on both AMD and NVidia cards."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -556,8 +556,7 @@ class AOMPCompiler(Compiler):
 
 class DPCPPCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         self.cflags += ['-qopenmp', '-fopenmp-targets=spir64']
 
@@ -572,8 +571,7 @@ class DPCPPCompiler(Compiler):
 
 class PGICompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, cpp=True, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
@@ -618,8 +616,9 @@ class NvidiaCompiler(PGICompiler):
 
 class CudaCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, cpp=True, **kwargs)
+    _cpp = True
+
+    def __init_finalize__(self, **kwargs):
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
@@ -683,8 +682,9 @@ class CudaCompiler(Compiler):
 
 class HipCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, cpp=True, **kwargs)
+    _cpp = True
+
+    def __init_finalize__(self, **kwargs):
 
         self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
@@ -712,8 +712,7 @@ class HipCompiler(Compiler):
 
 class IntelCompiler(Compiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
@@ -771,8 +770,7 @@ class IntelCompiler(Compiler):
 
 class IntelKNLCompiler(IntelCompiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         language = kwargs.pop('language', configuration['language'])
 
@@ -784,8 +782,7 @@ class IntelKNLCompiler(IntelCompiler):
 
 class OneapiCompiler(IntelCompiler):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init_finalize__(self, **kwargs):
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
@@ -841,38 +838,37 @@ class CustomCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        if any(i in environ for i in ['CC', 'CXX', 'CFLAGS', 'LDFLAGS']):
-            obj = super().__new__(cls)
-            obj.__init__(*args, **kwargs)
-            return obj
-        elif platform is M1:
-            return ClangCompiler(*args, **kwargs)
+        if platform is M1:
+            _base = ClangCompiler
         elif platform is INTELGPUX:
-            return OneapiCompiler(*args, **kwargs)
+            _base = OneapiCompiler
         elif platform is NVIDIAX:
             if language == 'cuda':
-                return CudaCompiler(*args, **kwargs)
+                _base = CudaCompiler
             else:
-                return NvidiaCompiler(*args, **kwargs)
+                _base = NvidiaCompiler
         elif platform is AMDGPUX:
             if language == 'hip':
-                return HipCompiler(*args, **kwargs)
+                _base = HipCompiler
             else:
-                return AOMPCompiler(*args, **kwargs)
+                _base = AOMPCompiler
         else:
-            return GNUCompiler(*args, **kwargs)
+            _base = GNUCompiler
 
-    def __init__(self, *args, **kwargs):
-        super(CustomCompiler, self).__init__(*args, **kwargs)
+        obj = super().__new__(cls)
+        # Keep base to initialize accordingly
+        obj._base = _base
 
-        default = '-O3 -g -march=native -fPIC -Wall -std=c99'
-        self.cflags = environ.get('CFLAGS', default).split(' ')
-        self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
+        return obj
 
-        language = kwargs.pop('language', configuration['language'])
-
-        if language == 'openmp':
-            self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
+    def __init_finalize__(self, **kwargs):
+        self._base.__init_finalize__(self, **kwargs)
+        # Update cflags
+        extrac = environ.get('CFLAGS', '').split(' ')
+        self.cflags = filter_ordered(self.cflags + extrac)
+        # Update ldflags
+        extrald = environ.get('LDFLAGS', '').split(' ')
+        self.ldflags = filter_ordered(self.ldflags + extrald)
 
     def __lookup_cmds__(self):
         self.CC = environ.get('CC', 'gcc')
