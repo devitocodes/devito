@@ -156,14 +156,12 @@ def separate_dimensions(expressions):
     resolutions = {}
     count = {}  # Keep track of increments on dim names
     processed = []
+    from devito.ir.support import pull_dims
+    from itertools import groupby
     for e in expressions:
         # Group dimensions by matching names
-        name_map = {}
-        for d in e.dimensions:
-            try:
-                name_map[d.name] += (d,)
-            except KeyError:
-                name_map[d.name] = (d,)
+        name_map = {n: tuple(g) for n, g in groupby(pull_dims(e, flag=False),
+                                                    key=lambda x: x.name)}
 
         clashes = tuple(v for v in name_map.values() if len(v) > 1)
 

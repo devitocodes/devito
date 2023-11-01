@@ -306,15 +306,6 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
-
-        # Resolve clashing dimension names
-        expressions = separate_dimensions(expressions)
-
-        print(expressions)
-
-        # FIXME: Think conditionals also need fixing in the same way?
-        # Actually may need to happen at the clusters level?
-
         expand = kwargs['options'].get('expand', True)
 
         # Specialization is performed on unevaluated expressions
@@ -336,6 +327,9 @@ class Operator(Callable):
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
+
+        # Resolve clashing dimension names
+        expressions = separate_dimensions(expressions)
 
         processed = [LoweredEq(i) for i in expressions]
 

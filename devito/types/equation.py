@@ -129,18 +129,6 @@ class Eq(sympy.Eq, Evaluable):
     coefficients = substitutions
 
     @property
-    def dimensions(self):
-        try:
-            ldims = set(self.lhs.dimensions)
-        except AttributeError:
-            ldims = set()
-        try:
-            rdims = set(self.rhs.dimensions)
-        except AttributeError:
-            rdims = set()
-        return ldims.union(rdims)
-
-    @property
     def implicit_dims(self):
         return self._implicit_dims
 
