@@ -664,7 +664,7 @@ class UnboundTuple(tuple):
                 nitems.append(i)
             elif isinstance(i, Iterable):
                 nitems.append(UnboundTuple(*i))
-            elif i is not None:
+            else:
                 nitems.append(i)
 
         obj = super().__new__(cls, tuple(nitems))
