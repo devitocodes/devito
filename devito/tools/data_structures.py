@@ -670,12 +670,13 @@ class UnboundTuple(tuple):
         obj = super().__new__(cls, tuple(nitems))
         obj.last = len(nitems)
         obj.current = 0
+        obj._default = kwargs.get('default', nitems[0])
 
         return obj
 
     @property
     def default(self):
-        return self[0]
+        return self._default
 
     @property
     def prod(self):
