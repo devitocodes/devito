@@ -375,6 +375,17 @@ class Cast(UnaryOp):
     __rkwargs__ = ('stars',)
 
     def __new__(cls, base, stars=None, **kwargs):
+        # Attempt simplifcation
+        # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
+        try:
+            return sympify(eval(cls._base_typ)(base))
+        except (NameError, SyntaxError):
+            # E.g., `_base_typ` is "char" or "unsigned long"
+            pass
+        except TypeError:
+            # `base` ain't a number
+            pass
+
         obj = super().__new__(cls, base)
         obj._stars = stars
         return obj
