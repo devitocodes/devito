@@ -571,6 +571,17 @@ class TestOperator(object):
         new_op.apply(time_m=1, time_M=1, f=f)
         assert np.all(f.data[2] == 2)
 
+    def test_collected_coeffs(self, pickle):
+        grid = Grid(shape=(8, 8, 8))
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        op = Operator(Eq(f.forward, f.dx2 + 1))
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        assert str(op) == str(new_op)
+
     def test_elemental(self, pickle):
         """
         Tests that elemental functions don't get reconstructed differently.
