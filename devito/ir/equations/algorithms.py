@@ -7,7 +7,7 @@ from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_orde
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
 
-__all__ = ['dimension_sort', 'lower_exprs']
+__all__ = ['dimension_sort', 'lower_exprs', 'separate_dimensions']
 
 
 def dimension_sort(expr):
@@ -147,3 +147,48 @@ def lower_exprs(expressions, **kwargs):
     else:
         assert len(processed) == 1
         return processed.pop()
+
+
+def separate_dimensions(expressions):
+    """
+    Rename Dimensions with clashing names within expressions.
+    """
+    resolutions = {}
+    count = {}  # Keep track of increments on dim names
+    processed = []
+    for e in expressions:
+        # Group dimensions by matching names
+        name_map = {}
+        for d in e.dimensions:
+            try:
+                name_map[d.name] += (d,)
+            except KeyError:
+                name_map[d.name] = (d,)
+
+        clashes = tuple(v for v in name_map.values() if len(v) > 1)
+
+        subs = {}
+        rsubs = {}
+        for c in clashes:
+            resolved = tuple(set(c).intersection(set(resolutions.keys())))
+            unresolved = tuple(set(c).difference(resolved))
+
+            # If len(resolved) == len(c), can drop the first one
+            if len(resolved) == len(c):
+                resolved = resolved[1:]
+            for d in unresolved[1:]:
+                try:
+                    subs[d] = d._rebuild(d.name+str(count[d.name]))
+                    count[d.name] += 1
+                except KeyError:
+                    subs[d] = d._rebuild(d.name+'0')
+                    count[d.name] = 1
+
+            rsubs.update({d: resolutions[d] for d in resolved})
+
+        resolutions.update(subs)
+
+        mapper = {**subs, **rsubs}
+        processed.append(uxreplace(e, mapper))
+
+    return processed

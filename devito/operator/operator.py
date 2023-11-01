@@ -9,7 +9,7 @@ from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
 from devito.logger import debug, info, perf, warning, is_log_enabled_for
-from devito.ir.equations import LoweredEq, lower_exprs
+from devito.ir.equations import LoweredEq, lower_exprs, separate_dimensions
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
@@ -306,6 +306,15 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
+
+        # Resolve clashing dimension names
+        expressions = separate_dimensions(expressions)
+
+        print(expressions)
+
+        # FIXME: Think conditionals also need fixing in the same way?
+        # Actually may need to happen at the clusters level?
+
         expand = kwargs['options'].get('expand', True)
 
         # Specialization is performed on unevaluated expressions
