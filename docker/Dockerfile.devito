@@ -15,6 +15,9 @@ ARG GROUP_ID=1000
 # Copy Devito
 ADD . /app/devito
 
+# Update if outdated
+RUN apt-get update && apt-get upgrade -y
+
 # Remove git files
 RUN rm -rf /app/devito/.git
 
@@ -29,7 +32,7 @@ RUN python3 -m venv /venv && \
 
 # Usefull utilities
 # Nvtop
-RUN apt update && apt install -y git cmake libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev cmake && \
+RUN apt-get install -y git cmake libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev cmake && \
     git clone https://github.com/Syllo/nvtop.git /app/nvtop && \
     mkdir -p /app/nvtop/build && cd /app/nvtop/build && \
     cmake .. -DNVIDIA_SUPPORT=ON -DAMDGPU_SUPPORT=ON -DINTEL_SUPPORT=ON && \
@@ -38,7 +41,7 @@ RUN apt update && apt install -y git cmake libncurses5-dev libncursesw5-dev libd
     ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
 
 # Safety cleanup
-RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 FROM $base as user

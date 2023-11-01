@@ -18,15 +18,17 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
            'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
            'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
-           # Intel
+           # Intel CPUs
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
            'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
-           # ARM
+           # ARM CPUs
            'AMD', 'ARM', 'M1', 'GRAVITON',
-           # Other loosely supported CPU architectures
+           # Other legacy CPUs
            'POWER8', 'POWER9',
-           # GPUs
-           'AMDGPUX', 'NVIDIAX', 'INTELGPUX']
+           # Generic GPUs
+           'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+           # Intel GPUs
+           'PVC']
 
 
 @memoized_func
@@ -638,12 +640,19 @@ class Power(Cpu64):
 
 class Device(Platform):
 
-    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp'):
+    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp',
+                 max_threads_per_block=1024, max_threads_dimx=1024,
+                 max_threads_dimy=1024, max_threads_dimz=64):
         super().__init__(name)
 
         self.cores_logical = cores_logical
         self.cores_physical = cores_physical
         self.isa = isa
+
+        self.max_threads_per_block = max_threads_per_block
+        self.max_threads_dimx = max_threads_dimx
+        self.max_threads_dimy = max_threads_dimy
+        self.max_threads_dimz = max_threads_dimz
 
     @classmethod
     def _mro(cls):
@@ -760,6 +769,8 @@ NVIDIAX = NvidiaDevice('nvidiaX')
 AMDGPUX = AmdDevice('amdgpuX')
 INTELGPUX = IntelDevice('intelgpuX')
 
+PVC = IntelDevice('pvc', max_threads_per_block=4096)
+
 
 platform_registry = {
     'cpu64-dummy': CPU64_DUMMY,
@@ -783,7 +794,8 @@ platform_registry = {
     'power9': POWER9,
     'nvidiaX': NVIDIAX,  # Generic NVidia GPU
     'amdgpuX': AMDGPUX,   # Generic AMD GPU
-    'intelgpuX': INTELGPUX   # Generic Intel GPU
+    'intelgpuX': INTELGPUX,   # Generic Intel GPU
+    'pvc': PVC  # Intel Ponte Vecchio GPU
 }
 """
 Registry dict for deriving Platform classes according to the environment variable

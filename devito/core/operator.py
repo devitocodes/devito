@@ -6,7 +6,7 @@ from devito.logger import warning
 from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import as_tuple, is_integer, timed_pass
+from devito.tools import as_tuple, is_integer, timed_pass, UnboundTuple
 from devito.types import NThreads
 
 __all__ = ['CoreOperator', 'CustomOperator',
@@ -327,10 +327,12 @@ class OptOption(object):
     pass
 
 
-class ParTileArg(tuple):
+class ParTileArg(UnboundTuple):
 
     def __new__(cls, items, rule=None, tag=None):
-        obj = super().__new__(cls, items)
+        if items is None:
+            items = tuple()
+        obj = super().__new__(cls, *items)
         obj.rule = rule
         obj.tag = tag
         return obj
@@ -340,7 +342,7 @@ class ParTile(tuple, OptOption):
 
     def __new__(cls, items, default=None):
         if not items:
-            return None
+            return tuple()
         elif isinstance(items, bool):
             if not default:
                 raise ValueError("Expected `default` value, got None")
@@ -353,7 +355,7 @@ class ParTile(tuple, OptOption):
 
             x = items[0]
             if is_integer(x):
-                # E.g., (32, 4, 8)
+                # E.g., 32
                 items = (ParTileArg(items),)
 
             elif x is None:

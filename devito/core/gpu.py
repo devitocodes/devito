@@ -65,7 +65,7 @@ class DeviceOperatorMixin(object):
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # GPU parallelism
-        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4))
+        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4, 4))
         o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)

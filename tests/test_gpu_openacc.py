@@ -102,18 +102,20 @@ class TestCodeGeneration(object):
                       opt=('advanced', {'par-tile': par_tile}))
 
         trees = retrieve_iteration_tree(op)
+        stile = (32, 4, 4, 4) if par_tile != (32, 4, 4, 8) else (32, 4, 4, 8)
         assert len(trees) == 4
 
         assert trees[0][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4,4) present(u)'
         assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(32,4) present(u)'
-        # Only the AFFINE Iterations are tiled
+        strtile = ','.join([str(i) for i in stile])
         assert trees[3][1].pragmas[0].value ==\
-            'acc parallel loop collapse(4) present(src,src_coords,u)'
+            'acc parallel loop tile(%s) present(src,src_coords,u)' % strtile
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
-                                          ((32, 4, 4), (8, 8, 8))])
+                                          ((32, 4, 4), (8, 8, 8)),
+                                          ((32, 4, 4), (8, 8), None)])
     def test_multiple_tile_sizes(self, par_tile):
         grid = Grid(shape=(3, 3, 3))
         t = grid.stepping_dim
@@ -136,8 +138,9 @@ class TestCodeGeneration(object):
             'acc parallel loop tile(32,4,4) present(u)'
         assert trees[1][1].pragmas[0].value ==\
             'acc parallel loop tile(8,8) present(u)'
+        sclause = 'collapse(4)' if par_tile[-1] is None else 'tile(8,8,8,8)'
         assert trees[3][1].pragmas[0].value ==\
-            'acc parallel loop collapse(4) present(src,src_coords,u)'
+            'acc parallel loop %s present(src,src_coords,u)' % sclause
 
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))

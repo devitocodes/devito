@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import GCCToolchain, call_capture_output as _call_capture_output
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
-                         INTELGPUX, get_nvidia_cc, check_cuda_runtime,
+                         INTELGPUX, PVC, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
@@ -804,11 +804,11 @@ class OneapiCompiler(IntelCompiler):
 
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
-            if platform is INTELGPUX:
-                self.cflags.append('-fopenmp-targets=spir64')
-                self.cflags.append('-fopenmp-target-simd')
+        if platform in [INTELGPUX, PVC]:
+            self.ldflags.append('-fiopenmp')
+            self.ldflags.append('-fopenmp-targets=spir64')
+            self.ldflags.append('-fopenmp-target-simd')
 
-        if platform is INTELGPUX:
             self.cflags.remove('-g')  # -g disables some optimizations in IGC
             self.cflags.append('-gline-tables-only')
             self.cflags.append('-fdebug-info-for-profiling')

@@ -15,8 +15,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         make_sections_from_imask)
 from devito.symbolics import INT, ccode
-from devito.tools import as_tuple, flatten, is_integer, prod
-from devito.tools.data_structures import UnboundTuple
+from devito.tools import UnboundTuple, as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
@@ -47,8 +46,21 @@ class PragmaSimdTransformer(PragmaTransformer):
     def simd_reg_size(self):
         return self.platform.simd_reg_size
 
-    @iet_pass
-    def make_simd(self, iet):
+    def _make_simd_pragma(self, iet):
+        indexeds = FindSymbols('indexeds').visit(iet)
+        aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
+        if aligned:
+            simd = self.lang['simd-for-aligned']
+            simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_size))
+        else:
+            simd = as_tuple(self.lang['simd-for'])
+
+        return simd
+
+    def _make_simd(self, iet):
+        """
+        Carry out the bulk of `make_simd`.
+        """
         mapper = {}
         for tree in retrieve_iteration_tree(iet):
             candidates = [i for i in tree if i.is_ParallelRelaxed]
@@ -103,13 +115,7 @@ class PragmaSimdTransformer(PragmaTransformer):
                     continue
 
             # Add SIMD pragma
-            indexeds = FindSymbols('indexeds').visit(candidate)
-            aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
-            if aligned:
-                simd = self.lang['simd-for-aligned']
-                simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_size))
-            else:
-                simd = as_tuple(self.lang['simd-for'])
+            simd = self._make_simd_pragma(candidate)
             pragmas = candidate.pragmas + simd
 
             # Add VECTORIZED property
@@ -121,6 +127,10 @@ class PragmaSimdTransformer(PragmaTransformer):
 
         return iet, {}
 
+    @iet_pass
+    def make_simd(self, iet):
+        return self._make_simd(iet)
+
 
 class PragmaIteration(ParallelIteration):
 
@@ -128,7 +138,9 @@ class PragmaIteration(ParallelIteration):
                  nthreads=None, ncollapsed=None, reduction=None, tile=None,
                  gpu_fit=None, **kwargs):
 
-        construct = self._make_construct(parallel=parallel)
+        construct = self._make_construct(
+            parallel=parallel, ncollapsed=ncollapsed, tile=tile
+        )
         clauses = self._make_clauses(
             ncollapsed=ncollapsed, chunk_size=chunk_size, nthreads=nthreads,
             reduction=reduction, schedule=schedule, tile=tile, gpu_fit=gpu_fit,
@@ -610,7 +622,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
-        self.par_tile = UnboundTuple(options['par-tile'])
+        self.par_tile = UnboundTuple(*options['par-tile'])
         self.par_disabled = options['par-disabled']
 
     def _score_candidate(self, n0, root, collapsable=()):
@@ -645,7 +657,8 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
 
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
-                                        ncollapsed=len(collapsable) + 1,
+                                        ncollapsed=len(collapsable)+1,
+                                        tile=self.par_tile.next(),
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 

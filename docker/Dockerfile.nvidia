@@ -2,15 +2,18 @@
 # This Dockerfile contains the NVidia HPC SDK (nvc, cuda, OpenMPI) for Devito
 ##############################################################
 ARG ver
-ARG pyversion=python:3.9
 ARG arch="nvc"
 
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-FROM ${pyversion}-slim-bullseye as sdk-base
+FROM ubuntu:22.04 as sdk-base
 
 ENV DEBIAN_FRONTEND noninteractive
+
+# Install python
+RUN apt-get update && \
+    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
 
 RUN apt-get update -y && \
     apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl
@@ -131,7 +134,7 @@ RUN python3 -m venv /venv && \
     /venv/bin/jupyter serverextension enable dask_labextension && \
     rm -rf ~/.cache/pip
 
-RUN apt-get clean && apt-get autoclean && apt-get autoremove && \
+RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888

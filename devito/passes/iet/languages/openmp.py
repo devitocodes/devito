@@ -3,7 +3,7 @@ from packaging.version import Version
 import cgen as c
 from sympy import And, Ne, Not
 
-from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
+from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
 from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, DeviceCall, List, Prodder,
                        ParallelBlock, PointerCast, While, FindSymbols)
@@ -78,14 +78,6 @@ class DeviceOmpIteration(OmpIteration):
 
         return clauses
 
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('gpu_fit', None)
-
-        return kwargs
-
 
 class ThreadedProdder(Conditional, Prodder):
 
@@ -117,6 +109,7 @@ class OmpBB(LangBB):
         AMDGPUX: None,
         NVIDIAX: None,
         INTELGPUX: None,
+        PVC: None,
         # Runtime library
         'init': None,
         'thread-num': lambda retobj=None:
