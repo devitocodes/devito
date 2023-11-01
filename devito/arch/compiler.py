@@ -572,6 +572,8 @@ class DPCPPCompiler(Compiler):
 
 class PGICompiler(Compiler):
 
+    _cpp = True
+
     def __init_finalize__(self, **kwargs):
 
         self.cflags.remove('-std=c99')
@@ -861,6 +863,7 @@ class CustomCompiler(Compiler):
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
         obj._base = _base
+        obj._cpp = _base._cpp
 
         return obj
 
@@ -874,10 +877,11 @@ class CustomCompiler(Compiler):
         self.ldflags = filter_ordered(self.ldflags + extrald)
 
     def __lookup_cmds__(self):
-        self.CC = environ.get('CC', 'gcc')
-        self.CXX = environ.get('CXX', 'g++')
-        self.MPICC = environ.get('MPICC', 'mpicc')
-        self.MPICXX = environ.get('MPICXX', 'mpicxx')
+        self._base.__lookup_cmds__()
+        self.CC = environ.get('CC', self.CC)
+        self.CXX = environ.get('CXX', self.CXX)
+        self.MPICC = environ.get('MPICC', self.MPICC)
+        self.MPICXX = environ.get('MPICXX', self.MPICXX)
 
 
 compiler_registry = {
