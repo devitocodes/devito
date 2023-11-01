@@ -448,6 +448,7 @@ class GNUCompiler(Compiler):
 class ArmCompiler(GNUCompiler):
 
     def __init_finalize__(self, **kwargs):
+        GNUCompiler.__init_finalize__(self, **kwargs)
         platform = kwargs.pop('platform', configuration['platform'])
 
         # Graviton flag
@@ -771,6 +772,7 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
+        IntelCompiler.__init_finalize__(self, **kwargs)
 
         language = kwargs.pop('language', configuration['language'])
 
@@ -783,6 +785,7 @@ class IntelKNLCompiler(IntelCompiler):
 class OneapiCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
+        IntelCompiler.__init_finalize__(self, **kwargs)
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
