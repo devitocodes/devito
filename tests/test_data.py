@@ -320,7 +320,7 @@ class TestMetaData(object):
         assert u1._size_nodomain == ((3, 3), (3, 3), (3, 17))
         assert u1.shape_allocated == (10, 10, 24)
 
-    @switchconfig(safe_halo=True)
+    @switchconfig(safe_halo=1)
     def test_safe_halo(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2)
@@ -336,7 +336,7 @@ class TestMetaData(object):
         assert u._offset_halo == ((0, 5), (0, 5), (0, 5))
         assert u._offset_owned == ((1, 4), (1, 4), (1, 4))
 
-    @switchconfig(safe_halo=False)
+    @switchconfig(safe_halo=2)
     def test_safe_halo_v2(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2)
@@ -351,6 +351,22 @@ class TestMetaData(object):
         assert u._offset_domain == (2, 2, 2)
         assert u._offset_halo == ((0, 6), (0, 6), (0, 6))
         assert u._offset_owned == ((2, 4), (2, 4), (2, 4))
+
+    @switchconfig(safe_halo=2)
+    def test_safe_halo_v3(self):
+        grid = Grid(shape=(4, 4, 4))
+        u = Function(name='u', grid=grid, space_order=4)
+
+        assert u.shape == (4, 4, 4)
+        assert u._shape_with_inhalo == (10, 10, 10)
+        assert u.shape_allocated == (10, 10, 10)
+        assert u.shape_with_halo == u._shape_with_inhalo  # W/o MPI, these two coincide
+        assert u._size_halo == ((3, 3), (3, 3), (3, 3))
+        assert u._size_owned == ((3, 3), (3, 3), (3, 3))
+        assert u._size_padding == ((0, 0), (0, 0), (0, 0))
+        assert u._offset_domain == (3, 3, 3)
+        assert u._offset_halo == ((0, 7), (0, 7), (0, 7))
+        assert u._offset_owned == ((3, 4), (3, 4), (3, 4))
 
 
 class TestDecomposition(object):

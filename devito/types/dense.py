@@ -1108,7 +1108,6 @@ class Function(DiscreteFunction):
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                # import pdb;pdb.set_trace()
                 if configuration['safe-halo'] == 'HALF':
                     halo = (int(space_order/2), int(space_order/2))
                 elif configuration['safe-halo'] == 'CUSTOM':

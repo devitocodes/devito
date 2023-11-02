@@ -256,7 +256,6 @@ class Operator(Callable):
 
         # [LoweredEq] -> [Clusters]
         clusters = cls._lower_clusters(expressions, **kwargs)
-        # import pdb;pdb.set_trace()
 
         # [Clusters] -> ScheduleTree
         stree = cls._lower_stree(clusters, **kwargs)
@@ -331,8 +330,6 @@ class Operator(Callable):
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
-
-        # import pdb;pdb.set_trace()
 
         processed = [LoweredEq(i) for i in expressions]
 
