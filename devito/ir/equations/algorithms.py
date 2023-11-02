@@ -157,25 +157,17 @@ def separate_dimensions(expressions):
     resolutions = {}
     count = {}  # Keep track of increments on dim names
     processed = []
+    from devito.ir.support import pull_dims
     for e in expressions:
+        dims = dimension_sort(e)
+        dims = set(dims).union(*tuple(pull_dims(d.condition, flag=False)
+                                      for d in dims if d.is_Conditional
+                                      and d.condition is not None))
+        dims = sorted(dims, key=lambda x: x.name)
+
         # Group dimensions by matching names
-        # More restrictive than dimension_sort()
-        # TODO: think it actually wants to be dimension_sort?
-
-        # Produces separate loop nests
-        # dims = sorted(set().union(*tuple(set(i.function.dimensions)
-        #                                  for i in retrieve_indexed(e))),
-        #               key=lambda x: x.name)
-
-        # Doesn't replace y with y0, weird loop order, weird Eq1 expression
-        dims = sorted(dimension_sort(e), key=lambda x: x.name)
-    
-        print("Dims:", dims)
-
         groups = tuple(tuple(g) for n, g in groupby(dims, key=lambda x: x.name))
         clashes = tuple(g for g in groups if len(g) > 1)
-
-        print("Clashes", clashes)
 
         subs = {}
         for c in clashes:
@@ -195,6 +187,8 @@ def separate_dimensions(expressions):
                         count[d.name] = 1
                     resolutions[d] = subs[d]
 
+        print(subs)
+        # FIXME: ConditionalDimension parent not getting updated here
         processed.append(uxreplace(e, subs))
 
     return processed
