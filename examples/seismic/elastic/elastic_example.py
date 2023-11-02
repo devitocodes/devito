@@ -29,6 +29,7 @@ def run(shape=(50, 50), spacing=(20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Define receiver geometry (spread across x, just below surface)
     rec1, rec2, v, tau, summary = solver.forward(autotune=autotune)
+    print("Norm v:", norm(v[0]))
     return (summary.gflopss, summary.oi, summary.timings,
             [rec1, rec2, v, tau])
 

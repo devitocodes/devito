@@ -97,6 +97,15 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 # optimisations.
 configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
+# By default Devito allows some extra halo space to satisfy derivatives
+# which may result in OOB accesses. However, in most of cases these extra halo points
+# are redundant. In single-node simulations the space overhead is usually minimal
+# compared to the computational domain, however in multi-node simulations, this may
+# result in redundant ghost-cell communications, which may have high a communication
+# cost impact.
+preprocessor = lambda i: {0: 'None', 1: 'HALF', 2: 'CUSTOM'}.get(i, i)
+configuration.add('safe-halo', 0, [0, 1, 2], preprocessor=preprocessor)
+
 # Enable/disable automatic padding for allocated data
 configuration.add('autopadding', False, [False, True])
 
