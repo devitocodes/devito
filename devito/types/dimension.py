@@ -200,6 +200,10 @@ class Dimension(ArgProvider):
     def root(self):
         return self
 
+    @property
+    def is_Root(self):
+        return self == self.root
+
     @cached_property
     def bound_symbols(self):
         candidates = [self.symbolic_min, self.symbolic_max, self.symbolic_size,

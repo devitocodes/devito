@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from itertools import groupby
 
 from sympy import sympify
 
@@ -6,6 +7,7 @@ from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
+from devito.ir.support import pull_dims
 
 __all__ = ['dimension_sort', 'lower_exprs', 'separate_dimensions']
 
@@ -156,37 +158,39 @@ def separate_dimensions(expressions):
     resolutions = {}
     count = {}  # Keep track of increments on dim names
     processed = []
-    from devito.ir.support import pull_dims
-    from itertools import groupby
+    from devito.symbolics import retrieve_indexed
     for e in expressions:
+        # Extraction of dimensions is too effective
         # Group dimensions by matching names
-        name_map = {n: tuple(g) for n, g in groupby(pull_dims(e, flag=False),
-                                                    key=lambda x: x.name)}
+        dims = sorted(pull_dims(e, flag=False), key=lambda x: x.name)
+        # dims = sorted(set().union(*tuple(set(i.function.dimensions)
+        #                                  for i in retrieve_indexed(e))),
+        #               key=lambda x: x.name)
 
-        clashes = tuple(v for v in name_map.values() if len(v) > 1)
+        # print("Dims pulled", dims)
+        # print("New dims", dims)
+
+        groups = tuple(tuple(g) for n, g in groupby(dims, key=lambda x: x.name))
+        clashes = tuple(g for g in groups if len(g) > 1)
 
         subs = {}
-        rsubs = {}
         for c in clashes:
-            resolved = tuple(set(c).intersection(set(resolutions.keys())))
-            unresolved = tuple(set(c).difference(resolved))
+            # Preferentially rename dims that aren't root dims
+            rdims = tuple(d for d in c if d.is_Root)
+            ddims = tuple(d for d in c if not d.is_Root)
 
-            # If len(resolved) == len(c), can drop the first one
-            if len(resolved) == len(c):
-                resolved = resolved[1:]
-            for d in unresolved[1:]:
-                try:
-                    subs[d] = d._rebuild(d.name+str(count[d.name]))
-                    count[d.name] += 1
-                except KeyError:
-                    subs[d] = d._rebuild(d.name+'0')
-                    count[d.name] = 1
+            for d in (ddims + rdims)[:-1]:
+                if d in resolutions.keys():
+                    subs[d] = resolutions[d]
+                else:
+                    try:
+                        subs[d] = d._rebuild(d.name+str(count[d.name]))
+                        count[d.name] += 1
+                    except KeyError:
+                        subs[d] = d._rebuild(d.name+'0')
+                        count[d.name] = 1
+                    resolutions[d] = subs[d]
 
-            rsubs.update({d: resolutions[d] for d in resolved})
-
-        resolutions.update(subs)
-
-        mapper = {**subs, **rsubs}
-        processed.append(uxreplace(e, mapper))
+        processed.append(uxreplace(e, subs))
 
     return processed

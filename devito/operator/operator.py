@@ -331,6 +331,8 @@ class Operator(Callable):
         # Resolve clashing dimension names
         expressions = separate_dimensions(expressions)
 
+        print(expressions)
+
         processed = [LoweredEq(i) for i in expressions]
 
         return processed

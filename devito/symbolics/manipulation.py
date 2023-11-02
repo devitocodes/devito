@@ -14,6 +14,7 @@ from devito.types.basic import Basic
 from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
+from devito.types.dimension import Dimension
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
