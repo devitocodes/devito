@@ -152,7 +152,8 @@ env_vars_mapper = {
     'DEVITO_FIRST_TOUCH': 'first-touch',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
-    'DEVITO_SAFE_MATH': 'safe-math'
+    'DEVITO_SAFE_MATH': 'safe-math',
+    'DEVITO_SAFE_HALO': 'safe-halo',
 }
 
 env_vars_deprecated = {

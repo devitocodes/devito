@@ -112,6 +112,7 @@ def lower_exprs(expressions, **kwargs):
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
 
+
         # Handle Functions (typical case)
         mapper = {f: lower_exprs(f.indexify(subs=dimension_map), **kwargs)
                   for f in expr.find(AbstractFunction)}
@@ -121,18 +122,66 @@ def lower_exprs(expressions, **kwargs):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(lower_exprs(a) + o) for a, o in
-                       zip(i.indices, f._size_nodomain.left)]
+            indices = []
+            # import pdb;pdb.set_trace()
+            for a, o in zip(i.indices, f._size_nodomain.left):
+                # import pdb;pdb.set_trace()            
+                indices.append(lower_exprs(a) + o)
+                #try:
+                #    assert (a+o-a.d) <= f._size_halo[a.d].left
+                #except AttributeError:
+                #    pass
+                #except AssertionError:
+                #    print("Illegal shifting that will cause OOB accesses")
+                #    pass
+                #except TypeError:
+                #    import pdb;pdb.set_trace()
+                #    pass
+
 
             # Substitute spacing (spacing only used in own dimension)
             indices = [i.xreplace({d.spacing: 1, -d.spacing: -1})
                        for i, d in zip(indices, f.dimensions)]
+
+            # import pdb;pdb.set_trace()
 
             # Apply substitutions, if necessary
             if dimension_map:
                 indices = [j.xreplace(dimension_map) for j in indices]
 
             mapper[i] = f.indexed[indices]
+
+            print(indices)
+            print(f._size_nodomain.left)
+            for k, v in mapper.items():
+                for n, ind in enumerate(k.indices):
+                    # print(v.indices[n] - k.indices[n])
+                    # import pdb;pdb.set_trace()
+                    offsetv = [v.indices[n].subs(fs, 0) for fs in v.indices[n].free_symbols] or 0
+                    offsetk = [k.indices[n].subs(fs, 0) for fs in k.indices[n].free_symbols] or 0
+                    # shift = v.indices[n] - k.indices[n]
+                    try:
+                        if (offsetv[0] - offsetk[0]) > f._size_nodomain.left[n] and offsetv[0] > 0:
+                        # if offset > f._size_nodomain.left[n] and f._offset_domain[n]:
+                            print("problem!")
+                    except:
+                        pass
+                        # import pdb;pdb.set_trace()
+
+            # import pdb;pdb.set_trace()
+            # need to find if the access is OOB
+
+            # #for n, ind in enumerate(indices):
+                # import pdb;pdb.set_trace()
+                # offset = indices[n] - i.indices[n]
+            #    offset = indices[n].subs(f.dimensions[n], 0) - f._offset_domain[n]
+            #    try:
+            #        if offset > f._size_nodomain.left[n]:
+            #            print(offset)
+                        # import pdb;pdb.set_trace()
+            #    except:
+            #        import pdb;pdb.set_trace()
+
 
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
@@ -143,7 +192,21 @@ def lower_exprs(expressions, **kwargs):
         processed.append(uxreplace(expr, mapper))
 
     if isinstance(expressions, Iterable):
+    #     import pdb;pdb.set_trace()
+    #    for expr in processed:
+    #        exlist = retrieve_indexed(expr)
+    #        for ex in exlist:
+    #            for n, ind in enumerate(ex.indices):
+    #                ex = [ex.indices[n].subs(fs, 0) for fs in ex.indices[n].free_symbols] or 0
+            
+    #                import pdb;pdb.set_trace()
+
+
+        # processed = check_offs(expressions=expressions)
+        
         return processed
     else:
         assert len(processed) == 1
         return processed.pop()
+
+
