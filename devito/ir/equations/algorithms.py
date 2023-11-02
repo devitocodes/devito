@@ -7,7 +7,6 @@ from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
-from devito.ir.support import pull_dims
 
 __all__ = ['dimension_sort', 'lower_exprs', 'separate_dimensions']
 
@@ -158,17 +157,12 @@ def separate_dimensions(expressions):
     resolutions = {}
     count = {}  # Keep track of increments on dim names
     processed = []
-    from devito.symbolics import retrieve_indexed
     for e in expressions:
-        # Extraction of dimensions is too effective
         # Group dimensions by matching names
-        dims = sorted(pull_dims(e, flag=False), key=lambda x: x.name)
-        # dims = sorted(set().union(*tuple(set(i.function.dimensions)
-        #                                  for i in retrieve_indexed(e))),
-        #               key=lambda x: x.name)
-
-        # print("Dims pulled", dims)
-        # print("New dims", dims)
+        # More restrictive than dimension_sort()
+        dims = sorted(set().union(*tuple(set(i.function.dimensions)
+                                         for i in retrieve_indexed(e))),
+                      key=lambda x: x.name)
 
         groups = tuple(tuple(g) for n, g in groupby(dims, key=lambda x: x.name))
         clashes = tuple(g for g in groups if len(g) > 1)

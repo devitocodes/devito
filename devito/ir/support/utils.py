@@ -102,7 +102,9 @@ class Stencil(DefaultOrderedDict):
         """
         output = Stencil()
         for i in dicts:
+            print("i:", i)
             for k, v in i.items():
+                print("k:", k, type(k), "v:", v)
                 output[k] |= v
         return output
 
@@ -187,7 +189,6 @@ def detect_accesses(exprs):
     for e in as_tuple(exprs):
         other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
         other_dims.update(e.implicit_dims)
-    other_dims = filter_sorted(other_dims)
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper

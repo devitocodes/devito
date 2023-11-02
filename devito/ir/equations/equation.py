@@ -159,10 +159,14 @@ class LoweredEq(IREq):
 
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
+        print("Ordering", ordering)  # This is consistent
 
         # Analyze the expression
-        accesses = detect_accesses(expr)
+        accesses = detect_accesses(expr)  # FIXME: Flaky?
+        # TODO: What does this actually output
         dimensions = Stencil.union(*accesses.values())
+        # FIXME: Issue seems to be in the line above
+        print("Dimensions", dimensions)
 
         # Separate out the SubIterators from the main iteration Dimensions, that
         # is those which define an actual iteration space
