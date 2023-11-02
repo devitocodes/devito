@@ -1330,8 +1330,15 @@ class TestConditionalDimension(object):
         eq2 = Eq(f, 5)
 
         Operator([eq1, eq2]).apply()
+
         assert np.all(f.data[2:6, c1:c2] == 5.)
         assert np.all(f.data[:, c3:c4] < 5.)
+
+        # Check that the borders are zero
+        assert np.all(f.data[:2] == 0.)
+        assert np.all(f.data[-2:] == 0.)
+        assert np.all(f.data[:, :2] == 0.)
+        assert np.all(f.data[:, -2:] == 0.)
 
     def test_from_cond_to_param(self):
         """
