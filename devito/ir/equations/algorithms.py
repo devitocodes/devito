@@ -160,12 +160,22 @@ def separate_dimensions(expressions):
     for e in expressions:
         # Group dimensions by matching names
         # More restrictive than dimension_sort()
-        dims = sorted(set().union(*tuple(set(i.function.dimensions)
-                                         for i in retrieve_indexed(e))),
-                      key=lambda x: x.name)
+        # TODO: think it actually wants to be dimension_sort?
+
+        # Produces separate loop nests
+        # dims = sorted(set().union(*tuple(set(i.function.dimensions)
+        #                                  for i in retrieve_indexed(e))),
+        #               key=lambda x: x.name)
+
+        # Doesn't replace y with y0, weird loop order, weird Eq1 expression
+        dims = sorted(dimension_sort(e), key=lambda x: x.name)
+    
+        print("Dims:", dims)
 
         groups = tuple(tuple(g) for n, g in groupby(dims, key=lambda x: x.name))
         clashes = tuple(g for g in groups if len(g) > 1)
+
+        print("Clashes", clashes)
 
         subs = {}
         for c in clashes:
