@@ -103,8 +103,14 @@ def test_ctypes_to_cstr(dtype, expected):
 
 def test_unbounded_multi_tuple():
     ub = UnboundedMultiTuple([1, 2], [3, 4])
+    with pytest.raises(StopIteration):
+        ub.next()
+
+    with pytest.raises(StopIteration):
+        assert ub.curitem()
 
     ub.iter()
+    assert ub.curitem() == (1, 2)
     assert ub.next() == 1
     assert ub.next() == 2
 
@@ -120,6 +126,8 @@ def test_unbounded_multi_tuple():
 
     ub.iter()
     assert ub.next() == 3
+
+    assert ub.nextitem() == (3, 4)
 
 
 def test_unbound_tuple():
