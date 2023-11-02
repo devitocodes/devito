@@ -84,8 +84,8 @@ class Graph(object):
                 continue
 
             # Minimize code size by abstracting semantically identical efuncs
-            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []),
-                                         self.sregistry)
+            efuncs =  metadata.get('efuncs', [])
+            efunc, efuncs = reuse_efuncs(efunc, efuncs, self.sregistry)
 
             self.efuncs[i] = efunc
             self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
@@ -93,6 +93,11 @@ class Graph(object):
             # Update the parameters / arguments lists since `func` may have
             # introduced or removed objects
             self.efuncs = update_args(efunc, self.efuncs, dag)
+
+        # There could be two semantically different efuncs working with
+        # semantically identical yet syntactically different compiler-generated
+        # types
+        #TODO
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)

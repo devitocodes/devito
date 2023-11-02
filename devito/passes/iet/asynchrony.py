@@ -11,7 +11,7 @@ from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Null)
-from devito.tools import DefaultOrderedDict, Bunch, split
+from devito.tools import Bunch, split
 from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Symbol,
                           VolatileInt)
 
@@ -19,30 +19,25 @@ __all__ = ['pthreadify']
 
 
 def pthreadify(graph, **kwargs):
-    track = DefaultOrderedDict(lambda: Bunch(threads=None, sdata=None))
+    lower_async_callables(graph, root=graph.root, **kwargs)
 
-    lower_async_callables(graph, track=track, root=graph.root, **kwargs)
+    track = {i.name: i.sdata for i in graph.efuncs.values()
+             if isinstance(i, ThreadCallable)}
     lower_async_calls(graph, track=track, **kwargs)
+
     DataManager(**kwargs).place_definitions(graph)
 
 
 @iet_pass
-def lower_async_callables(iet, track=None, root=None, sregistry=None):
+def lower_async_callables(iet, root=None, sregistry=None):
     if not isinstance(iet, AsyncCallable):
         return iet, {}
-
-    n = len(track)
 
     # Determine the max number of threads that can run this `iet` in parallel
     locks = [i for i in iet.parameters if isinstance(i, Lock)]
     npthreads = min([i.size for i in locks], default=1)
     if npthreads > 1:
         npthreads = sregistry.make_npthreads(npthreads)
-
-    # PthreadArray -- the symbol representing an array of pthreads, which will
-    # execute the AsyncCallable asynchronously
-    threads = track[iet.name].threads = PThreadArray(name='threads',
-                                                     npthreads=npthreads)
 
     # The `cfields` are the constant fields, that is the fields whose value
     # definitely never changes across different executions of `ìet`; the
@@ -58,11 +53,13 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
 
     # SharedData -- that is the data structure that will be used by the
     # main thread to pass information down to the child thread(s)
-    sdata = track[iet.name].sdata = SharedData(name='sdata',
-                                               npthreads=threads.size,
-                                               cfields=cfields,
-                                               ncfields=ncfields,
-                                               pname='tsdata%d' % n)
+    sdata = SharedData(
+        name='sdata',
+        npthreads=npthreads,
+        cfields=cfields,
+        ncfields=ncfields,
+        pname=sregistry.make_name(prefix='tsdata')
+    )
     sbase = sdata.symbolic_base
 
     # Prepend the SharedData fields available upon thread activation
@@ -114,9 +111,7 @@ def lower_async_calls(iet, track=None, sregistry=None):
             continue
 
         assert n.name in track
-        b = track[n.name]
-
-        sdata = b.sdata
+        sdata = track[n.name]
         sbase = sdata.symbolic_base
         name = sregistry.make_name(prefix='init_%s' % sdata.name)
         body = [DummyExpr(FieldFromPointer(i._C_name, sbase), i._C_symbol)
@@ -131,12 +126,13 @@ def lower_async_calls(iet, track=None, sregistry=None):
     finalization = []
     mapper = {}
     for n in FindNodes(AsyncCall).visit(iet):
-        # Create `sdata` and `threads` objects for `n`
-        b = track[n.name]
+        # Bind the abstract `sdata` to `n`
         name = sregistry.make_name(prefix='sdata')
-        sdata = b.sdata._rebuild(name=name)
+        sdata = track[n.name]._rebuild(name=name)
+
+        # The pthreads that will execute the AsyncCallable asynchronously
         name = sregistry.make_name(prefix='threads')
-        threads = b.threads._rebuild(name=name)
+        threads = PThreadArray(name=name, npthreads=sdata.npthreads)
 
         # Call to `sdata` initialization Callable
         sbase = sdata.symbolic_base

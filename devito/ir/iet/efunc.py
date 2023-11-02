@@ -137,8 +137,16 @@ class ThreadCallable(Callable):
     A Callable executed asynchronously by a thread.
     """
 
-    def __init__(self, name, body, parameters=None, prefix='static'):
-        super().__init__(name, body, 'void*', parameters=parameters, prefix=prefix)
+    def __init__(self, name, body, parameters):
+        super().__init__(name, body, 'void*', parameters=parameters, prefix='static')
+
+        # Sanity checks
+        # By construction, the first unpack statement of a ThreadCallable must
+        # be the PointerCast that makes `sdata` available in the local scope
+        assert len(body.unpacks) > 0
+        v = body.unpacks[0]
+        assert v.is_PointerCast
+        self.sdata = v.function
 
 
 # DeviceFunction machinery

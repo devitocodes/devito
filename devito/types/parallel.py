@@ -126,6 +126,10 @@ class ThreadArray(ArrayObject):
         return self.dimensions[0]
 
     @property
+    def npthreads(self):
+        return self.dim.symbolic_size
+
+    @property
     def index(self):
         if self.size == 1:
             return 0
