@@ -1,11 +1,12 @@
 from collections import OrderedDict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           EntryFunction, ThreadCallable, Uxreplace,
-                           derive_parameters)
+from devito.ir.iet import (Call, ExprStmt, FindNodes, FindSymbols, MetaCall,
+                           Transformer, EntryFunction, ThreadCallable,
+                           Uxreplace, derive_parameters)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
+from devito.passes import needs_transfer
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
 from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
                           Indirection, Temp)
@@ -36,7 +37,7 @@ class Graph(object):
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet, sregistry=None):
+    def __init__(self, iet, options=None, sregistry=None, **kwargs):
         self.efuncs = OrderedDict([(iet.name, iet)])
 
         self.sregistry = sregistry
@@ -45,9 +46,22 @@ class Graph(object):
         self.headers = []
         self.globals = []
 
-        # Stash immutable information useful for some compiler passes
+        # Stash immutable information useful for one or more compiler passes
+
+        # All written user-level objects
         writes = FindSymbols('writes').visit(iet)
         self.writes_input = frozenset(f for f in writes if f.is_Input)
+
+        # All symbols requiring host-device data transfers when running
+        # on device
+        self.data_movs = rmovs, wmovs = set(), set()
+        gpu_fit = (options or {}).get('gpu-fit', ())
+        for i in FindNodes(ExprStmt).visit(iet):
+            wmovs.update({w for w in i.writes
+                          if needs_transfer(w, gpu_fit)})
+        for i in FindNodes(ExprStmt).visit(iet):
+            rmovs.update({f for f in i.functions
+                          if needs_transfer(f, gpu_fit) and f not in wmovs})
 
     @property
     def root(self):
@@ -84,7 +98,7 @@ class Graph(object):
                 continue
 
             # Minimize code size by abstracting semantically identical efuncs
-            efuncs =  metadata.get('efuncs', [])
+            efuncs = metadata.get('efuncs', [])
             efunc, efuncs = reuse_efuncs(efunc, efuncs, self.sregistry)
 
             self.efuncs[i] = efunc
@@ -93,11 +107,6 @@ class Graph(object):
             # Update the parameters / arguments lists since `func` may have
             # introduced or removed objects
             self.efuncs = update_args(efunc, self.efuncs, dag)
-
-        # There could be two semantically different efuncs working with
-        # semantically identical yet syntactically different compiler-generated
-        # types
-        #TODO
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -270,8 +279,11 @@ def abstract_objects(objects, sregistry=None):
     def key(i):
         for cls in sorted(priority, key=priority.get, reverse=True):
             if isinstance(i, cls):
-                return priority[cls]
-        return 0
+                v = priority[cls]
+                break
+        else:
+            v = 0
+        return (v, str(type(i)))
 
     objects = sorted(objects, key=key, reverse=True)
 
@@ -317,7 +329,7 @@ def _(i, mapper, sregistry):
     else:
         name = sregistry.make_name(prefix='a')
 
-    v = i._rebuild(name=name)
+    v = i._rebuild(name=name, alias=True)
 
     mapper.update({
         i: v,

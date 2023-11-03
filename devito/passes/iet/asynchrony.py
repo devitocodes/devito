@@ -11,7 +11,7 @@ from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Null)
-from devito.tools import Bunch, split
+from devito.tools import split
 from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Symbol,
                           VolatileInt)
 

@@ -21,7 +21,7 @@ from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
 
-__all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call',
+__all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call', 'ExprStmt',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
            'AugmentedExpression', 'Increment', 'Return', 'While',

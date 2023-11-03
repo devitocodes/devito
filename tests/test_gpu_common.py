@@ -257,7 +257,7 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 3
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
@@ -440,7 +440,7 @@ class TestStreaming(object):
         op = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 5
+        assert len(op._func_table) == 6
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         op.apply(time_M=nt-2)
@@ -449,8 +449,8 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 8, 5),
-        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 6, 5),
+        (('buffering', 'streaming', 'orchestrate'), 10, 6),
+        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 7, 6),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
         nt = 10
@@ -605,7 +605,7 @@ class TestStreaming(object):
         op1 = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 5
+        assert len(op1._func_table) == 6
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-2, dt=0.1)
@@ -692,7 +692,7 @@ class TestStreaming(object):
         op1 = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 5
+        assert len(op1._func_table) == 6
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-1)
@@ -761,7 +761,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 8
         assert len(retrieve_iteration_tree(op2)) == 5
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 3
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree
@@ -775,7 +775,7 @@ class TestStreaming(object):
         # It is true that the usave and vsave eqns are separated in two different
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
-        assert len(op1._func_table) == 4
+        assert len(op1._func_table) == 5
 
         # Check output
         op0.apply(time_M=nt-1)
@@ -944,7 +944,7 @@ class TestStreaming(object):
         # The `usave` and `vsave` eqns are in separate tasks, but the tasks
         # are identical, so they get mapped to the same efuncs (init + copy)
         # There also are two extra functions to allocate and free arrays
-        assert len(op._func_table) == 4
+        assert len(op._func_table) == 5
 
         op.apply(time_M=nt-1)
 
@@ -1000,7 +1000,7 @@ class TestStreaming(object):
 
         # We just check the generated code here
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
-        assert len(op._func_table) == 4
+        assert len(op._func_table) == 5
 
     def test_save_w_subdims(self):
         nt = 10
@@ -1057,7 +1057,7 @@ class TestStreaming(object):
         op = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 5
+        assert len(op._func_table) == 6
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
@@ -1112,12 +1112,12 @@ class TestStreaming(object):
                                   {'fuse-tasks': True}))
 
         # Check generated code
-        assert len(op1._func_table) == 8
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 6
-        assert len(op2._func_table) == 8
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 6
-        assert len(op3._func_table) == 6
-        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 6
+        assert len(op1._func_table) == 9
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 7
+        assert len(op2._func_table) == 9
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 7
+        assert len(op3._func_table) == 7
+        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 7
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
@@ -1280,7 +1280,7 @@ class TestStreaming(object):
             assert 'create(u' in str(op)
         elif language == 'openmp':
             assert 'map(alloc: u' in str(op)
-        assert 'init0(u_vec' in str(op)
+        assert 'init0' in op._func_table
 
         op.apply(time_M=nt - 2)
 

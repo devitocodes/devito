@@ -36,7 +36,7 @@ class MPIReduction(object):
     def __enter__(self):
         i = dv.Dimension(name='mri',)
         self.n = dv.Function(name='n', shape=(1,), dimensions=(i,),
-                             grid=self.grid, dtype=self.dtype)
+                             grid=self.grid, dtype=self.dtype, space='host')
         self.n.data[0] = 0
         return self
 
