@@ -15,7 +15,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         make_sections_from_imask)
 from devito.symbolics import INT, ccode
-from devito.tools import UnboundTuple, as_tuple, flatten, is_integer, prod
+from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
 __all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
@@ -622,7 +622,8 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         super().__init__(sregistry, options, platform, compiler)
 
         self.gpu_fit = options['gpu-fit']
-        self.par_tile = UnboundTuple(*options['par-tile'])
+        # Need to reset the tile in case was already used and iter over by blocking
+        self.par_tile = options['par-tile'].reset()
         self.par_disabled = options['par-disabled']
 
     def _score_candidate(self, n0, root, collapsable=()):
@@ -658,7 +659,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
                                         ncollapsed=len(collapsable)+1,
-                                        tile=self.par_tile.next(),
+                                        tile=self.par_tile.nextitem(),
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 

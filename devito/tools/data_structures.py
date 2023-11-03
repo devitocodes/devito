@@ -664,7 +664,7 @@ class UnboundTuple(tuple):
                 nitems.append(i)
             elif isinstance(i, Iterable):
                 nitems.append(UnboundTuple(*i))
-            elif i is not None:
+            else:
                 nitems.append(i)
 
         obj = super().__new__(cls, tuple(nitems))
@@ -674,22 +674,22 @@ class UnboundTuple(tuple):
         return obj
 
     @property
-    def default(self):
-        return self[0]
-
-    @property
     def prod(self):
         return np.prod(self)
+
+    def reset(self):
+        self.iter()
+        return self
 
     def iter(self):
         self.current = 0
 
     def next(self):
-        if self.last == 0:
+        if not self:
             return None
         item = self[self.current]
         if self.current == self.last-1 or self.current == -1:
-            self.current = -1
+            self.current = self.last
         else:
             self.current += 1
         return item
@@ -702,6 +702,8 @@ class UnboundTuple(tuple):
         return "%s(%s)" % (self.__class__.__name__, ", ".join(sitems))
 
     def __getitem__(self, idx):
+        if not self:
+            return None
         if isinstance(idx, slice):
             start = idx.start or 0
             stop = idx.stop or self.last
@@ -753,26 +755,43 @@ class UnboundedMultiTuple(UnboundTuple):
 
     def __new__(cls, *items, **kwargs):
         obj = super().__new__(cls, *items, **kwargs)
-        obj.current = -1
+        # MultiTuple are un-initialized
+        obj.current = None
         return obj
 
-    @property
+    def reset(self):
+        self.current = None
+        return self
+
     def curitem(self):
+        if self.current is None:
+            raise StopIteration
+        if not self:
+            return None
         return self[self.current]
 
-    @property
     def nextitem(self):
-        return self[min(self.current + 1, max(self.last - 1, 0))]
+        if not self:
+            return None
+        self.iter()
+        return self.curitem()
 
     def index(self, item):
         return self.index(item)
 
     def iter(self):
-        self.current = min(self.current + 1, self.last - 1)
-        self[self.current].current = 0
+        if self.current is None:
+            self.current = 0
+        else:
+            self.current = min(self.current + 1, self.last - 1)
+        self[self.current].reset()
         return
 
     def next(self):
-        if self[self.current].current == -1:
+        if not self:
+            return None
+        if self.current is None:
+            raise StopIteration
+        if self[self.current].current >= self[self.current].last:
             raise StopIteration
         return self[self.current].next()

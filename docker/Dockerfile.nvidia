@@ -13,11 +13,8 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install python
 RUN apt-get update && \
-    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
-
-RUN apt-get update -y && \
-    apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl
-
+    apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl \
+                          dh-autoreconf python3-venv python3-dev python3-pip
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
@@ -40,8 +37,10 @@ RUN if [ "$ver" = "nvhpc" ]; then \
         apt-get install --allow-unauthenticated -y -q ./nvhpc_${year}.${minor}_amd64.deb; \
     fi;
 
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y -q \
+# Nodejs https://github.com/nodesource/distributions
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --yes --dearmor -o /etc/apt/keyrings/nodesource.gpg
+RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+RUN apt-get update && apt-get install -y -q \
         liblapack-dev libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         # Devito Jupyter Notebooks and Ux experience

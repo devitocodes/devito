@@ -431,7 +431,7 @@ class BlockSizeGenerator(object):
     """
 
     def __init__(self, par_tile):
-        self.umt = UnboundedMultiTuple(*par_tile)
+        self.umt = par_tile
         self.tip = -1
 
         # This is for Clusters that need a small par-tile to avoid under-utilizing
@@ -459,11 +459,11 @@ class BlockSizeGenerator(object):
             return self.umt_small.next()
 
         if x:
-            item = self.umt.curitem
+            item = self.umt.curitem()
         else:
             # We can't `self.umt.iter()` because we might still want to
             # fallback to `self.umt_small`
-            item = self.umt.nextitem
+            item = self.umt.nextitem()
 
         # Handle user-provided rules
         # TODO: This is also rudimentary
@@ -474,15 +474,16 @@ class BlockSizeGenerator(object):
                 umt = self.umt
             else:
                 umt = self.umt_small
+                if not x:
+                    umt.iter()
         else:
             if item.rule in {d.name for d in prefix.itdims}:
                 umt = self.umt
             else:
                 # This is like "pattern unmatched" -- fallback to `umt_small`
                 umt = self.umt_small
-
-        if not x:
-            umt.iter()
+                if not x:
+                    umt.iter()
 
         return umt.next()
 

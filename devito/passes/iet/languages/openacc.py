@@ -165,7 +165,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
-            tile = self.par_tile.next()
+            tile = self.par_tile.nextitem()
             assert isinstance(tile, UnboundTuple)
 
             body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile,

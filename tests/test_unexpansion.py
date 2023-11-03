@@ -4,6 +4,8 @@ import pytest
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
                     Substitutions, Coefficient, cos, sin)
+from devito.arch.compiler import OneapiCompiler
+from devito.parameters import switchconfig, configuration
 from devito.types import Symbol
 
 
@@ -129,6 +131,8 @@ class Test1Pass(object):
         assert op._profiler._sections['section0'].sops == 21
         assert_structure(op, ['t,x,y', 't,x,y,i0'], 't,x,y,i0')
 
+    @switchconfig(condition=isinstance(configuration['compiler'],
+                  (OneapiCompiler)), safe_math=True)
     def test_v1(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -275,16 +279,17 @@ class Test1Pass(object):
         op.cfunction
 
     def test_transpose(self):
-        shape = (10, 10, 10)
-        grid = Grid(shape=shape)
+        shape = (11, 11, 11)
+        grid = Grid(shape=shape, extent=(10, 10, 10))
         x, _, _ = grid.dimensions
 
         u = TimeFunction(name='u', grid=grid, space_order=4)
         u1 = TimeFunction(name='u', grid=grid, space_order=4)
 
         # Chessboard-like init
-        u.data[:] = np.indices(shape).sum(axis=0) % 10 + 1
-        u1.data[:] = np.indices(shape).sum(axis=0) % 10 + 1
+        hshape = u.data_with_halo.shape[1:]
+        u.data_with_halo[:] = np.indices(hshape).sum(axis=0) % 10 + 1
+        u1.data_with_halo[:] = np.indices(hshape).sum(axis=0) % 10 + 1
 
         eqn = Eq(u.forward, u.dx(x0=x+x.spacing/2).T + 1.)
 
@@ -293,7 +298,6 @@ class Test1Pass(object):
 
         op0.apply(time_M=10)
         op1.apply(time_M=10, u=u1)
-
         assert np.allclose(u.data, u1.data, rtol=10e-6)
 
 
