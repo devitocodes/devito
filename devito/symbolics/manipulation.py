@@ -86,9 +86,11 @@ def _uxreplace(expr, rule):
 
             if not args:
                 args = aargs
-            elif len(args) != len(aargs):
+            elif len(args) < len(aargs):
                 raise ValueError("%s args provided, but %s args required"
                                  % (len(args), len(aargs)))
+            else:
+                aflag = False  #  Didn't actually change args
 
             try:
                 v = {i: getattr(expr, i) for i in expr.__rkwargs__}
