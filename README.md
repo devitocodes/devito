@@ -8,7 +8,7 @@
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
 [![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
-[![Docker](https://img.shields.io/docker/v/devitocodes/devito?color=blueviolet&label=docker&sort=semver)](https://hub.docker.com/r/devitocodes/devito)
+[![Docker](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker?color=blueviolet&label=docker&sort=semver)](https://hub.docker.com/r/devitocodes/devito)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
 optimized stencil computation (e.g., finite differences, image processing,
@@ -21,7 +21,7 @@ thereof.
 - [About Devito](#about-devito)
 - [Installation](#installation)
 - [Resources](#resources)
-- [FAQs](https://github.com/devitocodes/devito/FAQ.md)
+- [FAQs](https://github.com/devitocodes/devito/blob/master/FAQ.md)
 - [Performance](#performance)
 - [Get in touch](#get-in-touch)
 - [Interactive jupyter notebooks](#interactive-jupyter-notebooks)
@@ -106,7 +106,7 @@ place to start, with lots of examples and tutorials.
 The [website](https://www.devitoproject.org/) also provides access to other
 information, including documentation and instructions for citing us.
 
-Some FAQs are discussed [here](https://github.com/devitocodes/devito/wiki/FAQ).
+Some FAQs are discussed [here](FAQ.md).
 
 ## Performance
 

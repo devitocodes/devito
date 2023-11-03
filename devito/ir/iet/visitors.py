@@ -7,24 +7,27 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 from collections import OrderedDict
 from collections.abc import Iterable
 from itertools import chain, groupby
+import ctypes
 
 import cgen as c
 from sympy import IndexedBase
+from sympy.core.function import Application
 
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section)
 from devito.ir.support.space import Backward
-from devito.symbolics import ccode, uxreplace
-from devito.tools import GenericVisitor, as_tuple, filter_ordered, filter_sorted, flatten
+from devito.symbolics import ListInitializer, ccode, uxreplace
+from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
+                          filter_sorted, flatten, is_external_ctype, c_restrict_void_p)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
 
-__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'MapExprStmts', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
-           'Uxreplace']
+__all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
+           'MapExprStmts', 'MapHaloSpots', 'MapNodes', 'IsPerfectIteration',
+           'printAST', 'CGen', 'CInterface', 'Transformer', 'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -169,6 +172,104 @@ class CGen(Visitor):
     Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.
     """
 
+    def __init__(self, *args, compiler=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._compiler = compiler
+
+    # The following mappers may be customized by subclasses (that is,
+    # backend-specific CGen-erators)
+    _qualifiers_mapper = {
+        'is_const': 'const',
+        'is_volatile': 'volatile',
+        '_mem_constant': 'static',
+        '_mem_shared': '',
+    }
+    _restrict_keyword = 'restrict'
+
+    def _gen_struct_decl(self, obj, masked=()):
+        """
+        Convert ctypes.Struct -> cgen.Structure.
+        """
+        ctype = obj._C_ctype
+        while issubclass(ctype, ctypes._Pointer):
+            ctype = ctype._type_
+
+        if not issubclass(ctype, ctypes.Structure):
+            return None
+
+        try:
+            return obj._C_typedecl
+        except AttributeError:
+            pass
+
+        # Most of the times we end up here -- a generic procedure to
+        # automatically derive a cgen.Structure from the object _C_ctype
+
+        try:
+            fields = obj.fields
+        except AttributeError:
+            fields = (None,)*len(ctype._fields_)
+
+        entries = []
+        for i, (n, ct) in zip(fields, ctype._fields_):
+            try:
+                entries.append(self._gen_value(i, 0, masked=('const',)))
+            except AttributeError:
+                cstr = ctypes_to_cstr(ct)
+                if ct is c_restrict_void_p:
+                    cstr = '%srestrict' % cstr
+                entries.append(c.Value(cstr, n))
+
+        return c.Struct(ctype.__name__, entries)
+
+    def _gen_value(self, obj, level=2, masked=()):
+        qualifiers = [v for k, v in self._qualifiers_mapper.items()
+                      if getattr(obj, k, False) and v not in masked]
+
+        if (obj._mem_stack or obj._mem_constant) and level == 2:
+            strtype = obj._C_typedata
+            strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
+        else:
+            strtype = ctypes_to_cstr(obj._C_ctype)
+            strshape = ''
+            if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
+                strtype = '%s%s' % (strtype, self._restrict_keyword)
+        strtype = ' '.join(qualifiers + [strtype])
+
+        strname = obj._C_name
+        strobj = '%s%s' % (strname, strshape)
+
+        try:
+            if obj.cargs:
+                strobj = MultilineCall(strobj, obj.cargs, True)
+        except AttributeError:
+            pass
+
+        value = c.Value(strtype, strobj)
+
+        try:
+            if obj.is_AbstractFunction and obj._data_alignment and level == 2:
+                value = c.AlignedAttribute(obj._data_alignment, value)
+        except AttributeError:
+            pass
+
+        try:
+            if obj.initvalue is not None and level == 2:
+                init = ListInitializer(obj.initvalue)
+                if not obj._mem_constant or init.is_numeric:
+                    value = c.Initializer(value, ccode(init))
+        except AttributeError:
+            pass
+
+        return value
+
+    def _gen_rettype(self, obj):
+        try:
+            return self._gen_value(obj, 0).typename
+        except AttributeError:
+            assert isinstance(obj, str)
+            return obj
+
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
         ret = []
@@ -198,11 +299,20 @@ class CGen(Visitor):
                 ret.append(ccode(i))
         return ret
 
+    def _gen_signature(self, o):
+        decls = self._args_decl(o.parameters)
+        prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
+        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+        if o.templates:
+            tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
+            signature = c.Template(tparams, signature)
+        return signature
+
     def _blankline_logic(self, children):
         """
         Generate cgen blank lines in between logical units.
         """
-        candidates = (ExpressionBundle, Iteration, Section)
+        candidates = (Expression, ExpressionBundle, Iteration, Section)
 
         processed = []
         for child in children:
@@ -212,11 +322,16 @@ class CGen(Visitor):
                 g = list(group)
 
                 if k in (ExpressionBundle, Section) and len(g) >= 2:
-                    # Separate consecutive Sections/ExpressionBundles with BlankLine
+                    # Separate consecutive Sections/ExpressionBundles with
+                    # BlankLine
                     for i in g[:-1]:
                         rebuilt.append(i)
                         rebuilt.append(BlankLine)
                     rebuilt.append(g[-1])
+                elif (k is Iteration and
+                      prev is ExpressionBundle and
+                      all(i.dim.is_Stencil for i in g)):
+                    rebuilt.extend(g)
                 elif prev in candidates and k in candidates:
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)
@@ -313,7 +428,7 @@ class CGen(Visitor):
                 )
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
-            lvalue = c.Value(a0._C_typename, a0._C_name)
+            lvalue = self._gen_value(a0, 0)
         return c.Initializer(lvalue, rvalue)
 
     def visit_Block(self, o):
@@ -341,42 +456,14 @@ class CGen(Visitor):
         return c.Statement(v)
 
     def visit_Definition(self, o):
-        f = o.function
-
-        if o.shape is not None:
-            v = o.shape
-        else:
-            v = ""
-
-        if o.qualifier is not None:
-            v = "%s %s" % (v, o.qualifier)
-
-        v = "%s%s" % (f._C_name, v)
-
-        if f._mem_stack:
-            v = c.Value(f._C_typedata, v)
-        else:
-            if o.cargs:
-                v = MultilineCall(v, o.cargs, True)
-
-            # Aesthetics: `float * a` -> `float *a`
-            try:
-                t, stars = f._C_typename.split()
-                v = c.Value(t, '%s%s' % (stars, v))
-            except ValueError:
-                v = c.Value(f._C_typename, v)
-
-        if o.initvalue is not None:
-            v = c.Initializer(v, o.initvalue)
-
-        return v
+        return self._gen_value(o.function)
 
     def visit_Expression(self, o):
-        lhs = ccode(o.expr.lhs, dtype=o.dtype)
-        rhs = ccode(o.expr.rhs, dtype=o.dtype)
+        lhs = ccode(o.expr.lhs, dtype=o.dtype, compiler=self._compiler)
+        rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
 
         if o.init:
-            code = c.Initializer(c.Value(o.expr.lhs._C_typename, lhs), rhs)
+            code = c.Initializer(self._gen_value(o.expr.lhs, 0), rhs)
         else:
             code = c.Assign(lhs, rhs)
 
@@ -386,21 +473,26 @@ class CGen(Visitor):
         return code
 
     def visit_AugmentedExpression(self, o):
-        code = c.Statement("%s %s= %s" % (ccode(o.expr.lhs, dtype=o.dtype), o.op,
-                           ccode(o.expr.rhs, dtype=o.dtype)))
+        c_lhs = ccode(o.expr.lhs, dtype=o.dtype, compiler=self._compiler)
+        c_rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
+        code = c.Statement("%s %s= %s" % (c_lhs, o.op, c_rhs))
         if o.pragmas:
             code = c.Module(list(o.pragmas) + [code])
         return code
 
     def visit_Call(self, o, nested_call=False):
         retobj = o.retobj
-        cast = o.cast and retobj._C_typename
+        cast = o.cast and self._gen_rettype(retobj)
         arguments = self._args_call(o.arguments)
         if retobj is None:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
-            return c.Initializer(c.Value(retobj._C_typename, retobj._C_name), call)
+            if retobj.is_Indexed:
+                return c.Assign(ccode(retobj), call)
+            else:
+                rettype = self._gen_rettype(retobj)
+                return c.Initializer(c.Value(rettype, retobj._C_name), call)
 
     def visit_Conditional(self, o):
         try:
@@ -469,9 +561,7 @@ class CGen(Visitor):
 
     def visit_Callable(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        prefix = ' '.join(o.prefix + (o.retval,))
-        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+        signature = self._gen_signature(o)
         return c.FunctionBody(signature, c.Block(body))
 
     def visit_CallableBody(self, o):
@@ -504,32 +594,42 @@ class CGen(Visitor):
                 for i in o._includes]
 
     def _operator_typedecls(self, o, mode='all'):
+        xfilter0 = lambda i: self._gen_struct_decl(i) is not None
+
         if mode == 'all':
-            xfilter = lambda i: True
+            xfilter1 = xfilter0
         else:
             public_types = (AbstractFunction, CompositeObject)
             if mode == 'public':
-                xfilter = lambda i: isinstance(i, public_types)
+                xfilter1 = lambda i: xfilter0(i) and isinstance(i, public_types)
             else:
-                xfilter = lambda i: not isinstance(i, public_types)
+                xfilter1 = lambda i: xfilter0(i) and not isinstance(i, public_types)
+
+        # This is essentially to rule out vector types which are declared already
+        # in some external headers
+        xfilter = lambda i: xfilter1(i) and not is_external_ctype(i._C_ctype, o._includes)
 
         candidates = o.parameters + tuple(o._dspace.parts)
-        typedecls = [i._C_typedecl for i in candidates
-                     if xfilter(i) and i._C_typedecl is not None]
+        typedecls = [self._gen_struct_decl(i) for i in candidates if xfilter(i)]
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([j._C_typedecl for j in i.root.parameters
-                              if xfilter(j) and j._C_typedecl is not None])
+            typedecls.extend([self._gen_struct_decl(j) for j in i.root.parameters
+                              if xfilter(j)])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls
 
+    def _operator_globals(self, o, mode='all'):
+        # Sorting for deterministic code generation
+        v = sorted(o._globals, key=lambda i: i.name)
+
+        return [self._gen_value(i) for i in v]
+
     def visit_Operator(self, o, mode='all'):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
-        decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        signature = self._gen_signature(o)
         retval = [c.Line(), c.Statement("return 0")]
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
@@ -538,9 +638,7 @@ class CGen(Visitor):
         efuncs = [blankline]
         for i in o._func_table.values():
             if i.local:
-                prefix = ' '.join(i.root.prefix + (i.root.retval,))
-                esigns.append(c.FunctionDeclaration(c.Value(prefix, i.root.name),
-                                                    self._args_decl(i.root.parameters)))
+                esigns.append(self._gen_signature(i.root))
                 efuncs.extend([self._visit(i.root), blankline])
 
         # Definitions
@@ -555,7 +653,12 @@ class CGen(Visitor):
             typedecls.append(c.Extern('C', signature))
         typedecls = [i for j in typedecls for i in (j, blankline)]
 
-        return c.Module(headers + includes + typedecls +
+        # Global variables
+        globs = self._operator_globals(o, mode)
+        if globs:
+            globs.append(blankline)
+
+        return c.Module(headers + includes + typedecls + globs +
                         esigns + [blankline, kernel] + efuncs)
 
 
@@ -580,8 +683,7 @@ class CInterface(CGen):
             guarded_typedecl = c.IfNDef(guard, iflines, [])
             guarded_typedecls.extend([guarded_typedecl, blankline])
 
-        decls = self._args_decl(o.parameters)
-        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        signature = self._gen_signature(o)
         hcode = c.Module(guarded_typedecls + [blankline, signature, blankline])
 
         return ccode, hcode
@@ -646,14 +748,17 @@ class FindSections(Visitor):
         return ret
 
 
-class MapExprStmts(FindSections):
+class MapKind(FindSections):
 
     """
-    Construct a mapper from ExprStmts, i.e. expression statements such as Calls
-    and Expressions, to their enclosing block (e.g., Iteration, Block).
+    Base class to construct mappers from Nodes of given type to their enclosing
+    scope of Nodes.
     """
 
-    def visit_ExprStmt(self, o, ret=None, queue=None):
+    # NOTE: Ideally, we would use a metaclass that dynamically constructs mappers
+    # for the kind supplied by the caller, but it'd be overkill at the moment
+
+    def visit_dummy(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
@@ -661,6 +766,14 @@ class MapExprStmts(FindSections):
 
     visit_Conditional = FindSections.visit_Iteration
     visit_Block = FindSections.visit_Iteration
+
+
+class MapExprStmts(MapKind):
+    visit_ExprStmt = MapKind.visit_dummy
+
+
+class MapHaloSpots(MapKind):
+    visit_HaloSpot = MapKind.visit_dummy
 
 
 class MapNodes(Visitor):
@@ -783,7 +896,9 @@ class FindSymbols(Visitor):
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
                                    if isinstance(i, IndexedBase)],
+        'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
+        'globals': lambda n: [f.indexed for f in n.functions if f._mem_constant],
         'defines-aliases': _defines_aliases
     }
 
@@ -797,7 +912,7 @@ class FindSymbols(Visitor):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(ret, key=lambda i: i.name)
+        return sorted(ret, key=lambda i: str(i))
 
     def visit_tuple(self, o):
         return self.Retval(*[self._visit(i) for i in o])
@@ -806,6 +921,12 @@ class FindSymbols(Visitor):
 
     def visit_Node(self, o):
         return self.Retval(self._visit(o.children), self.rule(o))
+
+    def visit_ThreadedProdder(self, o):
+        # TODO: this handle required because ThreadedProdder suffers from the
+        # long-standing issue affecting all Node subclasses which rely on
+        # multiple inheritance
+        return self.Retval(self._visit(o.then_body), self.rule(o))
 
     def visit_Operator(self, o):
         ret = self._visit(o.body)
@@ -860,6 +981,55 @@ class FindNodes(Visitor):
             ret.append(o)
         for i in o.children:
             ret = self._visit(i, ret=ret)
+        return ret
+
+
+class FindApplications(Visitor):
+
+    """
+    Find all SymPy applied functions (aka, `Application`s). The user may refine
+    the search by supplying a different target class.
+    """
+
+    def __init__(self, cls=Application):
+        super().__init__()
+        self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
+
+    @classmethod
+    def default_retval(cls):
+        return set()
+
+    def visit_object(self, o, **kwargs):
+        return self.default_retval()
+
+    def visit_tuple(self, o, ret=None):
+        ret = ret or self.default_retval()
+        for i in o:
+            ret.update(self._visit(i, ret=ret))
+        return ret
+
+    def visit_Node(self, o, ret=None):
+        ret = ret or self.default_retval()
+        for i in o.children:
+            ret.update(self._visit(i, ret=ret))
+        return ret
+
+    def visit_Expression(self, o, **kwargs):
+        return o.expr.find(self.match)
+
+    def visit_Iteration(self, o, **kwargs):
+        ret = self._visit(o.children) or self.default_retval()
+        ret.update(o.symbolic_min.find(self.match))
+        ret.update(o.symbolic_max.find(self.match))
+        return ret
+
+    def visit_Call(self, o, **kwargs):
+        ret = self.default_retval()
+        for i in o.arguments:
+            try:
+                ret.update(i.find(self.match))
+            except (AttributeError, TypeError):
+                continue
         return ret
 
 
@@ -983,8 +1153,11 @@ class Uxreplace(Transformer):
 
     def visit_Iteration(self, o):
         nodes = self._visit(o.nodes)
+        dimension = uxreplace(o.dim, self.mapper)
         limits = [uxreplace(i, self.mapper) for i in o.limits]
-        return o._rebuild(nodes=nodes, limits=limits)
+        uindices = [uxreplace(i, self.mapper) for i in o.uindices]
+        return o._rebuild(nodes=nodes, dimension=dimension, limits=limits,
+                          uindices=uindices)
 
     def visit_Definition(self, o):
         try:
@@ -1005,13 +1178,22 @@ class Uxreplace(Transformer):
 
     def visit_Call(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
-        return o._rebuild(arguments=arguments)
+        if o.retobj is not None:
+            retobj = uxreplace(o.retobj, self.mapper)
+            return o._rebuild(arguments=arguments, retobj=retobj)
+        else:
+            return o._rebuild(arguments=arguments)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
         return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+
+    def visit_PointerCast(self, o):
+        function = self.mapper.get(o.function, o.function)
+        obj = self.mapper.get(o.obj, o.obj)
+        return o._rebuild(function=function, obj=obj)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]

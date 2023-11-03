@@ -50,8 +50,8 @@ def setup_rec_coords(model):
 class AcquisitionGeometry(Pickable):
     """
     Encapsulate the geometry of an acquisition:
-    - receiver positions and number
     - source positions and number
+    - receiver positions and number
 
     In practice this would only point to a segy file with the
     necessary information
@@ -77,7 +77,7 @@ class AcquisitionGeometry(Pickable):
         self._a = kwargs.get('a', None)
         self._t0w = kwargs.get('t0w', None)
         if self._src_type is not None and self._f0 is None:
-            error("Peak frequency must be provided in KH" +
+            error("Peak frequency must be provided in KHz" +
                   " for source of type %s" % self._src_type)
 
         self._grid = model.grid
@@ -169,7 +169,7 @@ class AcquisitionGeometry(Pickable):
 
     def new_src(self, name='src', src_type='self'):
         if self.src_type is None or src_type is None:
-            warning("No surce type defined, returning uninistiallized (zero) source")
+            warning("No source type defined, returning uninitiallized (zero) source")
             return PointSource(name=name, grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
                                coordinates=self.src_positions)
@@ -224,7 +224,7 @@ def seismic_args(description):
     parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     parser.add_argument("--checkpointing", default=False, action='store_true',
-                        help="Use checkpointing, default is false")
+                        help="Use checkpointing, default is False")
     parser.add_argument("-opt", default="advanced", action=_opt_action,
                         help="Performance optimization level")
     parser.add_argument('-a', '--autotune', default='off',

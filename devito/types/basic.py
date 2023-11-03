@@ -1,17 +1,18 @@
 import abc
 from collections import namedtuple
-from ctypes import POINTER, _Pointer
+from ctypes import POINTER, _Pointer, c_char_p, c_char
 from functools import reduce
 from operator import mul
 
 import numpy as np
 import sympy
+
 from sympy.core.assumptions import _assume_rules
 from cached_property import cached_property
 
 from devito.data import default_allocator
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, ctypes_to_cgen,
-                          dtype_to_ctype, frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
+                          frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
@@ -33,16 +34,17 @@ class CodeSymbol(object):
     its type.
 
     The _mem_* properties describe the object memory allocation strategy. There
-    are three axes with a few possible values each:
+    are three axes, with a few possible values each:
 
-        *"liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
-        *"space": `_mem_local`, `_mem_mapped`, `_mem_host`
-        *"scope": `_mem_stack`, `_mem_heap`
+        * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
+        * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
+        * "scope": `_mem_stack`, `_mem_heap`, `_mem_constant`, `_mem_shared`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
     memory (but not both), and on the heap. Refer to the __doc__ of the single
-    _mem_* properties for more info.
+    _mem_* properties for more info. Obviously, not all triplets make sense
+    for a given architecture.
     """
 
     @abc.abstractmethod
@@ -75,80 +77,28 @@ class CodeSymbol(object):
     @property
     def _C_typedata(self):
         """
-        The type of the object in the generated code.
-
-        Returns
-        -------
-        str
+        The type of the object in the generated code as a `str`.
         """
         _type = self._C_ctype
         while issubclass(_type, _Pointer):
             _type = _type._type_
 
-        return ctypes_to_cstr(_type, qualifiers=self._C_typequals)
+        # `ctypes` treats C strings specially
+        if _type is c_char_p:
+            _type = c_char
 
-    @property
-    def _C_typename(self):
-        """
-        The type used to carry around the object in the generated code.
-
-        If an object is expected to be passed by value, this will coincide
-        with `_C_typedata`.
-
-        Instead, if an object is passed via a one-dimensional pointer, then
-        `self._C_typename` will add a `*` to whatever type is returned by
-        `self._C_typedata`.
-
-        This can be customized at will by subclasses.
-
-        By default, `self._C_typename = self._C_typedata`.
-
-        Returns
-        -------
-        str
-        """
-        return ctypes_to_cstr(self._C_ctype, qualifiers=self._C_typequals)
+        return ctypes_to_cstr(_type)
 
     @abc.abstractproperty
     def _C_ctype(self):
         """
-        The `_C_typename` of the object as a `ctypes` class, necessary for
-        jumping from Python-land to C-land.
-
-        Returns
-        -------
-        ctypes type
+        The type of the object in the generated code as a `ctypes` class.
         """
         return
 
     @property
     def _C_type_qualifier(self):
         return ''
-
-    @cached_property
-    def _C_typequals(self):
-        """
-        The type qualifiers of the object in the generated code.
-        """
-        known_qualifiers = ('is_const', 'is_volatile')
-        qualifiers = []
-        for i in known_qualifiers:
-            if getattr(self, i, False):
-                qualifiers.append(i.split('_')[1])
-        return as_tuple(qualifiers)
-
-    @property
-    def _C_typedecl(self):
-        """
-        The type declaration of the object in the generated code.
-
-        Returns
-        -------
-        cgen.Struct or None
-            None if the type of the object can be expressed with a basic type,
-            such as float or int, otherwise a cgen.Struct representing a C struct.
-        """
-        return ctypes_to_cgen(self._C_ctype, fields=getattr(self, 'fields', None))
 
     @property
     def _C_symbol(self):
@@ -234,7 +184,22 @@ class CodeSymbol(object):
     @property
     def _mem_heap(self):
         """
-        True if the associated data was/is/will be allocated on the heap,
+        True if the associated data gets allocated on the heap, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_constant(self):
+        """
+        True if the associated data gets allocated in global constant memory,
+        False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_shared(self):
+        """
+        True if the associated data gets allocated in so called shared memory,
         False otherwise.
         """
         return False
@@ -284,6 +249,7 @@ class Basic(CodeSymbol):
     is_Array = False
     is_PointerArray = False
     is_ObjectArray = False
+    is_Bundle = False
     is_Object = False
     is_LocalObject = False
 
@@ -396,6 +362,17 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def __init_finalize__(self, *args, **kwargs):
         self._is_const = kwargs.get('is_const', False)
 
+    def __eq__(self, other):
+        return (type(self) is type(other) and
+                self.dtype is other.dtype and
+                self.is_const == other.is_const and
+                super().__eq__(other))
+
+    __hash__ = sympy.Symbol.__hash__
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.dtype, self.is_const)
+
     @property
     def dtype(self):
         return self._dtype
@@ -431,7 +408,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _evaluate(self, **kwargs):
         return self
 
-    def indexify(self):
+    def indexify(self, indices=None):
         return self
 
     @property
@@ -620,8 +597,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                  ---------------------------------
                  |                               |
           VectorFunction                 TensorTimeFunction
-                        \-------\                |
-                                 \------- VectorTimeFunction
+                        \\-------\\              |
+                                 \\------- VectorTimeFunction
 
     There are four relevant AbstractTensor sub-types: ::
 
@@ -645,11 +622,11 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         if args:
             try:
                 # Constructor if input is (rows, cols, lambda)
-                newobj = super(AbstractTensor, cls)._new(*args)
+                newobj = super()._new(*args)
             except ValueError:
                 # Constructor if input is list of list as (row, cols, list_of_list)
                 # doesn't work as it expects a flattened.
-                newobj = super(AbstractTensor, cls)._new(args[2])
+                newobj = super()._new(args[2])
 
             # Filter grid and dimensions
             grid, dimensions = newobj._infer_dims()
@@ -662,7 +639,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             # Initialize components and create new Matrix from standard
             # Devito inputs
             comps = cls.__subfunc_setup__(*args, **kwargs)
-            newobj = super(AbstractTensor, cls)._new(comps)
+            newobj = super()._new(comps)
             newobj.__init_finalize__(*args, **kwargs)
 
         return newobj
@@ -676,7 +653,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         This class method is only accessible from an existing AbstractTensor
         that contains a grid or dimensions.
         """
-        newobj = super(AbstractTensor, cls)._fromrep(rep)
+        newobj = super()._fromrep(rep)
         grid, dimensions = newobj._infer_dims()
         try:
             # This is needed when `_fromrep` is called directly in 1.9
@@ -721,6 +698,16 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def doit(self, **hint):
         return self
 
+    def transpose(self, inner=True):
+        new = super().transpose()
+        if inner:
+            return new.applyfunc(lambda x: getattr(x, 'T', x))
+        return new
+
+    def adjoint(self, inner=True):
+        # Real valued adjoint is transpose
+        return self.transpose(inner=inner)
+
     def _eval_matrix_mul(self, other):
         """
         Copy paste from sympy to avoid explicit call to sympy.Add
@@ -756,7 +743,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         return []
 
 
-class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
+class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     """
     Base class for tensor symbols, cached by both SymPy and Devito. It inherits
@@ -813,54 +800,52 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
-    __rkwargs__ = ('name', 'dtype', 'halo', 'padding', 'alias')
+    # Devito default assumptions
+    is_regular = True
+    """
+    True if data and iteration points are aligned. Cases where they won't be
+    aligned (currently unsupported): Functions defined on SubDomains; compressed
+    Functions; etc.
+    """
 
-    @classmethod
-    def _cache_key(cls, *args, **kwargs):
-        return cls, args
+    is_compact = True
+    """
+    True if data is allocated as a single, contiguous chunk of memory.
+    """
 
-    @classmethod
-    def _cache_get(cls, *args, **kwargs):
-        # Is the object already in cache (e.g., f(x), f(x+1)) ?
-        key = cls._cache_key(*args, **kwargs)
-        obj = super()._cache_get(key)
-        if obj is not None:
-            return obj
-
-        # Does the base object exist at least (e.g. f(x))?
-        obj = super()._cache_get(cls)
-        if obj is not None:
-            options = kwargs.get('options', {'evaluate': False})
-            with sympy_mutex:
-                newobj = sympy.Function.__new__(cls, *args, **options)
-            newobj.__init_cached__(obj)
-            Cached.__init__(newobj, key)
-            return newobj
-
-        # Not in cache
-        return None
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'alias', 'function')
 
     def __new__(cls, *args, **kwargs):
-        # Only perform a construction if the object isn't in cache
-        obj = cls._cache_get(*args, **kwargs)
-        if obj is not None:
-            return obj
-
-        options = kwargs.get('options', {'evaluate': False})
-
         # Preprocess arguments
         args, kwargs = cls.__args_setup__(*args, **kwargs)
 
-        # Not in cache. Create a new Function via sympy.Function
+        # Extract the `indices`, as perhaps they're explicitly provided
+        dimensions, indices = cls.__indices_setup__(*args, **kwargs)
+
+        # If it's an alias or simply has a different name, ignore `function`.
+        # These cases imply the construction of a new AbstractFunction off
+        # an existing one! This relieves the pressure on the caller by not
+        # requiring `function=None` explicitly at rebuild
         name = kwargs.get('name')
-        dimensions, indices = cls.__indices_setup__(**kwargs)
+        alias = kwargs.get('alias')
+        function = kwargs.get('function')
+        if alias or (function and function.name != name):
+            function = kwargs['function'] = None
 
-        # Create new, unique type instance from cls and the symbol name
-        newcls = type(name, (cls,), dict(cls.__dict__))
+        # If same name/indices and `function` isn't None, then it's
+        # definitely a reconstruction
+        if function is not None and \
+           function.name == name and \
+           function.indices == indices:
+            # Special case: a syntactically identical alias of `function`, so
+            # let's just return `function` itself
+            return function
 
-        # Create the new Function object and invoke __init__
         with sympy_mutex:
-            newobj = sympy.Function.__new__(newcls, *indices, **options)
+            # Go straight through Basic, thus bypassing caching and machinery
+            # in sympy.Application/Function that isn't really necessary
+            # AbstractFunctions are unique by construction!
+            newobj = sympy.Basic.__new__(cls, *sympy.sympify(indices))
 
         # Initialization. The following attributes must be available
         # when executing __init_finalize__
@@ -868,16 +853,13 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         newobj._dimensions = dimensions
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
+
+        # All objects created off an existing AbstractFunction `f` (e.g.,
+        # via .func, or .subs, such as `f(x + 1)`) keep a reference to `f`
+        # through the `function` field
+        newobj.function = function or newobj
+
         newobj.__init_finalize__(*args, **kwargs)
-
-        # All objects cached on the AbstractFunction `newobj` keep a reference
-        # to `newobj` through the `function` field. Thus, all indexified
-        # object will point to `newobj`, the "actual Function".
-        newobj.function = newobj
-
-        # Store new instance in symbol cache
-        key = (newcls, indices)
-        Cached.__init__(newobj, key, newcls)
 
         return newobj
 
@@ -885,11 +867,52 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # no-op, the true init is performed by __init_finalize__
         pass
 
+    def __str__(self):
+        return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.indices))
+
+    __repr__ = __str__
+
+    def _sympystr(self, printer, **kwargs):
+        return str(self)
+
+    _latex = _sympystr
+
+    def _pretty(self, printer, **kwargs):
+        return printer._print_Function(self, func_name=self.name)
+
+    def __eq__(self, other):
+        try:
+            return (self.function is other.function and
+                    self.indices == other.indices)
+        except AttributeError:
+            # `other` not even an AbstractFunction
+            return False
+
+    __hash__ = sympy.Function.__hash__
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (id(self.function), self.indices)
+
+    @sympy.cacheit
+    def sort_key(self, order=None):
+        # Ensure that `f(x)` appears before `g(x)`
+        # With the legacy caching framework this wasn't necessary because
+        # the function name was already encoded in the class_key
+        class_key, args, exp, coeff = super().sort_key(order=order)
+        args = (len(args[1]) + 1, (self.name,) + args[1])
+        return class_key, args, exp, coeff
+
     def __init_finalize__(self, *args, **kwargs):
         # Setup halo and padding regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
+
+        # There may or may not be a `Grid`
+        self._grid = kwargs.get('grid')
+
+        # A `Distributor` to handle domain decomposition
+        self._distributor = self.__distributor_setup__(**kwargs)
 
         # Symbol properties
         # "Aliasing" another DiscreteFunction means that `self` logically
@@ -897,8 +920,6 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         # formal parameter of a routine generated by the compiler, where the
         # routines is applied to several actual DiscreteFunctions
         self._alias = kwargs.get('alias', False)
-
-    __hash__ = Cached.__hash__
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -912,7 +933,7 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         return args, kwargs
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         """Extract the object indices from ``kwargs``."""
         return (), ()
 
@@ -933,6 +954,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def __padding_setup__(self, **kwargs):
         padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __distributor_setup__(self, **kwargs):
+        # There may or may not be a `Distributor`. In the latter case, the
+        # AbstractFunction is to be considered "local" to each MPI rank
+        try:
+            return kwargs.get('grid').distributor
+        except AttributeError:
+            return kwargs.get('distributor')
 
     @cached_property
     def _honors_autopadding(self):
@@ -970,7 +999,8 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         f(x) : origin = 0
         f(x + hx/2) : origin = hx/2
         """
-        return tuple(r - d for d, r in zip(self.dimensions, self.indices_ref))
+        return DimensionTuple(*(r - d for d, r in zip(self.dimensions, self.indices_ref)),
+                              getters=self.dimensions)
 
     @property
     def dimensions(self):
@@ -1024,6 +1054,11 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
     def shape(self):
         """The shape of the object."""
         return self._shape
+
+    @property
+    def grid(self):
+        """The Grid on which the discretization occurred."""
+        return self._grid
 
     @property
     def dtype(self):
@@ -1128,6 +1163,14 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         raise NotImplementedError
 
     @cached_property
+    def _dist_dimensions(self):
+        """The Dimensions decomposed for distributed-parallelism."""
+        if self._distributor is None:
+            return ()
+        else:
+            return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
+
+    @cached_property
     def _size_domain(self):
         """Number of points in the domain region."""
         return DimensionTuple(*self.shape, getters=self.dimensions)
@@ -1222,23 +1265,42 @@ class AbstractFunction(sympy.Function, Basic, Cached, Pickable, Evaluable):
         subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
         # Indices after substitutions
-        indices = [sympy.sympify((a - o).xreplace(s)) for a, o, s in
-                   zip(self.args, self.origin, subs)]
+        indices = []
+        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
+            if d in a.free_symbols:
+                # Shift by origin d -> d - o.
+                indices.append(sympy.sympify(a.subs(d, d - o).xreplace(s)))
+            else:
+                # Dimension has been removed, e.g. u[10], plain shift by origin
+                indices.append(sympy.sympify(a - o).xreplace(s))
+
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
+
         return self.indexed[indices]
 
     def __getitem__(self, index):
         """Shortcut for ``self.indexed[index]``."""
         return self.indexed[index]
 
+    # Reconstruction support
+    func = Pickable._rebuild
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
-    # Reconstruction support
-    @property
-    def _rcls(self):
-        return self.__class__.__base__
+    def __getnewargs_ex__(self):
+        args, kwargs = super().__getnewargs_ex__()
+
+        # Since f(x) stashes a reference to itself f(x), we must drop it here
+        # or we'll end up with infinite recursion while attempting to serialize
+        # the object. Upon unpickling, we'll then get `function=None`, which is
+        # perfectly fine based on how `__new__`, and in particular the
+        # initialization of the `.function` attribute, works
+        if self is kwargs.get('function'):
+            kwargs.pop('function')
+
+        return args, kwargs
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
@@ -1339,6 +1401,8 @@ class BoundSymbol(AbstractSymbol):
     BoundSymbol will also become a garbage collector candidate.
     """
 
+    __rkwargs__ = AbstractSymbol.__rkwargs__ + ('function',)
+
     def __new__(cls, *args, function=None, **kwargs):
         obj = AbstractSymbol.__new__(cls, *args, **kwargs)
         obj._function = function
@@ -1373,7 +1437,7 @@ class Indexed(sympy.Indexed):
         return super().__str__()
 
     def _hashable_content(self):
-        return super(Indexed, self)._hashable_content() + (self.base.function,)
+        return super()._hashable_content() + (self.base.function,)
 
     @cached_property
     def indices(self):
@@ -1398,7 +1462,7 @@ class Indexed(sympy.Indexed):
     @cached_property
     def free_symbols(self):
         # Make it cached, since it's relatively expensive and called often
-        ret = super(Indexed, self).free_symbols
+        ret = super().free_symbols
         # Get rid of the IndexedBase label this Indexed stems from
         # as in Devito we can't have it floating around in Eq's
         ret.discard(self.base.label)
@@ -1431,3 +1495,17 @@ class Indexed(sympy.Indexed):
             if c:
                 return c
         return 0
+
+    def _subs(self, old, new, **hints):
+        # Wrap in a try to make sure no substitution happens when
+        # old is an Indexed as only checkink `old is new` would lead to
+        # incorrect substitution of `old.base` by `new`
+        try:
+            if old.is_Indexed:
+                if old.base == self.base and old.indices == self.indices:
+                    return new
+                else:
+                    return self
+        except AttributeError:
+            pass
+        return super()._subs(old, new, **hints)

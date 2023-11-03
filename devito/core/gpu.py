@@ -4,6 +4,7 @@ import numpy as np
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
+from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
@@ -64,7 +65,7 @@ class DeviceOperatorMixin(object):
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # GPU parallelism
-        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4))
+        o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4, 4))
         o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
@@ -72,11 +73,18 @@ class DeviceOperatorMixin(object):
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
         o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+        o['gpu-create'] = as_tuple(oo.pop('gpu-create', ()))
+
+        # Distributed parallelism
+        o['dist-drop-unwritten'] = oo.pop('dist-drop-unwritten', cls.DIST_DROP_UNWRITTEN)
 
         # Misc
+        o['expand'] = oo.pop('expand', cls.EXPAND)
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
+        o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['place-transfers'] = oo.pop('place-transfers', True)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -92,6 +100,21 @@ class DeviceOperatorMixin(object):
             return None
         else:
             return cls.GPU_FIT
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs):
+        options = kwargs['options']
+
+        def wrapper(expressions, kwargs=kwargs, mode='default'):
+            if mode == 'host':
+                kwargs = {
+                    'platform': 'cpu64',
+                    'language': 'C' if options['par-disabled'] else 'openmp',
+                    'compiler': 'custom',
+                }
+            return rcompile(expressions, kwargs)
+
+        return wrapper
 
 # Mode level
 
@@ -115,7 +138,7 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
         parizer.initialize(graph, options=options)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry, options).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         return graph
 
@@ -179,7 +202,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, **kwargs)
 
         # GPU parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
@@ -190,10 +213,10 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry, options).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
-        linearize(graph, mode=options['linearize'], sregistry=sregistry)
+        linearize(graph, **kwargs)
 
         return graph
 
@@ -258,8 +281,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'orchestrate': partial(orchestrator.process),
             'pthreadify': partial(pthreadify, sregistry=sregistry),
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, mode=options['linearize'],
-                                 sregistry=sregistry),
+            'linearize': partial(linearize, **kwargs),
             'prodders': partial(hoist_prodders),
             'init': partial(parizer.initialize, options=options)
         }
@@ -303,6 +325,13 @@ class DeviceOmpOperatorMixin(object):
         oo['openmp'] = True
 
         return kwargs
+
+    @classmethod
+    def _check_kwargs(cls, **kwargs):
+        oo = kwargs['options']
+
+        if len(oo['gpu-create']):
+            raise InvalidOperator("Unsupported gpu-create option for omp operators")
 
 
 class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):

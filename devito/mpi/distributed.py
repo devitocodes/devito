@@ -14,6 +14,7 @@ from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered
 from devito.types import CompositeObject, Object
+from devito.types.utils import DimensionTuple
 
 
 # Do not prematurely initialize MPI
@@ -126,7 +127,8 @@ class AbstractDistributor(ABC):
     @property
     def shape(self):
         """The calling MPI rank's local shape."""
-        return tuple(len(i) for i in self.glb_numb)
+        return DimensionTuple(*[len(i) for i in self.glb_numb],
+                              getters=self.dimensions)
 
     @property
     def dimensions(self):

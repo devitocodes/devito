@@ -35,7 +35,7 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     x_coord = np.linspace(xmin, xmax, field.shape[0])
     y_coord = np.linspace(ymin, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)
-    ax = fig.gca(projection='3d')
+    ax = fig.add_subplot(111, projection='3d')
     X, Y = np.meshgrid(x_coord, y_coord, indexing='ij')
     ax.plot_surface(X, Y, field[:], cmap=cm.viridis, rstride=1, cstride=1,
                     linewidth=linewidth, antialiased=False)

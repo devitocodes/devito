@@ -9,12 +9,13 @@ from examples.seismic.acoustic import acoustic_setup as iso_setup
 from examples.seismic.acoustic.operators import iso_stencil
 from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.tti import tti_setup
-from examples.seismic.viscoacoustic import viscoacoustic_setup
+from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 
 
 class TestGradient(object):
 
-    @skipif('cpu64-icc')
+    @skipif(['chkpnt', 'cpu64-icc'])
+    @switchconfig(safe_math=True)
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('opt', [('advanced', {'openmp': True}),
                                      ('noop', {'openmp': True})])
@@ -148,20 +149,20 @@ class TestGradient(object):
 
     @skipif('cpu64-icc')
     @pytest.mark.parametrize('kernel, shape, ckp, setup_func, time_order', [
-        ('OT2', (50, 60), True, iso_setup, 2),
+        pytest.param('OT2', (50, 60), True, iso_setup, 2, marks=skipif('chkpnt')),
         ('OT2', (50, 60), False, iso_setup, 2),
-        ('centered', (50, 60), True, tti_setup, 2),
+        pytest.param('centered', (50, 60), True, tti_setup, 2, marks=skipif('chkpnt')),
         ('centered', (50, 60), False, tti_setup, 2),
-        ('sls', (50, 60), True, viscoacoustic_setup, 2),
-        ('sls', (50, 60), False, viscoacoustic_setup, 2),
-        ('sls', (50, 60), True, viscoacoustic_setup, 1),
-        ('sls', (50, 60), False, viscoacoustic_setup, 1),
+        pytest.param('sls', (50, 60), True, vsc_setup, 2, marks=skipif('chkpnt')),
+        ('sls', (50, 60), False, vsc_setup, 2),
+        pytest.param('sls', (50, 60), True, vsc_setup, 1, marks=skipif('chkpnt')),
+        ('sls', (50, 60), False, vsc_setup, 1),
     ])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     def test_gradientFWI(self, dtype, space_order, kernel, shape, ckp, setup_func,
                          time_order):
-        """
+        r"""
         This test ensures that the FWI gradient computed with devito
         satisfies the Taylor expansion property:
         .. math::
@@ -241,15 +242,15 @@ class TestGradient(object):
     @skipif('cpu64-icc')
     @pytest.mark.parametrize('kernel, shape, spacing, setup_func, time_order', [
         ('OT2', (70, 80), (15., 15.), iso_setup, 2),
-        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 2),
-        ('sls', (70, 80), (20., 20.), viscoacoustic_setup, 1),
+        ('sls', (70, 80), (20., 20.), vsc_setup, 2),
+        ('sls', (70, 80), (20., 20.), vsc_setup, 1),
         ('centered', (70, 80), (15., 15.), tti_setup, 2),
     ])
     @pytest.mark.parametrize('space_order', [4])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     def test_gradientJ(self, dtype, space_order, kernel, shape, spacing, time_order,
                        setup_func):
-        """
+        r"""
         This test ensures that the Jacobian computed with devito
         satisfies the Taylor expansion property:
         .. math::

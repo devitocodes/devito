@@ -8,7 +8,7 @@ from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights)
 from devito.symbolics import indexify, retrieve_indexed
-from devito.types import StencilDimension
+from devito.types.dimension import StencilDimension
 
 _PRECISION = 9
 
@@ -197,7 +197,7 @@ class TestFD(object):
 
         s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert type(expr) == EvalDerivative
+        assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
 
@@ -217,7 +217,7 @@ class TestFD(object):
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
         s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
-        assert type(expr) == EvalDerivative
+        assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
 
@@ -457,6 +457,31 @@ class TestFD(object):
         for fd in g._fd:
             assert getattr(g, fd)
 
+        for d in grid.dimensions:
+            assert 'd%s' % d.name in f._fd
+            assert 'd%s' % d.name in g._fd
+            for o in range(2, min(7, so+1)):
+                assert 'd%s%s' % (d.name, o) in f._fd
+                assert 'd%s%s' % (d.name, o) in g._fd
+
+    def test_shortcuts_mixed(self):
+        grid = Grid(shape=(10,))
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid, space_order=4)
+        assert 'dx4' not in (f*g)._fd
+        assert 'dx4' not in (f+g)._fd
+        assert 'dx4' not in (g*f.dx)._fd
+
+    def test_transpose_simple(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        assert str(f.dx.T.evaluate) == ("-0.0833333333*f(t, x - 2*h_x, y)/h_x "
+                                        "+ 0.666666667*f(t, x - h_x, y)/h_x "
+                                        "- 0.666666667*f(t, x + h_x, y)/h_x "
+                                        "+ 0.0833333333*f(t, x + 2*h_x, y)/h_x")
+
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
     @pytest.mark.parametrize('ndim', [1, 2])
     @pytest.mark.parametrize('derivative, adjoint_name', [
@@ -521,8 +546,12 @@ class TestFD(object):
         grid = Grid((11, 11))
         f = Function(name="f", grid=grid, space_order=4)
         expr = f.dx + f + 1
+
         assert simplify(expr.subs(f.dx, 1) - (f + 2)) == 0
-        assert simplify(expr.subs(f, -1) - f.dx) == 0
+        # f.dx.subs(f, -1) = 0 and f.subs(f, -1) = -1 so
+        # expr.subs(f, -1) = 0
+        assert simplify(expr.subs(f, -1)) == 0
+        # f.dx -> 1, f -> -1
         assert simplify(expr.subs({f.dx: 1, f: -1}) - 1) == 0
 
         expr2 = expr.subs({'x0': 2})
@@ -534,6 +563,13 @@ class TestFD(object):
         # x0 and f.dx
         expr3 = expr.subs({f.dx: f.dx2, 'x0': 2})
         assert simplify(expr3 - (f.dx2(x0=2) + f + 1)) == 0
+
+        # Test substitution with reconstructed objects
+        x, y = grid.dimensions
+        f1 = f.func(x + 1, y)
+        f2 = f.func(x + 1, y)
+        assert f1 is not f2
+        assert f1.subs(f2, -1) == -1
 
 
 class TestTwoStageEvaluation(object):
@@ -665,7 +701,7 @@ class TestTwoStageEvaluation(object):
 
         assert idxsum.evaluate == u*v + u.subs(x, x + x.spacing)*v.subs(y, y + y.spacing)
 
-    def test_index_derivative_like(self):
+    def test_index_derivative(self):
         grid = Grid((10,))
         x, = grid.dimensions
 
@@ -676,9 +712,17 @@ class TestTwoStageEvaluation(object):
         ui = u.subs(x, x + i*x.spacing)
         w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
 
-        idxder = IndexDerivative(ui*w, w.dimension)
+        idxder = IndexDerivative(ui*w, {x: i})
 
         assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
+
+        # Make sure subs works as expected
+        v = Function(name="v", grid=grid, space_order=2)
+
+        vi0 = v.subs(x, x + i*x.spacing)
+        vi1 = idxder.subs(ui, vi0)
+
+        assert IndexDerivative(vi0*w, {x: i}) == vi1
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))
@@ -690,6 +734,7 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx2._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
+        assert term1.depth == 1
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
@@ -707,12 +752,44 @@ class TestTwoStageEvaluation(object):
 
         term1 = f.dx.dy._evaluate(expand=False)
         assert isinstance(term1, IndexDerivative)
+        assert term1.depth == 2
         term1 = term1.evaluate
         assert isinstance(term1, Add)  # devito.fd.Add
 
         # Through expansion and casting we also check that `term0`
         # is indeed mathematically equivalent to `term1`
         assert Add(*term0.expand().args) == term1.expand()
+
+    def test_dxdy_v2(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term1 = f.dxdy._evaluate(expand=False)
+        assert len(term1.find(IndexDerivative)) == 2
+
+    def test_transpose(self):
+        grid = Grid(shape=(4, 4))
+        x, _ = grid.dimensions
+        h_x = x.spacing
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term = f.dx.T._evaluate(expand=False)
+        assert isinstance(term, IndexDerivative)
+
+        i0, = term.dimensions
+        assert term.base == f.subs(x, x + i0*h_x)
+
+    def test_tensor_algebra(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, space_order=4)
+
+        v = grad(f)._evaluate(expand=False)
+
+        assert all(isinstance(i, IndexDerivative) for i in v)
+        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate))
 
 
 def bypass_uneval(expr):

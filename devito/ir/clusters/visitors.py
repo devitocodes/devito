@@ -3,7 +3,7 @@ from collections.abc import Iterable
 
 from itertools import groupby
 
-from devito.ir.support import Scope
+from devito.ir.support import IterationSpace, Scope, null_ispace
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['Queue', 'QueueStateful', 'cluster_pass']
@@ -21,28 +21,62 @@ class Queue(object):
     then divide) the divide phase of the algorithm.
     """
 
+    # Handlers for the construction of the key used in the visit
+    # Some visitors may need a relaxed key to process together certain groups
+    # of Clusters
+    _q_ispace_in_key = True
+    _q_guards_in_key = False
+    _q_properties_in_key = False
+    _q_syncs_in_key = False
+
     def callback(self, *args):
         raise NotImplementedError
 
     def process(self, clusters):
         return self._process_fdta(clusters, 1)
 
-    def _make_key(self, element, level):
-        itintervals = element.itintervals[:level]
+    def _make_key(self, cluster, level):
+        assert self._q_ispace_in_key
+        ispace = cluster.ispace[:level]
 
-        subkey = self._make_key_hook(element, level)
+        if self._q_guards_in_key:
+            try:
+                guards = tuple(cluster.guards.get(i.dim) for i in ispace)
+            except AttributeError:
+                # `cluster` is actually a ClusterGroup
+                assert len(cluster.guards) == 1
+                guards = tuple(cluster.guards[0].get(i.dim) for i in ispace)
+        else:
+            guards = None
 
-        return (itintervals,) + subkey
+        if self._q_properties_in_key:
+            properties = cluster.properties.drop(cluster.ispace[level:].itdims)
+        else:
+            properties = None
 
-    def _make_key_hook(self, element, level):
+        if self._q_syncs_in_key:
+            try:
+                syncs = tuple(cluster.syncs.get(i.dim) for i in ispace)
+            except AttributeError:
+                # `cluster` is actually a ClusterGroup
+                assert len(cluster.syncs) == 1
+                syncs = tuple(cluster.syncs[0].get(i.dim) for i in ispace)
+        else:
+            syncs = None
+
+        prefix = Prefix(ispace, guards, properties, syncs)
+
+        subkey = self._make_key_hook(cluster, level)
+
+        return (prefix,) + subkey
+
+    def _make_key_hook(self, cluster, level):
         return ()
 
-    def _process_fdta(self, clusters, level, prefix=None, **kwargs):
+    def _process_fdta(self, clusters, level, prefix=null_ispace, **kwargs):
         """
         fdta -> First Divide Then Apply
         """
-        prefix = prefix or []
-
         # Divide part
         processed = []
         for k, g in groupby(clusters, key=lambda i: self._make_key(i, level)):
@@ -121,6 +155,27 @@ class QueueStateful(Queue):
         return properties
 
 
+class Prefix(IterationSpace):
+
+    def __init__(self, ispace, guards, properties, syncs):
+        super().__init__(ispace.intervals, ispace.sub_iterators, ispace.directions)
+
+        self.guards = guards
+        self.properties = properties
+        self.syncs = syncs
+
+    def __eq__(self, other):
+        return (isinstance(other, Prefix) and
+                super().__eq__(other) and
+                self.guards == other.guards and
+                self.properties == other.properties and
+                self.syncs == other.syncs)
+
+    def __hash__(self):
+        return hash((self.intervals, self.sub_iterators, self.directions,
+                     self.guards, self.properties, self.syncs))
+
+
 class cluster_pass(object):
 
     def __new__(cls, *args, mode='dense'):
@@ -143,9 +198,9 @@ class cluster_pass(object):
         self.func = func
 
         if mode == 'dense':
-            self.cond = lambda c: c.is_dense
+            self.cond = lambda c: (c.is_dense or not c.is_sparse) and not c.is_wild
         elif mode == 'sparse':
-            self.cond = lambda c: not c.is_dense
+            self.cond = lambda c: c.is_sparse and not c.is_wild
         else:
             self.cond = lambda c: True
 

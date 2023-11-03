@@ -6,14 +6,10 @@ from collections import defaultdict
 
 from devito.data import FULL
 from devito.tools import Pickable, filter_ordered
-from devito.types import DimensionTuple
+from .utils import IMask
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
            'normalize_syncs']
-
-
-class IMask(DimensionTuple):
-    pass
 
 
 class SyncOp(Pickable):
@@ -45,7 +41,8 @@ class SyncOp(Pickable):
                 self.origin == other.origin)
 
     def __hash__(self):
-        return id(self)
+        return hash((self.__class__, self.handle, self.target, self.tindex,
+                     self.function, self.findex, self.dim, self.size, self.origin))
 
     def __repr__(self):
         return "%s<%s>" % (self.__class__.__name__, self.handle)
@@ -69,9 +66,16 @@ class SyncCopyOut(SyncOp):
 
     @property
     def imask(self):
-        ret = [self.handle.indices[d] if d.root in self.lock.locked_dimensions else FULL
-               for d in self.target.dimensions]
-        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+        ret = []
+        for d in self.target.dimensions:
+            if d.root in self.lock.locked_dimensions:
+                ret.append(self.handle.indices[d])
+            else:
+                ret.append(FULL)
+
+        return IMask(*ret,
+                     getters=self.target.dimensions,
+                     function=self.function,
                      findex=self.findex)
 
 
@@ -84,9 +88,19 @@ class SyncCopyIn(SyncOp):
 
     @property
     def imask(self):
-        ret = [(self.tindex, self.size) if d.root is self.dim.root else FULL
-               for d in self.target.dimensions]
-        return IMask(*ret, getters=self.target.dimensions, function=self.function,
+        ret = []
+        for d in self.target.dimensions:
+            if d.root is self.dim.root:
+                if self.target.is_regular:
+                    ret.append((self.tindex, self.size))
+                else:
+                    ret.append((0, 1))
+            else:
+                ret.append(FULL)
+
+        return IMask(*ret,
+                     getters=self.target.dimensions,
+                     function=self.function,
                      findex=self.findex)
 
 

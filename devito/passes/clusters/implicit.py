@@ -7,6 +7,7 @@ from math import floor
 
 from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
                        FetchUpdate, PrefetchUpdate, SEQUENTIAL)
+from devito.symbolics import retrieve_dimensions
 from devito.tools import as_tuple, timed_pass
 from devito.types import Eq
 from devito.types.grid import MultiSubDimension, SubDomainSet
@@ -106,21 +107,32 @@ class LowerMultiSubDimensions(Queue):
             # The "implicit expressions" created for the MultiSubDomain
             exprs, dims, sub_iterators = make_implicit_exprs(d.msd, c)
 
-            # The IterationSpace induced by the MultiSubDomain
-            intervals = [Interval(i, 0, 0) for i in dims]
-            relations = (ispace0.itdimensions + dims, dims + ispace1.itdimensions)
-            ispaceN = IterationSpace(
-                IntervalGroup(intervals, relations=relations), sub_iterators
-            )
+            # Make sure the "implicit expressions" aren't scheduled in
+            # an inner loop. E.g schedule both for `t, xi, yi` and `t, d, xi, yi`
+            edims = set(retrieve_dimensions(exprs, deep=True))
+            if dim not in edims and any(d.dim in edims for d in prefix):
+                processed.append(c)
+                continue
 
-            ispace = IterationSpace.union(ispace0, ispaceN)
+            # The IterationSpace induced by the MultiSubDomain
+            if dims:
+                intervals = [Interval(i) for i in dims]
+                ispaceN = IterationSpace(IntervalGroup(intervals), sub_iterators)
+
+                relations = (ispace0.itdims + dims, dims + ispace1.itdims)
+                ispace = IterationSpace.union(ispace0, ispaceN, relations=relations)
+            else:
+                ispaceN = None
+                ispace = ispace0
+
             properties = {i.dim: {SEQUENTIAL} for i in ispace}
-            if len(ispaceN) == 0:
+
+            if not ispaceN:
                 # Special case: we can factorize the thickness assignments
                 # once and for all at the top of the current IterationInterval,
                 # and reuse them for one or more (potentially non-consecutive)
                 # `clusters`
-                if ispaceN not in seen:
+                if d not in seen:
                     # Retain the guards and the syncs along the outer Dimensions
                     retained = {None} | set(c.ispace[:n-1].dimensions)
 
@@ -143,8 +155,12 @@ class LowerMultiSubDimensions(Queue):
                     )
                     tip = nxt
 
-            ispace = IterationSpace.union(c.ispace, ispaceN)
-            processed.append(c.rebuild(ispace=ispace))
+            if ispaceN:
+                ispace = IterationSpace.union(c.ispace, ispaceN, relations=relations)
+                processed.append(c.rebuild(ispace=ispace))
+            else:
+                processed.append(c)
+            seen.add(d)
 
         return processed
 

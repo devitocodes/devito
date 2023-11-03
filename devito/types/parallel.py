@@ -18,11 +18,11 @@ from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
-from devito.types.misc import VolatileInt
+from devito.types.misc import Fence, VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'QueueID']
+           'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
 
 
 class NThreadsBase(Scalar):
@@ -254,6 +254,14 @@ class DeviceID(DeviceSymbol):
     def default_value(self):
         return -1
 
+    def _arg_values(self, **kwargs):
+        if self.name in kwargs:
+            return {self.name: kwargs.pop(self.name)}
+        elif configuration['deviceid'] != self.default_value:
+            return {self.name: configuration['deviceid']}
+        else:
+            return {self.name: self.default_value}
+
 
 class DeviceRM(DeviceSymbol):
 
@@ -277,3 +285,24 @@ class QueueID(Symbol):
         kwargs['name'] = 'qid'
         kwargs.setdefault('is_const', True)
         return super().__new__(cls, *args, **kwargs)
+
+
+class Barrier(Fence):
+
+    """
+    A generic synchronization barrier for threads or processes.
+    """
+
+    pass
+
+
+class TBArray(Array):
+
+    """
+    An Array used for performance optimization within a thread block.
+    """
+
+    def __init_finalize__(self, *args, **kwargs):
+        kwargs['liveness'] = 'eager'
+
+        super().__init_finalize__(*args, **kwargs)

@@ -15,13 +15,20 @@ from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
-           'get_cuda_path', 'check_cuda_runtime', 'get_m1_llvm_path',
-           'Platform', 'Cpu64', 'Intel64', 'Amd', 'Arm', 'Power', 'Device',
-           'NvidiaDevice', 'AmdDevice', 'IntelDevice',
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'SKX', 'KNL', 'KNL7210',  # Intel
-           'AMD', 'ARM', 'M1',  # ARM
-           'POWER8', 'POWER9',  # Other loosely supported CPU architectures
-           'AMDGPUX', 'NVIDIAX', 'INTELGPUX']  # GPUs
+           'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
+           'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
+           'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+           # Intel CPUs
+           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
+           'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
+           # ARM CPUs
+           'AMD', 'ARM', 'M1', 'GRAVITON',
+           # Other legacy CPUs
+           'POWER8', 'POWER9',
+           # Generic GPUs
+           'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+           # Intel GPUs
+           'PVC']
 
 
 @memoized_func
@@ -378,6 +385,17 @@ def get_cuda_path():
 
 
 @memoized_func
+def get_hip_path():
+    # *** First try: via commonly used environment variables
+    for i in ['HIP_HOME']:
+        hip_home = os.environ.get(i)
+        if hip_home:
+            return hip_home
+
+    return None
+
+
+@memoized_func
 def get_m1_llvm_path(language):
     # Check if Apple's llvm is installed (installable via Homebrew), which supports
     # OpenMP.
@@ -483,7 +501,7 @@ def get_platform():
             if 'phi' in brand:
                 # Intel Xeon Phi?
                 return platform_registry['knl']
-            # Unknown Xeon ? May happen on some virtualizes systems...
+            # Unknown Xeon ? May happen on some virtualized systems...
             return platform_registry['intel64']
         elif 'intel' in brand:
             # Most likely a desktop i3/i5/i7
@@ -596,6 +614,14 @@ class Intel64(Cpu64):
     known_isas = ('cpp', 'sse', 'avx', 'avx2', 'avx512')
 
 
+class IntelSkylake(Intel64):
+    pass
+
+
+class IntelGoldenCove(Intel64):
+    pass
+
+
 class Arm(Cpu64):
 
     known_isas = ('fp', 'asimd', 'asimdrdm')
@@ -614,12 +640,19 @@ class Power(Cpu64):
 
 class Device(Platform):
 
-    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp'):
+    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp',
+                 max_threads_per_block=1024, max_threads_dimx=1024,
+                 max_threads_dimy=1024, max_threads_dimz=64):
         super().__init__(name)
 
         self.cores_logical = cores_logical
         self.cores_physical = cores_physical
         self.isa = isa
+
+        self.max_threads_per_block = max_threads_per_block
+        self.max_threads_dimx = max_threads_dimx
+        self.max_threads_dimy = max_threads_dimy
+        self.max_threads_dimz = max_threads_dimz
 
     @classmethod
     def _mro(cls):
@@ -690,8 +723,12 @@ class AmdDevice(Device):
         #     mygpu will only print values accepted by cuda clang in
         #     the clang argument --cuda-gpu-arch.
         try:
-            p1 = Popen(['mygpu', '-d', 'gfx900'], stdout=PIPE, stderr=PIPE)
+            p1 = Popen(['offload-arch'], stdout=PIPE, stderr=PIPE)
         except OSError:
+            try:
+                p1 = Popen(['mygpu', '-d', fallback], stdout=PIPE, stderr=PIPE)
+            except OSError:
+                pass
             return fallback
 
         output, _ = p1.communicate()
@@ -710,13 +747,16 @@ SNB = Intel64('snb')
 IVB = Intel64('ivb')
 HSW = Intel64('hsw')
 BDW = Intel64('bdw', isa='avx2')
-SKX = Intel64('skx')
-KLX = Intel64('klx')
-CLX = Intel64('clx')
 KNL = Intel64('knl')
 KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
+SKX = IntelSkylake('skx')
+KLX = IntelSkylake('klx')
+CLX = IntelSkylake('clx')
+CLK = IntelSkylake('clk')
+SPR = IntelGoldenCove('spr')
 
 ARM = Arm('arm')
+GRAVITON = Arm('graviton')
 M1 = Arm('m1')
 
 AMD = Amd('amd')
@@ -729,6 +769,8 @@ NVIDIAX = NvidiaDevice('nvidiaX')
 AMDGPUX = AmdDevice('amdgpuX')
 INTELGPUX = IntelDevice('intelgpuX')
 
+PVC = IntelDevice('pvc', max_threads_per_block=4096)
+
 
 platform_registry = {
     'cpu64-dummy': CPU64_DUMMY,
@@ -740,16 +782,20 @@ platform_registry = {
     'skx': SKX,  # Skylake
     'klx': KLX,  # Kaby Lake
     'clx': CLX,  # Coffee Lake
+    'clk': CLK,  # Cascade Lake
+    'spr': SPR,  # Sapphire Rapids
     'knl': KNL,
     'knl7210': KNL7210,
     'arm': ARM,  # Generic ARM CPU
+    'graviton': GRAVITON,  # AMS arm
     'm1': M1,
     'amd': AMD,  # Generic AMD CPU
     'power8': POWER8,
     'power9': POWER9,
     'nvidiaX': NVIDIAX,  # Generic NVidia GPU
     'amdgpuX': AMDGPUX,   # Generic AMD GPU
-    'intelgpuX': INTELGPUX   # Generic Intel GPU
+    'intelgpuX': INTELGPUX,   # Generic Intel GPU
+    'pvc': PVC  # Intel Ponte Vecchio GPU
 }
 """
 Registry dict for deriving Platform classes according to the environment variable

@@ -1,6 +1,7 @@
 from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
                     cos, sin, sqrt)
 from examples.seismic import PointSource, Receiver
+from examples.seismic.acoustic.operators import freesurface
 
 
 def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
@@ -20,10 +21,16 @@ def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     stencilp = solve(m * u.dt2 - H0 - qu + damp * udt, unext)
     stencilr = solve(m * v.dt2 - Hz - qv + damp * vdt, vnext)
 
-    first_stencil = Eq(unext, stencilp)
-    second_stencil = Eq(vnext, stencilr)
+    first_stencil = Eq(unext, stencilp, subdomain=model.grid.subdomains['physdomain'])
+    second_stencil = Eq(vnext, stencilr, subdomain=model.grid.subdomains['physdomain'])
 
     stencils = [first_stencil, second_stencil]
+
+    # Add free surface
+    if model.fs:
+        stencils.append(freesurface(model, Eq(unext, stencilp)))
+        stencils.append(freesurface(model, Eq(vnext, stencilr)))
+
     return stencils
 
 

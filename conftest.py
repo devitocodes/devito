@@ -1,14 +1,18 @@
 import os
+import sys
 from subprocess import check_call
 
 import pytest
-import sys
+from sympy import Add
 
-from devito import Eq, configuration  # noqa
+from devito import Eq, configuration, Revolver  # noqa
+from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Cpu64, Device, sniff_mpi_distro
-from devito.arch.compiler import compiler_registry, IntelCompiler, NvidiaCompiler
-from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration, ParallelBlock
+from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
+from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompiler,
+                                  NvidiaCompiler)
+from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
+                           retrieve_iteration_tree)
 from devito.tools import as_tuple
 
 try:
@@ -17,13 +21,19 @@ except ImportError:
     MPI = None
 
 
+def pytest_collectstart(collector):
+    if collector.fspath and collector.fspath.ext == '.ipynb':
+        collector.skip_compare += ('text/latex', 'stderr')
+
+
 def skipif(items, whole_module=False):
     assert isinstance(whole_module, bool)
     items = as_tuple(items)
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-nvc'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc', 'cpu64-arm',
+                     'cpu64-icpx', 'chkpnt'})
     accepted.update({'nompi', 'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -31,11 +41,9 @@ def skipif(items, whole_module=False):
     skipit = False
     for i in items:
         # Skip if no MPI
-        if i == 'nompi':
-            if MPI is None:
-                skipit = "mpi4py/MPI not installed"
-                break
-            continue
+        if i == 'nompi' and MPI is None:
+            skipit = "mpi4py/MPI not installed"
+            break
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
@@ -68,6 +76,20 @@ def skipif(items, whole_module=False):
            isinstance(configuration['compiler'], IntelCompiler) and \
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icc+cpu64` won't work with this test"
+            break
+        # Skip if it won't run with OneAPICompiler
+        if i == 'cpu64-icx' and \
+           isinstance(configuration['compiler'], OneapiCompiler) and \
+           isinstance(configuration['platform'], Cpu64):
+            skipit = "`icx+cpu64` won't work with this test"
+            break
+        # Skip if it won't run on Arm
+        if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):
+            skipit = "Arm doesn't support x86-specific instructions"
+            break
+        # Skip if pyrevolve not installed
+        if i == 'chkpnt' and Revolver is NoopRevolver:
+            skipit = "pyrevolve not installed"
             break
 
     if skipit is False:
@@ -141,7 +163,7 @@ def parallel(item):
         # OpenMPI requires an explicit flag for oversubscription. We need it as some
         # of the MPI tests will spawn lots of processes
         if mpi_distro == 'OpenMPI':
-            call = [mpi_exec, '--oversubscribe', '--timeout', '150'] + args
+            call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
         else:
             call = [mpi_exec] + args
 
@@ -328,3 +350,39 @@ opts_device_tiling = [('advanced', {'blocklevels': 1}),
                       ('advanced', {'blocklevels': 1, 'skewing': True}),
                       ('advanced',
                        {'blocklevels': 1, 'skewing': True, 'blockinner': True})]
+
+
+# More utilities for testing
+
+
+def get_params(op, *names):
+    ret = []
+    for i in names:
+        for p in op.parameters:
+            if i == p.name:
+                ret.append(p)
+    return tuple(ret)
+
+
+def get_arrays(iet):
+    return [i for i in FindSymbols().visit(iet)
+            if i.is_Array and i._mem_heap]
+
+
+def check_array(array, exp_halo, exp_shape, rotate=False):
+    assert len(array.dimensions) == len(exp_halo)
+
+    shape = []
+    for i in array.symbolic_shape:
+        if i.is_Number or i.is_Symbol:
+            shape.append(i)
+        else:
+            assert i.is_Add
+            shape.append(Add(*i.args))
+
+    if rotate:
+        exp_shape = (sum(exp_halo[0]) + 1,) + tuple(exp_shape[1:])
+        exp_halo = ((0, 0),) + tuple(exp_halo[1:])
+
+    assert tuple(array.halo) == exp_halo
+    assert tuple(shape) == tuple(exp_shape)

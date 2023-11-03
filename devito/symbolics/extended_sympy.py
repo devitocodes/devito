@@ -4,19 +4,19 @@ Extended SymPy hierarchy.
 
 import numpy as np
 import sympy
-from sympy import Expr, Integer, Function, Number, Tuple, sympify
+from sympy import Expr, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
-from devito.symbolics.printer import ccode
-from devito.tools import Pickable, as_tuple, is_integer
+from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,  # noqa
+                          double2, double3, double4, int2, int3, int4)
+from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',  # noqa
            'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
            'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'CEIL',
-           'FLOOR', 'MAX', 'MIN', 'Null', 'SizeOf', 'rfunc', 'cast_mapper',
-           'BasicWrapperMixin']
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
+           'Null', 'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -144,6 +144,9 @@ class BasicWrapperMixin(object):
         Overridden SymPy assumption -- now based on the wrapped object dtype.
         """
         return issubclass(self.dtype, np.number)
+
+    def _sympystr(self, printer):
+        return str(self)
 
 
 class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
@@ -275,14 +278,10 @@ class ListInitializer(sympy.Expr, Pickable):
     def __new__(cls, params):
         args = []
         for p in as_tuple(params):
-            if isinstance(p, str):
-                args.append(Symbol(p))
-            elif is_integer(p):
-                args.append(Integer(p))
-            elif not isinstance(p, Expr):
-                raise ValueError("`params` must be an iterable of Expr or str")
-            else:
-                args.append(p)
+            try:
+                args.append(sympify(p))
+            except sympy.SympifyError:
+                raise ValueError("Illegal param `%s`" % p)
         obj = sympy.Expr.__new__(cls, *args)
         obj.params = tuple(args)
         return obj
@@ -291,6 +290,10 @@ class ListInitializer(sympy.Expr, Pickable):
         return "{%s}" % ", ".join(str(i) for i in self.params)
 
     __repr__ = __str__
+
+    @property
+    def is_numeric(self):
+        return all(i.is_Number for i in self.params)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -332,9 +335,9 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "%s%s" % (self._op, ccode(self.base))
+            return "%s%s" % (self._op, str(self.base))
         else:
-            return "%s(%s)" % (self._op, ccode(self.base))
+            return "%s(%s)" % (self._op, str(self.base))
 
     __repr__ = __str__
 
@@ -506,8 +509,7 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    __rargs__ = ('name',)
-    __rkwargs__ = ('arguments',)
+    __rargs__ = ('name', 'arguments')
 
     def __new__(cls, name, arguments=None, **kwargs):
         _arguments = []
@@ -535,15 +537,15 @@ class DefFunction(Function, Pickable):
     def arguments(self):
         return self._arguments
 
-    @property
-    def free_symbols(self):
-        return set().union(*[i.free_symbols for i in self.arguments
-                             if isinstance(i, Expr)])
-
     def __str__(self):
         return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
 
     __repr__ = __str__
+
+    def _sympystr(self, printer):
+        return str(self)
+
+    func = Pickable._rebuild
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -591,14 +593,29 @@ class InlineIf(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-# Shortcuts (mostly for retrocompatibility)
+# *** Casting
+
+class CastStar(object):
+
+    base = None
+
+    def __new__(cls, base=''):
+        return cls.base(base, '*')
+
+
+# Dynamically create INT, INT2, .... INTP, INT2P, ... FLOAT, ...
+for base_name in ['int', 'float', 'double']:
+    for i in ['', '2', '3', '4']:
+        v = '%s%s' % (base_name, i)
+        cls = type(v.upper(), (Cast,), {'_base_typ': v})
+        globals()[cls.__name__] = cls
+
+        clsp = type('%sP' % v.upper(), (CastStar,), {'base': cls})
+        globals()[clsp.__name__] = clsp
+
 
 class CHAR(Cast):
     _base_typ = 'char'
-
-
-class INT(Cast):
-    _base_typ = 'int'
 
 
 class LONG(Cast):
@@ -609,49 +626,44 @@ class ULONG(Cast):
     _base_typ = 'unsigned long'
 
 
-class FLOAT(Cast):
-    _base_typ = 'float'
-
-
-class DOUBLE(Cast):
-    _base_typ = 'double'
-
-
 class VOID(Cast):
     _base_typ = 'void'
-
-
-class CastStar(object):
-
-    base = None
-
-    def __new__(cls, base=''):
-        return cls.base(base, '*')
 
 
 class CHARP(CastStar):
     base = CHAR
 
 
-class INTP(CastStar):
-    base = INT
+cast_mapper = {
+    np.int8: CHAR,
+    np.uint8: CHAR,
+    int: INT,  # noqa
+    np.int32: INT,  # noqa
+    np.int64: LONG,
+    np.uint64: ULONG,
+    np.float32: FLOAT,  # noqa
+    float: DOUBLE,  # noqa
+    np.float64: DOUBLE,  # noqa
 
+    (np.int8, '*'): CHARP,
+    (np.uint8, '*'): CHARP,
+    (int, '*'): INTP,  # noqa
+    (np.int32, '*'): INTP,  # noqa
+    (np.int64, '*'): INTP,  # noqa
+    (np.float32, '*'): FLOATP,  # noqa
+    (float, '*'): DOUBLEP,  # noqa
+    (np.float64, '*'): DOUBLEP  # noqa
+}
 
-class FLOATP(CastStar):
-    base = FLOAT
-
-
-class DOUBLEP(CastStar):
-    base = DOUBLE
+for base_name in ['int', 'float', 'double']:
+    for i in [2, 3, 4]:
+        v = '%s%d' % (base_name, i)
+        cls = locals()[v]
+        cast_mapper[cls] = locals()[v.upper()]
+        cast_mapper[(cls, '*')] = locals()['%sP' % v.upper()]
 
 
 # Some other utility objects
-
-CEIL = Function('ceil')
-FLOOR = Function('floor')
-MAX = Function('MAX')
-MIN = Function('MIN')
-
 Null = Macro('NULL')
 
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
@@ -665,10 +677,10 @@ def rfunc(func, item, *args):
     Examples
     ----------
     >> rfunc(min, [a, b, c, d])
-    MIN(a, MIN(b, MIN(c, d)))
+    Min(a, Min(b, Min(c, d)))
 
     >> rfunc(max, [a, b, c, d])
-    MAX(a, MAX(b, MAX(c, d)))
+    Max(a, Max(b, Max(c, d)))
     """
 
     assert func in rfunc_mapper
@@ -677,31 +689,10 @@ def rfunc(func, item, *args):
     if len(args) == 0:
         return item
     else:
-        return rf(item, rfunc(func, *args))
+        return rf(item, rfunc(func, *args), evaluate=False)
 
-
-cast_mapper = {
-    np.int8: CHAR,
-    np.uint8: CHAR,
-    int: INT,
-    np.int32: INT,
-    np.int64: LONG,
-    np.uint64: ULONG,
-    np.float32: FLOAT,
-    float: DOUBLE,
-    np.float64: DOUBLE,
-
-    (np.int8, '*'): CHARP,
-    (np.uint8, '*'): CHARP,
-    (int, '*'): INTP,
-    (np.int32, '*'): INTP,
-    (np.int64, '*'): INTP,
-    (np.float32, '*'): FLOATP,
-    (float, '*'): DOUBLEP,
-    (np.float64, '*'): DOUBLEP
-}
 
 rfunc_mapper = {
-    min: MIN,
-    max: MAX,
+    min: Min,
+    max: Max,
 }

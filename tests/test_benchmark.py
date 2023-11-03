@@ -4,9 +4,11 @@ import sys
 
 from benchmarks.user.benchmark import run
 from devito import configuration, switchconfig
+from conftest import skipif
 from subprocess import check_call
 
 
+@skipif('cpu64-icx')
 @pytest.mark.parametrize('mode, problem, op', [
     ('run', 'acoustic', 'forward'), ('run', 'acoustic', 'adjoint'),
     ('run', 'acoustic', 'jacobian'), ('run', 'acoustic', 'jacobian_adjoint'),

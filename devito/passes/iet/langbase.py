@@ -325,6 +325,11 @@ class DeviceAwareMixin(object):
 
         return _initialize(iet)
 
+    def _device_pointers(self, iet):
+        functions = FindSymbols().visit(iet)
+        devfuncs = [f for f in functions if f.is_Array and f._mem_local]
+        return set(devfuncs)
+
     def _is_offloadable(self, iet):
         """
         True if the IET computation is offloadable to device, False otherwise.
@@ -348,8 +353,12 @@ class Sections(tuple):
         return obj
 
     @property
+    def size(self):
+        return prod(s for _, s in self)
+
+    @property
     def nbytes(self):
-        return prod(s for _, s in self)*SizeOf(self.function.indexed._C_typedata)
+        return self.size*SizeOf(self.function.indexed._C_typedata)
 
 
 def make_sections_from_imask(f, imask=None):

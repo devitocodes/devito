@@ -13,8 +13,9 @@ from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
+from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
-                                    SteppingDimension, SubDimension)
+                                    Spacing, SteppingDimension, SubDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -37,7 +38,7 @@ class CartesianDiscretization(ABC):
     @property
     def shape(self):
         """Shape of the physical domain."""
-        return self._shape
+        return DimensionTuple(*self._shape, getters=self.dimensions)
 
     @property
     def dimensions(self):
@@ -147,7 +148,7 @@ class Grid(CartesianDiscretization, ArgProvider):
             ndim = len(shape)
             assert ndim <= 3
             dim_names = self._default_dimensions[:ndim]
-            dim_spacing = tuple(Scalar(name='h_%s' % n, dtype=dtype, is_const=True)
+            dim_spacing = tuple(Spacing(name='h_%s' % n, dtype=dtype, is_const=True)
                                 for n in dim_names)
             dimensions = tuple(SpaceDimension(name=n, spacing=s)
                                for n, s in zip(dim_names, dim_spacing))
@@ -222,11 +223,17 @@ class Grid(CartesianDiscretization, ArgProvider):
         return dict(zip(self.origin_symbols, self.origin))
 
     @property
-    def origin_offset(self):
-        """Offset of the local (per-process) origin from the domain origin."""
+    def origin_ioffset(self):
+        """Offset index of the local (per-process) origin from the domain origin."""
         grid_origin = [min(i) for i in self.distributor.glb_numb]
         assert len(grid_origin) == len(self.spacing)
-        return tuple(i*h for i, h in zip(grid_origin, self.spacing))
+        return DimensionTuple(*grid_origin, getters=self.dimensions)
+
+    @property
+    def origin_offset(self):
+        """Physical offset of the local (per-process) origin from the domain origin."""
+        return DimensionTuple(*[i*h for i, h in zip(self.origin_ioffset, self.spacing)],
+                              getters=self.dimensions)
 
     @property
     def time_dim(self):
@@ -720,7 +727,8 @@ class SubDomainSet(MultiSubDomain):
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si' % d.name, d, self) for d in grid.dimensions
+            MultiSubDimension('%si%d' % (d.name, counter), d, self)
+            for d in grid.dimensions
         )
 
         # Compute the SubDomainSet shapes

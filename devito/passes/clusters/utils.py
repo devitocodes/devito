@@ -1,7 +1,12 @@
-from devito.symbolics import uxreplace
-from devito.types import Symbol, Wildcard
+from collections import defaultdict
 
-__all__ = ['makeit_ssa']
+from devito.ir import Cluster
+from devito.symbolics import uxreplace
+from devito.tools import as_tuple, flatten
+from devito.types import CriticalRegion, Eq, Symbol, Wildcard
+
+__all__ = ['makeit_ssa', 'is_memcpy', 'make_critical_sequence',
+           'bind_critical_regions', 'in_critical_region']
 
 
 def makeit_ssa(exprs):
@@ -36,3 +41,56 @@ def makeit_ssa(exprs):
         else:
             processed.append(e.func(e.lhs, rhs))
     return processed
+
+
+def is_memcpy(expr):
+    """
+    True if `expr` implements a memcpy involving an Array, False otherwise.
+    """
+    a, b = expr.args
+
+    if not (a.is_Indexed and b.is_Indexed):
+        return False
+
+    return a.function.is_Array or b.function.is_Array
+
+
+def make_critical_sequence(ispace, sequence, **kwargs):
+    sequence = as_tuple(sequence)
+    assert len(sequence) >= 1
+
+    processed = []
+
+    # Opening
+    expr = Eq(Symbol(name='⋈'), CriticalRegion(True))
+    processed.append(Cluster(exprs=expr, ispace=ispace, **kwargs))
+
+    processed.extend(sequence)
+
+    # Closing
+    expr = Eq(Symbol(name='⋈'), CriticalRegion(False))
+    processed.append(Cluster(exprs=expr, ispace=ispace, **kwargs))
+
+    return processed
+
+
+def bind_critical_regions(clusters):
+    """
+    A mapper from CriticalRegions to the critical sequences they open.
+    """
+    critical_region = False
+    mapper = defaultdict(list)
+    for c in clusters:
+        if c.is_critical_region:
+            critical_region = not critical_region and c
+        elif critical_region:
+            mapper[critical_region].append(c)
+    return mapper
+
+
+def in_critical_region(cluster, clusters):
+    """
+    True if `cluster` is part of a critical sequence, False otherwise.
+    """
+    mapper = bind_critical_regions(clusters)
+    return cluster in flatten(mapper.values())

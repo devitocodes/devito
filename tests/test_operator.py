@@ -1,14 +1,16 @@
-import numpy as np
-import pytest
 from itertools import permutations
 
+import numpy as np
+import sympy
+
+import pytest
 from conftest import assert_structure, skipif
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
                     div, grad, switchconfig)
-from devito import  Le, Lt, Ge, Gt  # noqa
+from devito import  Inc, Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -19,7 +21,7 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Scalar, Symbol, Indirection
+from devito.types import Array, Barrier, CustomDimension, Indirection, Scalar, Symbol
 
 
 def dimify(dimensions):
@@ -140,7 +142,7 @@ class TestCodeGen(object):
         a_dense = Function(name='a_dense', grid=grid)
         const = Constant(name='constant')
         eqn = Eq(a_dense, a_dense + 2.*const)
-        op = Operator(eqn, openmp=False)
+        op = Operator(eqn, opt=('advanced', {'openmp': False}))
         assert len(op.parameters) == 5
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_AbstractFunction
@@ -174,7 +176,7 @@ class TestCodeGen(object):
         expr = eval(expr)
 
         with timed_region('x'):
-            expr = Operator._lower_exprs([expr])[0]
+            expr = Operator._lower_exprs([expr], options={})[0]
 
         assert str(expr).replace(' ', '') == expected
 
@@ -519,7 +521,7 @@ class TestArithmetic(object):
         Test injection of a SparseFunction into a Function
         """
         grid = Grid(shape=(11, 11))
-        u = Function(name='u', grid=grid, space_order=0)
+        u = Function(name='u', grid=grid, space_order=1)
 
         sf1 = SparseFunction(name='s', grid=grid, npoint=1)
         op = Operator(sf1.inject(u, expr=sf1))
@@ -540,7 +542,7 @@ class TestArithmetic(object):
         Test interpolation of a SparseFunction from a Function
         """
         grid = Grid(shape=(11, 11))
-        u = Function(name='u', grid=grid, space_order=0)
+        u = Function(name='u', grid=grid, space_order=1)
 
         sf1 = SparseFunction(name='s', grid=grid, npoint=1)
         op = Operator(sf1.interpolate(u))
@@ -561,7 +563,7 @@ class TestArithmetic(object):
         Test injection of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
         op = Operator(sf1.interpolate(u))
@@ -584,7 +586,7 @@ class TestArithmetic(object):
         Test injection of a SparseTimeFunction from a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5)
         op = Operator(sf1.inject(u, expr=3*sf1))
@@ -609,7 +611,7 @@ class TestArithmetic(object):
         Test injection of the time deivative of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
-        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=0)
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
 
         sf1 = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=5, time_order=2)
 
@@ -705,6 +707,8 @@ class TestApplyArguments(object):
             if isinstance(v, (Function, SparseFunction)):
                 condition = v._C_as_ndarray(arguments[name])[v._mask_domain] == v.data
                 condition = condition.all()
+            elif isinstance(arguments[name], range):
+                condition = arguments[name].start <= v < arguments[name].stop
             else:
                 condition = arguments[name] == v
 
@@ -736,7 +740,7 @@ class TestApplyArguments(object):
         grid = Grid(shape=(5, 6, 7))
         f = TimeFunction(name='f', grid=grid)
         g = Function(name='g', grid=grid)
-        op = Operator(Eq(f.forward, g + f), openmp=False)
+        op = Operator(Eq(f.forward, g + f), opt=('advanced', {'openmp': False}))
 
         expected = {
             'x_m': 0, 'x_M': 4,
@@ -1276,7 +1280,8 @@ class TestDeclarator(object):
         list_initialize = Expression(ClusterizedEq(Eq(a[x], init_value), ispace=None))
         iet = Conditional(x < 3, list_initialize, list_initialize)
         iet = Callable('test', iet, 'void')
-        iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+        dm = CDataManager(sregistry=None)
+        iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
         for i in iet.body.body[0].children:
             assert len(i) == 1
             assert i[0].is_Expression
@@ -1609,8 +1614,10 @@ class TestLoopScheduling(object):
         assert outer[0] == middle[0] == inner[0]
         assert middle[1] == inner[1]
         assert outer[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq0.rhs))
-        assert middle[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq1.rhs))
-        assert inner[-1].nodes[0].exprs[0].expr.rhs == diff2sympy(indexify(eq2.rhs))
+        assert (str(middle[-1].nodes[0].exprs[0].expr.rhs) ==
+                str(diff2sympy(indexify(eq1.rhs))))
+        assert (str(inner[-1].nodes[0].exprs[0].expr.rhs) ==
+                str(diff2sympy(indexify(eq2.rhs))))
 
     def test_equations_emulate_bc(self):
         """
@@ -1644,8 +1651,8 @@ class TestLoopScheduling(object):
         op = Operator([eq1, eq2], opt='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eq1.rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eq2.rhs
+        assert str(trees[0][-1].nodes[0].exprs[0].expr.rhs) == str(eq1.rhs)
+        assert str(trees[1][-1].nodes[0].exprs[0].expr.rhs) == str(eq2.rhs)
 
     @pytest.mark.parametrize('exprs', [
         ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
@@ -1670,8 +1677,8 @@ class TestLoopScheduling(object):
 
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].exprs[0].expr.rhs == eqs[0].rhs
-        assert trees[1][-1].nodes[0].exprs[0].expr.rhs == eqs[1].rhs
+        assert str(trees[0][-1].nodes[0].exprs[0].expr.rhs) == str(eqs[0].rhs)
+        assert str(trees[1][-1].nodes[0].exprs[0].expr.rhs) == str(eqs[1].rhs)
 
     @pytest.mark.parametrize('shape', [(11, 11), (11, 11, 11)])
     def test_equations_mixed_functions(self, shape):
@@ -1795,20 +1802,20 @@ class TestLoopScheduling(object):
         eqn4 = sf2.interpolate(u2)
 
         # Note: opts disabled only because with OpenMP otherwise there might be more
-        # `trees` than 4
+        # `trees` than 6
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 4
+        assert len(trees) == 5
         # Time loop not shared due to the WAR
         assert trees[0][0].dim is time and trees[0][0] is trees[1][0]  # this IS shared
-        assert trees[1][0] is not trees[2][0]
-        assert trees[2][0].dim is time and trees[2][0] is trees[3][0]  # this IS shared
+        assert trees[1][0] is not trees[3][0]
+        assert trees[3][0].dim is time and trees[3][0] is trees[4][0]  # this IS shared
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 4
+        assert len(trees) == 5
         assert all(trees[0][0] is i[0] for i in trees)
 
     def test_scheduling_with_free_dims(self):
@@ -1853,6 +1860,133 @@ class TestLoopScheduling(object):
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
             't,x0_blk0,y0_blk0,x,y,z,x1_blk0,y1_blk0,x,y,z'
         )
+
+    def test_barrier_halts_topofuse(self):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+        time = grid.time_dim
+
+        f = Function(name='f', grid=grid)
+        tu = TimeFunction(name='tu', grid=grid)
+        tv = TimeFunction(name='tv', grid=grid)
+
+        eqns0 = [Eq(tv, 0),
+                 Eq(tv[t-1, z, z, z], 1),
+                 Eq(tu, f + 1)]
+
+        # No surprises here -- the third equation gets swapped with the second
+        # one so as to be fused with the first equation
+        op0 = Operator(eqns0, opt=('advanced', {'openmp': True}))
+        assert_structure(op0, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
+
+        class DummyBarrier(sympy.Function, Barrier):
+            pass
+
+        eqns1 = list(eqns0)
+        eqns1[1] = Eq(Symbol('dummy'), DummyBarrier(time))
+
+        op1 = Operator(eqns1, opt=('advanced', {'openmp': True}))
+        assert_structure(op1, ['t,x,y,z', 't', 't,x,y,z'], 't,x,y,z,x,y,z')
+
+        # Again, but now a swap is performed *before* the barrier so it's legal
+        eqns2 = list(eqns0)
+        eqns2.append(eqns1[1])
+
+        op2 = Operator(eqns2, opt=('advanced', {'openmp': True}))
+        assert_structure(op2, ['t,x,y,z', 't', 't,z'], 't,x,y,z,z')
+
+    def test_array_shared_w_topofuse(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        i = Dimension('i')
+
+        a0 = Array(name='a0', dimensions=(x, y), halo=((2, 2), (2, 2)),
+                   scope='shared')
+        a1 = Array(name='a1', dimensions=(x, y), halo=((2, 2), (2, 2)),
+                   scope='shared')
+        w = Array(name='w', dimensions=(i,))
+        s = Symbol(name='s')
+
+        eqns = [Eq(a1, 1),
+                Inc(s, w*a1[x+2, y], implicit_dims=(i, x, y)),
+                Eq(a0, 2)]
+
+        # For thread-shared Arrays, WAR dependencies shouldn't prevent topo-fusion
+        # opportunities, since they're not really WAR's as classic Lamport
+        # theory would tag
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
+        assert_structure(op, ['x,y', 'i,x,y'], 'x,y,i,x,y')
+
+    def test_topofuse_w_numeric_dim(self):
+        r = Dimension('r')
+        i = CustomDimension('i', 0, 3)
+
+        a = Array(name='a', dimensions=(i,))
+        b = Array(name='b', dimensions=(r,))
+        f = Function(name='f', dimensions=(r, i), shape=(3, 4))
+        g = Function(name='g', dimensions=(r, i), shape=(3, 4))
+
+        eqns = [Eq(a[i], r, implicit_dims=(r, i)),
+                Eq(f, 1),
+                Eq(b[r], 2),
+                Eq(g, a[4])]
+
+        op = Operator(eqns)
+
+        assert_structure(op, ['r,i', 'r'], 'r,i')
+
+    @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
+        (['Eq(u[0, x], 1)',
+            'Eq(u[1, x], u[0, x + h_x] + u[0, x - h_x] - 2*u[0, x])'],
+            np.array([[1., 1., 1.], [-1., 0., -1.]]),
+            ['x', 'x'], 'x,x')
+    ])
+    def test_2194(self, eqns, expected, exp_trees, exp_iters):
+        grid = Grid(shape=(3, ))
+        u = TimeFunction(name='u', grid=grid)
+        x = grid.dimensions[0]
+        h_x = x.spacing  # noqa: F841
+
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = eval(e)
+
+        op = Operator(eqns)
+        assert_structure(op, exp_trees, exp_iters)
+
+        op.apply()
+        assert(np.all(u.data[:] == expected[:]))
+
+    @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, y + 1])'],
+            np.array([[1., 1.], [1., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, 2])'],
+            np.array([[1., 1.], [0., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, 1])'],
+            np.array([[1., 1.], [1., 1.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, y], 1)', 'Eq(u[1, y], u[0, y + 1])'],
+            np.array([[1., 1.], [1., 0.]]),
+            ['y', 'y'], 'y,y'),
+        (['Eq(u[0, 1], 1)', 'Eq(u[x, y], u[0, y])'],
+            np.array([[0., 1.], [0., 1.]]),
+            ['xy'], 'x,y')
+    ])
+    def test_2194_v2(self, eqns, expected, exp_trees, exp_iters):
+        grid = Grid(shape=(2, 2))
+        u = Function(name='u', grid=grid)
+        x, y = grid.dimensions
+
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = eval(e)
+
+        op = Operator(eqns)
+        assert_structure(op, exp_trees, exp_iters)
+
+        op.apply()
+        assert(np.all(u.data[:] == expected[:]))
 
 
 class TestInternals(object):

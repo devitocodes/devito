@@ -94,7 +94,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
 
 @check_input
 @check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -155,9 +155,10 @@ def cross_derivative(expr, dims, fd_order, deriv_order, **kwargs):
     (-1/h_y)*(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x) + (-f(1, h_y + 2)*\
 g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
     """
-    x0 = kwargs.get('x0', {})
+    x0 = x0 or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims):
-        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0)
+        expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
+                                  **kwargs)
 
     return expr
 
@@ -206,9 +207,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                            matvec, x0, symbolic, expand)
 
 
-def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic, expand):
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic,
+                    expand):
     # The stencil indices
-    indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec, x0=x0)
+    indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
+                                   x0=x0)
 
     # Finite difference weights from Taylor approximation given these positions
     if symbolic:
@@ -217,14 +220,18 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
         weights = numeric_weights(deriv_order, indices, x0)
 
     # Enforce fixed precision FD coefficients to avoid variations in results
-    weights = [sympify(w).evalf(_PRECISION) for w in weights]
+    weights = [sympify(w).evalf(_PRECISION) for w in weights][::matvec.val]
 
     # Transpose the FD, if necessary
-    if matvec:
-        indices = indices.scale(matvec.val)
+    if matvec == transpose:
+        indices = indices.transpose()
 
     # Shift index due to staggering, if any
     indices = indices.shift(-(expr.indices_ref[dim] - dim))
+
+    # The user may wish to restrict expansion to selected derivatives
+    if callable(expand):
+        expand = expand(dim)
 
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim, initvalue=weights)
@@ -240,7 +247,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
             # Pure number
             pass
 
-        deriv = IndexDerivative(expr*weights, weights.dimension)
+        deriv = IndexDerivative(expr*weights, {dim: indices.free_dim})
     else:
         terms = []
         for i, c in zip(indices, weights):

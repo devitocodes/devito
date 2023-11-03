@@ -1,12 +1,14 @@
 from sympy import sympify
 
+from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
-                               SEQUENTIAL, SKEWABLE, TILABLE, Interval, IntervalGroup,
-                               IterationSpace, Scope)
+                               SEQUENTIAL, SKEWABLE, TILABLES, Interval,
+                               IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
-from devito.symbolics import uxreplace, xreplace_indices
-from devito.tools import UnboundedMultiTuple, as_tuple, flatten
+from devito.symbolics import search, uxreplace, xreplace_indices
+from devito.tools import (UnboundedMultiTuple, as_tuple, filter_ordered,
+                          flatten, is_integer, prod)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -88,19 +90,19 @@ class AnayzeBlockingBase(Queue):
         if prefix:
             d = prefix[-1].dim
 
-            if any(TILABLE in c.properties[d] for c in clusters) and \
-               len({c.itintervals[:level] for c in clusters}) > 1:
+            if any(c.properties.is_blockable(d) for c in clusters) and \
+               len({c.ispace[:level] for c in clusters}) > 1:
                 return clusters
 
         return super()._process_fatd(clusters, level, prefix)
 
     def _has_data_reuse(self, cluster):
-        # A necessary but not sufficient condition for the existance of data
-        # reuse in the Cluster is that there must be at least three Indexeds --
-        # the LHS, the RHS, and another Indexed shifted w.r.t. the RHS, e.g.
-        # `a(x), b(x), b(x+1)`. Obv not sufficient because, e.g., `a(x), b(x),
-        # c(x)` would have no data reuse across x-iterations
-        if len(cluster.scope.indexeds) >= 3:
+        # A sufficient condition for the existance of data reuse in `cluster`
+        # is that the same Function is accessed twice at the same memory location,
+        # which translates into the existance of any Relation accross Indexeds
+        if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+            return True
+        if search(cluster.exprs, IndexSum):
             return True
 
         # If it's a reduction operation a la matrix-matrix multiply, two Indexeds
@@ -115,6 +117,11 @@ class AnayzeBlockingBase(Queue):
 
         return False
 
+    def _has_short_trip_count(self, d):
+        # Iteration spaces of statically known size are always small, at
+        # most a few tens of unit, so they wouldn't benefit from blocking
+        return is_integer(d.symbolic_size)
+
 
 class AnalyzeBlocking(AnayzeBlockingBase):
 
@@ -123,7 +130,10 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
+        if self._has_short_trip_count(d):
+            return clusters
 
+        processed = []
         for c in clusters:
             if not {PARALLEL,
                     PARALLEL_IF_ATOMIC,
@@ -134,8 +144,8 @@ class AnalyzeBlocking(AnayzeBlockingBase):
             if not self._has_data_reuse(c):
                 return clusters
 
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
+            # All good so far, `d` is actually TILABLE
+            processed.append(c.rebuild(properties=c.properties.block(d)))
 
         return processed
 
@@ -150,11 +160,32 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
 
-    def _has_data_reuse(self, cluster):
-        if is_on_device(cluster.functions, self.gpu_fit):
-            return True
-        else:
-            return super()._has_data_reuse(cluster)
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+        if self._has_short_trip_count(d):
+            return clusters
+
+        processed = []
+        for c in clusters:
+            if not c.properties.is_parallel_relaxed(d):
+                return clusters
+
+            if is_on_device(c.functions, self.gpu_fit):
+                if self._has_data_reuse(c):
+                    properties = c.properties.block(d)
+                else:
+                    properties = c.properties.block(d, 'small')
+            elif self._has_data_reuse(c):
+                properties = c.properties.block(d)
+            else:
+                return clusters
+
+            processed.append(c.rebuild(properties=properties))
+
+        return processed
 
 
 class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
@@ -170,11 +201,10 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         # Heuristic: if there aren't at least two TILABLE Dimensions, drop it
         processed = []
         for c in clusters:
-            ntilable = len([TILABLE for v in c.properties.values() if TILABLE in v])
-            if ntilable > 1:
+            if c.properties.nblockable > 1:
                 processed.append(c)
             else:
-                properties = {d: v - {TILABLE} for d, v in c.properties.items()}
+                properties = c.properties.drop(properties=TILABLES)
                 processed.append(c.rebuild(properties=properties))
 
         return processed
@@ -184,23 +214,27 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             return clusters
 
         d = prefix[-1].dim
-        if d.is_Default:
-            # Heuristic: DefaultDimensions typically define relatively small
-            # iteration spaces, hence they're ruled out
+        if self._has_short_trip_count(d):
             return clusters
 
+        # Pointless if there's no data reuse
+        if all(not self._has_data_reuse(c) for c in clusters):
+            return clusters
+
+        # Heuristic: if all Clusters operate on local SubDimensions, then it means
+        # that all IterationSpaces are tiny, hence we can skip
+        if all(any(i.dim.is_Sub and i.dim.local for i in c.ispace) for c in clusters):
+            return clusters
+
+        processed = []
         for c in clusters:
             # PARALLEL* and AFFINE are necessary conditions
             if AFFINE not in c.properties[d] or \
                not ({PARALLEL, PARALLEL_IF_PVT} & c.properties[d]):
                 return clusters
 
-            # Pointless if there's no data reuse
-            if not self._has_data_reuse(c):
-                return clusters
-
             # Heuristic: innermost Dimensions may be ruled out a-priori
-            is_inner = d is c.itintervals[-1].dim
+            is_inner = d is c.ispace[-1].dim
             if is_inner and not self.inner:
                 return clusters
 
@@ -208,9 +242,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
                 return clusters
 
-            # Heuristic: same as above if there's a local SubDimension
-            if any(i.dim.is_Sub and i.dim.local for i in c.itintervals):
-                return clusters
+            processed.append(c.rebuild(properties=c.properties.block(d)))
 
         if len(clusters) > 1:
             # Heuristic: same as above if it induces dynamic bounds
@@ -221,9 +253,6 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         else:
             # Just avoiding potentially expensive checks
             pass
-
-        # All good, `d` is actually TILABLE
-        processed = attach_property(clusters, d, TILABLE)
 
         return processed
 
@@ -240,16 +269,19 @@ class AnalyzeSkewing(Queue):
 
         d = prefix[-1].dim
 
+        processed = []
         for c in clusters:
-            if TILABLE not in c.properties[d]:
+            if not c.properties.is_blockable(d):
                 return clusters
 
-        processed = attach_property(clusters, d, SKEWABLE)
+            processed.append(c.rebuild(properties=c.properties.add(d, SKEWABLE)))
 
         return processed
 
 
 class SynthesizeBlocking(Queue):
+
+    _q_guards_in_key = True
 
     template = "%s%d_blk%s"
 
@@ -261,13 +293,10 @@ class SynthesizeBlocking(Queue):
 
         super().__init__()
 
-    def _make_key_hook(self, cluster, level):
-        return (tuple(cluster.guards.get(i.dim) for i in cluster.itintervals[:level]),)
-
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
         if self.par_tile:
-            blk_size_gen = BlockSizeGenerator(*self.par_tile)
+            blk_size_gen = BlockSizeGenerator(self.par_tile)
         else:
             blk_size_gen = None
 
@@ -279,7 +308,7 @@ class SynthesizeBlocking(Queue):
 
         d = prefix[-1].dim
 
-        if not any(TILABLE in c.properties[d] for c in clusters):
+        if not any(c.properties.is_blockable(d) for c in clusters):
             return clusters
 
         # Create the block Dimensions (in total `self.levels` Dimensions)
@@ -288,7 +317,10 @@ class SynthesizeBlocking(Queue):
         if blk_size_gen is not None:
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
-            step = sympify(blk_size_gen.next(clusters))
+            try:
+                step = sympify(blk_size_gen.next(prefix, d, clusters))
+            except StopIteration:
+                return clusters
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
             step = None
@@ -308,16 +340,15 @@ class SynthesizeBlocking(Queue):
 
         processed = []
         for c in clusters:
-            if TILABLE in c.properties[d]:
+            if c.properties.is_blockable(d):
                 ispace = decompose(c.ispace, d, block_dims)
 
                 # Use the innermost BlockDimension in place of `d`
                 exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
-                properties = dict(c.properties)
-                properties.pop(d)
-                properties.update({bd: c.properties[d] - {TILABLE} for bd in block_dims})
+                properties = c.properties.drop(d)
+                properties = properties.add(block_dims, c.properties[d] - TILABLES)
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            properties=properties))
@@ -356,18 +387,28 @@ def decompose(ispace, d, block_dims):
             if any(i._depth < bd._depth for i in r if i.is_Block):
                 continue
 
-            relations.append(tuple(bd if i in d._defines else i for i in r))
+            # E.g., `r=(z, i0z)` -> `[i0z0_blk0, i0z0_blk0]`
+            v = [bd if i in d._defines else i for i in r]
+
+            # E.g., `v=[i0z0_blk0, i0z0_blk0]` -> `v=(i0z0_blk0,)`
+            v = tuple(filter_ordered(v))
+
+            relations.append(v)
 
     # 3: Make sure BlockDimensions at same depth stick next to each other
     # E.g., `(t, xbb, ybb, xb, yb, x, y)`, and NOT e.g. `(t, xbb, xb, x, ybb, ...)`
     # NOTE: this is perfectly legal since:
     # TILABLE => (perfect nest & PARALLEL) => interchangeable
-    for i in ispace.itdimensions:
+    for i in ispace.itdims:
         if not i.is_Block:
             continue
         for bd in block_dims:
             if i._depth < bd._depth:
+                # E.g. `(zb, y)`
                 relations.append((i, bd))
+            elif i._depth == bd._depth:
+                # E.g. `(y, z)` (i.e., honour input ordering)
+                relations.append((bd, i))
 
     intervals = IntervalGroup(intervals, relations=relations)
 
@@ -383,12 +424,68 @@ def decompose(ispace, d, block_dims):
     return IterationSpace(intervals, sub_iterators, directions)
 
 
-class BlockSizeGenerator(UnboundedMultiTuple):
+class BlockSizeGenerator(object):
 
-    def next(self, clusters):
-        if not any(i.dim.is_Block for i in flatten(c.itintervals for c in clusters)):
-            self.iter()
-        return super().next()
+    """
+    A wrapper for several UnboundedMultiTuples.
+    """
+
+    def __init__(self, par_tile):
+        self.umt = par_tile
+        self.tip = -1
+
+        # This is for Clusters that need a small par-tile to avoid under-utilizing
+        # computational resources (e.g., kernels running over iteration spaces that
+        # are relatively small for the underlying architecture)
+        if (len(par_tile) == 1 and
+            (len(par_tile[0]) < len(par_tile.default) or
+             prod(par_tile[0]) < prod(par_tile.default))):
+            # Ignore if, e.g., user supplies a lower dimensional block shape
+            self.umt_small = self.umt
+        else:
+            self.umt_small = UnboundedMultiTuple(par_tile.default)
+
+    def next(self, prefix, d, clusters):
+        # If a whole new set of Dimensions, move the tip -- this means `clusters`
+        # at `d` represents a new loop nest or kernel
+        x = any(i.dim.is_Block for i in flatten(c.ispace for c in clusters))
+        if not x:
+            self.tip += 1
+
+        # TODO: This is for now exceptionally rudimentary
+        if all(c.properties.is_blockable_small(d) for c in clusters):
+            if not x:
+                self.umt_small.iter()
+            return self.umt_small.next()
+
+        if x:
+            item = self.umt.curitem()
+        else:
+            # We can't `self.umt.iter()` because we might still want to
+            # fallback to `self.umt_small`
+            item = self.umt.nextitem()
+
+        # Handle user-provided rules
+        # TODO: This is also rudimentary
+        if item.rule is None:
+            umt = self.umt
+        elif is_integer(item.rule):
+            if item.rule == self.tip:
+                umt = self.umt
+            else:
+                umt = self.umt_small
+                if not x:
+                    umt.iter()
+        else:
+            if item.rule in {d.name for d in prefix.itdims}:
+                umt = self.umt
+            else:
+                # This is like "pattern unmatched" -- fallback to `umt_small`
+                umt = self.umt_small
+                if not x:
+                    umt.iter()
+
+        return umt.next()
 
 
 class SynthesizeSkewing(Queue):
@@ -460,19 +557,3 @@ class SynthesizeSkewing(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
-
-
-# Utils
-
-
-def attach_property(clusters, d, p):
-    """
-    Attach `p` to `c.properties[d]` for each `c` in `clusters`.
-    """
-    processed = []
-    for c in clusters:
-        properties = dict(c.properties)
-        properties[d] = set(properties[d]) | {p}
-        processed.append(c.rebuild(properties=properties))
-
-    return processed

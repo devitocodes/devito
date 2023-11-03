@@ -4,14 +4,17 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Symbol
+from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt)
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos, Min, Max)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
-                              CallFromPointer, Cast, FieldFromPointer,
-                              FieldFromComposite, IntDiv, MIN, MAX, ccode)
-from devito.types import Array, Object
+                              CallFromPointer, Cast, DefFunction, FieldFromPointer,
+                              INT, FieldFromComposite, IntDiv, ccode, uxreplace,
+                              retrieve_derivatives)
+from devito.tools import as_tuple
+from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
+                          Symbol as dSymbol)
 
 
 def test_float_indices():
@@ -29,6 +32,18 @@ def test_float_indices():
     indices = u.subs({x: 1.0}).indexify().indices[0]
     assert len(indices.atoms(sympy.Float)) == 0
     assert indices == 1
+
+
+def test_func_of_indices():
+    """
+    Test that origin is correctly processed with functions
+    """
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+    u = Function(name="u", grid=grid, space_order=2, staggered=x)
+    us = u.subs({u.indices[0]: INT(Abs(u.indices[0]))})
+    assert us.indices[0] == INT(Abs(x + x.spacing/2))
+    assert us.indexify().indices[0] == INT(Abs(x))
 
 
 @pytest.mark.parametrize('dtype,expected', [
@@ -115,6 +130,29 @@ def test_indexed():
 
     assert ub.free_symbols == {x, y}
     assert ub.indexed.free_symbols == {ub.indexed}
+
+
+def test_indexed_staggered():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+    hx, hy = x.spacing, y.spacing
+
+    u = Function(name='u', grid=grid, staggered=(x, y))
+    u0 = u.subs({x: 1, y: 2})
+    assert u0.indices == (1 + hx / 2, 2 + hy / 2)
+    assert u0.indexify().indices == (1, 2)
+
+
+def test_bundle():
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    fg = Bundle(name='fg', components=(f, g))
+
+    # Test reconstruction
+    fg._rebuild().components == fg.components
 
 
 def test_call_from_pointer():
@@ -214,6 +252,12 @@ def test_extended_sympy_arithmetic():
     assert ccode(-1 + bar) == '-1 + o->bar'
 
 
+def test_integer_abs():
+    i1 = Dimension(name="i1")
+    assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
+    assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1F)"
+
+
 def test_intdiv():
     a = Symbol('a')
     b = Symbol('b')
@@ -257,6 +301,37 @@ def test_cast():
 
     v1 = BarCast(s, '****')
     assert v != v1
+
+
+def test_findexed():
+    grid = Grid(shape=(3, 3, 3))
+    f = Function(name='f', grid=grid)
+
+    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+    new_fi = fi.func(strides=(3, 4))
+
+    assert new_fi.name == fi.name == 'f'
+    assert new_fi.indices == fi.indices
+    assert new_fi.strides == (3, 4)
+
+
+def test_symbolic_printing():
+    b = Symbol('b')
+
+    v = CallFromPointer('foo', 's') + b
+    assert str(v) == 'b + s->foo()'
+
+    class MyLocalObject(LocalObject, Expr):
+        pass
+
+    lo = MyLocalObject(name='lo')
+    assert str(lo + 2) == '2 + lo'
+
+    grid = Grid((10,))
+    f = Function(name="f", grid=grid)
+    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+    df = DefFunction('aaa', arguments=[fi])
+    assert ccode(df) == 'aaa(foo(x))'
 
 
 def test_is_on_grid():
@@ -303,10 +378,73 @@ def test_solve_time():
     eq = m * u.dt2 + u.dx
     sol = solve(eq, u.forward)
     # Check u.dx is not evaluated. Need to simplify because the solution
-    # contains some Dummy in the Derivatibe subs that make equality break.
-    # TODO: replace by retreive_derivatives after Fabio's PR
-    assert sympy.simplify(u.dx - sol.args[2].args[0].args[1]) == 0
-    assert sympy.simplify(sol - (-dt**2*u.dx/m + 2.0*u - u.backward)) == 0
+    # contains some Dummy in the Derivative subs that make equality break.
+    assert len(retrieve_derivatives(sol)) == 1
+    assert sympy.simplify(u.dx - retrieve_derivatives(sol)[0]) == 0
+    assert sympy.simplify(sympy.expand(sol - (-dt**2*u.dx/m + 2.0*u - u.backward))) == 0
+
+
+@pytest.mark.parametrize('expr,subs,expected', [
+    ('f', '{f: g}', 'g'),
+    ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
+    ('cos(f)', '{cos: sin}', 'sin(f)'),
+    ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
+    ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
+])
+def test_uxreplace(expr, subs, expected):
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions  # noqa
+
+    f = Function(name='f', grid=grid)  # noqa
+    g = Function(name='g', grid=grid)  # noqa
+
+    assert uxreplace(eval(expr), eval(subs)) == eval(expected)
+
+
+def test_uxreplace_custom_reconstructable():
+
+    class MyDefFunction(DefFunction):
+        __rargs__ = ('name', 'arguments')
+        __rkwargs__ = ('p0', 'p1', 'p2')
+
+        def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
+            obj = super().__new__(cls, name=name, arguments=arguments)
+            obj.p0 = p0
+            obj.p1 = as_tuple(p1)
+            obj.p2 = p2
+            return obj
+
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    func = MyDefFunction(name='foo', arguments=f.indexify(),
+                         p0=f, p1=f, p2='bar')
+
+    mapper = {f: g, f.indexify(): g.indexify()}
+    func1 = uxreplace(func, mapper)
+
+    assert func1.arguments == (g.indexify(),)
+    assert func1.p0 is g
+    assert func1.p1 == (g,)
+    assert func1.p2 == 'bar'
+
+
+def test_minmax():
+    grid = Grid(shape=(5, 5))
+    x, y = grid.dimensions
+
+    f = Function(name="f", grid=grid)
+    s = dSymbol(name="s")
+
+    eqns = [Eq(s, 2),
+            Eq(f, Max(y, s, 4))]
+
+    op = Operator(eqns)
+
+    op.apply()
+    assert np.all(f.data == 4)
 
 
 class TestRelationsWithAssumptions(object):
@@ -332,6 +470,7 @@ class TestRelationsWithAssumptions(object):
 
         f.data[:] = 0.1
         eqns = [Eq(f.forward, f.laplace + f * evalrel(min, [f, b, c, d]))]
+
         op = Operator(eqns, opt=('advanced'))
         op.apply(time_M=5)
         fnorm = norm(f)
@@ -348,25 +487,25 @@ class TestRelationsWithAssumptions(object):
         assert fnorm == fnorm2
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
-        ([min, '[a, b, c, d]', '[]', 'MIN(a, MIN(b, MIN(c, d)))']),
-        ([max, '[a, b, c, d]', '[]', 'MAX(a, MAX(b, MAX(c, d)))']),
+        ([min, '[a, b, c, d]', '[]', 'Min(a, Min(b, Min(c, d)))']),
+        ([max, '[a, b, c, d]', '[]', 'Max(a, Max(b, Max(c, d)))']),
         ([min, '[a]', '[]', 'a']),
-        ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'MIN(a, b)']),
-        ([min, '[a, b, c]', '[]', 'MIN(a, MIN(b, c))']),
-        ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'MIN(b, d)']),
+        ([min, '[a, b]', '[Le(d, a), Ge(c, b)]', 'Min(a, b)']),
+        ([min, '[a, b, c]', '[]', 'Min(a, Min(b, c))']),
+        ([min, '[a, b, c, d]', '[Le(d, a), Ge(c, b)]', 'Min(b, d)']),
         ([min, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'c']),
         ([max, '[a]', '[Le(a, a)]', 'a']),
         ([max, '[a, b]', '[Le(a, b)]', 'b']),
-        ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'MAX(a, b)']),
+        ([max, '[a, b, c]', '[Le(c, b), Le(c, a)]', 'Max(a, b)']),
         ([max, '[a, b, c, d]', '[Ge(a, b), Ge(d, a), Ge(b, c)]', 'd']),
-        ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'MAX(a, MAX(c, d))']),
-        ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'MAX(a, d)']),
-        ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'MAX(a, MAX(c, d))']),
-        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, a)]', 'MIN(c, d)']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(b, c)]', 'Max(a, Max(c, d))']),
+        ([max, '[a, b, c, d]', '[Ge(a, b), Le(c, b)]', 'Max(a, d)']),
+        ([max, '[a, b, c, d]', '[Ge(b, a), Ge(a, b)]', 'Max(a, Max(c, d))']),
+        ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, a)]', 'Min(c, d)']),
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
-        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(c, d))']),
-        ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'MIN(a, MIN(b, c))']),
-        ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'MAX(c, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'Min(a, Min(c, d))']),
+        ([min, '[a, b, c, d]', '[Lt(b + a, d)]', 'Min(a, Min(b, c))']),
+        ([max, '[a, b, c, d]', '[Lt(b + a, d)]', 'Max(c, d)']),
         ([max, '[a, b, c, d]', '[Gt(a, b + c + d)]', 'a']),
     ])
     def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
@@ -379,37 +518,36 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a), Ge(a, b), Le(c, b), Le(b, d)]', 'c']),
-        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'MIN(a, MIN(b, MIN(c, d)))']),
-        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
-        ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'MAX(b, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, a + d)]', 'Min(a, Min(b, Min(c, d)))']),
+        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'Min(a, b)']),
+        ([max, '[a, b, c, d]', '[Ge(c, a + d), Gt(b, a + d)]', 'Max(b, d)']),
         ([max, '[a, b, c, d]', '[Ge(a + d, b), Gt(b, a + d)]',
-         'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d), Le(d, c)]', 'MAX(a, MAX(b, c))']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MIN(a, c)']),
-        ([min, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MIN(b, d)']),
-        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MIN(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'MAX(a, c)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'MAX(a, c)']),
-        ([max, '[a, b, c, d]', '[Lt(c, d).reversed, Le(a, b).reversed]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Gt(c, d + a).negated]', 'MAX(a, MAX(b, MAX(c, d)))']),
-        ([max, '[a, b, c, d]', '[Lt(c, d + a).negated]', 'MAX(b, d)']),
-        ([max, '[a, b, c, d]', '[Le(c, d + a).negated]', 'MAX(b, d)']),
+         'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, a + d)]', 'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(a, b)]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d), Le(d, c)]', 'Max(a, Max(b, c))']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'Min(a, c)']),
+        ([min, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'Min(b, d)']),
+        ([min, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Min(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d).negated, Le(a, b).negated]', 'Max(a, c)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).negated, Ge(a, b).negated]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d).reversed, Ge(a, b).reversed]', 'Max(a, c)']),
+        ([max, '[a, b, c, d]', '[Lt(c, d).reversed, Le(a, b).reversed]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Gt(c, d + a).negated]', 'Max(a, Max(b, Max(c, d)))']),
+        ([max, '[a, b, c, d]', '[Lt(c, d + a).negated]', 'Max(b, d)']),
+        ([max, '[a, b, c, d]', '[Le(c, d + a).negated]', 'Max(b, d)']),
         ([max, '[a, b, c, d]', '[Le(c + b, d + a).negated]',
-          'MAX(a, MAX(b, MAX(c, d)))']),
+          'Max(a, Max(b, Max(c, d)))']),
         ([max, '[a, b, c, d, e]', '[Gt(a, b + c + e)]',
-          'MAX(a, MAX(b, MAX(c, MAX(d, e))))']),
+          'Max(a, Max(b, Max(c, Max(d, e))))']),
         ([max, '[a, b, c, d, e]', '[Ge(c, a), Ge(b, a), Ge(a, c), Ge(e, c), Ge(d, e)]',
-          'MAX(b, d)']),
+          'Max(b, d)']),
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
@@ -422,14 +560,13 @@ class TestRelationsWithAssumptions(object):
 
         eqn = eval(expr)
         assumptions = eval(assumptions)
-        expected = eval(expected)
-        assert evalrel(op, eqn, assumptions) == expected
+        assert str(evalrel(op, eqn, assumptions)) == expected
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[Ge(b, a)]', 'a']),
-        ([min, '[a, b, c, d]', '[Ge(b, d)]', 'MIN(a, d)']),
-        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'MIN(a, b)']),
-        ([max, '[a, b, c, d, e]', 'None', 'MAX(e, d)']),
+        ([min, '[a, b, c, d]', '[Ge(b, d)]', 'Min(a, d)']),
+        ([min, '[a, b, c, d]', '[Ge(c, a + d)]', 'Min(a, b)']),
+        ([max, '[a, b, c, d, e]', 'None', 'Max(e, d)']),
     ])
     def test_assumptions(self, op, expr, assumptions, expected):
         """

@@ -1,12 +1,18 @@
-import cgen
+from functools import singledispatch
 
-from devito.ir import (Forward, List, Prodder, FindNodes, Transformer,
+import cgen
+import sympy
+
+from devito.finite_differences import Max, Min
+from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
+                       FindNodes, FindSymbols, Transformer, Uxreplace,
                        filter_iterations, retrieve_iteration_tree)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import MIN, MAX, evalrel
-from devito.tools import split
+from devito.symbolics import evalrel, has_integer_args
+from devito.tools import as_mapper, filter_ordered, split
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions']
+__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
+           'generate_macros', 'minimize_symbols']
 
 
 @iet_pass
@@ -65,7 +71,7 @@ def hoist_prodders(iet):
 
 
 @iet_pass
-def relax_incr_dimensions(iet, **kwargs):
+def relax_incr_dimensions(iet, options=None, **kwargs):
     """
     This pass adjusts the bounds of blocked Iterations in order to include the "remainder
     regions".  Without the relaxation that occurs in this pass, the only way to iterate
@@ -81,7 +87,7 @@ def relax_incr_dimensions(iet, **kwargs):
     to:
 
     <Iteration x0_blk0; (x_m, x_M, x0_blk0_size)>
-        <Iteration x; (x0_blk0, MIN(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
+        <Iteration x; (x0_blk0, Min(x_M, x0_blk0 + x0_blk0_size - 1)), 1)>
 
     """
     mapper = {}
@@ -94,7 +100,7 @@ def relax_incr_dimensions(iet, **kwargs):
         if root in mapper:
             continue
 
-        assert all(i.direction is Forward for i in iterations)
+        assert all(i.direction in (Forward, Any) for i in iterations)
         outer, inner = split(iterations, lambda i: not i.dim.parent.is_Block)
 
         # Get root's `symbolic_max` out of each outer Dimension
@@ -102,15 +108,20 @@ def relax_incr_dimensions(iet, **kwargs):
 
         # Process inner iterations and adjust their bounds
         for n, i in enumerate(inner):
-            # The Iteration's maximum is the MIN of (a) the `symbolic_max` of current
+            # If definitely in-bounds, as ensured by a prior compiler pass, then
+            # we can skip this step
+            if i.is_Inbound:
+                continue
+
+            # The Iteration's maximum is the Min of (a) the `symbolic_max` of current
             # Iteration e.g. `x0_blk0 + x0_blk0_size - 1` and (b) the `symbolic_max`
             # of the current Iteration's root Dimension e.g. `x_M`. The generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size - 1, x_M)
+            # maximum will be `Min(x0_blk0 + x0_blk0_size - 1, x_M)
 
             # In some corner cases an offset may be added (e.g. after CIRE passes)
             # E.g. assume `i.symbolic_max = x0_blk0 + x0_blk0_size + 1` and
             # `i.dim.symbolic_max = x0_blk0 + x0_blk0_size - 1` then the generated
-            # maximum will be `MIN(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
+            # maximum will be `Min(x0_blk0 + x0_blk0_size + 1, x_M + 2)`
 
             root_max = roots_max[i.dim.root] + i.symbolic_max - i.dim.symbolic_max
             iter_max = evalrel(min, [i.symbolic_max, root_max])
@@ -119,9 +130,77 @@ def relax_incr_dimensions(iet, **kwargs):
     if mapper:
         iet = Transformer(mapper, nested=True).visit(iet)
 
-        headers = [('%s(a,b)' % MIN.name, ('(((a) < (b)) ? (a) : (b))')),
-                   ('%s(a,b)' % MAX.name, ('(((a) > (b)) ? (a) : (b))'))]
-    else:
-        headers = []
+    return iet, {}
+
+
+@iet_pass
+def generate_macros(iet):
+    applications = FindApplications().visit(iet)
+    headers = set().union(*[_generate_macros(i) for i in applications])
 
     return iet, {'headers': headers}
+
+
+@singledispatch
+def _generate_macros(expr):
+    return set()
+
+
+@_generate_macros.register(Min)
+@_generate_macros.register(sympy.Min)
+def _(expr):
+    if has_integer_args(*expr.args) and len(expr.args) == 2:
+        return {('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))'))}
+    else:
+        return set()
+
+
+@_generate_macros.register(Max)
+@_generate_macros.register(sympy.Max)
+def _(expr):
+    if has_integer_args(*expr.args) and len(expr.args) == 2:
+        return {('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))}
+    else:
+        return set()
+
+
+@iet_pass
+def minimize_symbols(iet):
+    """
+    Remove unneccesary symbols. Currently applied sub-passes:
+
+        * Remove redundant ModuloDimensions (e.g., due to using the
+          `save=Buffer(2)` API)
+    """
+    iet = remove_redundant_moddims(iet)
+
+    return iet, {}
+
+
+def remove_redundant_moddims(iet):
+    key = lambda d: d.is_Modulo and d.origin is not None
+    mds = [d for d in FindSymbols('dimensions').visit(iet) if key(d)]
+    if not mds:
+        return iet
+
+    mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
+
+    subs = {}
+    for k, v in mapper.items():
+        chosen = v.pop(0)
+        subs.update({d: chosen for d in v})
+
+    body = Uxreplace(subs).visit(iet.body)
+    iet = iet._rebuild(body=body)
+
+    # ModuloDimensions are defined in Iteration headers, hence they must be
+    # removed from there too
+    subs = {}
+    for n in FindNodes(Iteration).visit(iet):
+        if not set(n.uindices) & set(mds):
+            continue
+        subs[n] = n._rebuild(uindices=filter_ordered(n.uindices))
+
+    iet = Transformer(subs, nested=True).visit(iet)
+
+    return iet

@@ -130,7 +130,11 @@ class Reconstructable(object):
             * `a._rebuild(c=5) -> x(3, 5, 5)`
             * `a._rebuild(1, c=7) -> x(1, 5, 7)`
         """
-        args += tuple(getattr(self, i) for i in self.__rargs__[len(args):])
+        for i in self.__rargs__[len(args):]:
+            if i.startswith('*'):
+                args += tuple(getattr(self, i[1:]))
+            else:
+                args += (getattr(self, i),)
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
 
         # Should we use a constum reconstructor?
@@ -227,8 +231,16 @@ class Pickable(Reconstructable):
             )
 
     def __getnewargs_ex__(self):
-        return (tuple(getattr(self, i) for i in self._pickle_rargs),
-                {i: getattr(self, i) for i in self._pickle_rkwargs})
+        args = []
+        for i in self._pickle_rargs:
+            if i.startswith('*'):
+                args.extend(getattr(self, i[1:]))
+            else:
+                args.append(getattr(self, i))
+
+        kwargs = {i: getattr(self, i) for i in self._pickle_rkwargs}
+
+        return (tuple(args), kwargs)
 
 
 class Singleton(type):

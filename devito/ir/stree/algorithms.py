@@ -1,75 +1,52 @@
+from itertools import groupby
+
 from anytree import findall
 from sympy import And
 
-from itertools import groupby
-
 from devito.ir.clusters import Cluster
 from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeSync, NodeExprs, NodeSection, NodeHalo, insert)
-from devito.ir.support import SEQUENTIAL, IterationSpace, normalize_properties
-from devito.mpi.halo_scheme import HaloScheme, HaloSchemeException
-from devito.parameters import configuration
-from devito.tools import Bunch, DefaultOrderedDict, flatten
+                                  NodeSync, NodeExprs, NodeSection, NodeHalo)
+from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
+                               IterationSpace, normalize_properties, normalize_syncs)
+from devito.mpi.halo_scheme import HaloScheme
+from devito.tools import Bunch, DefaultOrderedDict
 
 __all__ = ['stree_build']
 
 
-def stree_build(clusters, **kwargs):
+def stree_build(clusters, profiler=None, **kwargs):
     """
     Create a ScheduleTree from a ClusterGroup.
     """
-    # ClusterGroup -> ScheduleTree
-    stree = stree_schedule(clusters)
+    clusters = preprocess(clusters, **kwargs)
 
-    # Add in section nodes
-    stree = stree_section(stree, **kwargs)
-
-    # Add in halo update nodes
-    stree = stree_make_halo(stree)
-
-    return stree
-
-
-def stree_schedule(clusters):
-    """
-    Arrange an iterable of Clusters into a ScheduleTree.
-    """
     stree = ScheduleTree()
+    section = None
 
     prev = Cluster(None)
-    mapper = DefaultOrderedDict(lambda: Bunch(top=None, bottom=None))
 
-    def reuse_metadata(c0, c1, d):
-        return (c0.guards.get(d) == c1.guards.get(d) and
-                c0.syncs.get(d) == c1.syncs.get(d))
-
-    def attach_metadata(cluster, d, tip):
-        if d in cluster.guards:
-            tip = NodeConditional(cluster.guards[d], tip)
-        if d in cluster.syncs:
-            tip = NodeSync(cluster.syncs[d], tip)
-        return tip
+    mapper = DefaultOrderedDict(lambda: Bunch(top=None, middle=None, bottom=None))
+    mapper[base] = Bunch(top=stree, middle=stree, bottom=stree)
 
     for c in clusters:
-        index = 0
-
-        # Reuse or add in any Conditionals and Syncs outside of the outermost Iteration
-        if not reuse_metadata(c, prev, None):
-            tip = attach_metadata(c, None, stree)
-            maybe_reusable = []
-        else:
-            try:
-                tip = mapper[prev.itintervals[index]].top.parent
-            except IndexError:
-                tip = stree
+        if reuse_whole_subtree(c, prev):
+            tip = mapper[base].bottom
             maybe_reusable = prev.itintervals
+        else:
+            # Add any guards/Syncs outside of the outermost Iteration
+            tip = augment_whole_subtree(c, stree, mapper, base)
+            maybe_reusable = []
 
+        index = 0
         for it0, it1 in zip(c.itintervals, maybe_reusable):
             if it0 != it1:
                 break
-            index += 1
 
             d = it0.dim
+            if needs_nodehalo(d, c.halo_scheme):
+                break
+
+            index += 1
 
             # The reused sub-trees might acquire new sub-iterators as well as
             # new properties
@@ -80,28 +57,36 @@ def stree_schedule(clusters):
                 mapper[it0].top.properties, c.properties[it0.dim]
             )
 
-            # Different guards or SyncOps cannot further be nested
-            if not reuse_metadata(c, prev, d):
-                tip = mapper[it0].top
-                tip = attach_metadata(c, d, tip)
-                mapper[it0].bottom = tip
+            if reuse_whole_subtree(c, prev, d):
+                tip = mapper[it0].bottom
+            elif reuse_partial_subtree(c, prev, d):
+                tip = mapper[it0].middle
+                tip = augment_partial_subtree(c, tip, mapper, it0)
                 break
             else:
-                tip = mapper[it0].bottom
+                tip = mapper[it0].top
+                tip = augment_whole_subtree(c, tip, mapper, it0)
+                break
 
         # Nested sub-trees, instead, will not be used anymore
         for it in prev.itintervals[index:]:
             mapper.pop(it)
+        prev = c
 
-        # Add in Iterations, Conditionals, and Syncs
+        # Add in Node{Iteration,Conditional,Sync}
         for it in c.itintervals[index:]:
             d = it.dim
             tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d, ()))
             mapper[it].top = tip
-            tip = attach_metadata(c, d, tip)
-            mapper[it].bottom = tip
+            tip = augment_whole_subtree(c, tip, mapper, it)
 
-        # Add in Expressions
+        # Attach NodeHalo if necessary
+        for it, v in mapper.items():
+            if needs_nodehalo(it.dim, c.halo_scheme):
+                v.bottom.parent = NodeHalo(c.halo_scheme, v.bottom.parent)
+                break
+
+        # Add in NodeExprs
         exprs = []
         for conditionals, g in groupby(c.exprs, key=lambda e: e.conditionals):
             exprs = list(g)
@@ -115,107 +100,172 @@ def stree_schedule(clusters):
 
             NodeExprs(exprs, c.ispace, c.dspace, c.ops, c.traffic, parent)
 
-        # Prepare for next iteration
-        prev = c
+        # Nest within a NodeSection if possible
+        if profiler is None or \
+           any(i.is_Section for i in reversed(tip.ancestors)):
+            continue
 
-    return stree
-
-
-def stree_make_halo(stree):
-    """
-    Add NodeHalos to a ScheduleTree. A NodeHalo captures the halo exchanges
-    that should take place before executing the sub-tree; these are described
-    by means of a HaloScheme.
-    """
-    # Build a HaloScheme for each expression bundle
-    halo_schemes = {}
-    for n in findall(stree, lambda i: i.is_Exprs):
-        try:
-            halo_schemes[n] = HaloScheme(n.exprs, n.ispace)
-        except HaloSchemeException as e:
-            if configuration['mpi']:
-                raise RuntimeError(str(e))
-
-    # Split a HaloScheme based on where it should be inserted
-    # For example, it's possible that, for a given HaloScheme, a Function's
-    # halo needs to be exchanged at a certain `stree` depth, while another
-    # Function's halo needs to be exchanged before some other nodes
-    mapper = {}
-    for k, hs in halo_schemes.items():
-        for f, v in hs.fmapper.items():
-            spot = k
-            ancestors = [n for n in k.ancestors if n.is_Iteration]
-            for n in ancestors:
-                # Place the halo exchange right before the first
-                # distributed Dimension which requires it
-                if any(i.dim in n.dim._defines for i in v.halos):
-                    spot = n
+        candidate = None
+        for i in reversed(tip.ancestors + (tip,)):
+            if i.is_Halo:
+                candidate = i
+            elif i.is_Sync:
+                attach_section(i)
+                section = None
+                break
+            elif i.is_Iteration:
+                if (i.dim.is_Time and SEQUENTIAL in i.properties):
+                    section = attach_section(candidate, section)
                     break
-            mapper.setdefault(spot, []).append(hs.project(f))
-
-    # Now fuse the HaloSchemes at the same `stree` depth and perform the insertion
-    for spot, halo_schemes in mapper.items():
-        insert(NodeHalo(HaloScheme.union(halo_schemes)), spot.parent, [spot])
-
-    return stree
-
-
-def stree_section(stree, profiler=None, **kwargs):
-    """
-    Add NodeSections to a ScheduleTree. A NodeSection, or simply "section",
-    defines a sub-tree with the following properties:
-
-        * The root is a node of type NodeSection;
-        * The immediate children of the root are nodes of type NodeIteration;
-        * The Dimensions of the immediate children are either:
-            * identical, OR
-            * different, but all of type SubDimension;
-        * The Dimension of the immediate children cannot be a TimeDimension.
-    """
-    if profiler is None:
-        return stree
-
-    class Section(object):
-        def __init__(self, node):
-            self.parent = node.parent
-            try:
-                self.dim = node.dim
-            except AttributeError:
-                self.dim = None
-            self.nodes = [node]
-
-        def is_compatible(self, node):
-            return self.parent == node.parent and self.dim.root == node.dim.root
-
-    # Search candidate sections
-    sections = []
-    for i in range(stree.height):
-        # Find all sections at depth `i`
-        section = None
-        for n in findall(stree, filter_=lambda n: n.depth == i):
-            if any(p in flatten(s.nodes for s in sections) for p in n.ancestors):
-                # Already within a section
-                continue
-            elif n.is_Sync:
-                # SyncNodes are self-contained
-                sections.append(Section(n))
-                section = None
-            elif n.is_Iteration:
-                if n.dim.is_Time and SEQUENTIAL in n.properties:
-                    # If n.dim.is_Time, we end up here in 99.9% of the cases.
-                    # Sometimes, however, time is a PARALLEL Dimension (e.g.,
-                    # think of `norm` Operators)
-                    section = None
-                elif section is None or not section.is_compatible(n):
-                    section = Section(n)
-                    sections.append(section)
                 else:
-                    section.nodes.append(n)
-            else:
-                section = None
-
-    # Transform the schedule tree by adding in sections
-    for i in sections:
-        insert(NodeSection(), i.parent, i.nodes)
+                    candidate = i
+        else:
+            attach_section(candidate, section)
 
     return stree
+
+
+# *** Utilities to construct the ScheduleTree
+
+base = IterationInterval(Interval(None), [], Any)
+
+
+def preprocess(clusters, options=None, **kwargs):
+    """
+    Lower the so-called "wild" Clusters, that is objects not representing a set
+    of mathematical operations. This boils down to:
+
+        * Moving the HaloTouch's from `clusters` into a mapper `M: {HT -> C}`.
+          `c = M(ht)` is the first Cluster of the sequence requiring the halo
+          exchange `ht` to have terminated before the execution can proceed.
+        * Lower the CriticalRegions:
+            * If they encode an asynchronous operation (e.g., a WaitLock), attach
+              it to a Nop Cluster for future lowering;
+            * Otherwise, simply remove them, as they have served their purpose
+              at this point.
+        * Remove the WeakFences, as they have served their purpose at this point.
+    """
+    queue = []
+    processed = []
+    for c in clusters:
+        if c.is_halo_touch:
+            hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
+            queue.append(c.rebuild(halo_scheme=hs))
+        elif c.is_critical_region and c.syncs:
+            processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
+        elif c.is_wild:
+            continue
+        else:
+            dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
+
+            found = []
+            for c1 in list(queue):
+                distributed_aindices = c1.halo_scheme.distributed_aindices
+                h_indices = set().union(*[d._defines for d in c1.halo_scheme.loc_indices])
+
+                # Skip if the halo exchange would end up outside
+                # its iteration space
+                if h_indices and not h_indices & dims:
+                    continue
+
+                diff = dims - distributed_aindices
+                intersection = dims & distributed_aindices
+
+                if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
+                   len(intersection) > 0:
+                    found.append(c1)
+                    queue.remove(c1)
+
+            syncs = normalize_syncs(*[c1.syncs for c1 in found])
+            if syncs:
+                ispace = c.ispace.project(syncs)
+                processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
+
+            halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
+            processed.append(c.rebuild(halo_scheme=halo_scheme))
+
+    # Sanity check!
+    try:
+        assert not queue
+    except AssertionError:
+        if options['mpi']:
+            raise RuntimeError("Unsupported MPI for the given equations")
+
+    return processed
+
+
+def reuse_partial_subtree(c0, c1, d=None):
+    return c0.guards.get(d) == c1.guards.get(d)
+
+
+def reuse_whole_subtree(c0, c1, d=None):
+    return (c0.guards.get(d) == c1.guards.get(d) and
+            c0.syncs.get(d) == c1.syncs.get(d))
+
+
+def augment_partial_subtree(cluster, tip, mapper, it=None):
+    d = it.dim
+
+    if d in cluster.syncs:
+        tip = NodeSync(cluster.syncs[d], tip)
+
+    mapper[it].bottom = tip
+
+    return tip
+
+
+def augment_whole_subtree(cluster, tip, mapper, it):
+    d = it.dim
+
+    if d in cluster.guards:
+        tip = NodeConditional(cluster.guards[d], tip)
+
+    mapper[it].middle = mapper[it].bottom = tip
+
+    return augment_partial_subtree(cluster, tip, mapper, it)
+
+
+def needs_nodehalo(d, hs):
+    return d and hs and d._defines.intersection(hs.distributed_aindices)
+
+
+def reuse_section(candidate, section):
+    try:
+        if not section or candidate.siblings[-1] is not section:
+            return False
+    except IndexError:
+        return False
+
+    key = lambda i: findall(i, lambda n: n.is_Iteration)
+    iters0 = key(section)
+    iters1 = key(candidate)
+
+    # Heuristics for NodeSection reuse:
+    # * Ignore some kinds of iteration Dimensions
+    key = lambda d: not (d.is_Custom or d.is_Stencil)
+    iters0 = [i for i in iters0 if key(i.dim)]
+    iters1 = [i for i in iters1 if key(i.dim)]
+
+    # * Same set of iteration Dimensions
+    key = lambda i: i.interval.promote(lambda d: d.is_Block).dim
+    test00 = len(iters0) == len(iters1)
+    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1))
+
+    # * All subtrees use at least one local SubDimension (i.e., BCs)
+    key = lambda iters: any(i.dim.is_Sub and i.dim.local for i in iters)
+    test1 = key(iters0) and key(iters1)
+
+    if (test00 and test01) or test1:
+        candidate.parent = section
+        return True
+    else:
+        return False
+
+
+def attach_section(candidate, section=None):
+    if candidate and not reuse_section(candidate, section):
+        section = NodeSection()
+        section.parent = candidate.parent
+        candidate.parent = section
+
+    return section

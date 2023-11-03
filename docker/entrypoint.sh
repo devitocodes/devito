@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
-find /app -type f -name '*.pyc' -delete
-
 export PATH=/venv/bin:$PATH
 
 if [[ "$MPIVER" = "HPCX" ]]; then
    echo "loading HPCX"
    source $HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh
    hpcx_load
+fi
+
+if [[ "$DEVITO_ARCH" = "icx" || "$DEVITO_ARCH" = "icc" ]]; then
+    echo "Initializing oneapi environement"
+    source /opt/intel/oneapi/setvars.sh
 fi
 
 if [[ -z "${DEPLOY_ENV}" ]]; then

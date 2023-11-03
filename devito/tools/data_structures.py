@@ -1,5 +1,5 @@
 from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, MutableSet, Mapping
+from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
 from functools import reduce
 
 import numpy as np
@@ -10,8 +10,8 @@ from devito.tools.utils import as_tuple, filter_ordered
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'PartialOrderTuple', 'DAG', 'frozendict',
-           'UnboundedMultiTuple']
+           'OrderedSet', 'Ordering', 'DAG', 'frozendict',
+           'UnboundTuple', 'UnboundedMultiTuple']
 
 
 class Bunch(object):
@@ -28,6 +28,13 @@ class Bunch(object):
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+    def __repr__(self):
+        return "Bunch(%s)" % ", ".join(["%s=%s" % i for i in self.__dict__.items()])
+
+    def __iter__(self):
+        for i in self.__dict__.values():
+            yield i
 
 
 class EnrichedTuple(tuple, Pickable):
@@ -65,6 +72,9 @@ class EnrichedTuple(tuple, Pickable):
         # Bypass default reconstruction logic since this class spawns
         # objects with varying number of attributes
         return (tuple(self), dict(self.__dict__))
+
+    def get(self, key, val=None):
+        return self._getters.get(key, val)
 
 
 class ReducerMap(MultiDict):
@@ -107,17 +117,38 @@ class ReducerMap(MultiDict):
             Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
+        candidates = [c for c in candidates if c is not None]
+        if not candidates:
+            return None
 
         def compare_to_first(v):
             first = candidates[0]
             if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
                 return (first == v).all()
+            elif isinstance(v, Set):
+                if isinstance(first, Set):
+                    return not v.isdisjoint(first)
+                else:
+                    return first in v
+            elif isinstance(first, Set):
+                return v in first
+            elif isinstance(v, range):
+                if isinstance(first, range):
+                    return first.stop > v.start or v.stop > first.start
+                else:
+                    return first >= v.start and first < v.stop
+            elif isinstance(first, range):
+                return v >= first.start and v < first.stop
             else:
                 return first == v
 
         if len(candidates) == 1:
             return candidates[0]
         elif all(map(compare_to_first, candidates)):
+            # return first non-range
+            for c in candidates:
+                if not isinstance(c, range):
+                    return c
             return candidates[0]
         else:
             raise ValueError("Unable to find unique value for key %s, candidates: %s"
@@ -185,7 +216,7 @@ class DefaultOrderedDict(OrderedDict):
             args = tuple()
         else:
             args = self.default_factory,
-        return type(self), args, None, None, self.items()
+        return type(self), args, None, None, self()
 
     def copy(self):
         return self.__copy__()
@@ -255,7 +286,7 @@ class OrderedSet(OrderedDict, MutableSet):
     union = property(lambda self: self.__or__)
 
 
-class PartialOrderTuple(tuple):
+class Ordering(tuple):
 
     """
     A tuple whose elements are ordered according to a set of relations.
@@ -265,36 +296,62 @@ class PartialOrderTuple(tuple):
     items : object or iterable of objects
         The elements of the tuple.
     relations : iterable of tuples, optional
-        One or more binary relations between elements in ``items``. If not
-        provided, then ``items`` is interpreted as a totally ordered sequence.
+        One or more n-ary relations between the elements in `items`. If not
+        provided, then `items` is interpreted as a totally ordered sequence.
         If provided, then a (partial) ordering is computed and all elements in
-        ``items`` for which a relation is not provided are appended.
+        `items` for which a relation is not provided are appended.
+    mode : str, optional
+        If 'total' (default), the resulting object is interpreted as a totally
+        ordered sequence; the object's relations are simplified away and no
+        subsequent operation involving the Ordering will ever be able to alter
+        the obtained sequence. If 'partial', the outcome is a partially ordered
+        sequence; the relations as provided by the user are preserved, which
+        leaves room for further reordering upon future operations. If 'unordered',
+        the `relations` are ignored and the resulting object degenerates to an
+        unordered collection.
     """
-    def __new__(cls, items=None, relations=None):
+    def __new__(cls, items=None, relations=None, mode='total'):
+        assert mode in ('total', 'partial', 'unordered')
+
         items = as_tuple(items)
         if relations:
             items = cls.reorder(items, relations)
-        obj = super(PartialOrderTuple, cls).__new__(cls, items)
-        obj._relations = set(tuple(i) for i in as_tuple(relations))
+
+        obj = super().__new__(cls, items)
+
+        obj._relations = frozenset(cls.simplify_relations(relations, items, mode))
+        obj._mode = mode
+
         return obj
 
     @classmethod
     def reorder(cls, items, relations):
         return filter_ordered(toposort(relations) + list(items))
 
+    @classmethod
+    def simplify_relations(cls, relations, items, mode):
+        if mode == 'total':
+            return [tuple(items)]
+        elif mode == 'partial':
+            return [tuple(i) for i in as_tuple(relations)]
+        else:
+            return []
+
     def __eq__(self, other):
-        return super(PartialOrderTuple, self).__eq__(other) and\
-            self.relations == other.relations
+        return (super().__eq__(other) and
+                self.relations == other.relations and
+                self.mode == other.mode)
 
     def __hash__(self):
-        return hash(*([i for i in self] + list(self.relations)))
+        return hash(*([i for i in self] + list(self.relations) + [self.mode]))
 
     @property
     def relations(self):
         return self._relations
 
-    def generate_ordering(self):
-        raise NotImplementedError
+    @property
+    def mode(self):
+        return self._mode
 
 
 class DAG(object):
@@ -309,11 +366,13 @@ class DAG(object):
         https://github.com/thieman/py-dag/
     """
 
-    def __init__(self, nodes=None, edges=None):
+    def __init__(self, nodes=None, edges=None, labels=None):
         self.graph = OrderedDict()
         self.labels = DefaultOrderedDict(dict)
+
         for node in as_tuple(nodes):
             self.add_node(node)
+
         for i in as_tuple(edges):
             try:
                 ind_node, dep_node = i
@@ -322,12 +381,21 @@ class DAG(object):
                 self.labels[ind_node][dep_node] = label
             self.add_edge(ind_node, dep_node)
 
+        for ind_node, i in (labels or {}).items():
+            for dep_node, v in i.items():
+                if dep_node in self.graph.get(ind_node, []):
+                    self.labels[ind_node][dep_node] = v
+
     def __contains__(self, key):
         return key in self.graph
 
     @property
     def nodes(self):
         return tuple(self.graph)
+
+    @property
+    def roots(self):
+        return tuple(n for n in self.nodes if not self.predecessors(n))
 
     @property
     def edges(self):
@@ -339,6 +407,9 @@ class DAG(object):
     @property
     def size(self):
         return len(self.graph)
+
+    def clone(self):
+        return self.__class__(self.nodes, self.edges, self.labels)
 
     def add_node(self, node_name, ignore_existing=False):
         """Add a node if it does not exist yet, or error out."""
@@ -387,6 +458,24 @@ class DAG(object):
     def predecessors(self, node):
         """Return a list of all predecessors of the given node."""
         return [key for key in self.graph if node in self.graph[key]]
+
+    def all_predecessors(self, node):
+        """
+        Return a list of all nodes ultimately predecessors of the given node
+        in the dependency graph, in topological order.
+        """
+        found = set()
+
+        def _all_predecessors(n):
+            if n in found:
+                return
+            found.add(n)
+            for predecessor in self.predecessors(n):
+                _all_predecessors(predecessor)
+
+        _all_predecessors(node)
+
+        return found
 
     def downstream(self, node):
         """Return a list of all nodes this node has edges towards."""
@@ -460,6 +549,51 @@ class DAG(object):
         else:
             raise ValueError('graph is not acyclic')
 
+    def connected_components(self, enumerated=False):
+        """
+        Find all connected sub-graphs and return them as a list.
+        """
+        groups = []
+
+        for n0 in self.graph:
+            found = {n0} | set(self.all_downstreams(n0))
+            for g in groups:
+                if g.intersection(found):
+                    g.update(found)
+                    break
+            else:
+                groups.append(found)
+
+        if enumerated:
+            mapper = OrderedDict()
+            for n, g in enumerate(groups):
+                mapper.update({i: n for i in g})
+            return mapper
+        else:
+            return tuple(groups)
+
+    def find_paths(self, node):
+        if node not in self.graph:
+            raise KeyError('node %s is not in graph' % node)
+
+        paths = []
+
+        def dfs(node, path):
+            path.append(node)
+
+            if not self.graph[node]:
+                paths.append(tuple(path))
+            else:
+                for child in self.graph[node]:
+                    dfs(child, path)
+
+            # Remove the node from the path to backtrack
+            path.pop()
+
+        dfs(node, [])
+
+        return tuple(paths)
+
 
 class frozendict(Mapping):
     """
@@ -505,7 +639,89 @@ class frozendict(Mapping):
         return self._hash
 
 
-class UnboundedMultiTuple(object):
+class UnboundTuple(tuple):
+    """
+    An UnboundedTuple is a tuple that can be
+    infinitely iterated over.
+
+    Examples
+    --------
+    >>> ub = UnboundTuple((1, 2),(3, 4))
+    >>> ub
+    UnboundTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
+    >>> ub.next()
+    UnboundTuple(1, 2)
+    >>> ub.next()
+    UnboundTuple(3, 4)
+    >>> ub.next()
+    UnboundTuple(3, 4)
+    """
+
+    def __new__(cls, *items, **kwargs):
+        nitems = []
+        for i in as_tuple(items):
+            if isinstance(i, UnboundTuple):
+                nitems.append(i)
+            elif isinstance(i, Iterable):
+                nitems.append(UnboundTuple(*i))
+            else:
+                nitems.append(i)
+
+        obj = super().__new__(cls, tuple(nitems))
+        obj.last = len(nitems)
+        obj.current = 0
+
+        return obj
+
+    @property
+    def prod(self):
+        return np.prod(self)
+
+    def reset(self):
+        self.iter()
+        return self
+
+    def iter(self):
+        self.current = 0
+
+    def next(self):
+        if not self:
+            return None
+        item = self[self.current]
+        if self.current == self.last-1 or self.current == -1:
+            self.current = self.last
+        else:
+            self.current += 1
+        return item
+
+    def __len__(self):
+        return self.last
+
+    def __repr__(self):
+        sitems = [s.__repr__() for s in self]
+        return "%s(%s)" % (self.__class__.__name__, ", ".join(sitems))
+
+    def __getitem__(self, idx):
+        if not self:
+            return None
+        if isinstance(idx, slice):
+            start = idx.start or 0
+            stop = idx.stop or self.last
+            if stop < 0:
+                stop = self.last + stop
+            step = idx.step or 1
+            return UnboundTuple(*[self[i] for i in range(start, stop, step)])
+        try:
+            if idx >= self.last-1:
+                return super().__getitem__(self.last-1)
+            else:
+                return super().__getitem__(idx)
+        except TypeError:
+            # Slice, ...
+            return UnboundTuple(self[i] for i in idx)
+
+
+class UnboundedMultiTuple(UnboundTuple):
 
     """
     An UnboundedMultiTuple is an ordered collection of tuples that can be
@@ -515,21 +731,19 @@ class UnboundedMultiTuple(object):
     --------
     >>> ub = UnboundedMultiTuple([1, 2], [3, 4])
     >>> ub
-    UnboundedMultiTuple((1, 2), (3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.iter()
     >>> ub
-    UnboundedMultiTuple(*(1, 2), (3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.next()
     1
     >>> ub.next()
     2
-    >>> ub.next()
-    2
     >>> ub.iter()
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub.iter()  # No effect, tip has reached the last tuple
     >>> ub
-    UnboundedMultiTuple((1, 2), *(3, 4))
+    UnboundedMultiTuple(UnboundTuple(1, 2), UnboundTuple(3, 4))
     >>> ub.next()
     3
     >>> ub.next()
@@ -539,36 +753,45 @@ class UnboundedMultiTuple(object):
     3
     """
 
-    def __init__(self, *items):
-        # Normalize input
-        nitems = []
-        for i in as_tuple(items):
-            if isinstance(i, Iterable):
-                nitems.append(tuple(i))
-            else:
-                raise ValueError("Expected sequence, got %s" % type(i))
+    def __new__(cls, *items, **kwargs):
+        obj = super().__new__(cls, *items, **kwargs)
+        # MultiTuple are un-initialized
+        obj.current = None
+        return obj
 
-        self.items = tuple(nitems)
-        self.tip = -1
-        self.curiter = None
+    def reset(self):
+        self.current = None
+        return self
 
-    def __repr__(self):
-        items = [str(i) for i in self.items]
-        if self.curiter is not None:
-            items[self.tip] = "*%s" % items[self.tip]
-        return "%s(%s)" % (self.__class__.__name__, ", ".join(items))
+    def curitem(self):
+        if self.current is None:
+            raise StopIteration
+        if not self:
+            return None
+        return self[self.current]
+
+    def nextitem(self):
+        if not self:
+            return None
+        self.iter()
+        return self.curitem()
+
+    def index(self, item):
+        return self.index(item)
 
     def iter(self):
-        if not self.items:
-            raise ValueError("No tuples available")
-        self.tip = min(self.tip + 1, max(len(self.items) - 1, 0))
-        self.curiter = iter(self.items[self.tip])
+        if self.current is None:
+            self.current = 0
+        else:
+            self.current = min(self.current + 1, self.last - 1)
+        self[self.current].reset()
+        return
 
     def next(self):
-        if self.curiter is None:
+        if not self:
+            return None
+        if self.current is None:
             raise StopIteration
-        try:
-            default = self.items[self.tip][-1]
-        except IndexError:
-            default = None
-        return next(self.curiter, default)
+        if self[self.current].current >= self[self.current].last:
+            raise StopIteration
+        return self[self.current].next()

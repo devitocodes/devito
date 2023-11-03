@@ -4,15 +4,142 @@ import numpy as np
 from sympy import And, Or
 import pytest
 
-from conftest import assert_blocking, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction,  # noqa
+from conftest import assert_blocking, assert_structure, skipif, opts_tiling
+from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
                     SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
                     Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension)
+                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
+                    CustomDimension, dimensions, configuration, norm, Inc, sum)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           retrieve_iteration_tree)
-from devito.symbolics import indexify, retrieve_functions, IntDiv
-from devito.types import Array
+                           FindSymbols, retrieve_iteration_tree)
+from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
+from devito.types import Array, StencilDimension, Symbol
+from devito.types.dimension import AffineIndexAccessFunction
+
+
+class TestIndexAccessFunction(object):
+
+    def test_basic(self):
+        d = Dimension(name='x')
+
+        expr = d + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == ()
+
+        s0 = Symbol(name='s0', dtype=np.int32)
+        s1 = Symbol(name='s1', dtype=np.int32)
+
+        expr = d + s0 + s1 + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == s0 + s1 + 1
+        assert expr.sds == ()
+
+    def test_reversed(self):
+        d = Dimension(name='x')
+
+        expr = 1 + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == ()
+
+        expr = d.symbolic_max + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs is d.symbolic_max
+        assert expr.sds == ()
+
+    def test_non_affine(self):
+        grid = Grid(shape=(3,))
+        x, = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+
+        expr = x + f[x]
+
+        assert expr.is_Add
+        assert not isinstance(expr, AffineIndexAccessFunction)
+
+    def test_stencil_dim(self):
+        d = Dimension(name='x')
+        sd = StencilDimension('i', 0, 1)
+
+        expr = d + sd + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
+
+        s = Symbol(name='s')
+
+        expr = sd + d + 1 + s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1 + s
+        assert expr.sds == (sd,)
+
+        expr = sd + 1 + d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
+
+    def test_stencil_dim_multiple(self):
+        d = Dimension(name='x')
+        sd0 = StencilDimension('i0', 0, 1)
+        sd1 = StencilDimension('i1', 0, 1)
+
+        expr = d + sd0 + sd1 + 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1
+        assert expr.sds == (sd0, sd1)
+
+        s = Symbol(name='s')
+
+        expr = sd0 + d + sd1 + 1 + s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == 1 + s
+        assert expr.sds == (sd0, sd1)
+
+    def test_sub(self):
+        d = Dimension(name='x')
+
+        expr = d - 1
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == -1
+
+        sd = StencilDimension('i', 0, 1)
+        s = Symbol(name='s')
+
+        expr = d + sd - 1 - s
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d is d
+        assert expr.ofs == -1 - s
+        assert expr.sds == (sd,)
+
+        expr = d + 1 + sd - d
+
+        assert isinstance(expr, AffineIndexAccessFunction)
+        assert expr.d == 0
+        assert expr.ofs == 1
+        assert expr.sds == (sd,)
 
 
 class TestBufferedDimension(object):
@@ -44,6 +171,44 @@ class TestBufferedDimension(object):
         # g is time 15 to 21 (loop twice the 7 buffer then 15->21)
         for i in range(7):
             assert np.allclose(g.data[i], 14+i+1)
+
+    @pytest.mark.parametrize('time_order', [1, 2, 5])
+    def test_modulo_dims_generation(self, time_order):
+        grid = Grid((3, 3))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name="f", grid=grid, save=Buffer(2), time_order=time_order)
+
+        # Irrespective of time_order -- Buffer takes precedence
+        assert f.shape == (2, 3, 3)
+
+        op = Operator([Eq(f[t+1, x, y], f + f[t-1, x, y] + 1)])
+
+        # Check that only *two*, and not three (t-1, t, t+1)  ModuloDimensions
+        # have been generated
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 2
+
+        op(time_M=3)
+        assert np.all(f.data[0] == 4)
+        assert np.all(f.data[1] == 2)
+
+    def test_modulo_dims_generation_v2(self):
+        grid = Grid((3, 3))
+
+        f = TimeFunction(name="f", grid=grid, save=Buffer(5))
+
+        op = Operator([Eq(f.forward, f + f.backward + 1)])
+
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 3
+
+        op(time_M=3)
+
+        # NOTE: default is time_m=1, hence the first written entry is f.data[2]
+        assert np.all(f.data[0:2] == 0)
+        assert np.all(f.data[2] == 1)
+        assert np.all(f.data[3] == 2)
+        assert np.all(f.data[4] == 4)
 
 
 class TestSubDimension(object):
@@ -113,6 +278,10 @@ class TestSubDimension(object):
         xi = SubDimension.middle(name='xi', parent=x,
                                  thickness_left=1,
                                  thickness_right=1)
+        assert xi.is_middle
+        assert not xi.is_left
+        assert not xi.is_right
+
         eqs = [Eq(u.forward, u + 1)]
         eqs = [e.subs(x, xi) for e in eqs]
 
@@ -131,6 +300,8 @@ class TestSubDimension(object):
         thickness = 4
 
         xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
+        assert xleft.is_left
+        assert not xleft.is_middle
         assert xleft.symbolic_size == xleft.thickness.left[0]
 
         xi = SubDimension.middle(name='xi', parent=x,
@@ -159,7 +330,8 @@ class TestSubDimension(object):
         xi = SubDimension.middle(name='xi', parent=x,
                                  thickness_left=thickness, thickness_right=thickness)
         xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
-
+        assert xright.is_right
+        assert not xright.is_middle
         yi = SubDimension.middle(name='yi', parent=y,
                                  thickness_left=thickness, thickness_right=thickness)
 
@@ -312,8 +484,8 @@ class TestSubDimension(object):
                                  thickness_left=thickness, thickness_right=thickness)
 
         # a 5 point stencil that can be computed in parallel
-        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t, xi-1, yi]
-                                    + u[t, xi+1, yi] + u[t, xi, yi-1] + u[t, xi, yi+1])
+        centre = Eq(u[t+1, xi, yi], u[t, xi, yi] + u[t, xi-1, yi] +
+                    u[t, xi+1, yi] + u[t, xi, yi-1] + u[t, xi, yi+1])
 
         u.data[0, 10, 10] = 1.0
 
@@ -446,6 +618,52 @@ class TestSubDimension(object):
         assert np.all(u.data[0, thickness:] == 0)
         assert np.all(u.data[0, :, thickness+12:] == 0)
 
+    def test_subdimmiddle_subdimleft_blocked(self):
+        grid = Grid(shape=(20, 20, 20))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+        thickness = 4
+
+        u = TimeFunction(name='u', grid=grid)
+
+        zl = SubDimension.left(name='zl', parent=z, thickness=thickness)
+        zi = SubDimension.middle(name='zi', parent=z, thickness_left=thickness,
+                                 thickness_right=thickness)
+
+        eqns = [Eq(u[t+1, x, y, zi], u[t, x, y, zi] + 1),
+                Eq(u[t+1, x, y, zl], u[t, x, y, zl] + 1)]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expected loop blocking over x and y, with the
+        # two z loops, zi and zl, within y
+        assert_structure(op,
+                         ['t,x0_blk0,y0_blk0,x,y,zi', 't,x0_blk0,y0_blk0,x,y,zl'],
+                         't,x0_blk0,y0_blk0,x,y,zi,zl')
+
+        op.apply(time_M=0)
+        assert np.all(u.data[0] == 0)
+        assert np.all(u.data[1, :, :, :-thickness] == 1)
+        assert np.all(u.data[1, :, :, -thickness:] == 0)
+
+    def test_subdim_blocked_w_partial_reuse(self):
+        grid = Grid(shape=(12, 12, 12))
+        x, y, z = grid.dimensions
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        zr = SubDimension.right(name='zr', parent=z, thickness=4)
+
+        eqns = [Eq(f.forward, f.dx2 + 1.),
+                Eq(f.forward, 0).subs(z, zr)]
+
+        op = Operator(eqns)
+
+        # Check generated code -- expected loop blocking
+        assert_structure(op,
+                         ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,zr'],
+                         't,x0_blk0,y0_blk0,x,y,z,zr')
+
     def test_subdim_fd(self):
         """
         Test that the FD shortcuts are handled correctly with SubDimensions
@@ -480,7 +698,7 @@ class TestSubDimension(object):
         f = Function(name='f', grid=grid)
         a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
-                      openmp=False)
+                      opt=('advanced', {'openmp': False}))
         assert len(op.parameters) == 6
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
@@ -542,11 +760,38 @@ class TestConditionalDimension(object):
 
         eqns = [Eq(u.forward, u + 1.), Eq(u2.forward, u2 + 1.), Eq(usave, u)]
         op = Operator(eqns)
-        op.apply(t_M=nt-2)
+        op.apply()
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
         assert np.all([np.allclose(u2.data[i], i) for i in range(nt)])
         assert np.all([np.allclose(usave.data[i], i*factor)
                       for i in range((nt+factor-1)//factor)])
+
+    def test_overrides(self):
+        # Check overrides
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        f1, f2 = 4, 5
+        n1, n2 = (nt+f1-1)//f1, (nt+f2-1)//f2
+        t1 = ConditionalDimension('t_sub1', parent=time, factor=f1)
+        t2 = ConditionalDimension('t_sub2', parent=time, factor=f2)
+        u1 = TimeFunction(name='usave1', grid=grid, save=n1, time_dim=t1)
+        u2 = TimeFunction(name='usave2', grid=grid, save=n2, time_dim=t2)
+        assert(t1 in u1.indices)
+        assert(t2 in u2.indices)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(u1, u), Eq(u2, u)]
+        op = Operator(eqns)
+        op.apply(u=u, usave1=u1, usave2=u2, time_M=nt-2)
+
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        for (uk, fk) in zip((u1, u2), (f1, f2)):
+            assert np.all([np.allclose(uk.data[i], i*fk)
+                           for i in range((nt+fk-1)//fk)])
 
     def test_basic_shuffles(self):
         """
@@ -847,10 +1092,11 @@ class TestConditionalDimension(object):
         # 0 --- 0 --- 0 --- 0
 
         radius = 1
-        indices = [(i, i+radius) for i in sf._coordinate_indices]
+        indices = [(INT(floor(i)), INT(floor(i))+radius)
+                   for i in sf._position_map.keys()]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
-        eqs = []
+        eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
             args.extend([j < k for j, k in zip(i, bounds)])
@@ -892,6 +1138,39 @@ class TestConditionalDimension(object):
         assert np.all(usave.data[1] == 3)
         assert np.all(usave.data[2] == 5)
         assert np.all(usave.data[3] == 7)
+
+    def test_auto_override_factor(self):
+        grid = Grid(shape=(4, 4, 4))
+        time_dim = grid.time_dim
+
+        fact = Constant(name='fact', dtype=np.int32, value=4)
+        tsub = ConditionalDimension(name='tsub', parent=time_dim, factor=fact)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=tsub, save=4)
+
+        eqns = [Eq(u, u + 1),
+                Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        op.apply(time_M=7)  # Use `fact`'s default value, 4
+        assert np.all(usave.data[0] == 1)
+        assert np.all(usave.data[1] == 5)
+        assert np.all(usave.data[2:] == 0)
+
+        # Now try with a different set of input
+        fact1 = Constant(name='fact', dtype=np.int32, value=3)
+        tsub1 = ConditionalDimension(name='tsub', parent=time_dim, factor=fact1)
+
+        u1 = TimeFunction(name='u', grid=grid, time_order=0)
+        usave1 = TimeFunction(name='usave', grid=grid, time_dim=tsub1, save=4)
+
+        op.apply(time_M=7, u=u1, usave=usave1)  # Expect to use tsub1's factor!
+        assert np.all(usave1.data[0] == 1)
+        assert np.all(usave1.data[1] == 4)
+        assert np.all(usave1.data[2] == 7)
+        assert np.all(usave1.data[3:] == 0)
 
     def test_implicit_dims(self):
         """
@@ -1179,6 +1458,7 @@ class TestConditionalDimension(object):
         iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim is not time]
         assert all(i.is_Affine for i in iterations)
 
+    @switchconfig(safe_math=True)
     def test_sparse_time_function(self):
         nt = 20
 
@@ -1210,16 +1490,13 @@ class TestConditionalDimension(object):
 
         assert np.all(p.data[0] == 0)
         # Note the endpoint of the range is 12 because we inject at p.forward
-        assert all(p.data[i].sum() == i - 1 for i in range(1, 12))
-        assert all(p.data[i, 10, 10, 10] == i - 1 for i in range(1, 12))
-        assert all(np.all(p.data[i] == 0) for i in range(12, 20))
+        for i in range(1, 12):
+            assert p.data[i].sum() == i - 1
+            assert p.data[i, 10, 10, 10] == i - 1
+        for i in range(12, 20):
+            assert np.all(p.data[i] == 0)
 
-    @pytest.mark.parametrize('init_value,expected', [
-        ([2, 1, 3], [2, 2, 0]),  # updates f1, f2
-        ([3, 3, 3], [3, 3, 0]),  # updates f2
-        ([1, 2, 3], [1, 2, 3])  # no updates
-    ])
-    def test_issue_1435(self, init_value, expected):
+    def test_issue_1435(self):
         names = 't1 t2 t3 t4 t5 t6 t7 t8 t9 t10'
         t1, t2, t3, t4, t5, t6, t7, t8, t9, t10 = \
             tuple(SpaceDimension(i) for i in names.split())
@@ -1229,10 +1506,6 @@ class TestConditionalDimension(object):
         f1 = Function(name='f1', grid=Grid(shape=(2, 2, 3, 3),
                                            dimensions=(t5, t6, t7, t8)))
         f2 = Function(name='f2', grid=f1.grid)
-
-        f0.data[:] = init_value[0]
-        f1.data[:] = init_value[1]
-        f2.data[:] = init_value[2]
 
         cd = ConditionalDimension(name='cd', parent=t10,
                                   condition=Or(Gt(f0[t5, t6, t7 + t9,
@@ -1250,11 +1523,6 @@ class TestConditionalDimension(object):
 
         # Check it compiles correctly! See issue report
         op.cfunction
-        op.apply(t9_M=5, t10_M=5)
-
-        assert np.all(f0.data[:] == expected[0])
-        assert np.all(f1.data[:] == expected[1])
-        assert np.all(f2.data[:] == expected[2])
 
     @pytest.mark.parametrize('factor', [
         4,
@@ -1275,7 +1543,7 @@ class TestConditionalDimension(object):
 
         op = Operator(Eq(f, 1))
 
-        assert op.arguments()['time_M'] == 4*(save-1)  # == min legal endpoint
+        assert op.arguments()['time_M'] == 4*save-1  # == min legal endpoint
 
         # Also no issues when supplying an override
         assert op.arguments(time_M=10)['time_M'] == 10
@@ -1290,7 +1558,6 @@ class TestConditionalDimension(object):
         i = Dimension(name='i')
 
         ci = ConditionalDimension(name='ci', parent=i, factor=factor)
-
         g = Function(name='g', shape=(size,), dimensions=(i,))
         f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
 
@@ -1342,6 +1609,100 @@ class TestConditionalDimension(object):
         assert len(trees) == 3
         assert trees[1][1].nodes[0].is_Conditional
 
+    def test_diff_guards_halts_topofuse(self):
+        grid = Grid(shape=(4,))
+        time = grid.time_dim
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+        s2 = Symbol(name='s2')
+
+        cd0 = ConditionalDimension(name='cd0', parent=time, condition=Ge(time, 2))
+
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        eqns = [
+            Eq(s0, time, implicit_dims=(cd0,)),
+            Eq(s1, time, implicit_dims=(cd0,)),
+            Eq(f, s0 + s1, implicit_dims=(cd0,)),
+            Eq(s2, time),
+            Eq(g, s2)
+        ]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        assert_structure(op, ['t', 't,x', 't,x'], 't,x,x')
+
+    def test_array_shared_w_topofuse(self):
+        shape = (4, 4, 4)
+        dims = dimensions('i x y')
+
+        i, _, _ = dims
+        cd0 = ConditionalDimension(name='cd0', parent=i, condition=Ge(i, 2))
+
+        f = Function(name='f', dimensions=dims, shape=shape)
+        a0 = Array(name='a0', dimensions=dims, scope='shared')
+        a1 = Array(name='a1', dimensions=dims, scope='shared')
+
+        eqns = [Eq(a0, 1),
+                Eq(a0, 1, implicit_dims=(cd0,)),
+                Eq(f, a0),
+                Eq(a1, 1),
+                Eq(a1, 2, implicit_dims=(cd0,))]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
+
+    def test_cond_notime(self):
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        time_under = ConditionalDimension(name='timeu', parent=time, factor=5)
+        nt = 10
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        usaved = TimeFunction(name='usaved', grid=grid, space_order=2,
+                              time_dim=time_under, save=nt//5+1)
+        g = Function(name='g', grid=grid)
+
+        op = Operator([Eq(usaved, u)])
+        op(time_m=1, time_M=nt-1, dt=1)
+
+        op = Operator([Inc(g, usaved)])
+        op(time_m=1, time_M=nt-1, dt=1)
+        assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
+
+
+class TestCustomDimension(object):
+
+    def test_shifted_minmax(self):
+        grid = Grid(shape=(4, 4))
+
+        so = 4
+
+        u = TimeFunction(name='u', grid=grid, space_order=so)
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+
+        subdims = [CustomDimension(name=d.name, parent=d,
+                                   symbolic_min=d.symbolic_min - so,
+                                   symbolic_max=d.symbolic_max + so)
+                   for d in grid.dimensions]
+
+        eqn = Eq(v, u)
+        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims)))
+
+        op = Operator(eqn)
+
+        u.data_with_halo[:] = 1.
+
+        op.apply(time_M=1)
+
+        assert np.all(v.data_with_halo[:] == 1)
+
 
 class TestMashup(object):
 
@@ -1370,7 +1731,7 @@ class TestMashup(object):
         eqns = [Eq(f.forward, f + 1),
                 Eq(g.forward, g + 1),
                 Eq(fsave, f.dt2, implicit_dims=[ctime]),
-                Eq(h, f + g, subdomain=grid.interior),
+                Eq(h, f.dx + g, subdomain=grid.interior),
                 Eq(gsave, g.dt2, implicit_dims=[ctime])]
 
         op = Operator(eqns)

@@ -1,9 +1,11 @@
 from collections import Counter, defaultdict
 from itertools import groupby, product
 
+from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
                                WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
@@ -31,7 +33,8 @@ class Lift(Queue):
             # No iteration space to be lifted from
             return clusters
 
-        hope_invariant = prefix[-1].dim._defines
+        dim = prefix[-1].dim
+        hope_invariant = dim._defines
         outer = set().union(*[i.dim._defines for i in prefix[:-1]])
 
         lifted = []
@@ -39,6 +42,12 @@ class Lift(Queue):
         for n, c in enumerate(clusters):
             # Increments prevent lifting
             if c.has_increments:
+                processed.append(c)
+                continue
+
+            # Synchronization prevents lifting
+            if c.syncs.get(dim) or \
+               in_critical_region(c, clusters):
                 processed.append(c)
                 continue
 
@@ -92,6 +101,9 @@ class Fusion(Queue):
     Fuse Clusters with compatible IterationSpace.
     """
 
+    _q_guards_in_key = True
+    _q_syncs_in_key = True
+
     def __init__(self, toposort, options=None):
         options = options or {}
 
@@ -100,13 +112,8 @@ class Fusion(Queue):
 
         super().__init__()
 
-    def _make_key_hook(self, cgroup, level):
-        assert level > 0
-        assert len(cgroup.guards) == 1
-        return (tuple(cgroup.guards[0].get(i.dim) for i in cgroup.itintervals[:level-1]),)
-
     def process(self, clusters):
-        cgroups = [ClusterGroup(c, c.itintervals) for c in clusters]
+        cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
         cgroups = self._process_fdta(cgroups, 1)
         clusters = ClusterGroup.concatenate(*cgroups)
         return clusters
@@ -115,77 +122,178 @@ class Fusion(Queue):
         # Toposort to maximize fusion
         if self.toposort:
             clusters = self._toposort(cgroups, prefix)
+            if self.toposort == 'nofuse':
+                return [clusters]
         else:
             clusters = ClusterGroup(cgroups)
 
         # Fusion
         processed = []
-        for k, g in groupby(clusters, key=self._key):
-            maybe_fusible = list(g)
+        for k, group in groupby(clusters, key=self._key):
+            g = list(group)
 
-            if len(maybe_fusible) == 1:
-                processed.extend(maybe_fusible)
-            else:
-                try:
-                    # Perform fusion
-                    fused = Cluster.from_clusters(*maybe_fusible)
-                    processed.append(fused)
-                except ValueError:
-                    # We end up here if, for example, some Clusters have same
-                    # iteration Dimensions but different (partial) orderings
+            for maybe_fusible in self._apply_heuristics(g):
+                if len(maybe_fusible) == 1:
                     processed.extend(maybe_fusible)
+                else:
+                    try:
+                        # Perform fusion
+                        processed.append(Cluster.from_clusters(*maybe_fusible))
+                    except ValueError:
+                        # We end up here if, for example, some Clusters have same
+                        # iteration Dimensions but different (partial) orderings
+                        processed.extend(maybe_fusible)
 
-        return [ClusterGroup(processed, prefix)]
+        # Maximize effectiveness of topo-sorting at next stage by only
+        # grouping together Clusters characterized by data dependencies
+        if self.toposort and prefix:
+            dag = self._build_dag(processed, prefix)
+            mapper = dag.connected_components(enumerated=True)
+            groups = groupby(processed, key=mapper.get)
+            return [ClusterGroup(tuple(g), prefix) for _, g in groups]
+        else:
+            return [ClusterGroup(processed, prefix)]
+
+    class Key(tuple):
+
+        """
+        A fusion Key for a Cluster (ClusterGroup) is a hashable tuple such that
+        two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
+        identical.
+
+        A Key contains several elements that can logically be split into two
+        groups -- the `strict` and the `weak` components of the Key.
+        Two Clusters (ClusterGroups) having same `strict` but different `weak` parts
+        are, as by definition, not fusible; however, since at least their `strict`
+        parts match, they can at least be topologically reordered.
+        """
+
+        def __new__(cls, strict, weak):
+            obj = super().__new__(cls, strict + weak)
+            obj.strict = tuple(strict)
+            obj.weak = tuple(weak)
+
+            return obj
 
     def _key(self, c):
-        # Two Clusters/ClusterGroups are fusion candidates if their key is identical
+        strict = []
 
-        key = (frozenset(c.itintervals), c.guards)
+        strict.extend([
+            frozenset(c.ispace.itintervals),
+            c.guards if any(c.guards) else None
+        ])
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
         if isinstance(c, Cluster):
             syncs = (c.syncs,)
         else:
-            syncs = c.syncs
+            syncs = tuple(i.syncs for i in c)
         for i in syncs:
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if isinstance(s, (FetchUpdate, PrefetchUpdate)):
+                    if isinstance(s, PrefetchUpdate) or \
+                       (not self.fusetasks and isinstance(s, WaitLock)):
+                        # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
+                        # be fused, as in the worst case scenario the WaitLocks
+                        # get "hoisted" above the first Cluster in the sequence
                         continue
-                    elif (isinstance(s, (WaitLock, ReleaseLock)) or
+                    elif (isinstance(s, (FetchUpdate, WaitLock, ReleaseLock)) or
                           (self.fusetasks and isinstance(s, WithLock))):
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)
-                mapper[k] = frozenset(mapper[k])
-            mapper = frozendict(mapper)
-            key += (mapper,)
+                if k in mapper:
+                    mapper[k] = frozenset(mapper[k])
+            strict.append(frozendict(mapper))
+
+        weak = []
+
+        # Clusters representing HaloTouches should get merged, if possible
+        weak.append(c.is_halo_touch)
+
+        # If there are writes to thread-shared object, make it part of the key.
+        # This will promote fusion of non-adjacent Clusters writing to (some form of)
+        # shared memory, which in turn will minimize the number of necessary barriers
+        # Same story for reads from thread-shared objects
+        weak.extend([
+            any(f._mem_shared for f in c.scope.writes),
+            any(f._mem_shared for f in c.scope.reads)
+        ])
+
+        # Promoting adjacency of IndexDerivatives will maximize their reuse
+        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
+
+        key = self.Key(strict, weak)
 
         return key
+
+    def _apply_heuristics(self, clusters):
+        # We know at this point that `clusters` are potentially fusible since
+        # they have same `_key`, but should we actually fuse them? In most cases
+        # yes, but there are exceptions...
+
+        # 1) Consider the following scenario with three Clusters:
+        #  c0[no syncs]
+        #  c1[WaitLock]
+        #  c2[no syncs]
+        # Then we return two groups [[c0], [c1, c2]] rather than a single group
+        # [[c0, c1, c2]] because this way c0 can be computed without having to
+        # wait on a lock for a longer period
+        processed = []
+
+        group = []
+        flag = False  # True -> need to dump before creating a new group
+
+        def dump():
+            processed.append(tuple(group))
+            group[:] = []
+
+        for c in clusters:
+            if any(isinstance(i, WaitLock) for i in flatten(c.syncs.values())):
+                if flag:
+                    dump()
+                    flag = False
+            else:
+                flag = True
+            group.append(c)
+        dump()
+
+        # 2) Don't group HaloTouch's
+
+        groups, processed = processed, []
+        for group in groups:
+            for flag, minigroup in groupby(group, key=lambda c: c.is_wild):
+                if flag:
+                    processed.extend([(c,) for c in minigroup])
+                else:
+                    processed.append(tuple(minigroup))
+
+        return processed
 
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be fused? If
         # not, do not waste time computing a new topological ordering
-        counter = Counter(self._key(cg) for cg in cgroups)
+        counter = Counter(self._key(cg).strict for cg in cgroups)
         if not any(v > 1 for it, v in counter.most_common()):
-            return ClusterGroup(cgroups)
+            return ClusterGroup(cgroups, prefix)
 
         # Similarly, if all ClusterGroups have the same exact prefix and
         # use the same form of synchronization (if any at all), no need to
         # attempt a topological sorting
         if len(counter.most_common()) == 1:
-            return ClusterGroup(cgroups)
+            return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
 
         def choose_element(queue, scheduled):
+            if not scheduled:
+                return queue.pop()
+
             # Heuristic: let `k0` be the key of the last scheduled node; then out of
             # the possible schedulable nodes we pick the one with key `k1` such that
             # `max_i : k0[:i] == k1[:i]` (i.e., the one with "the most similar key")
-            if not scheduled:
-                return queue.pop()
             key = self._key(scheduled[-1])
             for i in reversed(range(len(key) + 1)):
                 candidates = [e for e in queue if self._key(e)[:i] == key[:i]]
@@ -196,9 +304,10 @@ class Fusion(Queue):
                     continue
                 queue.remove(e)
                 return e
+
             assert False
 
-        return ClusterGroup(dag.topological_sort(choose_element))
+        return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
     def _build_dag(self, cgroups, prefix):
         """
@@ -209,22 +318,23 @@ class Fusion(Queue):
 
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
+
+            def is_cross(source, sink):
+                # True if a cross-ClusterGroup dependence, False otherwise
+                t0 = source.timestamp
+                t1 = sink.timestamp
+                v = len(cg0.exprs)
+                return t0 < v <= t1 or t1 < v <= t0
+
             for cg1 in cgroups[n+1:]:
                 # A Scope to compute all cross-ClusterGroup anti-dependences
-                rule = lambda i: i.is_cross
-                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=rule)
-
-                # Optimization: we exploit the following property:
-                # no prefix => (edge <=> at least one (any) dependence)
-                # to jump out of this potentially expensive loop as quickly as possible
-                if not prefix and any(scope.d_all_gen()):
-                    dag.add_edge(cg0, cg1)
+                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=is_cross)
 
                 # Anti-dependences along `prefix` break the execution flow
                 # (intuitively, "the loop nests are to be kept separated")
                 # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
                 # * All ClusterGroups after `cg1` cannot precede `cg1`
-                elif any(i.cause & prefix for i in scope.d_anti_gen()):
+                if any(i.cause & prefix for i in scope.d_anti_gen()):
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
                         dag.add_edge(cg2, cg1)
                     for cg2 in cgroups[cgroups.index(cg1)+1:]:
@@ -232,19 +342,10 @@ class Fusion(Queue):
                     break
 
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
-                # while not being its immediate successor (unless it already is),
-                # to avoid they are fused together (thus breaking the dependence)
-                # TODO: the "not being its immediate successor" part *seems* to be
-                # a work around to the fact that any two Clusters characterized
-                # by anti-dependence should have been given a different stamp,
-                # and same for guarded Clusters, but that is not the case (yet)
+                # and forbid any sort of fusion
                 elif any(scope.d_anti_gen()) or\
                         any(i.is_iaw for i in scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
-                    index = cgroups.index(cg1) - 1
-                    if index > n and self._key(cg0) == self._key(cg1):
-                        dag.add_edge(cg0, cgroups[index])
-                        dag.add_edge(cgroups[index], cg1)
 
                 # Any flow-dependences along an inner Dimension (i.e., a Dimension
                 # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
@@ -263,10 +364,26 @@ def fuse(clusters, toposort=False, options=None):
     """
     Clusters fusion.
 
-    If ``toposort=True``, then the Clusters are reordered to maximize the likelihood
-    of fusion; the new ordering is computed such that all data dependencies are honored.
+    If `toposort=True`, then the Clusters are reordered to maximize the likelihood
+    of fusion; the new ordering is computed such that all data dependencies are
+    honored.
+
+    If `toposort='maximal'`, then `toposort` is performed, iteratively, multiple
+    times to actually maximize Clusters fusion. Hence, this is more aggressive than
+    `toposort=True`.
     """
-    return Fusion(toposort, options).process(clusters)
+    if toposort != 'maximal':
+        return Fusion(toposort, options).process(clusters)
+
+    nxt = clusters
+    while True:
+        nxt = fuse(clusters, toposort='nofuse', options=options)
+        if all(c0 is c1 for c0, c1 in zip(clusters, nxt)):
+            break
+        clusters = nxt
+    clusters = fuse(clusters, toposort=False, options=options)
+
+    return clusters
 
 
 @cluster_pass(mode='all')
@@ -294,7 +411,7 @@ class Fission(Queue):
             return clusters
 
         # Do not waste time if definitely nothing to do
-        if all(len(prefix) == len(c.itintervals) for c in clusters):
+        if all(len(prefix) == len(c.ispace) for c in clusters):
             return clusters
 
         # Analyze and abort if fissioning would break a dependence
@@ -330,7 +447,7 @@ class Fission(Queue):
             index = len(prefix)
             dims = tuple(i.dim for i in prefix)
 
-            it = c.itintervals[index]
+            it = c.ispace[index]
             guards = frozendict({d: v for d, v in c.guards.items() if d in dims})
 
             return (it, guards)

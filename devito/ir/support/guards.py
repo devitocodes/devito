@@ -4,15 +4,15 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
-from sympy import Ge, Gt, Le, Lt, Mul, true
-from sympy.core.operations import LatticeOp
+from sympy import And, Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, CondNe, FLOAT
+from devito.symbolics import CondEq, CondNe
+from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'transform_guard']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
 
 
 class Guard(object):
@@ -33,7 +33,7 @@ class Guard(object):
 # *** GuardFactor
 
 
-class GuardFactor(Guard, CondEq):
+class GuardFactor(Guard, CondEq, Pickable):
 
     """
     A guard for factor-based ConditionalDimensions.
@@ -41,6 +41,8 @@ class GuardFactor(Guard, CondEq):
     Given the ConditionalDimension `d` with factor `k`, create the
     symbolic relational `d.parent % k == 0`.
     """
+
+    __rargs__ = ('d',)
 
     def __new__(cls, d, **kwargs):
         assert d.is_Conditional
@@ -126,7 +128,7 @@ class BaseGuardBoundNext(Guard):
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p0` up to the nearest multiple of `v`
+                # Round `p0 + 1` up to the nearest multiple of `v`
                 p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
             else:
                 p0 = p0 + 1
@@ -137,12 +139,12 @@ class BaseGuardBoundNext(Guard):
 
             if d.is_Conditional:
                 v = d.factor
-                # Round `p1` down to the nearest sub-multiple of `v`
-                # NOTE: we use FLOAT(d.factor) to make sure we don't drop negative
-                # values on the floor. E.g., `iteration=time - 1`, `v=2`, then when
-                # `time=0` we want the Mul to evaluate to -1, not to 0, which is
-                # what C's integer division would give us
-                p1 = Mul(((p1 - 1) / FLOAT(v)), v, evaluate=False)
+                # Round `p1 - 1` down to the nearest sub-multiple of `v`
+                # NOTE: we use ABS to make sure we handle negative values properly.
+                # Once `p1 - 1` is negative (e.g. `iteration=time - 1` and `time=0`),
+                # as long as we get a negative number, rather than 0 and even if it's
+                # not `-v`, we're good
+                p1 = (p1 - 1) - abs(p1 - 1) % v
             else:
                 p1 = p1 - 1
 
@@ -195,19 +197,6 @@ class GuardOverflowLt(BaseGuardOverflow, Lt):
 GuardOverflow = GuardOverflowGe
 
 
-def transform_guard(expr, guard_type, callback):
-    """
-    Transform the components of a guard according to `callback`.
-    A component `c` is transformed iff `isinstance(c, guard_type)`.
-    """
-    if isinstance(expr, guard_type):
-        return callback(expr)
-    elif isinstance(expr, LatticeOp):
-        return expr.func(*[transform_guard(a, guard_type, callback) for a in expr.args])
-    else:
-        return expr
-
-
 negations = {
     GuardFactorEq: GuardFactorNe,
     GuardFactorNe: GuardFactorEq,
@@ -218,3 +207,102 @@ negations = {
     GuardOverflowGe: GuardOverflowLt,
     GuardOverflowLt: GuardOverflowGe
 }
+
+
+class Guards(frozendict):
+
+    """
+    A mapper {Dimension -> guard}.
+
+    The mapper is immutable; operations such as andg, get, ... cause the
+    construction of a new object, leaving self intact.
+    """
+
+    def get(self, d, v=true):
+        return super().get(d, v)
+
+    def andg(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        try:
+            m[d] = simplify_and(m[d], guard)
+        except KeyError:
+            m[d] = guard
+
+        return Guards(m)
+
+    def xandg(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        try:
+            m[d] = And(m[d], guard)
+        except KeyError:
+            pass
+
+        return Guards(m)
+
+    def impose(self, d, guard):
+        m = dict(self)
+
+        if guard == true:
+            return Guards(m)
+
+        m[d] = guard
+
+        return m
+
+    def popany(self, dims):
+        m = dict(self)
+
+        for d in as_tuple(dims):
+            m.pop(d, None)
+
+        return Guards(m)
+
+    def filter(self, key):
+        m = {d: v for d, v in self.items() if key(d)}
+
+        return Guards(m)
+
+
+# *** Utils
+
+def simplify_and(relation, v):
+    """
+    Given `x = And(*relation.args, v)`, return `relation` if `x ≡ relation`,
+    `x` otherwise.
+
+    SymPy doesn't have a builtin function to simplify boolean inequalities; here,
+    we run a set of simple checks to at least discard the most obvious (and thus
+    annoying to see in the generated code) redundancies.
+    """
+    if isinstance(relation, And):
+        candidates, other = split(list(relation.args), lambda a: type(a) is type(v))
+    elif type(relation) is type(v):
+        candidates, other = [relation], []
+    else:
+        candidates, other = [], [relation, v]
+
+    covered = False
+    new_args = []
+    for a in candidates:
+        if a.lhs is v.lhs:
+            covered = True
+            if type(a) in (Gt, Ge) and v.rhs > a.rhs:
+                new_args.append(v)
+            elif type(a) in (Lt, Le) and v.rhs < a.rhs:
+                new_args.append(v)
+            else:
+                new_args.append(a)
+        else:
+            new_args.append(a)
+    if not covered:
+        new_args.append(v)
+
+    return And(*(new_args + other))

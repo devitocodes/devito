@@ -42,7 +42,7 @@ def test_viscoelastic(dtype):
     assert np.isclose(norm(rec2), 0.312461, atol=1e-3, rtol=0)
 
 
-@pytest.mark.parametrize('shape', [(101,), (51, 51), (16, 16, 16)])
+@pytest.mark.parametrize('shape', [(51, 51), (16, 16, 16)])
 def test_viscoelastic_stability(shape):
     spacing = tuple([20]*len(shape))
     _, _, _, [rec1, rec2, v, tau] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0)

@@ -3,19 +3,17 @@ from packaging.version import Version
 import cgen as c
 from sympy import And, Ne, Not
 
-from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX
+from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
 from devito.arch.compiler import GNUCompiler
 from devito.ir import (Call, Conditional, DeviceCall, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, While,
-                       FindSymbols)
+                       ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer)
+                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
@@ -32,7 +30,7 @@ class OmpRegion(ParallelBlock):
         return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
 
 
-class OmpIteration(ParallelIteration):
+class OmpIteration(PragmaIteration):
 
     @classmethod
     def _make_construct(cls, parallel=False, **kwargs):
@@ -42,11 +40,12 @@ class OmpIteration(ParallelIteration):
             return 'omp for'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, chunk_size=None, nthreads=None,
+    def _make_clauses(cls, ncollapsed=0, chunk_size=None, nthreads=None,
                       reduction=None, schedule=None, **kwargs):
         clauses = []
 
-        clauses.append('collapse(%d)' % (ncollapse or 1))
+        if ncollapsed > 1:
+            clauses.append('collapse(%d)' % ncollapsed)
 
         if chunk_size is not False:
             clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
@@ -56,20 +55,9 @@ class OmpIteration(ParallelIteration):
             clauses.append('num_threads(%s)' % nthreads)
 
         if reduction:
-            clauses.append(make_clause_reduction(reduction))
+            clauses.append(cls._make_clause_reduction_from_imask(reduction))
 
         return clauses
-
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('schedule', None)
-        kwargs.pop('parallel', False)
-        kwargs.pop('chunk_size', None)
-        kwargs.pop('nthreads', None)
-
-        return kwargs
 
 
 class DeviceOmpIteration(OmpIteration):
@@ -90,14 +78,6 @@ class DeviceOmpIteration(OmpIteration):
 
         return clauses
 
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('gpu_fit', None)
-
-        return kwargs
-
 
 class ThreadedProdder(Conditional, Prodder):
 
@@ -110,7 +90,7 @@ class ThreadedProdder(Conditional, Prodder):
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
         # as it's required
-        prod_until = Not(DefFunction(prodder.name, [i.name for i in prodder.arguments]))
+        prod_until = Not(DefFunction(prodder.name, prodder.arguments))
         then_body = List(header=c.Comment('Entrap thread until comms have completed'),
                          body=While(prod_until))
         Conditional.__init__(self, condition, then_body)
@@ -129,6 +109,7 @@ class OmpBB(LangBB):
         AMDGPUX: None,
         NVIDIAX: None,
         INTELGPUX: None,
+        PVC: None,
         # Runtime library
         'init': None,
         'thread-num': lambda retobj=None:
