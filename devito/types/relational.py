@@ -9,6 +9,9 @@ class AbstractRel(object):
     """
     Abstract mixin class for objects subclassing sympy.Relational.
     """
+
+    __rargs__ = ('lhs', 'rhs')
+
     @property
     def negated(self):
         return ops.get(self.func)(*self.args)

@@ -13,7 +13,7 @@ from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic
 from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
-from devito.types.relational import Le, Lt, Gt, Ge
+from devito.types.relational import Le, Lt, Gt, Ge, AbstractRel
 from devito.types.dimension import ConditionalDimension
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
@@ -48,9 +48,11 @@ def uxreplace(expr, rule):
 
 
 def _uxreplace(expr, rule):
+    print("expr", expr, "rule", rule)
     if expr in rule:
         v = rule[expr]
         if not isinstance(v, dict):
+            print("Substituted and returned")
             return v, True
         args, eargs = split(expr.args, lambda i: i in v)
         args = [v[i] for i in args if v[i] is not None]
@@ -69,20 +71,29 @@ def _uxreplace(expr, rule):
             args, eargs = [], []
         changed = False
 
+    print("eargs", eargs)
+
     if rule:
         eargs, flag = _uxreplace_dispatch(eargs, rule)
         args.extend(eargs)
+
+        print("Args", args)
         changed |= flag
 
         # If a Reconstructable object, we need to parse the kwargs as well
         if _uxreplace_registry.dispatchable(expr):
-            v = {i: getattr(expr, i) for i in expr.__rkwargs__}
+            try:
+                v = {i: getattr(expr, i) for i in expr.__rkwargs__}
+            except AttributeError:
+                # Reconstructable has no kwargs
+                v = {}
             kwargs, flag = _uxreplace_dispatch(v, rule)
         else:
             kwargs, flag = {}, False
         changed |= flag
-
+        print("args", args, "kwargs", kwargs)
         if changed:
+            # FIXME: Needs to grab __rargs__ as well as rkwargs
             return _uxreplace_handle(expr, args, kwargs), True
 
     return expr, False
@@ -90,11 +101,19 @@ def _uxreplace(expr, rule):
 
 @singledispatch
 def _uxreplace_dispatch(unknown, rule):
+    print("Ended up at default")
     return unknown, False
 
 
 @_uxreplace_dispatch.register(Basic)
 def _(expr, rule):
+    print("Ended up at the Basic handler")
+    return _uxreplace(expr, rule)
+
+
+@_uxreplace_dispatch.register(AbstractRel)
+def _(expr, rule):
+    print("Ended up at the AbstractRel handler")
     return _uxreplace(expr, rule)
 
 
@@ -116,7 +135,9 @@ def _(mapper, rule):
     ret = {}
     changed = False
     for k, v in mapper.items():
+        print("k", k, "v", v)
         vx, flag = _uxreplace_dispatch(v, rule)
+        print("vx", vx, "flag", flag)
         ret[k] = vx
         changed |= flag
     return ret, changed
@@ -189,6 +210,8 @@ _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
 _uxreplace_registry.register(ConditionalDimension)
+# For replacing conditionals
+_uxreplace_registry.register(Gt)
 
 
 class Uxmapper(dict):
