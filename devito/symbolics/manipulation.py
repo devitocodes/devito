@@ -48,11 +48,9 @@ def uxreplace(expr, rule):
 
 
 def _uxreplace(expr, rule):
-    print("expr", expr, "rule", rule)
     if expr in rule:
         v = rule[expr]
         if not isinstance(v, dict):
-            print("Substituted and returned")
             return v, True
         args, eargs = split(expr.args, lambda i: i in v)
         args = [v[i] for i in args if v[i] is not None]
@@ -71,17 +69,13 @@ def _uxreplace(expr, rule):
             args, eargs = [], []
         changed = False
 
-    print("eargs", eargs)
-
     if rule:
         eargs, flag = _uxreplace_dispatch(eargs, rule)
         args.extend(eargs)
 
-        print("Args", args)
         changed |= flag
 
-        # If a Reconstructable object, we need to parse the kwargs as well
-        # Also need to parse the args
+        # If a Reconstructable object, we need to parse args and kwargs
         if _uxreplace_registry.dispatchable(expr):
             try:
                 v = [getattr(expr, i) for i in expr.__rargs__]
@@ -107,7 +101,6 @@ def _uxreplace(expr, rule):
             kwargs, kwflag = {}, False
         flag = aflag | kwflag
         changed |= flag
-        print("args", args, "kwargs", kwargs)
         if changed:
             return _uxreplace_handle(expr, args, kwargs), True
 
@@ -116,19 +109,16 @@ def _uxreplace(expr, rule):
 
 @singledispatch
 def _uxreplace_dispatch(unknown, rule):
-    print("Ended up at default")
     return unknown, False
 
 
 @_uxreplace_dispatch.register(Basic)
 def _(expr, rule):
-    print("Ended up at the Basic handler")
     return _uxreplace(expr, rule)
 
 
 @_uxreplace_dispatch.register(AbstractRel)
 def _(expr, rule):
-    print("Ended up at the AbstractRel handler")
     return _uxreplace(expr, rule)
 
 
@@ -150,9 +140,7 @@ def _(mapper, rule):
     ret = {}
     changed = False
     for k, v in mapper.items():
-        print("k", k, "v", v)
         vx, flag = _uxreplace_dispatch(v, rule)
-        print("vx", vx, "flag", flag)
         ret[k] = vx
         changed |= flag
     return ret, changed
@@ -225,8 +213,6 @@ _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
 _uxreplace_registry.register(ConditionalDimension)
-# For replacing conditionals
-_uxreplace_registry.register(Gt)
 
 
 class Uxmapper(dict):
