@@ -81,19 +81,34 @@ def _uxreplace(expr, rule):
         changed |= flag
 
         # If a Reconstructable object, we need to parse the kwargs as well
+        # Also need to parse the args
         if _uxreplace_registry.dispatchable(expr):
+            try:
+                v = [getattr(expr, i) for i in expr.__rargs__]
+            except AttributeError:
+                # Reconstructable has no required args
+                v = []
+            aargs, aflag = _uxreplace_dispatch(v, rule)
+
+            if not args:
+                args = aargs
+            elif len(args) != len(aargs):
+                raise ValueError("%s args provided, but %s args required"
+                                 % (len(args), len(aargs)))
+
             try:
                 v = {i: getattr(expr, i) for i in expr.__rkwargs__}
             except AttributeError:
-                # Reconstructable has no kwargs
+                # Reconstructable has no required kwargs
                 v = {}
-            kwargs, flag = _uxreplace_dispatch(v, rule)
+            kwargs, kwflag = _uxreplace_dispatch(v, rule)
         else:
-            kwargs, flag = {}, False
+            aflag = False
+            kwargs, kwflag = {}, False
+        flag = aflag | kwflag
         changed |= flag
         print("args", args, "kwargs", kwargs)
         if changed:
-            # FIXME: Needs to grab __rargs__ as well as rkwargs
             return _uxreplace_handle(expr, args, kwargs), True
 
     return expr, False
