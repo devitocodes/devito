@@ -1,4 +1,4 @@
-def div(func, shift=None):
+def div(func, shift=None, order=None):
     """
     Divergence of the input Function.
 
@@ -7,12 +7,12 @@ def div(func, shift=None):
     func : Function or TensorFunction
     """
     try:
-        return func.div(shift=shift)
+        return func.div(shift=shift, order=order)
     except AttributeError:
         return 0
 
 
-def grad(func, shift=None):
+def grad(func, shift=None, order=None):
     """
     Gradient of the input Function.
 
@@ -21,12 +21,12 @@ def grad(func, shift=None):
     func : Function or VectorFunction
     """
     try:
-        return func.grad(shift=shift)
+        return func.grad(shift=shift, order=order)
     except AttributeError:
         raise AttributeError("Gradient not supported for class %s" % func.__class__)
 
 
-def curl(func):
+def curl(func, shift=None, order=None):
     """
     Curl of the input Function.
 
@@ -35,12 +35,12 @@ def curl(func):
     func : VectorFunction
     """
     try:
-        return func.curl
+        return func.curl(shift=shift, order=order)
     except AttributeError:
         raise AttributeError("Curl only supported for 3D VectorFunction")
 
 
-def laplace(func):
+def laplace(func, shift=None, order=None):
     """
     Laplacian of the input Function.
 
@@ -49,7 +49,7 @@ def laplace(func):
     func : Function or TensorFunction
     """
     try:
-        return func.laplace
+        return func.laplacian(shift=shift, order=order)
     except AttributeError:
         return 0
 

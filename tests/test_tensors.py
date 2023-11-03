@@ -4,7 +4,8 @@ import sympy
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
-from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad
+from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl
+from devito.symbolics import retrieve_derivatives
 from devito.types import NODE
 
 
@@ -286,33 +287,34 @@ def test_partial_devito_tens(func1):
 def test_shifted_grad_of_vector(shift, ndim):
     grid = Grid(tuple([11]*ndim))
     f = VectorFunction(name="f", grid=grid, space_order=4)
-    gf = grad(f, shift=shift).evaluate
+    for order in [None, 2]:
+        gf = grad(f, shift=shift, order=order).evaluate
 
-    ref = []
-    for i in range(len(grid.dimensions)):
-        for j, d in enumerate(grid.dimensions):
-            x0 = (None if shift is None else d + shift[i][j] * d.spacing if
-                  type(shift) is tuple else d + shift * d.spacing)
-            ge = getattr(f[i], 'd%s' % d.name)(x0=x0)
-            ref.append(ge.evaluate)
+        ref = []
+        for i in range(len(grid.dimensions)):
+            for j, d in enumerate(grid.dimensions):
+                x0 = (None if shift is None else d + shift[i][j] * d.spacing if
+                      type(shift) is tuple else d + shift * d.spacing)
+                ge = getattr(f[i], 'd%s' % d.name)(x0=x0, fd_order=order)
+                ref.append(ge.evaluate)
 
-    for i, d in enumerate(gf):
-        assert d == ref[i]
+        for i, d in enumerate(gf):
+            assert d == ref[i]
 
 
 @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3), ((.5, .5, .5), 3)])
 def test_shifted_div_of_vector(shift, ndim):
     grid = Grid(tuple([11]*ndim))
     v = VectorFunction(name="f", grid=grid, space_order=4)
-    df = div(v, shift=shift).evaluate
-    ref = 0
+    for order in [None, 2]:
+        df = div(v, shift=shift, order=order).evaluate
+        ref = 0
+        for i, d in enumerate(grid.dimensions):
+            x0 = (None if shift is None else d + shift[i] * d.spacing if
+                  type(shift) is tuple else d + shift * d.spacing)
+            ref += getattr(v[i], 'd%s' % d.name)(x0=x0, fd_order=order)
 
-    for i, d in enumerate(grid.dimensions):
-        x0 = (None if shift is None else d + shift[i] * d.spacing if
-              type(shift) is tuple else d + shift * d.spacing)
-        ref += getattr(v[i], 'd%s' % d.name)(x0=x0)
-
-    assert df == ref.evaluate
+        assert df == ref.evaluate
 
 
 @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
@@ -320,17 +322,65 @@ def test_shifted_div_of_vector(shift, ndim):
 def test_shifted_div_of_tensor(shift, ndim):
     grid = Grid(tuple([11]*ndim))
     f = TensorFunction(name="f", grid=grid, space_order=4)
-    df = div(f, shift=shift).evaluate
+    for order in [None, 2]:
+        df = div(f, shift=shift, order=order).evaluate
 
-    ref = []
-    for i, a in enumerate(grid.dimensions):
-        elems = []
-        for j, d in reversed(list(enumerate(grid.dimensions))):
-            x0 = (None if shift is None else d + shift[i][j] * d.spacing if
-                  type(shift) is tuple else d + shift * d.spacing)
-            ge = getattr(f[i, j], 'd%s' % d.name)(x0=x0)
-            elems.append(ge.evaluate)
-        ref.append(sum(elems))
+        ref = []
+        for i, a in enumerate(grid.dimensions):
+            elems = []
+            for j, d in reversed(list(enumerate(grid.dimensions))):
+                x0 = (None if shift is None else d + shift[i][j] * d.spacing if
+                      type(shift) is tuple else d + shift * d.spacing)
+                ge = getattr(f[i, j], 'd%s' % d.name)(x0=x0, fd_order=order)
+                elems.append(ge.evaluate)
+            ref.append(sum(elems))
 
-    for i, d in enumerate(df):
-        assert d == ref[i]
+        for i, d in enumerate(df):
+            assert d == ref[i]
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 3), (.5, 3),
+                                         (tuple([tuple([.5]*3)]*3), 3)])
+def test_shifted_curl_of_vector(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    f = VectorFunction(name="f", grid=grid, space_order=4)
+    for order in [None, 2]:
+        df = curl(f, shift=shift, order=order)
+        drvs = retrieve_derivatives(df)
+        dorder = order or 4
+        for drv in drvs:
+            assert drv.expr in f
+            assert drv.fd_order == dorder
+            if shift is None:
+                assert drv.x0 == {}
+            else:
+                assert drv.dims[0] in drv.x0
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3), ((.5, .5, .5), 3)])
+def test_shifted_lap_of_vector(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    v = VectorFunction(name="f", grid=grid, space_order=4)
+    assert v.laplacian() == v.laplace
+    for order in [None, 2]:
+        df = v.laplacian(shift=shift, order=order)
+        for (vi, dfvi) in zip(v, df):
+            ref = vi.laplacian(shift=shift, order=order)
+            assert dfvi == ref
+
+
+@pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
+                                         (tuple([tuple([.5]*3)]*3), 3)])
+def test_shifted_lap_of_tensor(shift, ndim):
+    grid = Grid(tuple([11]*ndim))
+    v = TensorFunction(name="f", grid=grid, space_order=4)
+    assert v.laplacian() == v.laplace
+    for order in [None, 2]:
+        df = v.laplacian(shift=shift, order=order)
+        for j in range(ndim):
+            ref = 0
+            for i, d in enumerate(v.space_dimensions):
+                x0 = (None if shift is None else d + shift[i][j] * d.spacing if
+                      type(shift) is tuple else d + shift * d.spacing)
+                ref += getattr(v[j, i], 'd%s2' % d.name)(x0=x0, fd_order=order)
+            assert df[j] == ref

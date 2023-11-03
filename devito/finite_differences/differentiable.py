@@ -269,21 +269,32 @@ class Differentiable(sympy.Expr, Evaluable):
         Generates a symbolic expression for the Laplacian, the second
         derivative w.r.t all spatial Dimensions.
         """
-        space_dims = [d for d in self.dimensions if d.is_Space]
-        derivs = tuple('d%s2' % d.name for d in space_dims)
-        return Add(*[getattr(self, d) for d in derivs])
+        return self.laplacian()
 
-    def div(self, shift=None):
+    def laplacian(self, shift=None, order=None):
+        order = order or self.space_order
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
-        return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
+        derivs = tuple('d%s2' % d.name for d in space_dims)
+        return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
+                                      fd_order=order)
+                     for i, d in enumerate(derivs)])
+
+    def div(self, shift=None, order=None):
+        space_dims = [d for d in self.dimensions if d.is_Space]
+        shift_x0 = make_shift_x0(shift, (len(space_dims),))
+        order = order or self.space_order
+        return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
+                                                   fd_order=order)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None):
+    def grad(self, shift=None, order=None):
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
-        comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
+        order = order or self.space_order
+        comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
+                                               fd_order=order)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
