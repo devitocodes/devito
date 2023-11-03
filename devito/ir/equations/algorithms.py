@@ -5,6 +5,7 @@ from sympy import sympify
 
 from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
+from devito.ir.support import pull_dims
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
 
@@ -157,12 +158,18 @@ def separate_dimensions(expressions):
     resolutions = {}
     count = {}  # Keep track of increments on dim names
     processed = []
-    from devito.ir.support import pull_dims
     for e in expressions:
-        dims = dimension_sort(e)
-        dims = set(dims).union(*tuple(pull_dims(d.condition, flag=False)
-                                      for d in dims if d.is_Conditional
-                                      and d.condition is not None))
+        # Think dimension_sort is too eager?
+        # dims = set(dimension_sort(e))
+        # Dimensions in indices
+        dims = set().union(*tuple(set(i.function.dimensions)
+                                  for i in retrieve_indexed(e)))
+        # Dimensions in conditions and ConditionalDimension parents
+        dims = dims.union(*tuple(pull_dims(d.condition, flag=False)
+                                 for d in dims if d.is_Conditional
+                                 and d.condition is not None),
+                          set(d.parent for d in dims if d.is_Conditional))
+        # Sort for groupby
         dims = sorted(dims, key=lambda x: x.name)
 
         # Group dimensions by matching names
@@ -187,7 +194,6 @@ def separate_dimensions(expressions):
                         count[d.name] = 1
                     resolutions[d] = subs[d]
 
-        print(subs)
         # FIXME: ConditionalDimension parent not getting updated here
         processed.append(uxreplace(e, subs))
 

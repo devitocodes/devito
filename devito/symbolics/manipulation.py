@@ -14,7 +14,7 @@ from devito.types.basic import Basic
 from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
-from devito.types.dimension import Dimension
+from devito.types.dimension import ConditionalDimension
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
@@ -188,6 +188,7 @@ _uxreplace_registry = UxreplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
+_uxreplace_registry.register(ConditionalDimension)
 
 
 class Uxmapper(dict):

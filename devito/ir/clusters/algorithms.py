@@ -222,8 +222,6 @@ def guard(clusters):
             # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
             for cd in cds:
-                print("Parent", cd.parent, type(cd.parent))
-                print("Condition", cd.condition)
                 # `BOTTOM` parent implies a guard that lives outside of
                 # any iteration space, which corresponds to the placeholder None
                 if cd.parent is BOTTOM:
