@@ -398,9 +398,7 @@ class IntervalGroup(Ordering):
         relations.update(set().union(*[ig.relations for ig in interval_groups]))
 
         modes = set(ig.mode for ig in interval_groups)
-
         assert len(modes) <= 1
-
         try:
             mode = modes.pop()
         except KeyError:

@@ -383,12 +383,11 @@ class Cluster:
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
 
-        # Buffered TimeDimensions should inherit the higher upper bound
-        # of the involved parts
+        # DataSpace intervals should derive their upper bound from
+        # the higher upper bound available in the involved parts
         for f, v in parts.items():
             try:
-                if f.save:
-                    intervals = intervals.ceil(v[f.time_dim])
+                intervals = intervals.ceil(v[f.time_dim])
             except:
                 pass
 
