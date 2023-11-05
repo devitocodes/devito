@@ -841,14 +841,12 @@ class Operator(Callable):
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
-            # self._jit_kernel_constants = args
+            self._jit_kernel_constants = args
 
-        # Invoke kernel function with args
-        arg_values = self._construct_cfunction_args(args)
-
+        cfunction = self.cfunction
         try:
-            cfunction = self.cfunction
-
+            # Invoke kernel function with args
+            arg_values = self._construct_cfunction_args(args)
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
         except ctypes.ArgumentError as e:

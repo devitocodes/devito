@@ -78,9 +78,9 @@ XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose{decomp},canon
 
 class XDSLOperator(Operator):
 
-    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
-    _default_globals = []
+    #_default_headers = [('_POSIX_C_SOURCE', '200809L')]
+    #_default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+    #_default_globals = []
 
     _Target = CTarget
 
