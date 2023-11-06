@@ -280,7 +280,7 @@ class Grid(CartesianDiscretization, ArgProvider):
                 # Special case subsampling: `Grid.dimensions` -> (xb, yb, zb)`
                 # where `xb, yb, zb` are ConditionalDimensions whose parents
                 # are SpaceDimensions
-                mapper[d.root.spacing] = s/self.dtype(d.factor)
+                mapper[d.root.spacing] = s/self.dtype(d.factor.data)
             elif d.is_Space:
                 # Typical case: `Grid.dimensions` -> (x, y, z)` where `x, y, z` are
                 # the SpaceDimensions

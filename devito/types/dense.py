@@ -793,8 +793,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s in zip(self.dimensions, self.shape):
-            args.update(i._arg_defaults(_min=0, size=s))
+        for a, i, s in zip(key.dimensions, self.dimensions, self.shape):
+            args.update(i._arg_defaults(_min=0, size=s, alias=a))
 
         return args
 
