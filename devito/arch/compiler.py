@@ -877,7 +877,7 @@ class CustomCompiler(Compiler):
         self.ldflags = filter_ordered(self.ldflags + extrald)
 
     def __lookup_cmds__(self):
-        self._base.__lookup_cmds__()
+        self._base.__lookup_cmds__(self)
         self.CC = environ.get('CC', self.CC)
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
