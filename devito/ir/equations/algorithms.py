@@ -159,8 +159,7 @@ def separate_dimensions(expressions):
     count = {}  # Keep track of increments on dim names
     processed = []
     for e in expressions:
-        # Think dimension_sort is too eager?
-        # dims = set(dimension_sort(e))
+        # Just want dimensions which appear in the expression
         # Dimensions in indices
         dims = set().union(*tuple(set(i.function.dimensions)
                                   for i in retrieve_indexed(e)))
@@ -194,7 +193,6 @@ def separate_dimensions(expressions):
                         count[d.name] = 1
                     resolutions[d] = subs[d]
 
-        # FIXME: ConditionalDimension parent not getting updated here
-        processed.append(uxreplace(e, subs))
+        processed.append(uxreplace(e, subs, deep=True))
 
     return processed
