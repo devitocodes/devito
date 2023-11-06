@@ -185,7 +185,7 @@ class Distributor(AbstractDistributor):
     """
 
     def __init__(self, shape, dimensions, input_comm=None, topology=None):
-        super(Distributor, self).__init__(shape, dimensions)
+        super().__init__(shape, dimensions)
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
@@ -426,7 +426,7 @@ class SparseDistributor(AbstractDistributor):
     """
 
     def __init__(self, npoint, dimension, distributor):
-        super(SparseDistributor, self).__init__(npoint, dimension)
+        super().__init__(npoint, dimension)
         self._distributor = distributor
 
         # The dimension decomposition
@@ -523,7 +523,7 @@ class MPINeighborhood(CompositeObject):
         self._entries = [i for i in neighborhood if isinstance(i, tuple)]
 
         fields = [(''.join(j.name[0] for j in i), c_int) for i in self.entries]
-        super(MPINeighborhood, self).__init__('nb', 'neighborhood', fields)
+        super().__init__('nb', 'neighborhood', fields)
 
     @property
     def entries(self):
@@ -552,7 +552,7 @@ class MPINeighborhood(CompositeObject):
                                    for i, j in groups])
 
     def _arg_defaults(self):
-        values = super(MPINeighborhood, self)._arg_defaults()
+        values = super()._arg_defaults()
         for name, i in zip(self.fields, self.entries):
             setattr(values[self.name]._obj, name, self.neighborhood[i])
         return values
