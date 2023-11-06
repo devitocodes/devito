@@ -850,20 +850,20 @@ class TimedList(List):
         self._name = lname
         self._timer = timer
 
-        super().__init__(header=c.Line('START_TIMER(%s)' % lname),
+        super().__init__(header=c.Line('START(%s)' % lname),
                          body=body,
-                         footer=c.Line('STOP_TIMER(%s,%s)' % (lname, timer.name)))
+                         footer=c.Line('STOP(%s,%s)' % (lname, timer.name)))
 
     @classmethod
     def _start_timer_header(cls):
-        return ('START_TIMER(S)', ('struct timeval start_ ## S , end_ ## S ; '
-                                   'gettimeofday(&start_ ## S , NULL);'))
+        return ('START(S)', ('struct timeval start_ ## S , end_ ## S ; '
+                             'gettimeofday(&start_ ## S , NULL);'))
 
     @classmethod
     def _stop_timer_header(cls):
-        return ('STOP_TIMER(S,T)', ('gettimeofday(&end_ ## S, NULL); T->S += (double)'
-                                    '(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)'
-                                    '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;'))
+        return ('STOP(S,T)', ('gettimeofday(&end_ ## S, NULL); T->S += (double)'
+                              '(end_ ## S .tv_sec-start_ ## S.tv_sec)+(double)'
+                              '(end_ ## S .tv_usec-start_ ## S .tv_usec)/1000000;'))
 
     @property
     def name(self):

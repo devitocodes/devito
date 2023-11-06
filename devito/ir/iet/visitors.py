@@ -326,7 +326,7 @@ class CGen(Visitor):
                     rebuilt.extend(g)
                 elif (prev in candidates and k in candidates) or \
                      (prev is not None and k is Section) or \
-                     prev is Section:
+                     (prev is Section):
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)
                 else:
@@ -430,13 +430,7 @@ class CGen(Visitor):
 
     def visit_Section(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        if o.is_subsection:
-            header = []
-            footer = []
-        else:
-            header = [c.Comment("Begin %s" % o.name)]
-            footer = [c.Comment("End %s" % o.name)]
-        return c.Module(header + body + footer)
+        return c.Module(body)
 
     def visit_Return(self, o):
         v = 'return'
