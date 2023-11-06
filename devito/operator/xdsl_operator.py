@@ -2,7 +2,6 @@ import os
 import subprocess
 import ctypes
 import tempfile
-import numpy as np
 
 from math import ceil
 from collections import OrderedDict, namedtuple
@@ -19,10 +18,11 @@ from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
-from devito.ir.ietxdsl import transform_devito_to_iet_ssa, iet_to_standard_mlir, finalize_module_with_globals
+from devito.ir.ietxdsl import (finalize_module_with_globals)
 from devito.ir.stree import stree_build
 from devito.ir.support import AccessMode, SymbolRegistry
-from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,           convert_devito_stencil_to_xdsl_stencil)
+from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
+                                              convert_devito_stencil_to_xdsl_stencil)
 from devito.logger import debug, info, perf, warning, is_log_enabled_for
 from devito.operator.operator import IRs
 from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
@@ -31,15 +31,14 @@ from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate)
 from devito.passes.iet import CTarget
 from devito.symbolics import estimate_cost
-from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
+from devito.tools import (DAG, OrderedSet, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
-                          timed_region, contains_val)
+                          contains_val)
 from devito.types import Evaluable, TimeFunction, Grid
 from devito.types.mlir_types import ptr_of, f32
 from devito.mpi import MPI
 
 from xdsl.printer import Printer
-
 
 
 __all__ = ['XDSLOperator']
@@ -75,20 +74,17 @@ XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=g
 XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{tile-sizes={",".join(["64"]*nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
 
 
-
 class XDSLOperator(Operator):
-
-    #_default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    #_default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
-    #_default_globals = []
 
     _Target = CTarget
 
     def __new__(cls, expressions, **kwargs):
         self = super(XDSLOperator, cls).__new__(cls, expressions, **kwargs)
         delete = not os.getenv("XDSL_SKIP_CLEAN", False)
-        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so', delete=delete)
-        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-", suffix=".o", delete=delete)
+        self._tf = tempfile.NamedTemporaryFile(prefix="devito-jit-", suffix='.so',
+                                               delete=delete)
+        self._interop_tf = tempfile.NamedTemporaryFile(prefix="devito-jit-interop-",
+                                                       suffix=".o", delete=delete)
         self._make_interop_o()
         self.__class__ = cls
         return self
@@ -119,8 +115,11 @@ class XDSLOperator(Operator):
         It is ensured that JIT compilation will only be performed once per
         Operator, reagardless of how many times this method is invoked.
         """
-        #ccode = transform_devito_xdsl_string(self)
-        #self.ccode = ccode
+        
+        # This is old leftover code from previous inttegration efforts
+        # TODROP: ccode = transform_devito_xdsl_string(self)
+        # TODROP: self.ccode = ccode
+        
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
             is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
@@ -133,14 +132,15 @@ class XDSLOperator(Operator):
                 raise RuntimeError("Cannot run OMP+GPU!")
 
             # specialize the code for the specific apply parameters
-            finalize_module_with_globals(self._module, self._jit_kernel_constants, gpu_boilerplate=is_gpu)
+            finalize_module_with_globals(self._module, self._jit_kernel_constants,
+                                         gpu_boilerplate=is_gpu)
 
             # print module as IR
             module_str = StringIO()
             Printer(stream=module_str).print(self._module)
             module_str = module_str.getvalue()
 
-            to_tile = len(list(filter(lambda s : str(s) in ["x", "y", "z"], self.dimensions)))-1
+            to_tile = len(list(filter(lambda s: str(s) in ["x", "y", "z"], self.dimensions)))-1
 
             xdsl_pipeline = XDSL_CPU_PIPELINE(to_tile)
             mlir_pipeline = MLIR_CPU_PIPELINE
@@ -153,7 +153,7 @@ class XDSLOperator(Operator):
 
             if is_mpi:
                 shape, mpi_rank = self.mpi_shape
-                # run with restrict domain=false so we only introduce the swaps but don't
+                # Run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
 
@@ -182,6 +182,7 @@ class XDSLOperator(Operator):
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
                 cflags = CFLAGS
+                # import pdb;pdb.set_trace()
                 cc = "clang"
 
                 if is_mpi:
@@ -250,23 +251,25 @@ class XDSLOperator(Operator):
 
     @classmethod
     def _build(cls, expressions, **kwargs) -> Callable:
+        info("-Building operator")
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
         # Lower the input expressions into an IET
-        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+        info("-Lower expressions")
+        irs, _, module = cls._lower(expressions, profiler=profiler, **kwargs)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
-        op._headers = OrderedSet(*cls._default_headers)
-        op._headers.update(byproduct.headers)
-        op._globals = OrderedSet(*cls._default_globals)
-        op._includes = OrderedSet(*cls._default_includes)
-        op._includes.update(profiler._default_includes)
-        op._includes.update(byproduct.includes)
+        # op._headers = OrderedSet(*cls._default_headers)
+        # op._headers.update(byproduct.headers)
+        # op._globals = OrderedSet(*cls._default_globals)
+        # op._includes = OrderedSet(*cls._default_includes)
+        # op._includes.update(profiler._default_includes)
+        # op._includes.update(byproduct.includes)
         op._module = module
 
         # Required for the jit-compilation
@@ -284,7 +287,7 @@ class XDSLOperator(Operator):
         op._func_table = OrderedDict()
         op._func_table.update(OrderedDict([(i, MetaCall(None, False))
                                            for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
+        # op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
 
         # Internal mutable state to store information about previous runs, autotuning
         # reports, etc
@@ -467,7 +470,7 @@ class XDSLOperator(Operator):
     @classmethod
     def _specialize_stree(cls, stree, **kwargs):
         """
-        Backend hook for specialization at the Schedule tree level.
+        DEPRECATED: Backend hook for specialization at the Schedule tree level.
         """
         return stree
 
@@ -481,9 +484,8 @@ class XDSLOperator(Operator):
             * Derive and attach metadata for distributed-memory parallelism;
             * Derive sections for performance profiling
         """
-        # Build a ScheduleTree from a sequence of Clusters
+        # DEPRECATED: Build a ScheduleTree from a sequence of Clusters
         stree = stree_build(clusters, **kwargs)
-
         stree = cls._specialize_stree(stree)
 
         return stree
