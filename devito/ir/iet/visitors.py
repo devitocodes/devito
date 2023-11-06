@@ -375,7 +375,7 @@ class CGen(Visitor):
             else:
                 rshape = '*'
                 lvalue = c.Value(i._C_typedata, '*%s' % v)
-            if o.alignment:
+            if o.alignment and f._data_alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
@@ -406,15 +406,13 @@ class CGen(Visitor):
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
                 rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
                                                 a1.dim.name)
-                lvalue = c.AlignedAttribute(
-                    a0._data_alignment,
-                    c.Value(i._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
-                )
+                lvalue = c.Value(i._C_typedata,
+                                 '(*restrict %s)%s' % (a0.name, shape))
             else:
                 rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
-                lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(i._C_typedata, '*restrict %s' % a0.name)
-                )
+                lvalue = c.Value(i._C_typedata, '*restrict %s' % a0.name)
+            if a0._data_alignment:
+                lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
             lvalue = self._gen_value(a0, 0)

@@ -111,6 +111,9 @@ class ThreadID(CustomDimension):
 
 class ThreadArray(ArrayObject):
 
+    # Not a performance-sensitive object
+    _data_alignment = False
+
     @classmethod
     def __indices_setup__(cls, **kwargs):
         try:
@@ -207,6 +210,9 @@ class Lock(Array):
     """
 
     is_volatile = True
+
+    # Not a performance-sensitive object
+    _data_alignment = False
 
     def __init_finalize__(self, *args, **kwargs):
         kwargs.setdefault('scope', 'stack')
