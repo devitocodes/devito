@@ -590,7 +590,7 @@ class HaloTouch(sympy.Function, Reconstructable):
     func = Reconstructable._rebuild
 
 
-def _uxreplace_dispatch_haloscheme(hs0, rule):
+def _uxreplace_dispatch_haloscheme(hs0, rule, deep=False):
     changed = False
     hs = hs0
     for f, hse0 in hs0.fmapper.items():
