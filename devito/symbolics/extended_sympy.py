@@ -12,11 +12,12 @@ from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4
 from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',  # noqa
-           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
-           'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
-           'Null', 'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
+           'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
+           'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null',
+           'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -219,6 +220,19 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class CallFromComposite(CallFromPointer, Pickable):
+
+    """
+    Symbolic representation of the C notation ``composite.call(params)``.
+    """
+
+    def __str__(self):
+        return '%s.%s(%s)' % (self.pointer, self.call,
+                              ", ".join(str(i) for i in as_tuple(self.params)))
+
+    __repr__ = __str__
 
 
 class FieldFromPointer(CallFromPointer, Pickable):
