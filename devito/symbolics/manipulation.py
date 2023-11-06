@@ -89,7 +89,11 @@ def _uxreplace(expr, rule, deep=False):
                 aflag = False
 
             try:
-                v = {i: getattr(expr, i) for i in expr.__rkwargs__}
+                # Get the underlying attribute originally used to build
+                # the object rather than the property, as the latter can
+                # sometimes have default values which do not match the
+                # default for the class
+                v = {i: getattr(expr, "_"+i) for i in expr.__rkwargs__}
             except AttributeError:
                 # Reconstructable has no required kwargs
                 v = {}
@@ -117,7 +121,6 @@ def _(expr, rule, deep=False):
 
 @_uxreplace_dispatch.register(AbstractRel)
 def _(expr, rule, deep=False):
-    print("AbstractRel dispatcher", expr, rule, deep)
     return _uxreplace(expr, rule, deep=deep)
 
 
