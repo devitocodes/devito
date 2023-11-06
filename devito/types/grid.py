@@ -68,12 +68,10 @@ class Grid(CartesianDiscretization, ArgProvider):
     ----------
     shape : tuple of ints
         Shape of the computational domain in grid points.
-    extent : tuple of floats, optional
-        Physical extent of the domain in m; defaults to a unit box of extent 1m
-        in all dimensions.
-    origin : tuple of floats, optional
-        Physical coordinate of the origin of the domain; defaults to 0.0 in all
-        dimensions.
+    extent : tuple of floats, default=unit box of extent 1m in all dimensions
+        Physical extent of the domain in m.
+    origin : tuple of floats, default=0.0 in all dimensions
+        Physical coordinate of the origin of the domain.
     dimensions : tuple of SpaceDimension, optional
         The dimensions of the computational domain encapsulated by this Grid.
     time_dimension : TimeDimension, optional
