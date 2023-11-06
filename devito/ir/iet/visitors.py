@@ -324,7 +324,9 @@ class CGen(Visitor):
                       prev is ExpressionBundle and
                       all(i.dim.is_Stencil for i in g)):
                     rebuilt.extend(g)
-                elif prev in candidates and k in candidates:
+                elif (prev in candidates and k in candidates) or \
+                     (prev is not None and k is Section) or \
+                     prev is Section:
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)
                 else:
