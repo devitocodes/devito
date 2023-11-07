@@ -870,14 +870,22 @@ class CustomCompiler(Compiler):
     def __init_finalize__(self, **kwargs):
         self._base.__init_finalize__(self, **kwargs)
         # Update cflags
-        extrac = environ.get('CFLAGS', '').split(' ')
-        self.cflags = filter_ordered(self.cflags + extrac)
+        try:
+            extrac = environ.get('CFLAGS').split(' ')
+            self.cflags = self.cflags + extrac
+        except AttributeError:
+            pass
         # Update ldflags
-        extrald = environ.get('LDFLAGS', '').split(' ')
-        self.ldflags = filter_ordered(self.ldflags + extrald)
+        try:
+            extrald = environ.get('LDFLAGS').split(' ')
+            self.ldflags = self.ldflags + extrald
+        except AttributeError:
+            pass
 
     def __lookup_cmds__(self):
         self._base.__lookup_cmds__(self)
+        # TODO: check for conflicts, for example using the nvhpc module file
+        # will set CXX to nvc++ breaking  the cuda backend
         self.CC = environ.get('CC', self.CC)
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
