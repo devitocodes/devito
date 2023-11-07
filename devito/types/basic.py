@@ -1453,6 +1453,10 @@ class Indexed(sympy.Indexed):
     def indices(self):
         return DimensionTuple(*super().indices, getters=self.function.dimensions)
 
+    @cached_property
+    def dimensions(self):
+        return self.function.dimensions
+
     @property
     def function(self):
         return self.base.function

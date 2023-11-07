@@ -6,7 +6,8 @@ from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
-                    switchconfig, generic_derivative, PrecomputedSparseFunction)
+                    switchconfig, generic_derivative, PrecomputedSparseFunction,
+                    DefaultDimension)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -600,6 +601,60 @@ class TestSparseFunction(object):
         assert np.all(sf2.data == 4)
         Operator(sf1.interpolate(u))()
         assert np.all(sf1.data == 4)
+
+    @pytest.mark.parallel(mode=4)
+    def test_no_grid_dim_slow(self):
+        shape = (12, 13, 14)
+        nfreq = 5
+        nrec = 2
+
+        grid = Grid(shape=shape)
+        f = DefaultDimension(name="f", default_value=nfreq)
+
+        u = Function(name="u", grid=grid, dimensions=(*grid.dimensions, f),
+                     shape=(*shape, nfreq), space_order=2)
+        u.data.fill(1)
+
+        class CoordSlowSparseFunction(SparseFunction):
+            _sparse_position = 0
+
+        r = Dimension(name="r")
+        s = CoordSlowSparseFunction(name="s", grid=grid, dimensions=(r, f),
+                                    shape=(nrec, nfreq), npoint=nrec)
+
+        rec_eq = s.interpolate(expr=u)
+
+        op = Operator([Eq(u, 1)] + rec_eq)
+        print(op)
+        op.apply()
+        assert np.all(s.data == 1)
+
+    @pytest.mark.parallel(mode=4)
+    def test_no_grid_dim_slow_time(self):
+        shape = (12, 13, 14)
+        nfreq = 5
+        nrec = 2
+
+        grid = Grid(shape=shape)
+        t = grid.stepping_dim
+        f = DefaultDimension(name="f", default_value=nfreq)
+
+        u = TimeFunction(name="u", grid=grid, dimensions=(t, *grid.dimensions, f),
+                         shape=(2, *shape, nfreq), space_order=2)
+
+        class CoordSlowSparseFunction(SparseTimeFunction):
+            _sparse_position = 0
+
+        r = Dimension(name="r")
+        s = CoordSlowSparseFunction(name="s", grid=grid, dimensions=(r, f),
+                                    shape=(nrec, nfreq), npoint=nrec, nt=5)
+
+        rec_eq = s.interpolate(expr=u)
+
+        op = Operator([Eq(u, 1)] + rec_eq)
+        print(op)
+        op.apply()
+        assert np.all(s.data == 1)
 
 
 class TestOperatorSimple(object):
