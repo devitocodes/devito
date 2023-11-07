@@ -896,7 +896,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     __rkwargs__ = tuple(filter_ordered(AbstractSparseTimeFunction.__rkwargs__ +
                                        SparseFunction.__rkwargs__))
 
-    def interpolate(self, expr, u_t=None, p_t=None, increment=False):
+    def interpolate(self, expr, u_t=None, p_t=None, increment=False, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -921,7 +921,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             subs = {self.time_dim: p_t}
 
-        return super().interpolate(expr, increment=increment, self_subs=subs)
+        return super().interpolate(expr, increment=increment, self_subs=subs,
+                                   implicit_dims=implicit_dims)
 
     def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None):
         """

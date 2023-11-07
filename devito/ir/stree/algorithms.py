@@ -150,7 +150,7 @@ def preprocess(clusters, options=None, **kwargs):
     for c in clusters:
         if c.is_halo_touch:
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
-            queue.append(c.rebuild(halo_scheme=hs))
+            queue.append(c.rebuild(expr=None, halo_scheme=hs))
         elif c.is_critical_region and c.syncs:
             processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
         elif c.is_wild:
@@ -165,7 +165,7 @@ def preprocess(clusters, options=None, **kwargs):
 
                 # Skip if the halo exchange would end up outside
                 # its iteration space
-                if h_indices and not h_indices & dims:
+                if h_indices and dims and not h_indices & dims:
                     continue
 
                 diff = dims - distributed_aindices
