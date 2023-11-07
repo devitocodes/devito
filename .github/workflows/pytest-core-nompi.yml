@@ -80,7 +80,7 @@ jobs:
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
           os: ubuntu-20.04
-          arch: "gcc-9"
+          arch: "custom"
           language: "openmp"
           sympy: "1.9"
 
@@ -140,7 +140,7 @@ jobs:
       id: set-run
 
     - name: Install ${{ matrix.arch }} compiler
-      if: "runner.os == 'linux' && !contains(matrix.name, 'docker')"
+      if: "runner.os == 'linux' && !contains(matrix.name, 'docker') && matrix.arch !='custom' "
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
 
@@ -166,8 +166,6 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ env.RUN_CMD }} ${{ matrix.arch }} --version
-        ${{ env.RUN_CMD }} python3 --version
         ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Upload coverage to Codecov

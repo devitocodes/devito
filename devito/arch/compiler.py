@@ -862,8 +862,8 @@ class CustomCompiler(Compiler):
 
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
-        obj._base = _base
-        obj._cpp = _base._cpp
+        obj._base = kwargs.pop('base', _base)
+        obj._cpp = obj._base._cpp
 
         return obj
 
@@ -890,6 +890,9 @@ class CustomCompiler(Compiler):
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
         self.MPICXX = environ.get('MPICXX', self.MPICXX)
+
+    def __new_with__(self, **kwargs):
+        return super().__new_with__(base=self._base, **kwargs)
 
 
 compiler_registry = {

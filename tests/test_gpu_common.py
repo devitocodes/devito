@@ -25,13 +25,26 @@ class TestGPUInfo(object):
 
     def test_get_gpu_info(self):
         info = get_gpu_info()
-        known = ['nvidia', 'tesla', 'geforce', 'quadro', 'unspecified']
+        known = ['nvidia', 'tesla', 'geforce', 'quadro', 'amd', 'unspecified']
         try:
             assert info['architecture'].lower() in known
         except KeyError:
             # There might be than one GPUs, but for now we don't care
             # as we're not really exploiting this info yet...
-            pass
+            pytest.xfail("Unsupported platform for get_gpu_info")
+
+    def custom_compiler(self):
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = Eq(u.forward, u + 1)
+
+        with switchconfig(compiler='custom'):
+            op = Operator(eqn)()
+            # Check jit-compilation and correct execution
+            op.apply(time_M=10)
+            assert np.all(u.data[1] == 11)
 
 
 class TestCodeGeneration(object):
