@@ -3,7 +3,8 @@ from itertools import groupby
 
 from sympy import sympify
 
-from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
+from devito.symbolics import (retrieve_indexed, uxreplace, dxreplace,
+                              retrieve_dimensions)
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.ir.support import pull_dims
 from devito.types import Dimension, IgnoreDimSort
@@ -193,6 +194,6 @@ def separate_dimensions(expressions):
                         count[d.name] = 1
                     resolutions[d] = subs[d]
 
-        processed.append(uxreplace(e, subs, deep=True))
+        processed.append(dxreplace(e, subs))
 
     return processed

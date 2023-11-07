@@ -9,7 +9,7 @@ import sympy
 from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
-from devito.symbolics.manipulation import _uxreplace_registry
+from devito.symbolics.manipulation import _uxreplace_registry, _dxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
                           frozendict, is_integer)
 from devito.types import Grid
@@ -590,7 +590,7 @@ class HaloTouch(sympy.Function, Reconstructable):
     func = Reconstructable._rebuild
 
 
-def _uxreplace_dispatch_haloscheme(hs0, rule, deep=False):
+def _uxreplace_dispatch_haloscheme(hs0, rule, mode='ux'):
     changed = False
     hs = hs0
     for f, hse0 in hs0.fmapper.items():
@@ -635,4 +635,7 @@ def _uxreplace_dispatch_haloscheme(hs0, rule, deep=False):
 
 
 _uxreplace_registry.register(HaloTouch,
+                             {HaloScheme: _uxreplace_dispatch_haloscheme})
+
+_dxreplace_registry.register(HaloTouch,
                              {HaloScheme: _uxreplace_dispatch_haloscheme})

@@ -9,7 +9,8 @@ from sympy.core.mul import _mulsort
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
+from devito.tools import (as_list, as_tuple, flatten, split, transitive_closure,
+                          frozendict)
 from devito.types.basic import Basic
 from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
@@ -18,10 +19,10 @@ from devito.types.dimension import ConditionalDimension
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
-           'evalrel']
+           'evalrel', 'dxreplace']
 
 
-def uxreplace(expr, rule, deep=False):
+def uxreplace(expr, rule):
     """
     An alternative to SymPy's `xreplace` for when the caller can guarantee
     that no re-evaluations are necessary or when re-evaluations should indeed
@@ -44,10 +45,19 @@ def uxreplace(expr, rule, deep=False):
     Finally, `uxreplace` supports Reconstructable objects, that is, it searches
     for replacement opportunities inside the Reconstructable's `__rkwargs__`.
     """
-    return _uxreplace(expr, rule, deep=deep)[0]
+    return _uxreplace(expr, rule, mode='ux')[0]
 
 
-def _uxreplace(expr, rule, deep=False):
+def dxreplace(expr, rule):
+    """
+    As `uxreplace`, albeit with systematic replacement of dimensions in the
+    expression, including those contained within attached `ConditionalDimension`s
+    and `SubDomain`s, which would not be touched by the standard `uxreplace`.
+    """
+    return _uxreplace(expr, rule, mode='dx')[0]
+
+
+def _uxreplace(expr, rule, mode='ux'):
     if expr in rule:
         v = rule[expr]
         if not isinstance(v, dict):
@@ -70,21 +80,27 @@ def _uxreplace(expr, rule, deep=False):
         changed = False
 
     if rule:
-        eargs, flag = _uxreplace_dispatch(eargs, rule, deep=deep)
+        eargs, flag = _uxreplace_dispatch(eargs, rule, mode=mode)
         args.extend(eargs)
 
         changed |= flag
 
+        # Select the correct registry for the replacement mode specified
+        try:
+            registry = _replace_registries[mode]
+        except KeyError:
+            raise ValueError("Mode '%s' does not match any replacement mode"
+                             % mode)
+
         # If a Reconstructable object, we need to parse args and kwargs
-        # If not a deep uxreplace, then check reduced subset of objects
-        if _uxreplace_registry.dispatchable(expr, deep=deep):
+        if registry.dispatchable(expr):
             if not args:
                 try:
                     v = [getattr(expr, i) for i in expr.__rargs__]
                 except AttributeError:
                     # Reconstructable has no required args
                     v = []
-                args, aflag = _uxreplace_dispatch(v, rule, deep=deep)
+                args, aflag = _uxreplace_dispatch(v, rule, mode=mode)
             else:
                 aflag = False
 
@@ -97,7 +113,7 @@ def _uxreplace(expr, rule, deep=False):
             except AttributeError:
                 # Reconstructable has no required kwargs
                 v = {}
-            kwargs, kwflag = _uxreplace_dispatch(v, rule, deep=deep)
+            kwargs, kwflag = _uxreplace_dispatch(v, rule, mode=mode)
         else:
             aflag = False
             kwargs, kwflag = {}, False
@@ -110,39 +126,39 @@ def _uxreplace(expr, rule, deep=False):
 
 
 @singledispatch
-def _uxreplace_dispatch(unknown, rule, deep=False):
+def _uxreplace_dispatch(unknown, rule, mode='ux'):
     return unknown, False
 
 
 @_uxreplace_dispatch.register(Basic)
-def _(expr, rule, deep=False):
-    return _uxreplace(expr, rule, deep=deep)
+def _(expr, rule, mode='ux'):
+    return _uxreplace(expr, rule, mode=mode)
 
 
 @_uxreplace_dispatch.register(AbstractRel)
-def _(expr, rule, deep=False):
-    return _uxreplace(expr, rule, deep=deep)
+def _(expr, rule, mode='ux'):
+    return _uxreplace(expr, rule, mode=mode)
 
 
 @_uxreplace_dispatch.register(tuple)
 @_uxreplace_dispatch.register(Tuple)
 @_uxreplace_dispatch.register(list)
-def _(iterable, rule, deep=False):
+def _(iterable, rule, mode='ux'):
     ret = []
     changed = False
     for a in iterable:
-        ax, flag = _uxreplace(a, rule, deep=deep)
+        ax, flag = _uxreplace(a, rule, mode=mode)
         ret.append(ax)
         changed |= flag
     return iterable.__class__(ret), changed
 
 
 @_uxreplace_dispatch.register(dict)
-def _(mapper, rule, deep=False):
+def _(mapper, rule, mode='ux'):
     ret = {}
     changed = False
     for k, v in mapper.items():
-        vx, flag = _uxreplace_dispatch(v, rule, deep=deep)
+        vx, flag = _uxreplace_dispatch(v, rule, mode=mode)
         ret[k] = vx
         changed |= flag
     return ret, changed
@@ -199,34 +215,36 @@ class UxreplaceRegistry(list):
     one such Reconstructable object is encountered.
     """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.deep_cls = []  # Classes only touched by deep uxreplace
-
-    def register(self, cls, rkwargs_callback_mapper=None, deep=False):
-        if deep:
-            self.deep_cls.append(cls)
+    def register(self, cls, rkwargs_callback_mapper=None):
         self.append(cls)
         _uxreplace_handle.register(cls, _uxreplace_handle_reconstructable)
 
         for kls, callback in (rkwargs_callback_mapper or {}).items():
             _uxreplace_dispatch.register(kls, callback)
 
-    def dispatchable(self, obj, deep=False):
+    def dispatchable(self, obj):
         # If not deep, ignore objects associated with deep uxreplace
-        if deep:
-            return isinstance(obj, tuple(self))
-        else:
-            return (isinstance(obj, tuple(self))
-                    and not isinstance(obj, tuple(self.deep_cls)))
+        return isinstance(obj, tuple(self))
 
 
+# Registry for default uxreplace
 _uxreplace_registry = UxreplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
 # Classes which only want uxreplacing when deep=True specified
-_uxreplace_registry.register(ConditionalDimension, deep=True)
+# _uxreplace_registry.register(ConditionalDimension, deep=True)
+
+# Registry for dimension uxreplace
+_dxreplace_registry = UxreplaceRegistry()
+_dxreplace_registry.register(Eq)
+_dxreplace_registry.register(DefFunction)
+_dxreplace_registry.register(ComponentAccess)
+_dxreplace_registry.register(ConditionalDimension)
+
+# Create a dict of registries
+_replace_registries = frozendict({'ux': _uxreplace_registry,
+                                  'dx': _dxreplace_registry})
 
 
 class Uxmapper(dict):
