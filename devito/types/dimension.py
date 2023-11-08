@@ -202,7 +202,7 @@ class Dimension(ArgProvider):
 
     @property
     def is_Root(self):
-        return self == self.root
+        return self is self.root
 
     @cached_property
     def bound_symbols(self):

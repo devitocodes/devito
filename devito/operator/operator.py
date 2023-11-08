@@ -328,10 +328,10 @@ class Operator(Callable):
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
 
-        # Resolve clashing dimension names
-        expressions = separate_dimensions(expressions)
-
         processed = [LoweredEq(i) for i in expressions]
+
+        # Resolve clashing dimension names
+        processed = separate_dimensions(processed)
 
         return processed
 

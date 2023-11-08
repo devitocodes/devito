@@ -8,6 +8,7 @@ from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSp
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin
+from devito.symbolics.manipulation import _dxreplace_registry
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax']
 
@@ -220,8 +221,11 @@ class LoweredEq(IREq):
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
 
-    def func(self, *args):
-        return self._rebuild(*args, evaluate=False)
+    def func(self, *args, **kwargs):
+        return self._rebuild(*args, **kwargs, evaluate=False)
+
+
+_dxreplace_registry.register(LoweredEq)
 
 
 class ClusterizedEq(IREq):

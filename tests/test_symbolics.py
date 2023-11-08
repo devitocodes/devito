@@ -12,7 +12,7 @@ from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, ccode, uxreplace,
-                              retrieve_derivatives)
+                              retrieve_derivatives, dxreplace)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           Symbol as dSymbol)
@@ -402,7 +402,7 @@ def test_uxreplace(expr, subs, expected):
     assert uxreplace(eval(expr), eval(subs)) == eval(expected)
 
 
-def test_uxreplace_dimensions():
+def test_dxreplace():
     x = Dimension(name='x')
     x0 = Dimension(name='x0')
     ci = ConditionalDimension(name='ci', parent=x)
@@ -412,13 +412,13 @@ def test_uxreplace_dimensions():
     f = Function(name='f', dimensions=(ci,), shape=(11,))
     g = Function(name='g', dimensions=(x,), shape=(11,))
 
-    assert uxreplace(ci, {x: x0}).parent == x0
-    assert uxreplace(cj, {x: x0}).condition == Gt(x0, 2)
-    assert uxreplace(ck, {x: x0}).condition == Le(x0, 2)
-    assert uxreplace(f, {x: x0}).args[0].parent == x0
-    assert uxreplace(g, {x: x0}).args[0] == x0
-    assert uxreplace(Eq(ci, 1), {x: x0}).lhs.parent == x0
-    assert uxreplace(Eq(f, 1), {x: x0}).lhs.args[0].parent == x0
+    assert dxreplace(ci, {x: x0}).parent == x0
+    assert dxreplace(cj, {x: x0}).condition == Gt(x0, 2)
+    assert dxreplace(ck, {x: x0}).condition == Le(x0, 2)
+    assert dxreplace(f, {x: x0}).args[0].parent == x0
+    assert dxreplace(g, {x: x0}).args[0] == x0
+    assert dxreplace(Eq(ci, 1), {x: x0}).lhs.parent == x0
+    assert dxreplace(Eq(f, 1), {x: x0}).lhs.args[0].parent == x0
 
 
 def test_uxreplace_custom_reconstructable():

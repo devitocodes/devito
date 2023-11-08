@@ -11,6 +11,7 @@ from devito.ir.support.vector import Vector, vmin, vmax
 from devito.tools import (Ordering, Stamp, as_list, as_tuple, filter_ordered,
                           flatten, frozendict, is_integer, toposort)
 from devito.types import Dimension, ModuloDimension
+from devito.symbolics.manipulation import _uxreplace_dispatch
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
            'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
@@ -998,6 +999,45 @@ class IterationSpace(Space):
     @cached_property
     def nonderived_directions(self):
         return {k: v for k, v in self.directions.items() if not k.is_Derived}
+
+
+@_uxreplace_dispatch.register(Interval)
+def _(expr, rule, mode='ux'):
+    changed = False
+    dim, flag = _uxreplace_dispatch(expr.dim, rule, mode=mode)
+    changed |= flag
+    lower, flag = _uxreplace_dispatch(expr.lower, rule, mode=mode)
+    changed |= flag
+    upper, flag = _uxreplace_dispatch(expr.upper, rule, mode=mode)
+    changed |= flag
+
+    return Interval(dim, lower=lower, upper=upper, stamp=expr.stamp), changed
+
+
+@_uxreplace_dispatch.register(IterationSpace)
+def _(expr, rule, mode='ux'):
+    intervals = []
+    relations = set()
+    changed = False
+    for interval in expr.intervals:
+        i, flag = _uxreplace_dispatch(interval, rule, mode=mode)
+        intervals.append(i)
+        changed |= flag
+    for relation in expr.intervals.relations:
+        r, flag = _uxreplace_dispatch(relation, rule, mode=mode)
+        relations.add(r)
+        changed |= flag
+    si, flag = _uxreplace_dispatch(expr.sub_iterators, rule, mode=mode)
+    changed |= flag
+    di, flag = _uxreplace_dispatch(expr.directions, rule, mode=mode)
+    changed |= flag
+
+    intervals = sorted(intervals, key=lambda x: x.dim.name)
+    intervals = IntervalGroup(intervals, relations=frozenset(relations),
+                              mode=expr.intervals.mode)
+
+    return IterationSpace(intervals, sub_iterators=si,
+                          directions=di), changed
 
 
 null_ispace = IterationSpace([])

@@ -51,8 +51,8 @@ def uxreplace(expr, rule):
 def dxreplace(expr, rule):
     """
     As `uxreplace`, albeit with systematic replacement of dimensions in the
-    expression, including those contained within attached `ConditionalDimension`s
-    and `SubDomain`s, which would not be touched by the standard `uxreplace`.
+    expression, including those contained within attached `ConditionalDimension`s,
+    and suchlike which would not be touched by the standard `uxreplace`.
     """
     return _uxreplace(expr, rule, mode='dx')[0]
 
@@ -92,7 +92,6 @@ def _uxreplace(expr, rule, mode='ux'):
             raise ValueError("Mode '%s' does not match any replacement mode"
                              % mode)
 
-        # If a Reconstructable object, we need to parse args and kwargs
         if registry.dispatchable(expr):
             if not args:
                 try:
@@ -105,11 +104,13 @@ def _uxreplace(expr, rule, mode='ux'):
                 aflag = False
 
             try:
-                # Get the underlying attribute originally used to build
-                # the object rather than the property, as the latter can
-                # sometimes have default values which do not match the
-                # default for the class
-                v = {i: getattr(expr, "_"+i) for i in expr.__rkwargs__}
+                # Preferentially get the underlying attribute originally
+                # used to build the object rather than the property, as
+                # the latter can sometimes have default values which do
+                # not match the default for the class.
+                v = {i: (getattr(expr, "_"+i) if hasattr(expr, "_"+i)
+                         else getattr(expr, i))
+                     for i in expr.__rkwargs__}
             except AttributeError:
                 # Reconstructable has no required kwargs
                 v = {}
@@ -120,6 +121,7 @@ def _uxreplace(expr, rule, mode='ux'):
         flag = aflag | kwflag
         changed |= flag
         if changed:
+            print("expr", expr, "args", args, "kwargs", kwargs)
             return _uxreplace_handle(expr, args, kwargs), True
 
     return expr, False
@@ -154,14 +156,18 @@ def _(iterable, rule, mode='ux'):
 
 
 @_uxreplace_dispatch.register(dict)
+@_uxreplace_dispatch.register(frozendict)
 def _(mapper, rule, mode='ux'):
     ret = {}
     changed = False
     for k, v in mapper.items():
         vx, flag = _uxreplace_dispatch(v, rule, mode=mode)
-        ret[k] = vx
         changed |= flag
-    return ret, changed
+        kx, flag = _uxreplace_dispatch(k, rule, mode=mode)
+        changed |= flag
+        ret[kx] = vx
+
+    return mapper.__class__(ret), changed
 
 
 @singledispatch
@@ -201,7 +207,7 @@ def _uxreplace_handle_reconstructable(expr, args, kwargs):
     return expr.func(*args, **kwargs)
 
 
-class UxreplaceRegistry(list):
+class ReplaceRegistry(list):
 
     """
     A registry used by `uxreplace` to handle Reconstructable objects. These
@@ -223,24 +229,22 @@ class UxreplaceRegistry(list):
             _uxreplace_dispatch.register(kls, callback)
 
     def dispatchable(self, obj):
-        # If not deep, ignore objects associated with deep uxreplace
         return isinstance(obj, tuple(self))
 
 
 # Registry for default uxreplace
-_uxreplace_registry = UxreplaceRegistry()
+_uxreplace_registry = ReplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
-# Classes which only want uxreplacing when deep=True specified
-# _uxreplace_registry.register(ConditionalDimension, deep=True)
 
-# Registry for dimension uxreplace
-_dxreplace_registry = UxreplaceRegistry()
+# Registry for dxreplace (dimension xreplace)
+_dxreplace_registry = ReplaceRegistry()
 _dxreplace_registry.register(Eq)
 _dxreplace_registry.register(DefFunction)
 _dxreplace_registry.register(ComponentAccess)
 _dxreplace_registry.register(ConditionalDimension)
+_dxreplace_registry.register(AbstractRel)
 
 # Create a dict of registries
 _replace_registries = frozendict({'ux': _uxreplace_registry,
