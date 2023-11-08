@@ -1,0 +1,114 @@
+# This workflow will install MLIR, Python dependencies, run tests and lint with a single version of Python
+# File inherited from https://github.com/xdslproject/xdsl/blob/main/.github/workflows/ci-mlir.yml
+
+name: CI - MLIR-based Testing
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        python-version: ['3.10']
+
+    env:
+      LLVM_SYMBOLIZER_PATH: /usr/lib/llvm-11/bin/llvm-symbolizer
+      MLIR-Version: 04fc02e583b06b846315904a55af9c273c8b20b9
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        path: xdsl
+
+    - name: Install native dependencies
+      uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: mesa-vulkan-drivers
+        version: 1.0
+
+    - name: Python Setup
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Upgrade pip
+      run: |
+        pip install --upgrade pip
+    - name: Install the package locally and nbval
+      run: |
+        # Change directory so that xdsl-opt can be found during installation.
+        cd xdsl
+        pip install -r requirements.txt
+    - name: Cache binaries
+      id: cache-binary
+      uses: actions/cache@v3
+      with:
+        path: llvm-project/build
+        key: binaries-${{ runner.os }}-${{ env.MLIR-Version }}
+        restore-keys: binaries-${{ runner.os }}-${{ env.MLIR-Version }}
+
+    - name: Checkout MLIR
+      if: steps.cache-binary.outputs.cache-hit != 'true'
+      uses: actions/checkout@v3
+      with:
+        repository: llvm/llvm-project.git
+        path: llvm-project
+        ref: ${{ env.MLIR-Version }}
+
+    - name: Clang Setup
+      if: steps.cache-binary.outputs.cache-hit != 'true'
+      uses: egor-tensin/setup-clang@v1
+
+    - name: Ninja Setup
+      if: steps.cache-binary.outputs.cache-hit != 'true'
+      uses: lukka/get-cmake@9e431acfe656e5db66cd4930386328fce59cfaba
+
+    - name: MLIR Build Setup
+      if: steps.cache-binary.outputs.cache-hit != 'true'
+      run: |
+        mkdir llvm-project/build
+        cd llvm-project/build
+        cmake -G Ninja ../llvm \
+          -DLLVM_ENABLE_PROJECTS="mlir; clang; openmp; lld"\
+          -DLLVM_TARGETS_TO_BUILD="Native" \
+          -DLLVM_ENABLE_LLD=ON \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_ENABLE_ASSERTIONS=OFF \
+          -DLLVM_BINUTILS_INCDIR=/usr/include
+    - name: MLIR Build
+      if: steps.cache-binary.outputs.cache-hit != 'true'
+      run: |
+        cd llvm-project/build
+        cmake --build . --target mlir-opt mlir-cpu-runner
+    - name: Test with pytest and generate code coverage
+      run: |
+        cd xdsl
+        pytest -W error --cov --cov-config=.coveragerc .
+    - name: Execute lit tests
+      run: |
+        cd xdsl
+        # Add mlir-opt to the path
+        export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
+        lit -v tests/filecheck/ -DCOVERAGE
+        lit -v docs/Toy/examples/ -DCOVERAGE
+    - name: Test MLIR dependent examples/tutorials
+      run: |
+        cd xdsl
+        # Add mlir-opt to the path
+        export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
+        pytest --nbval docs/mlir_interoperation.ipynb --maxfail 1 -vv
+    - name: Combine coverage data
+      run: |
+        cd xdsl
+        coverage combine --append
+        coverage report
+        coverage xml
