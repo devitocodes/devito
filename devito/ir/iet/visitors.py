@@ -1184,12 +1184,18 @@ class Uxreplace(Transformer):
         condition = uxreplace(o.condition, self.mapper)
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+        return o._rebuild(condition=condition, then_body=then_body,
+                          else_body=else_body)
 
     def visit_PointerCast(self, o):
         function = self.mapper.get(o.function, o.function)
         obj = self.mapper.get(o.obj, o.obj)
         return o._rebuild(function=function, obj=obj)
+
+    def visit_Dereference(self, o):
+        pointee = self.mapper.get(o.pointee, o.pointee)
+        pointer = self.mapper.get(o.pointer, o.pointer)
+        return o._rebuild(pointee=pointee, pointer=pointer)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
@@ -1206,6 +1212,11 @@ class Uxreplace(Transformer):
         halo_scheme = hs.build(fmapper, hs.honored)
         body = self._visit(o.body)
         return o._rebuild(halo_scheme=halo_scheme, body=body)
+
+    def visit_While(self, o, **kwargs):
+        condition = uxreplace(o.condition, self.mapper)
+        body = self._visit(o.body)
+        return o._rebuild(condition=condition, body=body)
 
     visit_ThreadedProdder = visit_Call
 
