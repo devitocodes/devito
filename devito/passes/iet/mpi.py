@@ -91,6 +91,9 @@ def _hoist_halospots(iet):
                                               for q in d._defines])
 
                 for n, i in enumerate(iters):
+                    if i not in scopes:
+                        continue
+
                     candidates = [i.dim._defines for i in iters[n:]]
 
                     all_candidates = set().union(*candidates)

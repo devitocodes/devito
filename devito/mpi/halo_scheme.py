@@ -366,6 +366,10 @@ class HaloScheme(object):
         return set().union(*[i.loc_indices.keys() for i in self.fmapper.values()])
 
     @cached_property
+    def loc_dirs(self):
+        return set().union(*[i.loc_dirs.keys() for i in self.fmapper.values()])
+
+    @cached_property
     def arguments(self):
         return self.dimensions | set(flatten(self.honored.values()))
 

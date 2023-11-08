@@ -81,10 +81,17 @@ def stree_build(clusters, profiler=None, **kwargs):
             tip = augment_whole_subtree(c, tip, mapper, it)
 
         # Attach NodeHalo if necessary
-        for it, v in mapper.items():
-            if needs_nodehalo(it.dim, c.halo_scheme):
-                v.bottom.parent = NodeHalo(c.halo_scheme, v.bottom.parent)
-                break
+        if c.exprs:
+            for it, v in mapper.items():
+                if needs_nodehalo(it.dim, c.halo_scheme):
+                    v.bottom.parent = NodeHalo(c.halo_scheme, v.bottom.parent)
+                    break
+        else:
+            for it, v in reversed(mapper.items()):
+                if needs_nodehalo_dim(it.dim, c.halo_scheme):
+                    v.bottom.children = (*v.bottom.children,
+                                         NodeHalo(c.halo_scheme, v.bottom.parent))
+                    break
 
         # Add in NodeExprs
         exprs = []
@@ -182,7 +189,33 @@ def preprocess(clusters, options=None, **kwargs):
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
-            processed.append(c.rebuild(halo_scheme=halo_scheme))
+            itdims = c.ispace.itdims
+            if halo_scheme:
+                # We make sure that the halo scheme placement is valid for this cluster
+                # Mainly if a cluster has iteration dimension {t, d, f}
+                # and the halo_scheme has distributed_aindices {d} and
+                # loc_dirs {f} then the haloscheme needs to be lifted into its own
+                # {t, f} cluster because it needs to be inside an {f} loop while it would
+                # be placed outside the {d} loop and therefore outside the {f} loop if
+                # attached to the cluster.
+                dindex = max([itdims.index(d) for d in halo_scheme.loc_dirs
+                              if d in itdims] + [0])
+                aindex = max([itdims.index(d) for d in halo_scheme.distributed_aindices
+                              if d in itdims] + [0])
+                if dindex > aindex:
+                    hispace = c.ispace.project(itdims[:dindex])
+                else:
+                    hispace = None
+            else:
+                hispace = None
+
+            if hispace and options['mpi']:
+                processed.append(c.rebuild(exprs=[],
+                                           ispace=hispace,
+                                           halo_scheme=halo_scheme))
+                processed.append(c.rebuild(halo_scheme=None))
+            else:
+                processed.append(c.rebuild(halo_scheme=halo_scheme))
 
     # Sanity check!
     try:
@@ -227,6 +260,10 @@ def augment_whole_subtree(cluster, tip, mapper, it):
 
 def needs_nodehalo(d, hs):
     return d and hs and d._defines.intersection(hs.distributed_aindices)
+
+
+def needs_nodehalo_dim(d, hs):
+    return d and hs and d._defines.intersection(hs.loc_indices)
 
 
 def reuse_section(candidate, section):
