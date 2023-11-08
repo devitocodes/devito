@@ -7,7 +7,7 @@ from devito.tools import as_tuple
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
            'EntryFunction', 'AsyncCallable', 'AsyncCall', 'ThreadCallable',
-           'DeviceFunction', 'DeviceCall', 'KernelLaunch']
+           'DeviceFunction', 'DeviceCall', 'KernelLaunch', 'CommCallable']
 
 
 # ElementalFunction machinery
@@ -105,17 +105,7 @@ def make_callable(name, iet, retval='void', prefix='static'):
     """
     Utility function to create a Callable from an IET.
     """
-    parameters = derive_parameters(iet)
-
-    # TODO: this should be done by `derive_parameters`, and perhaps better, e.g.
-    # ordering such that TimeFunctions go first, then Functions, etc. However,
-    # doing it would require updating a *massive* number of tests and notebooks,
-    # hence for now we limit it here
-    # NOTE: doing it not just for code aesthetics, but also so that semantically
-    # identical callables can be abstracted homogeneously irrespective of the
-    # object names, which dictate the ordering in the callable signature
-    parameters = sorted(parameters, key=lambda p: str(type(p)))
-
+    parameters = derive_parameters(iet, ordering='canonical')
     return Callable(name, iet, retval, parameters=parameters, prefix=prefix)
 
 
@@ -221,3 +211,9 @@ class KernelLaunch(DeviceCall):
         if self.stream is not None:
             launch_args += (self.stream.function,)
         return super().functions + launch_args
+
+
+# Other relevant Callable subclasses
+
+class CommCallable(Callable):
+    pass

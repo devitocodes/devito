@@ -722,7 +722,7 @@ class Callable(Node):
     @property
     def functions(self):
         return tuple(i.function for i in self.all_parameters
-                     if isinstance(i.function, AbstractFunction))
+                     if isinstance(i.function, (AbstractFunction, AbstractObject)))
 
     @property
     def defines(self):

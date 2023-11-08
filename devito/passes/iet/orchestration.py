@@ -64,7 +64,7 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall
@@ -78,7 +78,7 @@ class Orchestrator(object):
         # Turn init IET into a Callable
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = Callable(name, body, 'void', parameters, 'static')
 
         # Perform initial fetch by the main thread
@@ -96,7 +96,7 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall

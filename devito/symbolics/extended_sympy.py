@@ -11,6 +11,7 @@ from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4
                           double2, double3, double4, int2, int3, int4)
 from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
+from devito.types.basic import Basic
 
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
@@ -165,11 +166,9 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             pointer = Symbol(pointer)
         if isinstance(call, str):
             call = Symbol(call)
-        elif not isinstance(call, (CallFromPointer, DefFunction, sympy.Symbol)):
-            # NOTE: we need `sympy.Symbol`, rather than just (devito) `Symbol`
-            # because otherwise it breaks upon certain reconstructions on SymPy-1.8,
-            # due to the way `bound_symbols` and `canonical_variables` interact
-            raise ValueError("`call` must be CallFromPointer, DefFunction, or Symbol")
+        elif not isinstance(call, Basic):
+            raise ValueError("`call` must be a `devito.Basic` or a type "
+                             "with compatible interface")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):

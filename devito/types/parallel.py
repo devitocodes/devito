@@ -7,7 +7,7 @@ identifying a device attached to a node).
 """
 
 import os
-from ctypes import c_void_p
+from ctypes import POINTER, c_void_p
 
 from cached_property import cached_property
 import numpy as np
@@ -21,8 +21,8 @@ from devito.types.dimension import CustomDimension
 from devito.types.misc import Fence, VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
-           'DeviceID', 'ThreadID', 'Lock', 'PThreadArray', 'SharedData',
-           'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
+           'DeviceID', 'ThreadID', 'Lock', 'ThreadArray', 'PThreadArray',
+           'SharedData', 'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
 
 
 class NThreadsBase(Scalar):
@@ -139,14 +139,10 @@ class ThreadArray(ArrayObject):
         else:
             return self.dim
 
-    @cached_property
-    def symbolic_base(self):
-        return Symbol(name=self.name, dtype=None)
-
 
 class PThreadArray(ThreadArray):
 
-    dtype = type('pthread_t', (c_void_p,), {})
+    dtype = POINTER(type('pthread_t', (c_void_p,), {}))
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):

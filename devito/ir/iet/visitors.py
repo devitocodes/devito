@@ -19,7 +19,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ListInitializer, ccode, uxreplace
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
-                          filter_sorted, flatten, is_external_ctype, c_restrict_void_p)
+                          filter_sorted, flatten, is_external_ctype,
+                          c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -224,7 +225,7 @@ class CGen(Visitor):
 
     def _gen_value(self, obj, level=2, masked=()):
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
-                      if getattr(obj, k, False) and v not in masked]
+                      if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and level == 2:
             strtype = obj._C_typedata
@@ -233,7 +234,8 @@ class CGen(Visitor):
             strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
-                strtype = '%s%s' % (strtype, self._restrict_keyword)
+                if not obj._mem_stack:
+                    strtype = '%s%s' % (strtype, self._restrict_keyword)
         strtype = ' '.join(qualifiers + [strtype])
 
         strname = obj._C_name
@@ -632,10 +634,10 @@ class CGen(Visitor):
         # Elemental functions
         esigns = []
         efuncs = [blankline]
-        for i in o._func_table.values():
-            if i.local:
-                esigns.append(self._gen_signature(i.root))
-                efuncs.extend([self._visit(i.root), blankline])
+        items = [i.root for i in o._func_table.values() if i.local]
+        for i in sorted_efuncs(items):
+            esigns.append(self._gen_signature(i))
+            efuncs.extend([self._visit(i), blankline])
 
         # Definitions
         headers = [c.Define(*i) for i in o._headers] + [blankline]
@@ -1279,3 +1281,16 @@ class MultilineCall(c.Generable):
         if self.cast:
             tip = '(%s)%s' % (self.cast, tip)
         yield tip
+
+
+def sorted_efuncs(efuncs):
+    from devito.ir.iet.efunc import (CommCallable, DeviceFunction,
+                                     ThreadCallable, ElementalFunction)
+
+    priority = {
+        DeviceFunction: 3,
+        ThreadCallable: 2,
+        ElementalFunction: 1,
+        CommCallable: 1
+    }
+    return sorted_priority(efuncs, priority)

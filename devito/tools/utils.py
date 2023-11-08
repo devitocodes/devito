@@ -13,7 +13,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val']
+           'humanbytes', 'contains_val', 'sorted_priority']
 
 
 # Some utils run faster with Python>=3.7
@@ -332,3 +332,34 @@ def humanbytes(B):
         return '%.1f GB' % round(B / GB, 1)
     elif TB <= B:
         return '%.2f TB' % round(B / TB, 1)
+
+
+def sorted_priority(items, priority):
+    """
+    Sort items based on their type priority.
+
+    Rules:
+
+        * Each type has an integer priority.
+        * Types with higher priority precede types with lower priority.
+        * Types with same priority are sorted based on the type name.
+        * Types with unknown priority are given 0-priority.
+
+    Parameters
+    ----------
+    items : iterable
+        The objects to be sorted.
+    priority : dict
+        A dictionary from types to integer values.
+    """
+
+    def key(i):
+        for cls in sorted(priority, key=priority.get, reverse=True):
+            if isinstance(i, cls):
+                v = priority[cls]
+                break
+        else:
+            v = 0
+        return (v, str(type(i)))
+
+    return sorted(items, key=key, reverse=True)

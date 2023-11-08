@@ -271,6 +271,10 @@ class Basic(CodeSymbol):
     is_PerfKnob = False  # Does it impact the Operator performance?
 
     @property
+    def base(self):
+        return self
+
+    @property
     def bound_symbols(self):
         """
         Unlike SymPy, we systematically define `bound_symbols` on all of
@@ -392,10 +396,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     @property
     def symbolic_shape(self):
         return ()
-
-    @property
-    def base(self):
-        return self
 
     @property
     def function(self):
@@ -1005,6 +1005,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
         return self._dimensions
+
+    @property
+    def base(self):
+        return self.indexed
 
     @property
     def _eval_deriv(self):

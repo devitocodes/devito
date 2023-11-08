@@ -314,12 +314,14 @@ class TestBasic(object):
         assert sdata.cfields == new_sdata.cfields
         assert sdata.ncfields == new_sdata.ncfields
 
-        ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+        ffp = FieldFromPointer(sdata.symbolic_flag, sdata.indexed)
 
         pkl_ffp = pickle.dumps(ffp)
         new_ffp = pickle.loads(pkl_ffp)
 
-        assert ffp == new_ffp
+        assert ffp.field == new_ffp.field
+        assert ffp.base.name == new_ffp.base.name
+        assert ffp.function.fields == new_ffp.function.fields
 
         indexed = sdata[0]
 
