@@ -162,12 +162,12 @@ def separate_dimensions(expressions):
     for e in expressions:
         # Just want dimensions which appear in the expression
         # Dimensions in indices
-        dims = set().union(*tuple(set(i.function.dimensions)
-                                  for i in retrieve_indexed(e)))
+        dims = set().union(*[i.function.dimensions
+                             for i in retrieve_indexed(e)])
         # Dimensions in conditions and ConditionalDimension parents
-        dims = dims.union(*tuple(pull_dims(d.condition, flag=False)
-                                 for d in dims if d.is_Conditional
-                                 and d.condition is not None),
+        dims = dims.union(*[pull_dims(d.condition, flag=False)
+                            for d in dims if d.is_Conditional
+                            and d.condition is not None],
                           set(d.parent for d in dims if d.is_Conditional))
         # Sort for groupby
         dims = sorted(dims, key=lambda x: x.name)
@@ -179,18 +179,17 @@ def separate_dimensions(expressions):
         subs = {}
         for c in clashes:
             # Preferentially rename dims that aren't root dims
-            rdims = tuple(d for d in c if d.is_Root)
             ddims = tuple(d for d in c if not d.is_Root)
 
-            for d in (ddims + rdims)[:-1]:
+            for d in ddims:
                 if d in resolutions.keys():
                     subs[d] = resolutions[d]
                 else:
                     try:
-                        subs[d] = d._rebuild(d.name+str(count[d.name]))
+                        subs[d] = d._rebuild('%s%s' % (d.name, count[d.name]))
                         count[d.name] += 1
                     except KeyError:
-                        subs[d] = d._rebuild(d.name+'0')
+                        subs[d] = d._rebuild('%s0' % d.name)
                         count[d.name] = 1
                     resolutions[d] = subs[d]
 

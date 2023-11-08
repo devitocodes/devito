@@ -9,6 +9,8 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos, Min, Max,
                     ConditionalDimension)
 from devito.ir import Expression, FindNodes
+from devito.ir.equations import LoweredEq, lower_exprs
+from devito.ir.support.guards import GuardFactorEq
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, ccode, uxreplace,
@@ -410,7 +412,7 @@ def test_dxreplace():
     ck = ConditionalDimension(name='ck', parent=x, condition=Le(x, 2))
 
     f = Function(name='f', dimensions=(ci,), shape=(11,))
-    g = Function(name='g', dimensions=(x,), shape=(11,))
+    g = Function(name='g', dimensions=(x,), shape=(11,)) 
 
     assert dxreplace(ci, {x: x0}).parent == x0
     assert dxreplace(cj, {x: x0}).condition == Gt(x0, 2)
@@ -419,6 +421,13 @@ def test_dxreplace():
     assert dxreplace(g, {x: x0}).args[0] == x0
     assert dxreplace(Eq(ci, 1), {x: x0}).lhs.parent == x0
     assert dxreplace(Eq(f, 1), {x: x0}).lhs.args[0].parent == x0
+
+    eq = dxreplace(LoweredEq(lower_exprs(Eq(f, cj))), {x: x0})
+    conds = eq.conditionals
+    assert conds[dxreplace(ci, {x: x0})] == GuardFactorEq(dxreplace(ci, {x: x0}))
+    assert conds[dxreplace(cj, {x: x0})] == Gt(x0, 2)
+    assert len(eq.ispace) == 1
+    assert eq.ispace[0].dim == x0
 
 
 def test_uxreplace_custom_reconstructable():

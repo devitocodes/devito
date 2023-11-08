@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Pow, Add, Mul, Min, Max, SympifyError, Tuple, sympify
+from sympy import Pow, Add, Mul, Min, Max, SympifyError, Tuple, sympify, Mod
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -108,7 +108,7 @@ def _uxreplace(expr, rule, mode='ux'):
                 # used to build the object rather than the property, as
                 # the latter can sometimes have default values which do
                 # not match the default for the class.
-                v = {i: (getattr(expr, "_"+i) if hasattr(expr, "_"+i)
+                v = {i: (getattr(expr, "_%s" % i) if hasattr(expr, "_%s" % i)
                          else getattr(expr, i))
                      for i in expr.__rkwargs__}
             except AttributeError:
@@ -121,7 +121,6 @@ def _uxreplace(expr, rule, mode='ux'):
         flag = aflag | kwflag
         changed |= flag
         if changed:
-            print("expr", expr, "args", args, "kwargs", kwargs)
             return _uxreplace_handle(expr, args, kwargs), True
 
     return expr, False
@@ -178,6 +177,7 @@ def _uxreplace_handle(expr, args, kwargs):
 @_uxreplace_handle.register(Min)
 @_uxreplace_handle.register(Max)
 @_uxreplace_handle.register(Pow)
+@_uxreplace_handle.register(Mod)
 def _(expr, args, kwargs):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)

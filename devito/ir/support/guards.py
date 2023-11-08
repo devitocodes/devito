@@ -8,6 +8,7 @@ from sympy import And, Ge, Gt, Le, Lt, Mul, true
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
+from devito.symbolics.manipulation import _uxreplace_dispatch, _uxreplace
 from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension
 
@@ -55,6 +56,12 @@ class GuardFactor(Guard, CondEq, Pickable):
     @property
     def _args_rebuild(self):
         return (self.d,)
+
+
+@_uxreplace_dispatch.register(GuardFactor)
+def _(expr, rule, mode='ux'):
+    d, changed = _uxreplace(expr.d, rule, mode=mode)
+    return expr.__class__(d), changed
 
 
 class GuardFactorEq(GuardFactor, CondEq):
