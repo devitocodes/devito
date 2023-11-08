@@ -76,7 +76,8 @@ jobs:
         mkdir llvm-project/build
         cd llvm-project/build
         cmake -G Ninja ../llvm \
-          -DLLVM_ENABLE_PROJECTS="mlir; clang; openmp; lld"\
+          -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp;lld" \
+          -DLLVM_BUILD_EXAMPLES=ON \
           -DLLVM_TARGETS_TO_BUILD="Native" \
           -DLLVM_ENABLE_LLD=ON \
           -DCMAKE_C_COMPILER=clang \
@@ -84,6 +85,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_ENABLE_ASSERTIONS=OFF \
           -DLLVM_BINUTILS_INCDIR=/usr/include
+
     - name: MLIR Build
       if: steps.cache-binary.outputs.cache-hit != 'true'
       run: |
