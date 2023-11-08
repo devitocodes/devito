@@ -603,6 +603,41 @@ class TestSparseFunction(object):
         assert np.all(sf1.data == 4)
 
     @pytest.mark.parallel(mode=4)
+    def test_sparse_first(self):
+        """
+        Tests custom sparse function with sparse dimension as first index.
+        """
+
+        class SparseFirst(SparseFunction):
+            """Custom sparse class with the sparse dimension as the first one"""
+            _sparse_position = 0
+
+        dr = Dimension("cd")
+        ds = DefaultDimension("ps", default_value=3)
+        grid = Grid((11, 11))
+        dims = grid.dimensions
+        s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds), shape=(2, 3),
+                        coordinates=[[.5, .5], [.2, .2]])
+
+        # Check dimensions and shape are correctly initialized
+        assert s.indices[s._sparse_position] == dr
+        assert s.shape == (2, 3)
+        assert s.coordinates.indices[0] == dr
+
+        # Operator
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        fs = Function(name="fs", grid=grid, dimensions=(*dims, ds), shape=(11, 11, 3))
+
+        eqs = [Eq(u.forward, u+1), Eq(fs, u)]
+        # No time dependence so need the implicit dim
+        rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
+        op = Operator(eqs + rec)
+
+        op(time_M=10)
+        expected = 10*11/2  # n (n+1)/2
+        assert np.allclose(s.data, expected)
+
+    @pytest.mark.parallel(mode=4)
     def test_no_grid_dim_slow(self):
         shape = (12, 13, 14)
         nfreq = 5
@@ -625,7 +660,6 @@ class TestSparseFunction(object):
         rec_eq = s.interpolate(expr=u)
 
         op = Operator([Eq(u, 1)] + rec_eq)
-        print(op)
         op.apply()
         assert np.all(s.data == 1)
 
@@ -652,8 +686,7 @@ class TestSparseFunction(object):
         rec_eq = s.interpolate(expr=u)
 
         op = Operator([Eq(u, 1)] + rec_eq)
-        print(op)
-        op.apply()
+        op.apply(time_M=5)
         assert np.all(s.data == 1)
 
 

@@ -551,8 +551,7 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Source and receivers
     expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
-    stencils += src.inject(field=u.forward, expr=expr)
-    stencils += src.inject(field=v.forward, expr=expr)
+    stencils += src.inject(field=(u.forward, v.forward), expr=expr)
     stencils += rec.interpolate(expr=u + v)
 
     # Substitute spacing terms to reduce flops
@@ -601,8 +600,7 @@ def AdjointOperator(model, geometry, space_order=4,
 
     # Construct expression to inject receiver values
     expr = rec * dt / m if kernel == 'staggered' else rec * dt**2 / m
-    stencils += rec.inject(field=p.backward, expr=expr)
-    stencils += rec.inject(field=r.backward, expr=expr)
+    stencils += rec.inject(field=(p.backward, r.backward), expr=expr)
 
     # Create interpolation expression for the adjoint-source
     stencils += srca.interpolate(expr=p + r)
@@ -661,8 +659,7 @@ def JacobianOperator(model, geometry, space_order=4,
     eqn2 = FD_kernel(model, du, dv, space_order, qu=lin_usrc, qv=lin_vsrc)
 
     # Construct expression to inject source values, injecting at u0(t+dt)/v0(t+dt)
-    src_term = src.inject(field=u0.forward, expr=src * dt**2 / m)
-    src_term += src.inject(field=v0.forward, expr=src * dt**2 / m)
+    src_term = src.inject(field=(u0.forward, v0.forward), expr=src * dt**2 / m)
 
     # Create interpolation expression for receivers, extracting at du(t)+dv(t)
     rec_term = rec.interpolate(expr=du + dv)
@@ -716,8 +713,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
     dm_update = Inc(dm, - (u0 * du.dt2 + v0 * dv.dt2))
 
     # Add expression for receiver injection
-    rec_term = rec.inject(field=du.backward, expr=rec * dt**2 / m)
-    rec_term += rec.inject(field=dv.backward, expr=rec * dt**2 / m)
+    rec_term = rec.inject(field=(du.backward, dv.backward), expr=rec * dt**2 / m)
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + rec_term + [dm_update], subs=model.spacing_map,

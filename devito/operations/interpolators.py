@@ -195,7 +195,7 @@ class WeightedInterpolator(GenericInterpolator):
             idims = self.sfunction.dimensions + as_tuple(implicit_dims) + extra
         else:
             idims = extra + as_tuple(implicit_dims) + self.sfunction.dimensions
-        return tuple(filter_ordered(idims))
+        return tuple(idims)
 
     def _coeff_temps(self, implicit_dims):
         return []
