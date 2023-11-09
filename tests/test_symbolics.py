@@ -412,7 +412,7 @@ def test_dxreplace():
     ck = ConditionalDimension(name='ck', parent=x, condition=Le(x, 2))
 
     f = Function(name='f', dimensions=(ci,), shape=(11,))
-    g = Function(name='g', dimensions=(x,), shape=(11,)) 
+    g = Function(name='g', dimensions=(x,), shape=(11,))
 
     assert dxreplace(ci, {x: x0}).parent == x0
     assert dxreplace(cj, {x: x0}).condition == Gt(x0, 2)
