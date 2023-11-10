@@ -431,7 +431,10 @@ class TestStreaming(object):
         op = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 9
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 9
+        else:
+            assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         op.apply(time_M=nt-2)
@@ -460,8 +463,13 @@ class TestStreaming(object):
         op = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 9
-        assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
+        arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 9
+            assert len(arrays) == ntmps
+        else:
+            assert len(op._func_table) == 8
+            assert len(arrays) == ntmps - 1
 
         op.apply(time_M=nt-2)
 
@@ -596,7 +604,10 @@ class TestStreaming(object):
         op1 = Operator(eqn, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 9
+        if configuration['language'] == 'openacc':
+            assert len(op1._func_table) == 9
+        else:
+            assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-2, dt=0.1)
@@ -683,7 +694,10 @@ class TestStreaming(object):
         op1 = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op1._func_table) == 9
+        if configuration['language'] == 'openacc':
+            assert len(op1._func_table) == 9
+        else:
+            assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
 
         op0.apply(time_M=nt-1)
@@ -766,7 +780,10 @@ class TestStreaming(object):
         # It is true that the usave and vsave eqns are separated in two different
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
-        assert len(op1._func_table) == 8
+        if configuration['language'] == 'openacc':
+            assert len(op1._func_table) == 8
+        else:
+            assert len(op1._func_table) == 7
 
         # Check output
         op0.apply(time_M=nt-1)
@@ -934,7 +951,10 @@ class TestStreaming(object):
         # The `usave` and `vsave` eqns are in separate tasks, but the tasks
         # are identical, so they get mapped to the same efuncs (init + copy)
         # There also are two extra functions to allocate and free arrays
-        assert len(op._func_table) == 8
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 8
+        else:
+            assert len(op._func_table) == 7
 
         op.apply(time_M=nt-1)
 
@@ -990,7 +1010,10 @@ class TestStreaming(object):
 
         # We just check the generated code here
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
-        assert len(op._func_table) == 8
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 8
+        else:
+            assert len(op._func_table) == 7
 
     def test_save_w_subdims(self):
         nt = 10
@@ -1047,7 +1070,10 @@ class TestStreaming(object):
         op = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(op._func_table) == 9
+        if configuration['language'] == 'openacc':
+            assert len(op._func_table) == 9
+        else:
+            assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
 
         # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
@@ -1102,12 +1128,13 @@ class TestStreaming(object):
                                   {'fuse-tasks': True}))
 
         # Check generated code
-        assert len(op1._func_table) == 14
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 8
-        assert len(op2._func_table) == 14
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 8
-        assert len(op3._func_table) == 10
-        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 7
+        diff = int(configuration['language'] == 'openmp')
+        assert len(op1._func_table) == 14 - diff
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 8 - diff
+        assert len(op2._func_table) == 14 - diff
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 8 - diff
+        assert len(op3._func_table) == 10 - diff
+        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 7 - diff
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
