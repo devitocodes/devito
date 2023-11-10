@@ -172,8 +172,8 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for i in subdomains:
-            i.__subdomain_finalize__(self)
+        for counter, i in enumerate(subdomains):
+            i.__subdomain_finalize__(self, tag=counter-1)
         self._subdomains = subdomains
 
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -486,6 +486,7 @@ class SubDomain(AbstractSubDomain):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
+        tag = str(kwargs.get('tag', ''))
         for k, v, s in zip(self.define(grid.dimensions).keys(),
                            self.define(grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
@@ -498,7 +499,7 @@ class SubDomain(AbstractSubDomain):
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
                     sub_dimensions.append(
-                        SubDimension.middle(k.name, k, tkn_left, tkn_right)
+                        SubDimension.middle(k.name, k, tkn_left, tkn_right, tag=tag)
                     )
                     tkn = s-tkn_left-tkn_right
                     sdshape.append(tkn)
@@ -508,13 +509,15 @@ class SubDomain(AbstractSubDomain):
                         if s-tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, tkn))
-                        sub_dimensions.append(SubDimension.left(k.name, k, tkn))
+                        sub_dimensions.append(SubDimension.left(k.name, k, tkn,
+                                                                tag=tag))
                         sdshape.append(tkn)
                     elif side == 'right':
                         if s-tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, tkn))
-                        sub_dimensions.append(SubDimension.right(k.name, k, tkn))
+                        sub_dimensions.append(SubDimension.right(k.name, k, tkn,
+                                                                 tag=tag))
                         sdshape.append(tkn)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)

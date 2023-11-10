@@ -172,6 +172,8 @@ def separate_dimensions(expressions):
         # Sort for groupby
         dims = sorted(dims, key=lambda x: x.name)
 
+        # TODO: Needs to check for dimensions in factors too
+
         # Group dimensions by matching names
         groups = tuple(tuple(g) for n, g in groupby(dims, key=lambda x: x.name))
         clashes = tuple(g for g in groups if len(g) > 1)

@@ -589,21 +589,22 @@ class SubDimension(DerivedDimension):
     __rkwargs__ = ()
 
     def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
+        print(name, parent, left, right, thickness)
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
         self._thickness = Thickness(*thickness)
         self._local = local
 
     @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+    def _symbolic_thickness(cls, name, tag=''):
+        return (Scalar(name="%s_ltkn%s" % (name, tag), dtype=np.int32,
                        is_const=True, nonnegative=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                Scalar(name="%s_rtkn%s" % (name, tag), dtype=np.int32,
                        is_const=True, nonnegative=True))
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+    def left(cls, name, parent, thickness, local=True, tag=''):
+        lst, rst = cls._symbolic_thickness(name, tag=tag)
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
@@ -611,8 +612,8 @@ class SubDimension(DerivedDimension):
                    local=local)
 
     @classmethod
-    def right(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+    def right(cls, name, parent, thickness, local=True, tag=''):
+        lst, rst = cls._symbolic_thickness(name, tag=tag)
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
@@ -620,8 +621,9 @@ class SubDimension(DerivedDimension):
                    local=local)
 
     @classmethod
-    def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        lst, rst = cls._symbolic_thickness(name)
+    def middle(cls, name, parent, thickness_left, thickness_right, local=False,
+               tag=''):
+        lst, rst = cls._symbolic_thickness(name, tag=tag)
         return cls(name, parent,
                    left=parent.symbolic_min+lst,
                    right=parent.symbolic_max-rst,
