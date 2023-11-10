@@ -589,7 +589,6 @@ class SubDimension(DerivedDimension):
     __rkwargs__ = ()
 
     def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
-        print(name, parent, left, right, thickness)
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
         self._thickness = Thickness(*thickness)

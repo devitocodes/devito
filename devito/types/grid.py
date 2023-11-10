@@ -544,7 +544,7 @@ class MultiSubDimension(SubDimension):
     A special SubDimension for graceful lowering of MultiSubDomains.
     """
 
-    def __init_finalize__(self, name, parent, msd):
+    def __init_finalize__(self, name, parent, msd, tag=''):
         # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
         # This creates a circular pattern as the `msd` itself carries references to
         # its MultiSubDimensions. This is currently necessary because during compilation
@@ -553,7 +553,7 @@ class MultiSubDimension(SubDimension):
         # definitely possible, but not straightforward
         self.msd = msd
 
-        lst, rst = self._symbolic_thickness(name)
+        lst, rst = self._symbolic_thickness(name, tag=tag)
         left = parent.symbolic_min + lst
         right = parent.symbolic_max - rst
 
@@ -716,13 +716,15 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
+    def __subdomain_finalize__(self, grid, **kwargs):
         self._grid = grid
         self._dtype = grid.dtype
 
+        tag = str(kwargs.get('tag', ''))
+
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, counter), d, self)
+            MultiSubDimension(d.name, d, self, tag=tag)
             for d in grid.dimensions
         )
 
@@ -761,9 +763,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
-        n = counter - npresets
-        assert n >= 0
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+        self._implicit_dimension = i_dim = Dimension(name='n%s' % tag)
         functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
