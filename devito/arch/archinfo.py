@@ -10,6 +10,7 @@ import psutil
 import re
 import os
 import sys
+import json
 
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
@@ -244,6 +245,77 @@ def get_gpu_info():
 
             gpu_info['mem.%s' % i] = make_cbk(i)
 
+        return gpu_info
+
+    except OSError:
+        pass
+
+    # *** Second try: `rocm-smi`, clearly only works with AMD cards
+    try:
+        gpu_infos = {}
+
+        # Base gpu info
+        info_cmd = ['rocm-smi', '--showproductname']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+
+        lines = raw_info.replace('\\n', '\n').replace('b\'', '').replace('\\t', '')
+        lines = lines.splitlines()
+
+        for line in lines:
+            if 'GPU' in line:
+                # Product
+                pattern = r'GPU\[(\d+)\].*?Card series:\s*(.*?)\s*$'
+                match1 = re.match(pattern, line)
+
+                if match1:
+                    gid = match1.group(1)
+                    gpu_infos.setdefault(gid, dict())
+                    gpu_infos[gid]['physicalid'] = gid
+                    gpu_infos[gid]['product'] = match1.group(2)
+
+                # Model
+                pattern = r'GPU\[(\d+)\].*?Card model:\s*(.*?)\s*$'
+                match2 = re.match(pattern, line)
+
+                if match2:
+                    gid = match2.group(1)
+                    gpu_infos.setdefault(gid, dict())
+                    gpu_infos[gid]['physicalid'] = match2.group(1)
+                    gpu_infos[gid]['model'] = match2.group(2)
+
+        gpu_info = homogenise_gpus(list(gpu_infos.values()))
+
+        # Also attach callbacks to retrieve instantaneous memory info
+        info_cmd = ['rocm-smi', '--showmeminfo', 'vram', '--json']
+        proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
+        raw_info = str(proc.stdout.read())
+        lines = raw_info.replace('\\n', '').replace('b\'', '').replace('\'', '')
+        info = json.loads(lines)
+
+        for i in ['total', 'free', 'used']:
+            def make_cbk(i):
+                def cbk(deviceid=0):
+                    try:
+                        # Should only contain Used and total
+                        assert len(info['card%s' % deviceid]) == 2
+                        used = [int(v) for k, v in info['card%s' % deviceid].items()
+                                if 'Used' in k][0]
+                        total = [int(v) for k, v in info['card%s' % deviceid].items()
+                                 if 'Used' not in k][0]
+                        free = total - used
+                        return {'total': total, 'free': free, 'used': used}[i]
+                    except:
+                        # We shouldn't really end up here, unless nvidia-smi changes
+                        # the output format (though we still have tests in place that
+                        # will catch this)
+                        return None
+
+                return cbk
+
+            gpu_info['mem.%s' % i] = make_cbk(i)
+
+        gpu_infos['architecture'] = 'AMD'
         return gpu_info
 
     except OSError:

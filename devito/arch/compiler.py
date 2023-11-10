@@ -862,26 +862,37 @@ class CustomCompiler(Compiler):
 
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
-        obj._base = _base
-        obj._cpp = _base._cpp
+        obj._base = kwargs.pop('base', _base)
+        obj._cpp = obj._base._cpp
 
         return obj
 
     def __init_finalize__(self, **kwargs):
         self._base.__init_finalize__(self, **kwargs)
         # Update cflags
-        extrac = environ.get('CFLAGS', '').split(' ')
-        self.cflags = filter_ordered(self.cflags + extrac)
+        try:
+            extrac = environ.get('CFLAGS').split(' ')
+            self.cflags = self.cflags + extrac
+        except AttributeError:
+            pass
         # Update ldflags
-        extrald = environ.get('LDFLAGS', '').split(' ')
-        self.ldflags = filter_ordered(self.ldflags + extrald)
+        try:
+            extrald = environ.get('LDFLAGS').split(' ')
+            self.ldflags = self.ldflags + extrald
+        except AttributeError:
+            pass
 
     def __lookup_cmds__(self):
         self._base.__lookup_cmds__(self)
+        # TODO: check for conflicts, for example using the nvhpc module file
+        # will set CXX to nvc++ breaking  the cuda backend
         self.CC = environ.get('CC', self.CC)
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
         self.MPICXX = environ.get('MPICXX', self.MPICXX)
+
+    def __new_with__(self, **kwargs):
+        return super().__new_with__(base=self._base, **kwargs)
 
 
 compiler_registry = {
