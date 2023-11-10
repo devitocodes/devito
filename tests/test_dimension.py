@@ -793,6 +793,34 @@ class TestConditionalDimension(object):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
+    def test_overrides_newfact(self):
+        nt = 19
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        assert(grid.stepping_dim in u.indices)
+
+        f1, f2 = 4, 5
+        n1, n2 = (nt+f1-1)//f1, (nt+f2-1)//f2
+        t1 = ConditionalDimension('t_sub1', parent=time, factor=f1)
+        t2 = ConditionalDimension('t_sub2', parent=time, factor=f2)
+        u1 = TimeFunction(name='usave1', grid=grid, save=n1, time_dim=t1)
+        u2 = TimeFunction(name='usave2', grid=grid, save=n2, time_dim=t2)
+        assert(t1 in u1.indices)
+        assert(t2 in u2.indices)
+
+        eqns = [Eq(u.forward, u + 1.), Eq(u1, u)]
+        op = Operator(eqns)
+        op.apply(u=u, usave1=u1, time_M=nt-2)
+        u.data.fill(0)
+        op.apply(u=u, usave1=u2, time_M=nt-2)
+
+        assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
+        for (uk, fk) in zip((u1, u2), (f1, f2)):
+            assert np.all([np.allclose(uk.data[i], i*fk)
+                           for i in range((nt+fk-1)//fk)])
+
     def test_basic_shuffles(self):
         """
         Like ``test_basic``, but with different equation orderings. Nevertheless,
@@ -871,10 +899,10 @@ class TestConditionalDimension(object):
         usave = TimeFunction(name='usave', grid=grid, save=(nt+factor-1)//factor,
                              time_dim=time_subsampled, time_order=2)
 
-        dx2 = [indexify(i) for i in retrieve_functions(usave.dt2.evaluate)]
-        assert dx2 == [usave[time_subsampled - 1, x, y],
+        dx2 = {indexify(i) for i in retrieve_functions(usave.dt2.evaluate)}
+        assert dx2 == {usave[time_subsampled - 1, x, y],
                        usave[time_subsampled + 1, x, y],
-                       usave[time_subsampled, x, y]]
+                       usave[time_subsampled, x, y]}
 
     def test_issue_1592(self):
         grid = Grid(shape=(11, 11))
@@ -886,7 +914,9 @@ class TestConditionalDimension(object):
         op = Operator(Eq(v.forward, v.dx))
         op.apply(time=6)
         exprs = FindNodes(Expression).visit(op)
-        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, 2) + 1
+        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, time_sub.factor) + 1
+        assert time_sub.factor.data == 2
+        assert time_sub.factor.is_Constant
 
     def test_issue_1753(self):
         grid = Grid(shape=(3, 3, 3))

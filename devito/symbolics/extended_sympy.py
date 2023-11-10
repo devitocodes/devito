@@ -86,7 +86,8 @@ class IntDiv(sympy.Expr):
             # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
                 raise ValueError("Symbolic RHS `%s` lacks dtype" % rhs)
-            if not issubclass(rhs.dtype, np.integer):
+            if not issubclass(rhs.dtype, np.integer) or \
+                    not (rhs.is_Constant and issubclass(rhs.dtype, np.integer)):
                 raise ValueError("Symbolic RHS `%s` must be of type `int`, found "
                                  "`%s` instead" % (rhs, rhs.dtype))
         rhs = sympify(rhs)

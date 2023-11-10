@@ -11,6 +11,7 @@ from devito.logger import debug
 from devito.tools import Pickable, is_integer
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
+from devito.types.constant import Constant
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
@@ -848,13 +849,22 @@ class ConditionalDimension(DerivedDimension):
 
         super().__init_finalize__(name, parent)
 
-        self._factor = factor
+        # Always make the factor symbolic to allow overrides with different factor.
+        if factor is None:
+            self._factor = None
+        elif is_integer(factor):
+            self._factor = Constant(name="%sf" % name, value=factor, dtype=np.int32)
+        elif factor.is_Constant and is_integer(factor.data):
+            self._factor = factor
+        else:
+            raise ValueError("factor must be an integer or integer Constant")
         self._condition = condition
         self._indirect = indirect
 
     @property
     def spacing(self):
-        return self.factor * self.parent.spacing
+        s = self._factor.data if self._factor is not None else 1
+        return s * self.parent.spacing
 
     @property
     def factor(self):
@@ -890,7 +900,7 @@ class ConditionalDimension(DerivedDimension):
             return defaults
         try:
             # Is it a symbolic factor?
-            factor = defaults[dim._factor.name] = dim._factor.data
+            factor = defaults[dim._factor.name] = self._factor.data
         except AttributeError:
             factor = dim._factor
 
