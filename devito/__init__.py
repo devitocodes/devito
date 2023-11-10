@@ -22,7 +22,7 @@ from devito.operator import Operator  # noqa
 from devito.builtins import *  # noqa
 from devito.data.allocators import *  # noqa
 from devito.logger import error, warning, info, set_log_level  # noqa
-from devito.mpi import MPI  # noqa
+from devito.mpi import MPI, CustomTopology  # noqa
 try:
     from devito.checkpointing import DevitoCheckpoint, CheckpointOperator  # noqa
     from pyrevolve import Revolver

@@ -17,8 +17,6 @@ from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
 
-__all__ = ['CustomTopology']
-
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
 # that has *already* initialized MPI
@@ -60,7 +58,7 @@ except ImportError:
             return None
 
 
-__all__ = ['Distributor', 'SparseDistributor', 'MPI']
+__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology']
 
 
 class AbstractDistributor(ABC):
