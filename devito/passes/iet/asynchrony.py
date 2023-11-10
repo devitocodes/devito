@@ -12,7 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Null)
 from devito.tools import split
-from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Symbol,
+from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Temp,
                           VolatileInt)
 
 __all__ = ['pthreadify']
@@ -194,7 +194,7 @@ def lower_async_calls(iet, track=None, sregistry=None):
             condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
             activation = [While(condition)]
         else:
-            d = Symbol(name=sregistry.make_name(prefix=threads.index.name))
+            d = Temp(name=sregistry.make_name(prefix=threads.index.name))
             condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
             activation = [DummyExpr(d, 0),
                           While(condition, DummyExpr(d, (d + 1) % threads.size))]
@@ -203,12 +203,9 @@ def lower_async_calls(iet, track=None, sregistry=None):
         activation.append(
             DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)
         )
-        activation = List(
-            header=[c.Line(), c.Comment("Activate `%s`" % threads.name)],
-            body=activation,
-            footer=c.Line()
-        )
-        mapper[n] = activation
+        name = sregistry.make_name(prefix='activate')
+        efunc = efuncs[name] = make_callable(name, activation)
+        mapper[n] = Call(name, efunc.parameters)
 
     if mapper:
         # Inject activation
