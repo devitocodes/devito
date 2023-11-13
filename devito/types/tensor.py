@@ -129,6 +129,8 @@ class TensorFunction(AbstractTensor):
         -----
         This method acts as a fallback for __getattribute__
         """
+        if name in ['_sympystr', '_pretty', '_latex']:
+            return super().__getattr__(self, name)
         try:
             return self.applyfunc(lambda x: x if x == 0 else getattr(x, name))
         except:
@@ -190,17 +192,26 @@ class TensorFunction(AbstractTensor):
         else:
             return super(TensorFunction, self).values()
 
-    def div(self, shift=None):
+    def div(self, shift=None, order=None):
         """
         Divergence of the TensorFunction (is a VectorFunction).
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         comps = []
         func = vec_func(self)
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        order = order or self.space_order
         for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
-                              (x0=shift_x0(shift, d, i, j))
+                              (x0=shift_x0(shift, d, i, j), fd_order=order)
                               for j, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
@@ -209,14 +220,37 @@ class TensorFunction(AbstractTensor):
         """
         Laplacian of the TensorFunction.
         """
+        return self.laplacian()
+
+    def laplacian(self, shift=None, order=None):
+        """
+        Laplacian of the TensorFunction with shifted derivatives and custom
+        FD order.
+
+        Each second derivative is left-right (i.e D^T D with D the first derivative ):
+        `(self.dx(x0=dim+shift*dim.spacing,
+                  fd_order=order)).dx(x0=dim-shift*dim.spacing, fd_order=order)`
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+        """
         comps = []
         func = vec_func(self)
-        for j, d in enumerate(self.space_dimensions):
+        order = order or self.space_order
+        ndim = len(self.space_dimensions)
+        shift_x0 = make_shift_x0(shift, (ndim, ndim))
+        for j in range(ndim):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
+                              (x0=shift_x0(shift, d, j, i), fd_order=order)
                               for i, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
-    def grad(self, shift=None):
+    def grad(self, shift=None, order=None):
         raise AttributeError("Gradient of a second order tensor not supported")
 
     def new_from_mat(self, mat):
@@ -282,12 +316,22 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    def div(self, shift=None):
+    def div(self, shift=None, order=None):
         """
         Divergence of the VectorFunction, creates the divergence Function.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
-        return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i))
+        order = order or self.space_order
+        return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
+                                                     fd_order=order)
                     for i, d in enumerate(self.space_dimensions)])
 
     @property
@@ -295,36 +339,81 @@ class VectorFunction(TensorFunction):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
         """
+        return self.laplacian()
+
+    def laplacian(self, shift=None, order=None):
+        """
+        Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+        """
         func = vec_func(self)
-        comps = [sum([getattr(s, 'd%s2' % d.name) for d in self.space_dimensions])
+        shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
+        order = order or self.space_order
+        comps = [sum([getattr(s, 'd%s2' % d.name)(x0=shift_x0(shift, d, None, i),
+                                                  fd_order=order)
+                      for i, d in enumerate(self.space_dimensions)])
                  for s in self]
         return func._new(comps)
 
-    @property
-    def curl(self):
+    def curl(self, shift=None, order=None):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
-        """
 
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+        """
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
         # The curl of a VectorFunction is a VectorFunction
-        derivs = ['d%s' % d.name for d in self.space_dimensions]
-        comp1 = getattr(self[2], derivs[1]) - getattr(self[1], derivs[2])
-        comp2 = getattr(self[0], derivs[2]) - getattr(self[2], derivs[0])
-        comp3 = getattr(self[1], derivs[0]) - getattr(self[0], derivs[1])
-
+        dims = self.space_dimensions
+        derivs = ['d%s' % d.name for d in dims]
+        shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
+        order = order or self.space_order
+        comp1 = (getattr(self[2], derivs[1])(x0=shift_x0(shift, dims[1], 2, 1),
+                                             fd_order=order) -
+                 getattr(self[1], derivs[2])(x0=shift_x0(shift, dims[2], 1, 2),
+                                             fd_order=order))
+        comp2 = (getattr(self[0], derivs[2])(x0=shift_x0(shift, dims[2], 0, 2),
+                                             fd_order=order) -
+                 getattr(self[2], derivs[0])(x0=shift_x0(shift, dims[0], 2, 0),
+                                             fd_order=order))
+        comp3 = (getattr(self[1], derivs[0])(x0=shift_x0(shift, dims[0], 1, 0),
+                                             fd_order=order) -
+                 getattr(self[0], derivs[1])(x0=shift_x0(shift, dims[1], 0, 1),
+                                             fd_order=order))
         func = vec_func(self)
         return func._new(3, 1, [comp1, comp2, comp3])
 
-    def grad(self, shift=None):
+    def grad(self, shift=None, order=None):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         func = tens_func(self)
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
-        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j))
+        order = order or self.space_order
+        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j),
+                                             fd_order=order)
                   for j, d in enumerate(self.space_dimensions)]
                  for i, f in enumerate(self)]
         return func._new(comps)

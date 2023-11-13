@@ -30,7 +30,6 @@ jobs:
       matrix:
         name: [
           tutos-ubuntu-gcc-py39,
-          tutos-osx-gcc-py39,
           tutos-osx-clang-py39,
           tutos-docker-gcc-py39
           ]
@@ -39,11 +38,6 @@ jobs:
           - name: tutos-ubuntu-gcc-py39
             os: ubuntu-latest
             compiler: gcc
-            language: "openmp"
-
-          - name: tutos-osx-gcc-py39
-            os: macos-latest
-            compiler: gcc-11
             language: "openmp"
 
           - name: tutos-osx-clang-py39
