@@ -89,4 +89,6 @@ if args.xdsl:
         plot_3dfunc(u)
 
 if args.xdsl and args.devito:
-    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
+    assert np.isclose(norm(u), norm(devito_out), rtol=1e-5)
+    max_error = np.max(np.abs(u.data - devito_out.data))
+    assert np.isclose(norm(u), norm(devito_out), rtol=1e-5)
