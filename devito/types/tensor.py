@@ -195,6 +195,14 @@ class TensorFunction(AbstractTensor):
     def div(self, shift=None, order=None):
         """
         Divergence of the TensorFunction (is a VectorFunction).
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         comps = []
         func = vec_func(self)
@@ -216,7 +224,20 @@ class TensorFunction(AbstractTensor):
 
     def laplacian(self, shift=None, order=None):
         """
-        Laplacian of the TensorFunction.
+        Laplacian of the TensorFunction with shifted derivatives and custom
+        FD order.
+
+        Each second derivative is left-right (i.e D^T D with D the first derivative ):
+        `(self.dx(x0=dim+shift*dim.spacing,
+                  fd_order=order)).dx(x0=dim-shift*dim.spacing, fd_order=order)`
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         comps = []
         func = vec_func(self)
@@ -298,6 +319,14 @@ class VectorFunction(TensorFunction):
     def div(self, shift=None, order=None):
         """
         Divergence of the VectorFunction, creates the divergence Function.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
@@ -315,6 +344,14 @@ class VectorFunction(TensorFunction):
     def laplacian(self, shift=None, order=None):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         func = vec_func(self)
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
@@ -328,6 +365,14 @@ class VectorFunction(TensorFunction):
     def curl(self, shift=None, order=None):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
@@ -354,6 +399,14 @@ class VectorFunction(TensorFunction):
     def grad(self, shift=None, order=None):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
         """
         func = tens_func(self)
         ndim = len(self.space_dimensions)

@@ -272,6 +272,22 @@ class Differentiable(sympy.Expr, Evaluable):
         return self.laplacian()
 
     def laplacian(self, shift=None, order=None):
+        """
+        Laplacian of the Differentiable with shifted derivatives and custom
+        FD order.
+
+        Each second derivative is left-right (i.e D^T D with D the first derivative ):
+        `(self.dx(x0=dim+shift*dim.spacing,
+                  fd_order=order)).dx(x0=dim-shift*dim.spacing, fd_order=order)`
+
+        Parameters
+        ----------
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+        """
         order = order or self.space_order
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
@@ -281,6 +297,20 @@ class Differentiable(sympy.Expr, Evaluable):
                      for i, d in enumerate(derivs)])
 
     def div(self, shift=None, order=None):
+        """
+        Divergence of the input Function.
+
+        Parameters
+        ----------
+        func : Function or TensorFunction
+            Function to take the divergence of
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+
+        """
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
@@ -289,6 +319,20 @@ class Differentiable(sympy.Expr, Evaluable):
                      for i, d in enumerate(space_dims)])
 
     def grad(self, shift=None, order=None):
+        """
+        Gradient of the input Function.
+
+        Parameters
+        ----------
+        func : Function or TensorFunction
+            Function to take the gradient of
+        shift: Number, optional, default=None
+            Shift for the center point of the derivative in number of gridpoints
+        order: int, optional, default=None
+            Discretization order for the finite differences.
+            Uses `func.space_order` when not specified
+
+        """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
