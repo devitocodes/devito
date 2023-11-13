@@ -257,6 +257,16 @@ class Distributor(AbstractDistributor):
             return 1
 
     @property
+    def nprocs_local(self):
+        if self.comm is not MPI.COMM_NULL:
+            local_comm = MPI.Comm.Split_type(self.comm, MPI.COMM_TYPE_SHARED)
+            node_size = local_comm.Get_size()
+            local_comm.Free()
+            return node_size
+        else:
+            return 1
+
+    @property
     def topology(self):
         return self._topology
 
