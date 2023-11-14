@@ -993,7 +993,8 @@ class IterationSpace(Space):
     @cached_property
     def dimensions(self):
         sub_dims = flatten(i._defines for v in self.sub_iterators.values() for i in v)
-        return tuple(filter_ordered(self.itdims + tuple(sub_dims)))
+        r_dims = flatten(i._defines for v in self.relations for i in v)
+        return tuple(filter_ordered(self.itdims + tuple(sub_dims) + tuple(r_dims)))
 
     @cached_property
     def nonderived_directions(self):
