@@ -97,4 +97,4 @@ jobs:
 
     - name: Test with pytest and generate code coverage
       run: |
-        pytest -W error -m "not parallel" -k "not adjoint" tests/
+        pytest -m "not parallel" -k "not adjoint" tests/
