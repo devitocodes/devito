@@ -33,7 +33,7 @@ def test_issue_1725():
 
     # Note the `x` loop is fissioned, so now both loop nests can be collapsed
     # for maximum parallelism
-    assert_structure(op, ['t,x,i1y', 't,x,i2y'], 't,x,i1y,x,i2y')
+    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,x,y')
 
 
 def test_nofission_as_unprofitable():
