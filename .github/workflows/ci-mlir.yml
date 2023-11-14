@@ -86,16 +86,15 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_ENABLE_ASSERTIONS=OFF \
           -DLLVM_BINUTILS_INCDIR=/usr/include
-    - name: MLIR Build
+
+    - name: MLIR Build and add to PATH
       if: steps.cache-binary.outputs.cache-hit != 'true'
       run: |
         cd llvm-project/build
         cmake --build . --target mlir-opt mlir-cpu-runner
-    - name: ADD TO PATH
-      run: |
-        cd xdsl
         # Add mlir-opt to the path
         export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
+
     - name: Test with pytest and generate code coverage
       run: |
         pytest -W error -m "not parallel" -k "not adjoint" tests/
