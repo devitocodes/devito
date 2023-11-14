@@ -1,4 +1,5 @@
 from collections import namedtuple
+import math
 
 import sympy
 from sympy.core.decorators import call_highest_priority
@@ -892,8 +893,8 @@ class ConditionalDimension(DerivedDimension):
     def _arg_values(self, interval, grid=None, **kwargs):
         # Parent dimension define the interval
         fact = self._factor.data if self._factor is not None else 1
-        toint = lambda x: int(np.ceil(x/fact))
-        vals = dict()
+        toint = lambda x: math.ceil(x / fact)
+        vals = {}
         try:
             vals[self.min_name] = toint(kwargs.get(self.parent.min_name))
         except (KeyError, TypeError):

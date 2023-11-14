@@ -659,11 +659,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           (_C_field_owned_ofs, POINTER(c_int)),
                                           (_C_field_dmap, c_void_p)]}))
 
-    def _C_make_dataobj(self, data):
+    def _C_make_dataobj(self, alias=None, **args):
         """
         A ctypes object representing the DiscreteFunction that can be passed to
         an Operator.
         """
+        key = alias or self
+        data = args[key.name]
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
         dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
@@ -863,7 +865,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
-        return {key.name: self._C_make_dataobj(args[key.name])}
+        return {key.name: self._C_make_dataobj(alias=key, **args)}
 
     # Pickling support
 
