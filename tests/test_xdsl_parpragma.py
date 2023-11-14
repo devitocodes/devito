@@ -3,15 +3,13 @@ from xdsl.printer import Printer
 from devito.ir.ietxdsl import *
 from xdsl.dialects.builtin import ModuleOp, i32
 from xdsl.dialects.arith import Constant
+import pytest
 from devito.xdslpasses.iet.parpragma import make_simd
 
-
+@pytest.mark.xfail(reason="Deprecated, will be dropped")
 def test_example():
-    ctx = MLContext()
-    Builtin(ctx)
-    iet = IET(ctx)
 
-    mod = ModuleOp.from_region_or_ops([
+    mod = ModuleOp([
         Callable.get(
             "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"], "int", "",
             Block.from_callable([i32], lambda u: [
@@ -32,8 +30,8 @@ def test_example():
                                          Block.
                                          from_callable([i32], lambda y: [
                                              cst1 := Constant.from_int_and_width(1, i32),
-                                             x1 := Addi.get(x, cst1),
-                                             y1 := Addi.get(y, cst1),
+                                             x1 := Addi(x, cst1),
+                                             y1 := Addi(y, cst1),
                                              #ut0 := Idx.get(u, t0),
                                              #ut0x1 := Idx.get(ut0, x1),
                                              #ut0x1y1 := Idx.get(ut0x1, y1),

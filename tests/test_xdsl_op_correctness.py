@@ -1,7 +1,9 @@
 import numpy as np
 from devito import Grid, TimeFunction, Eq, Operator, XDSLOperator, norm
+import pytest
 # flake8: noqa
 
+@pytest.mark.xfail(reason="Deprecated, will be dropped")
 def test_udx_conversion():
 
     # Define a simple Devito Operator
@@ -35,13 +37,13 @@ def test_u_plus1_conversion():
     
     u.data[:] = 0
     xdsl_op = XDSLOperator([eq])
-    xdsl_op.__class__ = XDSLOperator
     xdsl_op.apply(time_M=5)
     norm2 = norm(u)
 
     assert np.isclose(norm1, norm2, atol=1e-5, rtol=0)
     assert np.isclose(norm1, 23.43075, atol=1e-5, rtol=0)
 
+@pytest.mark.xfail(reason="Deprecated, will be dropped")
 def test_u_and_v_conversion():
     # Define a simple Devito Operator
     grid = Grid(shape=(3, 3))

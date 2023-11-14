@@ -11,13 +11,7 @@ def test_create_xdsl_operator():
     u = TimeFunction(name='u', grid=grid)
     eq = Eq(u.forward, u.dx)
     xdsl_op = XDSLOperator([eq])
-    xdsl_op.__class__ = XDSLOperator
     xdsl_op.apply(time_M=5)
 
-    op = Operator([eq])
+    op = XDSLOperator([eq])
     op.apply(time_M=5)
-
-    print(xdsl_op.ccode)
-    print(op.ccode)
-
-    # assert(str(op.ccode) == xdsl_op.ccode)
