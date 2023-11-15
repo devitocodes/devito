@@ -3,6 +3,10 @@ import pytest
 
 from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator, solve
 
+from xdsl.dialects.arith import Addi
+from xdsl.dialects.stencil import FieldType
+from xdsl.dialects.llvm import LLVMPointerType
+
 
 def test_xdsl_I():
     # Define a simple Devito Operator
@@ -36,8 +40,19 @@ def test_xdsl_III():
     eq = Eq(u.forward, u + 1)
     op = XDSLOperator([eq], opt=None)
     op.apply(time_M=1)
+
     assert (u.data[1, :] == 1.).all()
     assert (u.data[0, :] == 2.).all()
+    
+    # Check number of args
+    assert len(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args) == 3
+    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[0].type) == FieldType
+    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[1].type) == FieldType
+    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[2].type) == LLVMPointerType
+
+    myops =  list(op._module.regions[0].blocks[0].ops.first.body.blocks[0].ops)
+    assert type(myops[5] == Addi)
+    # import pdb;pdb.set_trace()
 
 
 def test_diffusion_2D():
