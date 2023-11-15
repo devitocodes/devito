@@ -3,6 +3,10 @@
 
 name: CI - MLIR-based Testing
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   # Trigger the workflow on push or pull request,
   # but only for the master branch
@@ -91,7 +95,7 @@ jobs:
       if: steps.cache-binary.outputs.cache-hit != 'true'
       run: |
         cd llvm-project/build
-        cmake --build . --target mlir-opt mlir-cpu-runner
+        ninja
 
     - name: Test with pytest and generate code coverage
       run: |
