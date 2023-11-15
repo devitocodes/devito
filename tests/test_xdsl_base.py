@@ -3,8 +3,10 @@ import pytest
 
 from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator, solve
 
+from xdsl.dialects.scf import For, Yield
 from xdsl.dialects.arith import Addi
-from xdsl.dialects.stencil import FieldType
+from xdsl.dialects.func import Call, Return
+from xdsl.dialects.stencil import FieldType, ApplyOp, LoadOp, StoreOp
 from xdsl.dialects.llvm import LLVMPointerType
 
 
@@ -50,9 +52,22 @@ def test_xdsl_III():
     assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[1].type) == FieldType
     assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[2].type) == LLVMPointerType
 
-    myops =  list(op._module.regions[0].blocks[0].ops.first.body.blocks[0].ops)
-    assert type(myops[5] == Addi)
-    # import pdb;pdb.set_trace()
+    ops =  list(op._module.regions[0].blocks[0].ops.first.body.blocks[0].ops)
+    assert type(ops[5] == Addi)
+    assert type(ops[6] == For)
+    
+    scffor_ops = list(ops[6].regions[0].blocks[0].ops)
+
+    assert type(scffor_ops[0]) == LoadOp
+    assert type(scffor_ops[1]) == ApplyOp
+    assert type(scffor_ops[2]) == StoreOp
+    assert type(scffor_ops[3]) == Yield
+
+    assert type(ops[7] == Call)
+    assert type(ops[8] == StoreOp)
+    assert type(ops[9] == Return)
+
+
 
 
 def test_diffusion_2D():

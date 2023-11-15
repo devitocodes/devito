@@ -26,7 +26,6 @@ jobs:
         python-version: ['3.10']
 
     env:
-      LLVM_SYMBOLIZER_PATH: /usr/lib/llvm-11/bin/llvm-symbolizer
       MLIR-Version: 04fc02e583b06b846315904a55af9c273c8b20b9
 
     steps:
@@ -89,7 +88,6 @@ jobs:
           -DCMAKE_CXX_COMPILER=clang++ \
           -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_ENABLE_ASSERTIONS=OFF \
-          -DLLVM_BINUTILS_INCDIR=/usr/include \
           -DCMAKE_CXX_FLAGS="-stdlib=libc++"
 
     - name: MLIR Build and add to PATH
