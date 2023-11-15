@@ -51,7 +51,8 @@ def autotune(operator, args, level, mode):
         # WARNING: `copies` keeps references to numpy arrays, which is required
         # to avoid garbage collection to kick in during autotuning and prematurely
         # free the shadow copies handed over to C-land
-        at_args.update({k: writes[k]._C_make_dataobj(v) for k, v in copies.items()})
+        at_args.update({k: writes[k]._C_make_dataobj(alias=writes[k], **copies)
+                        for k in copies})
 
     # Disable halo exchanges through MPI_PROC_NULL
     if mode in ['preemptive', 'destructive']:

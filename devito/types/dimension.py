@@ -1,4 +1,5 @@
 from collections import namedtuple
+import math
 
 import sympy
 from sympy.core.decorators import call_highest_priority
@@ -888,6 +889,23 @@ class ConditionalDimension(DerivedDimension):
         except AttributeError:
             pass
         return retval
+
+    def _arg_values(self, interval, grid=None, **kwargs):
+        # Parent dimension define the interval
+        fact = self._factor.data if self._factor is not None else 1
+        toint = lambda x: math.ceil(x / fact)
+        vals = {}
+        try:
+            vals[self.min_name] = toint(kwargs.get(self.parent.min_name))
+        except (KeyError, TypeError):
+            pass
+
+        try:
+            vals[self.max_name] = toint(kwargs.get(self.parent.max_name))
+        except (KeyError, TypeError):
+            pass
+
+        return vals
 
     def _arg_defaults(self, _min=None, size=None, alias=None):
         defaults = super()._arg_defaults(_min=_min, size=size, alias=alias)
