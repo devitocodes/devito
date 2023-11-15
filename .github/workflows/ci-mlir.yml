@@ -99,5 +99,5 @@ jobs:
     - name: Test with pytest and generate code coverage
       run: |
         # Add mlir-opt to the path
-        export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
+        export PATH=${GITHUB_WORKSPACE}/llvm-project/build/bin/:$PATH
         pytest -m "not parallel" -k "not adjoint" tests/
