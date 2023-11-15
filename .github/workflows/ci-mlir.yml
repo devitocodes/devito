@@ -92,9 +92,9 @@ jobs:
       run: |
         cd llvm-project/build
         cmake --build . --target mlir-opt mlir-cpu-runner
-        # Add mlir-opt to the path
-        export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
 
     - name: Test with pytest and generate code coverage
       run: |
+        # Add mlir-opt to the path
+        export PATH=$PATH:${GITHUB_WORKSPACE}/llvm-project/build/bin/
         pytest -m "not parallel" -k "not adjoint" tests/
