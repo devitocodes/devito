@@ -45,29 +45,27 @@ def test_xdsl_III():
 
     assert (u.data[1, :] == 1.).all()
     assert (u.data[0, :] == 2.).all()
-    
+
     # Check number of args
     assert len(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args) == 3
-    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[0].type) == FieldType
-    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[1].type) == FieldType
-    assert type(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[2].type) == LLVMPointerType
+    assert isinstance(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[0].type, FieldType)  # noqa
+    assert isinstance(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[1].type, FieldType)  # noqa
+    assert isinstance(op._module.regions[0].blocks[0].ops.first.body.blocks[0]._args[2].type, LLVMPointerType)  # noqa
 
-    ops =  list(op._module.regions[0].blocks[0].ops.first.body.blocks[0].ops)
+    ops = list(op._module.regions[0].blocks[0].ops.first.body.blocks[0].ops)
     assert type(ops[5] == Addi)
     assert type(ops[6] == For)
-    
+
     scffor_ops = list(ops[6].regions[0].blocks[0].ops)
 
-    assert type(scffor_ops[0]) == LoadOp
-    assert type(scffor_ops[1]) == ApplyOp
-    assert type(scffor_ops[2]) == StoreOp
-    assert type(scffor_ops[3]) == Yield
+    assert isinstance(scffor_ops[0], LoadOp)
+    assert isinstance(scffor_ops[1], ApplyOp)
+    assert isinstance(scffor_ops[2], StoreOp)
+    assert isinstance(scffor_ops[3], Yield)
 
     assert type(ops[7] == Call)
     assert type(ops[8] == StoreOp)
     assert type(ops[9] == Return)
-
-
 
 
 def test_diffusion_2D():
@@ -87,7 +85,7 @@ def test_diffusion_2D():
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
     op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
     op.apply(time_M=1, dt=0.1)
-   
+
     assert np.isclose(f.data, f2.data, rtol=1e-06).all()
 
 
@@ -101,7 +99,7 @@ def test_diffusion_2D_II(shape):
     sigma = .1
     dt = sigma * dx * dy
     nt = 10
-    
+
     arr1 = rng.random(shape)
 
     # Devito setup
@@ -117,13 +115,14 @@ def test_diffusion_2D_II(shape):
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
     op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
     op.apply(time_M=nt, dt=dt)
- 
+
     max_error = np.max(np.abs(f.data - f2.data))
     assert np.isclose(max_error, 0.0, atol=1e-04)
     assert np.isclose(f.data, f2.data, rtol=1e-05).all()
 
 
-@pytest.mark.parametrize('shape', [(11, 11, 11), (31, 31, 31), (51, 51, 51), (101, 101, 101)])
+@pytest.mark.parametrize('shape', [(11, 11, 11), (31, 31, 31),
+                         (51, 51, 51), (101, 101, 101)])
 def test_diffusion_3D_II(shape):
     shape = (10, 10, 10)
     grid = Grid(shape=shape)
@@ -137,7 +136,7 @@ def test_diffusion_3D_II(shape):
     nt = 50
 
     rng = np.random.default_rng(123)
-    
+
     arr1 = rng.random(shape)
 
     # Devito setup
@@ -153,7 +152,7 @@ def test_diffusion_3D_II(shape):
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
     op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
     op.apply(time_M=50, dt=dt)
- 
+
     max_error = np.max(np.abs(f.data - f2.data))
     assert np.isclose(max_error, 0.0, atol=1e-04)
     assert np.isclose(f.data, f2.data, rtol=1e-05).all()
