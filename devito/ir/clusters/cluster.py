@@ -383,13 +383,12 @@ class Cluster:
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
 
-        # DataSpace intervals should derive their upper bound from
-        # the higher upper bound available in the involved parts
+        # Upper bound of intervals including dimensions classified for
+        # shifting should retain the "oobs" upper bound
         for f, v in parts.items():
-            try:
-                intervals = intervals.ceil(v[f.time_dim])
-            except:
-                pass
+            for i in v:
+                if i.dim in oobs:
+                    intervals = intervals.ceil(v[i.dim])
 
         return DataSpace(intervals, parts)
 
