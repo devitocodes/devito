@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator, solve
+from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator, solve, norm
 
 from xdsl.dialects.scf import For, Yield
 from xdsl.dialects.arith import Addi
@@ -156,3 +156,25 @@ def test_diffusion_3D_II(shape):
     max_error = np.max(np.abs(f.data - f2.data))
     assert np.isclose(max_error, 0.0, atol=1e-04)
     assert np.isclose(f.data, f2.data, rtol=1e-05).all()
+
+
+@pytest.mark.parametrize('shape', [(11, 11, 11), (31, 31, 31),
+                         (51, 51, 51), (101, 101, 101)])
+@pytest.mark.parametrize('steps', [1, 3, 8, 40])
+def test_unary(shape, steps):
+
+    grid = Grid(shape=shape)
+
+    u = TimeFunction(name='u', grid=grid)
+    u.data[:, :] = 5
+    eq = Eq(u.forward, u + 0.1)
+    xop = XDSLOperator([eq])
+    xop.apply(time_M=steps)
+    xdsl_data = u.data_with_halo.copy()
+
+    u.data[:, :] = 5
+    op = Operator([eq])
+    op.apply(time_M=steps)
+    orig_data = u.data_with_halo.copy()
+
+    assert np.isclose(xdsl_data, orig_data, rtol=1e-06).all()
