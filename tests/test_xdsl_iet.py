@@ -1,16 +1,13 @@
 from devito import Grid, TimeFunction, Eq, Operator
 from devito.tools import as_tuple
 
-from devito.ir.ietxdsl import (MLContext, CGeneration, Powi, IET, Callable,
-                               Block, Iteration, Initialise,
-                               floatingPointLike)
-
 from devito.ir.iet import retrieve_iteration_tree
 
 from xdsl.dialects.builtin import ModuleOp, Builtin, i32, f32
 
 from xdsl.printer import Printer
 from xdsl.dialects.arith import Addi, Constant, Subi
+from xdsl.dialects.experimental.math import FPowIOp
 from xdsl.dialects import memref, arith
 from xdsl.ir import Operation, Block, Region
 import pytest
@@ -53,61 +50,8 @@ def test_powi():
 
     mod = ModuleOp([
         cst1 := Constant.from_int_and_width(1, i32),
-        ut1 := Powi.get(cst1, cst1),
+        ut1 := FPowIOp.get(cst1, cst1),
     ])
-
-    # printer = Printer()
-    # printer.print_op(mod)
-
-
-def test_blockIteration():
-    
-    mod = ModuleOp([
-
-        Iteration.get(["affine", "sequential"], ("time_m", "time_M", "1"),"time_loop",
-                     Block.from_callable([
-                         i32, i32, i32
-                     ], lambda time, t0, t1: [
-                         Iteration.
-                         get(["affine", "parallel", "skewable"],
-                             ("x_m", "x_M", "1"),"x_loop",
-                             Block.from_callable([i32], lambda x: [
-                                 Iteration.get(
-                                     [
-                                         "affine",
-                                         "parallel", "skewable", "vector-dim"
-                                     ], ("y_m", "y_M", "1"),"y_loop",
-                                     Block.from_callable([i32], lambda y: [
-                                         cst1 := Constant.from_int_and_width(1, i32),
-                                         x1 := Addi(x, cst1),
-                                         y1 := Addi(y, cst1),
-                                     ]))
-                             ]))
-                     ]))
-            ])
-
-    printer = Printer()
-    printer.print_op(mod)
-
-
-def test_callable():
-
-    a = Constant.from_int_and_width(1, i32)
-    b = Constant.from_int_and_width(2, i32)
-
-    # Operation to add these constants
-    c = Addi(a, b)
-
-    block0 = Block([a, b, c])
-
-    mod = ModuleOp([
-        Callable.get(
-            "kernel", ["u"], ["u"], ["struct dataobj*"], ["restrict"], "int", "",
-            block0)
-            ])
-
-    printer = Printer()
-    printer.print_op(mod)
 
 
 @pytest.mark.xfail(reason="Deprecated, will be dropped")

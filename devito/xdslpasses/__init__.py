@@ -1,1 +1,1 @@
-from .iet import Callable, CGeneration  # noqa
+from .iet import Callable  # noqa
