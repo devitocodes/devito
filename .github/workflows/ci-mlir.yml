@@ -28,24 +28,20 @@ jobs:
 
     - name: Install native dependencies
       run: |
-        apt install -y mesa-vulkan-drivers curl
+        apt install -y curl mpich
 
     - name: Upgrade pip
       run: |
         pip install --upgrade pip
 
-    - name: Install mpi
-      run: |
-        apt install mpich
-        pip install mpi4py
-
     - name: Install requirements and xDSL
       run: |
         pip install -e .[tests]
+        pip install mpi4py
         pip install xdsl==0.14
 
     - name: Test with pytest and generate code coverage
       run: |
         # Add mlir-opt to the path
-        export PATH=${GITHUB_WORKSPACE}/llvm-project/build/bin/:$PATH
+        export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
         pytest -m "not parallel" -k "not adjoint" tests/
