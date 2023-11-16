@@ -28,7 +28,7 @@ jobs:
 
     - name: Install native dependencies
       run: |
-        apt install mesa-vulkan-drivers curl
+        apt install -y mesa-vulkan-drivers curl
 
     - name: Upgrade pip
       run: |
