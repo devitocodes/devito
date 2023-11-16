@@ -40,8 +40,8 @@ jobs:
         pip install mpi4py
         pip install xdsl==0.14
 
-    - name: Test non-MPI
+    - name: Test with MPI
       run: |
         # Add mlir-opt to the path
         export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
-        pytest -m "not parallel" -k "not adjoint" tests/
+        pytest -m "parallel" -k "not adjoint" tests/

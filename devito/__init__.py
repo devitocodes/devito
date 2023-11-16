@@ -44,7 +44,7 @@ from devito.mpatches import *  # noqa
 
 
 # Imports from xdsl
-from devito.xdslpasses import *  # noqa
+# from devito.xdslpasses import *  # noqa
 
 from ._version import get_versions  # noqa
 __version__ = get_versions()['version']
