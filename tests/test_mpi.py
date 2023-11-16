@@ -6,7 +6,8 @@ from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
-                    switchconfig, generic_derivative)
+                    switchconfig, generic_derivative, PrecomputedSparseFunction)
+from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
@@ -220,6 +221,7 @@ class TestDistributor(object):
         (256, ('*', '*', 2), (16, 8, 2)),
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
+    @pytest.mark.parallel(mode=[2])
     def test_custom_topology_v2(self, comm_size, topology, dist_topology):
         dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
@@ -514,6 +516,8 @@ class TestSparseFunction(object):
         assert np.all(sf.data == data[sf.local_indices]*2)
 
     @pytest.mark.parallel(mode=4)
+    @switchconfig(condition=isinstance(configuration['compiler'],
+                  (OneapiCompiler)), safe_math=True)
     def test_sparse_coords(self):
         grid = Grid(shape=(21, 31, 21), extent=(20, 30, 20))
         x, y, z = grid.dimensions
@@ -551,6 +555,35 @@ class TestSparseFunction(object):
         Operator([Eq(u, u+1)]+rec.interpolate(u))()
 
         assert np.allclose(rec.coordinates.data[:], ref.coordinates.data)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('r', [2])
+    def test_precomputed_sparse(self, r):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        coords = np.array([(1.0, 1.0), (2.0, 2.0), (1.0, 2.0), (2.0, 1.0)])
+        points = np.array([(1, 1), (2, 2), (1, 2), (2, 1)])
+        coeffs = np.ones((4, 2, r))
+
+        sf1 = PrecomputedSparseFunction(name="sf1", grid=grid, coordinates=coords,
+                                        npoint=4, interpolation_coeffs=coeffs, r=r)
+        sf2 = PrecomputedSparseFunction(name="sf2", grid=grid, gridpoints=points,
+                                        npoint=4, interpolation_coeffs=coeffs, r=r)
+
+        assert sf1.npoint == 1
+        assert sf2.npoint == 1
+        assert np.all(sf1.coordinates.data.shape == (1, 2))
+        assert np.all(sf2.gridpoints.data.shape == (1, 2))
+        assert np.all(sf1._coords_indices == sf2.gridpoints_data)
+        assert np.all(sf1.interpolation_coeffs.shape == (1, 2, r))
+        assert np.all(sf2.interpolation_coeffs.shape == (1, 2, r))
+
+        u = Function(name="u", grid=grid, space_order=r)
+        u._data_with_outhalo[:] = 1
+        Operator(sf2.interpolate(u))()
+        assert np.all(sf2.data == 4)
+        Operator(sf1.interpolate(u))()
+        assert np.all(sf1.data == 4)
 
 
 class TestOperatorSimple(object):
@@ -1468,7 +1501,7 @@ class TestOperatorAdvanced(object):
         """
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = Function(name='f', grid=grid, space_order=0)
+        f = Function(name='f', grid=grid, space_order=1)
         f.data[:] = 0.
         coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
@@ -1492,6 +1525,8 @@ class TestOperatorAdvanced(object):
         assert np.all(f.data == 1.25)
 
     @pytest.mark.parallel(mode=4)
+    @switchconfig(condition=isinstance(configuration['compiler'],
+                  (OneapiCompiler)), safe_math=True)
     def test_injection_wodup_wtime(self):
         """
         Just like ``test_injection_wodup``, but using a SparseTimeFunction
@@ -1501,7 +1536,7 @@ class TestOperatorAdvanced(object):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         save = 3
-        f = TimeFunction(name='f', grid=grid, save=save, space_order=0)
+        f = TimeFunction(name='f', grid=grid, save=save, space_order=1)
         f.data[:] = 0.
         coords = np.array([(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)])
         sf = SparseTimeFunction(name='sf', grid=grid, nt=save,
@@ -1576,7 +1611,7 @@ class TestOperatorAdvanced(object):
     def test_interpolation_wodup(self):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = Function(name='f', grid=grid, space_order=0)
+        f = Function(name='f', grid=grid, space_order=1)
         f.data[:] = 4.
         coords = [(0.5, 0.5), (0.5, 2.5), (2.5, 0.5), (2.5, 2.5)]
         sf = SparseFunction(name='sf', grid=grid, npoint=len(coords), coordinates=coords)
@@ -2073,7 +2108,8 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, _R(_R(u[t, x, y] + u[t, x+1, y+1])*3.*f +
                                _R(u[t, x+2, y+2] + u[t, x+3, y+3])*3.*f) + 1.)
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0,
+                                              'cire-schedule': 1}))
 
         assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
@@ -2106,7 +2142,8 @@ class TestOperatorAdvanced(object):
         eqn = Eq(u.forward, _R(_R(u[t, x, y] + u[t, x+2, y])*3.*f +
                                _R(u[t, x+1, y+1] + u[t, x+3, y+1])*3.*f) + 1.)
         op0 = Operator(eqn, opt='noop')
-        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0,
+                                              'cire-schedule': 1}))
 
         assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 1
 
@@ -2517,10 +2554,12 @@ class TestIsotropicAcoustic(object):
 
 
 if __name__ == "__main__":
-    configuration['mpi'] = 'overlap'
+    # configuration['mpi'] = 'overlap'
     # TestDecomposition().test_reshape_left_right()
-    TestOperatorSimple().test_trivial_eq_2d()
+    # TestOperatorSimple().test_trivial_eq_2d()
     # TestFunction().test_halo_exchange_bilateral()
-    # TestSparseFunction().test_scatter_gather()
+    # TestSparseFunction().test_sparse_coords()
+    # TestSparseFunction().test_precomputed_sparse(2)
     # TestOperatorAdvanced().test_fission_due_to_antidep()
-    # TestIsotropicAcoustic().test_adjoint_F_no_omp()
+    TestOperatorAdvanced().test_injection_wodup_wtime()
+    # TestIsotropicAcoustic().test_adjoint_F(1)

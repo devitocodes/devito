@@ -15,8 +15,8 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
 class TimeAxis(object):
     """
     Data object to store the TimeAxis. Exactly three of the four key arguments
-    must be prescribed. Because of remainder values it is not possible to create
-    a TimeAxis that exactly adhears to the inputs therefore start, stop, step
+    must be prescribed. Because of remainder values, it is not possible to create
+    a TimeAxis that exactly adheres to the inputs; therefore, start, stop, step
     and num values should be taken from the TimeAxis object rather than relying
     upon the input values.
 
@@ -58,10 +58,10 @@ class TimeAxis(object):
         if not isinstance(num, int):
             raise TypeError("input argument must be of type int")
 
-        self.start = start
-        self.stop = stop
-        self.step = step
-        self.num = num
+        self.start = float(start)
+        self.stop = float(stop)
+        self.step = float(step)
+        self.num = int(num)
 
     def __str__(self):
         return "TimeAxis: start=%g, stop=%g, step=%g, num=%g" % \
@@ -110,7 +110,7 @@ class PointSource(SparseTimeFunction):
         kwargs['nt'] = kwargs['time_range'].num
 
         # Either `npoint` or `coordinates` must be provided
-        npoint = kwargs.get('npoint')
+        npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         if npoint is None:
             coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
             if coordinates is None:
@@ -180,7 +180,7 @@ Shot = PointSource
 class WaveletSource(PointSource):
 
     """
-    Abstract base class for symbolic objects that encapsulate a set of
+    Abstract base class for symbolic objects that encapsulates a set of
     sources with a pre-defined source signal wavelet.
 
     Parameters
@@ -199,7 +199,7 @@ class WaveletSource(PointSource):
         Firing time (defaults to 1 / f0)
     """
 
-    __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 'f0']
+    __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 't0']
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -248,7 +248,7 @@ class WaveletSource(PointSource):
 class RickerSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined Ricker wavelet:
 
     http://subsurfwiki.org/wiki/Ricker_wavelet
@@ -280,7 +280,7 @@ class RickerSource(WaveletSource):
 class GaborSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined Gabor wavelet:
 
     https://en.wikipedia.org/wiki/Gabor_wavelet
@@ -313,7 +313,7 @@ class GaborSource(WaveletSource):
 class DGaussSource(WaveletSource):
 
     """
-    Symbolic object that encapsulate a set of sources with a
+    Symbolic object that encapsulates a set of sources with a
     pre-defined 1st derivative wavelet of a Gaussian Source.
 
     Notes

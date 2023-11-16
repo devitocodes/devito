@@ -3,41 +3,40 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelIteration, ParallelTree, Pragma, Return,
-                       FindSymbols, make_callable)
+                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
 from devito.passes import is_on_device
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaTransfer)
+                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
-from devito.passes.iet.languages.utils import make_clause_reduction
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, UnboundTuple
 from devito.types import DeviceMap, Symbol
 
 __all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
 
 
-class DeviceAccIteration(ParallelIteration):
+class DeviceAccIteration(PragmaIteration):
 
     @classmethod
     def _make_construct(cls, **kwargs):
         return 'acc parallel loop'
 
     @classmethod
-    def _make_clauses(cls, ncollapse=None, reduction=None, tile=None, **kwargs):
+    def _make_clauses(cls, ncollapsed=0, reduction=None, tile=None, **kwargs):
         clauses = []
 
-        if ncollapse:
-            clauses.append('collapse(%d)' % (ncollapse or 1))
-        elif tile:
-            clauses.append('tile(%s)' % ','.join(str(i) for i in tile))
+        if tile:
+            stile = [str(tile[i]) for i in range(ncollapsed)]
+            clauses.append('tile(%s)' % ','.join(stile))
+        elif ncollapsed > 1:
+            clauses.append('collapse(%d)' % ncollapsed)
 
         if reduction:
-            clauses.append(make_clause_reduction(reduction))
+            clauses.append(cls._make_clause_reduction_from_imask(reduction))
 
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
@@ -54,20 +53,6 @@ class DeviceAccIteration(ParallelIteration):
             clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
 
         return clauses
-
-    @classmethod
-    def _process_kwargs(cls, **kwargs):
-        kwargs = super()._process_kwargs(**kwargs)
-
-        kwargs.pop('gpu_fit', None)
-
-        kwargs.pop('schedule', None)
-        kwargs.pop('parallel', None)
-        kwargs.pop('chunk_size', None)
-        kwargs.pop('nthreads', None)
-        kwargs.pop('tile', None)
-
-        return kwargs
 
 
 class AccBB(PragmaLangBB):
@@ -175,23 +160,16 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
         assert candidates
 
         root, collapsable = self._select_candidates(candidates)
-        ncollapsable = len(collapsable)
+        ncollapsable = len(collapsable) + 1
 
         if self._is_offloadable(root) and \
            all(i.is_Affine for i in [root] + collapsable) and \
            self.par_tile:
-            # TODO: still unable to exploit multiple par-tiles (one per nest)
-            # This will require unconditionally applying blocking, and then infer
-            # the tile clause shape from the BlockDimensions' step
-            tile = self.par_tile[0]
-            assert isinstance(tile, tuple)
-            nremainder = (ncollapsable + 1) - len(tile)
-            if nremainder >= 0:
-                tile += (tile[-1],)*nremainder
-            else:
-                tile = tile[:ncollapsable + 1]
+            tile = self.par_tile.nextitem()
+            assert isinstance(tile, UnboundTuple)
 
-            body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile, **root.args)
+            body = self.DeviceIteration(gpu_fit=self.gpu_fit, tile=tile,
+                                        ncollapsed=ncollapsable, **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)
 
             return root, partree
@@ -262,7 +240,7 @@ class DeviceAccDataManager(DeviceAwareDataManager):
             body = List(body=[init, dpf, cast, ret])
 
             name = self.sregistry.make_name(prefix='map_device_ptr')
-            efuncs.append(make_callable(name, body, retval=hp._C_typename))
+            efuncs.append(make_callable(name, body, retval=hp))
 
             calls.append(Call(name, f, retobj=dmap))
 

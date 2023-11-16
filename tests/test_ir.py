@@ -9,13 +9,14 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR)
+                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
+                                     mocksym1)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
-from devito.symbolics import ccode
+from devito.symbolics import DefFunction, FieldFromPointer, ccode
 from devito.tools import prod
-from devito.types import Scalar, Array
+from devito.types import Array, CriticalRegion, Jump, Scalar, Symbol
 
 
 class TestVectorHierarchy(object):
@@ -706,6 +707,185 @@ class TestDependenceAnalysis(object):
         # Sanity check: we did find all of the expected dependences
         assert len(expected) == 0
 
+    def test_ffp(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        ffp = FieldFromPointer(f._C_field_data, f._C_symbol)
+
+        exprs = [Eq(ffp, 1), Eq(g.indexify(), f.indexify())]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == 2
+        assert len(scope.d_flow) == 1
+        v = scope.d_flow.pop()
+        assert v.function is f
+        assert len(scope.d_anti) == 1
+        v = scope.d_anti.pop()
+        assert v.function is f
+
+    def test_indexedbase_across_jump(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        class Foo(DefFunction, Jump):
+            pass
+
+        exprs = [Eq(f.indexed, 0),
+                 Eq(h.indexed, Foo('foo', 3)),
+                 Eq(g.indexed, f.indexed)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == 3
+        assert len(scope.d_flow) == 2
+        assert len(scope.d_anti) == 1
+        assert any(v.function is f for v in scope.d_flow)
+        assert any(v.function is mocksym0 for v in scope.d_flow)
+
+    def test_indirect_access(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        s0 = Symbol('s0', dtype=np.int32)
+        s1 = Symbol('s1', dtype=np.int32)
+
+        exprs = [Eq(s1, 1), Eq(f[s0, s1], 5)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_flow) == 1
+        v = scope.d_flow.pop()
+        assert v.function is s1
+
+    def test_array_shared(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a = Array(name='a', dimensions=(x, y), halo=((2, 2), (2, 2)), scope='shared')
+        s = Symbol(name='s')
+
+        exprs = [Eq(a[x, y], 1), Eq(s, a[x, y-2] + a[x, y+2])]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        # There *seems* to be a WAR here, but the fact that `a` is thread-shared
+        # ensures that is not the case
+        # There is instead a RAW -- no surprises here
+        assert len(scope.d_all) == len(scope.d_flow) == 2
+        assert scope.d_flow.pop().function is a
+
+        # If the reads lexicographically precede the writes, then instead it really
+        # is a WAR
+        exprs = [Eq(s, a[x, y-2] + a[x, y+2]), Eq(a[x, y], 1)]
+        exprs = [LoweredEq(i) for i in exprs]
+        scope = Scope(exprs)
+        assert len(scope.d_all) == len(scope.d_anti) == 2
+        assert scope.d_anti.pop().function is a
+
+    @pytest.mark.parametrize('eqns', [
+        ['Eq(a0[4], 1)', 'Eq(s, a0[3])'],
+        ['Eq(a1[3, 4], 1)', 'Eq(s, a1[3, 5])'],
+        ['Eq(a1[x+1, 4], 1)', 'Eq(s, a1[x, 5])'],
+    ])
+    def test_nodep(self, eqns):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = LoweredEq(eval(e))
+
+        scope = Scope(eqns)
+        assert len(scope.d_all) == 0
+
+    @pytest.mark.parametrize('eqns', [
+        ['Eq(a0[4], 1)', 'Eq(s, a0[4])'],
+        ['Eq(a1[x+1, 4], 1)', 'Eq(s, a1[x, 4])'],
+    ])
+    def test_dep_nasty(self, eqns):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        a0 = Array(name='a', dimensions=(x,))  # noqa
+        a1 = Array(name='a', dimensions=(x, y))  # noqa
+        s = Symbol(name='s')  # noqa
+
+        # List comprehension would need explicit locals/globals mappings to eval
+        for i, e in enumerate(list(eqns)):
+            eqns[i] = LoweredEq(eval(e))
+
+        scope = Scope(eqns)
+        assert len(scope.d_all) == 1
+
+    def test_critical_region_v0(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+
+        exprs = [Eq(s0, CriticalRegion(True)),
+                 Eq(f.indexify(), 1),
+                 Eq(s1, CriticalRegion(False))]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+
+        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        assert len(scope.writes[mocksym0]) == 2
+        assert len(scope.reads[mocksym0]) == 2
+        assert len(scope.d_all) == 3
+
+        # No other mock depedencies because there's no other place the Eq
+        # within the critical sequence can float to
+        assert len(scope.writes[mocksym1]) == 1
+        assert mocksym1 not in scope.reads
+
+    def test_critical_region_v1(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        u = Function(name='u', grid=grid)
+
+        s0 = Symbol(name='s0')
+        s1 = Symbol(name='s1')
+
+        exprs = [Eq(g.indexify(), 2),
+                 Eq(h.indexify(), 2),
+                 Eq(s0, CriticalRegion(True)),
+                 Eq(f.indexify(), 1),
+                 Eq(s1, CriticalRegion(False)),
+                 Eq(u.indexify(), 3)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+
+        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        assert len(scope.writes[mocksym0]) == 2
+        assert len(scope.reads[mocksym0]) == 4
+        assert len([i for i in scope.d_all
+                    if i.source.access is mocksym0
+                    or i.sink.access is mocksym0]) == 7
+
+        # More mock depedencies because Eq must not float outside of the critical
+        # sequence
+        assert len(scope.writes[mocksym1]) == 1
+        assert len(scope.reads[mocksym1]) == 2
+        assert len(scope.d_all) == 9
+
 
 class TestParallelismAnalysis(object):
 
@@ -834,7 +1014,7 @@ class TestParallelismAnalysis(object):
 class TestEquationAlgorithms(object):
 
     @pytest.mark.parametrize('expr,expected', [
-        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d, x, y]')
+        ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d]')
     ])
     def test_dimension_sort(self, expr, expected):
         """

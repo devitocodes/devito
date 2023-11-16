@@ -4,8 +4,9 @@ from sympy import And
 
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
-from devito.symbolics import uxreplace
-from devito.tools import is_integer, timed_pass
+from devito.passes.clusters.utils import bind_critical_regions, is_memcpy
+from devito.symbolics import IntDiv, uxreplace
+from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
 __all__ = ['Tasker', 'Streaming']
@@ -48,7 +49,7 @@ class Tasker(Asynchronous):
         d = prefix[-1].dim
 
         locks = {}
-        waits = defaultdict(list)
+        waits = defaultdict(OrderedSet)
         tasks = defaultdict(list)
         for c0 in clusters:
             dims = self.key(c0)
@@ -111,7 +112,7 @@ class Tasker(Asynchronous):
                         if logical_index in protected[target]:
                             continue
 
-                        waits[c1].append(WaitLock(lock[index], target))
+                        waits[c1].add(WaitLock(lock[index], target))
                         protected[target].add(logical_index)
 
             # Taskify `c0`
@@ -125,7 +126,7 @@ class Tasker(Asynchronous):
                     assert lock.size == 1
                     indices = [0]
 
-                if is_memcpy(c0):
+                if wraps_memcpy(c0):
                     e = c0.exprs[0]
                     function = e.lhs.function
                     findex = e.lhs.indices[d]
@@ -138,10 +139,16 @@ class Tasker(Asynchronous):
                     tasks[c0].append(ReleaseLock(lock[i], target))
                     tasks[c0].append(WithLock(lock[i], target, i, function, findex, d))
 
+        # CriticalRegions preempt WaitLocks, by definition
+        mapper = bind_critical_regions(clusters)
+        for c in clusters:
+            for c1 in mapper.get(c, []):
+                waits[c].update(waits.pop(c1, []))
+
         processed = []
         for c in clusters:
             if waits[c] or tasks[c]:
-                processed.append(c.rebuild(syncs={d: waits[c] + tasks[c]}))
+                processed.append(c.rebuild(syncs={d: list(waits[c]) + tasks[c]}))
             else:
                 processed.append(c)
 
@@ -177,7 +184,7 @@ class Streaming(Asynchronous):
             for c in clusters:
                 dims = self.key(c)
                 if d._defines & dims:
-                    if is_memcpy(c):
+                    if wraps_memcpy(c):
                         # Case 1A (special case, leading to more efficient streaming)
                         self._actions_from_init(c, prefix, actions)
                     else:
@@ -186,7 +193,7 @@ class Streaming(Asynchronous):
 
         # Case 2
         else:
-            mapper = OrderedDict([(c, is_memcpy(c)) for c in clusters
+            mapper = OrderedDict([(c, wraps_memcpy(c)) for c in clusters
                                   if d in self.key(c)])
 
             # Case 2A (special case, leading to more efficient streaming)
@@ -257,7 +264,7 @@ class Streaming(Asynchronous):
 
         # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
         tindex0 = e.lhs.indices[d]
-        if is_integer(tindex0):
+        if is_integer(tindex0) or isinstance(tindex0, IntDiv):
             tindex = tindex0
         else:
             assert tindex0.is_Modulo
@@ -321,17 +328,8 @@ class Actions(object):
         self.insert = insert or []
 
 
-def is_memcpy(cluster):
-    """
-    True if `cluster` emulates a memcpy involving a mapped Array, False otherwise.
-    """
+def wraps_memcpy(cluster):
     if len(cluster.exprs) != 1:
         return False
 
-    a, b = cluster.exprs[0].args
-
-    if not (a.is_Indexed and b.is_Indexed):
-        return False
-
-    return ((a.function.is_Array and a.function._mem_mapped) or
-            (b.function.is_Array and b.function._mem_mapped))
+    return is_memcpy(cluster.exprs[0])

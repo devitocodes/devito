@@ -9,6 +9,8 @@ from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # no
 from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
                            Lambda, ElementalFunction, CGen, FindSymbols,
                            filter_iterations, make_efunc, retrieve_iteration_tree)
+from devito.ir import SymbolRegistry
+from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro
 from devito.tools import as_tuple
@@ -208,11 +210,11 @@ def test_make_cpp_parfor():
         waitcall
     ]
 
-    parfor = ElementalFunction('parallel_for', body, 'void',
-                               [first, last, func, nthreads])
+    parfor = ElementalFunction('parallel_for', body,
+                               parameters=[first, last, func, nthreads])
 
     assert str(parfor) == """\
-static inline \
+static \
 void parallel_for(const int first, const int last, FuncType&& func, const int nthreads)
 {
   const int threshold = 1;
@@ -255,11 +257,12 @@ def test_make_cuda_stream():
     stream = CudaStream('stream')
 
     iet = Call('foo', stream)
-    iet = ElementalFunction('foo', iet, 'void')
-    iet = CDataManager.place_definitions.__wrapped__(CDataManager(None, None), iet)[0]
+    iet = ElementalFunction('foo', iet, parameters=())
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
 
     assert str(iet) == """\
-static inline void foo()
+static void foo()
 {
   cudaStream_t stream;
   cudaStreamCreate(&(stream));
@@ -286,6 +289,19 @@ void foo(struct dataobj *restrict u_vec, float *restrict u)
 }"""
 
 
+def test_call_retobj_indexed():
+    grid = Grid(shape=(10, 10))
+
+    u = Function(name='u', grid=grid)
+    v = Function(name='v', grid=grid)
+
+    call = Call('foo', [u], retobj=v.indexify())
+
+    assert str(call) == "v[x][y] = foo(u_vec);"
+
+    assert not call.defines
+
+
 def test_null_init():
     grid = Grid(shape=(10, 10))
 
@@ -295,3 +311,42 @@ def test_null_init():
 
     assert str(expr) == "float * u = NULL;"
     assert expr.defines == (u.indexed,)
+
+
+def test_templates():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    foo = Callable('foo', DummyExpr(u, 1), 'void', parameters=[u],
+                   templates=[x, y])
+
+    assert str(foo) == """\
+template <int x, int y>
+void foo(struct dataobj *restrict u_vec)
+{
+  u(x, y) = 1;
+}"""
+
+
+def test_codegen_quality0():
+    grid = Grid(shape=(4, 4, 4))
+    _, y, z = grid.dimensions
+
+    a = Array(name='a', dimensions=grid.dimensions)
+
+    expr = DummyExpr(a.indexed, 1)
+    foo = Callable('foo', expr, 'void',
+                   parameters=[a, y.symbolic_size, z.symbolic_size])
+
+    # Emulate what the compiler would do
+    graph = Graph(foo)
+
+    CDataManager(sregistry=SymbolRegistry()).process(graph)
+
+    foo1 = graph.root
+
+    assert len(foo.parameters) == 3
+    assert len(foo1.parameters) == 1
+    assert foo1.parameters[0] is a

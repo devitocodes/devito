@@ -73,6 +73,14 @@ class IREq(sympy.Eq, Pickable):
         kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
         return self.func(*args, **kwargs)
 
+    def __repr__(self):
+        if not self.is_Reduction:
+            return super().__repr__()
+        elif self.operation is OpInc:
+            return '%s += %s' % (self.lhs, self.rhs)
+        else:
+            return '%s = %s(%s, %s)' % (self.lhs, self.operation, self.lhs, self.rhs)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
@@ -166,12 +174,12 @@ class LoweredEq(IREq):
                 # Use `parent`, and `root`, because a ConditionalDimension may
                 # have a SubDimension as parent
                 iterators.setdefault(d.parent, set())
-            else:
+            elif not d.is_Stencil:
                 iterators.setdefault(d, set())
 
         # Construct the IterationSpace
-        intervals = IntervalGroup([Interval(d, 0, 0) for d in iterators],
-                                  relations=ordering.relations)
+        intervals = IntervalGroup([Interval(d) for d in iterators],
+                                  relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
         # Construct the conditionals and replace the ConditionalDimensions in `expr`

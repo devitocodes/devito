@@ -15,15 +15,16 @@ from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, Met
                            derive_parameters, iet_build)
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
-from devito.operator.profiling import create_profile
+from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import Graph, generate_implicit, instrument
+from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
+                           generate_macros, minimize_symbols, unevaluate)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
-                          timed_region)
+                          timed_region, contains_val)
 from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
@@ -195,12 +196,14 @@ class Operator(Callable):
         op._headers = OrderedSet(*cls._default_headers)
         op._headers.update(byproduct.headers)
         op._globals = OrderedSet(*cls._default_globals)
+        op._globals.update(byproduct.globals)
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
+        op._language = kwargs['language']
         op._lib = None
         op._cfunction = None
 
@@ -241,7 +244,7 @@ class Operator(Callable):
         Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
         """
         # Create a symbol registry
-        kwargs['sregistry'] = SymbolRegistry()
+        kwargs.setdefault('sregistry', SymbolRegistry())
 
         expressions = as_tuple(expressions)
 
@@ -252,7 +255,7 @@ class Operator(Callable):
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
-        kwargs['lower'] = cls._lower
+        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
 
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
@@ -270,6 +273,12 @@ class Operator(Callable):
         iet, byproduct = cls._lower_iet(uiet, **kwargs)
 
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs):
+        def wrapper(expressions, kwargs=kwargs):
+            return rcompile(expressions, kwargs)
+        return wrapper
 
     @classmethod
     def _initialize_state(cls, **kwargs):
@@ -306,14 +315,23 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
+        expand = kwargs['options'].get('expand', True)
+
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
 
-        # Lower functional DSL
-        expressions = flatten([i.evaluate for i in expressions])
+        # Lower FD derivatives
+        # NOTE: we force expansion of derivatives along SteppingDimensions
+        # because it drastically simplifies the subsequent lowering into
+        # ModuloDimensions
+        if not expand:
+            expand = lambda d: d.is_Stepping
+        expressions = flatten([i._evaluate(expand=expand) for i in expressions])
+
+        # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
 
-        # A second round of specialization is performed on nevaluated expressions
+        # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
 
         # "True" lowering (indexification, shifting, ...)
@@ -363,6 +381,13 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters, sregistry=sregistry)
+
+        # Lower all remaining high order symbolic objects
+        clusters = lower_index_derivatives(clusters, **kwargs)
+
+        # Make sure no reconstructions can unpick any of the symbolic
+        # optimizations performed so far
+        clusters = unevaluate(clusters)
 
         return ClusterGroup(clusters)
 
@@ -439,13 +464,19 @@ class Operator(Callable):
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
-        graph = Graph(iet)
+        graph = Graph(iet, sregistry=sregistry)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        instrument(graph, profiler=profiler, sregistry=sregistry)
+        cls._Target.instrument(graph, profiler=profiler, **kwargs)
+
+        # Extract the necessary macros from the symbolic objects
+        generate_macros(graph)
+
+        # Target-independent optimizations
+        minimize_symbols(graph)
 
         return graph.root, graph
 
@@ -508,8 +539,10 @@ class Operator(Callable):
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
         nodes = self.dimensions
-        edges = [(i, i.parent) for i in self.dimensions if i.is_Derived]
+        edges = [(i, i.parent) for i in self.dimensions
+                 if i.is_Derived and i.parent in set(nodes)]
         toposort = DAG(nodes, edges).topological_sort()
+
         futures = {}
         for d in reversed(toposort):
             if set(d._arg_names).intersection(kwargs):
@@ -526,6 +559,7 @@ class Operator(Callable):
             except ValueError:
                 raise ValueError("Override `%s` is incompatible with overrides `%s`" %
                                  (p, [i for i in overrides if i.name in args]))
+
         # Process data-carrier defaults
         for p in defaults:
             if p.name in args:
@@ -537,11 +571,18 @@ class Operator(Callable):
                 elif k in futures:
                     # An explicit override is later going to set `args[k]`
                     pass
-                elif is_integer(args[k]) and args[k] not in as_tuple(v):
+                elif k in kwargs:
+                    # User is in control
+                    # E.g., given a ConditionalDimension `t_sub` with factor `fact` and
+                    # a TimeFunction `usave(t_sub, x, y)`, an override for `fact` is
+                    # supplied w/o overriding `usave`; that's legal
+                    pass
+                elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise ValueError("Default `%s` is incompatible with other args as "
                                      "`%s=%s`, while `%s=%s` is expected. Perhaps you "
                                      "forgot to override `%s`?" %
                                      (p, k, v, k, args[k], p))
+
         args = kwargs['args'] = args.reduce_all()
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
@@ -549,6 +590,11 @@ class Operator(Callable):
         discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         discretizations.update({getattr(p, 'grid', None) for p in defaults})
         discretizations.discard(None)
+        # Remove subgrids if multiple grids
+        if len(discretizations) > 1:
+            discretizations = {g for g in discretizations
+                               if not any(d.is_Derived for d in g.dimensions)}
+
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
@@ -609,9 +655,10 @@ class Operator(Callable):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
             try:
-                p._arg_apply(args[p.name], args[p.coordinates.name], kwargs.get(p.name))
+                subfuncs = (args[getattr(p, s).name] for s in p._sub_functions)
+                p._arg_apply(args[p.name], *subfuncs, alias=kwargs.get(p.name))
             except AttributeError:
-                p._arg_apply(args[p.name], kwargs.get(p.name))
+                p._arg_apply(args[p.name], alias=kwargs.get(p.name))
 
     @cached_property
     def _known_arguments(self):
@@ -647,6 +694,14 @@ class Operator(Callable):
     def _soname(self):
         """A unique name for the shared object resulting from JIT compilation."""
         return Signer._digest(self, configuration)
+
+    @cached_property
+    def ccode(self):
+        try:
+            return self._ccode_handler(compiler=self._compiler).visit(self)
+        except (AttributeError, TypeError):
+            from devito.ir.iet.visitors import CGen
+            return CGen(compiler=self._compiler).visit(self)
 
     def _jit_compile(self):
         """
@@ -852,10 +907,10 @@ class Operator(Callable):
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
-        info("Operator `%s` ran in %.2f s" % (self.name,
-                                              fround(self._profiler.py_timers['apply'])))
+        elapsed = fround(self._profiler.py_timers['apply'])
+        info("Operator `%s` ran in %.2f s" % (self.name, elapsed))
 
-        summary = self._profiler.summary(args, self._dtype, reduce_over='apply')
+        summary = self._profiler.summary(args, self._dtype, reduce_over=elapsed)
 
         if not is_log_enabled_for('PERF'):
             # Do not waste time
@@ -883,14 +938,35 @@ class Operator(Callable):
         else:
             indent = ""
 
+            if isinstance(self._profiler, AdvancedProfilerVerbose):
+                metrics = []
+
+                v = summary.globals.get('fdlike-nosetup')
+                if v is not None:
+                    metrics.append("%.2f GPts/s" % fround(v.gpointss))
+
+                if metrics:
+                    perf("Global performance <w/o setup>: [%s]" % ', '.join(metrics))
+
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
+        def lower_perfentry(v):
+            if v.gflopss:
+                oi = "OI=%.2f" % fround(v.oi)
+                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
+                gpointss = "%.2f GPts/s" % fround(v.gpointss)
+                return "[%s]" % ", ".join([oi, gflopss, gpointss])
+            elif v.gpointss:
+                gpointss = "%.2f GPts/s" % fround(v.gpointss)
+                return "[%s]" % gpointss
+            else:
+                return ""
+
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
-            oi = "OI=%.2f" % fround(v.oi)
-            gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-            gpointss = "%.2f GPts/s" % fround(v.gpointss) if v.gpointss else None
-            metrics = ", ".join(i for i in [oi, gflopss, gpointss] if i is not None)
+
+            metrics = lower_perfentry(v)
+
             itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
             if len(itershapes) > 1:
                 itershapes = ",".join("<%s>" % i for i in itershapes)
@@ -900,10 +976,13 @@ class Operator(Callable):
                 itershapes = ""
             name = "%s%s<%s>" % (k.name, rank, itershapes)
 
-            perf("%s* %s ran in %.2f s [%s]" % (indent, name, fround(v.time), metrics))
-            for n, time in summary.subsections.get(k.name, {}).items():
-                perf("%s+ %s ran in %.2f s [%.2f%%]" %
-                     (indent*2, n, time, fround(time/v.time*100)))
+            perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
+            for n, v1 in summary.subsections.get(k.name, {}).items():
+                metrics = lower_perfentry(v1)
+
+                perf("%s+ %s ran in %.2f s [%.2f%%] %s" %
+                     (indent*2, n, fround(v1.time), fround(v1.time/v.time*100),
+                      metrics))
 
         # Emit performance mode and arguments
         perf_args = {}
@@ -961,6 +1040,41 @@ class Operator(Callable):
             self._lib.name = soname
 
 
+# Default action (perform or bypass) for selected compilation passes upon
+# recursive compilation
+# NOTE: it may not only be pointless to apply the following passes recursively
+# (because once, during the main compilation phase, is simply enough), but also
+# dangerous as some of them (the minority) might break in some circumstances
+# if applied in cascade (e.g., `linearization` on top of `linearization`)
+rcompile_registry = {
+    'mpi': False,
+    'linearize': False,
+    'place-transfers': False
+}
+
+
+def rcompile(expressions, kwargs=None):
+    """
+    Perform recursive compilation on an ordered sequence of symbolic expressions.
+    """
+    if not kwargs or 'options' not in kwargs:
+        kwargs = parse_kwargs(**kwargs)
+        cls = operator_selector(**kwargs)
+        kwargs = cls._normalize_kwargs(**kwargs)
+    else:
+        cls = operator_selector(**kwargs)
+
+    # Tweak the compilation kwargs
+    options = dict(kwargs['options'])
+    options.update(rcompile_registry)
+    kwargs['options'] = options
+
+    # Recursive profiling not supported -- would be a complete mess
+    kwargs.pop('profiler', None)
+
+    return cls._lower(expressions, **kwargs)
+
+
 # Misc helpers
 
 
@@ -976,12 +1090,24 @@ class ArgumentsMap(dict):
 
         self.allocator = op._allocator
         self.platform = op._platform
+        self.language = op._language
+        self.compiler = op._compiler
         self.options = op._options
 
     @property
     def comm(self):
         """The MPI communicator the arguments are collective over."""
         return self.grid.comm if self.grid is not None else MPI.COMM_NULL
+
+    @property
+    def opkwargs(self):
+        temp_registry = {v: k for k, v in platform_registry.items()}
+        platform = temp_registry[self.platform]
+
+        temp_registry = {v: k for k, v in compiler_registry.items()}
+        compiler = temp_registry[self.compiler.__class__]
+
+        return {'platform': platform, 'compiler': compiler, 'language': self.language}
 
 
 def parse_kwargs(**kwargs):
@@ -1098,7 +1224,9 @@ def parse_kwargs(**kwargs):
 
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        '%s.%s' % (kwargs['compiler'].__class__.__name__, kwargs['language'])
+        '%s.%s.%s' % (kwargs['compiler'].name,
+                      kwargs['language'],
+                      kwargs['platform'])
     )
 
     return kwargs

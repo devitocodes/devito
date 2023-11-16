@@ -3,12 +3,17 @@ Utilities to turn SymPy objects into C strings.
 """
 
 import numpy as np
+import sympy
 
 from mpmath.libmp import prec_to_dps, to_str
+from packaging.version import Version
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
+from devito.arch.compiler import AOMPCompiler
+from devito.symbolics.inspection import has_integer_args
+from devito.types.basic import AbstractFunction
 
 __all__ = ['ccode']
 
@@ -23,9 +28,16 @@ class CodePrinter(C99CodePrinter):
     settings : dict
         Options for code printing.
     """
-    def __init__(self, dtype=np.float32, settings={}):
-        self.dtype = dtype
-        C99CodePrinter.__init__(self, settings)
+    _default_settings = {'compiler': None, 'dtype': np.float32,
+                         **C99CodePrinter._default_settings}
+
+    @property
+    def dtype(self):
+        return self._settings['dtype']
+
+    @property
+    def compiler(self):
+        return self._settings['compiler']
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
@@ -33,10 +45,12 @@ class CodePrinter(C99CodePrinter):
         return super().parenthesize(item, level, strict=strict)
 
     def _print_Function(self, expr):
-        # There exist no unknown Functions
-        if expr.func.__name__ not in self.known_functions:
-            self.known_functions[expr.func.__name__] = expr.func.__name__
-        return super(CodePrinter, self)._print_Function(expr)
+        if isinstance(expr, AbstractFunction):
+            return str(expr)
+        else:
+            if expr.func.__name__ not in self.known_functions:
+                self.known_functions[expr.func.__name__] = expr.func.__name__
+            return super()._print_Function(expr)
 
     def _print_CondEq(self, expr):
         return "%s == %s" % (self._print(expr.lhs), self._print(expr.rhs))
@@ -49,8 +63,8 @@ class CodePrinter(C99CodePrinter):
         --------
         U[t,x,y,z] -> U[t][x][y][z]
         """
-        return self._print(expr.base.label) \
-            + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
+        inds = ''.join(['[' + self._print(x) + ']' for x in expr.indices])
+        return '%s%s' % (self._print(expr.base.label), inds)
 
     def _print_FIndexed(self, expr):
         """
@@ -60,8 +74,8 @@ class CodePrinter(C99CodePrinter):
         --------
         U[t,x,y,z] -> U(t,x,y,z)
         """
-        return self._print(expr.base.label) \
-            + '(%s)' % ', '.join(self._print(x) for x in expr.indices)
+        inds = ', '.join(self._print(x) for x in expr.indices)
+        return '%s(%s)' % (self._print(expr.base.label), inds)
 
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""
@@ -88,11 +102,54 @@ class CodePrinter(C99CodePrinter):
 
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
-        args = map(ccode, expr.args)
-        args = ['('+x+')' for x in args]
+        args = ['(%s)' % self._print(a) for a in expr.args]
+        return '%'.join(args)
 
-        result = '%'.join(args)
-        return result
+    def _print_Mul(self, expr):
+        term = super()._print_Mul(expr)
+        return term.replace("(-1)*", "-")
+
+    def _print_Min(self, expr):
+        if has_integer_args(*expr.args) and len(expr.args) == 2:
+            return "MIN(%s)" % self._print(expr.args)[1:-1]
+        else:
+            return super()._print_Min(expr)
+
+    def _print_Max(self, expr):
+        if has_integer_args(*expr.args) and len(expr.args) == 2:
+            return "MAX(%s)" % self._print(expr.args)[1:-1]
+        else:
+            return super()._print_Max(expr)
+
+    def _print_Abs(self, expr):
+        """Print an absolute value. Use `abs` if can infer it is an Integer"""
+        # AOMPCC errors with abs, always use fabs
+        if isinstance(self.compiler, AOMPCompiler):
+            return "fabs(%s)" % self._print(expr.args[0])
+        # Check if argument is an integer
+        func = "abs" if has_integer_args(*expr.args[0].args) else "fabs"
+        return "%s(%s)" % (func, self._print(expr.args[0]))
+
+    def _print_Add(self, expr, order=None):
+        """"
+        Print an addition.
+        """
+        terms = self._as_ordered_terms(expr, order=order)
+
+        PREC = precedence(expr)
+        l = []
+        for term in terms:
+            t = self._print(term)
+            if precedence(term) < PREC:
+                l.extend(["+", "(%s)" % t])
+            elif t.startswith('-'):
+                l.extend(["-", t[1:]])
+            else:
+                l.extend(["+", t])
+        sign = l.pop(0)
+        if sign == '+':
+            sign = ""
+        return sign + ' '.join(l)
 
     def _print_Float(self, expr):
         """Print a Float in C-like scientific notation."""
@@ -122,7 +179,7 @@ class CodePrinter(C99CodePrinter):
         return rv
 
     def _print_Differentiable(self, expr):
-        return "(" + self._print(expr._expr) + ")"
+        return "(%s)" % self._print(expr._expr)
 
     _print_EvalDerivative = C99CodePrinter._print_Add
 
@@ -158,22 +215,32 @@ class CodePrinter(C99CodePrinter):
         return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
 
     def _print_UnaryOp(self, expr):
-        return expr.__str__()
+        if expr.base.is_Symbol:
+            return "%s%s" % (expr._op, self._print(expr.base))
+        else:
+            return "%s(%s)" % (expr._op, self._print(expr.base))
 
-    _print_DefFunction = _print_UnaryOp
-    _print_MacroArgument = _print_UnaryOp
-    _print_IndexedBase = _print_UnaryOp
-    _print_IndexSum = _print_UnaryOp
-    _print_Keyword = _print_UnaryOp
+    def _print_ComponentAccess(self, expr):
+        return "%s.%s" % (self._print(expr.base), expr.sindex)
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
         if self.dtype == np.float32:
             func_name += 'f'
-        return func_name + '(' + self._print(*expr.args) + ')'
+        return '%s(%s)' % (func_name, self._print(*expr.args))
 
-    def _print_Basic(self, expr):
-        return str(expr)
+    def _print_DefFunction(self, expr):
+        arguments = [self._print(i) for i in expr.arguments]
+        return "%s(%s)" % (expr.name, ','.join(arguments))
+
+    def _print_Fallback(self, expr):
+        return expr.__str__()
+
+    _print_MacroArgument = _print_Fallback
+    _print_IndexedBase = _print_Fallback
+    _print_IndexSum = _print_Fallback
+    _print_Keyword = _print_Fallback
+    _print_Basic = _print_Fallback
 
 
 # Always parenthesize IntDiv and InlineIf within expressions
@@ -181,7 +248,7 @@ PRECEDENCE_VALUES['IntDiv'] = 1
 PRECEDENCE_VALUES['InlineIf'] = 1
 
 
-def ccode(expr, dtype=np.float32, **settings):
+def ccode(expr, **settings):
     """Generate C++ code from an expression.
 
     Parameters
@@ -197,4 +264,10 @@ def ccode(expr, dtype=np.float32, **settings):
         The resulting code as a C++ string. If something went south, returns
         the input ``expr`` itself.
     """
-    return CodePrinter(dtype=dtype, settings=settings).doprint(expr, None)
+    return CodePrinter(settings=settings).doprint(expr, None)
+
+
+# Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
+# to always use the correct one from our printer
+if Version(sympy.__version__) >= Version("1.11"):
+    setattr(sympy.printing.str.StrPrinter, '_print_Add', CodePrinter._print_Add)

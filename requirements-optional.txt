@@ -1,2 +1,5 @@
 matplotlib
 pandas
+pyrevolve==2.2.3
+scipy
+distributed

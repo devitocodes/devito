@@ -91,11 +91,15 @@ def root(x):
 
 
 class Min(sympy.Min, Evaluable):
-    pass
+
+    def _evaluate(self, **kwargs):
+        return self.func(*self._evaluate_args(**kwargs), evaluate=False)
 
 
 class Max(sympy.Max, Evaluable):
-    pass
+
+    def _evaluate(self, **kwargs):
+        return self.func(*self._evaluate_args(**kwargs), evaluate=False)
 
 
 def Id(x):

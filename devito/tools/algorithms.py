@@ -10,10 +10,10 @@ __all__ = ['toposort']
 
 def build_dependence_lists(elements):
     """
-    Given an iterable of dependences, return the dependence lists as a
+    Given an iterable of dependencies, return the dependence lists as a
     mapper suitable for graph-like algorithms. A dependence is an iterable of
-    elements ``[a, b, c, ...]``, meaning that ``a`` preceeds ``b`` and ``c``,
-    ``b`` preceeds ``c``, and so on.
+    elements ``[a, b, c, ...]``, meaning that ``a`` precedes ``b`` and ``c``,
+    ``b`` precedes ``c``, and so on.
     """
     mapper = OrderedDict()
     for element in elements:
@@ -35,7 +35,7 @@ def toposort(data):
           dependent items. The dictionary may contain self-dependencies
           (which are ignored), and dependent items that are not also
           dict keys.
-        * An iterable of dependences as expected by :func:`build_dependence_lists`.
+        * An iterable of dependencies as expected by :func:`build_dependence_lists`.
 
     Readapted from: ::
 
@@ -60,16 +60,21 @@ def toposort(data):
     # Perform the topological sorting
     extra_items_in_deps = reduce(set.union, mapper.values()) - set(mapper)
     mapper.update(OrderedDict([(item, set()) for item in extra_items_in_deps]))
+
     while True:
         ordered = set(item for item, dep in mapper.items() if not dep)
         if not ordered:
             break
+
         try:
             processed = sorted(ordered, key=attrgetter('name')) + processed
         except AttributeError:
             processed = sorted(ordered) + processed
+
         mapper = OrderedDict([(item, (dep - ordered)) for item, dep in mapper.items()
                               if item not in ordered])
+
     if len(processed) != len(set(flatten(data) + flatten(data.values()))):
         raise ValueError("A cyclic dependency exists amongst %r" % data)
+
     return processed

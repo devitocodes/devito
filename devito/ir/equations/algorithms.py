@@ -1,12 +1,11 @@
 from collections.abc import Iterable
-from operator import attrgetter
 
 from sympy import sympify
 
-from devito.symbolics import (retrieve_functions, retrieve_indexed, split_affine,
-                              uxreplace)
-from devito.tools import PartialOrderTuple, filter_sorted, flatten, as_tuple
+from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
+from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
+from devito.types.basic import AbstractFunction
 
 __all__ = ['dimension_sort', 'lower_exprs']
 
@@ -21,20 +20,25 @@ def dimension_sort(expr):
         relation = []
         for i in indexed.indices:
             try:
-                maybe_dim = split_affine(i).var
-                if isinstance(maybe_dim, Dimension):
-                    relation.append(maybe_dim)
-            except ValueError:
-                # Maybe there are some nested Indexeds (e.g., the situation is A[B[i]])
+                # Assume it's an AffineIndexAccessFunction...
+                relation.append(i.d)
+            except AttributeError:
+                # It's not! Maybe there are some nested Indexeds (e.g., the
+                # situation is A[B[i]])
                 nested = flatten(handle_indexed(n) for n in retrieve_indexed(i))
                 if nested:
                     relation.extend(nested)
-                else:
-                    # Fallback: Just insert all the Dimensions we find, regardless of
-                    # what the user is attempting to do
-                    relation.extend([d for d in filter_sorted(i.free_symbols)
-                                     if isinstance(d, Dimension)])
-        return tuple(relation)
+                    continue
+
+                # Fallback: Just insert all the Dimensions we find, regardless of
+                # what the user is attempting to do
+                relation.extend(filter_sorted(i.atoms(Dimension)))
+
+        # StencilDimensions are lowered subsequently through special compiler
+        # passes, so they can be ignored here
+        relation = tuple(d for d in relation if not d.is_Stencil)
+
+        return relation
 
     if isinstance(expr.implicit_dims, IgnoreDimSort):
         relations = set()
@@ -45,15 +49,16 @@ def dimension_sort(expr):
     relations.add(expr.implicit_dims)
 
     # Add in leftover free dimensions (not an Indexed' index)
-    extra = set([i for i in expr.free_symbols if isinstance(i, Dimension)])
+    extra = set(retrieve_dimensions(expr, deep=True))
 
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
     indexeds = retrieve_indexed(expr, deep=True)
-    extra.update(set().union(*[set(i.function.dimensions) for i in indexeds]))
+    for i in indexeds:
+        extra.update({d for d in i.function.dimensions if i.indices[d].is_integer})
 
     # Enforce determinism
-    extra = filter_sorted(extra, key=attrgetter('name'))
+    extra = filter_sorted(extra)
 
     # Add in implicit relations for parent dimensions
     # -----------------------------------------------
@@ -61,14 +66,25 @@ def dimension_sort(expr):
     # wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now
     # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
-    implicit_relations = {(d.parent, d) for d in extra if d.is_Derived}
+    implicit_relations = {(d.parent, d) for d in extra if d.is_Derived and not d.indirect}
+
     # 2) To handle cases such as `((time, xi), (x,))`, where `xi` a SubDimension
     # of `x`, besides `(x, xi)`, we also have to add `(time, x)` so that we
     # obtain the desired ordering `(time, x, xi)`. W/o `(time, x)`, the ordering
     # `(x, time, xi)` might be returned instead, which would be non-sense
-    implicit_relations.update({tuple(d.root for d in i) for i in relations})
+    for i in relations:
+        dims = []
+        for d in i:
+            # Only add index if a different Dimension name to avoid dropping conditionals
+            # with the same name as the parent
+            if d.index.name == d.name:
+                dims.append(d)
+            else:
+                dims.extend([d.index, d])
 
-    ordering = PartialOrderTuple(extra, relations=(relations | implicit_relations))
+        implicit_relations.update({tuple(filter_ordered(dims))})
+
+    ordering = Ordering(extra, relations=implicit_relations, mode='partial')
 
     return ordering
 
@@ -98,7 +114,7 @@ def lower_exprs(expressions, **kwargs):
 
         # Handle Functions (typical case)
         mapper = {f: lower_exprs(f.indexify(subs=dimension_map), **kwargs)
-                  for f in retrieve_functions(expr)}
+                  for f in expr.find(AbstractFunction)}
 
         # Handle Indexeds (from index notation)
         for i in retrieve_indexed(expr):

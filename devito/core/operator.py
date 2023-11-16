@@ -6,7 +6,8 @@ from devito.logger import warning
 from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import as_tuple, is_integer, timed_pass
+from devito.tools import (as_tuple, is_integer, timed_pass,
+                          UnboundTuple, UnboundedMultiTuple)
 from devito.types import NThreads
 
 __all__ = ['CoreOperator', 'CustomOperator',
@@ -17,6 +18,7 @@ __all__ = ['CoreOperator', 'CustomOperator',
 class BasicOperator(Operator):
 
     # Default values for various optimization options
+
     CSE_MIN_COST = 1
     """
     Minimum computational cost of an operation to be eliminated as a
@@ -88,9 +90,27 @@ class BasicOperator(Operator):
     which may be easier to parallelize for certain backends.
     """
 
+    EXPAND = True
+    """
+    Unroll all loops with short, numeric trip count, such as loops created by
+    finite-difference derivatives.
+    """
+
     MPI_MODES = tuple(mpi_registry)
     """
     The supported MPI modes.
+    """
+
+    DIST_DROP_UNWRITTEN = True
+    """
+    Drop halo exchanges for read-only Function, even in presence of
+    stencil-like data accesses.
+    """
+
+    INDEX_MODE = "int64"
+    """
+    The type of the expression used to compute array indices. Either `int64`
+    (default) or `int32`.
     """
 
     _Target = None
@@ -268,7 +288,7 @@ class CustomOperator(BasicOperator):
         # from HaloSpot optimization)
         # Note that if MPI is disabled then this pass will act as a no-op
         if 'mpi' not in passes:
-            passes_mapper['mpi'](graph)
+            passes_mapper['mpi'](graph, **kwargs)
 
         # Run passes
         applied = []
@@ -287,16 +307,16 @@ class CustomOperator(BasicOperator):
         if 'init' not in passes:
             passes_mapper['init'](graph)
 
-        # Enforce pthreads if CPU-GPU orchestration requested
-        if 'orchestrate' in passes and 'pthreadify' not in passes:
-            passes_mapper['pthreadify'](graph, sregistry=sregistry)
-
         # Symbol definitions
-        cls._Target.DataManager(sregistry, options).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
         if 'linearize' not in passes and options['linearize']:
             passes_mapper['linearize'](graph)
+
+        # Enforce pthreads if CPU-GPU orchestration requested
+        if 'orchestrate' in passes and 'pthreadify' not in passes:
+            passes_mapper['pthreadify'](graph, sregistry=sregistry)
 
         return graph
 
@@ -308,25 +328,27 @@ class OptOption(object):
     pass
 
 
-class ParTileArg(tuple):
+class ParTileArg(UnboundTuple):
 
-    def __new__(cls, items, shm=0, tag=None):
-        obj = super().__new__(cls, items)
-        obj.shm = shm
+    def __new__(cls, items, rule=None, tag=None):
+        if items is None:
+            items = tuple()
+        obj = super().__new__(cls, *items)
+        obj.rule = rule
         obj.tag = tag
         return obj
 
 
-class ParTile(tuple, OptOption):
+class ParTile(UnboundedMultiTuple, OptOption):
 
     def __new__(cls, items, default=None):
         if not items:
-            return None
+            return UnboundedMultiTuple()
         elif isinstance(items, bool):
             if not default:
                 raise ValueError("Expected `default` value, got None")
             items = (ParTileArg(as_tuple(default)),)
-        elif isinstance(items, tuple):
+        elif isinstance(items, (list, tuple)):
             if not items:
                 raise ValueError("Expected at least one value")
 
@@ -334,8 +356,17 @@ class ParTile(tuple, OptOption):
 
             x = items[0]
             if is_integer(x):
-                # E.g., (32, 4, 8)
+                # E.g., 32
                 items = (ParTileArg(items),)
+
+            elif x is None:
+                # E.g. (None, None); to define the dimensionality of a block,
+                # while the actual shape values remain parametric
+                items = (ParTileArg(items),)
+
+            elif isinstance(x, ParTileArg):
+                # From a reconstruction
+                pass
 
             elif isinstance(x, Iterable):
                 if not x:
@@ -343,14 +374,15 @@ class ParTile(tuple, OptOption):
 
                 try:
                     y = items[1]
-                    if is_integer(y):
-                        # E.g., ((32, 4, 8), 1)
-                        # E.g., ((32, 4, 8), 1, 'tag')
+                    if is_integer(y) or isinstance(y, str) or y is None:
+                        # E.g., ((32, 4, 8), 'rule')
+                        # E.g., ((32, 4, 8), 'rule', 'tag')
                         items = (ParTileArg(*items),)
                     else:
                         try:
-                            # E.g., (((32, 4, 8), 1), ((32, 4, 4), 2))
-                            # E.g., (((32, 4, 8), 1, 'tag0'), ((32, 4, 4), 2, 'tag1'))
+                            # E.g., (((32, 4, 8), 'rule'), ((32, 4, 4), 'rule'))
+                            # E.g., (((32, 4, 8), 'rule0', 'tag0'),
+                            #        ((32, 4, 4), 'rule1', 'tag1'))
                             items = tuple(ParTileArg(*i) for i in items)
                         except TypeError:
                             # E.g., ((32, 4, 8), (32, 4, 4))
@@ -361,6 +393,9 @@ class ParTile(tuple, OptOption):
             else:
                 raise ValueError("Expected int or tuple, got %s instead" % type(x))
         else:
-            raise ValueError("Expected bool or tuple, got %s instead" % type(items))
+            raise ValueError("Expected bool or iterable, got %s instead" % type(items))
 
-        return super().__new__(cls, items)
+        obj = super().__new__(cls, *items)
+        obj.default = as_tuple(default)
+
+        return obj

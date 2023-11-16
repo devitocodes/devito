@@ -60,14 +60,21 @@ class Cpu64OperatorMixin(object):
         o['par-dynamic-work'] = oo.pop('par-dynamic-work', cls.PAR_DYNAMIC_WORK)
         o['par-nested'] = oo.pop('par-nested', cls.PAR_NESTED)
 
+        # Distributed parallelism
+        o['dist-drop-unwritten'] = oo.pop('dist-drop-unwritten', cls.DIST_DROP_UNWRITTEN)
+
         # Misc
+        o['expand'] = oo.pop('expand', cls.EXPAND)
         o['optcomms'] = oo.pop('optcomms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
+        o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
+        o['place-transfers'] = oo.pop('place-transfers', True)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
         oo.pop('gpu-fit', None)
+        oo.pop('gpu-create', None)
 
         if oo:
             raise InvalidOperator("Unrecognized optimization options: [%s]"
@@ -101,7 +108,7 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
             parizer.initialize(graph, options=options)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         return graph
 
@@ -165,7 +172,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         mpiize(graph, **kwargs)
 
         # Lower BlockDimensions so that blocks of arbitrary shape may be used
-        relax_incr_dimensions(graph)
+        relax_incr_dimensions(graph, **kwargs)
 
         # Parallelism
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
@@ -177,10 +184,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         hoist_prodders(graph)
 
         # Symbol definitions
-        cls._Target.DataManager(sregistry).process(graph)
+        cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
-        linearize(graph, mode=options['linearize'], sregistry=sregistry)
+        linearize(graph, **kwargs)
 
         return graph
 
@@ -254,12 +261,11 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         return {
             'denormals': avoid_denormals,
-            'blocking': partial(relax_incr_dimensions),
+            'blocking': partial(relax_incr_dimensions, **kwargs),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,
             'mpi': partial(mpiize, **kwargs),
-            'linearize': partial(linearize, mode=options['linearize'],
-                                 sregistry=sregistry),
+            'linearize': partial(linearize, **kwargs),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
             'init': partial(parizer.initialize, options=options)

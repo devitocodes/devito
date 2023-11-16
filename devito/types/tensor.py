@@ -173,7 +173,13 @@ class TensorFunction(AbstractTensor):
                        for i in range(self.rows) if i != j])
 
     def _evaluate(self, **kwargs):
-        return self.applyfunc(lambda x: getattr(x, 'evaluate', x))
+        def _do_evaluate(x):
+            try:
+                expand = kwargs.get('expand', True)
+                return x._evaluate(expand=expand)
+            except AttributeError:
+                return x
+        return self.applyfunc(_do_evaluate)
 
     def values(self):
         if self.is_diagonal:

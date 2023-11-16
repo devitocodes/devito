@@ -124,28 +124,13 @@ class NodeHalo(ScheduleTree):
 
     is_Halo = True
 
-    def __init__(self, halo_scheme):
+    def __init__(self, halo_scheme, parent=None):
+        super().__init__(parent)
         self.halo_scheme = halo_scheme
 
     @property
     def __repr_render__(self):
         return "<Halo>"
-
-
-def insert(node, parent, children):
-    """
-    Insert ``node`` between ``parent`` and ``children``, where ``children``
-    are a subset of nodes in ``parent.children``.
-    """
-    processed = []
-    for n in list(parent.children):
-        if n in children:
-            n.parent = node
-            if node not in processed:
-                processed.append(node)
-        else:
-            processed.append(n)
-    parent.children = processed
 
 
 def render(stree):

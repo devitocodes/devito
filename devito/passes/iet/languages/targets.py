@@ -4,6 +4,7 @@ from devito.passes.iet.languages.openmp import (SimdOmpizer, Ompizer, DeviceOmpi
                                                 OmpOrchestrator, DeviceOmpOrchestrator)
 from devito.passes.iet.languages.openacc import (DeviceAccizer, DeviceAccDataManager,
                                                  AccOrchestrator)
+from devito.passes.iet.instrument import instrument
 
 __all__ = ['CTarget', 'OmpTarget', 'DeviceOmpTarget', 'DeviceAccTarget']
 
@@ -12,6 +13,14 @@ class Target(object):
     Parizer = None
     DataManager = None
     Orchestrator = None
+
+    @classmethod
+    def lang(cls):
+        return cls.Parizer.lang
+
+    @classmethod
+    def instrument(cls, *args, **kwargs):
+        instrument(*args, lang=cls.lang(), **kwargs)
 
 
 class CTarget(Target):

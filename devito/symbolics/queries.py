@@ -1,10 +1,15 @@
-from sympy import Eq, Mod, S, diff, nan
+from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import IntDiv
+from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
+                                             IndexedPointer, IntDiv)
 from devito.tools import as_tuple, is_integer
+from devito.types.basic import AbstractFunction
+from devito.types.constant import Constant
+from devito.types.dimension import Dimension
+from devito.types.object import AbstractObject
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xop',
+__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
            'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
            'q_identity', 'q_symbol', 'q_multivar', 'q_monoaffine', 'q_dimension',
            'q_positive', 'q_negative']
@@ -15,6 +20,8 @@ __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine', 'q_xo
 # * Number
 # * Symbol
 # * Indexed
+extra_leaves = (FieldFromPointer, FieldFromComposite, IndexedBase, AbstractObject,
+                IndexedPointer)
 
 
 def q_symbol(expr):
@@ -25,7 +32,9 @@ def q_symbol(expr):
 
 
 def q_leaf(expr):
-    return expr.is_Atom or expr.is_Indexed
+    return (expr.is_Atom or
+            expr.is_Indexed or
+            isinstance(expr, extra_leaves))
 
 
 def q_indexed(expr):
@@ -37,17 +46,19 @@ def q_function(expr):
     return isinstance(expr, DiscreteFunction)
 
 
+def q_derivative(expr):
+    from devito.finite_differences.derivative import Derivative
+    return isinstance(expr, Derivative)
+
+
 def q_terminal(expr):
-    return expr.is_Symbol or expr.is_Indexed
+    return (expr.is_Symbol or
+            expr.is_Indexed or
+            isinstance(expr, extra_leaves))
 
 
 def q_routine(expr):
-    from devito.types.basic import AbstractFunction
     return expr.is_Function and not isinstance(expr, AbstractFunction)
-
-
-def q_xop(expr):
-    return (expr.is_Add or expr.is_Mul or expr.is_Pow or q_routine(expr))
 
 
 def q_terminalop(expr, depth=0):
@@ -242,7 +253,6 @@ def q_positive(expr):
         # E.g., p0 - x / p1 + x
 
         assert len(args) == 3
-        from devito.types.constant import Constant
 
         found = [None, None, None]
         for i in args:
@@ -298,5 +308,4 @@ def q_dimension(expr):
     """
     Return True if ``expr`` is a dimension, False otherwise.
     """
-    from devito.types.dimension import Dimension
     return isinstance(expr, Dimension)

@@ -16,7 +16,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer
+from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
@@ -57,12 +57,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('grid', 'staggered', 'initializer')
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
 
-    def __init_finalize__(self, *args, **kwargs):
-        # A `Distributor` to handle domain decomposition (only relevant for MPI)
-        self._distributor = self.__distributor_setup__(**kwargs)
-
+    def __init_finalize__(self, *args, function=None, **kwargs):
         # Staggering metadata
         self._staggered = self.__staggered_setup__(**kwargs)
 
@@ -70,20 +67,26 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # superclass constructor do its job
         super(DiscreteFunction, self).__init_finalize__(*args, **kwargs)
 
-        # There may or may not be a `Grid` attached to the DiscreteFunction
-        self._grid = kwargs.get('grid')
-
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', 'standard')
         if self._coefficients not in ('standard', 'symbolic'):
             raise ValueError("coefficients must be `standard` or `symbolic`")
 
-        # Data-related properties and data initialization
+        # Data-related properties
         self._data = None
         self._first_touch = kwargs.get('first_touch', configuration['first-touch'])
         self._allocator = kwargs.get('allocator') or default_allocator()
+
+        # Data initialization
         initializer = kwargs.get('initializer')
-        if initializer is None or callable(initializer):
+        if self.alias:
+            self._initializer = None
+        elif function is not None:
+            # An object derived from user-level AbstractFunction (e.g.,
+            # `f(x+1)`), so we just copy the reference to the original data
+            self._initializer = None
+            self._data = function._data
+        elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
         elif isinstance(initializer, (np.ndarray, list, tuple)):
@@ -91,7 +94,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # a reference to the user-provided buffer
             self._initializer = None
             if len(initializer) > 0:
-                self.data_with_halo[:] = initializer
+                self.data_with_halo[:] = initializer[:]
             else:
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after
@@ -102,14 +105,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise ValueError("`initializer` must be callable or buffer, not %s"
                              % type(initializer))
 
-    def __eq__(self, other):
-        # The only possibility for two DiscreteFunctions to be considered equal
-        # is that they are indeed the same exact object
-        return self is other
-
-    def __hash__(self):
-        return id(self)
-
     _subs = Differentiable._subs
 
     def _allocate_memory(func):
@@ -118,7 +113,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         def wrapper(self):
             if self._data is None:
                 if self._alias:
-                    raise TypeError("Aliasing Functions cannot allocate data")
+                    # Aliasing Functions must not allocate data
+                    return
 
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
@@ -173,12 +169,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             staggered = self.dimensions
         return staggered
 
-    def __distributor_setup__(self, **kwargs):
-        grid = kwargs.get('grid')
-        # There may or may not be a `Distributor`. In the latter case, the
-        # DiscreteFunction is to be considered "local" to each MPI rank
-        return kwargs.get('distributor') if grid is None else grid.distributor
-
     @cached_property
     def _functions(self):
         return {self.function}
@@ -200,11 +190,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return True
 
     @property
-    def grid(self):
-        """The Grid on which the discretization occurred."""
-        return self._grid
-
-    @property
     def staggered(self):
         return self._staggered
 
@@ -212,14 +197,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     def coefficients(self):
         """Form of the coefficients of the function."""
         return self._coefficients
-
-    @cached_property
-    def _coeff_symbol(self):
-        if self.coefficients == 'symbolic':
-            return sympy.Function('W')
-        else:
-            raise ValueError("Function was not declared with symbolic "
-                             "coefficients.")
 
     @cached_property
     def shape(self):
@@ -302,6 +279,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *global* domain region shape, which is
         therefore identical on all MPI ranks.
+
+        Issues
+        ------
+        * https://github.com/devitocodes/devito/issues/1498
         """
         if self.grid is None:
             return self.shape
@@ -651,16 +632,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of Dimensions defining the physical space."""
         return tuple(d for d in self.dimensions if d.is_Space)
 
-    @cached_property
-    def _dist_dimensions(self):
-        """Tuple of MPI-distributed Dimensions."""
-        if self._distributor is None:
-            return ()
-        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
-
     @property
     def initializer(self):
-        if self._data is not None:
+        if isinstance(self._data, np.ndarray):
             return self.data_with_halo.view(np.ndarray)
         else:
             return self._initializer
@@ -818,7 +792,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         args = ReducerMap({key.name: self._data_buffer})
 
         # Collect default dimension arguments from all indices
-        for i, s in zip(key.dimensions, self.shape):
+        for i, s in zip(self.dimensions, self.shape):
             args.update(i._arg_defaults(_min=0, size=s))
 
         return args
@@ -865,6 +839,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
+
         key = args[self.name]
         if len(key.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
@@ -873,12 +848,28 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if key.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (key.dtype, self.name, self.dtype))
+
         for i, s in zip(self.dimensions, key.shape):
             i._arg_check(args, s, intervals[i])
+
+        if args.options['index-mode'] == 'int32' and \
+           args.options['linearize'] and \
+           self.size - 1 >= np.iinfo(np.int32).max:
+            raise InvalidArgument("`%s`, with its %d elements, may be too big for "
+                                  "int32 pointer arithmetic, which might cause an "
+                                  "overflow. Use the 'index-mode=int64' option"
+                                  % (self, self.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
         return {key.name: self._C_make_dataobj(args[key.name])}
+
+    # Pickling support
+
+    @property
+    def _pickle_rkwargs(self):
+        # Picklying carries data over, if available
+        return tuple(self.__rkwargs__) + ('initializer',)
 
 
 class Function(DiscreteFunction):
@@ -999,7 +990,15 @@ class Function(DiscreteFunction):
         else:
             raise TypeError("`space_order` must be int or 3-tuple of ints")
 
-        self._fd = self.__fd_setup__()
+        # Acquire derivative shortcuts
+        if self is self.function:
+            self._fd = self.__fd_setup__()
+        else:
+            # E.g., `self is f(x + i0, y)` and `self.function is f(x, y)`
+            # Dynamically genereating derivative shortcuts is expensive; we
+            # can clearly avoid that here though!
+            self._fd = self.function._fd
+
         # Flag whether it is a parameter or a variable.
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
@@ -1031,7 +1030,7 @@ class Function(DiscreteFunction):
         return self
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
         if grid is None:
@@ -1039,6 +1038,10 @@ class Function(DiscreteFunction):
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
+
+        if args:
+            assert len(args) == len(dimensions)
+            return tuple(dimensions), tuple(args)
 
         # Staggered indices
         staggered = kwargs.get("staggered", None)
@@ -1048,7 +1051,7 @@ class Function(DiscreteFunction):
             mapper = {d: d for d in dimensions}
             for s in as_tuple(staggered):
                 c, s = s.as_coeff_Mul()
-                mapper.update({s: s + c * s.spacing/2})
+                mapper.update({s: s + c * s.spacing / 2})
             staggered_indices = mapper.values()
 
         return tuple(dimensions), tuple(staggered_indices)
@@ -1337,9 +1340,10 @@ class TimeFunction(Function):
                                      to=self.time_order)
 
     @classmethod
-    def __indices_setup__(cls, **kwargs):
+    def __indices_setup__(cls, *args, **kwargs):
         dimensions = kwargs.get('dimensions')
         staggered = kwargs.get('staggered')
+
         if dimensions is None:
             save = kwargs.get('save')
             grid = kwargs.get('grid')
@@ -1351,7 +1355,10 @@ class TimeFunction(Function):
                 raise TypeError("`time_dim` must be a time dimension")
             dimensions = list(Function.__indices_setup__(**kwargs)[0])
             dimensions.insert(cls._time_position, time_dim)
-        return Function.__indices_setup__(dimensions=dimensions, staggered=staggered)
+
+        return Function.__indices_setup__(
+            *args, dimensions=dimensions, staggered=staggered
+        )
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1443,15 +1450,9 @@ class SubFunction(Function):
     """
     A Function bound to a "parent" DiscreteFunction.
 
-    A SubFunction hands control of argument binding and halo exchange to its
-    parent DiscreteFunction.
+    A SubFunction hands control of argument binding and halo exchange to the
+    DiscreteFunction it's bound to.
     """
-
-    __rkwargs__ = Function.__rkwargs__ + ('parent',)
-
-    def __init_finalize__(self, *args, **kwargs):
-        super(SubFunction, self).__init_finalize__(*args, **kwargs)
-        self._parent = kwargs['parent']
 
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops
@@ -1464,12 +1465,13 @@ class SubFunction(Function):
         if self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
                                "a value dynamically" % self.name)
-        else:
-            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+
+        return self._arg_defaults(alias=self)
 
     @property
-    def parent(self):
-        return self._parent
+    def origin(self):
+        # SubFunction have zero origin
+        return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
 
 
 class TempFunction(DiscreteFunction):
@@ -1593,8 +1595,9 @@ class TempFunction(DiscreteFunction):
                 raise ValueError("Either `shape` or `kwargs` (Operator overrides) "
                                  "must be provided.")
             shape = []
+            args = normalize_args(kwargs)
             for n, i in enumerate(self.shape):
-                v = i.subs(kwargs)
+                v = i.subs(args)
                 if not v.is_Integer:
                     raise ValueError("Couldn't resolve `shape[%d]=%s` with the given "
                                      "kwargs (obtained: `%s`)" % (n, i, v))

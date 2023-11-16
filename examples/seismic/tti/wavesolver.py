@@ -1,10 +1,10 @@
 # coding: utf-8
-from devito import Function, TimeFunction, warning, DevitoCheckpoint, CheckpointOperator
+from devito import (Function, TimeFunction, warning,
+                    DevitoCheckpoint, CheckpointOperator, Revolver)
 from devito.tools import memoized_meth
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
-from pyrevolve import Revolver
 
 
 class AnisotropicWaveSolver(object):
@@ -33,6 +33,9 @@ class AnisotropicWaveSolver(object):
         self.model._initialize_bcs(bcs="damp")
         self.geometry = geometry
         self.kernel = kernel
+
+        if model.fs and kernel == 'staggered':
+            raise ValueError("Free surface only supported for centered TTI kernel")
 
         if space_order % 2 != 0:
             raise ValueError("space_order must be even but got %s"

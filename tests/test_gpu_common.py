@@ -1,13 +1,18 @@
+import cloudpickle as pickle
+
 import pytest
 import numpy as np
 import scipy.sparse
 
+from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    MatrixSparseTimeFunction, SparseTimeFunction, SubDimension,
-                    SubDomain, SubDomainSet, TimeFunction, Operator, configuration)
+                    Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
+                    SubDimension, SubDomain, SubDomainSet, TimeFunction,
+                    Operator, configuration, switchconfig)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
-from devito.ir import Expression, Section, FindNodes, FindSymbols, retrieve_iteration_tree
+from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
+                       retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray
 
@@ -105,6 +110,30 @@ class TestPassesEdgeCases(object):
         assert np.all(usave.data[5:] == expected[5:])
         assert np.all(vsave.data[:5] == expected[:5])
 
+    def test_incr_perfect_outer(self):
+        grid = Grid((5, 5))
+        d = Dimension(name="d")
+
+        u = Function(name="u", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5), )
+        v = Function(name="v", dimensions=(*grid.dimensions, d),
+                     grid=grid, shape=(*grid.shape, 5))
+        w = Function(name="w", grid=grid)
+
+        u.data.fill(1)
+        v.data.fill(2)
+
+        summation = Inc(w, u*v)
+
+        op = Operator([summation])
+
+        assert 'reduction' not in str(op)
+        assert 'collapse(2)' in str(op)
+        assert 'parallel' in str(op)
+
+        op()
+        assert np.all(w.data == 10)
+
 
 class Bundle(SubDomain):
     """
@@ -149,8 +178,7 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
 
@@ -183,7 +211,7 @@ class TestStreaming(object):
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 13 if configuration['language'] == 'openacc' else 12  # No `qid` w/ OMP
         assert str(exprs[b]) == 'const int deviceid = sdata->deviceid;'
-        assert str(exprs[b+1]) == 'int time = sdata->time;'
+        assert str(exprs[b+1]) == 'volatile int time = sdata->time;'
         assert str(exprs[b+2]) == 'lock0[0] = 1;'
         assert exprs[b+3].write is u
         assert exprs[b+4].write is v
@@ -216,7 +244,7 @@ class TestStreaming(object):
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
@@ -225,16 +253,14 @@ class TestStreaming(object):
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         body = sections[3].body[0].body[0]
         assert str(body.body[0].condition) == 'Ne(lock1[0], 2)'
         assert str(body.body[1]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[2]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata1[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata1[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata1[0].time = time;'
         assert str(body.body[2]) == 'sdata1[0].flag = 2;'
         assert len(op._func_table) == 2
@@ -279,8 +305,7 @@ class TestStreaming(object):
         assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
         assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
         body = body.body[3]
-        assert (str(body.body[0].condition) ==
-                'Ne(FieldFromComposite(flag, sdata0[0], ()), 1)')  # Wait-thread
+        assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 2
@@ -411,7 +436,7 @@ class TestStreaming(object):
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps,nfuncs', [
-        (('buffering', 'streaming', 'orchestrate'), 9, 5),
+        (('buffering', 'streaming', 'orchestrate'), 8, 5),
         (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 6, 5),
     ])
     def test_streaming_two_buffers(self, opt, ntmps, nfuncs):
@@ -438,6 +463,37 @@ class TestStreaming(object):
 
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
+
+    def test_streaming_fused(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        v = TimeFunction(name='v', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+            vsave.data[i, :] = i
+
+        eqns = [Eq(u.forward, u + usave + vsave),
+                Eq(v.forward, v + usave + vsave)]
+
+        op = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
+
+        # Check generated code
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].body[0].write is u
+        assert trees[0][-1].nodes[0].body[1].write is v
+
+        op.apply(time_M=nt-2)
+
+        assert np.all(u.data[0] == 56)
+        assert np.all(v.data[0] == 56)
+        assert np.all(u.data[1] == 72)
+        assert np.all(v.data[1] == 72)
 
     @pytest.mark.parametrize('opt', [
         ('buffering', 'streaming', 'orchestrate'),
@@ -544,6 +600,62 @@ class TestStreaming(object):
 
         assert np.all(grad.data == grad1.data)
 
+    def test_streaming_multi_input_conddim_foward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+        x, y = grid.dimensions
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=nt, time_dim=time_sub)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        for i in range(u.save):
+            u.data[i, :] = i
+
+        expr = u.dt2 + 3.*u.dt(x0=time_sub - time_sub.spacing)
+
+        eqns = [Eq(v.forward, v + expr + 1.)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': u}))
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt, dt=.01)
+        op1.apply(time_M=nt, dt=.01, v=v1)
+
+        assert np.all(v.data == v1.data)
+
+    def test_streaming_multi_input_conddim_backward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+        x, y = grid.dimensions
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, save=nt, time_dim=time_sub)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        for i in range(u.save):
+            u.data[i, :] = i
+
+        expr = u.dt2 + 3.*u.dt(x0=time_sub - time_sub.spacing)
+
+        eqns = [Eq(v.backward, v + expr + 1.)]
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': u}))
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+
+        op0.apply(time_M=nt, dt=.01)
+        op1.apply(time_M=nt, dt=.01, v=v1)
+
+        assert np.all(v.data == v1.data)
+
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 2),
     ])
@@ -636,7 +748,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(op1)) == 8
         assert len(retrieve_iteration_tree(op2)) == 5
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 1 + 2
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 2
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert threads[0].size.size == async_degree
@@ -757,8 +869,8 @@ class TestStreaming(object):
             assert len(retrieve_iteration_tree(op)) == 5
             assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
             sections = FindNodes(Section).visit(op)
-            assert len(sections) == 3
-            assert 'while(lock0[t1] == 0)' in str(sections[1].body[0].body[0].body[0])
+            assert len(sections) == 4
+            assert 'while(lock0[t1] == 0)' in str(sections[2].body[0].body[0].body[0])
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, usave=usave1)
@@ -1039,6 +1151,36 @@ class TestStreaming(object):
         assert np.all(u.data[0] == u1.data[0])
         assert np.all(u.data[1] == u1.data[1])
 
+    @pytest.mark.skip(reason="Unsupported MPI + .dx when streaming backwards")
+    @pytest.mark.parallel(mode=4)
+    @switchconfig(safe_math=True)  # Or NVC will crash
+    def test_streaming_w_mpi(self):
+        nt = 5
+        grid = Grid(shape=(16, 16))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt, space_order=4)
+        vsave = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+        vsave1 = TimeFunction(name='vsave', grid=grid, save=nt, space_order=4)
+
+        eqns = [Eq(u.backward, u + 1.),
+                Eq(vsave, usave.dx2)]
+
+        key = lambda f: f is not usave
+
+        op0 = Operator(eqns, opt='noop')
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate',
+                                  {'dist-drop-unwritten': key,
+                                   'gpu-fit': [vsave]}))
+
+        for i in range(nt):
+            usave.data[i] = i
+
+        op0.apply()
+        op1.apply(vsave=vsave1)
+
+        assert np.all(vsave.data, vsave1.data, rtol=1.e-5)
+
     @pytest.mark.parametrize('opt,opt_options,gpu_fit', [
         (('buffering', 'streaming', 'orchestrate'), {}, False),
         (('buffering', 'streaming', 'orchestrate'), {'linearize': True}, False)
@@ -1072,6 +1214,120 @@ class TestStreaming(object):
         op.apply(time_M=nt-1)
 
         assert np.all(g.data == 30)
+
+    @skipif('device-openmp')
+    def test_gpu_create_forward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.forward, u + usave)
+
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
+
+        # print(op)
+        # assert False
+
+        # language = configuration['language']
+        # if language == 'openacc':
+        #     assert 'create(u' in str(op)
+        # elif language == 'openmp':
+        #     assert 'map(alloc: u' in str(op)
+        # assert 'init0(u_vec' in str(op)
+
+        op.apply(time_M=nt - 2)
+
+        assert np.all(u.data[0] == 28)
+        assert np.all(u.data[1] == 36)
+
+    @skipif('device-openmp')
+    def test_gpu_create_backward(self):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i, :] = i
+
+        eqn = Eq(u.backward, u + usave)
+
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate', {'gpu-create': u}))
+
+        language = configuration['language']
+        if language == 'openacc':
+            assert 'create(u' in str(op)
+        elif language == 'openmp':
+            assert 'map(alloc: u' in str(op)
+        assert 'init0(u_vec' in str(op)
+
+        op.apply(time_M=nt - 2)
+
+        assert np.all(u.data[0] == 36)
+        assert np.all(u.data[1] == 35)
+
+    def test_place_transfers(self):
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        eqn = Eq(u.forward, u + 1)
+
+        op = Operator(eqn,
+                      opt=('buffering', 'streaming', 'orchestrate',
+                           {'place-transfers': False}))
+
+        language = configuration['language']
+        if language == 'openacc':
+            assert 'copyin(u' not in str(op)
+            assert 'copyout(u' not in str(op)
+            assert 'delete(u' not in str(op)
+        elif language == 'openmp':
+            assert 'map(to: u' not in str(op)
+            assert 'update from(u' not in str(op)
+            assert 'map(release: u' not in str(op)
+
+    def test_fuse_compatible_guards(self):
+        nt = 10
+        grid = Grid(shape=(8, 8))
+        time_dim = grid.time_dim
+
+        factor = Constant(name='factor', value=2, dtype=np.int32)
+        time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
+
+        f = TimeFunction(name='f', grid=grid)
+        fsave = TimeFunction(name='fsave', grid=grid,
+                             save=int(nt//factor.data), time_dim=time_sub)
+        gsave = TimeFunction(name='gsave', grid=grid,
+                             save=int(nt//factor.data), time_dim=time_sub)
+
+        eqns = [Eq(f.forward, f + 1.),
+                Eq(fsave, f.forward),
+                Eq(gsave, f.forward)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate',
+                                 {'gpu-fit': [gsave]}))
+
+        op.apply(time_M=nt-1)
+
+        assert all(np.all(fsave.data[i] == 2*i + 1) for i in range(fsave.save))
+        assert all(np.all(gsave.data[i] == 2*i + 1) for i in range(gsave.save))
+
+        # Check generated code
+        assert_structure(op, ['t,x,y', 't', 't,x,y', 't,x,y'],
+                         't,x,y,x,y,x,y')
+        nodes = FindNodes(Conditional).visit(op)
+        assert len(nodes) == 2
+        assert len(nodes[1].then_body) == 3
+        assert len(retrieve_iteration_tree(nodes[1])) == 2
 
 
 class TestAPI(object):
@@ -1141,6 +1397,25 @@ class TestAPI(object):
             assert op.arguments(time_M=2, npthreads0=5)
 
 
+class TestMisc(object):
+
+    def test_pickling(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name="usave", grid=grid, save=10)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+
+        op = Operator(eqns)
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        assert str(op) == str(new_op)
+
+
 class TestEdgeCases(object):
 
     def test_empty_arrays(self):
@@ -1149,10 +1424,12 @@ class TestEdgeCases(object):
         """
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
-        f = TimeFunction(name='f', grid=grid, space_order=0)
+        f = TimeFunction(name='f', grid=grid, space_order=1)
         f.data[:] = 1.
         sf1 = SparseTimeFunction(name='sf1', grid=grid, npoint=0, nt=10)
-        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10)
+        sf2 = SparseTimeFunction(name='sf2', grid=grid, npoint=0, nt=10,
+                                 coordinates=sf1.coordinates,
+                                 dimensions=sf1.dimensions)
         assert sf1.size == 0
         assert sf2.size == 0
 

@@ -91,4 +91,6 @@ if args.xdsl:
     print("XDSL Field norm is:", norm(u))
 
 if args.xdsl and args.devito:
-    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
+    assert np.isclose(norm(u), norm(devito_out), rtol=1e-5)
+    max_error = np.max(np.abs(u.data - devito_out.data))
+    print("Max error: ", max_error)

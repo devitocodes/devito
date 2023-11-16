@@ -1,4 +1,4 @@
-version: '2'
+version: "3.9"
 
 services:
   devito:
@@ -9,19 +9,22 @@ services:
       - ./devito:/app/devito/devito
       - ./tests:/app/devito/tests
       - ./examples:/app/devito/examples
+    entrypoint: /docker-entrypoint.sh
     ports:
       - 8888:8888
+
 
   devito.nvidia:
     build:
       context: .
       dockerfile: docker/Dockerfile.devito
       args:
-        base: devitocodes/devio:nvidia-base
+        base: devitocodes/bases:nvidia-nvc
     volumes:
       - ./devito:/app/devito/devito
       - ./tests:/app/devito/tests
       - ./examples:/app/devito/examples
+    entrypoint: /docker-entrypoint.sh
     ports:
       - 8888:8888
     runtime: nvidia

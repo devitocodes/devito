@@ -10,16 +10,16 @@ import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import GCCToolchain
+from codepy.toolchain import GCCToolchain, call_capture_output as _call_capture_output
 
-from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9,
-                         INTELGPUX, get_nvidia_cc, check_cuda_runtime,
+from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
+                         INTELGPUX, PVC, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
 from devito.parameters import configuration
 from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_func, memoized_meth, make_tempdir)
+                          memoized_func, make_tempdir)
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
@@ -52,8 +52,12 @@ def sniff_compiler_version(cc):
         compiler = "clang"
     elif ver.startswith("Homebrew clang"):
         compiler = "clang"
+    elif ver.startswith("Intel"):
+        compiler = "icx"
     elif ver.startswith("icc"):
         compiler = "icc"
+    elif ver.startswith("icx"):
+        compiler = "icx"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
     elif ver.startswith("cray"):
@@ -62,7 +66,7 @@ def sniff_compiler_version(cc):
         compiler = "unknown"
 
     ver = Version("0")
-    if compiler in ["gcc", "icc"]:
+    if compiler in ["gcc", "icc", "icx"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
             res = run([cc, "-dumpfullversion"], stdout=PIPE, stderr=DEVNULL)
@@ -117,6 +121,15 @@ def sniff_mpi_flags(mpicc='mpicc'):
     link_flags = check_output(['mpicc', "--showme:link"]).decode("utf-8")
 
     return compile_flags.split(), link_flags.split()
+
+
+@memoized_func
+def call_capture_output(cmd):
+    """
+    Memoize calls to codepy's `call_capture_output` to avoid leaking memory due
+    to some prefork/subprocess voodoo.
+    """
+    return _call_capture_output(cmd)
 
 
 class Compiler(GCCToolchain):
@@ -212,12 +225,20 @@ class Compiler(GCCToolchain):
                               mpi=kwargs.pop('mpi', configuration['mpi']),
                               **kwargs)
 
-    @memoized_meth
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    def get_version(self):
+        result, stdout, stderr = call_capture_output((self.cc, "--version"))
+        if result != 0:
+            raise RuntimeError(f"version query failed: {stderr}")
+        return stdout
+
     def get_jit_dir(self):
         """A deterministic temporary directory for jit-compiled objects."""
         return make_tempdir('jitcache')
 
-    @memoized_meth
     def get_codepy_dir(self):
         """A deterministic temporary directory for the codepy cache."""
         return make_tempdir('codepy')
@@ -376,13 +397,31 @@ class GNUCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.cflags += ['-march=native', '-Wno-unused-result',
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        self.cflags += ['-Wno-unused-result',
                         '-Wno-unused-variable', '-Wno-unused-but-set-variable']
 
         if configuration['safe-math']:
             self.cflags.append('-fno-unsafe-math-optimizations')
         else:
             self.cflags.append('-ffast-math')
+
+        if platform.isa == 'avx512':
+            if self.version >= Version("8.0.0"):
+                # The default is `=256` because avx512 slows down the CPU frequency;
+                # however, we empirically found that stencils generally benefit
+                # from `=512`
+                self.cflags.append('-mprefer-vector-width=512')
+            else:
+                # Unsupported on earlier versions
+                pass
+
+        if platform in [POWER8, POWER9]:
+            # -march isn't supported on power architectures, is -mtune needed?
+            self.cflags = ['-mcpu=native'] + self.cflags
+        else:
+            self.cflags = ['-march=native'] + self.cflags
 
         language = kwargs.pop('language', configuration['language'])
         try:
@@ -686,6 +725,10 @@ class IntelCompiler(Compiler):
         else:
             self.cflags.append('-fp-model=fast')
 
+        if platform.isa == 'avx512':
+            # Systematically use 512-bit vectors if avx512 is available.
+            self.cflags.append("-qopt-zmm-usage=high")
+
         if language == 'openmp':
             self.ldflags.append('-qopenmp')
 
@@ -695,6 +738,17 @@ class IntelCompiler(Compiler):
             if mpi_distro != 'IntelMPI':
                 warning("Expected Intel MPI distribution with `%s`, but found `%s`"
                         % (self.__class__.__name__, mpi_distro))
+            self.cflags.insert(0, '-cc=%s' % self.CC)
+
+    def get_version(self):
+        if configuration['mpi']:
+            cmd = (self.cc, "-cc=%s" % self.CC, "--version")
+        else:
+            cmd = (self.cc, "--version")
+        result, stdout, stderr = call_capture_output(cmd)
+        if result != 0:
+            raise RuntimeError(f"version query failed: {stderr}")
+        return stdout
 
     def __lookup_cmds__(self):
         self.CC = 'icc'
@@ -707,9 +761,9 @@ class IntelCompiler(Compiler):
         # we try to use `mpiicc` first, while `mpicc` is our fallback, which may
         # or may not be an Intel distribution
         try:
-            check_output(["mpiicc", "--version"]).decode("utf-8")
+            check_output(["mpiicc", "-cc=%s" % self.CC, "--version"]).decode("utf-8")
             self.MPICC = 'mpiicc'
-            self.MPICXX = 'mpiicpc'
+            self.MPICXX = 'mpicxx'
         except FileNotFoundError:
             self.MPICC = 'mpicc'
             self.MPICXX = 'mpicxx'
@@ -736,7 +790,8 @@ class OneapiCompiler(IntelCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        if language == 'openmp':
+        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
+        if self.version < Version('17.0.0') and language == 'openmp':
             self.ldflags.remove('-qopenmp')
             self.ldflags.append('-fopenmp')
 
@@ -749,11 +804,11 @@ class OneapiCompiler(IntelCompiler):
 
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
-            if platform is INTELGPUX:
-                self.cflags.append('-fopenmp-targets=spir64')
-                self.cflags.append('-fopenmp-target-simd')
+        if platform in [INTELGPUX, PVC]:
+            self.ldflags.append('-fiopenmp')
+            self.ldflags.append('-fopenmp-targets=spir64')
+            self.ldflags.append('-fopenmp-target-simd')
 
-        if platform is INTELGPUX:
             self.cflags.remove('-g')  # -g disables some optimizations in IGC
             self.cflags.append('-gline-tables-only')
             self.cflags.append('-fdebug-info-for-profiling')
@@ -764,7 +819,7 @@ class OneapiCompiler(IntelCompiler):
         self.CC = 'icx'
         self.CXX = 'icpx'
         self.MPICC = 'mpicc'
-        self.MPICX = 'mpicx'
+        self.MPICXX = 'mpicxx'
 
 
 class CustomCompiler(Compiler):
@@ -844,4 +899,5 @@ Registry dict for deriving Compiler classes according to the environment variabl
 DEVITO_ARCH. Developers should add new compiler classes here.
 """
 compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
-                          for i in ['4.9', '5', '6', '7', '8', '9', '10', '11', '12']})
+                          for i in ['4.9', '5', '6', '7', '8', '9', '10',
+                                    '11', '12', '13']})

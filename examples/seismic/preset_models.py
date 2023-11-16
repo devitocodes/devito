@@ -216,7 +216,8 @@ def demo_model(preset, **kwargs):
 
         model = SeismicModel(space_order=space_order, vp=v, origin=origin, shape=shape,
                              dtype=dtype, spacing=spacing, nbl=nbl, epsilon=epsilon,
-                             delta=delta, theta=theta, phi=phi, bcs="damp", **kwargs)
+                             delta=delta, theta=theta, phi=phi, bcs="damp",
+                             fs=fs, **kwargs)
 
         if kwargs.get('smooth', False):
             if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:

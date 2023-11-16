@@ -1,16 +1,19 @@
 from collections import OrderedDict
+from ctypes import c_int
 
 import cgen as c
 
 from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
                        Conditional, Dereference, DummyExpr, FindNodes, FindSymbols,
                        Iteration, List, PointerCast, Return, ThreadCallable,
-                       Transformer, While)
+                       Transformer, While, maybe_alias)
+from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
                               Null)
 from devito.tools import DefaultOrderedDict, Bunch, split
-from devito.types import Lock, Pointer, PThreadArray, QueueID, SharedData, Symbol
+from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Symbol,
+                          VolatileInt)
 
 __all__ = ['pthreadify']
 
@@ -20,6 +23,7 @@ def pthreadify(graph, **kwargs):
 
     lower_async_callables(graph, track=track, root=graph.root, **kwargs)
     lower_async_calls(graph, track=track, **kwargs)
+    DataManager(**kwargs).place_definitions(graph)
 
 
 @iet_pass
@@ -43,10 +47,14 @@ def lower_async_callables(iet, track=None, root=None, sregistry=None):
     # The `cfields` are the constant fields, that is the fields whose value
     # definitely never changes across different executions of `ìet`; the
     # `ncfields` are instead the non-constant fields, that is the fields whose
-    # value may or may not change across different calls to `iet`
+    # value may or may not change across different calls to `iet`. Clearly objects
+    # passed by pointer don't really matter
     fields = iet.parameters
     defines = FindSymbols('defines').visit(root.body)
-    ncfields, cfields = split(fields, lambda i: i in defines)
+    ncfields, cfields = split(fields, lambda i: i in defines and i.is_Symbol)
+
+    # Postprocess `ncfields`
+    ncfields = sanitize_ncfields(ncfields)
 
     # SharedData -- that is the data structure that will be used by the
     # main thread to pass information down to the child thread(s)
@@ -135,7 +143,7 @@ def lower_async_calls(iet, track=None, sregistry=None):
         d = threads.index
         arguments = []
         for a in n.arguments:
-            if a in sdata.ncfields:
+            if any(maybe_alias(a, i) for i in sdata.ncfields):
                 continue
             elif isinstance(a, QueueID):
                 # Different pthreads use different queues
@@ -208,3 +216,20 @@ def lower_async_calls(iet, track=None, sregistry=None):
         assert not finalization
 
     return iet, {'efuncs': tuple(efuncs.values())}
+
+
+# *** Utils
+
+def sanitize_ncfields(ncfields):
+    # Due to a bug in the NVC compiler (v<=22.7 and potentially later),
+    # we have to use C's `volatile` more extensively than strictly necessary
+    # to avoid flaky optimizations that would cause fauly behaviour in rare,
+    # non-deterministic scenarios
+    sanitized = []
+    for i in ncfields:
+        if i._C_ctype is c_int:
+            sanitized.append(VolatileInt(name=i.name))
+        else:
+            sanitized.append(i)
+
+    return sanitized

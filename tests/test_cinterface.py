@@ -27,11 +27,11 @@ def test_basic():
     assert 'include "%s.h"' % name in ccode
 
     # The public `struct dataobj` only appears in the header file
-    assert str(f._C_typedecl) not in ccode
-    assert str(f._C_typedecl) in hcode
+    assert 'struct dataobj\n{' not in ccode
+    assert 'struct dataobj\n{' in hcode
 
     # Same with `struct profiler`
     timers = op.parameters[-1]
     assert isinstance(timers, Timer)
-    assert str(timers._C_typedecl) not in ccode
-    assert str(timers._C_typedecl) in hcode
+    assert 'struct profiler\n{' not in ccode
+    assert 'struct profiler\n{' in hcode

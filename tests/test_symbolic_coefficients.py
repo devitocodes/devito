@@ -6,6 +6,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Coefficient, Substitutions
                     Dimension, solve, Operator, NODE)
 from devito.finite_differences import Differentiable
 from devito.tools import as_tuple
+from devito.passes.equations.linearity import factorize_derivatives, aggregate_coeffs
 
 _PRECISION = 9
 
@@ -31,9 +32,12 @@ class TestSC(object):
                           staggered=staggered)
         u1 = TimeFunction(name='u', grid=grid, time_order=order, space_order=order,
                           staggered=staggered, coefficients='symbolic')
-        eq0 = Eq(-u0.dx+u0.dt)
+
+        eq0 = Eq(u0.dt-u0.dx)
         eq1 = Eq(u1.dt-u1.dx)
-        assert(eq0.evalf(_PRECISION).__repr__() == eq1.evalf(_PRECISION).__repr__())
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
 
     @pytest.mark.parametrize('expr, sorder, dorder, dim, weights, expected', [
         ('u.dx', 2, 1, 0, (-0.6, 0.1, 0.6),
@@ -344,3 +348,145 @@ class TestSC(object):
         Operator([eq_f, eq_g])(t_m=0, t_M=1)
 
         assert np.allclose(f.data[-1], -g.data[-1], atol=1e-7)
+
+    def test_collect_w_custom_coeffs(self):
+        grid = Grid(shape=(11, 11, 11))
+        p = TimeFunction(name='p', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        expr = p.dx2 + q.dx2
+        collected = factorize_derivatives(expr)
+        assert collected == expr
+        assert collected.is_Add
+        Operator([Eq(p.forward, expr)])(time_M=2)  # noqa
+
+    def test_aggregate_w_custom_coeffs(self):
+        grid = Grid(shape=(11, 11, 11))
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+
+        expr = 0.5 * q.dx2
+        aggregated = aggregate_coeffs(expr, {})
+
+        assert aggregated == expr
+        assert aggregated.is_Mul
+        assert aggregated.args[0] == .5
+        assert aggregated.args[1] == q.dx2
+
+        Operator([Eq(q.forward, expr)])(time_M=2)  # noqa
+
+    def test_cross_derivs(self):
+        grid = Grid(shape=(11, 11, 11))
+
+        q = TimeFunction(name='q', grid=grid, space_order=8, time_order=2,
+                         coefficients='symbolic')
+        q0 = TimeFunction(name='q', grid=grid, space_order=8, time_order=2)
+
+        eq0 = Eq(q0.forward, q0.dx.dy)
+        eq1 = Eq(q.forward, q.dx.dy)
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
+
+    def test_cross_derivs_imperfect(self):
+        grid = Grid(shape=(11, 11, 11))
+
+        p = TimeFunction(name='p', grid=grid, space_order=4, time_order=2,
+                         coefficients='symbolic')
+        q = TimeFunction(name='q', grid=grid, space_order=4, time_order=2,
+                         coefficients='symbolic')
+
+        p0 = TimeFunction(name='p', grid=grid, space_order=4, time_order=2)
+        q0 = TimeFunction(name='q', grid=grid, space_order=4, time_order=2)
+
+        eq0 = Eq(q0.forward, (q0.dx + p0.dx).dy)
+        eq1 = Eq(q.forward, (q.dx + p.dx).dy)
+
+        assert(eq0.evaluate.evalf(_PRECISION).__repr__() ==
+               eq1.evaluate.evalf(_PRECISION).__repr__())
+
+    def test_nested_subs(self):
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        hx, hy = grid.spacing_symbols
+
+        p = TimeFunction(name='p', grid=grid, space_order=2,
+                         coefficients='symbolic')
+
+        coeffs0 = np.array([100, 100, 100])
+        coeffs1 = np.array([200, 200, 200])
+
+        subs = Substitutions(Coefficient(1, p, x, coeffs0),
+                             Coefficient(1, p, y, coeffs1))
+
+        eq = Eq(p.forward, p.dx.dy, coefficients=subs)
+
+        mul = lambda e: sp.Mul(e, 200, evaluate=False)
+        term0 = mul(p*100 +
+                    p.subs(x, x-hx)*100 +
+                    p.subs(x, x+hx)*100)
+        term1 = mul(p.subs(y, y-hy)*100 +
+                    p.subs({x: x-hx, y: y-hy})*100 +
+                    p.subs({x: x+hx, y: y-hy})*100)
+        term2 = mul(p.subs(y, y+hy)*100 +
+                    p.subs({x: x-hx, y: y+hy})*100 +
+                    p.subs({x: x+hx, y: y+hy})*100)
+
+        # `str` simply because some objects are of type EvalDerivative
+        assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)
+
+    def test_compound_subs(self):
+        grid = Grid(shape=(11,))
+        x, = grid.dimensions
+        hx, = grid.spacing_symbols
+
+        f = Function(name='f', grid=grid, space_order=2)
+        p = TimeFunction(name='p', grid=grid, space_order=2,
+                         coefficients='symbolic')
+
+        coeffs0 = np.array([100, 100, 100])
+
+        subs = Substitutions(Coefficient(1, p, x, coeffs0))
+
+        eq = Eq(p.forward, (f*p).dx, coefficients=subs)
+
+        term0 = f*p*100
+        term1 = (f*p*100).subs(x, x-hx)
+        term2 = (f*p*100).subs(x, x+hx)
+
+        # `str` simply because some objects are of type EvalDerivative
+        assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)
+
+    def test_compound_nested_subs(self):
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+        hx, hy = grid.spacing_symbols
+
+        f = Function(name='f', grid=grid, space_order=2)
+        p = TimeFunction(name='p', grid=grid, space_order=2,
+                         coefficients='symbolic')
+
+        coeffs0 = np.array([100, 100, 100])
+        coeffs1 = np.array([200, 200, 200])
+
+        subs = Substitutions(Coefficient(1, p, x, coeffs0),
+                             Coefficient(1, p, y, coeffs1))
+
+        eq = Eq(p.forward, (f*p.dx).dy, coefficients=subs)
+
+        mul = lambda e, i: sp.Mul(f.subs(y, y+i*hy), e, 200, evaluate=False)
+        term0 = mul(p*100 +
+                    p.subs(x, x-hx)*100 +
+                    p.subs(x, x+hx)*100, 0)
+        term1 = mul(p.subs(y, y-hy)*100 +
+                    p.subs({x: x-hx, y: y-hy})*100 +
+                    p.subs({x: x+hx, y: y-hy})*100, -1)
+        term2 = mul(p.subs(y, y+hy)*100 +
+                    p.subs({x: x-hx, y: y+hy})*100 +
+                    p.subs({x: x+hx, y: y+hy})*100, 1)
+
+        # `str` simply because some objects are of type EvalDerivative
+        assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)

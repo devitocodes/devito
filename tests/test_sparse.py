@@ -4,7 +4,13 @@ import pytest
 import numpy as np
 import scipy.sparse
 
-from devito import Grid, TimeFunction, Eq, Operator, MatrixSparseTimeFunction
+from devito import Grid, TimeFunction, Eq, Operator, Dimension
+from devito import (SparseFunction, SparseTimeFunction, PrecomputedSparseFunction,
+                    PrecomputedSparseTimeFunction, MatrixSparseTimeFunction)
+
+
+_sptypes = [SparseFunction, SparseTimeFunction,
+            PrecomputedSparseFunction, PrecomputedSparseTimeFunction]
 
 
 class TestMatrixSparseTimeFunction(object):
@@ -392,3 +398,63 @@ class TestMatrixSparseTimeFunction(object):
 
         if grid.distributor.myrank == 0:
             assert sf.data[0, 0] == -3.0  # 1 * (1 * 1) * 1 + (-1) * (2 * 2) * 1
+
+
+class TestSparseFunction(object):
+
+    @pytest.mark.parametrize('sptype', _sptypes)
+    def test_rebuild(self, sptype):
+        grid = Grid((3, 3, 3))
+        # Base object
+        sp = sptype(name="s", grid=grid, npoint=1, nt=11, r=2,
+                    interpolation_coeffs=np.random.randn(1, 3, 2),
+                    coordinates=np.random.randn(1, 3))
+
+        # Check subfunction setup
+        for subf in sp._sub_functions:
+            if getattr(sp, subf) is not None:
+                assert getattr(sp, subf).name.startswith("s_")
+
+        # Rebuild with different name, this should drop the function
+        # and create new data
+        sp2 = sp._rebuild(name="sr")
+
+        # Check new subfunction
+        for subf in sp2._sub_functions:
+            if getattr(sp2, subf) is not None:
+                assert getattr(sp2, subf).name.startswith("sr_")
+                assert np.all(getattr(sp2, subf).data == 0)
+
+        # Rebuild with different name as an alias
+        sp2 = sp._rebuild(name="sr2", alias=True)
+        for subf in sp2._sub_functions:
+            if getattr(sp2, subf) is not None:
+                assert getattr(sp2, subf).name.startswith("sr2_")
+                assert getattr(sp2, subf).data is None
+
+    @pytest.mark.parametrize('sptype', _sptypes)
+    def test_subs(self, sptype):
+        grid = Grid((3, 3, 3))
+        # Base object
+        sp = sptype(name="s", grid=grid, npoint=1, nt=11, r=2,
+                    interpolation_coeffs=np.random.randn(1, 3, 2),
+                    coordinates=np.random.randn(1, 3))
+
+        # Check subfunction setup
+        for subf in sp._sub_functions:
+            if getattr(sp, subf) is not None:
+                assert getattr(sp, subf).dimensions[0] == sp._sparse_dim
+
+        # Do substitution on sparse dimension
+        new_spdim = Dimension(name="newsp")
+
+        sps = sp._subs(sp._sparse_dim, new_spdim)
+        assert sps.indices[sp._sparse_position] == new_spdim
+        for subf in sps._sub_functions:
+            if getattr(sps, subf) is not None:
+                assert getattr(sps, subf).indices[0] == new_spdim
+                assert np.all(getattr(sps, subf).data == getattr(sp, subf).data)
+
+
+if __name__ == "__main__":
+    TestMatrixSparseTimeFunction().test_mpi()

@@ -1,13 +1,17 @@
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
                            EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
+from devito.ir.support import SymbolRegistry
+from devito.mpi.distributed import MPINeighborhood
 from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
-from devito.types import Array, CompositeObject, Lock, Indirection
+from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
+                          Indirection, Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
+from devito.types.dimension import AbstractIncrDimension, BlockDimension
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -15,23 +19,35 @@ __all__ = ['Graph', 'iet_pass', 'iet_visit']
 class Graph(object):
 
     """
-    A special DAG representing call graphs.
+    DAG representation of a call graph.
 
-    The nodes of the graph are IET Callables; an edge from node `a` to node `b`
-    indicates that `b` calls `a`.
+    The nodes of the DAG are IET Callables.
+    An edge from node `a` to node `b` indicates that `b` calls `a`.
 
-    The `apply` method may be used to visit the Graph and apply a transformer `T`
-    to all nodes. This may change the state of the Graph: node `a` gets replaced
-    by `a' = T(a)`; new nodes (Callables), and therefore new edges, may be added.
+    The `apply` method visits the Graph and applies a transformation `T`
+    to all nodes. This may change the state of the Graph:
+
+        * Node `a` gets replaced by `a' = T(a)`.
+        * New nodes (Callables) may be added.
+          * Consequently, edges are added.
+        * New global objects may be introduced:
+          * Global symbols, header files, ...
 
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet):
+    def __init__(self, iet, sregistry=None):
         self.efuncs = OrderedDict([(iet.name, iet)])
+
+        self.sregistry = sregistry
 
         self.includes = []
         self.headers = []
+        self.globals = []
+
+        # Stash immutable information useful for some compiler passes
+        writes = FindSymbols('writes').visit(iet)
+        self.writes_input = frozenset(f for f in writes if f.is_Input)
 
     @property
     def root(self):
@@ -53,6 +69,7 @@ class Graph(object):
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
+            self.globals.extend(as_tuple(metadata.get('globals')))
 
             # Update jit-compiler if necessary
             try:
@@ -67,7 +84,8 @@ class Graph(object):
                 continue
 
             # Minimize code size by abstracting semantically identical efuncs
-            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []))
+            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []),
+                                         self.sregistry)
 
             self.efuncs[i] = efunc
             self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
@@ -79,6 +97,7 @@ class Graph(object):
         # Uniqueness
         self.includes = filter_ordered(self.includes)
         self.headers = filter_ordered(self.headers, key=str)
+        self.globals = filter_ordered(self.globals)
 
     def visit(self, func, **kwargs):
         """
@@ -152,7 +171,7 @@ def create_call_graph(root, efuncs):
     return dag
 
 
-def reuse_efuncs(root, efuncs):
+def reuse_efuncs(root, efuncs, sregistry=None):
     """
     Generalise `efuncs` so that syntactically identical Callables may be dropped,
     thus maximizing code reuse.
@@ -220,7 +239,7 @@ def abstract_efunc(efunc):
             - Arrays are renamed as "a0", "a1", ...
             - Objects are renamed as "o0", "o1", ...
     """
-    functions = FindSymbols().visit(efunc)
+    functions = FindSymbols('symbolics|dimensions').visit(efunc)
 
     mapper = abstract_objects(functions)
 
@@ -230,7 +249,7 @@ def abstract_efunc(efunc):
     return efunc
 
 
-def abstract_objects(objects):
+def abstract_objects(objects, sregistry=None):
     """
     Proxy for `abstract_object`.
     """
@@ -238,28 +257,29 @@ def abstract_objects(objects):
     # higher priority objects
     priority = {
         DiscreteFunction: 1,
+        AbstractIncrDimension: 2,
+        BlockDimension: 3,
     }
 
     def key(i):
-        try:
-            return priority[i]
-        except (KeyError, TypeError):
-            # TypeError is for unhashable objects
-            return 0
+        for cls in sorted(priority, key=priority.get, reverse=True):
+            if isinstance(i, cls):
+                return priority[cls]
+        return 0
 
     objects = sorted(objects, key=key, reverse=True)
 
     # Build abstraction mappings
     mapper = {}
-    counter = Counter()
+    sregistry = sregistry or SymbolRegistry()
     for i in objects:
-        abstract_object(i, mapper, counter)
+        abstract_object(i, mapper, sregistry)
 
     return mapper
 
 
 @singledispatch
-def abstract_object(i, mapper, counter):
+def abstract_object(i, mapper, sregistry):
     """
     Singledispatch-based implementation of object abstraction.
 
@@ -270,11 +290,10 @@ def abstract_object(i, mapper, counter):
 
 
 @abstract_object.register(DiscreteFunction)
-def _(i, mapper, counter):
-    base = 'f'
-    name = '%s%d' % (base, counter[base])
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix='f')
 
-    v = i._rebuild(name=name, initializer=None, alias=True)
+    v = i._rebuild(name=name, initializer=None, alias=i)
 
     mapper.update({
         i: v,
@@ -282,16 +301,15 @@ def _(i, mapper, counter):
         i.dmap: v.dmap,
         i._C_symbol: v._C_symbol,
     })
-    counter[base] += 1
 
 
 @abstract_object.register(Array)
-def _(i, mapper, counter):
+@abstract_object.register(Bundle)
+def _(i, mapper, sregistry):
     if isinstance(i, Lock):
-        base = 'lock'
+        name = sregistry.make_name(prefix='lock')
     else:
-        base = 'a'
-    name = '%s%d' % (base, counter[base])
+        name = sregistry.make_name(prefix='a')
 
     v = i._rebuild(name=name)
 
@@ -300,29 +318,68 @@ def _(i, mapper, counter):
         i.indexed: v.indexed,
         i._C_symbol: v._C_symbol,
     })
-    counter[base] += 1
+    if i.dmap is not None:
+        mapper[i.dmap] = v.dmap
 
 
 @abstract_object.register(CompositeObject)
-def _(i, mapper, counter):
-    base = 'o'
-    name = '%s%d' % (base, counter[base])
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix='o')
 
     v = i._rebuild(name)
 
     mapper[i] = v
-    counter[base] += 1
+
+
+@abstract_object.register(MPINeighborhood)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild()
+
+
+@abstract_object.register(BlockDimension)
+def _(i, mapper, sregistry):
+    if i._depth != 2:
+        return
+
+    p = i.parent
+    pp = i.parent.parent
+
+    name0 = pp.name
+    base = sregistry.make_name(prefix=name0)
+    name1 = sregistry.make_name(prefix='%s_blk' % base)
+
+    bd = i.parent._rebuild(name1, pp)
+    d = i._rebuild(name0, bd, i._min.subs(p, bd), i._max.subs(p, bd))
+
+    mapper.update({
+        i: d,
+        i.parent: bd
+    })
+
+
+@abstract_object.register(IncrDimension)
+def _(i, mapper, sregistry):
+    try:
+        p = mapper[i.parent]
+    except KeyError:
+        return
+
+    v = i._rebuild(i.name, p)
+
+    mapper[i] = v
 
 
 @abstract_object.register(Indirection)
-def _(i, mapper, counter):
-    base = 'ind'
-    name = '%s%d' % (base, counter[base])
+@abstract_object.register(Temp)
+def _(i, mapper, sregistry):
+    if isinstance(i, Indirection):
+        name = sregistry.make_name(prefix='ind')
+    else:
+        name = sregistry.make_name(prefix='r')
 
     v = i._rebuild(name=name)
 
     mapper[i] = v
-    counter[base] += 1
 
 
 def update_args(root, efuncs, dag):
@@ -361,20 +418,32 @@ def update_args(root, efuncs, dag):
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_args = derive_parameters(root)
-    new_args = [a for a in new_args if not a._mem_internal_eager]
+    new_params = derive_parameters(root)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
     defines = FindSymbols('defines').visit(root.body)
-    drop_args = [a for a in root.parameters if a in defines]
+    drop_params = [a for a in root.parameters if a in defines]
 
-    if not (new_args or drop_args):
+    # 3) removed a symbol that was previously necessary (e.g., `x_size` after
+    # linearization)
+    symbols = FindSymbols('basics').visit(root.body)
+    drop_params.extend(a for a in root.parameters
+                       if a.is_Symbol and a not in symbols)
+
+    # Must record the index, not the param itself, since a param may be
+    # bound to whatever arg, possibly a generic SymPy expr
+    drop_params = [root.parameters.index(a) for a in drop_params]
+
+    if not (new_params or drop_params):
         return efuncs
 
+    # Create the new parameters and arguments lists
+
     def _filter(v, efunc=None):
-        processed = list(v)
-        for a in new_args:
+        processed = [a for i, a in enumerate(v) if i not in drop_params]
+
+        for a in new_params:
             if a in processed:
                 # A child efunc trying to add a symbol alredy added by a
                 # sibling efunc
@@ -388,15 +457,10 @@ def update_args(root, efuncs, dag):
 
             processed.append(a)
 
-        processed = [a for a in processed if a not in drop_args]
-
         return processed
 
     efuncs = OrderedDict(efuncs)
-
-    # Update to use the new signature
-    parameters = _filter(root.parameters, root)
-    efuncs[root.name] = root._rebuild(parameters=parameters)
+    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):

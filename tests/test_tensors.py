@@ -149,6 +149,37 @@ def test_vector_transpose(func1):
     assert np.all([f1[i] == f2[i] for i in range(3)])
 
 
+@pytest.mark.parametrize('func1', [VectorFunction, VectorTimeFunction])
+def test_vector_transpose_deriv(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+    f2 = f1.dx.T
+    assert all([f2[i] == f1[i].dx.T for i in range(3)])
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
+def test_tensor_transpose_deriv(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+    f2 = f1.dx.T
+    assert np.all([f2[i, j] == f1[j, i].dx.T for i in range(3) for j in range(3)])
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+def test_transpose_vs_T(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+    f2 = f1.dx.T
+    f3 = f1.dx.transpose(inner=True)
+    f4 = f1.dx.transpose(inner=False)
+    # inner=True is the same as T
+    assert f3 == f2
+    # inner=False doesn't tranpose inner derivatives
+    for f4i, f2i in zip(f4, f2):
+        assert f4i == f2i.T
+
+
 @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
                                    VectorFunction, VectorTimeFunction])
 def test_tensor_fd(func1):

@@ -23,10 +23,16 @@ def collect_derivatives(expressions):
         mapper = inspect(e)
 
         # E.g., 0.2*u.dx -> (0.2*u).dx
-        ep = aggregate_coeffs(e, mapper)
+        e1 = aggregate_coeffs(e, mapper)
 
         # E.g., (0.2*u).dx + (0.3*v).dx -> (0.2*u + 0.3*v).dx
-        processed.append(factorize_derivatives(ep))
+        e2 = factorize_derivatives(e1)
+        if e2 == e1:
+            # No luck, stick to `e` to preserve e.g. the original
+            # coefficient factorization
+            processed.append(e)
+        else:
+            processed.append(e2)
 
     return processed
 
@@ -128,6 +134,11 @@ def _(expr, mapper, nn_derivs=None):
     if len(with_derivs) > 1:
         return expr
 
+    # Cannot factorize derivatives with symbolic coefficients since
+    # they may have different coefficient values at evaluation
+    if any(d._uses_symbolic_coefficients for w in with_derivs for d in w[1]):
+        return expr
+
     try:
         with_deriv, derivs, others = with_derivs.pop(0)
     except IndexError:
@@ -185,6 +196,11 @@ def _(expr):
 
     derivs, others = split(args, lambda a: isinstance(a, sympy.Derivative))
     if not derivs:
+        return reuse_if_untouched(expr, args)
+
+    # Cannot factorize derivatives with symbolic coefficients since
+    # they may have different coefficient values at evaluation
+    if any(d._uses_symbolic_coefficients for d in derivs):
         return reuse_if_untouched(expr, args)
 
     # Map by type of derivative

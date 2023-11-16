@@ -3,18 +3,19 @@ from collections import defaultdict
 from sympy import S
 
 from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
-                           MapNodes, Transformer, retrieve_iteration_tree)
+                           MapNodes, MapHaloSpots, Transformer,
+                           retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.routines import HaloExchangeBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import as_mapper, generator
+from devito.tools import generator
 
 __all__ = ['mpiize']
 
 
 @iet_pass
-def optimize_halospots(iet):
+def optimize_halospots(iet, **kwargs):
     """
     Optimize the HaloSpots in ``iet``. HaloSpots may be dropped, merged and moved
     around in order to improve the halo exchange performance.
@@ -22,7 +23,7 @@ def optimize_halospots(iet):
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
     iet = _merge_halospots(iet)
-    iet = _drop_if_unwritten(iet)
+    iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
 
     return iet, {}
@@ -32,25 +33,16 @@ def _drop_halospots(iet):
     """
     Remove HaloSpots that:
 
-        * Embed SEQUENTIAL Iterations
         * Would be used to compute Increments (in which case, a halo exchange
           is actually unnecessary)
     """
     mapper = defaultdict(set)
 
-    # If a HaloSpot Dimension turns out to be SEQUENTIAL, then the HaloSpot is useless
-    for hs, iterations in MapNodes(HaloSpot, Iteration).visit(iet).items():
-        dmapper = as_mapper(iterations, lambda i: i.dim.root)
-        for d, v in dmapper.items():
-            if d in hs.dimensions and all(i.is_Sequential for i in v):
-                mapper[hs].update(set(hs.functions))
-                break
-
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
-        for f in hs.fmapper:
-            scope = Scope([i.expr for i in expressions])
-            if all(i.is_reduction for i in scope.reads.get(f, [])):
+        scope = Scope([i.expr for i in expressions])
+        for f, v in scope.reads.items():
+            if f in hs.fmapper and all(i.is_reduction for i in v):
                 mapper[hs].add(f)
 
     # Transform the IET introducing the "reduced" HaloSpots
@@ -80,9 +72,9 @@ def _hoist_halospots(iet):
 
     def rule1(dep, candidates, loc_dims):
         # A reduction isn't a stopper to hoisting
-        return dep.write.is_reduction
+        return dep.write is not None and dep.write.is_reduction
 
-    hoist_rules = [rule0, rule1]
+    rules = [rule0, rule1]
 
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
@@ -94,26 +86,29 @@ def _hoist_halospots(iet):
         for hs in halo_spots:
             hsmapper[hs] = hs.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
-                loc_dims = frozenset().union([q for d in loc_indices
+            for f, v in hs.fmapper.items():
+                loc_dims = frozenset().union([q for d in v.loc_indices
                                               for q in d._defines])
 
                 for n, i in enumerate(iters):
                     candidates = [i.dim._defines for i in iters[n:]]
 
-                    test = True
+                    all_candidates = set().union(*candidates)
+                    reads = scopes[i].getreads(f)
+                    if any(set(a.ispace.dimensions) & all_candidates
+                           for a in reads):
+                        continue
+
                     for dep in scopes[i].d_flow.project(f):
-                        if any(rule(dep, candidates, loc_dims) for rule in hoist_rules):
-                            continue
-                        test = False
-                        break
-                    if test:
+                        if not any(r(dep, candidates, loc_dims) for r in rules):
+                            break
+                    else:
                         hsmapper[hs] = hsmapper[hs].drop(f)
                         imapper[i].append(hs.halo_scheme.project(f))
                         break
 
     # Post-process analysis
-    mapper = {i: HaloSpot(HaloScheme.union(hss), i._rebuild())
+    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
               for i, hss in imapper.items()}
     mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
                    for i, hs in hsmapper.items()})
@@ -148,19 +143,26 @@ def _merge_halospots(iet):
 
     def rule1(dep, hs, loc_indices):
         # TODO This is apparently never hit, but feeling uncomfortable to remove it
-        return dep.is_regular and all(not any(dep.read.touched_halo(d.root))
-                                      for d in dep.cause)
+        return (dep.is_regular and
+                dep.read is not None and
+                all(not any(dep.read.touched_halo(d.root)) for d in dep.cause))
 
     def rule2(dep, hs, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
         return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                    for d, v in loc_indices.items())
 
-    merge_rules = [rule0, rule1, rule2]
+    rules = [rule0, rule1, rule2]
 
     # Analysis
+    cond_mapper = MapHaloSpots().visit(iet)
+    cond_mapper = {hs: {i for i in v if i.is_Conditional}
+                   for hs, v in cond_mapper.items()}
+
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+
     mapper = {}
-    for i, halo_spots in MapNodes(Iteration, HaloSpot, 'immediate').visit(iet).items():
+    for i, halo_spots in iter_mapper.items():
         if i is None or len(halo_spots) <= 1:
             continue
 
@@ -169,23 +171,26 @@ def _merge_halospots(iet):
         hs0 = halo_spots[0]
         mapper[hs0] = hs0.halo_scheme
 
-        for hs in halo_spots[1:]:
-            mapper[hs] = hs.halo_scheme
+        for hs1 in halo_spots[1:]:
+            mapper[hs1] = hs1.halo_scheme
 
-            for f, (loc_indices, _) in hs.fmapper.items():
-                test = True
+            # If there are Conditionals involved, both `hs0` and `hs1` must be
+            # within the same Conditional, otherwise we would break the control
+            # flow semantics
+            if cond_mapper.get(hs0) != cond_mapper.get(hs1):
+                continue
+
+            for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
-                    if any(rule(dep, hs, loc_indices) for rule in merge_rules):
-                        continue
-                    test = False
-                    break
-                if test:
+                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
+                        break
+                else:
                     try:
-                        mapper[hs0] = HaloScheme.union([mapper[hs0],
-                                                        hs.halo_scheme.project(f)])
-                        mapper[hs] = mapper[hs].drop(f)
+                        hs = hs1.halo_scheme.project(f)
+                        mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                        mapper[hs1] = mapper[hs1].drop(f)
                     except ValueError:
-                        # `hs.loc_indices=<frozendict {t: t1}` and
+                        # `hs1.loc_indices=<frozendict {t: t1}` and
                         # `hs0.loc_indices=<frozendict {t: t0}`
                         pass
 
@@ -199,21 +204,27 @@ def _merge_halospots(iet):
     return iet
 
 
-def _drop_if_unwritten(iet):
+def _drop_if_unwritten(iet, options=None, **kwargs):
     """
     Drop HaloSpots for unwritten Functions.
 
     Notes
     -----
-    This may be relaxed if Devito+MPI were to be used within existing
-    legacy codes, which would call the generated library directly.
+    This may be relaxed if Devito were to be used within existing legacy codes,
+    which would call the generated library directly.
     """
+    drop_unwritten = options['dist-drop-unwritten']
+    if not callable(drop_unwritten):
+        key = lambda f: drop_unwritten
+    else:
+        key = drop_unwritten
+
     # Analysis
     writes = {i.write for i in FindNodes(Expression).visit(iet)}
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         for f in hs.fmapper:
-            if f not in writes:
+            if f not in writes and key(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
     # Post-process analysis
@@ -249,15 +260,9 @@ def _mark_overlappable(iet):
         # along a non-halo Dimension
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
-                if not dep.cause:
-                    # E.g. increments
-                    # for x
-                    #   for y
-                    #     f[x, y] = f[x, y] + 1
-                    test = False
-                    break
-                elif dep.cause & hs.dimensions:
-                    # E.g. dependences across PARALLEL iterations
+                cause = dep.cause & hs.dimensions
+                if any(dep.distance_mapper[d] is S.Infinity for d in cause):
+                    # E.g., dependences across PARALLEL iterations
                     # for x
                     #   for y
                     #     ... = ... f[x, y-1] ...
@@ -267,7 +272,12 @@ def _mark_overlappable(iet):
                     break
 
         # Heuristic: avoid comp/comm overlap for sparse Iteration nests
-        test = test and all(i.is_Affine for i in FindNodes(Iteration).visit(hs))
+        if test:
+            for i in FindNodes(Iteration).visit(hs):
+                if i.dim._defines & set(hs.halo_scheme.distributed_aindices) and \
+                   not i.is_Affine:
+                    test = False
+                    break
 
         if test:
             found.append(hs)
@@ -330,7 +340,7 @@ def mpiize(graph, **kwargs):
     options = kwargs['options']
 
     if options['optcomms']:
-        optimize_halospots(graph)
+        optimize_halospots(graph, **kwargs)
 
     mpimode = options['mpi']
     if mpimode:
