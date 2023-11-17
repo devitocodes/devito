@@ -48,8 +48,7 @@ if __name__ == '__main__':
     u.data[:,:] = 5
     op = Operator([eq0])
 
-    cluster_to_ssa.ExtractDevitoStencilConversion(op)
-
+    ssaform = cluster_to_ssa.ExtractDevitoStencilConversion(op)
     #op.apply(time_M=steps)
     #orig_data: np.array = u.data_with_halo.copy() 
     #orig_norm = norm(u)

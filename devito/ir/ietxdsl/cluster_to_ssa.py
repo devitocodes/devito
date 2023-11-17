@@ -71,7 +71,7 @@ class ExtractDevitoStencilConversion:
             + 1
         )
 
-        # build the for loop
+        # Build the for loop
         perf("Build Time Loop")
         loop = self._build_iet_for(grid.stepping_dim, ["sequential"], actual_time_size)
 
@@ -357,6 +357,7 @@ class WrapFunctionWithTransfers(RewritePattern):
                 dealloc = gpu.DeallocOp(alloc)
                 body.insert_ops_before([copy_out, dealloc], body.ops.last)
         rewriter.insert_op_after_matched_op(wrapper)
+
 @dataclass
 class MakeFunctionTimed(RewritePattern):
     """
@@ -369,10 +370,10 @@ class MakeFunctionTimed(RewritePattern):
     def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter):
         if op.sym_name.data != self.func_name or op in self.seen_ops:
             return
-        
+
         # only apply once
         self.seen_ops.add(op)
-        
+
         rewriter.insert_op_at_start([
             t0 := func.Call('timer_start', [], [builtin.f64])
         ], op.body.block)
@@ -528,8 +529,8 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
         )
 
 
-def convert_devito_stencil_to_xdsl_stencil(module, timed:bool=True):
-    patterns:list[RewritePattern] = [
+def convert_devito_stencil_to_xdsl_stencil(module, timed: bool = True):
+    patterns: list[RewritePattern] = [
         _DevitoStencilToStencilStencil(),
         LowerIetForToScfFor(),
         ]
@@ -542,8 +543,8 @@ def convert_devito_stencil_to_xdsl_stencil(module, timed:bool=True):
     PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
-
-def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any], gpu_boilerplate):
+def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any],
+                                 gpu_boilerplate):
     patterns = [
         _InsertSymbolicConstants(known_symbols),
         _LowerLoadSymbolidToFuncArgs(),
