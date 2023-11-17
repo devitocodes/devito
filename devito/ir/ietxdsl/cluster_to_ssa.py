@@ -18,6 +18,7 @@ from devito.logger import perf
 from devito.ir.ietxdsl import iet_ssa
 from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
+# flake8: noqa
 
 class ExtractDevitoStencilConversion:
     """

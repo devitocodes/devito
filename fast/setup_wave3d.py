@@ -32,6 +32,7 @@ parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devit
 parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
 
+# flake8: noqa
 
 mpiconf = configuration['mpi']
 

@@ -40,6 +40,7 @@ from devito.mpi import MPI
 
 from xdsl.printer import Printer
 
+# flake8: noqa
 
 __all__ = ['XDSLOperator']
 
@@ -61,6 +62,7 @@ double timer_end(double start) {
   return (timer_start() - start);
 }
 """
+
 
 def generate_tiling_arg(nb_tiled_dims: int):
     """

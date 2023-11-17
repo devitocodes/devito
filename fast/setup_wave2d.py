@@ -1,13 +1,11 @@
 # Script to save initial data for the Acoustic wave execution benchmark
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
-import sys
 import numpy as np
 
-from devito import (TimeFunction, Eq, Operator, solve, norm,
-                    XDSLOperator, configuration)
+from devito import (TimeFunction, Eq, Operator, solve, configuration)
 from examples.seismic import RickerSource
-from examples.seismic import Model, TimeAxis, plot_image
+from examples.seismic import Model, TimeAxis
 from fast.bench_utils import plot_2dfunc
 from devito.tools import as_tuple
 
@@ -40,10 +38,12 @@ mpiconf = configuration['mpi']
 nt = args.nt
 
 shape = (args.shape)  # Number of grid point (nx, ny, nz)
-spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
-origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
-# This is necessary to define
-# the absolute location of the source and receivers
+# Grid spacing in m. The domain size is now 1km by 1km
+spacing = as_tuple(10.0 for _ in range(len(shape)))
+# What is the location of the top left corner.
+origin = as_tuple(0.0 for _ in range(len(shape)))
+# This is necessary to define the absolute location of the
+# source and receivers
 
 # Define a velocity profile. The velocity is in km/s
 v = np.empty(shape, dtype=np.float32)

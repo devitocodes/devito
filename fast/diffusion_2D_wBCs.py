@@ -28,6 +28,8 @@ args = parser.parse_args()
 
 mpiconf = configuration['mpi']
 
+# flake8: noqa
+
 # Some variable declarations
 nx, ny = args.shape
 nt = args.nt

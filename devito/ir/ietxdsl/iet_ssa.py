@@ -71,12 +71,12 @@ class Dataobj(ParametrizedAttribute):
         return llvm.LLVMStructType.from_type_list([
             llvm.LLVMPointerType.opaque(),              # data
             llvm.LLVMPointerType.typed(builtin.i32),  # size
-            #llvm.LLVMPointerType.typed(builtin.i32),  # npsize
-            #llvm.LLVMPointerType.typed(builtin.i32),  # dsize
-            #llvm.LLVMPointerType.typed(builtin.i32),    # hsize
-            #llvm.LLVMPointerType.typed(builtin.i32),    # hofs
-            #llvm.LLVMPointerType.typed(builtin.i32),    # oofs
-            #llvm.LLVMPointerType.opaque(),              # dmap
+            # llvm.LLVMPointerType.typed(builtin.i32),  # npsize
+            # llvm.LLVMPointerType.typed(builtin.i32),  # dsize
+            # llvm.LLVMPointerType.typed(builtin.i32),    # hsize
+            # llvm.LLVMPointerType.typed(builtin.i32),    # hofs
+            # llvm.LLVMPointerType.typed(builtin.i32),    # oofs
+            # llvm.LLVMPointerType.opaque(),              # dmap
         ])
 
 
