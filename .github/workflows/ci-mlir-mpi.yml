@@ -38,7 +38,7 @@ jobs:
       run: |
         pip install -e .[tests]
         pip install mpi4py
-        pip install xdsl==0.14
+        pip install git+https://github.com/xdslproject/xdsl@2825897b87443c9369abf89871f4721e2fce2da9
 
     - name: Test with MPI
       run: |

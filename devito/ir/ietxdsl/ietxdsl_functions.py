@@ -2,17 +2,14 @@
 import ctypes
 import numpy
 from sympy import Indexed, Integer, Symbol, Add, Eq, Mod, Pow, Mul, Float
-import cgen
 
 from typing import Any
 
 import devito.ir.iet.nodes as nodes
 
 from devito import SpaceDimension
-from devito.passes.iet.languages.openmp import OmpRegion
 
 from devito.tools import as_list
-from devito.tools.utils import as_tuple
 from devito.types.basic import IndexedData
 
 # XDSL specific imports

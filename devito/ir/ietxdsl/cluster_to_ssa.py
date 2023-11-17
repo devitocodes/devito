@@ -55,11 +55,12 @@ class ExtractDevitoStencilConversion:
         # (for derivative regions)
         halo = [function.halo[function.dimensions.index(d)] for d in grid.dimensions]
 
-        # shift all time values so that for all accesses at t + n, n>=0.
+        # Shift all time values so that for all accesses at t + n, n>=0.
         self.time_offs = min(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         )
-        # calculate the actual size of our time dimension
+
+        # Calculate the actual size of our time dimension
         actual_time_size = (
             max(int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq))
             - self.time_offs
@@ -71,7 +72,7 @@ class ExtractDevitoStencilConversion:
         loop = self._build_iet_for(grid.stepping_dim, actual_time_size)
 
         # build stencil
-        perf("Init out stencil Op")
+        perf("Initialize a stencil Op")
         stencil_op = iet_ssa.Stencil.get(
             loop.subindice_ssa_vals(),
             grid.shape_local,

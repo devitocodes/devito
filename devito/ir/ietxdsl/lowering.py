@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
-from xdsl.ir import Block, Attribute, BlockArgument, SSAValue, Operation, OpResult
+from xdsl.ir import Block, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, scf, arith, func, llvm, memref
-from xdsl.dialects.experimental import math
 
 from devito.ir.ietxdsl import iet_ssa
 
-from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
+from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter, PatternRewriteWalker,
+                                   GreedyRewritePatternApplier, op_type_rewrite_pattern)
 
 
 def _generate_subindices(subindices: int, block: Block,
