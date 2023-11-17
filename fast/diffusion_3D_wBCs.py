@@ -7,6 +7,7 @@ import numpy as np
 
 from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
                     norm, XDSLOperator, configuration)
+from devito.logger import info, warning
 from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -42,7 +43,7 @@ dt = sigma * dx * dz * dy / nu
 so = args.space_order
 to = args.time_order
 
-print("dx %s, dy %s, dz %s" % (dx, dy, dz))
+# print("dx %s, dy %s, dz %s" % (dx, dy, dz))
 
 grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)

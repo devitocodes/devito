@@ -97,7 +97,7 @@ print("Init norm:", np.linalg.norm(u.data[:]))
 
 if args.devito:
     # To measure Devito at its best on GPU, we have to set the tile siwe manually
-    opt = None
+    opt = 'advanced'
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
 
@@ -137,4 +137,6 @@ if args.xdsl:
     # print("XDSL output norm 2:", np.linalg.norm(u.data[2]))
 
 if args.xdsl and args.devito:
-    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
+    max_error = np.max(np.abs(u.data - devito_out.data))
+    print("Max error: ", max_error)
+    assert np.isclose(norm(u), norm(devito_out), rtol=1e-2)
