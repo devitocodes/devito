@@ -68,7 +68,8 @@ from devito.operator.profiling import PerfEntry, PerfKey, PerformanceSummary
 
 from mpi4py import MPI
 
-def my_rank(default = None) -> int | None:
+
+def my_rank(default=None) -> int | None:
     if MPI.Is_initialized():
         return MPI.Comm(MPI.COMM_WORLD).rank
     return default
@@ -87,7 +88,6 @@ def initialize_domain(u: TimeFunction, nx: int, ny: int):
         u.data[...] = 0
         u.data[..., int(nx / 2), int(ny / 2)] = init_value
         u.data[..., int(nx / 2), -int(ny / 2)] = -init_value
-
 
 
 def get_equation(name: str, shape: tuple[int, ...], so: int, to: int, init_value: int):

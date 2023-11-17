@@ -410,7 +410,6 @@ class For(IRDLOperation):
             attributes={
                 'subindices': IntAttr(subindices),
                 'pragmas': ArrayAttr([StringAttr(pragma) for pragma in pragmas]),
-                'properties': ArrayAttr([StringAttr(prop) for prop in properties]),
             },
             result_types=[IndexType()],
             regions=[body],

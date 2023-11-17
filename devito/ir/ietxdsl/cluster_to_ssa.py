@@ -1,28 +1,22 @@
-# ------------- devito import -------------#
+# ------------- General imports -------------#
 
-from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
-from devito.arch.archinfo import NvidiaDevice
-from devito.parameters import configuration
-from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
-from xdsl.dialects.experimental import dmp, math
-from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 from typing import Any
+from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 
+# ------------- xdsl imports -------------#
+from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
+from xdsl.dialects.experimental import math
+from xdsl.ir import Block, Operation, OpResult, Region, SSAValue
+
+# ------------- devito imports -------------#
 from devito import Grid, SteppingDimension
-from devito.ir.clusters import Cluster
 from devito.ir.equations import LoweredEq
-from devito.ir.ietxdsl import iet_ssa
-from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 from devito.symbolics import retrieve_indexed
 from devito.logger import perf
 
-# ----------- devito ssa import -----------#
-
-
-# -------------- xdsl import --------------#
-
-
-default_int = builtin.i64
+# ------------- devito-xdsl SSA imports -------------#
+from devito.ir.ietxdsl import iet_ssa
+from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
 
 class ExtractDevitoStencilConversion:
@@ -73,7 +67,7 @@ class ExtractDevitoStencilConversion:
 
         # Build the for loop
         perf("Build Time Loop")
-        loop = self._build_iet_for(grid.stepping_dim, ["sequential"], actual_time_size)
+        loop = self._build_iet_for(grid.stepping_dim, actual_time_size)
 
         # build stencil
         perf("Init out stencil Op")
@@ -224,7 +218,7 @@ class ExtractDevitoStencilConversion:
             self.loaded_values[offsets] = access_op.res
 
     def _build_iet_for(
-        self, dim: SteppingDimension, props: list[str], subindices: int
+        self, dim: SteppingDimension, subindices: int
     ) -> iet_ssa.For:
         # Build a for loop in the custom iet_ssa.py using lower-upper bound and step
         lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
@@ -237,7 +231,7 @@ class ExtractDevitoStencilConversion:
         except:
             raise ValueError("step must be int!")
 
-        loop = iet_ssa.For.get(lb, ub, step, subindices, props)
+        loop = iet_ssa.For.get(lb, ub, step, subindices)
 
         self.block.add_ops([lb, ub, step, loop])
         self.block = loop.block
