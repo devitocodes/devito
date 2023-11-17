@@ -140,7 +140,11 @@ def test_cache_blocking_structure_subdims():
         tree[2].dim.root is x
     assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
         tree[3].dim.root is y
-    assert not tree[4].dim.is_Block and tree[4].dim is zi and tree[4].dim.parent is z
+    # zi is rebuilt with name z, so check symbolic max and min are preserved
+    # Also check the zi was rebuilt
+    assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
+        tree[4].dim.symbolic_min is zi.symbolic_min and\
+        tree[4].dim.symbolic_max is zi.symbolic_max and tree[4].dim.parent is z
 
 
 @pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
@@ -1280,8 +1284,9 @@ class TestNestedParallelism(object):
             tree[3].dim.root is y
 
         if blocklevels == 1:
-            assert not tree[4].dim.is_Block and tree[4].dim is zi and\
-                tree[4].dim.parent is z
+            assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
+                tree[4].dim.symbolic_min is zi.symbolic_min and\
+                tree[4].dim.symbolic_max is zi.symbolic_max and tree[4].dim.parent is z
         elif blocklevels == 2:
             assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
                 tree[3].dim.root is y
@@ -1289,8 +1294,9 @@ class TestNestedParallelism(object):
                 tree[4].dim.root is x
             assert tree[5].dim.is_Block and tree[5].dim.parent is tree[3].dim and\
                 tree[5].dim.root is y
-            assert not tree[6].dim.is_Block and tree[6].dim is zi and\
-                tree[6].dim.parent is z
+            assert not tree[6].dim.is_Block and tree[6].dim is not zi and\
+                tree[6].dim.symbolic_min is zi.symbolic_min and\
+                tree[6].dim.symbolic_max is zi.symbolic_max and tree[6].dim.parent is z
 
         assert trees[0][0].pragmas[0].value ==\
             'omp for collapse(2) schedule(dynamic,1)'

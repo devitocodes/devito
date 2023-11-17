@@ -135,6 +135,12 @@ class Reconstructable(object):
                 args += tuple(getattr(self, i[1:]))
             else:
                 args += (getattr(self, i),)
+
+        args = list(args)
+        for k in list(kwargs):
+            if k in self.__rargs__:
+                args[self.__rargs__.index(k)] = kwargs.pop(k)
+
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
 
         # Should we use a constum reconstructor?

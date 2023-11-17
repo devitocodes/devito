@@ -2652,7 +2652,7 @@ class TestAliases(object):
         u = TimeFunction(name="u", grid=grid)
         op = Operator(Eq(u.forward, u.dy.dy.subs(mapper),
                          subdomain=grid.interior))
-        assert_structure(op, ['t,i0x,i0y'], 'ti0xi0y')
+        assert_structure(op, ['t,x,y'], 'txy')
 
     def test_dtype_aliases(self):
         a = np.arange(64).reshape((8, 8))
