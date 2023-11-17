@@ -178,3 +178,38 @@ def test_unary(shape, steps):
     orig_data = u.data_with_halo.copy()
 
     assert np.isclose(xdsl_data, orig_data, rtol=1e-06).all()
+
+
+@pytest.mark.parametrize('shape', [(101, 101, 101)])
+@pytest.mark.parametrize('so', [2, 4, 8])
+@pytest.mark.parametrize('to', [2])
+@pytest.mark.parametrize('nt', [10, 20, 100])
+def test_acoustic_3D(shape, so, to, nt):
+
+    grid = Grid(shape=shape)
+    dt = 0.0001
+
+    # Define the wavefield with the size of the model and the time dimension
+    u = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
+
+    pde = u.dt2 - u.laplace
+    eq0 = solve(pde, u.forward)
+
+    stencil = Eq(u.forward, eq0)
+    u.data[:, :, :] = 0
+    u.data[:, 40:50, 40:50] = 1
+
+    # Devito Operator
+    op = Operator([stencil])
+    op.apply(time=nt, dt=dt)
+    devito_norm = norm(u)
+
+    u.data[:, :, :] = 0
+    u.data[:, 40:50, 40:50] = 1
+
+    # XDSL Operator
+    xdslop = XDSLOperator([stencil])
+    xdslop.apply(time=nt, dt=dt)
+    xdsl_norm = norm(u)
+
+    assert np.isclose(devito_norm, xdsl_norm, rtol=1e-04).all()

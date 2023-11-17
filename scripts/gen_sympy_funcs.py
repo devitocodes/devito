@@ -5,6 +5,7 @@ print("from devito.finite_differences.differentiable\
  import (DifferentiableOp, diffify)\n\n")
 
 for fn in funcs:
+    import pdb;pdb.set_trace()
     try:
         strc = """class %s(DifferentiableOp, sympy.%s):
     __sympy_class__ = sympy.%s

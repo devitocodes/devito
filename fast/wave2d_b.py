@@ -1,6 +1,5 @@
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
-import sys
 import numpy as np
 
 from devito import (TimeFunction, Eq, Operator, solve, norm,
@@ -39,8 +38,10 @@ so = args.space_order
 
 shape = (args.shape)  # Number of grid point (nx, ny, nz)
 shape_str = '_'.join(str(item) for item in shape)
-spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
-origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
+# Grid spacing in m. The domain size is now 1km by 1km
+spacing = as_tuple(10.0 for _ in range(len(shape)))
+# What is the location of the top left corner. 
+origin = as_tuple(0.0 for _ in range(len(shape)))
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
 extent = np.load("so%s_grid_extent%s.npy" % (so, shape_str), allow_pickle=True)
 
