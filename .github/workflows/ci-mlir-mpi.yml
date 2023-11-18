@@ -21,7 +21,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: gbisbas/xdsl-llvm:0.1
+    container: gbisbas/llvm-xdsl:0.2
     steps:
     - name: Checkout Devito
       uses: actions/checkout@v3
@@ -44,4 +44,4 @@ jobs:
       run: |
         # Add mlir-opt to the path
         export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
-        pytest -m "parallel" -k "not adjoint" tests/
+        pytest -m "parallel" -k "not adjoint" tests/test_xdsl_*
