@@ -37,7 +37,10 @@ if __name__ == "__main__":
         "--compare", default=False, action="store_true", help="Compare xdsl/devito output"
     )
     parser.add_argument(
-        "--random-init", default=False, action="store_true", help="Initialize data randomly"
+        "--random-init",
+        default=False,
+        action="store_true",
+        help="Initialize data randomly"
     )
     parser.add_argument(
         "--repeat", default=1, type=int, help="Run n times"
@@ -175,9 +178,11 @@ def main(bench_name: str, nt: int, runs: int = 1):
 
         if args.compare:
             if len(data) != 2:
-                print("cannot compare data, must be run with --xdsl --devito flags to run both!")
+                print("cannot compare data, must be run with --xdsl --devito flags to "
+                      "run both!")
 
             compare_data(*data, rank, run)
+
 
 def compare_data(a: np.ndarray, b: np.ndarray, rank: int, run: int):
     print(json.dumps({

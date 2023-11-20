@@ -56,7 +56,10 @@ def main(bench_name: str):
         "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
     )
     parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
-    parser.add_argument("--mpi", default=False, action="store_true", help="run in MPI mode")
+    parser.add_argument("--mpi",
+                        default=False,
+                        action="store_true",
+                        help="run in MPI mode")
     parser.add_argument("-nd", "--no_dump", default=False, action="store_true")
     args = parser.parse_args()
 

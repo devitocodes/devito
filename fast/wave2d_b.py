@@ -40,7 +40,7 @@ shape = (args.shape)  # Number of grid point (nx, ny, nz)
 shape_str = '_'.join(str(item) for item in shape)
 # Grid spacing in m. The domain size is now 1km by 1km
 spacing = as_tuple(10.0 for _ in range(len(shape)))
-# What is the location of the top left corner. 
+# What is the location of the top left corner.
 origin = as_tuple(0.0 for _ in range(len(shape)))
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
 extent = np.load("so%s_grid_extent%s.npy" % (so, shape_str), allow_pickle=True)
@@ -132,9 +132,18 @@ if args.xdsl:
 
     print("XDSL norm:", norm(u))
 
-    # print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
-    # print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
-    # print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+    # print("XDSL output norm 0:",
+    #       np.linalg.norm(u.data[0]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[0]))
+    # print("XDSL output norm 1:",
+    #       np.linalg.norm(u.data[1]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[1]))
+    # print("XDSL output norm 2:",
+    #       np.linalg.norm(u.data[2]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[2]))
 
 if args.xdsl and args.devito:
     max_error = np.max(np.abs(u.data - devito_out.data))

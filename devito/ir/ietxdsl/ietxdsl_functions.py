@@ -59,14 +59,14 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
 
     if isinstance(expr, Integer):
         constant = int(expr.evalf())
-        arg = Constant.from_int_and_width(constant, i32)
+        arg = arith.Constant.from_int_and_width(constant, i32)
         arg_by_expr[expr] = arg
         result.append(arg)
         return
 
     if isinstance(expr, Float):
         constant = float(expr.evalf())
-        arg = Constant.from_float_and_width(constant, f32)
+        arg = arith.Constant.from_float_and_width(constant, f32)
         arg_by_expr[expr] = arg
         result.append(arg)
         return
@@ -116,13 +116,12 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
                 lhs = arith.SIToFPOp(lhs, rhs.typ)
                 result.append(lhs)
 
-        
         # happy path
         if isinstance(rhs.typ, builtin.IntegerType):
             mul = arith.Muli.get(lhs, rhs)
         else:
             mul = arith.Mulf.get(lhs, rhs)
-        
+
         arg_by_expr[expr] = mul
         result.append(mul)
         return
@@ -162,7 +161,8 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
         return
 
     if isinstance(expr, Eq):
-        # Convert devito.ir.equations.equation.ClusterizedEq to devito.ir.ietxdsl.operations.Assign
+        # Convert devito.ir.equations.equation.ClusterizedEq to
+        # devito.ir.ietxdsl.operations.Assign
 
         add_to_block(expr.args[0], arg_by_expr, result)
         # lhs = arg_by_expr[expr.args[0]]
@@ -171,7 +171,9 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
 
         indices_list = as_list(arg_by_expr[i] for i in expr.args[0].indices)
         load: memref.Load = arg_by_expr[expr.args[0]]
-        assign = memref.Store.get(arg_by_expr[expr.args[1]], load.memref, as_list(load.indices))
+        assign = memref.Store.get(arg_by_expr[expr.args[1]],
+                                  load.memref,
+                                  as_list(load.indices))
 
         # assign = memref.Store.get(rhs, lhs)
         # assign = Assign.build([lhs, rhs])

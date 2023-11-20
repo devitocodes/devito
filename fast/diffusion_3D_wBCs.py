@@ -7,7 +7,6 @@ import numpy as np
 
 from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
                     norm, XDSLOperator, configuration)
-from devito.logger import info, warning
 from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
