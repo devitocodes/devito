@@ -10,12 +10,12 @@ RUN apt-get update \
 WORKDIR /xdsl-sc
 
 # mlir
-RUN mkdir llvm-project \
-    && cd llvm-project \
-    && git init \
-    && git remote add origin https://github.com/llvm/llvm-project.git \
-    && git fetch origin $mlirhash \
-    && git reset --hard FETCH_HEAD
+RUN git init llvm-project \
+ && cd llvm-project \
+ && git remote add origin https://github.com/llvm/llvm-project.git \
+ && git config --local gc.auto 0 \
+ && git -c protocol.version=2 fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin $mlirhash \
+ && git checkout --progress --force FETCH_HEAD
 
 RUN mkdir llvm-project/build \
  && cd llvm-project/build \
