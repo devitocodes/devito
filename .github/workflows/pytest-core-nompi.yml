@@ -34,7 +34,7 @@ jobs:
            pytest-ubuntu-py38-gcc12-omp,
            pytest-ubuntu-py37-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
-           pytest-ubuntu-py38-gcc8-omp,
+           pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
            pytest-osx-py37-clang-omp,
            pytest-docker-py39-gcc-omp,
@@ -70,10 +70,10 @@ jobs:
           language: "C"
           sympy: "1.10"
 
-        - name: pytest-ubuntu-py38-gcc8-omp
-          python-version: '3.8'
+        - name: pytest-ubuntu-py312-gcc13-omp
+          python-version: '3.12'
           os: ubuntu-20.04
-          arch: "gcc-8"
+          arch: "gcc-13"
           language: "openmp"
           sympy: "1.11"
 
@@ -152,13 +152,19 @@ jobs:
               echo "TESTS=tests/" >> $GITHUB_ENV
           fi
       id: set-tests
+    
+    - name: Set pip flags for latest python (3.12)
+      run: |
+          if [ "${{ matrix.python-version }}" == '3.12' ]; then
+              echo "PIPFLAGS='--break-system-packages'" >> $GITHUB_ENV
+          fi
 
     - name: Install dependencies
       if: "!contains(matrix.name, 'docker')"
       run: |
-        pip install --upgrade pip
-        pip install -e .[tests]
-        pip install sympy==${{matrix.sympy}}
+        pip install ${{ env.PIPFLAGS }} --upgrade pip
+        pip install ${{ env.PIPFLAGS }} -e .[tests]
+        pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
 
     - name: Check configuration
       run: |
