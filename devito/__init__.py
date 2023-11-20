@@ -1,4 +1,5 @@
 from itertools import product
+from . import _version
 
 # Import the global `configuration` dict
 from devito.parameters import *  # noqa
@@ -155,3 +156,6 @@ def mode_performance():
     # With the autotuner in `aggressive` mode, a more aggressive blocking strategy
     # which also tiles the innermost loop) is beneficial
     configuration['opt-options']['blockinner'] = True
+
+
+__version__ = _version.get_versions()['version']
