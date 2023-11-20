@@ -374,54 +374,53 @@ class Communications(Queue):
 
     B = Symbol(name='⊥')
 
-    @timed_pass(name='schedule')
+    @timed_pass(name='communications')
     def process(self, clusters):
         return self._process_fatd(clusters, 1, seen=set())
 
     def callback(self, clusters, prefix, seen=None):
-        if seen.issuperset(clusters):
+        if not prefix:
             return clusters
 
         d = prefix[-1].dim
 
-        # Construct the mock exprs representing the halo accesses
-        exprs = []
+        # Construct a representation of the halo accesses
+        processed = []
         for c in clusters:
-            if c.properties.is_sequential(d):
+            if c.properties.is_sequential(d) or \
+               c in seen:
                 continue
 
-            halo_scheme = HaloScheme(c.exprs, c.ispace)
+            hs = HaloScheme(c.exprs, c.ispace)
+            if hs.is_void or \
+               not d._defines & hs.distributed_aindices:
+                continue
 
-            if not halo_scheme.is_void and \
-               c.properties.is_parallel_relaxed(d):
-                points = set()
-                for f in halo_scheme.fmapper:
-                    for a in c.scope.getreads(f):
-                        points.add(a.access)
+            points = set()
+            for f in hs.fmapper:
+                for a in c.scope.getreads(f):
+                    points.add(a.access)
 
-                # We also add all written symbols to ultimately create mock WARs
-                # with `c`, which will prevent the newly created HaloTouch to ever
-                # be rescheduled after `c` upon topological sorting
-                points.update(a.access for a in c.scope.accesses if a.is_write)
+            # We also add all written symbols to ultimately create mock WARs
+            # with `c`, which will prevent the newly created HaloTouch to ever
+            # be rescheduled after `c` upon topological sorting
+            points.update(a.access for a in c.scope.accesses if a.is_write)
 
-                # Sort for determinism
-                # NOTE: not sorting might impact code generation. The order of
-                # the args is important because that's what search functions honor!
-                points = sorted(points, key=str)
+            # Sort for determinism
+            # NOTE: not sorting might impact code generation. The order of
+            # the args is important because that's what search functions honor!
+            points = sorted(points, key=str)
 
-                rhs = HaloTouch(*points, halo_scheme=halo_scheme)
+            # Construct the HaloTouch Cluster
+            expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
 
-                # Insert only if not redundant, to avoid useless pollution
-                if not any(rhs == e.rhs for e in exprs):
-                    exprs.append(Eq(self.B, rhs))
+            key = lambda i: i in prefix[:-1] or i in hs.loc_indices
+            ispace = c.ispace.project(key)
 
-        processed = []
-        if exprs:
-            ispace = prefix[:prefix.index(d)]
-            properties = prefix.properties.drop(d)
+            halo_touch = c.rebuild(exprs=expr, ispace=ispace)
 
-            processed.append(Cluster(exprs, ispace, c.guards, properties))
-            seen.update(clusters)
+            processed.append(halo_touch)
+            seen.update({halo_touch, c})
 
         processed.extend(clusters)
 

@@ -602,7 +602,7 @@ class TestSparseFunction(object):
         Operator(sf1.interpolate(u))()
         assert np.all(sf1.data == 4)
 
-    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parallel(mode=4)
     def test_sparse_first(self):
         """
         Tests custom sprase function with sparse dimension as first index.
@@ -633,12 +633,14 @@ class TestSparseFunction(object):
         rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
         op = Operator(eqs + rec)
 
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
         op(time_M=10)
-        print
         expected = 10*11/2  # n (n+1)/2
         assert np.allclose(s.data, expected)
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[(4, 'diag2')])
     def test_no_grid_dim_slow(self):
         shape = (12, 13, 14)
         nfreq = 5
@@ -661,10 +663,14 @@ class TestSparseFunction(object):
         rec_eq = s.interpolate(expr=u)
 
         op = Operator([Eq(u, 1)] + rec_eq)
+
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
         op.apply()
         assert np.all(s.data == 1)
 
-    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parallel(mode=4)
     def test_no_grid_dim_slow_time(self):
         shape = (12, 13, 14)
         nfreq = 5
@@ -687,6 +693,10 @@ class TestSparseFunction(object):
         rec_eq = s.interpolate(expr=u)
 
         op = Operator([Eq(u, 1)] + rec_eq)
+
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
         op.apply(time_M=5)
         assert np.all(s.data == 1)
 
