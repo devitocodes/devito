@@ -966,6 +966,19 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, self.sub_iterators, self.directions)
 
+    def is_subset(self, other):
+        """
+        True if `self` is included within `other`, False otherwise.
+        """
+        if not self:
+            return True
+
+        d = self[-1].dim
+        try:
+            return self == other[:other.index(d) + 1]
+        except ValueError:
+            return False
+
     def is_compatible(self, other):
         """
         A relaxed version of ``__eq__``, in which only non-derived dimensions

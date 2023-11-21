@@ -107,7 +107,7 @@ class HaloScheme(object):
         return len(self._mapper)
 
     def __hash__(self):
-        return (self._mapper.__hash__(), self.honored.__hash__())
+        return hash((self._mapper.__hash__(), self.honored.__hash__()))
 
     @classmethod
     def build(cls, fmapper, honored):
@@ -582,12 +582,20 @@ class HaloTouch(sympy.Function, Reconstructable):
         return str(self)
 
     def __hash__(self):
-        return id(self)
+        return hash(self.halo_scheme)
 
     def __eq__(self, other):
         return isinstance(other, HaloTouch) and self.halo_scheme == other.halo_scheme
 
     func = Reconstructable._rebuild
+
+    @property
+    def fmapper(self):
+        return self.halo_scheme.fmapper
+
+    @property
+    def dims(self):
+        return frozenset().union(*[v.dims for v in self.fmapper.values()])
 
 
 def _uxreplace_dispatch_haloscheme(hs0, rule):

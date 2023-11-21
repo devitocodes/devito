@@ -7,7 +7,7 @@ from cached_property import cached_property
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension)
 from devito.types.utils import DimensionTuple
@@ -163,7 +163,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
-        parent = self.sfunction.dimensions[-1]
+        parent = self.sfunction._sparse_dim
         dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in self._gdims]
@@ -184,15 +184,18 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
-            extra = set([i for v in extras for i in v.dimensions]) - set(self._gdims)
+            extra = filter_ordered([i for v in extras for i in v.dimensions
+                                    if i not in self._gdims and
+                                    i not in self.sfunction.dimensions])
             extra = tuple(extra)
         else:
             extra = tuple()
 
         if self.sfunction._sparse_position == -1:
-            return self.sfunction.dimensions + as_tuple(implicit_dims) + extra
+            idims = self.sfunction.dimensions + as_tuple(implicit_dims) + extra
         else:
-            return as_tuple(implicit_dims) + self.sfunction.dimensions + extra
+            idims = extra + as_tuple(implicit_dims) + self.sfunction.dimensions
+        return tuple(idims)
 
     def _coeff_temps(self, implicit_dims):
         return []
@@ -283,7 +286,7 @@ class WeightedInterpolator(GenericInterpolator):
         variables = list(retrieve_function_carriers(_expr))
 
         # Implicit dimensions
-        implicit_dims = self._augment_implicit_dims(implicit_dims)
+        implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)

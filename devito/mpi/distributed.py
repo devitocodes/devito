@@ -17,6 +17,8 @@ from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
 
+__all__ = ['CustomTopology']
+
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
 # that has *already* initialized MPI

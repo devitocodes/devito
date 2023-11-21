@@ -9,7 +9,7 @@ from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
 from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
                                IterationSpace, normalize_properties, normalize_syncs)
 from devito.mpi.halo_scheme import HaloScheme
-from devito.tools import Bunch, DefaultOrderedDict
+from devito.tools import Bunch, DefaultOrderedDict, as_mapper
 
 __all__ = ['stree_build']
 
@@ -85,6 +85,10 @@ def stree_build(clusters, profiler=None, **kwargs):
             if needs_nodehalo(it.dim, c.halo_scheme):
                 v.bottom.parent = NodeHalo(c.halo_scheme, v.bottom.parent)
                 break
+        else:
+            if c.halo_scheme:
+                assert not c.exprs  # See preprocess() -- we rarely end up here!
+                tip = NodeHalo(c.halo_scheme, v.bottom)
 
         # Add in NodeExprs
         exprs = []
@@ -150,11 +154,14 @@ def preprocess(clusters, options=None, **kwargs):
     for c in clusters:
         if c.is_halo_touch:
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
-            queue.append(c.rebuild(halo_scheme=hs))
+            queue.append(c.rebuild(exprs=[], halo_scheme=hs))
+
         elif c.is_critical_region and c.syncs:
             processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
+
         elif c.is_wild:
             continue
+
         else:
             dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
 
@@ -181,8 +188,23 @@ def preprocess(clusters, options=None, **kwargs):
                 ispace = c.ispace.project(syncs)
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
-            halo_scheme = HaloScheme.union([c1.halo_scheme for c1 in found])
-            processed.append(c.rebuild(halo_scheme=halo_scheme))
+            if all(c1.ispace.is_subset(c.ispace) for c1 in found):
+                # 99% of the cases we end up here
+                hs = HaloScheme.union([c1.halo_scheme for c1 in found])
+                processed.append(c.rebuild(halo_scheme=hs))
+            elif options['mpi']:
+                # We end up here with e.g. `t,x,y,z,f` where `f` is a sequential
+                # dimension requiring a loc-index in the HaloScheme. The compiler
+                # will generate the non-perfect loop nest `t,f ; t,x,y,z,f`, with
+                # the first nest triggering all necessary halo exchanges along `f`
+                mapper = as_mapper(found, lambda c1: c1.ispace)
+                for k, v in mapper.items():
+                    hs = HaloScheme.union([c1.halo_scheme for c1 in v])
+                    processed.append(c.rebuild(exprs=[], ispace=k, halo_scheme=hs))
+                processed.append(c)
+            else:
+                # Avoid ugly empty loops
+                processed.append(c)
 
     # Sanity check!
     try:

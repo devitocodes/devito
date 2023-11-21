@@ -6,7 +6,8 @@ from conftest import skipif, _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
-                    switchconfig, generic_derivative, PrecomputedSparseFunction)
+                    switchconfig, generic_derivative, PrecomputedSparseFunction,
+                    DefaultDimension)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -600,6 +601,104 @@ class TestSparseFunction(object):
         assert np.all(sf2.data == 4)
         Operator(sf1.interpolate(u))()
         assert np.all(sf1.data == 4)
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_first(self):
+        """
+        Tests custom sprase function with sparse dimension as first index.
+        """
+
+        class SparseFirst(SparseFunction):
+            """ Custom sparse class with the sparse dimension as the first one"""
+            _sparse_position = 0
+
+        dr = Dimension("cd")
+        ds = DefaultDimension("ps", default_value=3)
+        grid = Grid((11, 11))
+        dims = grid.dimensions
+        s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds), shape=(2, 3),
+                        coordinates=[[.5, .5], [.2, .2]])
+
+        # Check dimensions and shape are correctly initialized
+        assert s.indices[s._sparse_position] == dr
+        assert s.shape == (2, 3)
+        assert s.coordinates.indices[0] == dr
+
+        # Operator
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        fs = Function(name="fs", grid=grid, dimensions=(*dims, ds), shape=(11, 11, 3))
+
+        eqs = [Eq(u.forward, u+1), Eq(fs, u)]
+        # No time dependence so need the implicit dim
+        rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
+        op = Operator(eqs + rec)
+
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
+        op(time_M=10)
+        expected = 10*11/2  # n (n+1)/2
+        assert np.allclose(s.data, expected)
+
+    @pytest.mark.parallel(mode=[(4, 'diag2')])
+    def test_no_grid_dim_slow(self):
+        shape = (12, 13, 14)
+        nfreq = 5
+        nrec = 2
+
+        grid = Grid(shape=shape)
+        f = DefaultDimension(name="f", default_value=nfreq)
+
+        u = Function(name="u", grid=grid, dimensions=(*grid.dimensions, f),
+                     shape=(*shape, nfreq), space_order=2)
+        u.data.fill(1)
+
+        class CoordSlowSparseFunction(SparseFunction):
+            _sparse_position = 0
+
+        r = Dimension(name="r")
+        s = CoordSlowSparseFunction(name="s", grid=grid, dimensions=(r, f),
+                                    shape=(nrec, nfreq), npoint=nrec)
+
+        rec_eq = s.interpolate(expr=u)
+
+        op = Operator([Eq(u, 1)] + rec_eq)
+
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
+        op.apply()
+        assert np.all(s.data == 1)
+
+    @pytest.mark.parallel(mode=4)
+    def test_no_grid_dim_slow_time(self):
+        shape = (12, 13, 14)
+        nfreq = 5
+        nrec = 2
+
+        grid = Grid(shape=shape)
+        t = grid.stepping_dim
+        f = DefaultDimension(name="f", default_value=nfreq)
+
+        u = TimeFunction(name="u", grid=grid, dimensions=(t, *grid.dimensions, f),
+                         shape=(2, *shape, nfreq), space_order=2)
+
+        class CoordSlowSparseFunction(SparseTimeFunction):
+            _sparse_position = 0
+
+        r = Dimension(name="r")
+        s = CoordSlowSparseFunction(name="s", grid=grid, dimensions=(r, f),
+                                    shape=(nrec, nfreq), npoint=nrec, nt=5)
+
+        rec_eq = s.interpolate(expr=u)
+
+        op = Operator([Eq(u, 1)] + rec_eq)
+
+        # Check generated code -- expected one halo exchange
+        assert len(FindNodes(Call).visit(op)) == 1
+
+        op.apply(time_M=5)
+        assert np.all(s.data == 1)
 
 
 class TestOperatorSimple(object):
