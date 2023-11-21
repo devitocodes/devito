@@ -619,6 +619,14 @@ class CHAR(Cast):
     _base_typ = 'char'
 
 
+class SHORT(Cast):
+    _base_typ = 'short'
+
+
+class USHORT(Cast):
+    _base_typ = 'unsigned short'
+
+
 class LONG(Cast):
     _base_typ = 'long'
 
@@ -638,6 +646,8 @@ class CHARP(CastStar):
 cast_mapper = {
     np.int8: CHAR,
     np.uint8: CHAR,
+    np.int16: SHORT,  # noqa
+    np.uint16: USHORT,  # noqa
     int: INT,  # noqa
     np.int32: INT,  # noqa
     np.int64: LONG,
@@ -649,6 +659,8 @@ cast_mapper = {
     (np.int8, '*'): CHARP,
     (np.uint8, '*'): CHARP,
     (int, '*'): INTP,  # noqa
+    (np.uint16, '*'): INTP,  # noqa
+    (np.int16, '*'): INTP,  # noqa
     (np.int32, '*'): INTP,  # noqa
     (np.int64, '*'): INTP,  # noqa
     (np.float32, '*'): FLOATP,  # noqa
