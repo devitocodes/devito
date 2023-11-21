@@ -192,23 +192,19 @@ def preprocess(clusters, options=None, **kwargs):
                 # 99% of the cases we end up here
                 hs = HaloScheme.union([c1.halo_scheme for c1 in found])
                 processed.append(c.rebuild(halo_scheme=hs))
-            else:
+            elif options['mpi']:
                 # We end up here with e.g. `t,x,y,z,f` where `f` is a sequential
                 # dimension requiring a loc-index in the HaloScheme. The compiler
                 # will generate the non-perfect loop nest `t,f ; t,x,y,z,f`, with
                 # the first nest triggering all necessary halo exchanges along `f`
-                if not options['mpi']:
-                    # Avoid ugly empty loops
-                    processed.append(c)
-                else:
-                    mapper = as_mapper(found, lambda c1: c1.ispace)
-                    for ispace, v in mapper.items():
-                        hs = HaloScheme.union([c1.halo_scheme for c1 in v])
-                        processed.append(
-                            c.rebuild(exprs=[], ispace=ispace, halo_scheme=hs)
-                        )
-
-                    processed.append(c)
+                mapper = as_mapper(found, lambda c1: c1.ispace)
+                for k, v in mapper.items():
+                    hs = HaloScheme.union([c1.halo_scheme for c1 in v])
+                    processed.append(c.rebuild(exprs=[], ispace=k, halo_scheme=hs))
+                processed.append(c)
+            else:
+                # Avoid ugly empty loops
+                processed.append(c)
 
     # Sanity check!
     try:
