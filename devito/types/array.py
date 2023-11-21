@@ -104,11 +104,11 @@ class Array(ArrayBasic):
     is_Array = True
 
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
-                   ('dimensions', 'liveness', 'space', 'scope', 'initvalue'))
+                   ('dimensions', 'liveness', 'scope', 'initvalue'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        space = kwargs.get('space', 'local')
+        space = kwargs.setdefault('space', 'local')
 
         if cls is Array and space == 'mapped':
             return AbstractFunction.__new__(ArrayMapped, *args, **kwargs)
@@ -120,9 +120,6 @@ class Array(ArrayBasic):
 
         self._liveness = kwargs.get('liveness', 'lazy')
         assert self._liveness in ['eager', 'lazy']
-
-        self._space = kwargs.get('space', 'local')
-        assert self._space in ['local', 'mapped', 'host']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared']
@@ -172,10 +169,6 @@ class Array(ArrayBasic):
         return self._liveness
 
     @property
-    def space(self):
-        return self._space
-
-    @property
     def scope(self):
         return self._scope
 
@@ -190,18 +183,6 @@ class Array(ArrayBasic):
     @property
     def _mem_internal_lazy(self):
         return self._liveness == 'lazy'
-
-    @property
-    def _mem_local(self):
-        return self._space == 'local'
-
-    @property
-    def _mem_mapped(self):
-        return self._space == 'mapped'
-
-    @property
-    def _mem_host(self):
-        return self._space == 'host'
 
     @property
     def _mem_stack(self):

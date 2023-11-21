@@ -19,7 +19,8 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import ListInitializer, ccode, uxreplace
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
-                          filter_sorted, flatten, is_external_ctype, c_restrict_void_p)
+                          filter_sorted, flatten, is_external_ctype,
+                          c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -224,7 +225,7 @@ class CGen(Visitor):
 
     def _gen_value(self, obj, level=2, masked=()):
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
-                      if getattr(obj, k, False) and v not in masked]
+                      if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and level == 2:
             strtype = obj._C_typedata
@@ -233,7 +234,8 @@ class CGen(Visitor):
             strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
-                strtype = '%s%s' % (strtype, self._restrict_keyword)
+                if not obj._mem_stack:
+                    strtype = '%s%s' % (strtype, self._restrict_keyword)
         strtype = ' '.join(qualifiers + [strtype])
 
         strname = obj._C_name
@@ -324,7 +326,9 @@ class CGen(Visitor):
                       prev is ExpressionBundle and
                       all(i.dim.is_Stencil for i in g)):
                     rebuilt.extend(g)
-                elif prev in candidates and k in candidates:
+                elif (prev in candidates and k in candidates) or \
+                     (prev is not None and k is Section) or \
+                     (prev is Section):
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)
                 else:
@@ -375,7 +379,7 @@ class CGen(Visitor):
             else:
                 rshape = '*'
                 lvalue = c.Value(i._C_typedata, '*%s' % v)
-            if o.alignment:
+            if o.alignment and f._data_alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
             # rvalue
@@ -406,15 +410,13 @@ class CGen(Visitor):
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
                 rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
                                                 a1.dim.name)
-                lvalue = c.AlignedAttribute(
-                    a0._data_alignment,
-                    c.Value(i._C_typedata, '(*restrict %s)%s' % (a0.name, shape))
-                )
+                lvalue = c.Value(i._C_typedata,
+                                 '(*restrict %s)%s' % (a0.name, shape))
             else:
                 rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
-                lvalue = c.AlignedAttribute(
-                    a0._data_alignment, c.Value(i._C_typedata, '*restrict %s' % a0.name)
-                )
+                lvalue = c.Value(i._C_typedata, '*restrict %s' % a0.name)
+            if a0._data_alignment:
+                lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
             lvalue = self._gen_value(a0, 0)
@@ -430,13 +432,7 @@ class CGen(Visitor):
 
     def visit_Section(self, o):
         body = flatten(self._visit(i) for i in o.children)
-        if o.is_subsection:
-            header = []
-            footer = []
-        else:
-            header = [c.Comment("Begin %s" % o.name)]
-            footer = [c.Comment("End %s" % o.name)]
-        return c.Module(header + body + footer)
+        return c.Module(body)
 
     def visit_Return(self, o):
         v = 'return'
@@ -576,6 +572,19 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
 
+    def visit_KernelLaunch(self, o):
+        arguments = self._args_call(o.arguments)
+        arguments = ','.join(arguments)
+
+        launch_args = [o.grid, o.block]
+        if o.shm is not None:
+            launch_args.append(o.shm)
+        if o.stream is not None:
+            launch_args.append(o.stream)
+        launch_config = ','.join(str(i) for i in launch_args)
+
+        return c.Statement('%s<<<%s>>>(%s)' % (o.name, launch_config, arguments))
+
     # Operator-handle machinery
 
     def _operator_includes(self, o):
@@ -625,10 +634,10 @@ class CGen(Visitor):
         # Elemental functions
         esigns = []
         efuncs = [blankline]
-        for i in o._func_table.values():
-            if i.local:
-                esigns.append(self._gen_signature(i.root))
-                efuncs.extend([self._visit(i.root), blankline])
+        items = [i.root for i in o._func_table.values() if i.local]
+        for i in sorted_efuncs(items):
+            esigns.append(self._gen_signature(i))
+            efuncs.extend([self._visit(i), blankline])
 
         # Definitions
         headers = [c.Define(*i) for i in o._headers] + [blankline]
@@ -1177,12 +1186,18 @@ class Uxreplace(Transformer):
         condition = uxreplace(o.condition, self.mapper)
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body, else_body=else_body)
+        return o._rebuild(condition=condition, then_body=then_body,
+                          else_body=else_body)
 
     def visit_PointerCast(self, o):
         function = self.mapper.get(o.function, o.function)
         obj = self.mapper.get(o.obj, o.obj)
         return o._rebuild(function=function, obj=obj)
+
+    def visit_Dereference(self, o):
+        pointee = self.mapper.get(o.pointee, o.pointee)
+        pointer = self.mapper.get(o.pointer, o.pointer)
+        return o._rebuild(pointee=pointee, pointer=pointer)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
@@ -1200,7 +1215,20 @@ class Uxreplace(Transformer):
         body = self._visit(o.body)
         return o._rebuild(halo_scheme=halo_scheme, body=body)
 
+    def visit_While(self, o, **kwargs):
+        condition = uxreplace(o.condition, self.mapper)
+        body = self._visit(o.body)
+        return o._rebuild(condition=condition, body=body)
+
     visit_ThreadedProdder = visit_Call
+
+    def visit_KernelLaunch(self, o):
+        arguments = [uxreplace(i, self.mapper) for i in o.arguments]
+        grid = self.mapper.get(o.grid, o.grid)
+        block = self.mapper.get(o.block, o.block)
+        stream = self.mapper.get(o.stream, o.stream)
+        return o._rebuild(grid=grid, block=block, stream=stream,
+                          arguments=arguments)
 
 
 # Utils
@@ -1253,3 +1281,16 @@ class MultilineCall(c.Generable):
         if self.cast:
             tip = '(%s)%s' % (self.cast, tip)
         yield tip
+
+
+def sorted_efuncs(efuncs):
+    from devito.ir.iet.efunc import (CommCallable, DeviceFunction,
+                                     ThreadCallable, ElementalFunction)
+
+    priority = {
+        DeviceFunction: 3,
+        ThreadCallable: 2,
+        ElementalFunction: 1,
+        CommCallable: 1
+    }
+    return sorted_priority(efuncs, priority)

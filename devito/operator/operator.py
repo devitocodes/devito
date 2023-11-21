@@ -266,9 +266,9 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, kwargs=kwargs):
-            return rcompile(expressions, kwargs)
+    def _rcompile_wrapper(cls, **kwargs0):
+        def wrapper(expressions, **kwargs1):
+            return rcompile(expressions, {**kwargs0, **kwargs1})
         return wrapper
 
     @classmethod
@@ -447,7 +447,6 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
-        sregistry = kwargs['sregistry']
 
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
@@ -455,7 +454,7 @@ class Operator(Callable):
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
         # Lower IET to a target-specific IET
-        graph = Graph(iet, sregistry=sregistry)
+        graph = Graph(iet, **kwargs)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

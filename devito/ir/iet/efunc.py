@@ -7,7 +7,7 @@ from devito.tools import as_tuple
 
 __all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
            'EntryFunction', 'AsyncCallable', 'AsyncCall', 'ThreadCallable',
-           'DeviceFunction', 'DeviceCall']
+           'DeviceFunction', 'DeviceCall', 'KernelLaunch', 'CommCallable']
 
 
 # ElementalFunction machinery
@@ -105,7 +105,7 @@ def make_callable(name, iet, retval='void', prefix='static'):
     """
     Utility function to create a Callable from an IET.
     """
-    parameters = derive_parameters(iet)
+    parameters = derive_parameters(iet, ordering='canonical')
     return Callable(name, iet, retval, parameters=parameters, prefix=prefix)
 
 
@@ -137,8 +137,16 @@ class ThreadCallable(Callable):
     A Callable executed asynchronously by a thread.
     """
 
-    def __init__(self, name, body, parameters=None, prefix='static'):
-        super().__init__(name, body, 'void*', parameters=parameters, prefix=prefix)
+    def __init__(self, name, body, parameters):
+        super().__init__(name, body, 'void*', parameters=parameters, prefix='static')
+
+        # Sanity checks
+        # By construction, the first unpack statement of a ThreadCallable must
+        # be the PointerCast that makes `sdata` available in the local scope
+        assert len(body.unpacks) > 0
+        v = body.unpacks[0]
+        assert v.is_PointerCast
+        self.sdata = v.function
 
 
 # DeviceFunction machinery
@@ -157,7 +165,7 @@ class DeviceFunction(Callable):
 class DeviceCall(Call):
 
     """
-    A call to an external function executed asynchronously on a device.
+    A call to a function executed asynchronously on a device.
     """
 
     def __init__(self, name, arguments=None, **kwargs):
@@ -175,3 +183,37 @@ class DeviceCall(Call):
                 processed.append(a)
 
         super().__init__(name, arguments=processed, **kwargs)
+
+
+class KernelLaunch(DeviceCall):
+
+    """
+    A call to an asynchronous device kernel.
+    """
+
+    def __init__(self, name, grid, block, shm=0, stream=None,
+                 arguments=None, writes=None):
+        super().__init__(name, arguments=arguments, writes=writes)
+
+        # Kernel launch arguments
+        self.grid = grid
+        self.block = block
+        self.shm = shm
+        self.stream = stream
+
+    def __repr__(self):
+        return 'Launch[%s]<<<(%s)>>>' % (self.name,
+                                         ','.join(str(i.name) for i in self.writes))
+
+    @cached_property
+    def functions(self):
+        launch_args = (self.grid, self.block,)
+        if self.stream is not None:
+            launch_args += (self.stream.function,)
+        return super().functions + launch_args
+
+
+# Other relevant Callable subclasses
+
+class CommCallable(Callable):
+    pass

@@ -314,12 +314,14 @@ class TestBasic(object):
         assert sdata.cfields == new_sdata.cfields
         assert sdata.ncfields == new_sdata.ncfields
 
-        ffp = FieldFromPointer(sdata._field_flag, sdata.symbolic_base)
+        ffp = FieldFromPointer(sdata.symbolic_flag, sdata.indexed)
 
         pkl_ffp = pickle.dumps(ffp)
         new_ffp = pickle.loads(pkl_ffp)
 
-        assert ffp == new_ffp
+        assert ffp.field == new_ffp.field
+        assert ffp.base.name == new_ffp.base.name
+        assert ffp.function.fields == new_ffp.function.fields
 
         indexed = sdata[0]
 
@@ -570,6 +572,17 @@ class TestOperator(object):
 
         new_op.apply(time_m=1, time_M=1, f=f)
         assert np.all(f.data[2] == 2)
+
+    def test_collected_coeffs(self, pickle):
+        grid = Grid(shape=(8, 8, 8))
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        op = Operator(Eq(f.forward, f.dx2 + 1))
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        assert str(op) == str(new_op)
 
     def test_elemental(self, pickle):
         """

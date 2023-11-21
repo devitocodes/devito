@@ -11,12 +11,14 @@ from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4
                           double2, double3, double4, int2, int3, int4)
 from devito.finite_differences.elementary import Min, Max
 from devito.types import Symbol
+from devito.types.basic import Basic
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer', 'FieldFromPointer',  # noqa
-           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer', 'Cast',
-           'DefFunction', 'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID',
-           'Null', 'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
+__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
+           'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
+           'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
+           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null',
+           'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -164,11 +166,9 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             pointer = Symbol(pointer)
         if isinstance(call, str):
             call = Symbol(call)
-        elif not isinstance(call, (CallFromPointer, DefFunction, sympy.Symbol)):
-            # NOTE: we need `sympy.Symbol`, rather than just (devito) `Symbol`
-            # because otherwise it breaks upon certain reconstructions on SymPy-1.8,
-            # due to the way `bound_symbols` and `canonical_variables` interact
-            raise ValueError("`call` must be CallFromPointer, DefFunction, or Symbol")
+        elif not isinstance(call, Basic):
+            raise ValueError("`call` must be a `devito.Basic` or a type "
+                             "with compatible interface")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):
@@ -219,6 +219,19 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class CallFromComposite(CallFromPointer, Pickable):
+
+    """
+    Symbolic representation of the C notation ``composite.call(params)``.
+    """
+
+    def __str__(self):
+        return '%s.%s(%s)' % (self.pointer, self.call,
+                              ", ".join(str(i) for i in as_tuple(self.params)))
+
+    __repr__ = __str__
 
 
 class FieldFromPointer(CallFromPointer, Pickable):
@@ -375,6 +388,17 @@ class Cast(UnaryOp):
     __rkwargs__ = ('stars',)
 
     def __new__(cls, base, stars=None, **kwargs):
+        # Attempt simplifcation
+        # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
+        try:
+            return sympify(eval(cls._base_typ)(base))
+        except (NameError, SyntaxError):
+            # E.g., `_base_typ` is "char" or "unsigned long"
+            pass
+        except TypeError:
+            # `base` ain't a number
+            pass
+
         obj = super().__new__(cls, base)
         obj._stars = stars
         return obj
@@ -627,6 +651,10 @@ class USHORT(Cast):
     _base_typ = 'unsigned short'
 
 
+class UCHAR(Cast):
+    _base_typ = 'unsigned char'
+
+
 class LONG(Cast):
     _base_typ = 'long'
 
@@ -643,9 +671,13 @@ class CHARP(CastStar):
     base = CHAR
 
 
+class UCHARP(CastStar):
+    base = UCHAR
+
+
 cast_mapper = {
     np.int8: CHAR,
-    np.uint8: CHAR,
+    np.uint8: UCHAR,
     np.int16: SHORT,  # noqa
     np.uint16: USHORT,  # noqa
     int: INT,  # noqa
@@ -657,7 +689,7 @@ cast_mapper = {
     np.float64: DOUBLE,  # noqa
 
     (np.int8, '*'): CHARP,
-    (np.uint8, '*'): CHARP,
+    (np.uint8, '*'): UCHARP,
     (int, '*'): INTP,  # noqa
     (np.uint16, '*'): INTP,  # noqa
     (np.int16, '*'): INTP,  # noqa

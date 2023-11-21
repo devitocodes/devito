@@ -12,7 +12,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
                            Expression, ExpressionBundle, AugmentedExpression,
                            Iteration, List, Prodder, Return, make_efunc, FindNodes,
-                           Transformer, ElementalCall)
+                           Transformer, ElementalCall, CommCallable)
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
@@ -1015,7 +1015,7 @@ mpi_registry = {
 # Callable sub-hierarchy
 
 
-class MPICallable(Callable):
+class MPICallable(CommCallable):
 
     def __init__(self, name, body, parameters):
         super(MPICallable, self).__init__(name, body, 'void', parameters, ('static',))

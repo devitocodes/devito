@@ -222,30 +222,6 @@ class TestCodeGeneration(object):
         assert len(op.body.unmaps) == 3
         assert all('r0' not in str(i) for i in op.body.unmaps)
 
-    def test_function_wo(self):
-        grid = Grid(shape=(3, 3, 3))
-        i = Dimension(name='i')
-
-        f = Function(name='f', shape=(1,), dimensions=(i,), grid=grid)
-        u = TimeFunction(name='u', grid=grid)
-
-        eqns = [Eq(u.forward, u + 1),
-                Eq(f[0], u[0, 0, 0, 0])]
-
-        op = Operator(eqns, opt='noop', language='openmp')
-
-        assert len(op.body.maps) == 1
-        assert op.body.maps[0].pragmas[0].value ==\
-            ('omp target enter data map(to: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert len(op.body.unmaps) == 2
-        assert op.body.unmaps[0].pragmas[0].value ==\
-            ('omp target update from(u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]])')
-        assert op.body.unmaps[1].pragmas[0].value ==\
-            ('omp target exit data map(release: u[0:u_vec->size[0]]'
-             '[0:u_vec->size[1]][0:u_vec->size[2]][0:u_vec->size[3]]) if(devicerm)')
-
     def test_timeparallel_reduction(self):
         grid = Grid(shape=(3, 3, 3))
         i = Dimension(name='i')

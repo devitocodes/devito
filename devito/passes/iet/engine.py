@@ -1,14 +1,17 @@
 from collections import OrderedDict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, FindNodes, FindSymbols, MetaCall, Transformer,
-                           EntryFunction, ThreadCallable, Uxreplace,
+from devito.ir.iet import (Call, ExprStmt, FindNodes, FindSymbols, MetaCall,
+                           Transformer, EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
-from devito.tools import DAG, as_tuple, filter_ordered, timed_pass
+from devito.passes import needs_transfer
+from devito.symbolics import FieldFromComposite, FieldFromPointer
+from devito.tools import (DAG, as_mapper, as_tuple, filter_ordered,
+                          sorted_priority, timed_pass)
 from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
-                          Indirection, Temp)
+                          Indirection, SharedData, ThreadArray, Temp)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -36,7 +39,7 @@ class Graph(object):
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet, sregistry=None):
+    def __init__(self, iet, options=None, sregistry=None, **kwargs):
         self.efuncs = OrderedDict([(iet.name, iet)])
 
         self.sregistry = sregistry
@@ -45,9 +48,22 @@ class Graph(object):
         self.headers = []
         self.globals = []
 
-        # Stash immutable information useful for some compiler passes
+        # Stash immutable information useful for one or more compiler passes
+
+        # All written user-level objects
         writes = FindSymbols('writes').visit(iet)
         self.writes_input = frozenset(f for f in writes if f.is_Input)
+
+        # All symbols requiring host-device data transfers when running
+        # on device
+        self.data_movs = rmovs, wmovs = set(), set()
+        gpu_fit = (options or {}).get('gpu-fit', ())
+        for i in FindNodes(ExprStmt).visit(iet):
+            wmovs.update({w for w in i.writes
+                          if needs_transfer(w, gpu_fit)})
+        for i in FindNodes(ExprStmt).visit(iet):
+            rmovs.update({f for f in i.functions
+                          if needs_transfer(f, gpu_fit) and f not in wmovs})
 
     @property
     def root(self):
@@ -64,8 +80,9 @@ class Graph(object):
         dag = create_call_graph(self.root.name, self.efuncs)
 
         # Apply `func`
+        efuncs = dict(self.efuncs)
         for i in dag.topological_sort():
-            efunc, metadata = func(self.efuncs[i], **kwargs)
+            efunc, metadata = func(efuncs[i], **kwargs)
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
@@ -80,19 +97,24 @@ class Graph(object):
             except KeyError:
                 pass
 
-            if efunc is self.efuncs[i]:
+            if efunc is efuncs[i]:
                 continue
 
-            # Minimize code size by abstracting semantically identical efuncs
-            efunc, efuncs = reuse_efuncs(efunc, metadata.get('efuncs', []),
-                                         self.sregistry)
+            new_efuncs = metadata.get('efuncs', [])
 
-            self.efuncs[i] = efunc
-            self.efuncs.update(OrderedDict([(i.name, i) for i in efuncs]))
+            efuncs[i] = efunc
+            efuncs.update(OrderedDict([(i.name, i) for i in new_efuncs]))
 
             # Update the parameters / arguments lists since `func` may have
             # introduced or removed objects
-            self.efuncs = update_args(efunc, self.efuncs, dag)
+            efuncs = update_args(efunc, efuncs, dag)
+
+        # Minimize code size
+        if len(efuncs) > len(self.efuncs):
+            efuncs = reuse_compounds(efuncs, self.sregistry)
+            efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
+
+        self.efuncs = efuncs
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -171,6 +193,82 @@ def create_call_graph(root, efuncs):
     return dag
 
 
+def reuse_compounds(efuncs, sregistry=None):
+    """
+    Generalise `efuncs` so that groups of semantically identical compound types
+    are replaced with a unique compound type, thus maximizing code reuse.
+
+    For example, given two C structs originating from e.g. a CompositeObject
+
+        struct foo {int a, char v}
+        struct bar {int g, char e}
+
+    Reduce them to:
+
+        struct foo {int a, char v}
+
+    Which requires replacing all references to `bar` with the new `foo`. Note that
+    in this case the transformed `foo` is also syntactically identical to the
+    input `foo`, but this isn't necessarily the case.
+    """
+    mapper = {}
+    for efunc in efuncs.values():
+        local_sregistry = SymbolRegistry()
+        for i in FindSymbols().visit(efunc):
+            abstract_compound(i, mapper, local_sregistry)
+
+    key = lambda i: mapper[i]._C_ctype
+    subs = {}
+    for v in as_mapper(mapper, key).values():
+        if len(v) == 1:
+            continue
+
+        # Recreate now using a globally unique type name
+        abstract_compound(v[0], subs, sregistry)
+        base = subs[v[0]]
+
+        subs.update({i: base._rebuild(name=mapper[i].name) for i in v})
+
+    # Replace all occurrences in the form of FieldFrom{Composite,Pointer}
+    mapper = {}
+    for i0, i1 in subs.items():
+        b0, b1 = i0.indexed, i1.indexed
+
+        mapper.update({i0: i1, b0: b1})
+
+        for f0, f1 in zip(i0.fields, i1.fields):
+            for cls in (FieldFromComposite, FieldFromPointer):
+                if f0.is_AbstractFunction:
+                    mapper[cls(f0._C_symbol, b0)] = cls(f1._C_symbol, b1)
+                else:
+                    mapper[cls(f0.base, b0)] = cls(f1.base, b1)
+
+    if mapper:
+        efuncs = {i: Uxreplace(mapper).visit(efunc) for i, efunc in efuncs.items()}
+
+    return efuncs
+
+
+@singledispatch
+def abstract_compound(i, mapper, sregistry):
+    """
+    Singledispatch-based implementation of type abstraction.
+    """
+    return
+
+
+@abstract_compound.register(SharedData)
+def _(i, mapper, sregistry):
+    pname = sregistry.make_name(prefix="tsd")
+
+    m = abstract_objects(i.fields)
+    cfields = [m.get(i, i) for i in i.cfields]
+    ncfields = [m.get(i, i) for i in i.ncfields]
+
+    mapper[i] = i._rebuild(cfields=cfields, ncfields=ncfields, pname=pname,
+                           function=None)
+
+
 def reuse_efuncs(root, efuncs, sregistry=None):
     """
     Generalise `efuncs` so that syntactically identical Callables may be dropped,
@@ -192,8 +290,6 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     # assuming that `bar0` and `bar1` are compatible, we first process the
     # `bar`'s to obtain `[foo0(u(x)): bar0(u), foo1(u(x)): bar0(u)]`,
     # and finally `foo0(u(x)): bar0(u)`
-    efuncs = {i.name: i for i in efuncs}
-    efuncs[root.name] = root
     dag = create_call_graph(root.name, efuncs)
 
     mapper = {}
@@ -222,11 +318,12 @@ def reuse_efuncs(root, efuncs, sregistry=None):
             afunc = afunc._rebuild(name=efunc.name)
             mapper[key] = (afunc, [efunc])
 
-    root = efuncs.pop(root.name)
-    processed = [afunc if len(efuncs) > 1 else efuncs.pop()
-                 for afunc, efuncs in mapper.values()]
+    processed = [afunc if len(v) > 1 else v.pop() for afunc, v in mapper.values()]
 
-    return root, processed
+    retval = {root.name: efuncs[root.name]}
+    retval.update({i.name: i for i in processed})
+
+    return retval
 
 
 def abstract_efunc(efunc):
@@ -256,18 +353,12 @@ def abstract_objects(objects, sregistry=None):
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
     priority = {
-        DiscreteFunction: 1,
-        AbstractIncrDimension: 2,
-        BlockDimension: 3,
+        Array: 1,
+        DiscreteFunction: 2,
+        AbstractIncrDimension: 3,
+        BlockDimension: 4,
     }
-
-    def key(i):
-        for cls in sorted(priority, key=priority.get, reverse=True):
-            if isinstance(i, cls):
-                return priority[cls]
-        return 0
-
-    objects = sorted(objects, key=key, reverse=True)
+    objects = sorted_priority(objects, priority)
 
     # Build abstraction mappings
     mapper = {}
@@ -282,9 +373,6 @@ def abstract_objects(objects, sregistry=None):
 def abstract_object(i, mapper, sregistry):
     """
     Singledispatch-based implementation of object abstraction.
-
-    Singledispatch allows foreign modules to specify their own rules for
-    object abstraction.
     """
     return
 
@@ -311,7 +399,7 @@ def _(i, mapper, sregistry):
     else:
         name = sregistry.make_name(prefix='a')
 
-    v = i._rebuild(name=name)
+    v = i._rebuild(name=name, alias=True)
 
     mapper.update({
         i: v,
@@ -329,6 +417,22 @@ def _(i, mapper, sregistry):
     v = i._rebuild(name)
 
     mapper[i] = v
+
+
+@abstract_object.register(ThreadArray)
+def _(i, mapper, sregistry):
+    if isinstance(i, SharedData):
+        name = sregistry.make_name(prefix='sd')
+    else:
+        name = sregistry.make_name(prefix='pta')
+
+    v = i._rebuild(name=name)
+
+    mapper.update({
+        i: v,
+        i.indexed: v.indexed,
+        i._C_symbol: v._C_symbol,
+    })
 
 
 @abstract_object.register(MPINeighborhood)

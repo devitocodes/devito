@@ -35,10 +35,9 @@ class Orchestrator(object):
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
-            header=c.Comment("Wait for `%s` to be copied to the host" %
+            header=c.Comment("Wait for `%s` to be transferred" %
                              ",".join(s.target.name for s in sync_ops)),
             body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
-            footer=c.Line()
         )
 
         iet = List(body=(waitloop,) + iet.body)
@@ -50,12 +49,13 @@ class Orchestrator(object):
         pre.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
         pre.extend(DummyExpr(s.handle, 0) for s in sync_ops)
 
-        iet = List(
-            header=c.Comment("Release lock(s) as soon as possible"),
-            body=pre + [iet]
-        )
+        name = self.sregistry.make_name(prefix="release_lock")
+        parameters = derive_parameters(pre, ordering='canonical')
+        efunc = Callable(name, pre, 'void', parameters, 'static')
 
-        return iet, []
+        iet = List(body=[Call(name, efunc.parameters)] + [iet])
+
+        return iet, [efunc]
 
     def _make_withlock(self, iet, sync_ops, layer):
         body, prefix = withlock(layer, iet, sync_ops, self.lang, self.sregistry)
@@ -64,7 +64,7 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall
@@ -78,7 +78,7 @@ class Orchestrator(object):
         # Turn init IET into a Callable
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = Callable(name, body, 'void', parameters, 'static')
 
         # Perform initial fetch by the main thread
@@ -96,7 +96,7 @@ class Orchestrator(object):
         # that we're happy for this Callable to be executed asynchronously
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
-        parameters = derive_parameters(body)
+        parameters = derive_parameters(body, ordering='canonical')
         efunc = AsyncCallable(name, body, parameters=parameters)
 
         # The corresponding AsyncCall

@@ -9,11 +9,10 @@ from operator import itemgetter
 
 import numpy as np
 
-from devito.ir import (Block, Call, Definition, DeviceCall, DeviceFunction,
-                       DummyExpr, Return, EntryFunction, FindSymbols, MapExprStmts,
-                       Transformer, make_callable)
-from devito.passes import is_on_device, is_gpu_create
-from devito.passes.iet.engine import iet_pass, iet_visit
+from devito.ir import (Block, Call, Definition, DummyExpr, Return, EntryFunction,
+                       FindSymbols, MapExprStmts, Transformer, make_callable)
+from devito.passes import is_gpu_create
+from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
                               SizeOf, VOID, Keyword, pow_to_mul)
@@ -486,33 +485,8 @@ class DeviceAwareDataManager(DataManager):
 
         storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efunc)
 
-    @iet_visit
-    def derive_transfers(self, iet):
-        """
-        Collect all symbols that cause host-device data transfer, distinguishing
-        between reads and writes.
-        """
-
-        def needs_transfer(f):
-            return f._mem_mapped and not f.alias and is_on_device(f, self.gpu_fit)
-
-        writes = set()
-        reads = set()
-        for i, v in MapExprStmts().visit(iet).items():
-            if not any(isinstance(j, self.lang.DeviceIteration) for j in v) and \
-               not isinstance(i, DeviceCall) and \
-               not isinstance(iet, DeviceFunction):
-                # Not an offloaded Iteration tree
-                continue
-
-            writes.update({w for w in i.writes if needs_transfer(w)})
-            reads.update({f for f in i.functions
-                          if needs_transfer(f) and f not in writes})
-
-        return (reads, writes)
-
     @iet_pass
-    def place_transfers(self, iet, **kwargs):
+    def place_transfers(self, iet, data_movs=None, **kwargs):
         """
         Create a new IET with host-device data transfers. This requires mapping
         symbols to the suitable memory spaces.
@@ -521,17 +495,12 @@ class DeviceAwareDataManager(DataManager):
             return iet, {}
 
         @singledispatch
-        def _place_transfers(iet, mapper):
+        def _place_transfers(iet, data_movs):
             return iet, {}
 
         @_place_transfers.register(EntryFunction)
-        def _(iet, mapper):
-            try:
-                reads, writes = list(zip(*mapper.values()))
-            except ValueError:
-                return iet, {}
-            reads = set(flatten(reads))
-            writes = set(flatten(writes))
+        def _(iet, data_movs):
+            reads, writes = data_movs
 
             # Special symbol which gives user code control over data deallocations
             devicerm = DeviceRM()
@@ -552,7 +521,7 @@ class DeviceAwareDataManager(DataManager):
 
             return iet, {'efuncs': efuncs}
 
-        return _place_transfers(iet, mapper=kwargs['mapper'])
+        return _place_transfers(iet, data_movs=data_movs)
 
     @iet_pass
     def place_devptr(self, iet, **kwargs):
@@ -580,8 +549,7 @@ class DeviceAwareDataManager(DataManager):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
-        mapper = self.derive_transfers(graph)
-        self.place_transfers(graph, mapper=mapper)
+        self.place_transfers(graph, data_movs=graph.data_movs)
         self.place_definitions(graph, globs=set())
         self.place_devptr(graph)
         self.place_bundling(graph, writes_input=graph.writes_input)

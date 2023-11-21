@@ -75,10 +75,6 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return self.dtype
 
     @property
-    def base(self):
-        return self
-
-    @property
     def function(self):
         return self
 
