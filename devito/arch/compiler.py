@@ -790,35 +790,26 @@ class OneapiCompiler(IntelCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language == 'sycl':
-            kwargs['cpp'] = True
+            raise ValueError("Use SyclCompiler to jit-compile sycl")
 
-        super().__init_finalize__(**kwargs)
-
-        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
-        # OpenMP bug concerning reductions, hence with them we're forced
-        # to use the obsolete -fopenmp
-        if self.version < Version('17.0.0') and language == 'openmp':
-            self.ldflags.remove('-qopenmp')
-            self.ldflags.append('-fopenmp')
-
-        if language == 'sycl':
-            self.cflags.remove('-std=c99')
-            self.cflags.append('-fsycl')
-            if platform is NVIDIAX:
-                self.cflags.append('-fsycl-targets=nvptx64-cuda')
-            else:
-                self.cflags.append('-fsycl-targets=spir64')
+        elif language == 'openmp':
+            # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
+            # OpenMP bug concerning reductions, hence with them we're forced to
+            # use the obsolete -fopenmp
+            if self.version < Version('17.0.0'):
+                self.ldflags.remove('-qopenmp')
+                self.ldflags.append('-fopenmp')
 
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
-        if platform in [INTELGPUX, PVC]:
-            self.ldflags.append('-fiopenmp')
-            self.ldflags.append('-fopenmp-targets=spir64')
-            self.ldflags.append('-fopenmp-target-simd')
+            elif platform in [INTELGPUX, PVC]:
+                self.cflags.append('-fiopenmp')
+                self.cflags.append('-fopenmp-targets=spir64')
+                self.cflags.append('-fopenmp-target-simd')
 
-            self.cflags.remove('-g')  # -g disables some optimizations in IGC
-            self.cflags.append('-gline-tables-only')
-            self.cflags.append('-fdebug-info-for-profiling')
+                self.cflags.remove('-g')  # -g disables some optimizations in IGC
+                self.cflags.append('-gline-tables-only')
+                self.cflags.append('-fdebug-info-for-profiling')
 
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,
@@ -827,6 +818,30 @@ class OneapiCompiler(IntelCompiler):
         self.CXX = 'icpx'
         self.MPICC = 'mpicc'
         self.MPICXX = 'mpicxx'
+
+
+class SyclCompiler(OneapiCompiler):
+
+    _cpp = True
+
+    def __init_finalize__(self, **kwargs):
+        platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+
+        if language != 'sycl':
+            raise ValueError("Expected language sycl with SyclCompiler")
+
+        self.cflags.remove('-std=c99')
+        self.cflags.append('-fsycl')
+
+        if isinstance(platform, Cpu64):
+            pass
+        elif platform is NVIDIAX:
+            self.cflags.append('-fsycl-targets=nvptx64-cuda')
+        elif platform in [INTELGPUX, PVC]:
+            self.cflags.append('-fsycl-targets=spir64')
+        else:
+            raise NotImplementedError("Unsupported platform %s" % platform)
 
 
 class CustomCompiler(Compiler):
@@ -920,6 +935,7 @@ compiler_registry = {
     'intel': OneapiCompiler,
     'icx': OneapiCompiler,
     'icpx': OneapiCompiler,
+    'sycl': SyclCompiler,
     'icc': IntelCompiler,
     'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
