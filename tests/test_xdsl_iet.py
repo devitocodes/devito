@@ -63,6 +63,3 @@ def test_mfe2():
         a2 := arith.Addi(a1, cst1),
         memref.Store.get(a2, ref, [cst1, cst1])
     ])
-
-    printer = Printer()
-    printer.print_op(mod)
