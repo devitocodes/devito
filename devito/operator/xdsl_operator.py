@@ -117,6 +117,7 @@ class XDSLOperator(Operator):
     @property
     def mpi_shape(self) -> tuple:
         dist = self.functions[0].grid.distributor
+
         # reverse topology for row->column major
         return dist.topology, dist.myrank
 
@@ -126,11 +127,7 @@ class XDSLOperator(Operator):
         It is ensured that JIT compilation will only be performed once per
         Operator, reagardless of how many times this method is invoked.
         """
-        
-        # This is old leftover code from previous inttegration efforts
-        # TODROP: ccode = transform_devito_xdsl_string(self)
-        # TODROP: self.ccode = ccode
-        
+       
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
             is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
@@ -193,7 +190,6 @@ class XDSLOperator(Operator):
             # compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
             try:
                 cflags = CFLAGS
-                # import pdb;pdb.set_trace()
                 cc = "clang"
 
                 if is_mpi:

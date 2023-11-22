@@ -1,0 +1,81 @@
+# Runner information:
+# CPU: Intel(R) Xeon(R) CPU E5-2640 0 @ 2.50GHz (24 cores)
+
+name: Examples-mpi
+
+env:
+  OUTPUT_PATH: ${{ github.workspace }}
+  ENVHOME: "/home/devito/environments"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Examples with mpi
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mpi: ['openmpi', 'intelmpi']
+
+        include:
+        - mpi: openmpi
+          mpiarg: "-n 2 --oversubscribe"
+
+        - mpi: intelmpi
+          mpiarg: "-n 4"
+
+    env:
+      DEVITO_MPI: "1"
+      DEVITO_LANGUAGE: "openmp"
+      OMP_NUM_THREADS: "2"
+      DEVITO_ARCH: "gcc"
+      CC: "gcc"
+      CXX: "g++"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v3
+
+    - name: Setup MPI
+      uses: mpi4py/setup-mpi@v1
+      with:
+        mpi: ${{ matrix.mpi }}
+
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -e .[extras,mpi,tests]
+        python3 scripts/clear_devito_cache.py
+
+    - name: Test mpi notebooks
+      continue-on-error: true
+      run : |
+        ./scripts/create_ipyparallel_mpi_profile.sh
+        ipcluster start --profile=mpi --engines=mpi -n 4 --daemonize
+        # A few seconds to ensure workers are ready
+        sleep 20
+        py.test --nbval examples/mpi
+        ipcluster stop --profile=mpi
+
+    - name: Test seismic examples
+      run: |
+        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/tti/tti_example.py
+        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/elastic/elastic_example.py
+        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
+        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/viscoelastic/viscoelastic_example.py
+
+    - name: Test fwi examples with mpi
+      run: |
+        mpirun ${{ matrix.mpiarg }} python examples/seismic/inversion/fwi.py
