@@ -1,1 +1,1 @@
-from .parpragma import Callable, CGeneration  # noqa
+from .parpragma import Callable  # noqa

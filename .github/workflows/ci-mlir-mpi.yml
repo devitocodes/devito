@@ -1,7 +1,7 @@
 # This workflow will install MLIR, Python dependencies, run tests and lint with a single version of Python
 # File inherited from https://github.com/xdslproject/xdsl/blob/main/.github/workflows/ci-mlir.yml
 
-name: CI - MLIR-based Testing
+name: CI - MLIR-based Testing for MPI
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,8 +40,8 @@ jobs:
         pip install mpi4py
         pip install git+https://github.com/xdslproject/xdsl@2825897b87443c9369abf89871f4721e2fce2da9
 
-    - name: Test non-MPI
+    - name: Test with MPI
       run: |
         # Add mlir-opt to the path
         export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
-        pytest -m "not parallel" -k "not adjoint" tests/test_xdsl_*
+        pytest -m "parallel" -k "not adjoint" tests/test_xdsl_*

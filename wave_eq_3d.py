@@ -22,6 +22,7 @@ parser.add_argument("-bls", "--blevels", default=2, type=int, nargs="+",
 parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 args = parser.parse_args()
 
+
 def plot_3dfunc(u):
     # Plot a 3D structured grid using pyvista
 
@@ -38,6 +39,7 @@ def plot_3dfunc(u):
     # vistagrid.plot(show_edges=True)
     vistaslices.plot(cmap=cmap)
 
+
 # Define a physical size
 nx, ny, nz = args.shape
 nt = args.nt
@@ -53,7 +55,8 @@ v[:, :, :51] = 1.5
 v[:, :, 51:] = 2.5
 
 # With the velocity and model size defined, we can create the seismic model that
-# encapsulates this properties. We also define the size of the absorbing layer as 10 grid points
+# encapsulates this properties. We also define the size of the absorbing layer
+# as 10 grid points
 so = args.space_order
 to = args.time_order
 
@@ -85,11 +88,10 @@ stencil
 
 op = Operator([stencil], subs=model.spacing_map)
 op.apply(time=time_range.num-1, dt=model.critical_dt)
-# op.apply(time=time_range.num-1, dt=model.critical_dt, **{'x0_blk0_size': 16, 'y0_blk0_size': 8})
-print(norm(u))
+# To explicitly add block sizes for Devito, you can use:
+#  op.apply(time=time_range.num-1, dt=model.critical_dt, **{'x0_blk0_size': 16,
+# 'y0_blk0_size': 8})
+print("norm(u) is", norm(u))
 
 if args.plot:
     plot_3dfunc(u)
-
-#plot_image(u.data[0,:,:,10], cmap="viridis")
-#plt.show()

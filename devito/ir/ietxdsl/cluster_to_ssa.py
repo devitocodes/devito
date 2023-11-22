@@ -1,29 +1,24 @@
-# ------------- devito import -------------#
+# ------------- General imports -------------#
 
-from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
-from devito.arch.archinfo import NvidiaDevice
-from devito.parameters import configuration
-from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
-from xdsl.dialects.experimental import dmp, math
-from xdsl.ir import Attribute, Block, Operation, OpResult, Region, SSAValue
 from typing import Any
+from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 
+# ------------- xdsl imports -------------#
+from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
+from xdsl.dialects.experimental import math
+from xdsl.ir import Block, Operation, OpResult, Region, SSAValue
+
+# ------------- devito imports -------------#
 from devito import Grid, SteppingDimension
-from devito.ir.clusters import Cluster
 from devito.ir.equations import LoweredEq
-from devito.ir.ietxdsl import iet_ssa
-from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 from devito.symbolics import retrieve_indexed
 from devito.logger import perf
 
-# ----------- devito ssa import -----------#
+# ------------- devito-xdsl SSA imports -------------#
+from devito.ir.ietxdsl import iet_ssa
+from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 
-
-# -------------- xdsl import --------------#
-
-
-default_int = builtin.i64
-
+# flake8: noqa
 
 class ExtractDevitoStencilConversion:
     """
@@ -60,23 +55,24 @@ class ExtractDevitoStencilConversion:
         # (for derivative regions)
         halo = [function.halo[function.dimensions.index(d)] for d in grid.dimensions]
 
-        # shift all time values so that for all accesses at t + n, n>=0.
+        # Shift all time values so that for all accesses at t + n, n>=0.
         self.time_offs = min(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         )
-        # calculate the actual size of our time dimension
+
+        # Calculate the actual size of our time dimension
         actual_time_size = (
             max(int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq))
             - self.time_offs
             + 1
         )
 
-        # build the for loop
+        # Build the for loop
         perf("Build Time Loop")
-        loop = self._build_iet_for(grid.stepping_dim, ["sequential"], actual_time_size)
+        loop = self._build_iet_for(grid.stepping_dim, actual_time_size)
 
         # build stencil
-        perf("Init out stencil Op")
+        perf("Initialize a stencil Op")
         stencil_op = iet_ssa.Stencil.get(
             loop.subindice_ssa_vals(),
             grid.shape_local,
@@ -224,7 +220,7 @@ class ExtractDevitoStencilConversion:
             self.loaded_values[offsets] = access_op.res
 
     def _build_iet_for(
-        self, dim: SteppingDimension, props: list[str], subindices: int
+        self, dim: SteppingDimension, subindices: int
     ) -> iet_ssa.For:
         # Build a for loop in the custom iet_ssa.py using lower-upper bound and step
         lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
@@ -237,7 +233,7 @@ class ExtractDevitoStencilConversion:
         except:
             raise ValueError("step must be int!")
 
-        loop = iet_ssa.For.get(lb, ub, step, subindices, props)
+        loop = iet_ssa.For.get(lb, ub, step, subindices)
 
         self.block.add_ops([lb, ub, step, loop])
         self.block = loop.block
@@ -357,6 +353,7 @@ class WrapFunctionWithTransfers(RewritePattern):
                 dealloc = gpu.DeallocOp(alloc)
                 body.insert_ops_before([copy_out, dealloc], body.ops.last)
         rewriter.insert_op_after_matched_op(wrapper)
+
 @dataclass
 class MakeFunctionTimed(RewritePattern):
     """
@@ -369,10 +366,10 @@ class MakeFunctionTimed(RewritePattern):
     def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter):
         if op.sym_name.data != self.func_name or op in self.seen_ops:
             return
-        
+
         # only apply once
         self.seen_ops.add(op)
-        
+
         rewriter.insert_op_at_start([
             t0 := func.Call('timer_start', [], [builtin.f64])
         ], op.body.block)
@@ -528,8 +525,8 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
         )
 
 
-def convert_devito_stencil_to_xdsl_stencil(module, timed:bool=True):
-    patterns:list[RewritePattern] = [
+def convert_devito_stencil_to_xdsl_stencil(module, timed: bool = True):
+    patterns: list[RewritePattern] = [
         _DevitoStencilToStencilStencil(),
         LowerIetForToScfFor(),
         ]
@@ -542,8 +539,8 @@ def convert_devito_stencil_to_xdsl_stencil(module, timed:bool=True):
     PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
-
-def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any], gpu_boilerplate):
+def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any],
+                                 gpu_boilerplate):
     patterns = [
         _InsertSymbolicConstants(known_symbols),
         _LowerLoadSymbolidToFuncArgs(),

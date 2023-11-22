@@ -7,9 +7,10 @@ f64 = ctypes.c_double
 i32 = ctypes.c_int32
 i64 = ctypes.c_int64
 
-index  = ctypes.c_size_t
+index = ctypes.c_size_t
 
 ptr_of = ctypes.POINTER
+
 
 def memref_of_type_and_rank(dtype, rank: int):
     class Memref(ctypes.Structure):
@@ -34,12 +35,13 @@ def memref_of_type_and_rank(dtype, rank: int):
             return [
                 ptr_of(dtype)
             ]
-        
+
         def unpack_args(self):
             return [
                 self.ptr
             ]
     return Memref
+
 
 def make_memref_f32_struct_from_np(data: np.ndarray):
     rank = len(data.shape)
@@ -53,9 +55,3 @@ def make_memref_f32_struct_from_np(data: np.ndarray):
         (ctypes.c_size_t * rank)(*data.shape),
         (ctypes.c_size_t * rank)(*([1] * rank))
     )
-
-    
-
-
-
-

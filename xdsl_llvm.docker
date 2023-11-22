@@ -1,0 +1,24 @@
+FROM ubuntu:22.04 as build
+
+ARG mlirhash=04fc02e583b06b846315904a55af9c273c8b20b9
+
+# base requirements
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends git cmake build-essential ca-certificates ninja-build clang lld python3.10-dev pip \
+ && apt-get install --yes libstdc++-12-dev binutils-dev
+
+WORKDIR /xdsl-sc
+
+# mlir
+RUN git init llvm-project \
+ && cd llvm-project \
+ && git remote add origin https://github.com/llvm/llvm-project.git \
+ && git config --local gc.auto 0 \
+ && git -c protocol.version=2 fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin $mlirhash \
+ && git checkout --progress --force FETCH_HEAD \
+ && mkdir build \
+ && cd build \
+ && cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp;lld" -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="X86" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_LLD=ON -DLLVM_BINUTILS_INCDIR=/usr/include \
+ && ninja install \
+ && cd ../../ \
+ && rm -rf llvm-project

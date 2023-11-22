@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
-from xdsl.ir import Block, Attribute, BlockArgument, SSAValue, Operation, OpResult
+from xdsl.ir import Block, SSAValue, Operation, OpResult
 from xdsl.dialects import builtin, scf, arith, func, llvm, memref
-from xdsl.dialects.experimental import math
 
 from devito.ir.ietxdsl import iet_ssa
 
-from xdsl.pattern_rewriter import RewritePattern, PatternRewriter, GreedyRewritePatternApplier, op_type_rewrite_pattern, PatternRewriteWalker
+from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter, PatternRewriteWalker,
+                                   GreedyRewritePatternApplier, op_type_rewrite_pattern)
 
 
 def _generate_subindices(subindices: int, block: Block,
@@ -41,7 +41,8 @@ def _generate_subindices(subindices: int, block: Block,
 class ConvertScfForArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
-        # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
+        # TODO: properly figure out why we enter an infinite loop with recursive
+        # rewrites here:
         if isinstance(op.lb.type, builtin.IndexType):
             return
         for val in (op.lb, op.ub, op.step):
@@ -54,7 +55,8 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.ParallelOp, rewriter: PatternRewriter,
                           /):
-        # TODO: properly figure out why we enter an infinite loop with recursive rewrites here:
+        # TODO: properly figure out why we enter an infinite loop with recursive
+        # rewrites here:
         if isinstance(op.lowerBound[0].type, builtin.IndexType):
             return
         # increment upper bound
@@ -120,8 +122,8 @@ class LowerIetForToScfFor(RewritePattern):
         subindice_vals.append(subindice_vals.pop(0))
 
         rewriter.replace_matched_op([
-            cst1    := arith.Constant.from_int_and_width(1, builtin.IndexType()),
-            new_ub  := arith.Addi(op.ub, cst1),
+            cst1 := arith.Constant.from_int_and_width(1, builtin.IndexType()),
+            new_ub := arith.Addi(op.ub, cst1),
             scf_for := scf.For.get(op.lb, new_ub.result, op.step, subindice_vals, body),
         ], [scf_for.results[0]])
 
@@ -371,7 +373,7 @@ class LowerMemrefStoreToLLvmPointer(RewritePattern):
                     ssa_indices=[idx],
                     result_type=llvm.LLVMPointerType.typed(op.memref.memref.element_type)
                 ),
-                store := llvm.StoreOp(op.value, gep),
+                llvm.StoreOp(op.value, gep),
             ],
             [],
         )

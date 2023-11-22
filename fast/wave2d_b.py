@@ -1,6 +1,5 @@
 # Based on the implementation of the Devito acoustic example implementation
 # Not using Devito's source injection abstraction
-import sys
 import numpy as np
 
 from devito import (TimeFunction, Eq, Operator, solve, norm,
@@ -39,8 +38,10 @@ so = args.space_order
 
 shape = (args.shape)  # Number of grid point (nx, ny, nz)
 shape_str = '_'.join(str(item) for item in shape)
-spacing = as_tuple(10.0 for _ in range(len(shape)))  # Grid spacing in m. The domain size is now 1km by 1km
-origin = as_tuple(0.0 for _ in range(len(shape)))  # What is the location of the top left corner.
+# Grid spacing in m. The domain size is now 1km by 1km
+spacing = as_tuple(10.0 for _ in range(len(shape)))
+# What is the location of the top left corner.
+origin = as_tuple(0.0 for _ in range(len(shape)))
 domain_size = tuple((d-1) * s for d, s in zip(shape, spacing))
 extent = np.load("so%s_grid_extent%s.npy" % (so, shape_str), allow_pickle=True)
 
@@ -91,7 +92,7 @@ print("Init norm:", np.linalg.norm(u.data[:]))
 
 if args.devito:
     # To measure Devito at its best on GPU, we have to set the tile siwe manually
-    opt = None
+    opt = 'advanced'
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
 
@@ -131,9 +132,20 @@ if args.xdsl:
 
     print("XDSL norm:", norm(u))
 
-    # print("XDSL output norm 0:", np.linalg.norm(u.data[0]), "vs:", np.linalg.norm(ub.data[0]))
-    # print("XDSL output norm 1:", np.linalg.norm(u.data[1]), "vs:", np.linalg.norm(ub.data[1]))
-    # print("XDSL output norm 2:", np.linalg.norm(u.data[2]), "vs:", np.linalg.norm(ub.data[2]))
+    # print("XDSL output norm 0:",
+    #       np.linalg.norm(u.data[0]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[0]))
+    # print("XDSL output norm 1:",
+    #       np.linalg.norm(u.data[1]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[1]))
+    # print("XDSL output norm 2:",
+    #       np.linalg.norm(u.data[2]),
+    #       "vs:",
+    #       np.linalg.norm(ub.data[2]))
 
 if args.xdsl and args.devito:
-    print("Max error: ", np.max(np.abs(u.data - devito_out.data)))
+    max_error = np.max(np.abs(u.data - devito_out.data))
+    print("Max error: ", max_error)
+    assert np.isclose(norm(u), norm(devito_out), rtol=1e-2)

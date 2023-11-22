@@ -21,6 +21,7 @@ from xdsl.ir import (MLContext, Block, Region, OpResult, SSAValue,
 signlessIntegerLike = ContainerOf(AnyOf([IntegerType, IndexType]))
 floatingPointLike = ContainerOf(AnyOf([Float16Type, Float32Type, Float64Type]))
 
+
 # TODO: remove
 @dataclass
 class IET:
@@ -39,6 +40,7 @@ class IET:
         self.ctx.register_op(StructDecl)
         self.ctx.register_op(For)
         self.f32 = floatingPointLike
+
 
 @irdl_attr_definition
 class Profiler(ParametrizedAttribute):
@@ -71,12 +73,12 @@ class Dataobj(ParametrizedAttribute):
         return llvm.LLVMStructType.from_type_list([
             llvm.LLVMPointerType.opaque(),              # data
             llvm.LLVMPointerType.typed(builtin.i32),  # size
-            #llvm.LLVMPointerType.typed(builtin.i32),  # npsize
-            #llvm.LLVMPointerType.typed(builtin.i32),  # dsize
-            #llvm.LLVMPointerType.typed(builtin.i32),    # hsize
-            #llvm.LLVMPointerType.typed(builtin.i32),    # hofs
-            #llvm.LLVMPointerType.typed(builtin.i32),    # oofs
-            #llvm.LLVMPointerType.opaque(),              # dmap
+            # llvm.LLVMPointerType.typed(builtin.i32),  # npsize
+            # llvm.LLVMPointerType.typed(builtin.i32),  # dsize
+            # llvm.LLVMPointerType.typed(builtin.i32),    # hsize
+            # llvm.LLVMPointerType.typed(builtin.i32),    # hofs
+            # llvm.LLVMPointerType.typed(builtin.i32),    # oofs
+            # llvm.LLVMPointerType.opaque(),              # dmap
         ])
 
 
@@ -135,6 +137,7 @@ class Initialise(IRDLOperation):
                                operands=[rhs],
                                result_types=[lhs.typ])
         return res
+
 
 @irdl_op_definition
 class PointerCast(IRDLOperation):
@@ -349,7 +352,6 @@ class IterationWithSubIndices(IRDLOperation):
         }, regions=[Region([body])])
 
 
-
 @irdl_op_definition
 class For(IRDLOperation):
     name: str = "iet.for"
@@ -373,7 +375,7 @@ class For(IRDLOperation):
     @property
     def block(self) -> Block:
         return self.body.blocks[0]
-    
+
     @property
     def parallelism_property(self) -> str | None:
         """
@@ -410,7 +412,6 @@ class For(IRDLOperation):
             attributes={
                 'subindices': IntAttr(subindices),
                 'pragmas': ArrayAttr([StringAttr(pragma) for pragma in pragmas]),
-                'properties': ArrayAttr([StringAttr(prop) for prop in properties]),
             },
             result_types=[IndexType()],
             regions=[body],
@@ -463,8 +464,8 @@ class Stencil(IRDLOperation):
         assert len(time_indices) == time_buffers
         block = Block(
             arg_types=[
-            stencil.TempType(len(shape), typ)
-        ] * (time_buffers - 1))
+                stencil.TempType(len(shape), typ)
+            ] * (time_buffers - 1))
 
         for block_arg, idx_arg in zip(block.args, reversed(inputs)):
             name = SSAValue.get(idx_arg).name_hint

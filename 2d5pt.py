@@ -56,7 +56,10 @@ def main(bench_name: str):
         "-bls", "--blevels", default=2, type=int, nargs="+", help="Block levels"
     )
     parser.add_argument("-xdsl", "--xdsl", default=False, action="store_true")
-    parser.add_argument("--mpi", default=False, action="store_true", help="run in MPI mode")
+    parser.add_argument("--mpi",
+                        default=False,
+                        action="store_true",
+                        help="run in MPI mode")
     parser.add_argument("-nd", "--no_dump", default=False, action="store_true")
     args = parser.parse_args()
 
@@ -97,9 +100,9 @@ def main(bench_name: str):
 
     d_data = u.data
 
-    #print("mean squared error:", ((d_data - x_data)**2).mean())
-    #print("max abs error", np.abs((d_data - x_data)).max())
-    #print("max abs val", max(np.abs(d_data).max(), np.abs(x_data).max()))
+    # print("mean squared error:", ((d_data - x_data)**2).mean())
+    # print("max abs error", np.abs((d_data - x_data)).max())
+    # print("max abs val", max(np.abs(d_data).max(), np.abs(x_data).max()))
 
     if np.abs((d_data - x_data)).max() > 1e-5:
         print(f"Failure, max abs error too high: {np.abs((d_data - x_data)).max()}")
