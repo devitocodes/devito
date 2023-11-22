@@ -64,7 +64,6 @@ devito_out = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
 
 # We can now write the PDE
 # pde = model.m * u.dt2 - u.laplace + model.damp * u.dt
-# import pdb;pdb.set_trace()
 pde = u.dt2 - u.laplace
 
 stencil = Eq(u.forward, solve(pde, u.forward))

@@ -38,7 +38,6 @@ def calculateAddArguments(arguments):
 
 
 def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
-    # # import pdb;pdb.set_trace()
     if expr in arg_by_expr:
         return
 
@@ -128,7 +127,6 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
 
     if isinstance(expr, nodes.Return):
         # Covert a Return node
-        # # import pdb;pdb.set_trace()
         return
 
     if isinstance(expr, Mod):
@@ -150,7 +148,6 @@ def add_to_block(expr, arg_by_expr: dict[Any, Operation], result):
         return
 
     if isinstance(expr, Indexed):
-        # import pdb;pdb.set_trace()
         for arg in expr.args:
             add_to_block(arg, arg_by_expr, result)
 

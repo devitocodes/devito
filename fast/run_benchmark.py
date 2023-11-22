@@ -5,6 +5,12 @@ import json
 from functools import reduce
 import numpy as np
 
+# This file should not be needed anymore
+# To check whether any code would be useful
+# flake8: noqa
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process arguments.")
 
