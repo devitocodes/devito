@@ -1990,8 +1990,11 @@ class TestLoopScheduling:
 
 class TestInternals:
 
-    def test_indirection(self):
-        nt = 10
+    @pytest.mark.parametrize('nt, offset, epass',
+                             ([1, 1, True], [1, 2, False],
+                              [5, 1, True], [3, 5, False],
+                              [4, 1, True], [5, 10, False]))
+    def test_indirection(self, nt, offset, epass):
         grid = Grid(shape=(4, 4))
         time = grid.time_dim
         x, y = grid.dimensions
@@ -1999,7 +2002,7 @@ class TestInternals:
         f = TimeFunction(name='f', grid=grid, save=nt)
         g = TimeFunction(name='g', grid=grid)
 
-        idx = time + 1
+        idx = time + offset
         s = Indirection(name='ofs0', mapped=idx)
 
         eqns = [
@@ -2010,10 +2013,10 @@ class TestInternals:
         op = Operator(eqns)
 
         assert op._dspace[time].lower == 0
-        assert op._dspace[time].upper == 1
-        assert op.arguments()['time_M'] == nt - 2
+        assert op._dspace[time].upper == offset
 
-        op()
-
-        assert np.all(f.data[0] == 0.)
-        assert np.all(f.data[i] == 3. for i in range(1, 10))
+        if epass:
+            assert op.arguments()['time_M'] == nt - offset - 1
+            op()
+            assert np.all(f.data[0] == 0.)
+            assert np.all(f.data[i] == 3. for i in range(1, nt))
