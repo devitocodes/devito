@@ -733,6 +733,8 @@ class FindSections(Visitor):
         queue.remove(o)
         return ret
 
+    visit_Lambda = visit_Iteration
+
     def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
