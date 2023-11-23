@@ -95,6 +95,7 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-
 # Devito config
 ENV DEVITO_ARCH="icc"
 ENV DEVITO_LANGUAGE="openmp"
+ENV DEVITO_PLATFORM="intel64"
 # MPICC compiler for mpi4py
 ENV MPICC=mpiicc
 ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icc"'
@@ -140,3 +141,26 @@ ENV DEVITO_LANGUAGE="openmp"
 # MPICC compiler for mpi4py
 ENV MPICC=mpiicc
 ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icx"'
+
+##############################################################
+# ICX SYCL CPU image
+##############################################################
+FROM icx as cpu-icx-sycl
+
+# Devito config
+ENV DEVITO_ARCH="sycl"
+ENV DEVITO_LANGUAGE="sycl"
+ENV DEVITO_PLATFORM="intel64"
+
+##############################################################
+# ICX SYCL GPU image
+##############################################################
+FROM icx as gpu-icx-sycl
+
+# NOTE: the name of this file ends with ".cpu" but this is a GPU image.
+# It then feels a bit akward, so some restructuring might be needed
+
+# Devito config
+ENV DEVITO_ARCH="sycl"
+ENV DEVITO_LANGUAGE="sycl"
+ENV DEVITO_PLATFORM="intelgpuX"
