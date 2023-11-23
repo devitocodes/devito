@@ -398,7 +398,12 @@ class Cluster:
         for f, v in parts.items():
             for i in v:
                 if i.dim in oobs:
-                    intervals = intervals.ceil(v[i.dim])
+                    try:
+                        if intervals[i.dim].upper > v[i.dim].upper and \
+                           bool(i.dim in f.dimensions):
+                            intervals = intervals.ceil(v[i.dim])
+                    except AttributeError:
+                        pass
 
         return DataSpace(intervals, parts)
 
