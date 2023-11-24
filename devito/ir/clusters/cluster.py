@@ -389,21 +389,21 @@ class Cluster:
         # Dimension-centric view of the data space
         intervals = IntervalGroup.generate('union', *parts.values())
 
+        # 'union' may consume intervals (values) from keys that have dimensions
+        # not mapped to intervals e.g. issue #2235, resulting in reduced
+        # iteration size. Here, we relax this mapped upper interval, by
+        # intersecting intervals with matching only dimensions
+        for f, v in parts.items():
+            for i in v:
+                # oobs check is not required but helps reduce
+                # interval reconstruction
+                if i.dim in oobs and i.dim in f.dimensions:
+                    ii = intervals[i.dim].intersection(v[i.dim])
+                    intervals = intervals.set_upper(i.dim, ii.upper)
+
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
-
-        # Upper bound of intervals including dimensions classified for
-        # shifting should retain the "oobs" upper bound
-        for f, v in parts.items():
-            for i in v:
-                if i.dim in oobs:
-                    try:
-                        if intervals[i.dim].upper > v[i.dim].upper and \
-                           bool(i.dim in f.dimensions):
-                            intervals = intervals.ceil(v[i.dim])
-                    except AttributeError:
-                        pass
 
         return DataSpace(intervals, parts)
 

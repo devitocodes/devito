@@ -1992,7 +1992,7 @@ class TestInternals:
 
     @pytest.mark.parametrize('nt, offset, epass',
                              ([1, 1, True], [1, 2, False],
-                              [5, 1, True], [3, 5, False],
+                              [5, 3, True], [3, 5, False],
                               [4, 1, True], [5, 10, False]))
     def test_indirection(self, nt, offset, epass):
         grid = Grid(shape=(4, 4))
