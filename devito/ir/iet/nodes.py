@@ -24,7 +24,7 @@ from devito.types.object import AbstractObject, LocalObject
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call', 'ExprStmt',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
-           'AugmentedExpression', 'Increment', 'Return', 'While',
+           'AugmentedExpression', 'Increment', 'Return', 'While', 'ListMajor',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
            'BusyWait', 'CallableBody', 'Transfer']
@@ -1333,6 +1333,10 @@ class Return(Node):
 
     def __init__(self, value=None):
         self.value = value
+
+
+class ListMajor(List):
+    pass
 
 
 def DummyExpr(*args, init=False):

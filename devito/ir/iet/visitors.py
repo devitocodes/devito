@@ -15,7 +15,7 @@ from sympy.core.function import Application
 
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
-                                 Call, Lambda, BlankLine, Section)
+                                 Call, Lambda, BlankLine, Section, ListMajor)
 from devito.ir.support.space import Backward
 from devito.symbolics import ListInitializer, ccode, uxreplace
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
@@ -306,7 +306,8 @@ class CGen(Visitor):
         """
         Generate cgen blank lines in between logical units.
         """
-        candidates = (Expression, ExpressionBundle, Iteration, Section)
+        candidates = (Expression, ExpressionBundle, Iteration, Section,
+                      ListMajor)
 
         processed = []
         for child in children:
@@ -327,8 +328,8 @@ class CGen(Visitor):
                       all(i.dim.is_Stencil for i in g)):
                     rebuilt.extend(g)
                 elif (prev in candidates and k in candidates) or \
-                     (prev is not None and k is Section) or \
-                     (prev is Section):
+                     (prev is not None and k in (ListMajor, Section)) or \
+                     (prev in (ListMajor, Section)):
                     rebuilt.append(BlankLine)
                     rebuilt.extend(g)
                 else:
