@@ -3,8 +3,7 @@ from devito import Grid, TimeFunction, Eq, Operator, XDSLOperator, norm
 import pytest
 # flake8: noqa
 
-@pytest.mark.xfail(reason="Deprecated, will be dropped")
-def test_udx_conversion():
+def test_udx():
 
     # Define a simple Devito Operator
     grid = Grid(shape=(5, 5))
@@ -18,7 +17,6 @@ def test_udx_conversion():
     u.data[:] = 0.1
 
     xdsl_op = XDSLOperator([eq])
-    xdsl_op.__class__ = XDSLOperator
     xdsl_op.apply(time_M=5)
     norm2 = norm(u)
     
@@ -43,7 +41,7 @@ def test_u_plus1_conversion():
     assert np.isclose(norm1, norm2, atol=1e-5, rtol=0)
     assert np.isclose(norm1, 23.43075, atol=1e-5, rtol=0)
 
-@pytest.mark.xfail(reason="Deprecated, will be dropped")
+@pytest.mark.xfail(reason="Needs a fix in offsets")
 def test_u_and_v_conversion():
     # Define a simple Devito Operator
     grid = Grid(shape=(3, 3))
@@ -61,7 +59,6 @@ def test_u_and_v_conversion():
     u.data[:] = 0.0001
     v.data[:] = 0.0001
     xdsl_op = XDSLOperator([eq0, eq1])
-    xdsl_op.__class__ = XDSLOperator
     xdsl_op.apply(time_M=5, dt=0.1)
     norm_u2 = norm(u)
     norm_v2 = norm(v)
