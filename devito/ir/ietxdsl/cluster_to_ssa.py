@@ -11,7 +11,7 @@ from xdsl.ir import Block, Operation, OpResult, Region, SSAValue
 # ------------- devito imports -------------#
 from devito import Grid, SteppingDimension
 from devito.ir.equations import LoweredEq
-from devito.symbolics import retrieve_indexed
+from devito.symbolics import retrieve_indexed, retrieve_function_carriers
 from devito.logger import perf
 
 # ------------- devito-xdsl SSA imports -------------#
@@ -50,26 +50,26 @@ class ExtractDevitoStencilConversion:
         function = eq.lhs.function
         mlir_type = dtypes_to_xdsltypes[function.dtype]
         grid: Grid = function.grid
-        # get the halo of the space dimensions only e.g [(2, 2), (2, 2)] for the 2d case
-        # Do not forget the issue with Devito adding an extra point!
-        # (for derivative regions)
-        halo = [function.halo[function.dimensions.index(d)] for d in grid.dimensions]
 
+        # Get the halo of the grid.dimensions
+        # e.g [(2, 2), (2, 2)] for the 2D case
+        # Do not forget the issue with Devito adding an extra point!
+        # Check 'def halo_setup' for more
+        # (for derivative regions)
+        halo = [function.halo[d] for d in grid.dimensions]
+        
         # Shift all time values so that for all accesses at t + n, n>=0.
         self.time_offs = min(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         )
 
-        # Calculate the actual size of our time dimension
-        actual_time_size = (
-            max(int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq))
-            - self.time_offs
-            + 1
-        )
-
+        
+        # Get the time_size       
+        time_size = max(d.function.time_size for d in retrieve_function_carriers(eq))
+        
         # Build the for loop
         perf("Build Time Loop")
-        loop = self._build_iet_for(grid.stepping_dim, actual_time_size)
+        loop = self._build_iet_for(grid.stepping_dim, time_size)
 
         # build stencil
         perf("Initialize a stencil Op")
@@ -77,7 +77,7 @@ class ExtractDevitoStencilConversion:
             loop.subindice_ssa_vals(),
             grid.shape_local,
             halo,
-            actual_time_size,
+            time_size,
             mlir_type,
             eq.lhs.function._C_name,
         )
@@ -87,7 +87,7 @@ class ExtractDevitoStencilConversion:
         # dims -> ssa vals
         perf("Apply time offsets")
         time_offset_to_field: dict[str, SSAValue] = {
-            i: stencil_op.block.args[i] for i in range(actual_time_size - 1)
+            i: stencil_op.block.args[i] for i in range(time_size - 1)
         }
 
         # reset loaded values
@@ -103,8 +103,10 @@ class ExtractDevitoStencilConversion:
 
         # emit return
         offsets = _get_dim_offsets(eq.lhs, self.time_offs)
+        # import pdb;pdb.set_trace()
+
         assert (
-            offsets[0] == actual_time_size - 1
+            offsets[0] == time_size - 1
         ), "result should be written to last time buffer"
         assert all(
             o == 0 for o in offsets[1:]
@@ -153,8 +155,10 @@ class ExtractDevitoStencilConversion:
             # select the correct op from arith.addi, arith.addf, arith.muli, arith.mulf
             if isinstance(carry.type, builtin.IntegerType):
                 op_cls = arith.Addi if isinstance(node, Add) else arith.Muli
-            else:
+            elif isinstance(carry.type, builtin.Float32Type):
                 op_cls = arith.Addf if isinstance(node, Add) else arith.Mulf
+            else:
+                raise("Add support for another type")
 
             for arg in args:
                 op = op_cls(carry, arg)
@@ -202,10 +206,11 @@ class ExtractDevitoStencilConversion:
             """
             # get the compile time constant offsets for this read
             offsets = _get_dim_offsets(read, self.time_offs)
+            
             if offsets in self.loaded_values:
                 continue
 
-            # assume time dimension is first dimension
+            # Assume time dimension is first dimension
             t_offset = offsets[0]
             space_offsets = offsets[1:]
 
@@ -280,6 +285,7 @@ def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
     # shift all time values so that for all accesses at t + n, n>=0.
     # time_offs = min(int(i - d) for i, d in zip(idx.indices, idx.function.dimensions))
     halo = ((t_offset, 0), *idx.function.halo[1:])
+
     try:
         return tuple(
             int(i - d - halo_offset)
