@@ -563,7 +563,14 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_Lambda(self, o):
-        body = flatten(self._visit(i) for i in o.children)
+        body = []
+        for i in o.children:
+            v = self._visit(i)
+            if v:
+                if body:
+                    body.append(c.Line())
+                body.extend(as_tuple(v))
+        body = flatten(body)
         captures = [str(i) for i in o.captures]
         decls = [i.inline() for i in self._args_decl(o.parameters)]
         top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
@@ -1209,7 +1216,7 @@ class Uxreplace(Transformer):
     def visit_Lambda(self, o):
         body = self._visit(o.body)
         parameters = [self.mapper.get(i, i) for i in o.parameters]
-        return o._rebuild(body, parameters=parameters)
+        return o._rebuild(body=body, parameters=parameters)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)
