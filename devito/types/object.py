@@ -231,5 +231,5 @@ class LocalObject(AbstractObject):
         return self._liveness == 'lazy'
 
     @property
-    def _mem_constant(self):
+    def _mem_global(self):
         return self._is_global

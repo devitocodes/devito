@@ -921,7 +921,7 @@ class FindSymbols(Visitor):
                                    if isinstance(i, IndexedBase)],
         'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
-        'globals': lambda n: [f.base for f in n.functions if f._mem_constant],
+        'globals': lambda n: [f.base for f in n.functions if f._mem_global],
         'defines-aliases': _defines_aliases
     }
 

@@ -918,14 +918,18 @@ class Definition(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        if self.function.is_LocalObject:
-            ret = set(flatten(i.free_symbols for i in self.function.cargs))
-            ret.update(self.function.initvalue or ())
+        f = self.function
+        if f.is_LocalObject:
+            ret = set(flatten(i.free_symbols for i in f.cargs))
+            try:
+                ret.update(f.initvalue.free_symbols)
+            except AttributeError:
+                pass
             return tuple(ret)
-        elif self.function.is_Array and self.function.initvalue is not None:
+        elif f.is_Array and f.initvalue is not None:
             # These are just a handful of values so it's OK to iterate them over
             ret = set()
-            for i in self.function.initvalue:
+            for i in f.initvalue:
                 try:
                     ret.update(i.free_symbols)
                 except AttributeError:
