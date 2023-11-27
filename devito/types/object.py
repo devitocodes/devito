@@ -169,21 +169,31 @@ class LocalObject(AbstractObject):
     """
 
     __rargs__ = ('name',)
-    __rkwargs__ = ('cargs', 'liveness')
+    __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'is_global')
 
-    def __init__(self, name, cargs=None, **kwargs):
+    def __init__(self, name, cargs=None, initvalue=None, liveness='lazy',
+                 is_global=False, **kwargs):
         self.name = name
         self.cargs = as_tuple(cargs)
+        self.initvalue = initvalue
 
-        self._liveness = kwargs.get('liveness', 'lazy')
-        assert self._liveness in ['eager', 'lazy']
+        assert liveness in ['eager', 'lazy']
+        self._liveness = liveness
+
+        self._is_global = is_global
 
     def _hashable_content(self):
-        return super()._hashable_content() + self.cargs + (self.liveness,)
+        return (super()._hashable_content() +
+                self.cargs +
+                (self.initvalue, self.liveness, self.is_global))
 
     @property
     def liveness(self):
         return self._liveness
+
+    @property
+    def is_global(self):
+        return self._is_global
 
     @property
     def free_symbols(self):
@@ -219,3 +229,7 @@ class LocalObject(AbstractObject):
     @property
     def _mem_internal_lazy(self):
         return self._liveness == 'lazy'
+
+    @property
+    def _mem_constant(self):
+        return self._is_global

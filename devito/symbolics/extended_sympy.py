@@ -16,9 +16,10 @@ from devito.types.basic import Basic
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'InlineIf', 'Keyword', 'String', 'Macro', 'MacroArgument',
-           'CustomType', 'Deref', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null',
-           'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
+           'InlineIf', 'ReservedWord', 'Keyword', 'String', 'Macro',
+           'MacroArgument', 'CustomType', 'Deref', 'Namespace', 'Rvalue',
+           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null', 'SizeOf', 'rfunc',
+           'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -534,8 +535,12 @@ class DefFunction(Function, Pickable):
     """
 
     __rargs__ = ('name', 'arguments')
+    __rkwargs__ = ('template',)
 
-    def __new__(cls, name, arguments=None, **kwargs):
+    def __new__(cls, name, arguments=None, template=None, **kwargs):
+        if isinstance(name, str):
+            name = Keyword(name)
+
         _arguments = []
         for i in as_tuple(arguments):
             if isinstance(i, str):
@@ -545,12 +550,25 @@ class DefFunction(Function, Pickable):
                 _arguments.append(ReservedWord(i))
             else:
                 _arguments.append(i)
-        arguments = tuple(_arguments)
-        if isinstance(name, str):
-            name = Keyword(name)
-        obj = Function.__new__(cls, name, Tuple(*arguments))
+
+        _template = []
+        for i in as_tuple(template):
+            if isinstance(i, str):
+                # Same story as above
+                _template.append(ReservedWord(i))
+            else:
+                _template.append(i)
+
+        args = [name]
+        args.append(Tuple(*_arguments))
+        if _template:
+            args.append(Tuple(*_template))
+
+        obj = Function.__new__(cls, *args)
         obj._name = name
-        obj._arguments = arguments
+        obj._arguments = tuple(_arguments)
+        obj._template = tuple(_template)
+
         return obj
 
     @property
@@ -561,8 +579,17 @@ class DefFunction(Function, Pickable):
     def arguments(self):
         return self._arguments
 
+    @property
+    def template(self):
+        return self._template
+
     def __str__(self):
-        return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.arguments))
+        if self.template:
+            template = '<%s>' % ','.join(str(i) for i in self.template)
+        else:
+            template = ''
+        arguments = ', '.join(str(i) for i in self.arguments)
+        return "%s%s(%s)" % (self.name, template, arguments)
 
     __repr__ = __str__
 
@@ -615,6 +642,84 @@ class InlineIf(sympy.Expr, Pickable):
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class Namespace(sympy.Expr, Pickable):
+
+    """
+    Symbolic representation of a C++ namespace `ns0::ns1::...`.
+    """
+
+    __rargs__ = ('items',)
+
+    def __new__(cls, items, **kwargs):
+        normalized_items = []
+        for i in as_tuple(items):
+            if isinstance(i, str):
+                normalized_items.append(ReservedWord(i))
+            elif isinstance(i, ReservedWord):
+                normalized_items.append(i)
+            else:
+                raise ValueError("`items` must be iterable of str or ReservedWord")
+
+        obj = sympy.Expr.__new__(cls)
+        obj._items = tuple(items)
+
+        return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + self.items
+
+    @property
+    def items(self):
+        return self._items
+
+    def __str__(self):
+        return "::".join(str(i) for i in self.items)
+
+    __repr__ = __str__
+
+
+class Rvalue(sympy.Expr, Pickable):
+
+    """
+    A generic C++ rvalue, that is a value that occupies a temporary location in
+    memory.
+    """
+
+    __rargs__ = ('expr',)
+    __rkwargs__ = ('namespace', 'init')
+
+    def __new__(cls, expr, namespace=None, init=None):
+        args = [expr]
+        if namespace is not None:
+            args.append(namespace)
+        if init is not None:
+            args.append(init)
+
+        return sympy.Expr.__new__(cls, *args)
+
+    @property
+    def expr(self):
+        return self.args[0]
+
+    @property
+    def namespace(self):
+        return self.args[1] if len(self.args) >= 2 else None
+
+    @property
+    def init(self):
+        return self.args[2] if len(self.args) >= 3 else None
+
+    def __str__(self):
+        rvalue = str(self.expr)
+        if self.namespace:
+            rvalue = "%s::%s" % (self.namespace, rvalue)
+        if self.init:
+            rvalue = "%s%s" % (rvalue, self.init)
+        return rvalue
+
+    __repr__ = __str__
 
 
 # *** Casting

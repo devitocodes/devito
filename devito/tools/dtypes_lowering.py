@@ -7,11 +7,13 @@ import ctypes
 import numpy as np
 from cgen import dtype_to_ctype as cgen_dtype_to_ctype
 
+from .utils import as_tuple
+
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype']
+           'is_external_ctype', 'infer_dtype', 'CustomDtype']
 
 
 # *** Custom np.dtypes
@@ -91,6 +93,34 @@ dtypes_vector_mapper = DTypesVectorMapper()
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
 dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
+
+
+# *** Custom types escaping both the numpy and ctypes namespaces
+
+
+class CustomDtype(object):
+
+    def __init__(self, name, template=None, modifier=None):
+        self.name = name
+        self.template = as_tuple(template)
+        self.modifier = modifier or ''
+
+    def __eq__(self, other):
+        return (isinstance(other, CustomDtype) and
+                self.name == other.name and
+                self.template == other.template and
+                self.modifier == other.modifier)
+
+    def __hash__(self):
+        return hash((self.name, self.template, self.modifier))
+
+    def __repr__(self):
+        template = '<%s>' % ','.join([str(i) for i in self.template])
+        return "%s%s%s" % (self.name,
+                           template if self.template else '',
+                           self.modifier)
+
+    __str__ = __repr__
 
 
 # *** np.dtypes lowering
@@ -180,6 +210,8 @@ def ctypes_to_cstr(ctype, toarray=None):
     """Translate ctypes types into C strings."""
     if ctype in ctypes_vector_mapper.values():
         retval = ctype.__name__
+    elif isinstance(ctype, CustomDtype):
+        retval = str(ctype)
     elif issubclass(ctype, ctypes.Structure):
         retval = 'struct %s' % ctype.__name__
     elif issubclass(ctype, ctypes.Union):

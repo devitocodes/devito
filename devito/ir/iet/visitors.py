@@ -255,13 +255,12 @@ class CGen(Visitor):
         except AttributeError:
             pass
 
-        try:
-            if obj.initvalue is not None and level == 2:
-                init = ListInitializer(obj.initvalue)
-                if not obj._mem_constant or init.is_numeric:
-                    value = c.Initializer(value, ccode(init))
-        except AttributeError:
-            pass
+        if obj.is_Array and obj.initvalue is not None and level == 2:
+            init = ListInitializer(obj.initvalue)
+            if not obj._mem_constant or init.is_numeric:
+                value = c.Initializer(value, ccode(init))
+        elif obj.is_LocalObject and obj.initvalue is not None and level == 2:
+            value = c.Initializer(value, ccode(obj.initvalue))
 
         return value
 
@@ -922,7 +921,7 @@ class FindSymbols(Visitor):
                                    if isinstance(i, IndexedBase)],
         'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
-        'globals': lambda n: [f.indexed for f in n.functions if f._mem_constant],
+        'globals': lambda n: [f.base for f in n.functions if f._mem_constant],
         'defines-aliases': _defines_aliases
     }
 

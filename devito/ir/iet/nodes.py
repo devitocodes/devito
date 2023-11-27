@@ -919,7 +919,9 @@ class Definition(ExprStmt, Node):
     @property
     def expr_symbols(self):
         if self.function.is_LocalObject:
-            return tuple(set(flatten(i.free_symbols for i in self.function.cargs)))
+            ret = set(flatten(i.free_symbols for i in self.function.cargs))
+            ret.update(self.function.initvalue or ())
+            return tuple(ret)
         elif self.function.is_Array and self.function.initvalue is not None:
             # These are just a handful of values so it's OK to iterate them over
             ret = set()

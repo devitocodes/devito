@@ -14,7 +14,7 @@ from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro
-from devito.tools import as_tuple
+from devito.tools import CustomDtype, as_tuple
 from devito.types import Array, LocalObject, Symbol
 
 
@@ -144,7 +144,7 @@ def test_list_denesting():
 
 def test_make_cpp_parfor():
     """
-    Test construction of a CPP parallel for. This excites the IET construction
+    Test construction of a C++ parallel for. This excites the IET construction
     machinery in several ways, in particular by using Lambda nodes (to generate
     C++ lambda functions) and nested Calls.
     """
@@ -272,6 +272,42 @@ static void foo()
 
   cudaStreamDestroy(stream);
 }"""
+
+
+def test_cpp_local_object():
+    """
+    Test C++ support for LocalObjects.
+    """
+
+    class MyObject(LocalObject):
+        dtype = CustomDtype('dummy')
+
+    # Locally-scoped objects are declared in the function body
+    lo0 = MyObject('obj0')
+
+    # Globally-scoped objects must not be declared in the function body
+    lo1 = MyObject('obj1', is_global=True)
+
+    # A LocalObject using both a template and a modifier
+    class SpecialObject(LocalObject):
+        dtype = CustomDtype('bar', ('int', 'float'), '&')
+
+    lo2 = SpecialObject('obj2')
+
+    # A LocalObject instantiated calling its 2-args constructor and subsequently
+    # assigned a value
+    lo3 = MyObject('obj3', initvalue=Macro('meh'))
+
+    iet = Call('foo', [lo0, lo1, lo2, lo3])
+    iet = ElementalFunction('foo', iet, parameters=())
+
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
+
+    assert 'dummy obj0;' in str(iet)
+    assert 'dummy obj1;' not in str(iet)
+    assert 'bar<int,float>& obj2;' in str(iet)
+    assert 'dummy obj3 = meh;' in str(iet)
 
 
 def test_call_indexed():

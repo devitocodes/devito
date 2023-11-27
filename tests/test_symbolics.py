@@ -10,7 +10,8 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
-                              INT, FieldFromComposite, IntDiv, ccode, uxreplace,
+                              INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
+                              ReservedWord, ListInitializer, ccode, uxreplace,
                               retrieve_derivatives)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
@@ -285,6 +286,52 @@ def test_intdiv():
 
     v = b*IntDiv(a + b, 2) + 3
     assert ccode(v) == 'b*((a + b) / 2) + 3'
+
+
+def test_def_function():
+    foo0 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
+    foo1 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
+    foo2 = DefFunction('foo', arguments=['a', 'b'])
+    foo3 = DefFunction('foo', arguments=['a'])
+
+    # Code generation
+    assert str(foo0) == 'foo<int>(a, b)'
+    assert str(foo3) == 'foo(a)'
+
+    # Hashing and equality
+    assert hash(foo0) == hash(foo1)
+    assert foo0 == foo1
+    assert hash(foo0) != hash(foo2)
+    assert hash(foo2) != hash(foo3)
+
+    # Reconstruction
+    assert foo0 == foo0._rebuild()
+    assert str(foo0._rebuild('bar', template=['float'])) == 'bar<float>(a, b)'
+
+
+def test_namespace():
+    ns0 = Namespace(['std', 'algorithms', 'parallel'])
+    assert str(ns0) == 'std::algorithms::parallel'
+
+    ns1 = Namespace(['std'])
+    ns2 = Namespace(['std', 'algorithms', 'parallel'])
+
+    # Test hashing and equality
+    assert hash(ns0) != hash(ns1)  # Same reason as above
+    assert ns0 != ns1
+    assert hash(ns0) == hash(ns2)
+    assert ns0 == ns2
+
+    # Free symbols
+    assert not ns0.free_symbols
+
+
+def test_rvalue():
+    ctype = ReservedWord('dummytype')
+    ns = Namespace(['my', 'namespace'])
+    init = ListInitializer(())
+
+    assert str(Rvalue(ctype, ns, init)) == 'my::namespace::dummytype{}'
 
 
 def test_cast():
