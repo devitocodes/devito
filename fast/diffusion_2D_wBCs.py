@@ -67,7 +67,7 @@ if args.xdsl and args.devito:
 if args.devito:
 
     # To measure Devito at its best on GPU, we have to set the tile siwe manually
-    opt = None
+    opt = 'advanced'
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
 

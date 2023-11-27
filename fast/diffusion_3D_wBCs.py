@@ -61,7 +61,7 @@ if args.devito:
     u.data[:, :, :, int(nz/2)] = 1
 
     # To measure Devito at its best on GPU, we have to set the tile siwe manually
-    opt = None
+    opt = 'advanced'
     if configuration['platform'].name == 'nvidiaX':
         opt = ('advanced', {'par-tile': (32, 4, 8)})
     op = Operator([eq_stencil], name='DevitoDiffusionOperator', opt=opt)
