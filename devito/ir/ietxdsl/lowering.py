@@ -260,15 +260,16 @@ class CleanupDanglingIetDatatypes(RewritePattern):
                     iet_ssa.Dataobj.get_llvm_struct_type(), )
             elif isinstance(arg_typ, iet_ssa.Profiler):
                 op.body.blocks[0].args[i].type = llvm.LLVMPointerType.opaque()
-
         recalc_func_type(op)
 
 
 def recalc_func_type(op: func.FuncOp):
-    op.attributes['function_type'] = builtin.FunctionType.from_lists(
-        [arg.type for arg in op.body.blocks[0].args],
-        op.function_type.outputs.data,
-    )
+    # Only if blocks exist
+    if op.body.blocks:
+        op.attributes['function_type'] = builtin.FunctionType.from_lists(
+            [arg.type for arg in op.body.blocks[0].args],
+            op.function_type.outputs.data,
+        )
 
 
 @dataclass
@@ -369,7 +370,6 @@ def iet_to_standard_mlir(module: builtin.ModuleOp):
             LowerIetForToScfFor(),
             ConvertScfForArgsToIndex(),
             ConvertScfParallelArgsToIndex(),
-            DropIetComments(),
             CleanupDanglingIetDatatypes(),
             ptr_lower := LowerIetPointerCastAndDataObject(),
             LowerMemrefLoadToLLvmPointer(ptr_lower),

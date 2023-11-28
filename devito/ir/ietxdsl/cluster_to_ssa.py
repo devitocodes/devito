@@ -59,13 +59,13 @@ class ExtractDevitoStencilConversion:
         # Check 'def halo_setup' for more
         # (for derivative regions)
         halo = [function.halo[d] for d in grid.dimensions]
-        
+
         # Shift all time values so that for all accesses at t + n, n>=0.
         self.time_offs = min(
             int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
         )
 
-        
+
         # Get the time_size       
         time_size = max(d.function.time_size for d in retrieve_function_carriers(eq))
         
@@ -105,7 +105,6 @@ class ExtractDevitoStencilConversion:
 
         # emit return
         offsets = _get_dim_offsets(eq.lhs, self.time_offs)
-        # import pdb;pdb.set_trace()
 
         assert (
             offsets[0] == time_size - 1
@@ -546,8 +545,10 @@ def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[s
         _InsertSymbolicConstants(known_symbols),
         _LowerLoadSymbolidToFuncArgs(),
     ]
-    grpa = GreedyRewritePatternApplier(patterns)
-    PatternRewriteWalker(grpa).rewrite_module(module)
+    rewriter = GreedyRewritePatternApplier(patterns)
+    PatternRewriteWalker(rewriter).rewrite_module(module)
+
+    # GPU boilerplate
     if gpu_boilerplate:
         walker = PatternRewriteWalker(GreedyRewritePatternApplier([WrapFunctionWithTransfers('apply_kernel')]))
         walker.rewrite_module(module)

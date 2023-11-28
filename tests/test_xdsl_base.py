@@ -213,3 +213,39 @@ def test_acoustic_3D(shape, so, to, nt):
     xdsl_norm = norm(u)
 
     assert np.isclose(devito_norm, xdsl_norm, rtol=1e-04).all()
+
+
+@pytest.mark.parametrize('shape', [(21, 21, 21)])
+@pytest.mark.parametrize('so', [2, 4])
+@pytest.mark.parametrize('to', [2])
+@pytest.mark.parametrize('nt', [20])
+def test_standard_mlir_rewrites(shape, so, to, nt):
+
+    grid = Grid(shape=shape)
+    dt = 0.0001
+
+    # Define the wavefield with the size of the model and the time dimension
+    u = TimeFunction(name="u", grid=grid, time_order=to, space_order=so)
+
+    pde = u.dt2 - u.laplace
+    eq0 = solve(pde, u.forward)
+
+    stencil = Eq(u.forward, eq0)
+    u.data[:, :, :] = 0
+    u.data[:, 40:50, 40:50] = 1
+
+    # Devito Operator
+    op = Operator([stencil])
+    op.apply(time=nt, dt=dt)
+
+    u.data[:, :, :] = 0
+    u.data[:, 40:50, 40:50] = 1
+
+    # XDSL Operator
+    xdslop = XDSLOperator([stencil])
+    xdslop.apply(time=nt, dt=dt)
+
+    from devito.ir.ietxdsl.lowering import iet_to_standard_mlir
+
+    # Check coverage of unused iet iet_to_standard_mlir
+    iet_to_standard_mlir(xdslop._module)

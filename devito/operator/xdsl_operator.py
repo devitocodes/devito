@@ -4,7 +4,7 @@ import ctypes
 import tempfile
 
 from math import ceil
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from io import StringIO
 from operator import attrgetter
 
@@ -26,12 +26,13 @@ from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
 from devito.logger import debug, info, perf, warning, is_log_enabled_for
 from devito.operator.operator import IRs
 from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
+from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate)
 from devito.passes.iet import CTarget
 from devito.symbolics import estimate_cost
-from devito.tools import (DAG, OrderedSet, ReducerMap, as_tuple, flatten,
+from devito.tools import (DAG, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
                           contains_val)
 from devito.types import Evaluable, TimeFunction, Grid
@@ -40,7 +41,9 @@ from devito.mpi import MPI
 
 from xdsl.printer import Printer
 
-# flake8: noqa
+
+from devito.core.cpu import (MLIR_CPU_PIPELINE, XDSL_CPU_PIPELINE, XDSL_MPI_PIPELINE,
+                             MLIR_OPENMP_PIPELINE, XDSL_GPU_PIPELINE, MLIR_GPU_PIPELINE)
 
 __all__ = ['XDSLOperator']
 
@@ -62,27 +65,6 @@ double timer_end(double start) {
   return (timer_start() - start);
 }
 """
-
-
-def generate_tiling_arg(nb_tiled_dims: int):
-    """
-    Generate the tile-sizes arg for the convert-stencil-to-ll-mlir pass. Generating no argument if the diled_dims arg is 0
-    """
-    if nb_tiled_dims == 0:
-        return ''
-    return "tile-sizes=" + ",".join(["64"]*nb_tiled_dims)
-
-
-CFLAGS = "-O3 -march=native -mtune=native -lmlir_c_runner_utils"
-
-MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,convert-scf-to-cf,convert-math-to-llvm,convert-func-to-llvm{use-bare-ptr-memref-call-conv},finalize-memref-to-llvm,canonicalize,cse)"'
-MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-func-to-llvm{use-bare-ptr-memref-call-conv},convert-openmp-to-llvm,convert-math-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'
-# gpu-launch-sink-index-computations seemed to have no impact
-MLIR_GPU_PIPELINE = lambda block_sizes: f'"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,lower-affine, canonicalize,cse, fold-memref-alias-ops, gpu-launch-sink-index-computations, gpu-kernel-outlining, canonicalize{{region-simplify}},cse,fold-memref-alias-ops,expand-strided-metadata,lower-affine,canonicalize,cse,func.func(gpu-async-region),canonicalize,cse,convert-arith-to-llvm{{index-bitwidth=64}},convert-scf-to-cf,convert-cf-to-llvm{{index-bitwidth=64}},canonicalize,cse,convert-func-to-llvm{{use-bare-ptr-memref-call-conv}},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'
-
-XDSL_CPU_PIPELINE = lambda nb_tiled_dims: f'"stencil-shape-inference,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},printf-to-llvm"'
-XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},reconcile-unrealized-casts,printf-to-llvm"
-XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'
 
 
 class XDSLOperator(Operator):
@@ -116,6 +98,7 @@ class XDSLOperator(Operator):
 
     @property
     def mpi_shape(self) -> tuple:
+        # TODO: move it elsewhere
         dist = self.functions[0].grid.distributor
 
         # reverse topology for row->column major
@@ -128,7 +111,7 @@ class XDSLOperator(Operator):
         once per Operator, reagardless of how many times this method
         is invoked.
         """
-       
+
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
             is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
@@ -149,13 +132,10 @@ class XDSLOperator(Operator):
             Printer(stream=module_str).print(self._module)
             module_str = module_str.getvalue()
 
-            to_tile = len(list(filter(lambda s: str(s) in ["x", "y", "z"], self.dimensions)))-1
+            to_tile = len(list(filter(lambda d: d.is_Space, self.dimensions)))-1
 
             xdsl_pipeline = XDSL_CPU_PIPELINE(to_tile)
             mlir_pipeline = MLIR_CPU_PIPELINE
-
-            block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]
-            block_sizes = ','.join(str(bs) for bs in block_sizes)
 
             if is_omp:
                 mlir_pipeline = MLIR_OPENMP_PIPELINE
@@ -163,7 +143,8 @@ class XDSLOperator(Operator):
             if is_mpi:
                 shape, mpi_rank = self.mpi_shape
                 # Run with restrict domain=false so we only introduce the swaps but don't
-                # reduce the domain of the computation (as devito has already done that for us)
+                # reduce the domain of the computation
+                # (as devito has already done that for us)
                 slices = ','.join(str(x) for x in shape)
 
                 decomp = "2d-grid" if len(shape) == 2 else "3d-grid"
@@ -172,6 +153,9 @@ class XDSLOperator(Operator):
                 xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
             elif is_gpu:
                 xdsl_pipeline = XDSL_GPU_PIPELINE
+                # Get GPU blocking shapes
+                block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]  # noqa
+                block_sizes = ','.join(str(bs) for bs in block_sizes)
                 mlir_pipeline = MLIR_GPU_PIPELINE(block_sizes)
 
             # allow jit backdooring to provide your own xdsl code
@@ -190,8 +174,9 @@ class XDSLOperator(Operator):
             source_file.close()
 
             # Compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
+            cflags = "-O3 -march=native -mtune=native -lmlir_c_runner_utils"
+
             try:
-                cflags = CFLAGS
                 cc = "clang"
 
                 if is_mpi:
@@ -208,15 +193,12 @@ class XDSLOperator(Operator):
                 xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                clang_cmd = f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'
+                clang_cmd = f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
 
-
-                comp_steps = [
-                              xdsl_cmd,
+                comp_steps = [xdsl_cmd,
                               mlir_cmd,
                               mlir_translate_cmd,
-                              clang_cmd 
-                             ]
+                              clang_cmd]
 
                 # Execute each command and store the outputs
                 outputs = []
@@ -231,7 +213,7 @@ class XDSLOperator(Operator):
                         'stdout': stdout,
                         'stderr': stderr
                     })
-                
+
             except Exception as ex:
                 print("error")
                 raise ex
@@ -241,9 +223,10 @@ class XDSLOperator(Operator):
         perf("XDSLOperator `%s` jit-compiled `%s` in %.2f s with `mlir-opt`" %
              (self.name, source_name, elapsed))
 
-
     def _cmd_compile(self, cmd, input=None):
-        stdin = subprocess.PIPE if input is not None else None
+
+        # Could be dropped unless PIPE is never empty in the future
+        stdin = subprocess.PIPE if input is not None else None  # noqa
 
         res = subprocess.run(
             cmd,
@@ -271,11 +254,12 @@ class XDSLOperator(Operator):
         """
         args = dict()
         for arg in self.functions:
+            # For every TimeFunction add memref
             if isinstance(arg, TimeFunction):
-                data = arg._data_allocated
-                # iterate over the first dimension (time)
+                data = arg._data
                 for t in range(data.shape[0]):
                     args[f'{arg._C_name}_{t}'] = data[t, ...].ctypes.data_as(ptr_of(f32))
+
         self._jit_kernel_constants.update(args)
 
     @classmethod
@@ -352,7 +336,6 @@ class XDSLOperator(Operator):
         """
         # Create a symbol registry
         kwargs['sregistry'] = SymbolRegistry()
-
         expressions = as_tuple(expressions)
 
         # Input check
@@ -800,10 +783,10 @@ class XDSLOperator(Operator):
 
     # Code generation and JIT compilation
 
-    #@cached_property
-    #def _soname(self):
-    #    """A unique name for the shared object resulting from JIT compilation."""
-    #    return Signer._digest(self, configuration)
+    # @cached_property
+    # def _soname(self):
+    #     """A unique name for the shared object resulting from JIT compilation."""
+    #     return Signer._digest(self, configuration)
 
     @cached_property
     def ccode(self):
@@ -825,7 +808,9 @@ class XDSLOperator(Operator):
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, "apply_kernel")
             # Associate a C type to each argument for runtime type check
-            self._cfunction.argtypes = self._construct_cfunction_args(self._jit_kernel_constants, get_types=True)
+            argtypes = self._construct_cfunction_args(self._jit_kernel_constants,
+                                                      get_types=True)
+            self._cfunction.argtypes = argtypes
 
         return self._cfunction
 
@@ -957,7 +942,7 @@ class XDSLOperator(Operator):
         # Output summary of performance achieved
         return self._emit_apply_profiling(args)
 
-    def _construct_cfunction_args(self, args, get_types = False):
+    def _construct_cfunction_args(self, args, get_types=False):
         """
         Either construct the args for the cfunction, or construct the
         arg types for it.
@@ -965,7 +950,7 @@ class XDSLOperator(Operator):
         ps = {
             p._C_name: p._C_ctype for p in self.parameters
         }
-        
+
         things = []
         things_types = []
 
@@ -981,37 +966,6 @@ class XDSLOperator(Operator):
             return things_types
         else:
             return things
-
-    def _emit_build_profiling(self):
-        if not is_log_enabled_for('PERF'):
-            return
-
-        # Rounder to K decimal places
-        fround = lambda i, n=100: ceil(i * n) / n
-
-        timings = self._profiler.py_timers.copy()
-
-        tot = timings.pop('op-compile')
-        perf("Operator `%s` generated in %.2f s" % (self.name, fround(tot)))
-
-        max_hotspots = 3
-        threshold = 20.
-
-        def _emit_timings(timings, indent=''):
-            timings.pop('total', None)
-            entries = sorted(timings, key=lambda i: timings[i]['total'], reverse=True)
-            for i in entries[:max_hotspots]:
-                v = fround(timings[i]['total'])
-                perc = fround(v/tot*100, n=10)
-                if perc > threshold:
-                    perf("%s%s: %.2f s (%.1f %%)" % (indent, i.lstrip('_'), v, perc))
-                    _emit_timings(timings[i], ' '*len(indent) + ' * ')
-
-        _emit_timings(timings, '  * ')
-
-        if self._profiler._ops:
-            ops = ['%d --> %d' % i for i in self._profiler._ops]
-            perf("Flops reduction after symbolic optimization: [%s]" % ' ; '.join(ops))
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
@@ -1188,10 +1142,6 @@ def rcompile(expressions, kwargs=None):
 
 # Misc helpers
 
-
-IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
-
-
 class ArgumentsMap(dict):
 
     def __init__(self, args, grid, op):
@@ -1345,6 +1295,5 @@ def parse_kwargs(**kwargs):
 
 def get_arg_names_from_module(op):
     return [
-        str_attr.data 
-        for str_attr in op.body.block.ops.first.attributes['param_names'].data
+        str_attr.data for str_attr in op.body.block.ops.first.attributes['param_names'].data  # noqa
     ]
