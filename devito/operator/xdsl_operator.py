@@ -1,41 +1,25 @@
 import os
 import subprocess
-import ctypes
 import tempfile
 
-from math import ceil
 from collections import OrderedDict
 from io import StringIO
-from operator import attrgetter
 
-from cached_property import cached_property
 
 from devito import Operator
-from devito.arch import compiler_registry, platform_registry
-from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
-from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.equations import LoweredEq, lower_exprs
-from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
-                           derive_parameters, iet_build)
+
+from devito.ir.iet import Callable, MetaCall
 from devito.ir.ietxdsl import (finalize_module_with_globals)
-from devito.ir.stree import stree_build
-from devito.ir.support import AccessMode, SymbolRegistry
+from devito.ir.support import SymbolRegistry
 from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
                                               convert_devito_stencil_to_xdsl_stencil)
-from devito.logger import debug, info, perf, warning, is_log_enabled_for
+from devito.logger import debug, info, perf
 from devito.operator.operator import IRs
-from devito.operator.profiling import AdvancedProfilerVerbose, create_profile
-from devito.operator.registry import operator_selector
-from devito.parameters import configuration
-from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
-                           generate_macros, minimize_symbols, unevaluate)
+from devito.operator.profiling import create_profile
 from devito.passes.iet import CTarget
-from devito.symbolics import estimate_cost
-from devito.tools import (DAG, ReducerMap, as_tuple, flatten,
-                          filter_sorted, frozendict, is_integer, split, timed_pass,
-                          contains_val)
-from devito.types import Evaluable, TimeFunction, Grid
+from devito.tools import as_tuple, flatten, filter_sorted
+from devito.types import Evaluable, TimeFunction
 from devito.types.mlir_types import ptr_of, f32
 from devito.mpi import MPI
 
@@ -46,25 +30,6 @@ from devito.core.cpu import (MLIR_CPU_PIPELINE, XDSL_CPU_PIPELINE, XDSL_MPI_PIPE
                              MLIR_OPENMP_PIPELINE, XDSL_GPU_PIPELINE, MLIR_GPU_PIPELINE)
 
 __all__ = ['XDSLOperator']
-
-
-# small interop shim script for stuff that we don't want to implement in mlir-ir
-_INTEROP_C = """
-#include <time.h>
-
-double timer_start() {
-  // return a number representing the current point in time
-  // it might be offset by a fixed ammount
-  struct timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return (t.tv_sec) + (t.tv_nsec * 1e-9);
-}
-
-double timer_end(double start) {
-  // return time elaspes since start in seconds
-  return (timer_start() - start);
-}
-"""
 
 
 class XDSLOperator(Operator):
@@ -357,7 +322,6 @@ class XDSLOperator(Operator):
 
         return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
 
-
     @property
     def cfunction(self):
         """The JIT-compiled C function as a ctypes.FuncPtr object."""
@@ -406,3 +370,22 @@ def get_arg_names_from_module(op):
     return [
         str_attr.data for str_attr in op.body.block.ops.first.attributes['param_names'].data  # noqa
     ]
+
+
+# small interop shim script for stuff that we don't want to implement in mlir-ir
+_INTEROP_C = """
+#include <time.h>
+
+double timer_start() {
+  // return a number representing the current point in time
+  // it might be offset by a fixed ammount
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (t.tv_sec) + (t.tv_nsec * 1e-9);
+}
+
+double timer_end(double start) {
+  // return time elaspes since start in seconds
+  return (timer_start() - start);
+}
+"""
