@@ -16,7 +16,9 @@ from devito.logger import perf
 
 # ------------- devito-xdsl SSA imports -------------#
 from devito.ir.ietxdsl import iet_ssa
+from devito.ir.ietxdsl.utils import is_int, is_float
 from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
+
 
 # flake8: noqa
 
@@ -296,13 +298,6 @@ def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
     except Exception as ex:
         raise ValueError("Indices must be constant offset from dimension!") from ex
 
-
-def is_int(val: SSAValue):
-    return isinstance(val.type, builtin.IntegerType)
-
-
-def is_float(val: SSAValue):
-    return val.type in (builtin.f32, builtin.f64)
 
 
 # -------------------------------------------------------- ####

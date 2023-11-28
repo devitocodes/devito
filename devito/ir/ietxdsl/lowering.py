@@ -8,36 +8,6 @@ from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter, PatternRewri
                                    GreedyRewritePatternApplier, op_type_rewrite_pattern)
 
 
-def _generate_subindices(subindices: int, block: Block,
-                         rewriter: PatternRewriter):
-    # keep track of the what argument we should replace with what
-    arg_changes: list[tuple[SSAValue, SSAValue]] = []
-
-    # keep track of the ops we want to insert
-    modulo = arith.Constant.from_int_and_width(subindices, builtin.i64)
-    new_ops = [modulo]
-
-    # generate the new indices
-    for i in range(subindices):
-        offset = arith.Constant.from_int_and_width(i, builtin.i64)
-        index_off = arith.Addi(block.args[0], offset)
-        index = arith.RemSI(index_off, modulo)
-
-        new_ops += [
-            offset,
-            index_off,
-            index,
-        ]
-        # replace block.args[i+1] with (arg0 + i) % n
-        arg_changes.append((block.args[i + 1], index.result))
-
-    rewriter.insert_op_at_start(new_ops, block)
-
-    for old, new in arg_changes:
-        old.replace_by(new)
-        block.erase_arg(old)
-
-
 class ConvertScfForArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
@@ -208,19 +178,6 @@ class LowerIetForToScfParallel(RewritePattern):
             lbs, ubs, steps, body, rewriter)
 
         return lbs, ubs, steps, body
-
-
-class DropIetComments(RewritePattern):
-    """
-    This drops all iet.comment operations
-
-    TODO: convert iet.comment ops that have timer info into their own nodes
-    """
-
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.Statement,
-                          rewriter: PatternRewriter, /):
-        rewriter.erase_matched_op()
 
 
 @dataclass
