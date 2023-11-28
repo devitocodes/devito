@@ -1,12 +1,21 @@
 # ------------- General imports -------------#
 
 from typing import Any
+from dataclasses import dataclass, field
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 
 # ------------- xdsl imports -------------#
-from xdsl.dialects import arith, builtin, func, memref, scf, stencil, gpu
+from xdsl.dialects import (arith, builtin, func, memref, scf,
+                           stencil, gpu, llvm)
 from xdsl.dialects.experimental import math
 from xdsl.ir import Block, Operation, OpResult, Region, SSAValue
+from xdsl.pattern_rewriter import (
+    GreedyRewritePatternApplier,
+    PatternRewriter,
+    PatternRewriteWalker,
+    RewritePattern,
+    op_type_rewrite_pattern,
+)
 
 # ------------- devito imports -------------#
 from devito import Grid, SteppingDimension
@@ -18,7 +27,7 @@ from devito.logger import perf
 from devito.ir.ietxdsl import iet_ssa
 from devito.ir.ietxdsl.utils import is_int, is_float
 from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
-
+from devito.ir.ietxdsl.lowering import LowerIetForToScfFor
 
 # flake8: noqa
 
@@ -121,34 +130,28 @@ class ExtractDevitoStencilConversion:
         )
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
+        # Handle Indexeds
         if isinstance(node, Indexed):
             offsets = _get_dim_offsets(node, self.time_offs)
             return self.loaded_values[offsets]
-        if isinstance(node, Integer):
+        # Handle Integers
+        elif isinstance(node, Integer):
             cst = arith.Constant.from_int_and_width(int(node), builtin.i64)
             self.block.add_op(cst)
             return cst.result
-        if isinstance(node, Float):
+        # Handle Floats
+        elif isinstance(node, Float):
             cst = arith.Constant.from_float_and_width(float(node), builtin.f32)
             self.block.add_op(cst)
             return cst.result
-        # if isinstance(math, Constant):
-        #    symb = iet_ssa.LoadSymbolic.get(math.name, dtypes_to_xdsltypes[math.dtype])
-        #    self.block.add_op(symb)
-        #    return symb.result
-        if isinstance(node, Symbol):
+        # Handle Symbols
+        elif isinstance(node, Symbol):
             symb = iet_ssa.LoadSymbolic.get(node.name, builtin.f32)
             self.block.add_op(symb)
-            return symb.result
-
-        # handle all of the math
-        if not isinstance(node, (Add, Mul, Pow, Mod)):
-            raise ValueError(f"Unknown math: {node}", node)
-
-        args = [self._visit_math_nodes(arg) for arg in node.args]
-
-        # make sure all args are the same type:
-        if isinstance(node, (Add, Mul)):
+            return symb.result     
+        # Handle Add Mul
+        elif isinstance(node, (Add, Mul)):
+            args = [self._visit_math_nodes(arg) for arg in node.args]
             # add casts when necessary
             # get first element out, store the rest in args
             # this makes the reduction easier
@@ -160,14 +163,14 @@ class ExtractDevitoStencilConversion:
                 op_cls = arith.Addf if isinstance(node, Add) else arith.Mulf
             else:
                 raise("Add support for another type")
-
             for arg in args:
                 op = op_cls(carry, arg)
                 self.block.add_op(op)
                 carry = op.result
             return carry
-
-        if isinstance(node, Pow):
+        # Handle Pow
+        elif isinstance(node, Pow):
+            args = [self._visit_math_nodes(arg) for arg in node.args]
             assert len(args) == 2, "can't pow with != 2 args!"
             base, ex = args
             if is_int(base):
@@ -188,11 +191,12 @@ class ExtractDevitoStencilConversion:
             op = op_cls.get(base, ex)
             self.block.add_op(op)
             return op.result
+        # Handle Mod
+        elif isinstance(node, Mod):
+            raise NotImplementedError("Go away, no mod here. >:(")
+        else:
+            raise NotImplementedError(f"Unknown math: {node}", node)
 
-        if isinstance(node, Mod):
-            raise ValueError("Go away, no mod here. >:(")
-
-        raise ValueError("Unknown math!")
 
     def _add_access_ops(
         self, reads: list[Indexed], time_offset_to_field: dict[int, SSAValue]
@@ -257,10 +261,10 @@ class ExtractDevitoStencilConversion:
         if all(is_float(val) for val in vals):
             return vals
         # not everything homogeneous
-        new_vals = []
+        processed = []
         for val in vals:
             if is_float(val):
-                new_vals.append(val)
+                processed.append(val)
                 continue
             # if the val is the result of a arith.constant with no uses,
             # we change the type of the arith.constant to our desired type
@@ -273,13 +277,13 @@ class ExtractDevitoStencilConversion:
                 val.op.attributes["value"] = builtin.FloatAttr(
                     float(val.op.value.value.data), builtin.f32
                 )
-                new_vals.append(val)
+                processed.append(val)
                 continue
             # insert an integer to float cast op
             conv = arith.SIToFPOp(val, builtin.f32)
             self.block.add_op(conv)
-            new_vals.append(conv.result)
-        return new_vals
+            processed.append(conv.result)
+        return processed
 
 
 def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
@@ -304,22 +308,6 @@ def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
 #           devito.stencil  ---> stencil dialect           ####
 #                                                          ####
 # -------------------------------------------------------- ####
-
-from dataclasses import dataclass, field
-
-from xdsl.pattern_rewriter import (
-    GreedyRewritePatternApplier,
-    PatternRewriter,
-    PatternRewriteWalker,
-    RewritePattern,
-    op_type_rewrite_pattern,
-)
-
-from devito.ir.ietxdsl.lowering import (
-    LowerIetForToScfFor,
-)
-
-from xdsl.dialects import llvm
 
 @dataclass
 class WrapFunctionWithTransfers(RewritePattern):
