@@ -146,22 +146,12 @@ class Operator(Callable):
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
 
-        # Terrible hack, but necessary because devito is cursed.
-        # is_xdsl = 'xdsl' in cls.__name__.lower()
-        # Save _build and _lower classes
-        # _build = cls._build
-
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
         # Normalize input arguments for the selected Operator
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
-
-        # import pdb;pdb.set_trace()
-        # Use the selected classes _build and _lower methods if not XDSL
-        # if not is_xdsl:
-        #     _build = cls._build
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -850,7 +840,6 @@ class Operator(Callable):
 
         try:
             cfunction = self.cfunction
-            # arg_values = self._construct_cfunction_args(args)
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
         except ctypes.ArgumentError as e:
