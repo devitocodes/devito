@@ -1,5 +1,5 @@
 import numpy as np
-from devito import Grid, TimeFunction, Eq, Operator, XDSLOperator, norm
+from devito import Grid, TimeFunction, Eq, Operator, norm
 import pytest
 # flake8: noqa
 
@@ -16,7 +16,7 @@ def test_udx():
 
     u.data[:] = 0.1
 
-    xdsl_op = XDSLOperator([eq])
+    xdsl_op = Operator([eq], opt='xdsl')
     xdsl_op.apply(time_M=5)
     norm2 = norm(u)
     
@@ -34,7 +34,7 @@ def test_u_plus1_conversion():
     norm1 = norm(u)
     
     u.data[:] = 0
-    xdsl_op = XDSLOperator([eq])
+    xdsl_op = Operator([eq], opt='xdsl')
     xdsl_op.apply(time_M=5)
     norm2 = norm(u)
 
@@ -58,7 +58,7 @@ def test_u_and_v_conversion():
 
     u.data[:] = 0.0001
     v.data[:] = 0.0001
-    xdsl_op = XDSLOperator([eq0, eq1])
+    xdsl_op = Operator([eq0, eq1], opt='xdsl')
     xdsl_op.apply(time_M=5, dt=0.1)
     norm_u2 = norm(u)
     norm_v2 = norm(v)

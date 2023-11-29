@@ -24,7 +24,7 @@ operator_registry.add(Cpu64AdvCOperator, Cpu64, 'advanced', 'C')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'openmp')
 
 operator_registry.add(Cpu64XdslOperator, Cpu64, 'xdsl', 'C')
-# operator_registry.add(Cpu64XdslOmpOperator, Cpu64, 'advanced', 'openmp')
+operator_registry.add(Cpu64XdslOperator, Cpu64, 'xdsl', 'openmp')
 
 operator_registry.add(Cpu64FsgCOperator, Cpu64, 'advanced-fsg', 'C')
 operator_registry.add(Cpu64FsgOmpOperator, Cpu64, 'advanced-fsg', 'openmp')

@@ -7,7 +7,7 @@ from conftest import skipif
 import pytest
 import numpy as np
 
-from devito import (Grid, TimeFunction, Eq, norm, XDSLOperator, solve, Operator)
+from devito import (Grid, TimeFunction, Eq, norm, solve, Operator)
 
 
 pytestmark = skipif(['nompi'], whole_module=True)
@@ -24,7 +24,7 @@ class TestOperatorSimple(object):
         f = TimeFunction(name='f', grid=grid)
         f.data_with_halo[:] = 1.
 
-        op = XDSLOperator(Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + 1))
+        op = Operator(Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + 1), opt='xdsl')
         op.apply(time=2)
         assert np.isclose(norm(f), 515.9845, rtol=1e-4)
 
@@ -57,7 +57,7 @@ class TestOperatorSimple(object):
         u.data[:, 40:50, 40:50] = 1
 
         # XDSL Operator
-        xdslop = XDSLOperator([stencil])
+        xdslop = Operator([stencil], opt='xdsl')
         xdslop.apply(time=nt, dt=dt)
         xdsl_norm = norm(u)
 
