@@ -13,7 +13,7 @@ from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, Li
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
-from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro
+from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro, FLOAT
 from devito.tools import CustomDtype, as_tuple
 from devito.types import Array, LocalObject, Symbol
 
@@ -294,11 +294,18 @@ def test_cpp_local_object():
 
     lo2 = SpecialObject('obj2')
 
-    # A LocalObject instantiated calling its 2-args constructor and subsequently
-    # assigned a value
+    # A LocalObject instantiated and subsequently assigned a value
     lo3 = MyObject('obj3', initvalue=Macro('meh'))
 
-    iet = Call('foo', [lo0, lo1, lo2, lo3])
+    # A LocalObject instantiated calling its 2-args constructor and subsequently
+    # assigned a value
+    lo4 = MyObject('obj4', cargs=(1, 2), initvalue=Macro('meh'))
+
+    # A LocalObject with generic sympy exprs used as constructor args
+    expr = sympy.Function('ceil')(FLOAT(Symbol(name='s'))**-1)
+    lo5 = MyObject('obj5', cargs=(expr,), initvalue=Macro('meh'))
+
+    iet = Call('foo', [lo0, lo1, lo2, lo3, lo4, lo5])
     iet = ElementalFunction('foo', iet, parameters=())
 
     dm = CDataManager(sregistry=None)
@@ -308,6 +315,8 @@ def test_cpp_local_object():
     assert 'dummy obj1;' not in str(iet)
     assert 'bar<int,float>& obj2;' in str(iet)
     assert 'dummy obj3 = meh;' in str(iet)
+    assert 'dummy obj4(1,2) = meh;' in str(iet)
+    assert 'dummy obj5(ceil(1.0F/(float)s)) = meh;' in str(iet)
 
 
 def test_call_indexed():

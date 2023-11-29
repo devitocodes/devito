@@ -243,7 +243,8 @@ class CGen(Visitor):
 
         try:
             if obj.cargs:
-                strobj = MultilineCall(strobj, obj.cargs, True)
+                arguments = [ccode(i) for i in obj.cargs]
+                strobj = MultilineCall(strobj, arguments, True)
         except AttributeError:
             pass
 
