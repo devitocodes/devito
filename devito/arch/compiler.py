@@ -811,13 +811,15 @@ class OneapiCompiler(IntelCompiler):
                 self.cflags.append('-gline-tables-only')
                 self.cflags.append('-fdebug-info-for-profiling')
 
+    get_version = Compiler.get_version
+
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,
         # and icx, which is clang
         self.CC = 'icx'
         self.CXX = 'icpx'
-        self.MPICC = 'mpicc'
-        self.MPICXX = 'mpicxx'
+        self.MPICC = 'mpiicpc'
+        self.MPICXX = 'mpiicpx'
 
 
 class SyclCompiler(OneapiCompiler):
