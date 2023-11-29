@@ -2,7 +2,7 @@ from devito.arch import Cpu64, Intel64, Arm, Power, Device
 from devito.core.cpu import (Cpu64NoopCOperator, Cpu64NoopOmpOperator,
                              Cpu64AdvCOperator, Cpu64AdvOmpOperator,
                              Cpu64FsgCOperator, Cpu64FsgOmpOperator,
-                             Cpu64CustomOperator)
+                             Cpu64CustomOperator, Cpu64XdslOperator)
 from devito.core.intel import (Intel64AdvCOperator, Intel64AdvOmpOperator,
                                Intel64FsgCOperator, Intel64FsgOmpOperator)
 from devito.core.arm import ArmAdvCOperator, ArmAdvOmpOperator
@@ -22,6 +22,9 @@ operator_registry.add(Cpu64NoopOmpOperator, Cpu64, 'noop', 'openmp')
 
 operator_registry.add(Cpu64AdvCOperator, Cpu64, 'advanced', 'C')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'openmp')
+
+operator_registry.add(Cpu64XdslOperator, Cpu64, 'xdsl', 'C')
+# operator_registry.add(Cpu64XdslOmpOperator, Cpu64, 'advanced', 'openmp')
 
 operator_registry.add(Cpu64FsgCOperator, Cpu64, 'advanced-fsg', 'C')
 operator_registry.add(Cpu64FsgOmpOperator, Cpu64, 'advanced-fsg', 'openmp')

@@ -235,7 +235,12 @@ class XDSLOperator(Operator):
 
         # Lower the input expressions into an IET
         debug("-Lower expressions")
-        irs, _, module = cls._lower(expressions, profiler=profiler, **kwargs)
+        irs, _ = cls._lower(expressions, profiler=profiler, **kwargs)
+
+        # import pdb;pdb.set_trace()
+        conv = ExtractDevitoStencilConversion(irs.expressions)
+        module = conv.convert()
+        convert_devito_stencil_to_xdsl_stencil(module, timed=True)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
@@ -282,45 +287,6 @@ class XDSLOperator(Operator):
         return op
 
     # Compilation -- Expression level
-
-    @classmethod
-    def _lower(cls, expressions, **kwargs):
-        """
-        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
-        """
-        # Create a symbol registry
-        kwargs['sregistry'] = SymbolRegistry()
-        expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
-        # Enable recursive lowering
-        # This may be used by a compilation pass that constructs a new
-        # expression for which a partial or complete lowering is desired
-        kwargs['lower'] = cls._lower
-
-        # [Eq] -> [LoweredEq]
-        expressions = cls._lower_exprs(expressions, **kwargs)
-
-        conv = ExtractDevitoStencilConversion(expressions)
-        module = conv.convert()
-        convert_devito_stencil_to_xdsl_stencil(module, timed=True)
-
-        # [LoweredEq] -> [Clusters]
-        clusters = cls._lower_clusters(expressions, **kwargs)
-
-        # [Clusters] -> ScheduleTree
-        stree = cls._lower_stree(clusters, **kwargs)
-
-        # ScheduleTree -> unbounded IET
-        uiet = cls._lower_uiet(stree, **kwargs)
-
-        # unbounded IET -> IET
-        iet, byproduct = cls._lower_iet(uiet, **kwargs)
-
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
 
     @property
     def cfunction(self):

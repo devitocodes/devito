@@ -12,7 +12,7 @@ from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator']
+           'Cpu64CustomOperator', 'Cpu64XdslOperator']
 
 
 class Cpu64OperatorMixin(object):
@@ -182,6 +182,65 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Misc optimizations
         hoist_prodders(graph)
+
+        # Symbol definitions
+        cls._Target.DataManager(**kwargs).process(graph)
+
+        # Linearize n-dimensional Indexeds
+        linearize(graph, **kwargs)
+
+        return graph
+
+
+class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
+
+    _Target = OmpTarget
+    
+    @classmethod
+    @timed_pass(name='specializing.DSL')
+    def _specialize_dsl(cls, expressions, **kwargs):
+        expressions = collect_derivatives(expressions)
+
+        return expressions
+
+    @classmethod
+    @timed_pass(name='specializing.Clusters')
+    def _specialize_clusters(cls, clusters, **kwargs):
+        options = kwargs['options']
+        platform = kwargs['platform']
+        sregistry = kwargs['sregistry']
+
+        # Toposort+Fusion (the former to expose more fusion opportunities)
+        clusters = fuse(clusters, toposort=True)
+
+        # Hoist and optimize Dimension-invariant sub-expressions
+        clusters = cire(clusters, 'invariants', sregistry, options, platform)
+        clusters = Lift().process(clusters)
+
+        # Blocking to improve data locality
+        if options['blockeager']:
+            clusters = blocking(clusters, sregistry, options)
+
+        # Reduce flops
+        clusters = cire(clusters, 'sops', sregistry, options, platform)
+        clusters = factorize(clusters)
+        clusters = optimize_pows(clusters)
+
+        # The previous passes may have created fusion opportunities
+        clusters = fuse(clusters)
+
+        # Reduce flops
+        clusters = cse(clusters, sregistry, options)
+
+        # Blocking to improve data locality
+        if options['blocklazy']:
+            clusters = blocking(clusters, sregistry, options)
+
+        return clusters
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
