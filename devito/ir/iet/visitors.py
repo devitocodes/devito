@@ -192,10 +192,14 @@ class CGen(Visitor):
         Convert ctypes.Struct -> cgen.Structure.
         """
         ctype = obj._C_ctype
-        while issubclass(ctype, ctypes._Pointer):
-            ctype = ctype._type_
+        try:
+            while issubclass(ctype, ctypes._Pointer):
+                ctype = ctype._type_
 
-        if not issubclass(ctype, ctypes.Structure):
+            if not issubclass(ctype, ctypes.Structure):
+                return None
+        except TypeError:
+            # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
             return None
 
         try:
@@ -613,7 +617,8 @@ class CGen(Visitor):
 
         # This is essentially to rule out vector types which are declared already
         # in some external headers
-        xfilter = lambda i: xfilter1(i) and not is_external_ctype(i._C_ctype, o._includes)
+        xfilter = lambda i: (xfilter1(i) and
+                             not is_external_ctype(i._C_ctype, o._includes))
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [self._gen_struct_decl(i) for i in candidates if xfilter(i)]
