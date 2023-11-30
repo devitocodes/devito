@@ -17,7 +17,8 @@ from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
 from devito.ir.support.space import Backward
-from devito.symbolics import ListInitializer, ccode, uxreplace
+from devito.symbolics import (FieldFromComposite, FieldFromPointer,
+                              ListInitializer, ccode, uxreplace)
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
@@ -283,8 +284,13 @@ class CGen(Visitor):
         try:
             return self._gen_value(obj, 0).typename
         except AttributeError:
-            assert isinstance(obj, str)
+            pass
+        if isinstance(obj, str):
             return obj
+        elif isinstance(obj, (FieldFromComposite, FieldFromPointer)):
+            return self._gen_value(obj.function.base, 0).typename
+        else:
+            return None
 
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
@@ -482,16 +488,18 @@ class CGen(Visitor):
 
     def visit_Call(self, o, nested_call=False):
         retobj = o.retobj
-        cast = o.cast and self._gen_rettype(retobj)
+        rettype = self._gen_rettype(retobj)
+        cast = o.cast and rettype
         arguments = self._args_call(o.arguments)
         if retobj is None:
-            return MultilineCall(o.name, arguments, nested_call, o.is_indirect, cast)
+            return MultilineCall(o.name, arguments, nested_call, o.is_indirect,
+                                 cast)
         else:
             call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
-            if retobj.is_Indexed:
+            if retobj.is_Indexed or \
+               isinstance(retobj, (FieldFromComposite, FieldFromPointer)):
                 return c.Assign(ccode(retobj), call)
             else:
-                rettype = self._gen_rettype(retobj)
                 return c.Initializer(c.Value(rettype, retobj._C_name), call)
 
     def visit_Conditional(self, o):
