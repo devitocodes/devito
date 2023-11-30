@@ -495,7 +495,7 @@ class SubDomain(AbstractSubDomain):
     """
 
     def __subdomain_finalize__(self, grid, **kwargs):
-        if self.grid is not None:
+        if self.grid:
             raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
                              % self)
 
