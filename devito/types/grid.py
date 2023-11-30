@@ -445,14 +445,10 @@ class AbstractSubDomain(CartesianDiscretization):
 
     @property
     def distributor(self):
-        if self.has_grid:
+        try:
             return self.grid._distributor
-        else:
+        except AttributeError:
             return None
-
-    @property
-    def has_grid(self):
-        return self._grid is not None
 
 
 class SubDomain(AbstractSubDomain):
@@ -502,16 +498,18 @@ class SubDomain(AbstractSubDomain):
     """
 
     def __subdomain_finalize__(self, grid, **kwargs):
-        if self.has_grid:
-            raise ValueError("`SubDomain` has already been attached to a `Grid`")
+        if self.grid is not None:
+            raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
+                             % self)
 
         self._grid = grid
+
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
         counter = kwargs.get('counter', 0) - 1
 
-        for k, v, s in zip(self.define(self.grid.dimensions).keys(),
+        for k, v, s in zip(self.define(self.grid.dimensions),
                            self.define(self.grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
