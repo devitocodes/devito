@@ -246,7 +246,7 @@ class CGen(Visitor):
         strobj = '%s%s' % (strname, strshape)
 
         try:
-            if obj.cargs:
+            if obj.cargs and level == 2:
                 arguments = [ccode(i) for i in obj.cargs]
                 strobj = MultilineCall(strobj, arguments, True)
         except AttributeError:
