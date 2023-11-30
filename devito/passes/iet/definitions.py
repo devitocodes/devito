@@ -24,7 +24,7 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 class MetaSite(object):
 
-    _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
+    _items = ('standalones', 'allocs', 'objs', 'frees', 'pallocs', 'pfrees',
               'maps', 'unmaps', 'efuncs')
 
     def __init__(self):
@@ -90,7 +90,10 @@ class DataManager(object):
 
         frees = obj._C_free
 
-        storage.update(obj, site, objs=definition, frees=frees)
+        if obj.free_symbols - {obj}:
+            storage.update(obj, site, objs=definition, frees=frees)
+        else:
+            storage.update(obj, site, standalones=definition, frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -271,6 +274,7 @@ class DataManager(object):
             cbody = k.body
 
             # objects
+            standalones = as_list(cbody.standalones) + flatten(v.standalones)
             objs = as_list(cbody.objs) + flatten(v.objs)
 
             # allocs/pallocs
@@ -295,8 +299,10 @@ class DataManager(object):
             # efuncs
             efuncs.extend(v.efuncs)
 
-            mapper[cbody] = cbody._rebuild(allocs=allocs, maps=maps, objs=objs,
-                                           unmaps=unmaps, frees=frees)
+            mapper[cbody] = cbody._rebuild(
+                standalones=standalones, allocs=allocs, maps=maps, objs=objs,
+                unmaps=unmaps, frees=frees
+            )
 
         processed = Transformer(mapper, nested=True).visit(iet)
 

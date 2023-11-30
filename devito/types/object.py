@@ -197,8 +197,15 @@ class LocalObject(AbstractObject):
 
     @property
     def free_symbols(self):
-        return (super().free_symbols |
-                set().union(*[i.free_symbols for i in self.cargs]))
+        ret = set()
+        ret.update(super().free_symbols)
+        for i in self.cargs:
+            try:
+                ret.update(i.free_symbols)
+            except AttributeError:
+                # E.g., pure integers
+                pass
+        return ret
 
     @property
     def _C_init(self):

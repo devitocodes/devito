@@ -751,6 +751,12 @@ class CallableBody(Node):
     init : Node, optional
         A piece of IET to perform some initialization relevant for `body`
         (e.g., to initialize the target language runtime).
+    standalones : list of Definitions, optional
+        Object definitions for `body`. Instantiating these objects does not
+        require passing any arguments to their constructors, so these
+        Definitions can be scheduled safely right after `init`. They may or may
+        not be required by some of the subsequent nodes (e.g., `allocs`,
+        `maps`).
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
     casts : list of PointerCasts, optional
@@ -764,7 +770,9 @@ class CallableBody(Node):
     strides : list of Nodes, optional
         Statements defining symbols used to access linearized arrays.
     objs : list of Definitions, optional
-        Object definitions for `body`.
+        Object definitions for `body`. Instantiating these objects may or may
+        not require some of the symbols defined in the previous nodes (e.g.,
+        `allocs`, `maps`).
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
     unbundles : list of Nodes, optional
@@ -775,11 +783,13 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps',
-                    'strides', 'objs', 'body', 'unmaps', 'unbundles', 'frees']
+    _traversable = ['unpacks', 'init', 'standalones', 'allocs', 'casts',
+                    'bundles', 'maps', 'strides', 'objs', 'body', 'unmaps',
+                    'unbundles', 'frees']
 
-    def __init__(self, body, init=(), unpacks=(), strides=(), allocs=(), casts=(),
-                 bundles=(), objs=(), maps=(), unmaps=(), unbundles=(), frees=()):
+    def __init__(self, body, init=(), standalones=(), unpacks=(), strides=(),
+                 allocs=(), casts=(), bundles=(), objs=(), maps=(), unmaps=(),
+                 unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -787,6 +797,7 @@ class CallableBody(Node):
 
         self.unpacks = as_tuple(unpacks)
         self.init = as_tuple(init)
+        self.standalones = as_tuple(standalones)
         self.allocs = as_tuple(allocs)
         self.casts = as_tuple(casts)
         self.strides = as_tuple(strides)
