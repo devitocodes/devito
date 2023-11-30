@@ -163,8 +163,8 @@ class TestSubdomains(object):
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
     sd_specs = [('middle', 1, 7), ('middle', 2, 3), ('middle', 7, 1),
-                ('middle', 5, 5), ('right', 3), ('right', 7), ('left', 3),
-                ('left', 7)]
+                ('middle', 5, 5), ('right', 3), ('middle', 3, 0), ('left', 3),
+                ('middle', 0, 3)]
 
     @pytest.mark.parametrize('spec', sd_specs)
     @pytest.mark.parallel(mode=[2, 3])
@@ -202,6 +202,28 @@ class TestSubdomains(object):
         check[slice(start, stop)] = 1
 
         assert np.all(check[grid.distributor.glb_slices[x]] == f.data)
+
+    def test_subdomain_w_grid(self):
+        """
+        Test that SubDomains can be passed a Grid on instantiation, rather than
+        using the legacy behaviour.
+        """
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x = dimensions[0]
+                return {x: ('middle', 2, 2)}
+
+        grid = Grid(shape=(11,), extent=(10.,))
+        s_d0 = sd0(grid=grid)
+
+        f = Function(name='f', grid=grid)
+
+        Operator(Eq(f, f+1, subdomain=s_d0))()
+        check = np.zeros(grid.shape)
+        check[2:-2] = 1
+        assert np.all(check == f.data)
 
 
 class TestMultiSubDomain(object):
@@ -306,6 +328,42 @@ class TestMultiSubDomain(object):
         exprs = FindNodes(Expression).visit(op)
         reads = set().union(*[e.reads for e in exprs])
         assert len(reads) == 7  # f, g, h, xi_n_m, xi_n_M, yi_n_m, yi_n_M
+
+    def test_subdomainset_w_grid(self):
+        """
+        Test that SubDomainSets can be passed a Grid on instantiation, rather than
+        using the legacy behaviour.
+        """
+        Nx = 10
+        Ny = Nx
+        n_domains = 2
+
+        class MySubdomains(SubDomainSet):
+            name = 'mydomains'
+
+        bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
+        bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
+        bounds_ym = 1
+        bounds_yM = 1
+        bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
+        my_sd = MySubdomains(N=n_domains, bounds=bounds, grid=grid)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        Operator(Eq(f, f+1, subdomain=my_sd))()
+
+        expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
+        assert((np.array(f.data) == expected).all())
 
     def test_multi_sets(self):
         """

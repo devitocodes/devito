@@ -383,12 +383,14 @@ class AbstractSubDomain(CartesianDiscretization):
         if self.name is None:
             self.name = self.__class__.__name__
 
-        self._grid = None
-
         # All other attributes get initialized upon `__subdomain_finalize__`
         super().__init__()
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+        self._grid = kwargs.get('grid')
+        if self.grid:
+            self.__subdomain_finalize__()
+
+    def __subdomain_finalize__(self, grid=None, **kwargs):
         """
         Finalize the subdomain initialization.
 
@@ -494,20 +496,23 @@ class SubDomain(AbstractSubDomain):
     Interior : An example of preset Subdomain.
     """
 
-    def __subdomain_finalize__(self, grid, **kwargs):
-        if self.grid:
-            raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
-                             % self)
-
-        self._grid = grid
+    def __subdomain_finalize__(self, grid=None, **kwargs):
+        if grid:
+            if self.grid:
+                raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
+                                 % self)
+            else:
+                self._grid = grid
 
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        counter = kwargs.get('counter', 0) - 1
+
+        # FIXME: SubDimension names want to come from the symbol registry
+        counter = kwargs.get('counter', 1) - 1
 
         for k, v, s in zip(self.define(self.grid.dimensions),
-                           self.define(self.grid.dimensions).values(), grid.shape):
+                           self.define(self.grid.dimensions).values(), self.grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
@@ -552,9 +557,9 @@ class SubDomain(AbstractSubDomain):
                          for dim, s in self.distributor.glb_slices.items()}
 
         # Assumes no override of x_m and x_M supplied to operator
-        bounds_map = {**{dim.symbolic_min: 0 for dim in grid.dimensions},
-                      **{dim.symbolic_max: sha-1 for dim, sha in zip(grid.dimensions,
-                                                                     grid.shape)}}
+        bounds_map = {**{dim.symbolic_min: 0 for dim in self.grid.dimensions},
+                      **{dim.symbolic_max: sha-1 for dim, sha in zip(self.grid.dimensions,
+                                                                     self.grid.shape)}}
 
         sdim_interval = {dim:
                          (sdim._interval.subs({**{k: v for k, v
@@ -562,7 +567,7 @@ class SubDomain(AbstractSubDomain):
                                                   if v is not None},
                                                **bounds_map})
                           if sdim.is_Sub else None)
-                         for dim, sdim in zip(grid.dimensions, self.dimensions)}
+                         for dim, sdim in zip(self.grid.dimensions, self.dimensions)}
 
         # If the grid is set up with conditional dimensions, then dist_interval
         # and sdim_interval end up keyed with actual dimensions I would guess?
@@ -570,9 +575,9 @@ class SubDomain(AbstractSubDomain):
 
         intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
                            else dist_interval[dim].intersect(sdim_interval[dim]))
-                          for dim in grid.dimensions)
+                          for dim in self.grid.dimensions)
 
-        for dim, sdim in zip(grid.dimensions, self.dimensions):
+        for dim, sdim in zip(self.grid.dimensions, self.dimensions):
             if sdim.is_Sub:
                 if sdim.local:
                     in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
@@ -583,7 +588,7 @@ class SubDomain(AbstractSubDomain):
 
         if any([i.is_empty for i in intervals]):
             # SubDomain does not overlap this rank
-            self._shape_local = tuple(0 for d in grid.dimensions)
+            self._shape_local = tuple(0 for d in self.grid.dimensions)
         else:
             # Intervals of form Interval(n, n) automatically become FiniteSet
             # +1 as intervals are in terms of indices (inclusive of endpoints)
