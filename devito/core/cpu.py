@@ -4,6 +4,7 @@ import ctypes
 import tempfile
 
 from io import StringIO
+from collections import OrderedDict
 
 from functools import partial
 
@@ -21,6 +22,10 @@ from devito.tools import timed_pass
 from devito.logger import debug, info, perf
 from devito.operator.profiling import create_profile
 from devito.ir.iet import Callable, MetaCall
+
+from devito.ir.support import SymbolRegistry
+from devito.tools import as_tuple, flatten, filter_sorted, OrderedSet
+from devito.types import Evaluable
 
 from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
                                               convert_devito_stencil_to_xdsl_stencil,
@@ -217,19 +222,168 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
 
     _Target = OmpTarget
 
-    def _make_interop_o(self):
+    @classmethod
+    def _build(cls, expressions, **kwargs):
+
+        perf("Building an xDSL operator")
+        # Python- (i.e., compile-) and C-level (i.e., run-time) performance
+        profiler = create_profile('timers')
+
+        # Lower the input expressions into an IET
+        perf("Lower expressions to a module")
+        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+
+        # Make it an actual Operator
+        op = Callable.__new__(cls, **irs.iet.args)
+        Callable.__init__(op, **op.args)
+
+        # Header files, etc.
+        op._headers = OrderedSet(*cls._default_headers)
+        op._headers.update(byproduct.headers)
+        op._globals = OrderedSet(*cls._default_globals)
+        op._includes = OrderedSet(*cls._default_includes)
+        op._includes.update(profiler._default_includes)
+        op._includes.update(byproduct.includes)
+        op._module = module
+
+        # Required for the jit-compilation
+        op._compiler = kwargs['compiler']
+        op._language = kwargs['language']
+        op._lib = None
+        op._cfunction = None
+
+        # Potentially required for lazily allocated Functions
+        op._mode = kwargs['mode']
+        op._options = kwargs['options']
+        op._allocator = kwargs['allocator']
+        op._platform = kwargs['platform']
+
+        # References to local or external routines
+        op._func_table = OrderedDict()
+        op._func_table.update(OrderedDict([(i, MetaCall(None, False))
+                                           for i in profiler._ext_calls]))
+        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
+
+        # Internal mutable state to store information about previous runs, autotuning
+        # reports, etc
+        op._state = cls._initialize_state(**kwargs)
+
+        # Produced by the various compilation passes
+
+        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
+        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        op._dtype, op._dspace = irs.clusters.meta
+        op._profiler = profiler
+
+        return op
+
+    @classmethod
+    def _lower(cls, expressions, **kwargs):
         """
-        compile the interop.o file
+        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
         """
+        # Create a symbol registry
+        kwargs.setdefault('sregistry', SymbolRegistry())
+
+        expressions = as_tuple(expressions)
+
+        # Input check
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
+
+        # Enable recursive lowering
+        # This may be used by a compilation pass that constructs a new
+        # expression for which a partial or complete lowering is desired
+        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
+
+        # [Eq] -> [LoweredEq]
+        expressions = cls._lower_exprs(expressions, **kwargs)
+
+        # [Eq] -> [xdsl]
+        # Lower expressions to a builtin.ModuleOp
+        conv = ExtractDevitoStencilConversion(expressions)
+        module = conv.convert()
+        # Uncomment to print
+        # Printer().print(module)
+        convert_devito_stencil_to_xdsl_stencil(module, timed=True)
+        # Uncomment to print
+        # Printer().print(module)
+
+        # [LoweredEq] -> [Clusters]
+        clusters = cls._lower_clusters(expressions, **kwargs)
+
+        # [Clusters] -> ScheduleTree
+        stree = cls._lower_stree(clusters, **kwargs)
+
+        # ScheduleTree -> unbounded IET
+        uiet = cls._lower_uiet(stree, **kwargs)
+
+        # unbounded IET -> IET
+        iet, byproduct = cls._lower_iet(uiet, **kwargs)
+
+        from collections import namedtuple
+
+        IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
+
+        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
+
+    @classmethod
+    @timed_pass(name='specializing.IET')
+    def _specialize_iet(cls, graph, **kwargs):
+        # Symbol definitions
+        cls._Target.DataManager(**kwargs).process(graph)
+
+        return graph
+
+    def _cmd_compile(self, cmd, input=None):
+        # Could be dropped unless PIPE is never empty in the future
+        stdin = subprocess.PIPE if input is not None else None  # noqa
+
         res = subprocess.run(
-            f'clang -x c - -c -o {self._interop_tf.name}',
+            cmd,
+            input=input,
             shell=True,
-            input=_INTEROP_C,
             text=True,
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
+            capture_output=True,
+            executable="/bin/bash"
         )
+
+        if res.returncode != 0:
+            print("compilation failed with output:")
+            print(res.stderr)
+
         assert res.returncode == 0
+        return res.returncode, res.stdout, res.stderr
+
+    def apply(self, **kwargs):
+        # Build the arguments list to invoke the kernel function
+        with self._profiler.timer_on('arguments'):
+            args = self.arguments(**kwargs)
+            self._jit_kernel_constants = args
+
+        cfunction = self.cfunction
+        try:
+            # Invoke kernel function with args
+            arg_values = self._construct_cfunction_args(args)
+            with self._profiler.timer_on('apply', comm=args.comm):
+                cfunction(*arg_values)
+        except ctypes.ArgumentError as e:
+            if e.args[0].startswith("argument "):
+                argnum = int(e.args[0][9:].split(':')[0]) - 1
+                newmsg = "error in argument '%s' with value '%s': %s" % (
+                    self.parameters[argnum].name,
+                    arg_values[argnum],
+                    e.args[0])
+                raise ctypes.ArgumentError(newmsg) from e
+            else:
+                raise
+
+        # Post-process runtime arguments
+        self._postprocess_arguments(args, **kwargs)
+
+        # Output summary of performance achieved
+        return self._emit_apply_profiling(args)
 
     def _jit_compile(self):
         """
@@ -238,7 +392,6 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
         once per Operator, reagardless of how many times this method
         is invoked.
         """
-
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
             is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
@@ -261,13 +414,15 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
 
             to_tile = len(list(filter(lambda d: d.is_Space, self.dimensions)))-1
 
-            xdsl_pipeline = XDSL_CPU_PIPELINE(to_tile)
-            mlir_pipeline = MLIR_CPU_PIPELINE
+            xdsl_pipeline = generate_XDSL_CPU_PIPELINE(to_tile)
+
+            mlir_pipeline = generate_MLIR_CPU_PIPELINE()
 
             if is_omp:
-                mlir_pipeline = MLIR_OPENMP_PIPELINE
+                mlir_pipeline = generate_MLIR_OPENMP_PIPELINE()
 
             if is_mpi:
+                
                 shape, mpi_rank = self.mpi_shape
                 # Run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation
@@ -277,13 +432,14 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
                 decomp = "2d-grid" if len(shape) == 2 else "3d-grid"
 
                 decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
-                xdsl_pipeline = XDSL_MPI_PIPELINE(decomp, to_tile)
+                xdsl_pipeline = generate_XDSL_MPI_PIPELINE(decomp, to_tile)
+
             elif is_gpu:
-                xdsl_pipeline = XDSL_GPU_PIPELINE
+                xdsl_pipeline = generate_XDSL_GPU_PIPELINE()
                 # Get GPU blocking shapes
                 block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]  # noqa
                 block_sizes = ','.join(str(bs) for bs in block_sizes)
-                mlir_pipeline = MLIR_GPU_PIPELINE(block_sizes)
+                mlir_pipeline = generate_MLIR_GPU_PIPELINE(block_sizes)
 
             # allow jit backdooring to provide your own xdsl code
             backdoor = os.getenv('XDSL_JIT_BACKDOOR')
@@ -315,32 +471,28 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
                 if is_gpu:
                     cflags += " -lmlir_cuda_runtime "
 
+                cflags += " -shared "
+
                 # TODO More detailed error handling manually,
                 # instead of relying on a bash-only feature.
 
+                # xdsl-opt, get xDSL IR
                 xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
+                out = self.compile(xdsl_cmd)
+                Printer().print(out)
+
+                # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
+                out = self.compile(mlir_cmd, out)
+                Printer().print(out)
+
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                clang_cmd = f'{cc} {cflags} -shared -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
+                out = self.compile(mlir_translate_cmd, out)
+                Printer().print(out)
 
-                comp_steps = [xdsl_cmd,
-                              mlir_cmd,
-                              mlir_translate_cmd,
-                              clang_cmd]
-
-                # Execute each command and store the outputs
-                outputs = []
-                stdout = None
-                for cmd in comp_steps:
-                    return_code, stdout, stderr = self._cmd_compile(cmd, stdout)
-                    # Use DEVITO_LOGGING=DEBUG to print
-                    debug(cmd)
-                    outputs.append({
-                        'command': cmd,
-                        'return_code': return_code,
-                        'stdout': stdout,
-                        'stderr': stderr
-                    })
+                # Compile with clang and get LLVM-IR
+                clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
+                out = self.compile(clang_cmd, out)
 
             except Exception as ex:
                 print("error")
@@ -351,177 +503,20 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
         perf("XDSLOperator `%s` jit-compiled `%s` in %.2f s with `mlir-opt`" %
              (self.name, source_name, elapsed))
 
-    @classmethod
-    def _build(cls, expressions, **kwargs):
+    def compile(self, cmd, stdout=None):
+        # Execute each command and store the outputs
+        outputs = []
+        return_code, stdout, stderr = self._cmd_compile(cmd, stdout)
+        # Use DEVITO_LOGGING=DEBUG to print
+        debug(cmd)
+        outputs.append({
+            'command': cmd,
+            'return_code': return_code,
+            'stdout': stdout,
+            'stderr': stderr
+        })
 
-        debug("-Building operator")
-        # Python- (i.e., compile-) and C-level (i.e., run-time) performance
-        profiler = create_profile('timers')
-
-        # Lower the input expressions into an IET
-        debug("-Lower expressions")
-        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
-
-        # Make it an actual Operator
-        op = Callable.__new__(cls, **irs.iet.args)
-        Callable.__init__(op, **op.args)
-
-        # Header files, etc.
-        from devito.tools import flatten, filter_sorted, OrderedSet
-
-        op._headers = OrderedSet(*cls._default_headers)
-        op._headers.update(byproduct.headers)
-        op._globals = OrderedSet(*cls._default_globals)
-        op._includes = OrderedSet(*cls._default_includes)
-        op._includes.update(profiler._default_includes)
-        op._includes.update(byproduct.includes)
-        op._module = module
-
-        # Required for the jit-compilation
-        op._compiler = kwargs['compiler']
-        op._language = kwargs['language']
-        op._lib = None
-        op._cfunction = None
-
-        # Potentially required for lazily allocated Functions
-        op._mode = kwargs['mode']
-        op._options = kwargs['options']
-        op._allocator = kwargs['allocator']
-        op._platform = kwargs['platform']
-
-        # References to local or external routines
-        from collections import OrderedDict
-
-        op._func_table = OrderedDict()
-        op._func_table.update(OrderedDict([(i, MetaCall(None, False))
-                                           for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
-
-        # Internal mutable state to store information about previous runs, autotuning
-        # reports, etc
-        op._state = cls._initialize_state(**kwargs)
-
-        # Produced by the various compilation passes
-
-        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
-        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
-        op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
-        op._dtype, op._dspace = irs.clusters.meta
-        op._profiler = profiler
-
-        return op
-
-    @classmethod
-    def _lower(cls, expressions, **kwargs):
-        """
-        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
-        """
-        # Create a symbol registry
-        from devito.ir.support import SymbolRegistry
-        from devito.tools import as_tuple
-        from devito.types import Evaluable
-
-        kwargs.setdefault('sregistry', SymbolRegistry())
-
-        expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
-        # Enable recursive lowering
-        # This may be used by a compilation pass that constructs a new
-        # expression for which a partial or complete lowering is desired
-        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
-
-        # [Eq] -> [LoweredEq]
-        expressions = cls._lower_exprs(expressions, **kwargs)
-
-        conv = ExtractDevitoStencilConversion(expressions)
-        module = conv.convert()
-        convert_devito_stencil_to_xdsl_stencil(module, timed=True)
-
-        # [LoweredEq] -> [Clusters]
-        clusters = cls._lower_clusters(expressions, **kwargs)
-
-        # [Clusters] -> ScheduleTree
-        stree = cls._lower_stree(clusters, **kwargs)
-
-        # ScheduleTree -> unbounded IET
-        uiet = cls._lower_uiet(stree, **kwargs)
-
-        # unbounded IET -> IET
-        iet, byproduct = cls._lower_iet(uiet, **kwargs)
-
-        from collections import namedtuple
-
-        IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
-
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-
-        # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph)
-
-        # Linearize n-dimensional Indexeds
-        linearize(graph, **kwargs)
-
-        return graph
-
-    def _cmd_compile(self, cmd, input=None):
-
-        # Could be dropped unless PIPE is never empty in the future
-        stdin = subprocess.PIPE if input is not None else None  # noqa
-
-        res = subprocess.run(
-            cmd,
-            input=input,
-            shell=True,
-            text=True,
-            capture_output=True,
-            executable="/bin/bash"
-        )
-
-        if res.returncode != 0:
-            print("compilation failed with output:")
-            print(res.stderr)
-
-        assert res.returncode == 0
-        return res.returncode, res.stdout, res.stderr
-
-    def apply(self, **kwargs):
-
-        # Build the arguments list to invoke the kernel function
-        with self._profiler.timer_on('arguments'):
-            args = self.arguments(**kwargs)
-            self._jit_kernel_constants = args
-
-        cfunction = self.cfunction
-        try:
-            # Invoke kernel function with args
-            arg_values = self._construct_cfunction_args(args)
-            with self._profiler.timer_on('apply', comm=args.comm):
-                cfunction(*arg_values)
-        except ctypes.ArgumentError as e:
-            if e.args[0].startswith("argument "):
-                argnum = int(e.args[0][9:].split(':')[0]) - 1
-                newmsg = "error in argument '%s' with value '%s': %s" % (
-                    self.parameters[argnum].name,
-                    arg_values[argnum],
-                    e.args[0])
-                raise ctypes.ArgumentError(newmsg) from e
-            else:
-                raise
-
-        # Post-process runtime arguments
-        self._postprocess_arguments(args, **kwargs)
-
-        # Output summary of performance achieved
-        # import pdb;pdb.set_trace()
-        return self._emit_apply_profiling(args)
+        return stdout
 
     @property
     def cfunction(self):
@@ -547,6 +542,20 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
             self._cfunction.argtypes = argtypes
 
         return self._cfunction
+
+    def _make_interop_o(self):
+        """
+        compile the interop.o file
+        """
+        res = subprocess.run(
+            f'clang -x c - -c -o {self._interop_tf.name}',
+            shell=True,
+            input=_INTEROP_C,
+            text=True,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+        )
+        assert res.returncode == 0
 
     def setup_memref_args(self):
         """
@@ -724,28 +733,138 @@ class Cpu64FsgOmpOperator(Cpu64FsgOperator):
 # Ideally they should follow the same type of subclassing as the rest of
 # the Devito Operatos
 
+def generate_MLIR_CPU_PIPELINE():
+    passes = [
+        "builtin.module(canonicalize",
+        "cse",
+        "loop-invariant-code-motion",
+        "canonicalize",
+        "cse",
+        "loop-invariant-code-motion",
+        "cse",
+        "canonicalize",
+        "fold-memref-alias-ops",
+        "expand-strided-metadata",
+        "loop-invariant-code-motion",
+        "lower-affine",
+        "convert-scf-to-cf",
+        "convert-math-to-llvm",
+        "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
+        "finalize-memref-to-llvm",
+        "canonicalize",
+        "cse)"
+    ]
 
-MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion, cse, canonicalize, fold-memref-alias-ops, expand-strided-metadata, loop-invariant-code-motion, lower-affine, convert-scf-to-cf, convert-math-to-llvm, convert-func-to-llvm{use-bare-ptr-memref-call-conv}, finalize-memref-to-llvm, canonicalize, cse)"'  # noqa
+    return generate_pipeline(passes)
 
-MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-func-to-llvm{use-bare-ptr-memref-call-conv},convert-openmp-to-llvm,convert-math-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'   # noqa
+
+def generate_MLIR_OPENMP_PIPELINE():
+    passes = [
+        "builtin.module(canonicalize",
+        "cse",
+        "loop-invariant-code-motion",
+        "canonicalize",
+        "cse",
+        "loop-invariant-code-motion",
+        "cse",
+        "canonicalize",
+        "fold-memref-alias-ops",
+        "expand-strided-metadata",
+        "loop-invariant-code-motion",
+        "lower-affine",
+        "finalize-memref-to-llvm",
+        "loop-invariant-code-motion",
+        "canonicalize",
+        "cse",
+        "convert-scf-to-openmp",
+        "finalize-memref-to-llvm",
+        "convert-scf-to-cf",
+        "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
+        "convert-openmp-to-llvm",
+        "convert-math-to-llvm",
+        "reconcile-unrealized-casts",
+        "canonicalize",
+        "cse)"
+    ]
+
+    return generate_pipeline(passes)
+
+
 # gpu-launch-sink-index-computations seemed to have no impact
-MLIR_GPU_PIPELINE = lambda block_sizes: f'"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,lower-affine, canonicalize,cse, fold-memref-alias-ops, gpu-launch-sink-index-computations, gpu-kernel-outlining, canonicalize{{region-simplify}},cse,fold-memref-alias-ops,expand-strided-metadata,lower-affine,canonicalize,cse,func.func(gpu-async-region),canonicalize,cse,convert-arith-to-llvm{{index-bitwidth=64}},convert-scf-to-cf,convert-cf-to-llvm{{index-bitwidth=64}},canonicalize,cse,convert-func-to-llvm{{use-bare-ptr-memref-call-conv}},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'   # noqa
+def generate_MLIR_GPU_PIPELINE(block_sizes):
+    passes = [
+        "builtin.module(test-math-algebraic-simplification",
+        f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
+        "func.func(gpu-map-parallel-loops)",
+        "convert-parallel-loops-to-gpu",
+        "lower-affine",
+        "canonicalize",
+        "cse",
+        "fold-memref-alias-ops",
+        "gpu-launch-sink-index-computations",
+        "gpu-kernel-outlining",
+        "canonicalize{{region-simplify}}",
+        "cse",
+        "fold-memref-alias-ops",
+        "expand-strided-metadata",
+        "lower-affine",
+        "canonicalize",
+        "cse",
+        "func.func(gpu-async-region)",
+        "canonicalize",
+        "cse",
+        "convert-arith-to-llvm{{index-bitwidth=64}}",
+        "convert-scf-to-cf",
+        "convert-cf-to-llvm{{index-bitwidth=64}}",
+        "canonicalize",
+        "cse",
+        "convert-func-to-llvm{{use-bare-ptr-memref-call-conv}}",
+        "gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin)",  # noqa
+        "gpu-to-llvm",
+        "canonicalize",
+        "cse)"
+    ]
 
-XDSL_CPU_PIPELINE = lambda nb_tiled_dims: f'"stencil-shape-inference,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},printf-to-llvm"'  # noqa
-
-XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},reconcile-unrealized-casts,printf-to-llvm"  # noqa
-
-XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'   # noqa
+    return generate_pipeline(passes)
 
 
-def generate_tiling_arg(nb_tiled_dims: int):
-    """
-    Generate the tile-sizes arg for the convert-stencil-to-ll-mlir pass.
-    Generating no argument if the diled_dims arg is 0
-    """
-    if nb_tiled_dims == 0:
-        return ''
-    return "tile-sizes=" + ",".join(["64"]*nb_tiled_dims)
+def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
+    passes = [
+        "stencil-shape-inference",
+        f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
+        "printf-to-llvm"
+    ]
+
+    return generate_pipeline(passes)
+
+
+def generate_XDSL_GPU_PIPELINE():
+    passes = [
+        "stencil-shape-inference",
+        "convert-stencil-to-ll-mlir{target=gpu}",
+        "reconcile-unrealized-casts",
+        "printf-to-llvm"
+    ]
+
+    return generate_pipeline(passes)
+
+
+def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
+    passes = [
+        f"dmp-decompose{decomp}",
+        "canonicalize-dmp",
+        f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
+        "dmp-to-mpi{mpi_init=false}",
+        "lower-mpi",
+        "printf-to-llvm"
+    ]
+
+    return generate_pipeline(passes)
+
+
+def generate_pipeline(passes):
+    passes_string = ",".join(passes)
+    return f'"{passes_string}"'
 
 
 # small interop shim script for stuff that we don't want to implement in mlir-ir
@@ -765,6 +884,16 @@ double timer_end(double start) {
   return (timer_start() - start);
 }
 """
+
+
+def generate_tiling_arg(nb_tiled_dims: int):
+    """
+    Generate the tile-sizes arg for the convert-stencil-to-ll-mlir pass.
+    Generating no argument if the diled_dims arg is 0
+    """
+    if nb_tiled_dims == 0:
+        return ''
+    return "tile-sizes=" + ",".join(["64"]*nb_tiled_dims)
 
 
 def get_arg_names_from_module(op):

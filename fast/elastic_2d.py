@@ -118,7 +118,7 @@ op(dt=dt)
 # assert np.isclose(norm(v[0]), 0.6285093, atol=1e-4, rtol=0)
 
 # This should NOT have conditions, we should use XDSL!
-op = Operator([u_v] + [u_t])
+op = Operator([u_v] + [u_t], opt='xdsl')
 
 op(dt=dt, time_M=100)
 
