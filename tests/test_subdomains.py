@@ -864,19 +864,10 @@ class TestSubdomainFunctions:
         Check that defining a Function on a subset of a Grid results in arrays
         of the correct shape being allocated when decomposed with MPI.
         """
-        print("x: %s   y: %s" % (x, y))
-
         reduced_domain = ReducedDomain(x, y)
         grid = Grid(shape=(11, 11), extent=(10., 10.),
                     subdomains=(reduced_domain,))
         f = Function(name='f', grid=grid.subdomains['reduced'])
-
-        print("Nprocs", grid.distributor.nprocs)
-        print("Rank", grid.distributor.myrank)
-        print("Decomposition coordinates", grid.distributor.mycoords)
-        print("f shape", f.data.shape)
-        print("f size", f.data.size)
-        print("Distributor slices", grid.distributor.glb_slices)
 
         g = Function(name='g', grid=grid)
         Operator(Eq(g, g+1, subdomain=grid.subdomains['reduced']))()
@@ -885,16 +876,9 @@ class TestSubdomainFunctions:
                        for dim in grid.dimensions)
         check_data = g.data[slices]
 
-        print()
-        print("Check data")
-        print(check_data)
-        print(np.count_nonzero(check_data))
-
-        # Is there some way to print the whole dataset?
-
         assert np.count_nonzero(check_data) == f.data.size
 
-        # if np.count_nonzero(check_data) != 0:
-        #     coords = np.nonzero(check_data)
-        #     shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
-        #     assert f.data.shape == shape
+        if np.count_nonzero(check_data) != 0:
+            coords = np.nonzero(check_data)
+            shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
+            assert f.data.shape == shape
