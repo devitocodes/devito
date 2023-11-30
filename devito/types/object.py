@@ -229,6 +229,13 @@ class LocalObject(AbstractObject):
         """
         return None
 
+    _C_modifier = None
+    """
+    A modifier added to the LocalObject's C declaration when the object appears
+    in a function signature. For example, a subclass my define `_C_modifier = '&'`
+    to impose pass-by-reference semantics.
+    """
+
     @property
     def _mem_internal_eager(self):
         return self._liveness == 'eager'

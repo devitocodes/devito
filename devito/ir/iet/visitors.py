@@ -227,44 +227,54 @@ class CGen(Visitor):
 
         return c.Struct(ctype.__name__, entries)
 
-    def _gen_value(self, obj, level=2, masked=()):
+    def _gen_value(self, obj, mode=1, masked=()):
+        """
+        Convert a devito.types.Basic object into a cgen declaration/definition.
+
+        A Basic object may need to be declared and optionally defined in three
+        different ways, which correspond to the three possible values of `mode`:
+
+            * 0: Simple. E.g., `int a = 1`;
+            * 1: Comprehensive. E.g., `const int *restrict a`, `int a[10]`;
+            * 2: Declaration suitable for a function parameter list.
+        """
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
                       if getattr(obj.function, k, False) and v not in masked]
 
-        if (obj._mem_stack or obj._mem_constant) and level == 2:
+        if (obj._mem_stack or obj._mem_constant) and mode == 1:
             strtype = obj._C_typedata
             strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
         else:
             strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
-            if isinstance(obj, (AbstractFunction, IndexedData)) and level >= 1:
+            if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
                 if not obj._mem_stack:
                     strtype = '%s%s' % (strtype, self._restrict_keyword)
         strtype = ' '.join(qualifiers + [strtype])
 
+        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+            strtype += obj._C_modifier
+
         strname = obj._C_name
         strobj = '%s%s' % (strname, strshape)
 
-        try:
-            if obj.cargs and level == 2:
-                arguments = [ccode(i) for i in obj.cargs]
-                strobj = MultilineCall(strobj, arguments, True)
-        except AttributeError:
-            pass
+        if obj.is_LocalObject and obj.cargs and mode == 1:
+            arguments = [ccode(i) for i in obj.cargs]
+            strobj = MultilineCall(strobj, arguments, True)
 
         value = c.Value(strtype, strobj)
 
         try:
-            if obj.is_AbstractFunction and obj._data_alignment and level == 2:
+            if obj.is_AbstractFunction and obj._data_alignment and mode == 1:
                 value = c.AlignedAttribute(obj._data_alignment, value)
         except AttributeError:
             pass
 
-        if obj.is_Array and obj.initvalue is not None and level == 2:
+        if obj.is_Array and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
                 value = c.Initializer(value, ccode(init))
-        elif obj.is_LocalObject and obj.initvalue is not None and level == 2:
+        elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
             value = c.Initializer(value, ccode(obj.initvalue))
 
         return value
@@ -278,7 +288,7 @@ class CGen(Visitor):
 
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
-        return [self._gen_value(i, 1) for i in args]
+        return [self._gen_value(i, 2) for i in args]
 
     def _args_call(self, args):
         """
