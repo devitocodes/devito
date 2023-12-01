@@ -22,6 +22,8 @@ __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
+_subdomain_count = {}  # Track attachment of grids to SubDomains for dimension labelling
+
 
 class CartesianDiscretization(ABC):
 
@@ -168,12 +170,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         # The physical extent
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
 
-        # Initialize SubDomains
-        subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self, counter=counter)
-        self._subdomains = subdomains
-
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
         self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
                                             is_const=True)
@@ -193,6 +189,12 @@ class Grid(CartesianDiscretization, ArgProvider):
                                                    parent=self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
+
+        # Initialize SubDomains
+        subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
+        for i in subdomains:
+            i.__subdomain_finalize__(grid=self)
+        self._subdomains = subdomains
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -435,6 +437,21 @@ class AbstractSubDomain(CartesianDiscretization):
         raise NotImplementedError
 
     @property
+    def _counter(self):
+        """The counter for a SubDomain"""
+        if self.grid:
+            try:
+                _subdomain_count[self.grid].add(id(self))
+            except KeyError:
+                _subdomain_count[self.grid] = {id(self)}
+
+            count = len(_subdomain_count[self.grid]) - 1
+        else:
+            raise ValueError("SubDomain %s is not attached to a Grid and has no counter"
+                             % self)
+        return count
+
+    @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
 
@@ -508,23 +525,20 @@ class SubDomain(AbstractSubDomain):
         sub_dimensions = []
         sdshape = []
 
-        # FIXME: SubDimension names want to come from the symbol registry
-        counter = kwargs.get('counter', 1) - 1
-
         for k, v, s in zip(self.define(self.grid.dimensions),
                            self.define(self.grid.dimensions).values(), self.grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
             else:
+                name = 'i%d%s' % (self._counter, k.name)
                 try:
                     # Case ('middle', int, int)
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('i%d%s' %
-                                                              (counter, k.name),
-                                                              k, thickness_left,
+                    sub_dimensions.append(SubDimension.middle(name, k,
+                                                              thickness_left,
                                                               thickness_right))
                     thickness = s-thickness_left-thickness_right
                     sdshape.append(thickness)
@@ -534,17 +548,13 @@ class SubDomain(AbstractSubDomain):
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%d%s' %
-                                                                (counter, k.name),
-                                                                k, thickness))
+                        sub_dimensions.append(SubDimension.left(name, k, thickness))
                         sdshape.append(thickness)
                     elif side == 'right':
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%d%s' %
-                                                                 (counter, k.name),
-                                                                 k, thickness))
+                        sub_dimensions.append(SubDimension.right(name, k, thickness))
                         sdshape.append(thickness)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
@@ -788,10 +798,9 @@ class SubDomainSet(MultiSubDomain):
     """
 
     def __init__(self, **kwargs):
-        super().__init__()
-
         self._n_domains = kwargs.get('N', 1)
         self._global_bounds = kwargs.get('bounds', None)
+        super().__init__(**kwargs)
 
         try:
             self.implicit_dimension
@@ -800,14 +809,19 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
-        self._grid = grid
-        self._dtype = grid.dtype
+    def __subdomain_finalize__(self, grid=None, **kwargs):
+        if grid:
+            if self.grid:
+                raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
+                                 % self)
+            else:
+                self._grid = grid
+        self._dtype = self.grid.dtype
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, counter), d, self)
-            for d in grid.dimensions
+            MultiSubDimension('%si%d' % (d.name, self._counter), d, self)
+            for d in self.grid.dimensions
         )
 
         # Compute the SubDomainSet shapes
@@ -822,16 +836,16 @@ class SubDomainSet(MultiSubDomain):
         shapes = []
         for i in range(self._n_domains):
             dshape = []
-            for s, m, M in zip(grid.shape, d_m, d_M):
+            for s, m, M in zip(self.grid.shape, d_m, d_M):
                 assert(m.size == M.size)
                 dshape.append(s-m[i]-M[i])
             shapes.append(as_tuple(dshape))
         self._shape = as_tuple(shapes)
 
-        if grid.distributor and grid.distributor.is_parallel:
+        if self.distributor and self.distributor.is_parallel:
             # Now create local bounds based on distributor
             processed = []
-            for dec, m, M in zip(grid.distributor.decomposition, d_m, d_M):
+            for dec, m, M in zip(self.distributor.decomposition, d_m, d_M):
                 processed.extend(self._bounds_glb_to_loc(dec, m, M))
             self._local_bounds = as_tuple(processed)
         else:
@@ -845,9 +859,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
-        n = counter - npresets
-        assert n >= 0
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+        self._implicit_dimension = i_dim = Dimension(name='n%d' % self._counter)
         functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
@@ -856,7 +868,7 @@ class SubDomainSet(MultiSubDomain):
                 fname = "%s_%s" % (self.name, d.min_name)
             else:
                 fname = "%s_%s" % (self.name, d.max_name)
-            f = Function(name=fname, grid=self._grid, shape=(self._n_domains,),
+            f = Function(name=fname, grid=self.grid, shape=(self._n_domains,),
                          dimensions=(i_dim,), dtype=np.int32)
 
             # Check if shorthand notation has been provided:
