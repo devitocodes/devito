@@ -24,8 +24,8 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 class MetaSite(object):
 
-    _items = ('standalones', 'allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'efuncs')
+    _items = ('standalones', 'allocs', 'stacks', 'objs', 'frees', 'pallocs',
+              'pfrees', 'maps', 'unmaps', 'efuncs')
 
     def __init__(self):
         for i in self._items:
@@ -101,7 +101,7 @@ class DataManager(object):
         """
         alloc = Definition(obj)
 
-        storage.update(obj, site, allocs=alloc)
+        storage.update(obj, site, stacks=alloc)
 
     def _alloc_array_on_global_mem(self, site, obj, storage):
         """
@@ -279,6 +279,7 @@ class DataManager(object):
 
             # allocs/pallocs
             allocs = as_list(cbody.allocs) + flatten(v.allocs)
+            stacks = as_list(cbody.stacks) + flatten(v.stacks)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
@@ -300,8 +301,8 @@ class DataManager(object):
             efuncs.extend(v.efuncs)
 
             mapper[cbody] = cbody._rebuild(
-                standalones=standalones, allocs=allocs, maps=maps, objs=objs,
-                unmaps=unmaps, frees=frees
+                standalones=standalones, allocs=allocs, stacks=stacks,
+                maps=maps, objs=objs, unmaps=unmaps, frees=frees
             )
 
         processed = Transformer(mapper, nested=True).visit(iet)

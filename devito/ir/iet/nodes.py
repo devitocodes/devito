@@ -759,6 +759,8 @@ class CallableBody(Node):
         `maps`).
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
+    stacks : list of Definitions, optional
+        Definitions for the stack-scoped objects appearing in `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
     bundles : list of Nodes, optional
@@ -783,13 +785,13 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'standalones', 'allocs', 'casts',
-                    'bundles', 'maps', 'strides', 'objs', 'body', 'unmaps',
-                    'unbundles', 'frees']
+    _traversable = ['unpacks', 'init', 'standalones', 'allocs', 'stacks',
+                    'casts', 'bundles', 'maps', 'strides', 'objs', 'body',
+                    'unmaps', 'unbundles', 'frees']
 
     def __init__(self, body, init=(), standalones=(), unpacks=(), strides=(),
-                 allocs=(), casts=(), bundles=(), objs=(), maps=(), unmaps=(),
-                 unbundles=(), frees=()):
+                 allocs=(), stacks=(), casts=(), bundles=(), objs=(), maps=(),
+                 unmaps=(), unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -799,6 +801,7 @@ class CallableBody(Node):
         self.init = as_tuple(init)
         self.standalones = as_tuple(standalones)
         self.allocs = as_tuple(allocs)
+        self.stacks = as_tuple(stacks)
         self.casts = as_tuple(casts)
         self.strides = as_tuple(strides)
         self.bundles = as_tuple(bundles)

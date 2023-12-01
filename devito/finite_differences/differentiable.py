@@ -686,7 +686,7 @@ class Weights(Array):
 
         self._spacings = set().union(*[i.find(Spacing) for i in weights])
 
-        kwargs['scope'] = 'constant'
+        kwargs['scope'] = kwargs.get('scope', 'stack')
         kwargs['initvalue'] = weights
 
         super().__init_finalize__(*args, **kwargs)
@@ -701,7 +701,7 @@ class Weights(Array):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-        return (self.name, self.dimension, str(self.weights))
+        return (self.name, self.dimension, str(self.weights), self.scope)
 
     @property
     def dimension(self):
