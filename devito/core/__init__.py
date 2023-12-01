@@ -25,6 +25,9 @@ operator_registry.add(Cpu64AdvCOperator, Cpu64, 'advanced', 'C')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'openmp')
 
 operator_registry.add(XdslnoopOperator, Cpu64, 'xdsl-noop', 'C')
+# to change
+operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl-noop', 'openmp')
+
 operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl', 'C')
 operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl', 'openmp')
 

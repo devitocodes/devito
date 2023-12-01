@@ -3,7 +3,7 @@
 import numpy as np
 
 from devito import (TimeFunction, Eq, Operator, solve, norm,
-                    XDSLOperator, configuration, Grid)
+                    configuration, Grid)
 from fast.bench_utils import plot_3dfunc
 from devito.tools import as_tuple
 
@@ -122,8 +122,8 @@ if args.devito:
 if args.xdsl:
 
     # Run more with no sources now (Not supported in xdsl)
-    xdslop = XDSLOperator([stencil], name='xDSLOperator')
-    xdslop.apply(time=nt, dt=dt)
+    op = Operator([stencil], name='xDSLOperator', opt='xdsl')
+    op.apply(time=nt, dt=dt)
 
     if len(shape) == 3 and args.plot:
         plot_3dfunc(u)
