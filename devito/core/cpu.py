@@ -23,9 +23,7 @@ from devito.logger import debug, info, perf
 from devito.operator.profiling import create_profile
 from devito.ir.iet import Callable, MetaCall
 
-from devito.ir.support import SymbolRegistry
-from devito.tools import as_tuple, flatten, filter_sorted, OrderedSet
-from devito.types import Evaluable
+from devito.tools import flatten, filter_sorted, OrderedSet
 
 from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
                                               convert_devito_stencil_to_xdsl_stencil,
@@ -39,7 +37,7 @@ from xdsl.printer import Printer
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator', 'Cpu64XdslOperator']
+           'Cpu64CustomOperator', 'XdslnoopOperator', 'XdslAdvOperator']
 
 
 class Cpu64OperatorMixin(object):
@@ -218,9 +216,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         return graph
 
 
-class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
+class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
-    _Target = OmpTarget
+    _Target = CTarget
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -229,9 +227,11 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
-        # Lower the input expressions into an IET
+        # Lower the input expressions into an IET and a module. iet is not used
         perf("Lower expressions to a module")
-        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+        irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
+
+        module = cls._lower_stencil(irs.expressions)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
@@ -279,27 +279,7 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
         return op
 
     @classmethod
-    def _lower(cls, expressions, **kwargs):
-        """
-        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
-        """
-        # Create a symbol registry
-        kwargs.setdefault('sregistry', SymbolRegistry())
-
-        expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
-        # Enable recursive lowering
-        # This may be used by a compilation pass that constructs a new
-        # expression for which a partial or complete lowering is desired
-        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
-
-        # [Eq] -> [LoweredEq]
-        expressions = cls._lower_exprs(expressions, **kwargs)
-
+    def _lower_stencil(cls, expressions):
         # [Eq] -> [xdsl]
         # Lower expressions to a builtin.ModuleOp
         conv = ExtractDevitoStencilConversion(expressions)
@@ -309,32 +289,12 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
         convert_devito_stencil_to_xdsl_stencil(module, timed=True)
         # Uncomment to print
         # Printer().print(module)
+        return module
 
-        # [LoweredEq] -> [Clusters]
-        clusters = cls._lower_clusters(expressions, **kwargs)
 
-        # [Clusters] -> ScheduleTree
-        stree = cls._lower_stree(clusters, **kwargs)
+class XdslAdvOperator(XdslnoopOperator):
 
-        # ScheduleTree -> unbounded IET
-        uiet = cls._lower_uiet(stree, **kwargs)
-
-        # unbounded IET -> IET
-        iet, byproduct = cls._lower_iet(uiet, **kwargs)
-
-        from collections import namedtuple
-
-        IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
-
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph)
-
-        return graph
+    _Target = OmpTarget
 
     def _cmd_compile(self, cmd, input=None):
         # Could be dropped unless PIPE is never empty in the future
@@ -422,8 +382,7 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
                 mlir_pipeline = generate_MLIR_OPENMP_PIPELINE()
 
             if is_mpi:
-                
-                shape, mpi_rank = self.mpi_shape
+                shape, _ = self.mpi_shape
                 # Run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation
                 # (as devito has already done that for us)
@@ -452,6 +411,8 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
                 with open(backdoor, 'r') as f:
                     module_str = f.read()
 
+            # Uncomment to print the module_str
+            # Printer().print(module_str)
             source_name = os.path.splitext(self._tf.name)[0] + ".mlir"
             source_file = open(source_name, "w")
             source_file.write(module_str)
@@ -570,8 +531,6 @@ class Cpu64XdslOperator(Cpu64OperatorMixin, CoreOperator):
                     args[f'{arg._C_name}_{t}'] = data[t, ...].ctypes.data_as(ptr_of(f32))
 
         self._jit_kernel_constants.update(args)
-
-    # Performance profiling
 
     def _construct_cfunction_args(self, args, get_types=False):
         """
