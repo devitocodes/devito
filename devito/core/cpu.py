@@ -225,13 +225,14 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
     @classmethod
     def _build(cls, expressions, **kwargs):
 
+        # Lots of duplicate code, to drop
         perf("Building an xDSL operator")
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
         # Lower the input expressions into an IET
         perf("Lower expressions to a module")
-        irs, byproduct, module = cls._lower(expressions, profiler=profiler, **kwargs)
+        irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
 
         # Make it an actual Operator
         op = Callable.__new__(cls, **irs.iet.args)
@@ -244,7 +245,6 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         op._includes = OrderedSet(*cls._default_includes)
         op._includes.update(profiler._default_includes)
         op._includes.update(byproduct.includes)
-        op._module = module
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -275,6 +275,9 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
+
+        module = cls._lower_stencil(irs.expressions)
+        op._module = module
 
         return op
 
@@ -310,31 +313,13 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         # Uncomment to print
         # Printer().print(module)
 
-        # [LoweredEq] -> [Clusters]
-        clusters = cls._lower_clusters(expressions, **kwargs)
+    @property
+    def mpi_shape(self) -> tuple:
+        # TODO: move it elsewhere
+        dist = self.functions[0].grid.distributor
 
-        # [Clusters] -> ScheduleTree
-        stree = cls._lower_stree(clusters, **kwargs)
-
-        # ScheduleTree -> unbounded IET
-        uiet = cls._lower_uiet(stree, **kwargs)
-
-        # unbounded IET -> IET
-        iet, byproduct = cls._lower_iet(uiet, **kwargs)
-
-        from collections import namedtuple
-
-        IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
-
-        return IRs(expressions, clusters, stree, uiet, iet), byproduct, module
-
-    @classmethod
-    @timed_pass(name='specializing.IET')
-    def _specialize_iet(cls, graph, **kwargs):
-        # Symbol definitions
-        cls._Target.DataManager(**kwargs).process(graph)
-
-        return graph
+        # reverse topology for row->column major
+        return dist.topology, dist.myrank
 
     def _cmd_compile(self, cmd, input=None):
         # Could be dropped unless PIPE is never empty in the future
@@ -384,6 +369,11 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Output summary of performance achieved
         return self._emit_apply_profiling(args)
+
+
+class XdslAdvOperator(XdslnoopOperator):
+
+    _Target = OmpTarget
 
     def _jit_compile(self):
         """
@@ -729,14 +719,6 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
             return things_types
         else:
             return things
-
-    @property
-    def mpi_shape(self) -> tuple:
-        # TODO: move it elsewhere
-        dist = self.functions[0].grid.distributor
-
-        # reverse topology for row->column major
-        return dist.topology, dist.myrank
 
 
 class Cpu64FsgOperator(Cpu64AdvOperator):
