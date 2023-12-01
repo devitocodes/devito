@@ -682,7 +682,8 @@ class Weights(Array):
         assert isinstance(weights, (list, tuple, np.ndarray))
 
         # Normalize `weights`
-        weights = tuple(sympy.sympify(i) for i in weights)
+        from devito.symbolics import pow_to_mul  # noqa, sigh
+        weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
 
         self._spacings = set().union(*[i.find(Spacing) for i in weights])
 
