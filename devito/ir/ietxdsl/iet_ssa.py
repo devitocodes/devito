@@ -366,7 +366,7 @@ class For(IRDLOperation):
 
     subindices: IntAttr = attr_def(IntAttr)
 
-    properties: ArrayAttr[builtin.StringAttr] = attr_def(ArrayAttr[builtin.StringAttr])
+    _properties: ArrayAttr[builtin.StringAttr] = attr_def(ArrayAttr[builtin.StringAttr])
     pragmas: ArrayAttr[builtin.StringAttr] = attr_def(ArrayAttr[builtin.StringAttr])
 
     def subindice_ssa_vals(self) -> tuple[SSAValue, ...]:
@@ -382,7 +382,7 @@ class For(IRDLOperation):
         Return either "parallel" or "sequential" (or None),
         depending on the properties present
         """
-        for attr in self.properties.data:
+        for attr in self._properties.data:
             if attr.data in ('parallel', 'sequential'):
                 return attr.data
         return None

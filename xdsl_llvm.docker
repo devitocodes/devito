@@ -1,6 +1,6 @@
 FROM ubuntu:22.04 as build
 
-ARG mlirhash=04fc02e583b06b846315904a55af9c273c8b20b9
+ARG mlirhash=98e674c9f16d677d95c67bc130e267fae331e43c
 
 # base requirements
 RUN apt-get update \

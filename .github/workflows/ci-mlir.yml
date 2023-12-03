@@ -21,7 +21,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: papychacal/xdsl-llvm:04fc02e583b06b846315904a55af9c273c8b20b9
+    container: papychacal/xdsl-llvm:98e674c9f16d677d95c67bc130e267fae331e43c
     steps:
     - name: Checkout Devito
       uses: actions/checkout@v3
@@ -38,7 +38,7 @@ jobs:
       run: |
         pip install -e .[tests]
         pip install mpi4py
-        pip install git+https://github.com/xdslproject/xdsl@2825897b87443c9369abf89871f4721e2fce2da9
+        pip install git+https://github.com/xdslproject/xdsl@cd020eace6f2a06c33916d5283efbb24362ab61d
 
     - name: Test no-MPI, no-Openmp
       run: |
