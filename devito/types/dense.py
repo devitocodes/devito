@@ -391,7 +391,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self._distributor is None:
             return (None,)*self.ndim
         mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
-        return tuple(mapper.get(d) for d in self.dimensions)
+        return tuple(mapper.get(d.parent) if d.is_Sub else mapper.get(d)
+                     for d in self.dimensions)
 
     @cached_property
     def _decomposition_outhalo(self):
