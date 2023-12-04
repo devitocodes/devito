@@ -818,7 +818,7 @@ class OneapiCompiler(IntelCompiler):
         # and icx, which is clang
         self.CC = 'icx'
         self.CXX = 'icpx'
-        self.MPICC = 'mpiicpc'
+        self.MPICC = 'mpiicx'
         self.MPICXX = 'mpiicpx'
 
 
