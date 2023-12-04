@@ -3,6 +3,7 @@ from functools import partial
 from io import StringIO
 
 import numpy as np
+from devito.arch.archinfo import get_nvidia_cc
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 
@@ -545,7 +546,8 @@ def generate_XDSL_GPU_PIPELINE():
         "stencil-shape-inference",
         "convert-stencil-to-ll-mlir{target=gpu}",
         "reconcile-unrealized-casts",
-        "printf-to-llvm"
+        "printf-to-llvm",
+        "canonicalize"
     ]
 
     return generate_pipeline(passes)
@@ -580,8 +582,10 @@ def generate_MLIR_GPU_PIPELINE(block_sizes):
         "canonicalize",
         "cse",
         "convert-func-to-llvm{{use-bare-ptr-memref-call-conv}}",
-        "gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin)",  # noqa
+        f"nvvm-attach-target{{O=3 ftz fast chip=sm_{get_nvidia_cc()}}}",
+        "gpu.module(convert-gpu-to-nvvm,canonicalize,cse)",
         "gpu-to-llvm",
+        "gpu-module-to-binary",
         "canonicalize",
         "cse)"
     ]

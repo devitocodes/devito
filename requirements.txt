@@ -15,5 +15,5 @@ distributed<2022.10
 pytest>=3.6,<8.0
 pytest-runner
 pytest-cov
-xdsl>=0.11
+git+https://github.com/xdslproject/xdsl@cd020eace6f2a06c33916d5283efbb24362ab61d
 frozenlist<=1.4
