@@ -806,6 +806,10 @@ class TestSubdomainFunctions:
 
         assert f.data.shape == shape
 
+        # TODO: Needs to also check that the shape of the halo is correct for multiple space orders
+        # TODO: Needs to also check that TimeFunctions (including those with buffers) get their data
+        # initialised properly
+
     # Note that some of the 'left' and 'right' SubDomains here are swapped
     # with 'middle' as they are local by default and so cannot be decomposed
     # across MPI ranks.
@@ -841,3 +845,37 @@ class TestSubdomainFunctions:
             coords = np.nonzero(check_data)
             shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
             assert f.data.shape == shape
+
+    def test_basic_function(self):
+        """
+        Test a single Function
+        """
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid)
+        eq = Eq(f, f+1)
+
+        print(f.data.shape)
+        print(f.data_with_halo.shape)
+        print(f._offset_halo)
+        print(f._size_halo)
+        print()
+
+        assert(f.shape == mid.shape)
+
+        print(Operator(eq).ccode)
+
+        Operator(eq)()
+
+        print(f.data)
+
+        assert(np.all(f.data[:] == 1))
