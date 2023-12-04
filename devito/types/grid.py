@@ -469,6 +469,13 @@ class AbstractSubDomain(CartesianDiscretization):
         except AttributeError:
             return None
 
+    def _arg_values(self, **kwargs):
+        try:
+            return self.grid._arg_values(**kwargs)
+        except AttributeError:
+            raise AttributeError("%s is not attached to a Grid and has no _arg_values"
+                                 % self)
+
 
 class SubDomain(AbstractSubDomain):
 
