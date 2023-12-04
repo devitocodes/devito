@@ -966,10 +966,11 @@ class TestSubdomainFunctions:
         # TODO: Does the distributor need rebuilding?
 
         print(f.data.shape)
+        print(f.data_with_halo.shape)
         print("Distributed dimensions", f._dist_dimensions)
         print("Dimensions", f.dimensions)
         print("Distributed dimensions", f._distributor.dimensions)
-        print("Distributor rebuild", f._distributor._rebuild())
+        print("Decomposition", f._decomposition)
         print(f._distributor.decomposition)
         print(f._distributor.shape)
         print()
