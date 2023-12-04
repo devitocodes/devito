@@ -675,6 +675,14 @@ class UCHARP(CastStar):
     base = UCHAR
 
 
+class SHORTP(CastStar):
+    base = SHORT
+
+
+class USHORTP(CastStar):
+    base = USHORT
+
+
 cast_mapper = {
     np.int8: CHAR,
     np.uint8: UCHAR,
@@ -691,8 +699,8 @@ cast_mapper = {
     (np.int8, '*'): CHARP,
     (np.uint8, '*'): UCHARP,
     (int, '*'): INTP,  # noqa
-    (np.uint16, '*'): INTP,  # noqa
-    (np.int16, '*'): INTP,  # noqa
+    (np.uint16, '*'): USHORTP,  # noqa
+    (np.int16, '*'): SHORTP,  # noqa
     (np.int32, '*'): INTP,  # noqa
     (np.int64, '*'): INTP,  # noqa
     (np.float32, '*'): FLOATP,  # noqa
