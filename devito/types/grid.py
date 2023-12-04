@@ -573,6 +573,9 @@ class SubDomain(AbstractSubDomain):
         self._dimensions = tuple(sub_dimensions)
         self._dtype = self.grid.dtype
 
+        # TODO: Rebuild the distributor with the SubDomain dimensions
+        # TODO: Figure out what shape this should have
+
         dist_interval = {dim: Interval(s.start, s.stop-1)
                          for dim, s in self.distributor.glb_slices.items()}
 

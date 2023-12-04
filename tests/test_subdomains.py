@@ -864,10 +864,16 @@ class TestSubdomainFunctions:
         f = Function(name='f', grid=mid)
         eq = Eq(f, f+1)
 
+        # FIXME: Function defined on a subdomain has no distributed dimesions
+        # TODO: Does the distributor need rebuilding?
+
         print(f.data.shape)
-        print(f.data_with_halo.shape)
-        print(f._offset_halo)
-        print(f._size_halo)
+        print("Distributed dimensions", f._dist_dimensions)
+        print("Dimensions", f.dimensions)
+        print("Distributed dimensions", f._distributor.dimensions)
+        print("Distributor rebuild", f._distributor._rebuild())
+        print(f._distributor.decomposition)
+        print(f._distributor.shape)
         print()
 
         assert(f.shape == mid.shape)
