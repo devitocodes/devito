@@ -488,7 +488,7 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n0', 't,n0,xi2,yi2'], 'x,y,t,n0,xi2,yi2')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,x,y'], 'x,y,t,n0,x,y')
 
     def test_issue_1761_b(self):
         """
@@ -527,8 +527,8 @@ class TestMultiSubDomain(object):
         op.cfunction
 
         assert_structure(op,
-                         ['x,y', 't,n0', 't,n0,xi2,yi2', 't,n1', 't,n1,xi3,yi3'],
-                         'x,y,t,n0,xi2,yi2,n1,xi3,yi3')
+                         ['x,y', 't,n0', 't,n0,x,y', 't,n1', 't,n1,x,y'],
+                         'x,y,t,n0,x,y,n1,x,y')
 
     def test_issue_1761_c(self):
         """
@@ -563,9 +563,9 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n0', 't,n0,xi2,yi2',
-                              't,n1', 't,n1,xi3,yi3', 't,n0', 't,n0,xi2,yi2'],
-                         'x,y,t,n0,xi2,yi2,n1,xi3,yi3,n0,xi2,yi2')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,x,y',
+                              't,n1', 't,n1,x,y', 't,n0', 't,n0,x,y'],
+                         'x,y,t,n0,x,y,n1,x,y,n0,x,y')
 
     def test_issue_1761_d(self):
         """
@@ -590,8 +590,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi2,yi2', 't,n0,xi2,yi2'],
-                         't,n0,xi2,yi2,xi2,yi2')
+        assert_structure(op, ['t,n0', 't,n0,x,y', 't,n0,x,y'],
+                         't,n0,x,y,x,y')
 
     def test_guarding(self):
 
@@ -618,8 +618,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t', 't,n0', 't,n0,xi2,yi2', 't,n0', 't,n0,xi2,yi2'],
-                         't,n0,xi2,yi2,n0,xi2,yi2')
+        assert_structure(op, ['t', 't,n0', 't,n0,x,y', 't,n0', 't,n0,x,y'],
+                         't,n0,x,y,n0,x,y')
 
     def test_3D(self):
 
@@ -639,8 +639,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,xi2,yi2,zi2'],
-                         't,n0,xi20_blk0,yi20_blk0,xi2,yi2,zi2')
+        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
+                         't,n0,xi20_blk0,yi20_blk0,x,y,z')
 
     def test_sequential_implicit(self):
         """
@@ -670,3 +670,26 @@ class TestMultiSubDomain(object):
         assert x.is_Parallel
         assert y.is_Parallel
         assert z.is_Parallel
+
+
+class TestMultiSubDimension:
+
+    def test_rebuild(self):
+        class Dummy(SubDomainSet):
+            name = 'dummy'
+
+        dummy = Dummy(N=0, bounds=[(), (), (), ()])
+        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        sdims = grid.subdomains['dummy'].dimensions
+
+        # Check normal rebuilding
+        tkns = [d.thickness for d in sdims]
+        rebuilt = [d._rebuild() for d in sdims]
+        assert list(sdims) != rebuilt
+        # Should build new thickness symbols with same names and values
+        assert all([d.thickness is not t for d, t in zip(rebuilt, tkns)])
+        assert all([d.thickness == t for d, t in zip(rebuilt, tkns)])
+
+        # Switch the thickness symbols between MultiSubDimensions with the rebuild
+        remixed = [d._rebuild(thickness=t) for d, t in zip(sdims, tkns[::-1])]
+        assert [d.thickness for d in remixed] == tkns[::-1]

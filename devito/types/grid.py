@@ -549,7 +549,10 @@ class MultiSubDimension(SubDimension):
     A special SubDimension for graceful lowering of MultiSubDomains.
     """
 
-    def __init_finalize__(self, name, parent, msd):
+    __rargs__ = ('name', 'parent', 'msd')
+    __rkwargs__ = ('thickness',)
+
+    def __init_finalize__(self, name, parent, msd, thickness=None):
         # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
         # This creates a circular pattern as the `msd` itself carries references to
         # its MultiSubDimensions. This is currently necessary because during compilation
@@ -558,7 +561,15 @@ class MultiSubDimension(SubDimension):
         # definitely possible, but not straightforward
         self.msd = msd
 
-        lst, rst = self._symbolic_thickness(name)
+        if not thickness:
+            lst, rst = self._symbolic_thickness(name)
+        else:  # Used for rebuilding. Reuse thickness symbols rather than making new ones
+            try:
+                ((lst, _), (rst, _)) = thickness
+            except ValueError:
+                raise ValueError("Invalid thickness specification: %s does not match"
+                                 "expected format ((left_symbol, left_thickness),"
+                                 " (right_symbol, right_thickness))" % thickness)
         left = parent.symbolic_min + lst
         right = parent.symbolic_max - rst
 

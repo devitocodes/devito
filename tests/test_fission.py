@@ -33,12 +33,12 @@ def test_issue_1725():
 
     # Note the `x` loop is fissioned, so now both loop nests can be collapsed
     # for maximum parallelism
-    assert_structure(op, ['t,x,i1y', 't,x,i2y'], 't,x,i1y,x,i2y')
+    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,x,y')
 
 
 def test_nofission_as_unprofitable():
     """
-    Test there's no fission if not gonna increase number of collapsable loops.
+    Test there's no fission if no increase in number of collapsable loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions
@@ -54,7 +54,7 @@ def test_nofission_as_unprofitable():
 
     op = Operator(eqns, opt='fission')
 
-    assert_structure(op, ['t,x,yl', 't,x,yr'], 't,x,yl,yr')
+    assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,y')
 
 
 def test_nofission_as_illegal():
@@ -78,7 +78,7 @@ def test_nofission_as_illegal():
 
 def test_fission_partial():
     """
-    Test there's no fission if not gonna increase number of collapsable loops.
+    Test there's no fission if no increase in number of collapsable loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions
@@ -95,7 +95,7 @@ def test_fission_partial():
 
     op = Operator(eqns, opt='fission')
 
-    assert_structure(op, ['t,x,yl', 't,x,yr', 't,x,y'], 't,x,yl,yr,x,y')
+    assert_structure(op, ['t,x,y', 't,x,y', 't,x,y'], 't,x,y,y,x,y')
 
 
 def test_issue_1921():

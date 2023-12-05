@@ -6,7 +6,7 @@ import sympy
 from devito.finite_differences import Max, Min
 from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
                        FindNodes, FindSymbols, Transformer, Uxreplace,
-                       filter_iterations, retrieve_iteration_tree)
+                       filter_iterations, retrieve_iteration_tree, pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import evalrel, has_integer_args
 from devito.tools import as_mapper, filter_ordered, split
@@ -171,8 +171,11 @@ def minimize_symbols(iet):
 
         * Remove redundant ModuloDimensions (e.g., due to using the
           `save=Buffer(2)` API)
+        * Abridge SubDimension names where possible to declutter generated
+          loop nests and shrink indices
     """
     iet = remove_redundant_moddims(iet)
+    iet = abridge_dim_names(iet)
 
     return iet, {}
 
@@ -200,6 +203,49 @@ def remove_redundant_moddims(iet):
         if not set(n.uindices) & set(mds):
             continue
         subs[n] = n._rebuild(uindices=filter_ordered(n.uindices))
+
+    iet = Transformer(subs, nested=True).visit(iet)
+
+    return iet
+
+
+def abridge_dim_names(iet):
+    trees = retrieve_iteration_tree(iet)
+
+    mapper = {}
+    # Build a mapper replacing SubDimension names with respective root dimension
+    # names where possible
+    for tree in trees:
+        # Find SubDimensions or SubDimension-derived dimensions used as indices in
+        # the expression in the innermost loop
+        indexeds = FindSymbols('indexeds').visit(tree.inner)
+        dims = set().union(*[pull_dims(i, flag=False) for i in indexeds])
+        dims = [d for d in dims if any([dim.is_Sub for dim in d._defines])]
+        dims = [d for d in dims if not d.is_SubIterator]
+        names = [d.root.name for d in dims]
+
+        # Rename them to use the name of their root dimension if this will not cause a
+        # clash with Dimensions or other renamed SubDimensions within this innermost
+        # loop
+        mapper.update({d: d._rebuild(d.root.name) for d in dims
+                       if d.root not in tree.dimensions and names.count(d.root.name) < 2})
+
+        # Update unbound index parents with renamed SubDimensions
+        dims = set().union(*[i.uindices for i in tree])
+        dims = [d for d in dims if d.is_Incr and d.parent in mapper]
+        mapper.update({d: d._rebuild(parent=mapper[d.parent]) for d in dims})
+
+        # Update parents of CIRE-generated ModuloDimensions
+        dims = FindSymbols('dimensions').visit(tree)
+        dims = [d for d in dims if d.is_Modulo and d.parent in mapper]
+        mapper.update({d: d._rebuild(parent=mapper[d.parent]) for d in dims})
+
+    if not mapper:  # No SubDimensions to be renamed
+        return iet
+
+    subs = {}
+    for tree in trees:
+        subs.update({i: Uxreplace(mapper).visit(i) for i in tree})
 
     iet = Transformer(subs, nested=True).visit(iet)
 

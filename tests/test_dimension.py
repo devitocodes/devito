@@ -403,14 +403,14 @@ class TestSubDimension(object):
     @pytest.mark.parametrize('exprs,expected,', [
         # Carried dependence in both /t/ and /x/
         (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y])'], 'y'),
-        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'i0y'),
+        (['Eq(u[t+1, x, y], u[t+1, x-1, y] + u[t, x, y], subdomain=interior)'], 'y'),
         # Carried dependence in both /t/ and /y/
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y])'], 'x'),
-        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'i0x'),
+        (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)'], 'x'),
         # Carried dependence in /y/, leading to separate /y/ loops, one
         # going forward, the other backward
         (['Eq(u[t+1, x, y], u[t+1, x, y-1] + u[t, x, y], subdomain=interior)',
-          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'i0x'),
+          'Eq(u[t+1, x, y], u[t+1, x, y+1] + u[t, x, y], subdomain=interior)'], 'x'),
     ])
     def test_iteration_property_parallel(self, exprs, expected):
         """Tests detection of sequental and parallel Iterations when applying
@@ -435,7 +435,7 @@ class TestSubDimension(object):
     @skipif(['device'])
     @pytest.mark.parametrize('exprs,expected,', [
         # All parallel, the innermost Iteration gets vectorized
-        (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['yleft']),
+        (['Eq(u[time, x, yleft], u[time, x, yleft] + 1.)'], ['y']),
         # All outers are parallel, carried dependence in `yleft`, so the middle
         # Iteration over `x` gets vectorized
         (['Eq(u[time, x, yleft], u[time, x, yleft+1] + 1.)'], ['x']),
@@ -637,9 +637,11 @@ class TestSubDimension(object):
 
         # Check generated code -- expected loop blocking over x and y, with the
         # two z loops, zi and zl, within y
+        # Note that the zi and zl iterators are renamed to remove clutter given the loop
+        # structure
         assert_structure(op,
-                         ['t,x0_blk0,y0_blk0,x,y,zi', 't,x0_blk0,y0_blk0,x,y,zl'],
-                         't,x0_blk0,y0_blk0,x,y,zi,zl')
+                         ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
+                         't,x0_blk0,y0_blk0,x,y,z,z')
 
         op.apply(time_M=0)
         assert np.all(u.data[0] == 0)
@@ -660,9 +662,10 @@ class TestSubDimension(object):
         op = Operator(eqns)
 
         # Check generated code -- expected loop blocking
+        # Note that loop structure means zr is renamed to z to remove clutter
         assert_structure(op,
-                         ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,zr'],
-                         't,x0_blk0,y0_blk0,x,y,z,zr')
+                         ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
+                         't,x0_blk0,y0_blk0,x,y,z,z')
 
     def test_subdim_fd(self):
         """

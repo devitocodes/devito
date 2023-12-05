@@ -1518,7 +1518,7 @@ class TestLoopScheduling(object):
         # Here the difference is that we're using SubDimensions
         (('Eq(tv[t,xi,yi,zi], tu[t,xi-1,yi,zi] + tu[t,xi+1,yi,zi])',
           'Eq(tu[t+1,xi,yi,zi], tu[t,xi,yi,zi] + tv[t,xi-1,yi,zi] + tv[t,xi+1,yi,zi])'),
-         '+++++++', ['ti0xi0yi0z', 'ti0xi0yi0z'], 'ti0xi0yi0zi0xi0yi0z'),
+         '+++++++', ['txyz', 'txyz'], 'txyzxyz'),
         # 16) RAW 3->1; expected=2
         # Time goes backward, but the third equation should get fused with
         # the first one, as the time dependence is loop-carried
@@ -1545,7 +1545,7 @@ class TestLoopScheduling(object):
         (('Eq(tv[t+1,x,y,z], tu[t,x,y,z] + tu[t,x+1,y,z])',
           'Eq(tu[t+1,xi,yi,zi], tv[t+1,xi,yi,zi] + tv[t+1,xi+1,yi,zi])',
           'Eq(tw[t+1,x,y,z], tv[t+1,x,y,z] + tv[t+1,x+1,y,z])'),
-         '++++++++++', ['txyz', 'ti0xi0yi0z', 'txyz'], 'txyzi0xi0yi0zxyz'),
+         '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
