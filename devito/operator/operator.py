@@ -5,6 +5,7 @@ from math import ceil
 from cached_property import cached_property
 import ctypes
 
+from devito import switchconfig
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator
@@ -856,8 +857,10 @@ class Operator(Callable):
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
 
-        # Output summary of performance achieved
-        return self._emit_apply_profiling(args)
+        # Output summary of performance achieved and
+        # temporarily drop MPI for printing arguments
+        with switchconfig(mpi=False):
+            return self._emit_apply_profiling(args)
 
     # Performance profiling
 
@@ -895,10 +898,8 @@ class Operator(Callable):
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
 
-        # In case 'MPI0' is selected for logging, restrict result printing to one rank
-        temp = configuration['log-level']
-        if configuration['mpi']:
-            set_log_level(configuration['log-level'], comm=args.comm)
+        # In case MPI is used restrict result logging to one rank
+        set_log_level('DEBUG', comm=args.comm)
 
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
@@ -993,16 +994,7 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
-
-        if configuration['mpi']:
-            perf("Performance[mode=%s, mpi=%s] arguments: %s, " %
-                 (self._mode, configuration['mpi'], perf_args))
-        else:
-            perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
-
-        # Restore logging configuration to all ranks
-        if configuration['mpi']:
-            set_log_level(temp, comm=None)
+        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
 
