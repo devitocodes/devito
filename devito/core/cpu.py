@@ -311,3 +311,32 @@ class Cpu64FsgCOperator(Cpu64FsgOperator):
 
 class Cpu64FsgOmpOperator(Cpu64FsgOperator):
     _Target = OmpTarget
+
+
+# -----------XDSL
+# This is a collection of xDSL optimization pipelines
+# Ideally they should follow the same type of subclassing as the rest of
+# the Devito Operatos
+
+
+MLIR_CPU_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion, cse, canonicalize, fold-memref-alias-ops, expand-strided-metadata, loop-invariant-code-motion, lower-affine, convert-scf-to-cf, convert-math-to-llvm, convert-func-to-llvm{use-bare-ptr-memref-call-conv}, finalize-memref-to-llvm, canonicalize, cse)"'  # noqa
+
+MLIR_OPENMP_PIPELINE = '"builtin.module(canonicalize, cse, loop-invariant-code-motion, canonicalize, cse, loop-invariant-code-motion,cse,canonicalize,fold-memref-alias-ops,expand-strided-metadata, loop-invariant-code-motion,lower-affine,finalize-memref-to-llvm,loop-invariant-code-motion,canonicalize,cse,convert-scf-to-openmp,finalize-memref-to-llvm,convert-scf-to-cf,convert-func-to-llvm{use-bare-ptr-memref-call-conv},convert-openmp-to-llvm,convert-math-to-llvm,reconcile-unrealized-casts,canonicalize,cse)"'   # noqa
+# gpu-launch-sink-index-computations seemed to have no impact
+MLIR_GPU_PIPELINE = lambda block_sizes: f'"builtin.module(test-math-algebraic-simplification,scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}},func.func(gpu-map-parallel-loops),convert-parallel-loops-to-gpu,lower-affine, canonicalize,cse, fold-memref-alias-ops, gpu-launch-sink-index-computations, gpu-kernel-outlining, canonicalize{{region-simplify}},cse,fold-memref-alias-ops,expand-strided-metadata,lower-affine,canonicalize,cse,func.func(gpu-async-region),canonicalize,cse,convert-arith-to-llvm{{index-bitwidth=64}},convert-scf-to-cf,convert-cf-to-llvm{{index-bitwidth=64}},canonicalize,cse,convert-func-to-llvm{{use-bare-ptr-memref-call-conv}},gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin),gpu-to-llvm,canonicalize,cse)"'   # noqa
+
+XDSL_CPU_PIPELINE = lambda nb_tiled_dims: f'"stencil-shape-inference,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},printf-to-llvm"'  # noqa
+
+XDSL_GPU_PIPELINE = "stencil-shape-inference,convert-stencil-to-ll-mlir{target=gpu},reconcile-unrealized-casts,printf-to-llvm"  # noqa
+
+XDSL_MPI_PIPELINE = lambda decomp, nb_tiled_dims: f'"dmp-decompose{decomp},canonicalize-dmp,convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}},dmp-to-mpi{{mpi_init=false}},lower-mpi,printf-to-llvm"'   # noqa
+
+
+def generate_tiling_arg(nb_tiled_dims: int):
+    """
+    Generate the tile-sizes arg for the convert-stencil-to-ll-mlir pass.
+    Generating no argument if the diled_dims arg is 0
+    """
+    if nb_tiled_dims == 0:
+        return ''
+    return "tile-sizes=" + ",".join(["64"]*nb_tiled_dims)

@@ -8,36 +8,6 @@ from xdsl.pattern_rewriter import (RewritePattern, PatternRewriter, PatternRewri
                                    GreedyRewritePatternApplier, op_type_rewrite_pattern)
 
 
-def _generate_subindices(subindices: int, block: Block,
-                         rewriter: PatternRewriter):
-    # keep track of the what argument we should replace with what
-    arg_changes: list[tuple[SSAValue, SSAValue]] = []
-
-    # keep track of the ops we want to insert
-    modulo = arith.Constant.from_int_and_width(subindices, builtin.i64)
-    new_ops = [modulo]
-
-    # generate the new indices
-    for i in range(subindices):
-        offset = arith.Constant.from_int_and_width(i, builtin.i64)
-        index_off = arith.Addi(block.args[0], offset)
-        index = arith.RemSI(index_off, modulo)
-
-        new_ops += [
-            offset,
-            index_off,
-            index,
-        ]
-        # replace block.args[i+1] with (arg0 + i) % n
-        arg_changes.append((block.args[i + 1], index.result))
-
-    rewriter.insert_op_at_start(new_ops, block)
-
-    for old, new in arg_changes:
-        old.replace_by(new)
-        block.erase_arg(old)
-
-
 class ConvertScfForArgsToIndex(RewritePattern):
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.For, rewriter: PatternRewriter, /):
@@ -210,19 +180,6 @@ class LowerIetForToScfParallel(RewritePattern):
         return lbs, ubs, steps, body
 
 
-class DropIetComments(RewritePattern):
-    """
-    This drops all iet.comment operations
-
-    TODO: convert iet.comment ops that have timer info into their own nodes
-    """
-
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.Statement,
-                          rewriter: PatternRewriter, /):
-        rewriter.erase_matched_op()
-
-
 @dataclass
 class LowerIetPointerCastAndDataObject(RewritePattern):
     dimensions: list[SSAValue] = field(default_factory=list)
@@ -303,15 +260,16 @@ class CleanupDanglingIetDatatypes(RewritePattern):
                     iet_ssa.Dataobj.get_llvm_struct_type(), )
             elif isinstance(arg_typ, iet_ssa.Profiler):
                 op.body.blocks[0].args[i].type = llvm.LLVMPointerType.opaque()
-
         recalc_func_type(op)
 
 
 def recalc_func_type(op: func.FuncOp):
-    op.attributes['function_type'] = builtin.FunctionType.from_lists(
-        [arg.type for arg in op.body.blocks[0].args],
-        op.function_type.outputs.data,
-    )
+    # Only if blocks exist
+    if op.body.blocks:
+        op.attributes['function_type'] = builtin.FunctionType.from_lists(
+            [arg.type for arg in op.body.blocks[0].args],
+            op.function_type.outputs.data,
+        )
 
 
 @dataclass
@@ -412,7 +370,6 @@ def iet_to_standard_mlir(module: builtin.ModuleOp):
             LowerIetForToScfFor(),
             ConvertScfForArgsToIndex(),
             ConvertScfParallelArgsToIndex(),
-            DropIetComments(),
             CleanupDanglingIetDatatypes(),
             ptr_lower := LowerIetPointerCastAndDataObject(),
             LowerMemrefLoadToLLvmPointer(ptr_lower),
