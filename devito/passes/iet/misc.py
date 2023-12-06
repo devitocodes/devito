@@ -210,12 +210,10 @@ def remove_redundant_moddims(iet):
 
 
 def abridge_dim_names(iet):
-    trees = retrieve_iteration_tree(iet)
-
     mapper = {}
     # Build a mapper replacing SubDimension names with respective root dimension
     # names where possible
-    for tree in trees:
+    for tree in retrieve_iteration_tree(iet):
         # Find SubDimensions or SubDimension-derived dimensions used as indices in
         # the expression in the innermost loop
         indexeds = FindSymbols('indexeds').visit(tree.inner)
@@ -243,10 +241,4 @@ def abridge_dim_names(iet):
     if not mapper:  # No SubDimensions to be renamed
         return iet
 
-    subs = {}
-    for tree in trees:
-        subs.update({i: Uxreplace(mapper).visit(i) for i in tree})
-
-    iet = Transformer(subs, nested=True).visit(iet)
-
-    return iet
+    return Uxreplace(mapper, nested=True).visit(iet)
