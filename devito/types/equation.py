@@ -106,7 +106,12 @@ class Eq(sympy.Eq, Evaluable):
         """
         if self.lhs.is_Matrix:
             # Maps the Equations to retrieve the rhs from relevant lhs
-            eqs = dict(zip(as_tuple(self.lhs), as_tuple(self.rhs)))
+            try:
+                eqs = dict(zip(self.lhs, self.rhs))
+            except TypeError:
+                # Same rhs for all lhs
+                assert not self.rhs.is_Matrix
+                eqs = {i: self.rhs for i in self.lhs}
             # Get the relevant equations from the lhs structure. .values removes
             # the symmetric duplicates and off-diagonal zeros.
             lhss = self.lhs.values()
