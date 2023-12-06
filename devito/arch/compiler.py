@@ -836,6 +836,10 @@ class SyclCompiler(OneapiCompiler):
         self.cflags.remove('-std=c99')
         self.cflags.append('-fsycl')
 
+        self.cflags.remove('-g')  # -g disables some optimizations in IGC
+        self.cflags.append('-gline-tables-only')
+        self.cflags.append('-fdebug-info-for-profiling')
+
         if isinstance(platform, Cpu64):
             pass
         elif platform is NVIDIAX:
