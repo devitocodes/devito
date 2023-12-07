@@ -799,7 +799,9 @@ class IndexDerivative(IndexSum):
         mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
-        return expr
+        basexpr = set(a.function for a in self.expr.args if a.is_Function) - {f}
+
+        return EvalDerivative(expr, base=basexpr.pop())
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives

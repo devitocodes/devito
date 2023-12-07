@@ -922,10 +922,13 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
 
         # Drop or weaken parallelism if necessary
         for d, v in meta.properties.items():
-            if any(i.is_Modulo for i in ispace.sub_iterators[d]):
-                properties[d] = normalize_properties(v, {SEQUENTIAL})
-            elif d not in writeto.itdims:
-                properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+            try:
+                if any(i.is_Modulo for i in ispace.sub_iterators[d]):
+                    properties[d] = normalize_properties(v, {SEQUENTIAL})
+                elif d not in writeto.itdims:
+                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+            except KeyError:
+                pass
 
         # Track star-shaped stencils for potential future optimization
         if len(writeto) > 1 and schedule.is_frame:
