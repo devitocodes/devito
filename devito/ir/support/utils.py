@@ -267,7 +267,7 @@ def pull_dims(exprs, flag=True):
     """
     dims = set()
     for e in as_tuple(exprs):
-        dims.update({i for i in e.free_symbols if i.is_Dimension})
+        dims.update({i for i in e.free_symbols if isinstance(i, Dimension)})
     if flag:
         return set().union(*[d._defines for d in dims])
     else:

@@ -219,7 +219,7 @@ def abridge_dim_names(iet):
         # Find SubDimensions or SubDimension-derived dimensions used as indices in
         # the expression in the innermost loop
         indexeds = FindSymbols('indexeds').visit(tree.inner)
-        dims = set().union(*[pull_dims(i, flag=False) for i in indexeds])
+        dims = pull_dims(indexeds, flag=False)
         dims = [d for d in dims if any([dim.is_Sub for dim in d._defines])]
         dims = [d for d in dims if not d.is_SubIterator]
         names = [d.root.name for d in dims]

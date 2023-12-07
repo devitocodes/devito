@@ -8,6 +8,7 @@ import numpy as np
 import sympy
 
 from sympy.core.assumptions import _assume_rules
+from sympy.core.decorators import call_highest_priority
 from cached_property import cached_property
 
 from devito.data import default_allocator
@@ -703,6 +704,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def adjoint(self, inner=True):
         # Real valued adjoint is transpose
         return self.transpose(inner=inner)
+
+    @call_highest_priority('__radd__')
+    def __add__(self, other):
+        try:
+            # Most case support sympy add
+            return super().__add__(other)
+        except TypeError:
+            # Sympy doesn't support add with scalars
+            return self.applyfunc(lambda x: x + other)
 
     def _eval_matrix_mul(self, other):
         """
