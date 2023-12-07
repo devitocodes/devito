@@ -13,7 +13,8 @@ from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, Li
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
-from devito.symbolics import Byref, FieldFromComposite, InlineIf, Macro, FLOAT
+from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
+                              FLOAT)
 from devito.tools import CustomDtype, as_tuple
 from devito.types import Array, LocalObject, Symbol
 
@@ -381,7 +382,7 @@ def test_null_init():
     assert expr.defines == (u.indexed,)
 
 
-def test_templates():
+def test_templates_callable():
     grid = Grid(shape=(10, 10))
     x, y = grid.dimensions
 
@@ -396,6 +397,17 @@ void foo(struct dataobj *restrict u_vec)
 {
   u(x, y) = 1;
 }"""
+
+
+def test_templates_call():
+    grid = Grid(shape=(10, 10))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    foo = Call('foo', u, templates=[Class('a'), Class('b')])
+
+    assert str(foo) == "foo<class a, class b>(u_vec);"
 
 
 def test_kernel_launch():

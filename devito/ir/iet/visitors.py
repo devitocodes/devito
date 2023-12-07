@@ -493,9 +493,10 @@ class CGen(Visitor):
         arguments = self._args_call(o.arguments)
         if retobj is None:
             return MultilineCall(o.name, arguments, nested_call, o.is_indirect,
-                                 cast)
+                                 cast, o.templates)
         else:
-            call = MultilineCall(o.name, arguments, True, o.is_indirect, cast)
+            call = MultilineCall(o.name, arguments, True, o.is_indirect, cast,
+                                 o.templates)
             if retobj.is_Indexed or \
                isinstance(retobj, (FieldFromComposite, FieldFromPointer)):
                 return c.Assign(ccode(retobj), call)
@@ -1305,18 +1306,24 @@ class LambdaCollection(c.Collection):
 
 class MultilineCall(c.Generable):
 
-    def __init__(self, name, arguments, is_expr=False, is_indirect=False, cast=None):
+    def __init__(self, name, arguments, is_expr=False, is_indirect=False,
+                 cast=None, templates=None):
         self.name = name
         self.arguments = as_tuple(arguments)
         self.is_expr = is_expr
         self.is_indirect = is_indirect
         self.cast = cast
+        self.templates = templates
 
     def generate(self):
-        if not self.is_indirect:
-            tip = "%s(" % self.name
+        if self.templates:
+            tip = "%s<%s>" % (self.name, ", ".join(str(i) for i in self.templates))
         else:
-            tip = "%s%s" % (self.name, ',' if self.arguments else '')
+            tip = self.name
+        if not self.is_indirect:
+            tip = "%s(" % tip
+        else:
+            tip = "%s%s" % (tip, ',' if self.arguments else '')
         processed = []
         for i in self.arguments:
             if isinstance(i, (MultilineCall, LambdaCollection)):

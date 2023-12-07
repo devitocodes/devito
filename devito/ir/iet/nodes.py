@@ -243,12 +243,14 @@ class Call(ExprStmt, Node):
         Explicitly tagging these AbstractFunctions is useful in the case of external
         calls, that is whenever the compiler would be unable to retrieve that
         information by analysis of the IET graph.
+    templates : list of Basic, optional
+        The template arguments of the Call.
     """
 
     is_Call = True
 
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
-                 cast=False, writes=None):
+                 cast=False, writes=None, templates=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -259,6 +261,7 @@ class Call(ExprStmt, Node):
         self.is_indirect = is_indirect
         self.cast = cast
         self._writes = as_tuple(writes)
+        self.templates = as_tuple(templates)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
@@ -267,7 +270,7 @@ class Call(ExprStmt, Node):
     def _rebuild(self, *args, **kwargs):
         if args:
             # Not elegant, but basically it handles the fact that a Call might
-            # have nested Calls/Lambdas among its `arguments`, and this might
+            # have nested Calls/Lambdas among its `arguments`, and these might
             # change, and we are in such a case *if and only if* we have `args`
             assert len(args) == len(self.children)
             mapper = dict(zip(self.children, args))

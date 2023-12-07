@@ -16,7 +16,7 @@ from devito.types.basic import Basic
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'InlineIf', 'ReservedWord', 'Keyword', 'String', 'Macro',
+           'InlineIf', 'ReservedWord', 'Keyword', 'String', 'Macro', 'Class',
            'MacroArgument', 'CustomType', 'Deref', 'Namespace', 'Rvalue',
            'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null', 'SizeOf', 'rfunc',
            'cast_mapper', 'BasicWrapperMixin']
@@ -515,6 +515,14 @@ class String(ReservedWord):
 
 class Macro(ReservedWord):
     pass
+
+
+class Class(ReservedWord):
+
+    def __str__(self):
+        return "class %s" % self.value
+
+    __repr__ = __str__
 
 
 class MacroArgument(sympy.Symbol):
