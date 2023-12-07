@@ -72,11 +72,22 @@ class AbstractSparseFunction(DiscreteFunction):
         if grid is None:
             raise TypeError('Need `grid` argument')
         shape = kwargs.get('shape')
+        dimensions = kwargs.get('dimensions')
         npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
+        glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
         if shape is None:
-            glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
-            shape = (glb_npoint[grid.distributor.myrank],)
-        return shape
+            loc_shape = (glb_npoint[grid.distributor.myrank],)
+        else:
+            loc_shape = []
+            assert len(dimensions) == len(shape)
+            for i, (d, s) in enumerate(zip(dimensions, shape)):
+                if i is cls._sparse_position:
+                    loc_shape.append(glb_npoint[grid.distributor.myrank])
+                elif d in grid.dimensions:
+                    loc_shape.append(grid.dimension_map[d])
+                else:
+                    loc_shape.append(s)
+        return loc_shape
 
     def __fd_setup__(self):
         """

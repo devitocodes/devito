@@ -1391,7 +1391,7 @@ class TimeFunction(Function):
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
         else:
-            shape = super(TimeFunction, cls).__shape_setup__(
+            shape = super().__shape_setup__(
                 grid=grid, shape=shape, dimensions=dimensions
             )
 
