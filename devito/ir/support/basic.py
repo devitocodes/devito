@@ -799,11 +799,11 @@ class DependenceGroup(set):
 
     def __add__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup(super(DependenceGroup, self).__or__(other))
+        return DependenceGroup(super().__or__(other))
 
     def __sub__(self, other):
         assert isinstance(other, DependenceGroup)
-        return DependenceGroup(super(DependenceGroup, self).__sub__(other))
+        return DependenceGroup(super().__sub__(other))
 
     def project(self, function):
         """

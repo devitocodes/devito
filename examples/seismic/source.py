@@ -124,7 +124,7 @@ class PointSource(SparseTimeFunction):
         data = kwargs.pop('data', None)
 
         kwargs.setdefault('time_order', 2)
-        super(PointSource, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         self._time_range = time_range._rebuild()
 
@@ -205,10 +205,10 @@ class WaveletSource(PointSource):
     def __args_setup__(cls, *args, **kwargs):
         kwargs.setdefault('npoint', 1)
 
-        return super(WaveletSource, cls).__args_setup__(*args, **kwargs)
+        return super().__args_setup__(*args, **kwargs)
 
     def __init_finalize__(self, *args, **kwargs):
-        super(WaveletSource, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         self.f0 = kwargs.get('f0')
         self.a = kwargs.get('a')

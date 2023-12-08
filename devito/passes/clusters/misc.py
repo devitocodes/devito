@@ -26,7 +26,7 @@ class Lift(Queue):
 
     @timed_pass(name='lift')
     def process(self, elements):
-        return super(Lift, self).process(elements)
+        return super().process(elements)
 
     def callback(self, clusters, prefix):
         if not prefix:

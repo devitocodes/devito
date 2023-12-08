@@ -27,7 +27,7 @@ class Parameters(OrderedDict, Signer):
     """
 
     def __init__(self, name=None, **kwargs):
-        super(Parameters, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._name = name
 
         self._accepted = {}
@@ -74,7 +74,7 @@ class Parameters(OrderedDict, Signer):
 
     @_check_key_deprecation
     def __getitem__(self, key, *args):
-        return super(Parameters, self).__getitem__(key)
+        return super().__getitem__(key)
 
     @_check_key_deprecation
     @_check_key_value
@@ -83,7 +83,7 @@ class Parameters(OrderedDict, Signer):
         if key in self._update_functions:
             value = self._update_functions[key](value)
         if value is not None:
-            super(Parameters, self).__setitem__(key, value)
+            super().__setitem__(key, value)
 
     @_check_key_deprecation
     @_check_key_value
@@ -93,7 +93,7 @@ class Parameters(OrderedDict, Signer):
         ``self[key] = value`` as both preprocessor and callback, if any,
         are bypassed.
         """
-        super(Parameters, self).__setitem__(key, value)
+        super().__setitem__(key, value)
 
     def add(self, key, value, accepted=None, preprocessor=None, callback=None,
             impacts_jit=True, deprecate=None):
@@ -109,7 +109,7 @@ class Parameters(OrderedDict, Signer):
         that the parameter doesn't affect code generation, so it can be excluded
         from the construction of the hash key.
         """
-        super(Parameters, self).__setitem__(key, value)
+        super().__setitem__(key, value)
         self._accepted[key] = accepted
         self._defaults[key] = value
         self._impact_jit[key] = impacts_jit

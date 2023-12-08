@@ -926,7 +926,8 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                     properties[d] = normalize_properties(v, {SEQUENTIAL})
                 elif d not in writeto.itdims:
-                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - \
+                        {ROUNDABLE}
             except KeyError:
                 pass
 
@@ -1310,7 +1311,7 @@ ScheduledAlias = namedtuple('SchedAlias',
 class Schedule(tuple):
 
     def __new__(cls, *items, dmapper=None, rmapper=None, is_frame=False):
-        obj = super(Schedule, cls).__new__(cls, items)
+        obj = super().__new__(cls, items)
         obj.dmapper = dmapper or {}
         obj.rmapper = rmapper or {}
         obj.is_frame = is_frame

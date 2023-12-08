@@ -10,7 +10,7 @@ __all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort',
 class Buffer(Tag):
 
     def __init__(self, value):
-        super(Buffer, self).__init__('Buffer', value)
+        super().__init__('Buffer', value)
 
 
 class Stagger(Tag):

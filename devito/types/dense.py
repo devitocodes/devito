@@ -65,7 +65,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
-        super(DiscreteFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', 'standard')
@@ -982,7 +982,7 @@ class Function(DiscreteFunction):
         return {'nbytes': self.size}
 
     def __init_finalize__(self, *args, **kwargs):
-        super(Function, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Space order
         space_order = kwargs.get('space_order', 1)
@@ -1323,7 +1323,7 @@ class TimeFunction(Function):
     def __init_finalize__(self, *args, **kwargs):
         self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
         self._time_order = kwargs.get('time_order', 1)
-        super(TimeFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Check we won't allocate too much memory for the system
         available_mem = virtual_memory().available

@@ -47,7 +47,7 @@ class AbstractSparseFunction(DiscreteFunction):
     __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint_global', 'space_order')
 
     def __init_finalize__(self, *args, **kwargs):
-        super(AbstractSparseFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
         self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
 

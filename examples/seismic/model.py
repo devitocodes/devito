@@ -57,7 +57,7 @@ class PhysicalDomain(SubDomain):
     name = 'physdomain'
 
     def __init__(self, so, fs=False):
-        super(PhysicalDomain, self).__init__()
+        super().__init__()
         self.so = so
         self.fs = fs
 
@@ -73,7 +73,7 @@ class FSDomain(SubDomain):
     name = 'fsdomain'
 
     def __init__(self, so):
-        super(FSDomain, self).__init__()
+        super().__init__()
         self.size = so
 
     def define(self, dimensions):
@@ -270,8 +270,8 @@ class SeismicModel(GenericModel):
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
                  dtype=np.float32, subdomains=(), bcs="mask", grid=None, **kwargs):
-        super(SeismicModel, self).__init__(origin, spacing, shape, space_order, nbl,
-                                           dtype, subdomains, grid=grid, bcs=bcs, fs=fs)
+        super().__init__(origin, spacing, shape, space_order, nbl,
+                         dtype, subdomains, grid=grid, bcs=bcs, fs=fs)
 
         # Initialize physics
         self._initialize_physics(vp, space_order, **kwargs)

@@ -386,7 +386,7 @@ class AdvisorProfiler(AdvancedProfiler):
         if self.path is None:
             self.initialized = False
         else:
-            super(AdvisorProfiler, self).__init__(name)
+            super().__init__(name)
             # Make sure future compilations will get the proper header and
             # shared object files
             compiler = configuration['compiler']
@@ -418,7 +418,7 @@ class AdvisorProfiler(AdvancedProfiler):
 class PerformanceSummary(OrderedDict):
 
     def __init__(self, *args, **kwargs):
-        super(PerformanceSummary, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.subsections = DefaultOrderedDict(lambda: OrderedDict())
         self.input = OrderedDict()
         self.globals = {}

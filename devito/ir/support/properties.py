@@ -6,7 +6,7 @@ class Property(Tag):
     _KNOWN = []
 
     def __init__(self, name, val=None):
-        super(Property, self).__init__(name, val)
+        super().__init__(name, val)
         Property._KNOWN.append(self)
 
 

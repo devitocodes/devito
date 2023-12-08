@@ -187,10 +187,10 @@ class TensorFunction(AbstractTensor):
         if self.is_diagonal:
             return [self[i, i] for i in range(self.shape[0])]
         elif self.is_symmetric:
-            val = super(TensorFunction, self).values()
+            val = super().values()
             return list(OrderedDict.fromkeys(val))
         else:
-            return super(TensorFunction, self).values()
+            return super().values()
 
     def div(self, shift=None, order=None):
         """

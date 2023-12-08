@@ -42,7 +42,7 @@ class NodeIteration(ScheduleTree):
     is_Iteration = True
 
     def __init__(self, ispace, parent=None, properties=None):
-        super(NodeIteration, self).__init__(parent)
+        super().__init__(parent)
         self.ispace = ispace
         self.properties = properties
 
@@ -78,7 +78,7 @@ class NodeConditional(ScheduleTree):
     is_Conditional = True
 
     def __init__(self, guard, parent=None):
-        super(NodeConditional, self).__init__(parent)
+        super().__init__(parent)
         self.guard = guard
 
     @property
@@ -91,7 +91,7 @@ class NodeSync(ScheduleTree):
     is_Sync = True
 
     def __init__(self, sync_ops, parent=None):
-        super(NodeSync, self).__init__(parent)
+        super().__init__(parent)
         self.sync_ops = sync_ops
 
     @property
@@ -104,7 +104,7 @@ class NodeExprs(ScheduleTree):
     is_Exprs = True
 
     def __init__(self, exprs, ispace, dspace, ops, traffic, parent=None):
-        super(NodeExprs, self).__init__(parent)
+        super().__init__(parent)
         self.exprs = exprs
         self.ispace = ispace
         self.dspace = dspace

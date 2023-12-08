@@ -427,7 +427,7 @@ class ClusterGroup(tuple):
     """
 
     def __new__(cls, clusters, ispace=None):
-        obj = super(ClusterGroup, cls).__new__(cls, flatten(as_tuple(clusters)))
+        obj = super().__new__(cls, flatten(as_tuple(clusters)))
         obj._ispace = ispace
         return obj
 
