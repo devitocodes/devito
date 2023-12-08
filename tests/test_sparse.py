@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 import scipy.sparse
 
-from devito import Grid, TimeFunction, Eq, Operator, Dimension
+from devito import Grid, TimeFunction, Eq, Operator, Dimension, Function
 from devito import (SparseFunction, SparseTimeFunction, PrecomputedSparseFunction,
                     PrecomputedSparseTimeFunction, MatrixSparseTimeFunction)
 
@@ -455,6 +455,37 @@ class TestSparseFunction(object):
                 assert getattr(sps, subf).indices[0] == new_spdim
                 assert np.all(getattr(sps, subf).data == getattr(sp, subf).data)
 
+    @pytest.mark.parallel(mode=[1, 4])
+    def test_mpi_no_data(self):
+        grid = Grid((11, 11), extent=(10, 10))
+        time = grid.time_dim
+        # Base object
+        sp = SparseTimeFunction(name="s", grid=grid, npoint=1, nt=1,
+                                coordinates=[[5., 5.]])
+
+        m = TimeFunction(name="m", grid=grid, space_order=2, time_order=1)
+        eq = [Eq(m.forward, m + m.laplace)]
+
+        op = Operator(eq + sp.inject(field=m.forward, expr=time))
+        # Not using the source data so can run with any time_M
+        op(time_M=5)
+
+        expected = np.array([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                            [0., 0., 0., 0., 4., -10., 4., 0., 0., 0., 0.],
+                            [0., 0., 0., 6., -30., 55., -30., 6., 0., 0., 0.],
+                            [0., 0., 4., -30., 102., -158., 102., -30., 4., 0., 0.],
+                            [0., 1., -10., 55., -158., 239., -158., 55., -10., 1., 0.],
+                            [0., 0., 4., -30., 102., -158., 102., -30., 4., 0., 0.],
+                            [0., 0., 0., 6., -30., 55., -30., 6., 0., 0., 0.],
+                            [0., 0., 0., 0., 4., -10., 4., 0., 0., 0., 0.],
+                            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+                            [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+
+        ftest = Function(name='ftest', grid=grid, space_order=2)
+        ftest.data[:] = expected
+        assert np.all(m.data[0, :, :] == ftest.data[:])
+
 
 if __name__ == "__main__":
-    TestMatrixSparseTimeFunction().test_mpi()
+    TestMatrixSparseTimeFunction().test_mpi_no_data()

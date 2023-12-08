@@ -81,13 +81,13 @@ class AbstractSparseFunction(DiscreteFunction):
             loc_shape = []
             assert len(dimensions) == len(shape)
             for i, (d, s) in enumerate(zip(dimensions, shape)):
-                if i is cls._sparse_position:
+                if i == cls._sparse_position:
                     loc_shape.append(glb_npoint[grid.distributor.myrank])
                 elif d in grid.dimensions:
-                    loc_shape.append(grid.dimension_map[d])
+                    loc_shape.append(grid.dimension_map[d].loc)
                 else:
                     loc_shape.append(s)
-        return loc_shape
+        return tuple(loc_shape)
 
     def __fd_setup__(self):
         """
@@ -100,11 +100,13 @@ class AbstractSparseFunction(DiscreteFunction):
         A `SparseDistributor` handles the SparseFunction decomposition based on
         physical ownership, and allows to convert between global and local indices.
         """
-        return SparseDistributor(
-            kwargs.get('npoint', kwargs.get('npoint_global')),
-            self._sparse_dim,
-            kwargs['grid'].distributor
-        )
+        distributor = kwargs.get('distributor')
+        if distributor is None:
+            distributor = SparseDistributor(
+                kwargs.get('npoint', kwargs.get('npoint_global')),
+                self._sparse_dim, kwargs['grid'].distributor)
+
+        return distributor
 
     def __subfunc_setup__(self, key, suffix, dtype=None):
         # Shape and dimensions from args
@@ -153,7 +155,7 @@ class AbstractSparseFunction(DiscreteFunction):
         sf = SubFunction(
             name=name, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
-            distributor=self._distributor
+            distributor=self._distributor, parent=self
         )
 
         if self.npoint == 0:
@@ -166,8 +168,12 @@ class AbstractSparseFunction(DiscreteFunction):
         return sf
 
     @property
+    def sparse_position(self):
+        return self._sparse_position
+
+    @property
     def _sparse_dim(self):
-        return self.dimensions[self._sparse_position]
+        return self.dimensions[self.sparse_position]
 
     @property
     def _mpitype(self):

@@ -1457,6 +1457,12 @@ class SubFunction(Function):
     DiscreteFunction it's bound to.
     """
 
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('dimensions', 'shape')
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._parent = kwargs.pop('parent', None)
+        super().__init_finalize__(*args, **kwargs)
+
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops
         return tuple((0, 0) for i in range(self.ndim))
@@ -1465,16 +1471,27 @@ class SubFunction(Function):
         return
 
     def _arg_values(self, **kwargs):
-        if self.name in kwargs:
+        if self._parent is not None and self.parent.name not in kwargs:
+            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+        elif self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
                                "a value dynamically" % self.name)
+        else:
+            return self._arg_defaults(alias=self)
 
-        return self._arg_defaults(alias=self)
+    def _arg_apply(self, *args, **kwargs):
+        if self._parent is not None:
+            return self._parent._arg_apply(*args, **kwargs)
+        return super()._arg_apply(*args, **kwargs)
 
     @property
     def origin(self):
         # SubFunction have zero origin
         return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
+
+    @property
+    def parent(self):
+        return self._parent
 
 
 class TempFunction(DiscreteFunction):

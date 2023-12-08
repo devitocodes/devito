@@ -929,6 +929,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                     properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - \
                         {ROUNDABLE}
             except KeyError:
+                # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
                 pass
 
         # Track star-shaped stencils for potential future optimization

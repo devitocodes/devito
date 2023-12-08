@@ -734,7 +734,7 @@ class IndexDerivative(IndexSum):
     __rargs__ = ('expr', 'mapper')
 
     def __new__(cls, expr, mapper, **kwargs):
-        dimensions = as_tuple(mapper.values())
+        dimensions = as_tuple(set(mapper.values()))
 
         # Detect the Weights among the arguments
         weightss = []
@@ -799,9 +799,7 @@ class IndexDerivative(IndexSum):
         mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
-        basexpr = set(a.function for a in self.expr.args if a.is_Function) - {f}
-
-        return EvalDerivative(expr, base=basexpr.pop())
+        return EvalDerivative(expr, base=self.base)
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives
