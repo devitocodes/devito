@@ -7,7 +7,6 @@ import numpy as np
 
 from devito import (Grid, TimeFunction, Eq, solve, Constant,
                     norm, Operator, configuration)
-from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
@@ -25,6 +24,9 @@ parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot3D")
 parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
 parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
+
+if args.plot:
+    from fast.bench_utils import plot_3dfunc
 
 mpiconf = configuration['mpi']
 
