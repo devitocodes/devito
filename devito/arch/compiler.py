@@ -2,7 +2,8 @@ from functools import partial
 from hashlib import sha1
 from os import environ, path, makedirs
 from packaging.version import Version
-from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
+from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
+                        check_call, run)
 import platform
 import warnings
 import sys
@@ -10,10 +11,11 @@ import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import GCCToolchain, call_capture_output as _call_capture_output
+from codepy.toolchain import (GCCToolchain,
+                              call_capture_output as _call_capture_output)
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
-                         INTELGPUX, PVC, get_nvidia_cc, check_cuda_runtime,
+                         IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
@@ -733,13 +735,17 @@ class IntelCompiler(Compiler):
         if language == 'openmp':
             self.ldflags.append('-qopenmp')
 
-        # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
-            mpi_distro = sniff_mpi_distro('mpiexec')
-            if mpi_distro != 'IntelMPI':
-                warning("Expected Intel MPI distribution with `%s`, but found `%s`"
-                        % (self.__class__.__name__, mpi_distro))
+            self.__init_intel_mpi__()
             self.cflags.insert(0, '-cc=%s' % self.CC)
+
+    def __init_intel_mpi__(self, **kwargs):
+        # Make sure the MPI compiler uses an Intel compiler underneath,
+        # whatever the MPI distro is
+        mpi_distro = sniff_mpi_distro('mpiexec')
+        if mpi_distro != 'IntelMPI':
+            warning("Expected Intel MPI distribution with `%s`, but found `%s`"
+                    % (self.__class__.__name__, mpi_distro))
 
     def get_version(self):
         if configuration['mpi']:
@@ -802,7 +808,7 @@ class OneapiCompiler(IntelCompiler):
 
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
-            elif platform in [INTELGPUX, PVC]:
+            elif isinstance(platform, IntelDevice):
                 self.cflags.append('-fiopenmp')
                 self.cflags.append('-fopenmp-targets=spir64')
                 self.cflags.append('-fopenmp-target-simd')
@@ -810,6 +816,19 @@ class OneapiCompiler(IntelCompiler):
                 self.cflags.remove('-g')  # -g disables some optimizations in IGC
                 self.cflags.append('-gline-tables-only')
                 self.cflags.append('-fdebug-info-for-profiling')
+
+        if kwargs.get('mpi'):
+            self.__init_intel_mpi__()
+
+    def __init_intel_mpi__(self, **kwargs):
+        super().__init_intel_mpi__(**kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        # The Intel toolchain requires the I_MPI_OFFLOAD env var to be set
+        # to enable GPU-aware MPI (that is, passing device pointers to MPI calls)
+        if isinstance(platform, IntelDevice):
+            environ['I_MPI_OFFLOAD'] = '1'
 
     get_version = Compiler.get_version
 
@@ -844,10 +863,13 @@ class SyclCompiler(OneapiCompiler):
             pass
         elif platform is NVIDIAX:
             self.cflags.append('-fsycl-targets=nvptx64-cuda')
-        elif platform in [INTELGPUX, PVC]:
+        elif isinstance(platform, IntelDevice):
             self.cflags.append('-fsycl-targets=spir64')
         else:
             raise NotImplementedError("Unsupported platform %s" % platform)
+
+        if kwargs.get('mpi'):
+            self.__init_intel_mpi__()
 
 
 class CustomCompiler(Compiler):
@@ -871,7 +893,7 @@ class CustomCompiler(Compiler):
 
         if platform is M1:
             _base = ClangCompiler
-        elif platform is INTELGPUX:
+        elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler
         elif platform is NVIDIAX:
             if language == 'cuda':
