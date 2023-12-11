@@ -13,7 +13,7 @@ from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import dtype_to_ctype
 
-__all__ = ['ALLOC_FLAT', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
+__all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
            'default_allocator']
 
@@ -368,7 +368,7 @@ class ExternalAllocator(MemoryAllocator):
 
 
 ALLOC_GUARD = GuardAllocator(1048576)
-ALLOC_FLAT = PosixAllocator()
+ALLOC_ALIGNED = PosixAllocator()
 ALLOC_KNL_DRAM = NumaAllocator(0)
 ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
@@ -403,8 +403,8 @@ def default_allocator(name=None):
 
         * ALLOC_GUARD: Only used in so-called "develop mode", to trigger SIGSEGV as
                        soon as OOB accesses are performed.
-        * ALLOC_FLAT: Align memory to page boundaries using the posix function
-                      `posix_memalign`.
+        * ALLOC_ALIGNED: Align memory to page boundaries using the function
+                         `posix_memalign`.
         * ALLOC_NUMA_LOCAL: Allocate memory in the "closest" NUMA node. This only
                             makes sense on a NUMA architecture. Falls back to
                             allocation in an arbitrary NUMA node if there isn't
@@ -424,10 +424,9 @@ def default_allocator(name=None):
 
     if configuration['develop-mode']:
         return ALLOC_GUARD
-    elif NumaAllocator.available():
-        if configuration['platform'].name == 'knl' and infer_knl_mode() == 'flat':
-            return ALLOC_KNL_MCDRAM
-        else:
-            return ALLOC_NUMA_LOCAL
+    elif (NumaAllocator.available() and
+          configuration['platform'].name == 'knl' and
+          infer_knl_mode() == 'flat'):
+        return ALLOC_KNL_MCDRAM
     else:
-        return ALLOC_FLAT
+        return ALLOC_ALIGNED

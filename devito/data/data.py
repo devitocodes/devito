@@ -3,7 +3,7 @@ from functools import wraps
 
 import numpy as np
 
-from devito.data.allocators import ALLOC_FLAT
+from devito.data.allocators import ALLOC_ALIGNED
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
@@ -28,7 +28,7 @@ class Data(np.ndarray):
     modulo : tuple of bool, optional
         If the i-th entry is True, then the i-th array dimension uses modulo indexing.
     allocator : MemoryAllocator, optional
-        Used to allocate memory. Defaults to ``ALLOC_FLAT``.
+        Used to allocate memory. Defaults to `ALLOC_ALIGNED`.
     distributor : Distributor, optional
         The distributor from which the original decomposition was produced. Note that
         the decomposition Parameter above may be different to distributor.decomposition.
@@ -44,8 +44,8 @@ class Data(np.ndarray):
     `Data`.
     """
 
-    def __new__(cls, shape, dtype, decomposition=None, modulo=None, allocator=ALLOC_FLAT,
-                distributor=None):
+    def __new__(cls, shape, dtype, decomposition=None, modulo=None,
+                allocator=ALLOC_ALIGNED, distributor=None):
         assert len(shape) == len(modulo)
         ndarray, memfree_args = allocator.alloc(shape, dtype)
         obj = ndarray.view(cls)
