@@ -765,8 +765,6 @@ class FindSections(Visitor):
         queue.remove(o)
         return ret
 
-    visit_Lambda = visit_Iteration
-
     def visit_ExprStmt(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
@@ -805,6 +803,7 @@ class MapKind(FindSections):
 
     visit_Conditional = FindSections.visit_Iteration
     visit_Block = FindSections.visit_Iteration
+    visit_Lambda = FindSections.visit_Iteration
 
 
 class MapExprStmts(MapKind):
