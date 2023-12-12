@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Grid, TimeFunction, Eq, XDSLOperator, Operator, solve, norm
+from devito import Grid, TimeFunction, Eq, Operator, solve, norm
 
 from xdsl.dialects.scf import For, Yield
 from xdsl.dialects.arith import Addi
@@ -16,7 +16,7 @@ def test_xdsl_I():
     u = TimeFunction(name='u', grid=grid)
 
     eq = Eq(u.forward, u + 1)
-    op = XDSLOperator([eq], opt=None)
+    op = Operator([eq], opt='xdsl')
     op.apply(time_M=1)
     assert (u.data[1, :] == 1.).all()
     assert (u.data[0, :] == 2.).all()
@@ -28,7 +28,7 @@ def test_xdsl_II():
     u = TimeFunction(name='u', grid=grid)
 
     eq = Eq(u.forward, u + 1)
-    op = XDSLOperator([eq], opt=None)
+    op = Operator([eq], opt='xdsl')
     op.apply(time_M=1)
     assert (u.data[1, :] == 1.).all()
     assert (u.data[0, :] == 2.).all()
@@ -40,7 +40,7 @@ def test_xdsl_III():
     u = TimeFunction(name='u', grid=grid)
 
     eq = Eq(u.forward, u + 1)
-    op = XDSLOperator([eq], opt=None)
+    op = Operator([eq], opt='xdsl')
     op.apply(time_M=1)
 
     assert (u.data[1, :] == 1.).all()
@@ -83,7 +83,7 @@ def test_diffusion_2D():
     f2 = TimeFunction(name='f2', grid=grid, space_order=2)
     f2.data[:] = 1
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
-    op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
+    op = Operator(Eq(f2.forward, solve(eqn, f2.forward)), opt='xdsl')
     op.apply(time_M=1, dt=0.1)
 
     assert np.isclose(f.data, f2.data, rtol=1e-06).all()
@@ -113,7 +113,7 @@ def test_diffusion_2D_II(shape):
     f2 = TimeFunction(name='f2', grid=grid, space_order=2)
     f2.data[:] = arr1
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
-    op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
+    op = Operator(Eq(f2.forward, solve(eqn, f2.forward)), opt='xdsl')
     op.apply(time_M=nt, dt=dt)
 
     max_error = np.max(np.abs(f.data - f2.data))
@@ -150,7 +150,7 @@ def test_diffusion_3D_II(shape):
     f2 = TimeFunction(name='f2', grid=grid, space_order=2)
     f2.data[:] = arr1
     eqn = Eq(f2.dt, 0.5 * f2.laplace)
-    op = XDSLOperator(Eq(f2.forward, solve(eqn, f2.forward)))
+    op = Operator(Eq(f2.forward, solve(eqn, f2.forward)), opt='xdsl')
     op.apply(time_M=50, dt=dt)
 
     max_error = np.max(np.abs(f.data - f2.data))
@@ -168,7 +168,7 @@ def test_unary(shape, steps):
     u = TimeFunction(name='u', grid=grid)
     u.data[:, :] = 5
     eq = Eq(u.forward, u + 0.1)
-    xop = XDSLOperator([eq])
+    xop = Operator([eq], opt='xdsl')
     xop.apply(time_M=steps)
     xdsl_data = u.data_with_halo.copy()
 
@@ -208,7 +208,7 @@ def test_acoustic_3D(shape, so, to, nt):
     u.data[:, 40:50, 40:50] = 1
 
     # XDSL Operator
-    xdslop = XDSLOperator([stencil])
+    xdslop = Operator([stencil], opt='xdsl')
     xdslop.apply(time=nt, dt=dt)
     xdsl_norm = norm(u)
 
@@ -242,7 +242,7 @@ def test_standard_mlir_rewrites(shape, so, to, nt):
     u.data[:, 40:50, 40:50] = 1
 
     # XDSL Operator
-    xdslop = XDSLOperator([stencil])
+    xdslop = Operator([stencil], opt='xdsl')
     xdslop.apply(time=nt, dt=dt)
 
     from devito.ir.ietxdsl.lowering import iet_to_standard_mlir

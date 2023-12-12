@@ -70,13 +70,13 @@ class ExtractDevitoStencilConversion:
         halo = [function.halo[d] for d in grid.dimensions]
 
         # Shift all time values so that for all accesses at t + n, n>=0.
-        self.time_offs = min(
-            int(idx.indices[0] - grid.stepping_dim) for idx in retrieve_indexed(eq)
-        )
-
-
-        # Get the time_size       
-        time_size = max(d.function.time_size for d in retrieve_function_carriers(eq))
+        
+        indexeds = retrieve_indexed(eq.rhs)
+        self.time_offs = int(indexeds[0].indices[0] - grid.stepping_dim)
+       
+        # Get the time_size
+        func_carriers = retrieve_function_carriers(eq)
+        time_size = max(d.function.time_size for d in func_carriers)
         
         # Build the for loop
         perf("Build Time Loop")
@@ -251,6 +251,7 @@ class ExtractDevitoStencilConversion:
         return loop
 
     def convert(self) -> builtin.ModuleOp:
+        # Lower equations to a ModuleOp
         return builtin.ModuleOp(
             Region([Block([self._convert_eq(eq) for eq in self.eqs])])
         )
@@ -514,21 +515,30 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
 
 
 def convert_devito_stencil_to_xdsl_stencil(module, timed: bool = True):
+    """
+    TODO: Add docstring
+    """
+    perf("DevitoStencil to stencil.stencil")
+    perf("LowerIetForToScfFor")
+
     patterns: list[RewritePattern] = [
         _DevitoStencilToStencilStencil(),
         LowerIetForToScfFor(),
         ]
+
     if timed:
         patterns.append(MakeFunctionTimed('apply_kernel'))
+
     grpa = GreedyRewritePatternApplier(patterns)
-    perf("DevitoStencil to stencil.stencil")
-    perf("LowerIetForToScfFor")
 
     PatternRewriteWalker(grpa, walk_regions_first=True).rewrite_module(module)
 
 
 def finalize_module_with_globals(module: builtin.ModuleOp, known_symbols: dict[str, Any],
                                  gpu_boilerplate):
+    """
+    TODO: Add docstring
+    """
     patterns = [
         _InsertSymbolicConstants(known_symbols),
         _LowerLoadSymbolidToFuncArgs(),

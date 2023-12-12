@@ -146,11 +146,6 @@ class Operator(Callable):
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
 
-        # Terrible hack, but necessary because devito is cursed.
-        is_xdsl = 'xdsl' in cls.__name__.lower()
-        # Save _build and _lower classes
-        _build = cls._build
-
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
@@ -158,13 +153,11 @@ class Operator(Callable):
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
 
-        # Use the selected classes _build and _lower methods if not XDSL
-        if not is_xdsl:
-            _build = cls._build
-
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
-            op = _build(expressions, **kwargs)
+            op = cls._build(expressions, **kwargs)
+
+        # Now I do have a module if opt='xdsl'
         op._profiler.py_timers.update(r.timings)
 
         # Emit info about how long it took to perform the lowering
@@ -275,9 +268,9 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, kwargs=kwargs):
-            return rcompile(expressions, kwargs)
+    def _rcompile_wrapper(cls, **kwargs0):
+        def wrapper(expressions, **kwargs1):
+            return rcompile(expressions, {**kwargs0, **kwargs1})
         return wrapper
 
     @classmethod
@@ -841,12 +834,12 @@ class Operator(Callable):
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
-            self._jit_kernel_constants = args
 
-        cfunction = self.cfunction
+        # Invoke kernel function with args
+        arg_values = [args[p.name] for p in self.parameters]
+
         try:
-            # Invoke kernel function with args
-            arg_values = self._construct_cfunction_args(args)
+            cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
                 cfunction(*arg_values)
         except ctypes.ArgumentError as e:
