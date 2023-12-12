@@ -5,7 +5,8 @@
 import argparse
 import numpy as np
 
-from devito import Grid, TimeFunction, Eq, solve, Operator, Constant, norm, XDSLOperator, configuration
+from devito import (Grid, TimeFunction, Eq, solve, Operator,
+                    Constant, norm, configuration)
 from examples.cfd import init_hat
 from fast.bench_utils import plot_2dfunc
 
@@ -88,8 +89,8 @@ if args.devito:
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 if args.xdsl:
-    xdslop = XDSLOperator([eq_stencil], name='XDSLDiffusionOperator')
-    xdslop.apply(time=nt, dt=dt, a=nu)
+    op = Operator([eq_stencil], name='XDSLDiffusionOperator', opt='xdsl')
+    op.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))
 
 if args.xdsl and args.devito:

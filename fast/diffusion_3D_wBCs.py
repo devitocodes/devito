@@ -5,8 +5,8 @@
 import argparse
 import numpy as np
 
-from devito import (Grid, TimeFunction, Eq, solve, Operator, Constant,
-                    norm, XDSLOperator, configuration)
+from devito import (Grid, TimeFunction, Eq, solve, Constant,
+                    norm, Operator, configuration)
 from fast.bench_utils import plot_3dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
@@ -81,9 +81,9 @@ if args.xdsl:
     # Reset field
     u.data[:, :, :, :] = 0
     u.data[:, :, :, int(nz/2)] = 1
-    xdslop = XDSLOperator([eq_stencil], name='xDSLDiffusionOperator')
+    op = Operator([eq_stencil], name='xDSLDiffusionOperator', opt='xdsl')
     # Apply the xdsl operator for a number of timesteps
-    xdslop.apply(time=nt, dt=dt, a=nu)
+    op.apply(time=nt, dt=dt, a=nu)
     print("XDSL Field norm is:", norm(u))
     if args.plot:
         plot_3dfunc(u)

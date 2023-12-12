@@ -3,7 +3,7 @@
 import numpy as np
 
 from devito import (TimeFunction, Eq, Operator, solve, norm,
-                    XDSLOperator, configuration, Grid)
+                    configuration, Grid)
 from fast.bench_utils import plot_2dfunc
 from devito.tools import as_tuple
 
@@ -123,7 +123,7 @@ if args.xdsl:
     # print("XDSL init linalg norm:", np.linalg.norm(u.data[2]))
 
     # Run more with no sources now (Not supported in xdsl)
-    xdslop = XDSLOperator([stencil], name='xDSLOperator')
+    xdslop = Operator([stencil], name='xDSLOperator', opt='xdsl')
     xdslop.apply(time=nt, dt=dt)
 
     if len(shape) == 2 and args.plot:
