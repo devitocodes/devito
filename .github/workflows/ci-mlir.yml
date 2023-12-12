@@ -28,7 +28,7 @@ jobs:
 
     - name: Install native dependencies
       run: |
-        apt install -y curl mpich
+        apt-get update && apt install curl mpich -y
 
     - name: Upgrade pip
       run: |
