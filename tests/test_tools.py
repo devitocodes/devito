@@ -1,15 +1,12 @@
 import numpy as np
 import pytest
 from sympy.abc import a, b, c, d, e
-from sympy.core.mul import _mulsort
 
 import time
 
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
                           filter_ordered, transitive_closure, UnboundTuple)
 from devito.types.basic import Symbol
-from devito.types.misc import Temp
-from devito.passes.clusters.cse import CTemp
 
 
 @pytest.mark.parametrize('elements, expected', [
@@ -148,18 +145,3 @@ def test_unbound_tuple():
     assert ub.next() == 2
     ub.iter()
     assert ub.next() == 1
-
-
-def test_temp_order():
-    # Test order of classes inserted to Sympy's core ordering
-    a = Temp(name='r6')
-    b = CTemp(name='r6')
-    c = Symbol(name='r6')
-
-    args = [b, a, c]
-
-    _mulsort(args)
-
-    assert type(args[0]) is Symbol
-    assert type(args[1]) is Temp
-    assert type(args[2]) is CTemp

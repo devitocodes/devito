@@ -3,6 +3,7 @@ import pytest
 from cached_property import cached_property
 
 from sympy import Mul  # noqa
+from sympy.core.mul import _mulsort
 
 from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
                       get_params, get_arrays, check_array)
@@ -24,7 +25,7 @@ from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               IndexedPointer, Keyword, SizeOf, estimate_cost,
                               pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction
+from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction, Temp
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -149,6 +150,21 @@ def test_cse(exprs, expected, min_cost):
 
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
+
+
+def test_cse_temp_order():
+    # Test order of classes inserted to Sympy's core ordering
+    a = Temp(name='r6')
+    b = CTemp(name='r6')
+    c = Symbol(name='r6')
+
+    args = [b, a, c]
+
+    _mulsort(args)
+
+    assert type(args[0]) is Symbol
+    assert type(args[1]) is Temp
+    assert type(args[2]) is CTemp
 
 
 @pytest.mark.parametrize('expr,expected', [
