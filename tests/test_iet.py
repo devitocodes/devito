@@ -2,6 +2,7 @@ import pytest
 
 from ctypes import c_void_p
 import cgen
+import numpy as np
 import sympy
 
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
@@ -15,7 +16,7 @@ from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
                               FLOAT)
-from devito.tools import CustomDtype, as_tuple
+from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
 from devito.types import Array, LocalObject, Symbol
 
 
@@ -306,7 +307,14 @@ def test_cpp_local_object():
     expr = sympy.Function('ceil')(FLOAT(Symbol(name='s'))**-1)
     lo5 = MyObject('obj5', cargs=(expr,), initvalue=Macro('meh'))
 
-    iet = Call('foo', [lo0, lo1, lo2, lo3, lo4, lo5])
+    # A LocalObject with class-level initvalue and numeric dtype
+    class SpecialObject2(LocalObject):
+        dtype = dtype_to_ctype(np.float32)
+        default_initvalue = Macro('meh')
+
+    lo6 = SpecialObject2('obj6')
+
+    iet = Call('foo', [lo0, lo1, lo2, lo3, lo4, lo5, lo6])
     iet = ElementalFunction('foo', iet, parameters=())
 
     dm = CDataManager(sregistry=None)
@@ -318,6 +326,7 @@ def test_cpp_local_object():
     assert 'dummy obj3 = meh;' in str(iet)
     assert 'dummy obj4(1,2) = meh;' in str(iet)
     assert 'dummy obj5(ceil(1.0F/(float)s)) = meh;' in str(iet)
+    assert 'float obj6 = meh;' in str(iet)
 
 
 def test_call_indexed():

@@ -168,6 +168,12 @@ class LocalObject(AbstractObject):
     LocalObjects encode their dtype as a class attribute.
     """
 
+    default_initvalue = None
+    """
+    The initial value may or may not be a class-level attribute. In the latter
+    case, it is passed to the constructor.
+    """
+
     __rargs__ = ('name',)
     __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'is_global')
 
@@ -175,7 +181,7 @@ class LocalObject(AbstractObject):
                  is_global=False, **kwargs):
         self.name = name
         self.cargs = as_tuple(cargs)
-        self.initvalue = initvalue
+        self.initvalue = initvalue or self.default_initvalue
 
         assert liveness in ['eager', 'lazy']
         self._liveness = liveness
