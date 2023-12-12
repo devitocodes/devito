@@ -23,9 +23,7 @@ from devito.logger import info, perf
 from devito.operator.profiling import create_profile
 from devito.ir.iet import Callable, MetaCall
 
-from devito.ir.support import SymbolRegistry
-from devito.tools import as_tuple, flatten, filter_sorted, OrderedSet
-from devito.types import Evaluable
+from devito.tools import flatten, filter_sorted, OrderedSet
 
 from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
                                               convert_devito_stencil_to_xdsl_stencil,
@@ -220,7 +218,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
 class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
-    _Target = OmpTarget
+    _Target = CTarget
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -230,7 +228,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
-        # Lower the input expressions into an IET
+        # Lower the input expressions into an IET and a module. iet is not used
         perf("Lower expressions to a module")
         irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
 
@@ -282,27 +280,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         return op
 
     @classmethod
-    def _lower(cls, expressions, **kwargs):
-        """
-        Perform the lowering Expressions -> Clusters -> ScheduleTree -> IET.
-        """
-        # Create a symbol registry
-        kwargs.setdefault('sregistry', SymbolRegistry())
-
-        expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
-        # Enable recursive lowering
-        # This may be used by a compilation pass that constructs a new
-        # expression for which a partial or complete lowering is desired
-        kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
-
-        # [Eq] -> [LoweredEq]
-        expressions = cls._lower_exprs(expressions, **kwargs)
-
+    def _lower_stencil(cls, expressions):
         # [Eq] -> [xdsl]
         # Lower expressions to a builtin.ModuleOp
         conv = ExtractDevitoStencilConversion(expressions)
@@ -312,6 +290,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         convert_devito_stencil_to_xdsl_stencil(module, timed=True)
         # Uncomment to print
         # Printer().print(module)
+        return module
 
     @property
     def mpi_shape(self) -> tuple:
@@ -349,7 +328,6 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
             module_str = module_str.getvalue()
 
             xdsl_pipeline = generate_XDSL_CPU_noop_PIPELINE()
-
             mlir_pipeline = generate_MLIR_CPU_noop_PIPELINE()
 
             # allow jit backdooring to provide your own xdsl code
@@ -601,139 +579,6 @@ class XdslAdvOperator(XdslnoopOperator):
                 mlir_pipeline = generate_MLIR_OPENMP_PIPELINE()
 
             if is_mpi:
-                
-                shape, mpi_rank = self.mpi_shape
-                # Run with restrict domain=false so we only introduce the swaps but don't
-                # reduce the domain of the computation
-                # (as devito has already done that for us)
-                slices = ','.join(str(x) for x in shape)
-
-                decomp = "2d-grid" if len(shape) == 2 else "3d-grid"
-
-                decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
-                xdsl_pipeline = generate_XDSL_MPI_PIPELINE(decomp, to_tile)
-
-            elif is_gpu:
-                xdsl_pipeline = generate_XDSL_GPU_PIPELINE()
-                # Get GPU blocking shapes
-                block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]  # noqa
-                block_sizes = ','.join(str(bs) for bs in block_sizes)
-                mlir_pipeline = generate_MLIR_GPU_PIPELINE(block_sizes)
-
-            # allow jit backdooring to provide your own xdsl code
-            backdoor = os.getenv('XDSL_JIT_BACKDOOR')
-            if backdoor is not None:
-                if os.path.splitext(backdoor)[1] == ".so":
-                    info(f"JIT Backdoor: skipping compilation and using {backdoor}")
-                    self._tf.name = backdoor
-                    return
-                print("JIT Backdoor: loading xdsl file from: " + backdoor)
-                with open(backdoor, 'r') as f:
-                    module_str = f.read()
-
-            source_name = os.path.splitext(self._tf.name)[0] + ".mlir"
-            source_file = open(source_name, "w")
-            source_file.write(module_str)
-            source_file.close()
-
-            # Compile IR using xdsl-opt | mlir-opt | mlir-translate | clang
-            cflags = "-O3 -march=native -mtune=native -lmlir_c_runner_utils"
-
-            try:
-                cc = "clang"
-
-                if is_mpi:
-                    cflags += ' -lmpi '
-                    cc = "mpicc -cc=clang"
-                if is_omp:
-                    cflags += " -fopenmp "
-                if is_gpu:
-                    cflags += " -lmlir_cuda_runtime "
-
-                cflags += " -shared "
-
-                # TODO More detailed error handling manually,
-                # instead of relying on a bash-only feature.
-
-                # xdsl-opt, get xDSL IR
-                xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                out = self.compile(xdsl_cmd)
-                Printer().print(out)
-
-                # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
-                Printer().print(out)
-
-                mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
-                Printer().print(out)
-
-                # Compile with clang and get LLVM-IR
-                clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
-                out = self.compile(clang_cmd, out)
-
-            except Exception as ex:
-                print("error")
-                raise ex
-
-        elapsed = self._profiler.py_timers['jit-compile']
-
-        perf("XDSLOperator `%s` jit-compiled `%s` in %.2f s with `mlir-opt`" %
-             (self.name, source_name, elapsed))
-
-    def compile(self, cmd, stdout=None):
-        # Execute each command and store the outputs
-        outputs = []
-        return_code, stdout, stderr = self._cmd_compile(cmd, stdout)
-        # Use DEVITO_LOGGING=DEBUG to print
-        debug(cmd)
-        outputs.append({
-            'command': cmd,
-            'return_code': return_code,
-            'stdout': stdout,
-            'stderr': stderr
-        })
-
-        return stdout
-
-    def _jit_compile(self):
-        """
-        JIT-compile the C code generated by the Operator.
-        It is ensured that JIT compilation will only be performed
-        once per Operator, reagardless of how many times this method
-        is invoked.
-        """
-        with self._profiler.timer_on('jit-compile'):
-            is_mpi = MPI.Is_initialized()
-            is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
-            is_omp = os.environ.get("DEVITO_LANGUAGE", None) == 'openmp'
-
-            if is_mpi and is_gpu:
-                raise RuntimeError("Cannot run MPI+GPU for now!")
-
-            if is_omp and is_gpu:
-                raise RuntimeError("Cannot run OMP+GPU!")
-
-            # specialize the code for the specific apply parameters
-            finalize_module_with_globals(self._module, self._jit_kernel_constants,
-                                         gpu_boilerplate=is_gpu)
-
-            # print module as IR
-            module_str = StringIO()
-            Printer(stream=module_str).print(self._module)
-            module_str = module_str.getvalue()
-
-            to_tile = len(list(filter(lambda d: d.is_Space, self.dimensions)))-1
-
-            xdsl_pipeline = generate_XDSL_CPU_PIPELINE(to_tile)
-
-            mlir_pipeline = generate_MLIR_CPU_PIPELINE()
-
-            if is_omp:
-                mlir_pipeline = generate_MLIR_OPENMP_PIPELINE()
-
-            if is_mpi:
                 shape, _ = self.mpi_shape
                 # Run with restrict domain=false so we only introduce the swaps but don't
                 # reduce the domain of the computation
@@ -797,6 +642,7 @@ class XdslAdvOperator(XdslnoopOperator):
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
                 out = self.compile(mlir_cmd, out)
+
                 # Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
@@ -972,13 +818,14 @@ def generate_MLIR_CPU_noop_PIPELINE():
     passes = [
         "builtin.module(canonicalize",
         "cse",
+        # "remove-dead-values",
         "canonicalize",
         "expand-strided-metadata",
         "convert-scf-to-cf",
         "convert-math-to-llvm",
         "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
         "finalize-memref-to-llvm",
-        "canonicalize)"
+        "canonicalize)",
     ]
 
     return generate_pipeline(passes)
@@ -1010,6 +857,7 @@ def generate_MLIR_OPENMP_PIPELINE():
         "convert-math-to-llvm",
         # "reconcile-unrealized-casts",
         "canonicalize",
+        # "print-ir",
         "cse)"
     ]
 
