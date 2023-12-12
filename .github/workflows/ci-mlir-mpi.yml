@@ -20,7 +20,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     container: papychacal/xdsl-llvm:04fc02e583b06b846315904a55af9c273c8b20b9
     steps:
     - name: Checkout Devito
@@ -28,7 +28,7 @@ jobs:
 
     - name: Install native dependencies
       run: |
-        apt install -y curl mpich
+        apt-get update && apt install curl mpich -y
 
     - name: Upgrade pip
       run: |
