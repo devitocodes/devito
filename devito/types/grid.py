@@ -32,6 +32,10 @@ class CartesianDiscretization(ABC):
     physical domains by congruent parallelotopes (e.g., "tiles" or "bricks").
     """
 
+    is_Grid = False
+    is_SubDomain = False
+    is_MultiSubDomain = False
+
     def __init__(self, shape=None, dimensions=None, dtype=None):
         self._shape = as_tuple(shape)
         self._dimensions = as_tuple(dimensions)
@@ -137,6 +141,8 @@ class Grid(CartesianDiscretization, ArgProvider):
              |
              v
     """
+
+    is_Grid = True
 
     _default_dimensions = ('x', 'y', 'z')
 
@@ -380,6 +386,8 @@ class AbstractSubDomain(CartesianDiscretization):
     """
     Abstract base class for subdomains.
     """
+
+    is_SubDomain = True
 
     name = None
     """A unique name for the SubDomain."""
@@ -684,6 +692,8 @@ class MultiSubDomain(AbstractSubDomain):
     """
     Abstract base class for types representing groups of SubDomains.
     """
+
+    is_MultiSubDomain = True
 
     def __hash__(self):
         # There is no possibility for two MultiSubDomains to ever hash the same since
