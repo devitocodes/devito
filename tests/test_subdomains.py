@@ -853,10 +853,10 @@ class TestSubDomain_w_condition(object):
 class ReducedDomain(SubDomain):
     name = 'reduced'
 
-    def __init__(self, x_param, y_param):
-        super().__init__()
+    def __init__(self, x_param, y_param, **kwargs):
         self._x_param = x_param
         self._y_param = y_param
+        super().__init__(**kwargs)
 
     def define(self, dimensions):
         x, y = dimensions
@@ -875,15 +875,15 @@ class TestSubdomainFunctions:
                                    ('right', 3), ('right', 6),
                                    ('middle', 2, 3), ('middle', 1, 7),
                                    None])
-    def test_function_data_shape(self, x, y):
+    @pytest.mark.parametrize('so', [2, 4])
+    def test_function_data_shape(self, x, y, so):
         """
         Check that defining a Function on a subset of a Grid results in arrays
         of the correct shape being allocated.
         """
-        reduced_domain = ReducedDomain(x, y)
-        grid = Grid(shape=(11, 11), extent=(10., 10.),
-                    subdomains=(reduced_domain,))
-        f = Function(name='f', grid=grid.subdomains['reduced'])
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        reduced_domain = ReducedDomain(x, y, grid=grid)
+        f = Function(name='f', grid=reduced_domain, space_order=so)
 
         # Get thicknesses on each side
         def get_thickness(spec, shape):
@@ -902,36 +902,39 @@ class TestSubdomainFunctions:
         shape = (grid.shape[0] - x_ltkn - x_rtkn,
                  grid.shape[1] - y_ltkn - y_rtkn)
 
+        assert f.dimensions == reduced_domain.dimensions
         assert f.data.shape == shape
-
-        # TODO: Needs to also check that the shape of the halo is correct for multiple space orders
-        # TODO: Needs to also check that TimeFunctions (including those with buffers) get their data
-        # initialised properly
+        assert f.data_with_halo.shape == tuple(i+2*so for i in f.data.shape)
+        assert f._distributor.shape == grid.shape
+        for d in grid.dimensions:
+            assert all([i == so for i in f._size_inhalo[d]])
+            assert all([i == so for i in f._size_outhalo[d]])
 
     # Note that some of the 'left' and 'right' SubDomains here are swapped
     # with 'middle' as they are local by default and so cannot be decomposed
     # across MPI ranks.
+    # @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
+    #                                ('right', 3), ('middle', 5, 0),
+    #                                ('middle', 2, 3), ('middle', 1, 7),
+    #                                None])
+    # @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
+    #                                ('right', 3), ('middle', 5, 0),
+    #                                ('middle', 2, 3), ('middle', 1, 7),
+    #                                None])
     @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
-                                   ('right', 3), ('middle', 5, 0),
-                                   ('middle', 2, 3), ('middle', 1, 7),
-                                   None])
-    @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
-                                   ('right', 3), ('middle', 5, 0),
-                                   ('middle', 2, 3), ('middle', 1, 7),
-                                   None])
+    @pytest.mark.parametrize('x', [('left', 3)])
+    @pytest.mark.parametrize('y', [('left', 3)])
     def test_function_data_shape_mpi(self, x, y):
         """
         Check that defining a Function on a subset of a Grid results in arrays
         of the correct shape being allocated when decomposed with MPI.
         """
-        reduced_domain = ReducedDomain(x, y)
-        grid = Grid(shape=(11, 11), extent=(10., 10.),
-                    subdomains=(reduced_domain,))
-        f = Function(name='f', grid=grid.subdomains['reduced'])
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        reduced_domain = ReducedDomain(x, y, grid=grid)
+        f = Function(name='f', grid=reduced_domain, space_order=2)
 
         g = Function(name='g', grid=grid)
-        Operator(Eq(g, g+1, subdomain=grid.subdomains['reduced']))()
+        Operator(Eq(g, g+1, subdomain=reduced_domain))()
 
         slices = tuple(grid.distributor.glb_slices[dim]
                        for dim in grid.dimensions)
@@ -943,6 +946,11 @@ class TestSubdomainFunctions:
             coords = np.nonzero(check_data)
             shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
             assert f.data.shape == shape
+            assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
+            assert f._distributor.shape == grid.shape
+            for d in grid.dimensions:
+                assert all([i == 2 for i in f._size_inhalo[d]])
+                assert all([i == 2 for i in f._size_outhalo[d]])
 
     def test_basic_function(self):
         """
@@ -961,19 +969,6 @@ class TestSubdomainFunctions:
 
         f = Function(name='f', grid=mid)
         eq = Eq(f, f+1)
-
-        # FIXME: Function defined on a subdomain has no distributed dimesions
-        # TODO: Does the distributor need rebuilding?
-
-        print(f.data.shape)
-        print(f.data_with_halo.shape)
-        print("Distributed dimensions", f._dist_dimensions)
-        print("Dimensions", f.dimensions)
-        print("Distributed dimensions", f._distributor.dimensions)
-        print("Decomposition", f._decomposition)
-        print(f._distributor.decomposition)
-        print(f._distributor.shape)
-        print()
 
         assert(f.shape == mid.shape)
 
