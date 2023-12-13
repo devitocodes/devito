@@ -910,48 +910,6 @@ class TestSubdomainFunctions:
             assert all([i == so for i in f._size_inhalo[d]])
             assert all([i == so for i in f._size_outhalo[d]])
 
-    # Note that some of the 'left' and 'right' SubDomains here are swapped
-    # with 'middle' as they are local by default and so cannot be decomposed
-    # across MPI ranks.
-    # @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
-    #                                ('right', 3), ('middle', 5, 0),
-    #                                ('middle', 2, 3), ('middle', 1, 7),
-    #                                None])
-    # @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
-    #                                ('right', 3), ('middle', 5, 0),
-    #                                ('middle', 2, 3), ('middle', 1, 7),
-    #                                None])
-    @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parametrize('x', [('left', 3)])
-    @pytest.mark.parametrize('y', [('left', 3)])
-    def test_function_data_shape_mpi(self, x, y):
-        """
-        Check that defining a Function on a subset of a Grid results in arrays
-        of the correct shape being allocated when decomposed with MPI.
-        """
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
-        reduced_domain = ReducedDomain(x, y, grid=grid)
-        f = Function(name='f', grid=reduced_domain, space_order=2)
-
-        g = Function(name='g', grid=grid)
-        Operator(Eq(g, g+1, subdomain=reduced_domain))()
-
-        slices = tuple(grid.distributor.glb_slices[dim]
-                       for dim in grid.dimensions)
-        check_data = g.data[slices]
-
-        assert np.count_nonzero(check_data) == f.data.size
-
-        if np.count_nonzero(check_data) != 0:
-            coords = np.nonzero(check_data)
-            shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
-            assert f.data.shape == shape
-            assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
-            assert f._distributor.shape == grid.shape
-            for d in grid.dimensions:
-                assert all([i == 2 for i in f._size_inhalo[d]])
-                assert all([i == 2 for i in f._size_outhalo[d]])
-
     def test_basic_function(self):
         """
         Test a trivial operator with a single Function
@@ -1016,3 +974,48 @@ class TestSubdomainFunctions:
         h_check = np.full(grid.shape, 1)
         h_check[2:-2, 3:-1] = 3
         assert(np.all(h.data == h_check))
+
+
+class TestSubdomainFunctionsParallel:
+    """Tests for functions defined on SubDomains with MPI"""
+    # Note that some of the 'left' and 'right' SubDomains here are swapped
+    # with 'middle' as they are local by default and so cannot be decomposed
+    # across MPI ranks.
+    # @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
+    #                                ('right', 3), ('middle', 5, 0),
+    #                                ('middle', 2, 3), ('middle', 1, 7),
+    #                                None])
+    # @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
+    #                                ('right', 3), ('middle', 5, 0),
+    #                                ('middle', 2, 3), ('middle', 1, 7),
+    #                                None])
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    @pytest.mark.parametrize('x', [('left', 3)])
+    @pytest.mark.parametrize('y', [('left', 3)])
+    def test_function_data_shape_mpi(self, x, y):
+        """
+        Check that defining a Function on a subset of a Grid results in arrays
+        of the correct shape being allocated when decomposed with MPI.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        reduced_domain = ReducedDomain(x, y, grid=grid)
+        f = Function(name='f', grid=reduced_domain, space_order=2)
+
+        g = Function(name='g', grid=grid)
+        Operator(Eq(g, g+1, subdomain=reduced_domain))()
+
+        slices = tuple(grid.distributor.glb_slices[dim]
+                       for dim in grid.dimensions)
+        check_data = g.data[slices]
+
+        assert np.count_nonzero(check_data) == f.data.size
+
+        if np.count_nonzero(check_data) != 0:
+            coords = np.nonzero(check_data)
+            shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
+            assert f.data.shape == shape
+            assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
+            assert f._distributor.shape == grid.shape
+            for d in grid.dimensions:
+                assert all([i == 2 for i in f._size_inhalo[d]])
+                assert all([i == 2 for i in f._size_outhalo[d]])
