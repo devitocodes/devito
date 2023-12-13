@@ -243,7 +243,7 @@ class Data(np.ndarray):
             # Retrieve the pertinent local data prior to MPI send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
-            local_val = super(Data, self).__getitem__(data_idx)
+            local_val = super().__getitem__(data_idx)
             self._index_stash = None
 
             comm = self._distributor.comm
@@ -314,7 +314,7 @@ class Data(np.ndarray):
             return None
         else:
             self._index_stash = glb_idx
-            retval = super(Data, self).__getitem__(loc_idx)
+            retval = super().__getitem__(loc_idx)
             self._index_stash = None
             return retval
 
@@ -328,9 +328,9 @@ class Data(np.ndarray):
             if index_is_basic(loc_idx):
                 # Won't go through `__getitem__` as it's basic indexing mode,
                 # so we should just propage `loc_idx`
-                super(Data, self).__setitem__(loc_idx, val)
+                super().__setitem__(loc_idx, val)
             else:
-                super(Data, self).__setitem__(glb_idx, val)
+                super().__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_distributed:
             if comm_type is index_by_index:
                 glb_idx, val = self._process_args(glb_idx, val)
@@ -353,7 +353,7 @@ class Data(np.ndarray):
                         self.__setitem__(idx_global[j], data_global[j])
             elif self._is_distributed:
                 # `val` is decomposed, `self` is decomposed -> local set
-                super(Data, self).__setitem__(glb_idx, val)
+                super().__setitem__(glb_idx, val)
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
@@ -389,13 +389,13 @@ class Data(np.ndarray):
             else:
                 # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
                 pass
-            super(Data, self).__setitem__(glb_idx, val)
+            super().__setitem__(glb_idx, val)
         elif isinstance(val, Iterable):
             if self._is_mpi_distributed:
                 raise NotImplementedError("With MPI, data can only be set "
                                           "via scalars, numpy arrays or "
                                           "other data ")
-            super(Data, self).__setitem__(glb_idx, val)
+            super().__setitem__(glb_idx, val)
         else:
             raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
 

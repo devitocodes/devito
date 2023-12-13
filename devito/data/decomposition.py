@@ -59,7 +59,7 @@ class Decomposition(tuple):
             raise TypeError("Illegal Decomposition element type")
         if not is_integer(local) and (0 <= local < len(items)):
             raise ValueError("`local` must be an index in ``items``.")
-        obj = super(Decomposition, cls).__new__(cls, [np.array(i) for i in items])
+        obj = super().__new__(cls, [np.array(i) for i in items])
         obj._local = local
         return obj
 

@@ -199,7 +199,7 @@ class LoweredEq(IREq):
         rhs = diff2sympy(expr.rhs)
 
         # Finally create the LoweredEq with all metadata attached
-        expr = super(LoweredEq, cls).__new__(cls, expr.lhs, rhs, evaluate=False)
+        expr = super().__new__(cls, expr.lhs, rhs, evaluate=False)
 
         expr._ispace = ispace
         expr._conditionals = conditionals

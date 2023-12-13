@@ -124,7 +124,7 @@ class Interval(AbstractInterval):
     is_Defined = True
 
     def __init__(self, dim, lower=0, upper=0, stamp=S0):
-        super(Interval, self).__init__(dim, stamp)
+        super().__init__(dim, stamp)
 
         try:
             self.lower = int(lower)
@@ -147,7 +147,7 @@ class Interval(AbstractInterval):
         if self is o:
             return True
 
-        return (super(Interval, self).__eq__(o) and
+        return (super().__eq__(o) and
                 self.lower == o.lower and
                 self.upper == o.upper)
 
@@ -526,16 +526,16 @@ class IntervalGroup(Ordering):
 
     def index(self, key):
         if isinstance(key, Interval):
-            return super(IntervalGroup, self).index(key)
+            return super().index(key)
         elif isinstance(key, Dimension):
-            return super(IntervalGroup, self).index(self[key])
+            return super().index(self[key])
         raise ValueError("Expected Interval or Dimension, got `%s`" % type(key))
 
     def __getitem__(self, key):
         if is_integer(key):
-            return super(IntervalGroup, self).__getitem__(key)
+            return super().__getitem__(key)
         elif isinstance(key, slice):
-            retval = super(IntervalGroup, self).__getitem__(key)
+            retval = super().__getitem__(key)
             return IntervalGroup(retval, relations=self.relations, mode=self.mode)
 
         if not self.is_well_defined:
@@ -699,7 +699,7 @@ class DataSpace(Space):
                 self.parts == other.parts)
 
     def __hash__(self):
-        return hash((super(DataSpace, self).__hash__(), self.parts))
+        return hash((super().__hash__(), self.parts))
 
     @classmethod
     def union(cls, *others):
@@ -753,7 +753,7 @@ class IterationSpace(Space):
     """
 
     def __init__(self, intervals, sub_iterators=None, directions=None):
-        super(IterationSpace, self).__init__(intervals)
+        super().__init__(intervals)
 
         # Normalize sub-iterators
         sub_iterators = dict([(k, tuple(filter_ordered(as_tuple(v))))
@@ -788,7 +788,7 @@ class IterationSpace(Space):
         return len(self.itintervals) < len(other.itintervals)
 
     def __hash__(self):
-        return hash((super(IterationSpace, self).__hash__(), self.sub_iterators,
+        return hash((super().__hash__(), self.sub_iterators,
                      self.directions))
 
     def __contains__(self, d):

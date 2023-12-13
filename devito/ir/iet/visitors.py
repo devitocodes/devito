@@ -66,7 +66,7 @@ class PrintAST(Visitor):
     """
 
     def __init__(self, verbose=True):
-        super(PrintAST, self).__init__()
+        super().__init__()
         self.verbose = verbose
 
     @classmethod
@@ -802,7 +802,7 @@ class MapNodes(Visitor):
     """
 
     def __init__(self, parent_type=None, child_types=None, mode=None):
-        super(MapNodes, self).__init__()
+        super().__init__()
         if parent_type is None:
             self.parent_type = Iteration
         elif parent_type == 'any':
@@ -958,7 +958,7 @@ class FindNodes(Visitor):
     }
 
     def __init__(self, match, mode='type'):
-        super(FindNodes, self).__init__()
+        super().__init__()
         self.match = match
         self.rule = self.rules[mode]
 
@@ -1038,7 +1038,7 @@ class IsPerfectIteration(Visitor):
     """
 
     def __init__(self, depth=None):
-        super(IsPerfectIteration, self).__init__()
+        super().__init__()
 
         assert depth is None or isinstance(depth, Iteration)
         self.depth = depth
@@ -1091,7 +1091,7 @@ class Transformer(Visitor):
     """
 
     def __init__(self, mapper, nested=False):
-        super(Transformer, self).__init__()
+        super().__init__()
         self.mapper = mapper
         self.nested = nested
 

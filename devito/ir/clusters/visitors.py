@@ -127,7 +127,7 @@ class QueueStateful(Queue):
             self.scopes = {}
 
     def __init__(self, state=None):
-        super(QueueStateful, self).__init__()
+        super().__init__()
         self.state = state or QueueStateful.State()
 
     def _fetch_scope(self, clusters):

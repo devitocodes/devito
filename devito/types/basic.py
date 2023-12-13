@@ -664,6 +664,22 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             pass
         return newobj
 
+    @classmethod
+    def __subfunc_setup__(cls, *args, **kwargs):
+        """Setup each component of the tensor as a Devito type."""
+        return []
+
+    @property
+    def grid(self):
+        """
+        A Tensor is expected to have all its components defined over the same grid
+        """
+        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        if len(grids) == 0:
+            return None
+        assert len(grids) == 1
+        return grids.pop()
+
     def _infer_dims(self):
         grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
         dimensions = {d for c in self.flat()
@@ -742,11 +758,6 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         # Get new class and return product
         newcls = self.classof_prod(other, new_mat)
         return newcls._new(self.rows, other.cols, new_mat, copy=False)
-
-    @classmethod
-    def __subfunc_setup__(cls, *args, **kwargs):
-        """Setup each component of the tensor as a Devito type."""
-        return []
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):

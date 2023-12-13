@@ -33,12 +33,12 @@ class ElementalCall(Call):
             for i, j in zip(self._mapper[k], tv):
                 arguments[i] = j if incr is False else (arguments[i] + j)
 
-        super(ElementalCall, self).__init__(name, arguments, retobj, is_indirect)
+        super().__init__(name, arguments, retobj, is_indirect)
 
     def _rebuild(self, *args, dynamic_args_mapper=None, incr=False,
                  retobj=None, **kwargs):
         # This guarantees that `ec._rebuild(arguments=ec.arguments) == ec`
-        return super(ElementalCall, self)._rebuild(
+        return super()._rebuild(
             *args, dynamic_args_mapper=dynamic_args_mapper, incr=incr,
             retobj=retobj, **kwargs
         )
@@ -63,7 +63,7 @@ class ElementalFunction(Callable):
 
     def __init__(self, name, body, retval='void', parameters=None, prefix=('static',),
                  dynamic_parameters=None):
-        super(ElementalFunction, self).__init__(name, body, retval, parameters, prefix)
+        super().__init__(name, body, retval, parameters, prefix)
 
         self._mapper = {}
         for i in as_tuple(dynamic_parameters):

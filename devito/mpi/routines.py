@@ -1018,7 +1018,7 @@ mpi_registry = {
 class MPICallable(CommCallable):
 
     def __init__(self, name, body, parameters):
-        super(MPICallable, self).__init__(name, body, 'void', parameters, ('static',))
+        super().__init__(name, body, 'void', parameters, ('static',))
 
 
 class CopyBuffer(MPICallable):
@@ -1028,7 +1028,7 @@ class CopyBuffer(MPICallable):
 class SendRecv(MPICallable):
 
     def __init__(self, name, body, parameters, bufg, bufs):
-        super(SendRecv, self).__init__(name, body, parameters)
+        super().__init__(name, body, parameters)
         self.bufg = bufg
         self.bufs = bufs
 
@@ -1036,7 +1036,7 @@ class SendRecv(MPICallable):
 class HaloUpdate(MPICallable):
 
     def __init__(self, name, body, parameters):
-        super(HaloUpdate, self).__init__(name, body, parameters)
+        super().__init__(name, body, parameters)
 
 
 class Remainder(ElementalFunction):
@@ -1308,7 +1308,7 @@ class MPIRegion(CompositeObject):
             else:
                 fields.append((i.name, c_int))
 
-        super(MPIRegion, self).__init__(name, pname, fields)
+        super().__init__(name, pname, fields)
 
     def __value_setup__(self, dtype, value):
         # We eventually produce an array of `struct region` that is as big as

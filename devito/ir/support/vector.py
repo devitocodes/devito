@@ -50,7 +50,7 @@ class Vector(tuple):
     """
 
     def __new__(cls, *items, smart=False):
-        obj = super(Vector, cls).__new__(cls, items)
+        obj = super().__new__(cls, items)
         obj.smart = smart
         return obj
 
@@ -70,7 +70,7 @@ class Vector(tuple):
         return __asvector
 
     def __hash__(self):
-        return super(Vector, self).__hash__()
+        return super().__hash__()
 
     @_asvector()
     def __add__(self, other):
@@ -90,11 +90,11 @@ class Vector(tuple):
 
     @_asvector(relax=True)
     def __eq__(self, other):
-        return super(Vector, self).__eq__(other)
+        return super().__eq__(other)
 
     @_asvector(relax=True)
     def __ne__(self, other):
-        return super(Vector, self).__ne__(other)
+        return super().__ne__(other)
 
     def __lt__(self, other):
         # This might raise an exception if the distance between the i-th entry
@@ -210,7 +210,7 @@ class Vector(tuple):
         return other.__le__(self)
 
     def __getitem__(self, key):
-        ret = super(Vector, self).__getitem__(key)
+        ret = super().__getitem__(key)
         return Vector(*ret, smart=self.smart) if isinstance(key, slice) else ret
 
     def __repr__(self):
@@ -277,7 +277,7 @@ class LabeledVector(Vector):
         if not all(isinstance(i, Dimension) for i in labels):
             raise ValueError("All labels must be of type Dimension, got [%s]"
                              % ','.join(i.__class__.__name__ for i in labels))
-        obj = super(LabeledVector, cls).__new__(cls, *values)
+        obj = super().__new__(cls, *values)
         obj.labels = labels
         return obj
 
@@ -306,7 +306,7 @@ class LabeledVector(Vector):
     def __eq__(self, other):
         if isinstance(other, LabeledVector) and self.labels != other.labels:
             raise TypeError("Cannot compare due to mismatching `labels`")
-        return super(LabeledVector, self).__eq__(other)
+        return super().__eq__(other)
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -314,7 +314,7 @@ class LabeledVector(Vector):
     def __lt__(self, other):
         if isinstance(other, LabeledVector) and self.labels != other.labels:
             raise TypeError("Cannot compare due to mismatching `labels`")
-        return super(LabeledVector, self).__lt__(other)
+        return super().__lt__(other)
 
     def __gt__(self, other):
         return other.__lt__(self)
@@ -327,12 +327,12 @@ class LabeledVector(Vector):
 
     def __getitem__(self, index):
         if isinstance(index, (slice, int)):
-            return super(LabeledVector, self).__getitem__(index)
+            return super().__getitem__(index)
         elif isinstance(index, Dimension):
             for d in self.labels:
                 if d._defines & index._defines:
                     i = self.labels.index(d)
-                    return super(LabeledVector, self).__getitem__(i)
+                    return super().__getitem__(i)
             return None
         else:
             raise TypeError("Indices must be integers, slices, or Dimensions, not %s"

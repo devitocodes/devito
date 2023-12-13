@@ -44,7 +44,7 @@ class EnrichedTuple(tuple, Pickable):
     """
 
     def __new__(cls, *items, getters=None, **kwargs):
-        obj = super(EnrichedTuple, cls).__new__(cls, items)
+        obj = super().__new__(cls, items)
         obj.__dict__.update(kwargs)
         obj._getters = OrderedDict(zip(getters or [], items))
         return obj

@@ -159,7 +159,7 @@ class Differentiable(sympy.Expr, Evaluable):
         return .75 if self.is_TimeDependent else .5
 
     def __hash__(self):
-        return super(Differentiable, self).__hash__()
+        return super().__hash__()
 
     def __getattr__(self, name):
         """
@@ -245,7 +245,7 @@ class Differentiable(sympy.Expr, Evaluable):
         return Mul(sympy.S.NegativeOne, self)
 
     def __eq__(self, other):
-        ret = super(Differentiable, self).__eq__(other)
+        ret = super().__eq__(other)
         if ret is NotImplemented or not ret:
             # Non comparable or not equal as sympy objects
             return False
@@ -734,7 +734,7 @@ class IndexDerivative(IndexSum):
     __rargs__ = ('expr', 'mapper')
 
     def __new__(cls, expr, mapper, **kwargs):
-        dimensions = as_tuple(mapper.values())
+        dimensions = as_tuple(set(mapper.values()))
 
         # Detect the Weights among the arguments
         weightss = []
@@ -799,7 +799,7 @@ class IndexDerivative(IndexSum):
         mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
-        return expr
+        return EvalDerivative(expr, base=self.base)
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives

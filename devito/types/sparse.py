@@ -47,7 +47,7 @@ class AbstractSparseFunction(DiscreteFunction):
     __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint_global', 'space_order')
 
     def __init_finalize__(self, *args, **kwargs):
-        super(AbstractSparseFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
         self._npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         self._space_order = kwargs.get('space_order', 0)
 
@@ -72,11 +72,22 @@ class AbstractSparseFunction(DiscreteFunction):
         if grid is None:
             raise TypeError('Need `grid` argument')
         shape = kwargs.get('shape')
+        dimensions = kwargs.get('dimensions')
         npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
+        glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
         if shape is None:
-            glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
-            shape = (glb_npoint[grid.distributor.myrank],)
-        return shape
+            loc_shape = (glb_npoint[grid.distributor.myrank],)
+        else:
+            loc_shape = []
+            assert len(dimensions) == len(shape)
+            for i, (d, s) in enumerate(zip(dimensions, shape)):
+                if i == cls._sparse_position:
+                    loc_shape.append(glb_npoint[grid.distributor.myrank])
+                elif d in grid.dimensions:
+                    loc_shape.append(grid.dimension_map[d].loc)
+                else:
+                    loc_shape.append(s)
+        return tuple(loc_shape)
 
     def __fd_setup__(self):
         """
@@ -89,11 +100,13 @@ class AbstractSparseFunction(DiscreteFunction):
         A `SparseDistributor` handles the SparseFunction decomposition based on
         physical ownership, and allows to convert between global and local indices.
         """
-        return SparseDistributor(
-            kwargs.get('npoint', kwargs.get('npoint_global')),
-            self._sparse_dim,
-            kwargs['grid'].distributor
-        )
+        distributor = kwargs.get('distributor')
+        if distributor is None:
+            distributor = SparseDistributor(
+                kwargs.get('npoint', kwargs.get('npoint_global')),
+                self._sparse_dim, kwargs['grid'].distributor)
+
+        return distributor
 
     def __subfunc_setup__(self, key, suffix, dtype=None):
         # Shape and dimensions from args
@@ -142,7 +155,7 @@ class AbstractSparseFunction(DiscreteFunction):
         sf = SubFunction(
             name=name, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
-            distributor=self._distributor
+            distributor=self._distributor, parent=self
         )
 
         if self.npoint == 0:
@@ -155,8 +168,12 @@ class AbstractSparseFunction(DiscreteFunction):
         return sf
 
     @property
+    def sparse_position(self):
+        return self._sparse_position
+
+    @property
     def _sparse_dim(self):
-        return self.dimensions[self._sparse_position]
+        return self.dimensions[self.sparse_position]
 
     @property
     def _mpitype(self):

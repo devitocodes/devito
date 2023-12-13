@@ -68,7 +68,7 @@ class Node(Signer):
     """
 
     def __new__(cls, *args, **kwargs):
-        obj = super(Node, cls).__new__(cls)
+        obj = super().__new__(cls)
         argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
         try:
             defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues))
@@ -1064,7 +1064,7 @@ class Section(List):
     is_Section = True
 
     def __init__(self, name, body=None, is_subsection=False):
-        super(Section, self).__init__(body=body)
+        super().__init__(body=body)
         self.name = name
         self.is_subsection = is_subsection
 
@@ -1085,7 +1085,7 @@ class ExpressionBundle(List):
     is_ExpressionBundle = True
 
     def __init__(self, ispace, ops, traffic, body=None):
-        super(ExpressionBundle, self).__init__(body=body)
+        super().__init__(body=body)
         self.ispace = ispace
         self.ops = ops
         self.traffic = traffic
@@ -1332,7 +1332,7 @@ class HaloSpot(Node):
     _traversable = ['body']
 
     def __init__(self, body, halo_scheme):
-        super(HaloSpot, self).__init__()
+        super().__init__()
 
         if isinstance(body, Node):
             self._body = body

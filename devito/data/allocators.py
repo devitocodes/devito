@@ -268,7 +268,7 @@ class NumaAllocator(MemoryAllocator):
         cls.lib = lib
 
     def __init__(self, node):
-        super(NumaAllocator, self).__init__()
+        super().__init__()
         self._node = node
 
     def _alloc_C_libcall(self, size, ctype):

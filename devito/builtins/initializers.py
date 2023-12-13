@@ -135,7 +135,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
         name = 'objective_domain'
 
         def __init__(self, lw):
-            super(ObjectiveDomain, self).__init__()
+            super().__init__()
             self.lw = lw
 
         def define(self, dimensions):

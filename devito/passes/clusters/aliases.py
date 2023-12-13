@@ -922,10 +922,15 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
 
         # Drop or weaken parallelism if necessary
         for d, v in meta.properties.items():
-            if any(i.is_Modulo for i in ispace.sub_iterators[d]):
-                properties[d] = normalize_properties(v, {SEQUENTIAL})
-            elif d not in writeto.itdims:
-                properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - {ROUNDABLE}
+            try:
+                if any(i.is_Modulo for i in ispace.sub_iterators[d]):
+                    properties[d] = normalize_properties(v, {SEQUENTIAL})
+                elif d not in writeto.itdims:
+                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - \
+                        {ROUNDABLE}
+            except KeyError:
+                # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
+                pass
 
         # Track star-shaped stencils for potential future optimization
         if len(writeto) > 1 and schedule.is_frame:
@@ -1307,7 +1312,7 @@ ScheduledAlias = namedtuple('SchedAlias',
 class Schedule(tuple):
 
     def __new__(cls, *items, dmapper=None, rmapper=None, is_frame=False):
-        obj = super(Schedule, cls).__new__(cls, items)
+        obj = super().__new__(cls, items)
         obj.dmapper = dmapper or {}
         obj.rmapper = rmapper or {}
         obj.is_frame = is_frame

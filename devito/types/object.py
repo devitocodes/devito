@@ -91,7 +91,7 @@ class Object(AbstractObject, ArgProvider, Uncached):
     is_Object = True
 
     def __init__(self, name, dtype, value=None):
-        super(Object, self).__init__(name, dtype)
+        super().__init__(name, dtype)
         self.value = value
 
     __hash__ = Uncached.__hash__
@@ -137,7 +137,7 @@ class CompositeObject(Object):
     def __init__(self, name, pname, pfields, value=None):
         dtype = CtypesFactory.generate(pname, pfields)
         value = self.__value_setup__(dtype, value)
-        super(CompositeObject, self).__init__(name, dtype, value)
+        super().__init__(name, dtype, value)
 
     def __value_setup__(self, dtype, value):
         return value or byref(dtype._type_())

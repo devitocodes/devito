@@ -23,7 +23,7 @@ FULL = DataRegion('full', 5)  # == DOMAIN+HALO+PADDING
 class DataSide(Tag):
 
     def __init__(self, name, val, flipto=None):
-        super(DataSide, self).__init__(name, val)
+        super().__init__(name, val)
         self.flipto = flipto
         if flipto is not None:
             flipto.flipto = self

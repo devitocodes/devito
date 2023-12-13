@@ -65,7 +65,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
-        super(DiscreteFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', 'standard')
@@ -982,7 +982,7 @@ class Function(DiscreteFunction):
         return {'nbytes': self.size}
 
     def __init_finalize__(self, *args, **kwargs):
-        super(Function, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Space order
         space_order = kwargs.get('space_order', 1)
@@ -1323,7 +1323,7 @@ class TimeFunction(Function):
     def __init_finalize__(self, *args, **kwargs):
         self.time_dim = kwargs.get('time_dim', self.dimensions[self._time_position])
         self._time_order = kwargs.get('time_order', 1)
-        super(TimeFunction, self).__init_finalize__(*args, **kwargs)
+        super().__init_finalize__(*args, **kwargs)
 
         # Check we won't allocate too much memory for the system
         available_mem = virtual_memory().available
@@ -1391,7 +1391,7 @@ class TimeFunction(Function):
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
         else:
-            shape = super(TimeFunction, cls).__shape_setup__(
+            shape = super().__shape_setup__(
                 grid=grid, shape=shape, dimensions=dimensions
             )
 
@@ -1457,6 +1457,12 @@ class SubFunction(Function):
     DiscreteFunction it's bound to.
     """
 
+    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('dimensions', 'shape')
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._parent = kwargs.pop('parent', None)
+        super().__init_finalize__(*args, **kwargs)
+
     def __padding_setup__(self, **kwargs):
         # SubFunctions aren't expected to be used in time-consuming loops
         return tuple((0, 0) for i in range(self.ndim))
@@ -1465,16 +1471,27 @@ class SubFunction(Function):
         return
 
     def _arg_values(self, **kwargs):
-        if self.name in kwargs:
+        if self._parent is not None and self.parent.name not in kwargs:
+            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+        elif self.name in kwargs:
             raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
                                "a value dynamically" % self.name)
+        else:
+            return self._arg_defaults(alias=self)
 
-        return self._arg_defaults(alias=self)
+    def _arg_apply(self, *args, **kwargs):
+        if self._parent is not None:
+            return self._parent._arg_apply(*args, **kwargs)
+        return super()._arg_apply(*args, **kwargs)
 
     @property
     def origin(self):
         # SubFunction have zero origin
         return DimensionTuple(*(0 for _ in range(self.ndim)), getters=self.dimensions)
+
+    @property
+    def parent(self):
+        return self._parent
 
 
 class TempFunction(DiscreteFunction):

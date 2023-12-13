@@ -196,8 +196,7 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __repr__ = __str__
 
     def _hashable_content(self):
-        return super(CallFromPointer, self)._hashable_content() +\
-            (self.call, self.pointer) + self.params
+        return super()._hashable_content() + (self.call, self.pointer) + self.params
 
     @property
     def base(self):

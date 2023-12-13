@@ -616,12 +616,12 @@ class TestSparseFunction(object):
         ds = DefaultDimension("ps", default_value=3)
         grid = Grid((11, 11))
         dims = grid.dimensions
-        s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds), shape=(2, 3),
-                        coordinates=[[.5, .5], [.2, .2]])
+        s = SparseFirst(name="s", grid=grid, npoint=4, dimensions=(dr, ds), shape=(4, 3),
+                        coordinates=[[.1, .1], [.2, .2], [.3, .3], [.5, .5]])
 
         # Check dimensions and shape are correctly initialized
         assert s.indices[s._sparse_position] == dr
-        assert s.shape == (2, 3)
+        assert s.shape == (1, 3)
         assert s.coordinates.indices[0] == dr
 
         # Operator
