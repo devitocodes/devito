@@ -856,7 +856,7 @@ class TestSubdomainFunctions:
 
     def test_basic_function(self):
         """
-        Test a single Function
+        Test a trivial operator with a single Function
         """
         class Middle(SubDomain):
 
@@ -874,10 +874,6 @@ class TestSubdomainFunctions:
 
         assert(f.shape == mid.shape)
 
-        print(Operator(eq).ccode)
-
         Operator(eq)()
-
-        print(f.data)
 
         assert(np.all(f.data[:] == 1))

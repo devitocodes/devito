@@ -827,6 +827,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     is_commutative = True
 
     # Devito default assumptions
+    # TODO: Requires adjustment since not necessarily true with functions on subdomains
     is_regular = True
     """
     True if data and iteration points are aligned. Cases where they won't be
@@ -1310,15 +1311,21 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         subs = subs or {}
         subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
+        # If defined on a SubDomain, then need to offset indices accordingly
+        if self.grid and self.grid.is_SubDomain:
+            # Symbolic offsets to avoid potential issues with user overrides
+            offsets = tuple(d.thickness.left[0] if d.is_Sub else 0
+                            for d in self.dimensions)
+
         # Indices after substitutions
         indices = []
-        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
+        for a, d, o, s, of in zip(self.args, self.dimensions, self.origin, subs, offsets):
             if d in a.free_symbols:
-                # Shift by origin d -> d - o.
-                indices.append(sympy.sympify(a.subs(d, d - o).xreplace(s)))
+                # Shift by origin and offset d -> d - o - of.
+                indices.append(sympy.sympify(a.subs(d, d - o - of).xreplace(s)))
             else:
                 # Dimension has been removed, e.g. u[10], plain shift by origin
-                indices.append(sympy.sympify(a - o).xreplace(s))
+                indices.append(sympy.sympify(a - o - of).xreplace(s))
 
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
