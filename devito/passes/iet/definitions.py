@@ -201,13 +201,13 @@ class DataManager(object):
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, *allocs, init, ret)
         efunc0 = make_callable(name, body, retval=obj)
-        assert len(efunc0.parameters) == 1  # `nbytes_param`
-        alloc = Call(name, nbytes_arg, retobj=obj)
+        args = list(efunc0.parameters)
+        args[args.index(nbytes_param)] = nbytes_arg
+        alloc = Call(name, args, retobj=obj)
 
         name = self.sregistry.make_name(prefix='free')
         efunc1 = make_callable(name, frees)
-        assert len(efunc1.parameters) == 1  # `obj`
-        free = Call(name, obj)
+        free = Call(name, efunc1.parameters)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
