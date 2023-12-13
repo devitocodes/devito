@@ -3,6 +3,7 @@ import pytest
 from cached_property import cached_property
 
 from sympy import Mul  # noqa
+from sympy.core.mul import _mulsort
 
 from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
                       get_params, get_arrays, check_array)
@@ -18,13 +19,13 @@ from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.factorization import collect_nested
-from devito.passes.clusters.cse import Temp, _cse
+from devito.passes.clusters.cse import CTemp, _cse
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               IndexedPointer, Keyword, SizeOf, estimate_cost,
                               pow_to_mul, indexify)
 from devito.tools import as_tuple, generator
-from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction
+from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction, Temp
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -132,9 +133,9 @@ def test_cse(exprs, expected, min_cost):
     fx = Function(name="fx", grid=grid, dimensions=(x,), shape=(3,))  # noqa
     ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
     ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
-    t0 = Temp(name='t0')  # noqa
-    t1 = Temp(name='t1')  # noqa
-    t2 = Temp(name='t2')  # noqa
+    t0 = CTemp(name='t0')  # noqa
+    t1 = CTemp(name='t1')  # noqa
+    t2 = CTemp(name='t2')  # noqa
     # Needs to not be a Temp to mimic nested index extraction and prevent
     # cse to compact the temporary back.
     e0 = Symbol(name='e0')  # noqa
@@ -144,11 +145,26 @@ def test_cse(exprs, expected, min_cost):
         exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
-    make = lambda: Temp(name='r%d' % counter()).indexify()
+    make = lambda: CTemp(name='r%d' % counter()).indexify()
     processed = _cse(exprs, make, min_cost)
 
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
+
+
+def test_cse_temp_order():
+    # Test order of classes inserted to Sympy's core ordering
+    a = Temp(name='r6')
+    b = CTemp(name='r6')
+    c = Symbol(name='r6')
+
+    args = [b, a, c]
+
+    _mulsort(args)
+
+    assert type(args[0]) is Symbol
+    assert type(args[1]) is Temp
+    assert type(args[2]) is CTemp
 
 
 @pytest.mark.parametrize('expr,expected', [

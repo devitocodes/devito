@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from sympy.abc import a, b, c, d, e
+
 import time
 
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
