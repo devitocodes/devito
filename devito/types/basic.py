@@ -1357,6 +1357,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             # Symbolic offsets to avoid potential issues with user overrides
             offsets = tuple(d.thickness.left[0] if d.is_Sub else 0
                             for d in self.dimensions)
+        else:
+            offsets = (0,)*len(self.dimensions)
 
         # Indices after substitutions
         indices = []
