@@ -638,6 +638,28 @@ class SubDomain(AbstractSubDomain):
         """
         raise NotImplementedError
 
+    def intersection(self, other):
+        """
+        Return the intersection of two subdomains as a new subdomain.
+        """
+        return SubDomain.intersect(self, other)
+
+    @classmethod
+    def intersect(cls, sds):
+        """
+        Build a new SubDomain from the intersection of an iterable of subdomains.
+        """
+        # TODO: Finish this so it actually carries out intersection
+        sds = set(sds)  # Purge duplicates
+        if len(sds) == 1:  # Only one unique SubDomain. No op.
+            return sds.pop()
+
+        if any(d.grid is not sds[0].grid for d in sds):  # Sanity check
+            raise ValueError("Only SubDomains defined on a common Grid can be"
+                             " intersected")
+
+        raise NotImplementedError
+
 
 class MultiSubDimension(SubDimension):
 
