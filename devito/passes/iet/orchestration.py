@@ -195,9 +195,15 @@ def fetchupdate(layer, iet, sync_ops, lang, sregistry):
 
 @fetchupdate.register(HostLayer)
 def _(layer, iet, sync_ops, lang, sregistry):
+    try:
+        qid = sregistry.queue0
+    except AttributeError:
+        qid = None
+
     body = list(iet.body)
     try:
-        body.extend([lang._map_update_device(s.target, s.imask) for s in sync_ops])
+        body.extend([lang._map_update_device(s.target, s.imask, qid=qid)
+                     for s in sync_ops])
         name = 'init_from_%s' % layer.suffix
     except NotImplementedError:
         name = 'init_to_%s' % layer.suffix
