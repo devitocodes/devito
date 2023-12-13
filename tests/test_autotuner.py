@@ -7,7 +7,7 @@ from devito.data import LEFT
 from devito.core.autotuning import options  # noqa
 
 
-@switchconfig(log_level='DEBUG')
+@switchconfig(log_level='DEBUG', develop_mode=True)
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 13),
     ((30, 30, 30), 17)
@@ -113,6 +113,7 @@ def test_blocking_only():
     assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
 
+@switchconfig(develop_mode=True)
 def test_mixed_blocking_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
@@ -126,6 +127,7 @@ def test_mixed_blocking_nthreads():
     assert 'nthreads' in op._state['autotuning'][0]['tuned']
 
 
+@switchconfig(develop_mode=True)
 @pytest.mark.parametrize('openmp, expected', [
     (False, 2), (True, 3)
 ])
@@ -145,6 +147,7 @@ def test_mixed_blocking_w_skewing(openmp, expected):
         assert 'nthreads' not in op._state['autotuning'][0]['tuned']
 
 
+@switchconfig(develop_mode=True)
 @pytest.mark.parametrize('opt', ['advanced', ('blocking', {'skewing': True})])
 def test_tti_aggressive(opt):
     from test_dse import TestTTI
@@ -223,6 +226,7 @@ def test_at_w_mpi():
         assert np.all(f.data_ro_domain[1, 7] == 5)
 
 
+@switchconfig(develop_mode=True)
 def test_multiple_blocking():
     """
     Test that if there are more than one blocked Iteration nests, then
@@ -287,7 +291,7 @@ def test_hierarchical_blocking(opt_options):
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
 
-@switchconfig(platform='cpu64-dummy')  # To fix the core count
+@switchconfig(platform='cpu64-dummy', develop_mode=True)  # `cpu64-dummy `to fix ncores
 @pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
 def test_multiple_threads(opt_options):
     """
@@ -307,7 +311,7 @@ def test_multiple_threads(opt_options):
 
 
 @skipif('cpu64-arm')
-@switchconfig(platform='knl7210')  # To trigger nested parallelism
+@switchconfig(platform='knl7210', develop_mode=True)  # `knl7210` for nested parallelsim
 def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
     f = TimeFunction(name='f', grid=grid)
@@ -323,6 +327,7 @@ def test_nested_nthreads():
     assert 'nthreads_nested' not in op._state['autotuning'][0]['tuned']
 
 
+@switchconfig(develop_mode=True)
 def test_few_timesteps():
     grid = Grid(shape=(16, 16, 16))
 

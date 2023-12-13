@@ -2,7 +2,8 @@ import pytest
 import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, configuration, switchconfig)
+                    Eq, Operator, ALLOC_GUARD, ALLOC_ALIGNED, configuration,
+                    switchconfig)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -1494,7 +1495,7 @@ def test_oob_noguard():
     """
     # A tiny grid
     grid = Grid(shape=(4, 4))
-    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_FLAT)
+    u = Function(name='u', grid=grid, space_order=0, allocator=ALLOC_ALIGNED)
     Operator(Eq(u[2000, 0], 1.0)).apply()
 
 

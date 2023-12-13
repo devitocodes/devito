@@ -122,9 +122,10 @@ configuration.add('autotuning', 'off', accepted, callback=autotune_callback,
                   impacts_jit=False)
 
 # In develop-mode:
-# - Some optimizations may not be applied to the generated code.
-# - The compiler performs more type and value checking
-configuration.add('develop-mode', True, [False, True])
+# - The ALLOC_GUARD data allocator is used. This will trigger segfaults as soon
+#   as an out-of-bounds memory access is performed
+# - Some autoi-tuning optimizations are disabled
+configuration.add('develop-mode', False, [False, True])
 
 # Setup optimization level
 configuration.add('opt', 'advanced', list(operator_registry._accepted), deprecate='dle')
