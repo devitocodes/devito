@@ -877,3 +877,44 @@ class TestSubdomainFunctions:
         Operator(eq)()
 
         assert(np.all(f.data[:] == 1))
+
+    def test_mixed_functions(self):
+        """
+        Test with some Functions on a `SubDomain` and some not.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        assert(f.shape == mid.shape)
+        assert(g.shape == grid.shape)
+
+        eq0 = Eq(f, g+f+1)
+        eq1 = Eq(g, 2*f)
+        eq2 = Eq(f, g+1)
+        eq3 = Eq(h, g+1)
+
+        op = Operator([eq0, eq1, eq2, eq3])
+
+        assert_structure(op, ['x,y', 'x,y'], 'x,y,x,y')
+
+        op()
+
+        assert(np.all(f.data[:] == 3))
+        assert(np.all(g.data[2:-2, 3:-1] == 2))
+
+        h_check = np.full(grid.shape, 1)
+        h_check[2:-2, 3:-1] = 3
+        assert(np.all(h.data == h_check))
