@@ -18,6 +18,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'is_external_ctype', 'infer_dtype', 'CustomDtype', 'mpi4py_mapper']
 
 
+
 # *** Custom np.dtypes
 
 # NOTE: the following is inspired by pyopencl.cltypes

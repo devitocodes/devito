@@ -265,7 +265,7 @@ class CGen(Visitor):
                     strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
-        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+        if obj.is_LocalType and obj._C_modifier is not None and mode == 2:
             strtype += obj._C_modifier
 
         strname = obj._C_name
@@ -643,6 +643,9 @@ class CGen(Visitor):
 
         top = c.Line(f"[{', '.join(captures)}]({', '.join(decls)}){''.join(extra)}")
         return LambdaCollection([top, c.Block(body)])
+
+    def visit_Callback(self, o, nested_call=False):
+        return CallbackArg(o)
 
     def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
@@ -1469,3 +1472,12 @@ def sorted_efuncs(efuncs):
         CommCallable: 1
     }
     return sorted_priority(efuncs, priority)
+
+
+class CallbackArg(c.Generable):
+
+    def __init__(self, callback):
+        self.callback = callback
+
+    def generate(self):
+        yield self.callback.callback_form

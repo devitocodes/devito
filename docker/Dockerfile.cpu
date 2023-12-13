@@ -17,7 +17,8 @@ RUN apt-get update && \
 
 # Install for basic base not containing it
 RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake git \
-        autoconf libtool build-essential procps software-properties-common
+        autoconf libtool build-essential procps software-properties-common \
+        gfortran pkgconf libopenblas-serial-dev
 
 # Install gcc
 RUN if [ -n "$gcc" ]; then \
@@ -43,7 +44,6 @@ RUN cd /tmp && mkdir openmpi && \
     cd openmpi && ./autogen.pl && \
     mkdir build &&  cd build && \
     ../configure --prefix=/opt/openmpi/ \
-                 --disable-mpi-fortran \
                  --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
     make -j ${nproc} && \
     make install && \

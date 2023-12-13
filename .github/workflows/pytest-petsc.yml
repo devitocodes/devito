@@ -1,0 +1,75 @@
+name: CI-petsc
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+      - FieldFromPointer
+
+jobs:
+  pytest:
+    name: ${{ matrix.name }}-${{ matrix.set }}
+    runs-on: "${{ matrix.os }}"
+
+    env:
+      DOCKER_BUILDKIT: "1"
+      DEVITO_ARCH: "${{ matrix.arch }}"
+      DEVITO_LANGUAGE: ${{ matrix.language }}
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+           pytest-docker-py39-gcc-noomp
+        ]
+        include:
+        - name: pytest-docker-py39-gcc-noomp
+          python-version: '3.9'
+          os: ubuntu-latest
+          arch: "gcc"
+          language: "C"
+          sympy: "1.12"
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v4
+
+    - name: Build docker image
+      run: |
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=zoeleibowitz/bases:cpu-${{ matrix.arch }} --build-arg petscinstall=petsc
+
+    - name: Set run prefix
+      run: |
+          echo "RUN_CMD=docker run --rm -t -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
+      id: set-run
+
+    - name: Set tests
+      run : |
+          echo "TESTS=tests/test_petsc.py" >> $GITHUB_ENV
+      id: set-tests
+
+    - name: Check configuration
+      run: |
+        ${{ env.RUN_CMD }} python3 -c "from devito import configuration; print(''.join(['%s: %s \n' % (k, v) for (k, v) in configuration.items()]))"
+
+    - name: Test with pytest
+      run: |
+        ${{ env.RUN_CMD }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
+
+    - name: Upload coverage to Codecov
+      if: "!contains(matrix.name, 'docker')"
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        name: ${{ matrix.name }}

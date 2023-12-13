@@ -14,6 +14,7 @@ from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompil
 from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
                            retrieve_iteration_tree)
 from devito.tools import as_tuple
+from devito.petsc.utils import get_petsc_dir, get_petsc_arch
 
 try:
     from mpi4py import MPI  # noqa
@@ -33,7 +34,7 @@ def skipif(items, whole_module=False):
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
                      'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc',
-                     'noadvisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt'})
+                     'noadvisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt', 'petsc'})
     accepted.update({'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -93,6 +94,19 @@ def skipif(items, whole_module=False):
         if i == 'chkpnt' and Revolver is NoopRevolver:
             skipit = "pyrevolve not installed"
             break
+        if i == 'petsc':
+            petsc_dir = get_petsc_dir()
+            petsc_arch = get_petsc_arch()
+            if petsc_dir is None or petsc_arch is None:
+                skipit = "PETSC_DIR or PETSC_ARCH are not set"
+                break
+            else:
+                petsc_installed = os.path.join(
+                    petsc_dir, petsc_arch, 'include', 'petscconf.h'
+                )
+                if not os.path.isfile(petsc_installed):
+                    skipit = "PETSc is not installed"
+                    break
 
     if skipit is False:
         return pytest.mark.skipif(False, reason='')

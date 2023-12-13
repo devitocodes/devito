@@ -19,7 +19,7 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
                               SizeOf, VOID, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
-                          DeviceRM, Eq, Symbol)
+                          DeviceRM, Eq, Symbol, IndexedData)
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -333,6 +333,10 @@ class DataManager:
                 init = self.langbb['thread-num'](retobj=tid)
                 frees.append(Block(header=header, body=[init] + body))
             frees.extend(as_list(cbody.frees) + flatten(v.frees))
+            frees = sorted(frees, key=lambda x: min(
+                (obj._C_free_priority for obj in FindSymbols().visit(x)
+                 if obj.is_LocalObject), default=float('inf')
+            ))
 
             # maps/unmaps
             maps = as_list(cbody.maps) + flatten(v.maps)
@@ -407,11 +411,10 @@ class DataManager:
                     # Track, to be handled by the EntryFunction being a global obj!
                     globs.add(i)
 
-            elif i.is_ObjectArray:
-                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
-
             elif i.is_PointerArray:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
+            else:
+                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
 
         # Handle postponed global objects
         includes = set()
@@ -447,7 +450,8 @@ class DataManager:
         # (i) Dereferencing a PointerArray, e.g., `float (*r0)[.] = (float(*)[.]) pr0[.]`
         # (ii) Declaring a raw pointer, e.g., `float * r0 = NULL; *malloc(&(r0), ...)
         defines = set(FindSymbols('defines|globals').visit(iet))
-        bases = sorted({i.base for i in indexeds}, key=lambda i: i.name)
+        bases = sorted({i.base for i in indexeds
+                        if isinstance(i.base, IndexedData)}, key=lambda i: i.name)
 
         # Some objects don't distinguish their _C_symbol because they are known,
         # by construction, not to require it, thus making the generated code

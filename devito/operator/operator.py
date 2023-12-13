@@ -35,7 +35,8 @@ from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tup
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
-
+from devito.petsc.iet.passes import lower_petsc
+from devito.petsc.clusters import petsc_preprocess
 
 __all__ = ['Operator']
 
@@ -264,6 +265,9 @@ class Operator(Callable):
         kwargs.setdefault('langbb', cls._Target.langbb())
         kwargs.setdefault('printer', cls._Target.Printer)
 
+        # TODO: To be updated based on changes in #2509
+        kwargs.setdefault('concretize_mapper', {})
+
         expressions = as_tuple(expressions)
 
         # Enable recursive lowering
@@ -381,6 +385,9 @@ class Operator(Callable):
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
 
+        # Preprocess clusters for PETSc lowering
+        clusters = petsc_preprocess(clusters)
+
         # Operation count before specialization
         init_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
 
@@ -478,6 +485,9 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+
+        lower_petsc(graph, **kwargs)
+
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -512,7 +522,7 @@ class Operator(Callable):
 
         # During compilation other Dimensions may have been produced
         dimensions = FindSymbols('dimensions').visit(self)
-        ret.update(d for d in dimensions if d.is_PerfKnob)
+        ret.update(dimensions)
 
         ret = tuple(sorted(ret, key=attrgetter('name')))
 

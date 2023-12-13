@@ -308,11 +308,10 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
         return default
 
     dtypes = {base} - {None}
-    for i in expr.free_symbols:
-        try:
-            dtypes.add(i.dtype)
-        except AttributeError:
-            pass
+    for i in expr.args:
+        dtype = getattr(i, 'dtype', None)
+        if dtype:
+            dtypes.add(dtype)
 
     dtype = infer_dtype(dtypes)
 
