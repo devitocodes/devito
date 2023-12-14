@@ -10,7 +10,7 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
                     PrecomputedSparseTimeFunction)
-from devito.ir import Backward, GuardFactor, GuardBound, GuardBoundNext
+from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
@@ -398,12 +398,13 @@ class TestBasic(object):
 
         assert str(gb) == str(new_gb)
 
-    def test_guard_bound_next(self, pickle):
+    @pytest.mark.parametrize('direction', [Backward, Forward])
+    def test_guard_bound_next(self, pickle, direction):
         d = Dimension(name='d')
         cd = ConditionalDimension(name='cd', parent=d, factor=4)
 
         for i in [d, cd]:
-            gbn = GuardBoundNext(i, Backward)
+            gbn = GuardBoundNext(i, direction)
 
             pkl_gbn = pickle.dumps(gbn)
             new_gbn = pickle.loads(pkl_gbn)

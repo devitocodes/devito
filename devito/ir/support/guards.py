@@ -124,7 +124,7 @@ class BaseGuardBoundNext(Guard, Pickable):
         assert isinstance(d, Dimension)
         assert isinstance(direction, IterationDirection)
 
-        if direction is Forward:
+        if direction == Forward:
             p0 = d.root
             p1 = d.root.symbolic_max
 
