@@ -639,10 +639,6 @@ class XdslAdvOperator(XdslnoopOperator):
                 with redirect_stdout(out):
                     xdsl.run()
 
-                # xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                # out = self.compile(xdsl_cmd)
-                # Printer().print(out)
-
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
                 out = self.compile(mlir_cmd, out.getvalue())
