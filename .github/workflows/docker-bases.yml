@@ -107,9 +107,9 @@ jobs:
           context: .
           file: './docker/Dockerfile.cpu'
           push: true
-          target: 'cpu-icx-sycl'
-          build-args: 'arch=cpu-icx-sycl'
-          tags: 'devitocodes/bases:cpu-icx-sycl'
+          target: 'cpu-sycl'
+          build-args: 'arch=cpu-sycl'
+          tags: 'devitocodes/bases:cpu-sycl'
 
       - name: SYCL GPU image
         uses: docker/build-push-action@v3
@@ -117,9 +117,9 @@ jobs:
           context: .
           file: './docker/Dockerfile.cpu'
           push: true
-          target: 'gpu-icx-sycl'
-          build-args: 'arch=gpu-icx-sycl'
-          tags: 'devitocodes/bases:gpu-icx-sycl'
+          target: 'gpu-sycl'
+          build-args: 'arch=gpu-sycl'
+          tags: 'devitocodes/bases:gpu-sycl'
 
 #######################################################
 ################### Nvidia nvhpc ######################

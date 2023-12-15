@@ -145,7 +145,7 @@ ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icx"'
 ##############################################################
 # ICX SYCL CPU image
 ##############################################################
-FROM icx as cpu-icx-sycl
+FROM icx as cpu-sycl
 
 # Devito config
 ENV DEVITO_ARCH="sycl"
@@ -155,7 +155,7 @@ ENV DEVITO_PLATFORM="intel64"
 ##############################################################
 # ICX SYCL GPU image
 ##############################################################
-FROM icx as gpu-icx-sycl
+FROM icx as gpu-sycl
 
 # NOTE: the name of this file ends with ".cpu" but this is a GPU image.
 # It then feels a bit akward, so some restructuring might be needed
