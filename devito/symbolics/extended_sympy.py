@@ -704,19 +704,25 @@ class Rvalue(sympy.Expr, Pickable):
         if init is not None:
             args.append(init)
 
-        return sympy.Expr.__new__(cls, *args)
+        obj = sympy.Expr.__new__(cls, *args)
+
+        obj._expr = expr
+        obj._namespace = namespace
+        obj._init = init
+
+        return obj
 
     @property
     def expr(self):
-        return self.args[0]
+        return self._expr
 
     @property
     def namespace(self):
-        return self.args[1] if len(self.args) >= 2 else None
+        return self._namespace
 
     @property
     def init(self):
-        return self.args[2] if len(self.args) >= 3 else None
+        return self._init
 
     def __str__(self):
         rvalue = str(self.expr)
