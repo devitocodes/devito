@@ -103,7 +103,7 @@ GuardBound = GuardBoundLe
 # *** GuardBoundNext
 
 
-class BaseGuardBoundNext(Guard):
+class BaseGuardBoundNext(Guard, Pickable):
 
     """
     A guard to avoid out-of-bounds iteration.
@@ -118,11 +118,13 @@ class BaseGuardBoundNext(Guard):
     given `direction`.
     """
 
+    __rargs__ = ('d', 'direction')
+
     def __new__(cls, d, direction, **kwargs):
         assert isinstance(d, Dimension)
         assert isinstance(direction, IterationDirection)
 
-        if direction is Forward:
+        if direction == Forward:
             p0 = d.root
             p1 = d.root.symbolic_max
 

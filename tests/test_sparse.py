@@ -4,9 +4,10 @@ import pytest
 import numpy as np
 import scipy.sparse
 
-from devito import Grid, TimeFunction, Eq, Operator, Dimension, Function
-from devito import (SparseFunction, SparseTimeFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction, MatrixSparseTimeFunction)
+from devito import (Grid, TimeFunction, Eq, Operator, Dimension, Function,
+                    SparseFunction, SparseTimeFunction, PrecomputedSparseFunction,
+                    PrecomputedSparseTimeFunction, MatrixSparseTimeFunction,
+                    switchconfig)
 
 
 _sptypes = [SparseFunction, SparseTimeFunction,
@@ -455,6 +456,7 @@ class TestSparseFunction(object):
                 assert getattr(sps, subf).indices[0] == new_spdim
                 assert np.all(getattr(sps, subf).data == getattr(sp, subf).data)
 
+    @switchconfig(safe_math=True)
     @pytest.mark.parallel(mode=[1, 4])
     def test_mpi_no_data(self):
         grid = Grid((11, 11), extent=(10, 10))

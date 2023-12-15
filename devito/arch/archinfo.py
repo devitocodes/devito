@@ -597,8 +597,18 @@ def get_platform():
 
 class Platform(object):
 
+    registry = {}
+
     def __init__(self, name):
         self.name = name
+
+        self.registry[name] = self
+
+    def __eq__(self, other):
+        return isinstance(other, Platform) and self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
 
     @classmethod
     def _mro(cls):
@@ -815,17 +825,17 @@ CPU64 = Cpu64('cpu64')
 CPU64_DUMMY = Intel64('cpu64-dummy', cores_logical=2, cores_physical=1, isa='sse')
 
 INTEL64 = Intel64('intel64')
-SNB = Intel64('snb')
-IVB = Intel64('ivb')
-HSW = Intel64('hsw')
-BDW = Intel64('bdw', isa='avx2')
-KNL = Intel64('knl')
-KNL7210 = Intel64('knl', cores_logical=256, cores_physical=64, isa='avx512')
-SKX = IntelSkylake('skx')
-KLX = IntelSkylake('klx')
-CLX = IntelSkylake('clx')
-CLK = IntelSkylake('clk')
-SPR = IntelGoldenCove('spr')
+SNB = Intel64('snb')  # Sandy Bridge
+IVB = Intel64('ivb')  # Ivy Bridge
+HSW = Intel64('hsw')  # Haswell
+BDW = Intel64('bdw', isa='avx2')  # Broadwell
+KNL = Intel64('knl')  # Knights Landing
+KNL7210 = Intel64('knl7210', cores_logical=256, cores_physical=64, isa='avx512')
+SKX = IntelSkylake('skx')  # Skylake
+KLX = IntelSkylake('klx')  # Kaby Lake
+CLX = IntelSkylake('clx')  # Coffee Lake
+CLK = IntelSkylake('clk')  # Cascade Lake
+SPR = IntelGoldenCove('spr')  # Sapphire Rapids
 
 ARM = Arm('arm')
 GRAVITON = Arm('graviton')
@@ -841,40 +851,10 @@ NVIDIAX = NvidiaDevice('nvidiaX')
 AMDGPUX = AmdDevice('amdgpuX')
 INTELGPUX = IntelDevice('intelgpuX')
 
-PVC = IntelDevice('pvc', max_threads_per_block=4096)
+PVC = IntelDevice('pvc', max_threads_per_block=4096)  # Intel Ponte Vecchio GPU
 
-
-platform_registry = {
-    'cpu64-dummy': CPU64_DUMMY,
-    'intel64': INTEL64,
-    'snb': SNB,  # Sandy Bridge
-    'ivb': IVB,  # Ivy Bridge
-    'hsw': HSW,  # Haswell
-    'bdw': BDW,  # Broadwell
-    'skx': SKX,  # Skylake
-    'klx': KLX,  # Kaby Lake
-    'clx': CLX,  # Coffee Lake
-    'clk': CLK,  # Cascade Lake
-    'spr': SPR,  # Sapphire Rapids
-    'knl': KNL,
-    'knl7210': KNL7210,
-    'arm': ARM,  # Generic ARM CPU
-    'graviton': GRAVITON,  # AMS arm
-    'm1': M1,
-    'amd': AMD,  # Generic AMD CPU
-    'power8': POWER8,
-    'power9': POWER9,
-    'nvidiaX': NVIDIAX,  # Generic NVidia GPU
-    'amdgpuX': AMDGPUX,   # Generic AMD GPU
-    'intelgpuX': INTELGPUX,   # Generic Intel GPU
-    'pvc': PVC  # Intel Ponte Vecchio GPU
-}
-"""
-Registry dict for deriving Platform classes according to the environment variable
-DEVITO_PLATFORM. Developers should add new platform classes here.
-"""
+platform_registry = Platform.registry
 platform_registry['cpu64'] = get_platform  # Autodetection
-
 
 isa_registry = {
     'cpp': 16,

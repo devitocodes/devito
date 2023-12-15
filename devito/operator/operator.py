@@ -1088,13 +1088,12 @@ class ArgumentsMap(dict):
 
     @property
     def opkwargs(self):
-        temp_registry = {v: k for k, v in platform_registry.items()}
-        platform = temp_registry[self.platform]
-
         temp_registry = {v: k for k, v in compiler_registry.items()}
         compiler = temp_registry[self.compiler.__class__]
 
-        return {'platform': platform, 'compiler': compiler, 'language': self.language}
+        return {'platform': self.platform.name,
+                'compiler': compiler,
+                'language': self.language}
 
 
 def parse_kwargs(**kwargs):
