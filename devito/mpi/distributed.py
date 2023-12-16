@@ -235,10 +235,7 @@ class Distributor(AbstractDistributor):
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
             # if len(shape) == 3:
-            #     topology = ('*', '*', 1)
-
-            # topology = ('*', '*', 1)
-            # topology = ('*', '*', 8)
+            #      topology = ('*', '*', 4)
 
             if topology is None:
                 # `MPI.Compute_dims` sets the dimension sizes to be as close to
