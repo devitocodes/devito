@@ -19,6 +19,10 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
     if mode != 'noop':
         clusters = fuse(clusters, toposort='maximal')
 
+    # At this point we can detect redundancies induced by inner derivatives that
+    # previously were just not detectable via e.g. plain CSE. For example, if
+    # there were two IndexDerivatives such as `(p.dx + m.dx).dx` and `m.dx.dx`
+    # then it's only after `_lower_index_derivatives` that they're detectable!
     clusters = CDE(mapper).process(clusters)
 
     return clusters

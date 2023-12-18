@@ -10,7 +10,7 @@ from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import as_list
-from devito.types import Eq, Temp
+from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
 
@@ -169,13 +169,23 @@ def _(exprs):
     return mapper
 
 
-@count.register(IndexDerivative)
 @count.register(Indexed)
+@count.register(Symbol)
 def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.
     """
     return Counter()
+
+
+@count.register(IndexDerivative)
+def _(expr):
+    """
+    Handler for symbol-binding objects. There can be many of them and therefore
+    they should be detected as common subexpressions, but it's either pointless
+    or forbidden to look inside them.
+    """
+    return Counter([expr])
 
 
 @count.register(Add)
