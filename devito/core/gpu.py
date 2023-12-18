@@ -72,7 +72,7 @@ class DeviceOperatorMixin(object):
         o['par-dynamic-work'] = np.inf  # Always use static scheduling
         o['par-nested'] = np.inf  # Never use nested parallelism
         o['par-disabled'] = oo.pop('par-disabled', True)  # No host parallelism by default
-        o['gpu-fit'] = as_tuple(oo.pop('gpu-fit', cls._normalize_gpu_fit(**kwargs)))
+        o['gpu-fit'] = cls._normalize_gpu_fit(oo, **kwargs)
         o['gpu-create'] = as_tuple(oo.pop('gpu-create', ()))
 
         # Distributed parallelism
@@ -95,11 +95,16 @@ class DeviceOperatorMixin(object):
         return kwargs
 
     @classmethod
-    def _normalize_gpu_fit(cls, **kwargs):
-        if any(i in kwargs['mode'] for i in ['tasking', 'streaming']):
-            return None
-        else:
-            return cls.GPU_FIT
+    def _normalize_gpu_fit(cls, oo, **kwargs):
+        try:
+            gfit = as_tuple(oo.pop('gpu-fit'))
+            gfit = set().union([f.values() if f.is_AbstractTensor else f for f in gfit])
+            return tuple(gfit)
+        except KeyError:
+            if any(i in kwargs['mode'] for i in ['tasking', 'streaming']):
+                return (None,)
+            else:
+                return as_tuple(cls.GPU_FIT)
 
     @classmethod
     def _rcompile_wrapper(cls, **kwargs0):
