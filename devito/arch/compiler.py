@@ -737,7 +737,7 @@ class IntelCompiler(Compiler):
 
         if kwargs.get('mpi'):
             self.__init_intel_mpi__()
-            self.cflags.insert(0, '-cc=%s' % self.CC)
+            self.__init_intel_mpi_flags__()
 
     def __init_intel_mpi__(self, **kwargs):
         # Make sure the MPI compiler uses an Intel compiler underneath,
@@ -746,6 +746,9 @@ class IntelCompiler(Compiler):
         if mpi_distro != 'IntelMPI':
             warning("Expected Intel MPI distribution with `%s`, but found `%s`"
                     % (self.__class__.__name__, mpi_distro))
+
+    def __init_intel_mpi_flags__(self, **kwargs):
+        self.cflags.insert(0, '-cc=%s' % self.CC)
 
     def get_version(self):
         if configuration['mpi']:
@@ -779,7 +782,7 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
-        IntelCompiler.__init_finalize__(self, **kwargs)
+        super().__init_finalize__(**kwargs)
 
         language = kwargs.pop('language', configuration['language'])
 
@@ -792,6 +795,8 @@ class IntelKNLCompiler(IntelCompiler):
 class OneapiCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
+        super().__init_finalize__(**kwargs)
+
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
@@ -817,9 +822,6 @@ class OneapiCompiler(IntelCompiler):
                 self.cflags.append('-gline-tables-only')
                 self.cflags.append('-fdebug-info-for-profiling')
 
-        if kwargs.get('mpi'):
-            self.__init_intel_mpi__()
-
     def __init_intel_mpi__(self, **kwargs):
         super().__init_intel_mpi__(**kwargs)
 
@@ -829,6 +831,9 @@ class OneapiCompiler(IntelCompiler):
         # to enable GPU-aware MPI (that is, passing device pointers to MPI calls)
         if isinstance(platform, IntelDevice):
             environ['I_MPI_OFFLOAD'] = '1'
+
+    def __init_intel_mpi_flags__(self, **kwargs):
+        pass
 
     get_version = Compiler.get_version
 
@@ -846,6 +851,8 @@ class SyclCompiler(OneapiCompiler):
     _cpp = True
 
     def __init_finalize__(self, **kwargs):
+        IntelCompiler.__init_finalize__(self, **kwargs)
+
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
@@ -867,9 +874,6 @@ class SyclCompiler(OneapiCompiler):
             self.cflags.append('-fsycl-targets=spir64')
         else:
             raise NotImplementedError("Unsupported platform %s" % platform)
-
-        if kwargs.get('mpi'):
-            self.__init_intel_mpi__()
 
 
 class CustomCompiler(Compiler):
