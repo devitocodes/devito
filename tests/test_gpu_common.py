@@ -8,7 +8,7 @@ from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
                     SubDimension, SubDomain, SubDomainSet, TimeFunction,
-                    Operator, configuration, switchconfig)
+                    Operator, configuration, switchconfig, TensorTimeFunction)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -1422,6 +1422,18 @@ class TestAPI(object):
         # Cannot provide a value larger than the thread pool size
         with pytest.raises(InvalidArgument):
             assert op.arguments(time_M=2, npthreads0=5)
+
+    def test_gpu_fit_w_tensor_functions(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TensorTimeFunction(name='u', grid=grid)
+        usave = TensorTimeFunction(name="usave", grid=grid, save=10)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward)]
+
+        op = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
+        assert set(op._options['gpu-fit']) - set(usave.values()) == set()
 
 
 class TestMisc(object):
