@@ -11,7 +11,8 @@ from devito.core.power import PowerAdvCOperator, PowerAdvOmpOperator
 from devito.core.gpu import (DeviceNoopOmpOperator, DeviceNoopAccOperator,
                              DeviceAdvOmpOperator, DeviceAdvAccOperator,
                              DeviceFsgOmpOperator, DeviceFsgAccOperator,
-                             DeviceCustomOmpOperator, DeviceCustomAccOperator)
+                             DeviceCustomOmpOperator, DeviceCustomAccOperator,
+                             XdslAdvDeviceOperator)
 from devito.operator.registry import operator_registry
 
 # Register CPU Operators
@@ -61,3 +62,7 @@ operator_registry.add(DeviceAdvAccOperator, Device, 'advanced', 'openacc')
 operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'C')
 operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'openmp')
 operator_registry.add(DeviceFsgAccOperator, Device, 'advanced-fsg', 'openacc')
+
+# XDSL GPU
+
+operator_registry.add(XdslAdvDeviceOperator, Device, 'xdsl', 'xdsl-gpu')
