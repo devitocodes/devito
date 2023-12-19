@@ -32,8 +32,6 @@ from devito.ir.ietxdsl.cluster_to_ssa import (ExtractDevitoStencilConversion,
 from devito.types import TimeFunction
 from devito.types.mlir_types import ptr_of, f32
 
-from devito.arch.archinfo import get_nvidia_cc
-
 from xdsl.printer import Printer
 
 
