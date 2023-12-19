@@ -19,8 +19,6 @@ from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_p
                                linearize, pthreadify, relax_incr_dimensions)
 from devito.logger import info, perf
 from devito.mpi import MPI
-from devito.passes.iet.languages.targets import CTarget
-
 
 from devito.tools import as_tuple, timed_pass
 
