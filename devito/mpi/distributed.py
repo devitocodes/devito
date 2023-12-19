@@ -363,8 +363,7 @@ class Distributor(AbstractDistributor):
             ret[r] = filter_ordered(inds[0])
         return ret
 
-    @property
-    def neighborhood(self):
+    def neighborhood(self, subdomain=None):
         """
         A mapper ``M`` describing the calling MPI rank's neighborhood in the
         decomposed grid. Let
@@ -383,20 +382,27 @@ class Distributor(AbstractDistributor):
               ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
               useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
               gives the top-left neighbour in a 2D grid).
+
+        An optional `subdomain` parameter allows a `SubDomain` to be passed. This
+        is used to check the calling MPI rank's neighborhood in the decomposed grid
+        against the footprint of the subdomain on this grid to identify no-ops.
         """
+        if subdomain:
+            crosses = subdomain._crosses
         # Set up horizontal neighbours
         shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
         ret = {}
         for d, (src, dest) in shifts.items():
             ret[d] = {}
-            ret[d][LEFT] = src
-            ret[d][RIGHT] = dest
+            ret[d][LEFT] = MPI.PROC_NULL if subdomain and not crosses[d][LEFT] else src
+            ret[d][RIGHT] = MPI.PROC_NULL if subdomain and not crosses[d][RIGHT] else dest
 
         # Set up diagonal neighbours
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
             neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
 
-            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)):
+            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)) \
+               or subdomain and not crosses[i]:
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
@@ -414,7 +420,7 @@ class Distributor(AbstractDistributor):
         A CompositeObject describing the calling MPI rank's neighborhood
         in the decomposed grid.
         """
-        return MPINeighborhood(self.neighborhood)
+        return MPINeighborhood(self.neighborhood())
 
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,

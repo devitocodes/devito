@@ -70,7 +70,7 @@ class Eq(sympy.Eq, Evaluable):
                 **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
-        obj._subdomain = cls.__subdomain_setup__(lhs, rhs, **kwargs)
+        obj._subdomain = cls.__subdomain_setup__(lhs, rhs, subdomain)
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
 
@@ -126,8 +126,7 @@ class Eq(sympy.Eq, Evaluable):
             return [self]
 
     @classmethod
-    def __subdomain_setup__(cls, lhs, rhs, **kwargs):
-        subdomain = kwargs.get('subdomain')
+    def __subdomain_setup__(cls, lhs, rhs, subdomain):
         subdomains = {subdomain} if subdomain else set()
 
         # Get all the functions in the LHS and RHS
