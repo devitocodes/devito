@@ -1,5 +1,5 @@
 ##############################################################
-# This Dockerfile contains the Devito codes and can be built using different base images.
+# This Dockerfile contains Devito and can be built using different base images.
 ##############################################################
 
 # Base image with compilers
