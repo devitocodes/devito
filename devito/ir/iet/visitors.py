@@ -593,7 +593,6 @@ class CGen(Visitor):
                 if body:
                     body.append(c.Line())
                 body.extend(as_tuple(v))
-        body = flatten(body)
         captures = [str(i) for i in o.captures]
         decls = [i.inline() for i in self._args_decl(o.parameters)]
         top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
