@@ -292,7 +292,7 @@ def test_cpp_local_object():
 
     # A LocalObject using both a template and a modifier
     class SpecialObject(LocalObject):
-        dtype = CustomDtype('bar', ('int', 'float'), '&')
+        dtype = CustomDtype('bar', template=('int', 'float'), modifier='&')
 
     lo2 = SpecialObject('obj2')
 
