@@ -98,7 +98,8 @@ class DeviceOperatorMixin(object):
     def _normalize_gpu_fit(cls, oo, **kwargs):
         try:
             gfit = as_tuple(oo.pop('gpu-fit'))
-            gfit = set().union([f.values() if f.is_AbstractTensor else f for f in gfit])
+            gfit = set().union(*[f.values() if f.is_AbstractTensor else [f]
+                                 for f in gfit])
             return tuple(gfit)
         except KeyError:
             if any(i in kwargs['mode'] for i in ['tasking', 'streaming']):

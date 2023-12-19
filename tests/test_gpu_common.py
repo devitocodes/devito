@@ -1428,12 +1428,21 @@ class TestAPI(object):
 
         u = TensorTimeFunction(name='u', grid=grid)
         usave = TensorTimeFunction(name="usave", grid=grid, save=10)
+        usave2 = TensorTimeFunction(name="usave2", grid=grid, save=10)
 
         eqns = [Eq(u.forward, u + 1),
                 Eq(usave, u.forward)]
 
         op = Operator(eqns, opt=('noop', {'gpu-fit': usave}))
         assert set(op._options['gpu-fit']) - set(usave.values()) == set()
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u.forward),
+                Eq(usave2, u.forward)]
+
+        op = Operator(eqns, opt=('noop', {'gpu-fit': [usave, usave2]}))
+        vals = set().union(usave.values(), usave2.values())
+        assert set(op._options['gpu-fit']) - vals == set()
 
 
 class TestMisc(object):
