@@ -1071,14 +1071,17 @@ class Lambda(Node):
         The captures of the lambda function.
     parameters : list of Basic or expr-like, optional
         The objects in input to the lambda function.
+    attributes : list of str, optional
+        The attributes of the lambda function.
     """
 
     _traversable = ['body']
 
-    def __init__(self, body, captures=None, parameters=None):
+    def __init__(self, body, captures=None, parameters=None, attributes=None):
         self.body = as_tuple(body)
         self.captures = as_tuple(captures)
         self.parameters = as_tuple(parameters)
+        self.attributes = as_tuple(attributes)
 
     def __repr__(self):
         return "Lambda[%s](%s)" % (self.captures, self.parameters)

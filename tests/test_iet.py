@@ -144,6 +144,26 @@ def test_list_denesting():
     assert str(l3) == str(l2)
 
 
+def test_lambda():
+    grid = Grid(shape=(4, 4, 4))
+    x, y, z = grid.dimensions
+
+    u = Function(name='u', grid=grid)
+
+    e0 = DummyExpr(u.indexed, 1)
+    e1 = DummyExpr(u.indexed, 2)
+
+    body = List(body=[e0, e1])
+    lam = Lambda(body, ['='], [u.indexed], attributes=['my_attr'])
+
+    assert str(lam) == """\
+[=](float *restrict u) [[my_attr]]
+{
+  u = 1;
+  u = 2;
+}"""
+
+
 def test_make_cpp_parfor():
     """
     Test construction of a C++ parallel for. This excites the IET construction

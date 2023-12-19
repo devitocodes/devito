@@ -595,7 +595,10 @@ class CGen(Visitor):
                 body.extend(as_tuple(v))
         captures = [str(i) for i in o.captures]
         decls = [i.inline() for i in self._args_decl(o.parameters)]
-        top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
+        attributes = ['[[%s]]' % i for i in o.attributes]
+        top = c.Line('[%s](%s)%s' % (', '.join(captures),
+                                     ', '.join(decls),
+                                     ''.join(attributes)))
         return LambdaCollection([top, c.Block(body)])
 
     def visit_HaloSpot(self, o):
