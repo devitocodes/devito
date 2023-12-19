@@ -5,6 +5,7 @@ from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
                     Substitutions, Coefficient, cos, sin)
 from devito.arch.compiler import OneapiCompiler
+from devito.ir import Expression, FindNodes, FindSymbols
 from devito.parameters import switchconfig, configuration
 from devito.types import Symbol
 
@@ -300,9 +301,34 @@ class Test1Pass(object):
         op1.apply(time_M=10, u=u1)
         assert np.allclose(u.data, u1.data, rtol=10e-6)
 
+    def test_redundant_derivatives(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        # It's the same `u.dx.dy` appearing multiple times, and the cost models
+        # must be smart enough to detect that!
+        eq = Eq(u.forward, (f*u.dx.dy + g*u.dx.dy + h*u.dx.dy +
+                            (f*g)*u.dx.dy + (f*h)*u.dx.dy + (g*h)*u.dx.dy))
+
+        op = Operator(eq, opt=('advanced', {'expand': False,
+                                            'blocklevels': 0}))
+
+        # Check generated code
+        assert len(get_arrays(op)) == 0
+        assert op._profiler._sections['section0'].sops == 74
+        exprs = FindNodes(Expression).visit(op)
+        assert len(exprs) == 6
+        temps = [i for i in FindSymbols().visit(exprs) if isinstance(i, Symbol)]
+        assert len(temps) == 3
+
 
 class Test2Pass(object):
 
+    @switchconfig(safe_math=True)
     def test_v0(self):
         grid = Grid(shape=(10, 10, 10))
 
@@ -312,14 +338,14 @@ class Test2Pass(object):
         v1 = TimeFunction(name='v', grid=grid, space_order=8)
 
         eqns = [Eq(u.forward, (u.dx.dy + v*u + 1.)),
-                Eq(v.forward, (v + u.dx.dy + 1.))]
+                Eq(v.forward, (v + u.dx.dz + 1.))]
 
         op0 = Operator(eqns)
         op1 = Operator(eqns, opt=('advanced', {'expand': False,
                                                'openmp': True}))
 
         # Check generated code
-        assert op1._profiler._sections['section0'].sops == 41
+        assert op1._profiler._sections['section0'].sops == 59
         assert_structure(op1, ['t',
                                't,x0_blk0,y0_blk0,x,y,z',
                                't,x0_blk0,y0_blk0,x,y,z,i0',
