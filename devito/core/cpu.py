@@ -590,13 +590,6 @@ class XdslAdvOperator(XdslnoopOperator):
                 decomp = f"{{strategy={decomp} slices={slices} restrict_domain=false}}"
                 xdsl_pipeline = generate_XDSL_MPI_PIPELINE(decomp, to_tile)
 
-            elif is_gpu:
-                xdsl_pipeline = generate_XDSL_GPU_PIPELINE()
-                # Get GPU blocking shapes
-                block_sizes: list[int] = [min(target, self._jit_kernel_constants.get(f"{dim}_size", 1)) for target, dim in zip([32, 4, 8], ["x", "y", "z"])]  # noqa
-                block_sizes = ','.join(str(bs) for bs in block_sizes)
-                mlir_pipeline = generate_MLIR_GPU_PIPELINE(block_sizes)
-
             # allow jit backdooring to provide your own xdsl code
             backdoor = os.getenv('XDSL_JIT_BACKDOOR')
             if backdoor is not None:
@@ -864,44 +857,6 @@ def generate_MLIR_OPENMP_PIPELINE():
     return generate_pipeline(passes)
 
 
-# gpu-launch-sink-index-computations seemed to have no impact
-def generate_MLIR_GPU_PIPELINE(block_sizes):
-    passes = [
-        "builtin.module(test-math-algebraic-simplification",
-        f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
-        "func.func(gpu-map-parallel-loops)",
-        "convert-parallel-loops-to-gpu",
-        "lower-affine",
-        "canonicalize",
-        "cse",
-        "fold-memref-alias-ops",
-        "gpu-launch-sink-index-computations",
-        "gpu-kernel-outlining",
-        "canonicalize{{region-simplify}}",
-        "cse",
-        "fold-memref-alias-ops",
-        "expand-strided-metadata",
-        "lower-affine",
-        "canonicalize",
-        "cse",
-        "func.func(gpu-async-region)",
-        "canonicalize",
-        "cse",
-        "convert-arith-to-llvm{{index-bitwidth=64}}",
-        "convert-scf-to-cf",
-        "convert-cf-to-llvm{{index-bitwidth=64}}",
-        "canonicalize",
-        "cse",
-        "convert-func-to-llvm{{use-bare-ptr-memref-call-conv}}",
-        "gpu.module(convert-gpu-to-nvvm,reconcile-unrealized-casts,canonicalize,gpu-to-cubin)",  # noqa
-        "gpu-to-llvm",
-        "canonicalize",
-        "cse)"
-    ]
-
-    return generate_pipeline(passes)
-
-
 def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
     passes = [
         "stencil-shape-inference",
@@ -916,17 +871,6 @@ def generate_XDSL_CPU_noop_PIPELINE():
     passes = [
         "stencil-shape-inference",
         "convert-stencil-to-ll-mlir",
-        "printf-to-llvm"
-    ]
-
-    return generate_pipeline(passes)
-
-
-def generate_XDSL_GPU_PIPELINE():
-    passes = [
-        "stencil-shape-inference",
-        "convert-stencil-to-ll-mlir{target=gpu}",
-        "reconcile-unrealized-casts",
         "printf-to-llvm"
     ]
 
