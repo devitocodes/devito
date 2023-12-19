@@ -8,7 +8,7 @@ from devito.tools import as_tuple
 
 import argparse
 np.set_printoptions(threshold=np.inf)
-
+from fast.bench_utils import plot_2dfunc
 
 parser = argparse.ArgumentParser(description='Process arguments.')
 
@@ -26,10 +26,6 @@ parser.add_argument("-plot", "--plot", default=False, type=bool, help="Plot2D")
 parser.add_argument("-devito", "--devito", default=False, type=bool, help="Devito run")
 parser.add_argument("-xdsl", "--xdsl", default=False, type=bool, help="xDSL run")
 args = parser.parse_args()
-
-if args.plot:
-    from fast.bench_utils import plot_2dfunc
-
 
 mpiconf = configuration['mpi']
 
