@@ -782,7 +782,7 @@ class IntelCompiler(Compiler):
 class IntelKNLCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
-        super().__init_finalize__(**kwargs)
+        IntelCompiler.__init_finalize__(self, **kwargs)
 
         language = kwargs.pop('language', configuration['language'])
 
@@ -795,7 +795,7 @@ class IntelKNLCompiler(IntelCompiler):
 class OneapiCompiler(IntelCompiler):
 
     def __init_finalize__(self, **kwargs):
-        super().__init_finalize__(**kwargs)
+        IntelCompiler.__init_finalize__(self, **kwargs)
 
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
@@ -823,7 +823,7 @@ class OneapiCompiler(IntelCompiler):
                 self.cflags.append('-fdebug-info-for-profiling')
 
     def __init_intel_mpi__(self, **kwargs):
-        super().__init_intel_mpi__(**kwargs)
+        IntelCompiler.__init_intel_mpi__(self, **kwargs)
 
         platform = kwargs.pop('platform', configuration['platform'])
 
