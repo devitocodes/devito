@@ -21,13 +21,14 @@ from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
 
-__all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call', 'ExprStmt',
-           'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
-           'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
-           'AugmentedExpression', 'Increment', 'Return', 'While', 'ListMajor',
-           'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
-           'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
-           'BusyWait', 'CallableBody', 'Transfer']
+__all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
+           'Call', 'ExprStmt', 'Conditional', 'Iteration', 'List', 'Section',
+           'TimedList', 'Prodder', 'MetaCall', 'PointerCast', 'HaloSpot',
+           'Definition', 'ExpressionBundle', 'AugmentedExpression',
+           'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
+           'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
+           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
+           'CallableBody', 'Transfer']
 
 # First-class IET nodes
 
@@ -170,6 +171,15 @@ class ExprStmt(object):
     Notes
     -----
     An ExprStmt does *not* have children Nodes.
+    """
+
+    pass
+
+
+class MultiTraversable(Node):
+
+    """
+    An abstract base class for Nodes comprising more than one traversable children.
     """
 
     pass
@@ -740,7 +750,7 @@ class Callable(Node):
         return self.all_parameters
 
 
-class CallableBody(Node):
+class CallableBody(MultiTraversable):
 
     """
     The immediate child of a Callable.

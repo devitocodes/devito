@@ -573,7 +573,7 @@ class CGen(Visitor):
         signature = self._gen_signature(o)
         return c.FunctionBody(signature, c.Block(body))
 
-    def visit_CallableBody(self, o):
+    def visit_MultiTraversable(self, o):
         body = []
         prev = None
         for i in o.children:
