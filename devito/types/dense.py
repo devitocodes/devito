@@ -335,6 +335,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
                  for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
+        print("Decomposition", self._decomposition)
+
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
         if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
@@ -760,8 +762,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise RuntimeError("`%s` cannot perform a halo exchange as it has "
                                "no Grid attached" % self.name)
 
-        neighborhood = self._distributor.neighborhood
+        # TODO: Will need a function to check the distributor neighbourhood against where
+        # the subdomain crosses the edges of the rank
+        if self.grid and self.grid.is_SubDomain:
+            neighborhood = self._distributor.neighborhood(subdomain=self.grid)
+        else:
+            neighborhood = self._distributor.neighborhood()
         comm = self._distributor.comm
+
+        print("Rank: %s" % comm.Get_rank(), self.shape,
+              self._size_inhalo, self._size_outhalo)
+
+        print("Neighbourhood", neighborhood)
 
         for d in self._dist_dimensions:
             for i in [LEFT, RIGHT]:
@@ -775,9 +787,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
+                print("Rank: %s" % comm.Get_rank(), d, i, dest, source, shape)
                 recvbuf = np.ndarray(shape=shape, dtype=self.dtype)
 
                 # Communication
+                # FIXME: This line fails
                 comm.Sendrecv(sendbuf, dest=dest, recvbuf=recvbuf, source=source)
 
                 # Scatter received data

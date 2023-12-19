@@ -1,15 +1,16 @@
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
+from itertools import product
 from math import floor
 
 import numpy as np
 from sympy import prod, Interval
 
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, CENTER, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -578,9 +579,6 @@ class SubDomain(AbstractSubDomain):
         self._dimensions = tuple(sub_dimensions)
         self._dtype = self.grid.dtype
 
-        # TODO: Rebuild the distributor with the SubDomain dimensions
-        # TODO: Figure out what shape this should have
-
         dist_interval = {dim: Interval(s.start, s.stop-1)
                          for dim, s in self.distributor.glb_slices.items()}
 
@@ -605,14 +603,31 @@ class SubDomain(AbstractSubDomain):
                            else dist_interval[dim].intersect(sdim_interval[dim]))
                           for dim in self.grid.dimensions)
 
+        # Keep track of the edges of the rank crossed by the SubDomain
+        # Format is {dimension: {side: crosses}} or {(sides,): crosses}
+        crosses = {}
         for dim, sdim in zip(self.grid.dimensions, self.dimensions):
             if sdim.is_Sub:
-                if sdim.local:
-                    in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
-                    off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
-                    if not in_rank and not off_rank:
-                        raise ValueError("SubDimension %s is local and cannot be"
-                                         " decomposed across MPI ranks" % dim)
+                in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
+                off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
+                if in_rank or off_rank:
+                    crosses[dim] = {LEFT: False, RIGHT: False}
+                elif sdim.local:
+                    raise ValueError("SubDimension %s is local and cannot be"
+                                     " decomposed across MPI ranks" % dim)
+                else:
+                    crosses[dim] = {LEFT: sdim_interval[dim].left
+                                    < dist_interval[dim].left,
+                                    RIGHT: sdim_interval[dim].right
+                                    > dist_interval[dim].right}
+            else:
+                crosses[dim] = {LEFT: True, RIGHT: True}
+
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.shape)):
+            crosses[i] = all(crosses[d][s] for d, s in zip(self.grid.dimensions, i)
+                             if s in crosses[d])  # Skip over CENTER
+
+        self._crosses = frozendict(crosses)
 
         if any([i.is_empty for i in intervals]):
             # SubDomain does not overlap this rank

@@ -990,8 +990,8 @@ class TestSubdomainFunctionsParallel:
     #                                ('middle', 2, 3), ('middle', 1, 7),
     #                                None])
     @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parametrize('x', [('left', 3)])
-    @pytest.mark.parametrize('y', [('left', 3)])
+    @pytest.mark.parametrize('x', [('middle', 2, 3)])
+    @pytest.mark.parametrize('y', [('middle', 2, 3)])
     def test_function_data_shape_mpi(self, x, y):
         """
         Check that defining a Function on a subset of a Grid results in arrays
@@ -1001,12 +1001,26 @@ class TestSubdomainFunctionsParallel:
         reduced_domain = ReducedDomain(x, y, grid=grid)
         f = Function(name='f', grid=reduced_domain, space_order=2)
 
-        g = Function(name='g', grid=grid)
-        Operator(Eq(g, g+1, subdomain=reduced_domain))()
+        g = Function(name='g', grid=grid, space_order=2)
+        eq = Eq(g, g+1, subdomain=reduced_domain)
+        Operator(eq)()
 
         slices = tuple(grid.distributor.glb_slices[dim]
                        for dim in grid.dimensions)
+
         check_data = g.data[slices]
+
+        print("g data")
+        print(g.data)
+        print("Check data")
+        print(check_data)
+        print("Data")
+        print(f.data)
+        print("Data with halo")
+        print(f.data_with_halo)
+        for d in grid.dimensions:
+            print('Inhalo %s:' % d.name, f._size_inhalo[d])
+            print('Outhalo %s:' % d.name, f._size_outhalo[d])
 
         assert np.count_nonzero(check_data) == f.data.size
 
@@ -1014,8 +1028,9 @@ class TestSubdomainFunctionsParallel:
             coords = np.nonzero(check_data)
             shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
             assert f.data.shape == shape
-            assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
-            assert f._distributor.shape == grid.shape
-            for d in grid.dimensions:
-                assert all([i == 2 for i in f._size_inhalo[d]])
-                assert all([i == 2 for i in f._size_outhalo[d]])
+            # assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
+            # assert f._distributor.shape == grid.shape
+            # for d in grid.dimensions:
+            #     assert all([i == 2 for i in f._size_inhalo[d]])
+            #     assert all([i == 2 for i in f._size_outhalo[d]])
+        assert False
