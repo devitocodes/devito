@@ -31,6 +31,7 @@ operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl-noop', 'openmp')
 
 operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl', 'C')
 operator_registry.add(XdslAdvOperator, Cpu64, 'xdsl', 'openmp')
+operator_registry.add(XdslAdvDeviceOperator, Device, 'xdsl', 'openacc')
 
 operator_registry.add(Cpu64FsgCOperator, Cpu64, 'advanced-fsg', 'C')
 operator_registry.add(Cpu64FsgOmpOperator, Cpu64, 'advanced-fsg', 'openmp')
@@ -62,7 +63,3 @@ operator_registry.add(DeviceAdvAccOperator, Device, 'advanced', 'openacc')
 operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'C')
 operator_registry.add(DeviceFsgOmpOperator, Device, 'advanced-fsg', 'openmp')
 operator_registry.add(DeviceFsgAccOperator, Device, 'advanced-fsg', 'openacc')
-
-# XDSL GPU
-
-operator_registry.add(XdslAdvDeviceOperator, Device, 'xdsl', 'xdsl-gpu')

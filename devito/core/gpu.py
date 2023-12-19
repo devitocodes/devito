@@ -19,6 +19,8 @@ from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_p
                                linearize, pthreadify, relax_incr_dimensions)
 from devito.logger import info, perf
 from devito.mpi import MPI
+from devito.passes.iet.languages.targets import CTarget
+
 
 from devito.tools import as_tuple, timed_pass
 
@@ -383,13 +385,9 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
         with self._profiler.timer_on('jit-compile'):
             is_mpi = MPI.Is_initialized()
             is_gpu = os.environ.get("DEVITO_PLATFORM", None) == 'nvidiaX'
-            is_omp = os.environ.get("DEVITO_LANGUAGE", None) == 'openmp'
 
             if is_mpi and is_gpu:
                 raise RuntimeError("Cannot run MPI+GPU for now!")
-
-            if is_omp and is_gpu:
-                raise RuntimeError("Cannot run OMP+GPU!")
 
             # specialize the code for the specific apply parameters
             finalize_module_with_globals(self._module, self._jit_kernel_constants,
