@@ -4,7 +4,6 @@ import pytest
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
                     Substitutions, Coefficient, cos, sin)
-from devito.ir import FindSymbols
 from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
