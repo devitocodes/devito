@@ -808,6 +808,11 @@ class IntelDevice(Device):
 
     max_mem_trans_nbytes = 64
 
+    def __init__(self, *args, sub_group_size=32, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.sub_group_size = sub_group_size
+
     @property
     def march(self):
         return ''
