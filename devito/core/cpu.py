@@ -1,3 +1,5 @@
+from contextlib import redirect_stdout
+import io
 import os
 import subprocess
 import ctypes
@@ -33,6 +35,7 @@ from devito.types import TimeFunction
 from devito.types.mlir_types import ptr_of, f32
 
 from xdsl.printer import Printer
+from xdsl.xdsl_opt_main import xDSLOptMain
 
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
@@ -368,13 +371,15 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 # instead of relying on a bash-only feature.
 
                 # xdsl-opt, get xDSL IR
-                xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                out = self.compile(xdsl_cmd)
-                # Printer().print(out)
+                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    xdsl.run()
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
+                out = self.compile(mlir_cmd, out.getvalue())
                 #  Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
@@ -628,13 +633,15 @@ class XdslAdvOperator(XdslnoopOperator):
                 # instead of relying on a bash-only feature.
 
                 # xdsl-opt, get xDSL IR
-                xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                out = self.compile(xdsl_cmd)
-                # Printer().print(out)
+                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    xdsl.run()
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
+                out = self.compile(mlir_cmd, out.getvalue())
 
                 # Printer().print(out)
 

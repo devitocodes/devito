@@ -1,3 +1,5 @@
+from contextlib import redirect_stdout
+import io
 import os
 from functools import partial
 from io import StringIO
@@ -24,6 +26,8 @@ from devito.mpi import MPI
 from devito.tools import as_tuple, timed_pass
 
 from xdsl.printer import Printer
+from xdsl.xdsl_opt_main import xDSLOptMain
+
 from devito.ir.ietxdsl.cluster_to_ssa import finalize_module_with_globals
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -434,13 +438,15 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
                 # instead of relying on a bash-only feature.
 
                 # xdsl-opt, get xDSL IR
-                xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                out = self.compile(xdsl_cmd)
-                # Printer().print(out)
+                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    xdsl.run()
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
+                out = self.compile(mlir_cmd, out.getvalue())
 
                 # Printer().print(out)
 
