@@ -446,7 +446,7 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
+                out = self.compile(mlir_cmd, out.getvalue())
 
                 # Printer().print(out)
 
