@@ -16,9 +16,9 @@ class ConvertScfForArgsToIndex(RewritePattern):
         if isinstance(op.lb.type, builtin.IndexType):
             return
         for val in (op.lb, op.ub, op.step):
-            cast = arith.IndexCastOp.get(val, builtin.IndexType())
+            cast = arith.IndexCastOp(val, builtin.IndexType())
             rewriter.insert_op_before_matched_op(cast)
-            op.replace_operand(op.operands.index(val), cast.result)
+            op.operands[op.operands.index(val)] = cast.result
 
 
 class ConvertScfParallelArgsToIndex(RewritePattern):
@@ -41,9 +41,9 @@ class ConvertScfParallelArgsToIndex(RewritePattern):
         for val in (*op.lowerBound, *op.upperBound, *op.step):
             if isinstance(val.type, builtin.IndexType):
                 continue
-            cast = arith.IndexCastOp.get(val, builtin.IndexType())
+            cast = arith.IndexCastOp(val, builtin.IndexType())
             rewriter.insert_op_before_matched_op(cast)
-            op.replace_operand(op.operands.index(val), cast.result)
+            op.operands[op.operands.index(val)] = cast.result
 
 
 class ConvertForLoopVarToIndex(RewritePattern):
@@ -60,12 +60,12 @@ class ConvertForLoopVarToIndex(RewritePattern):
             # insert a cast from index to i64 at the start of the loop
 
             rewriter.insert_op_at_start(
-                i64_val := arith.IndexCastOp.get(loop_var, builtin.i64),
+                i64_val := arith.IndexCastOp(loop_var, builtin.i64),
                 block,
             )
 
             loop_var.replace_by(i64_val.result)
-            i64_val.replace_operand(0, loop_var)
+            i64_val.operands[0] = loop_var
 
 
 class LowerIetForToScfFor(RewritePattern):

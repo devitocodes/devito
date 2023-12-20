@@ -861,7 +861,8 @@ def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
     passes = [
         "stencil-shape-inference",
         f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
-        "printf-to-llvm"
+        "printf-to-llvm",
+        "canonicalize"
     ]
 
     return generate_pipeline(passes)
@@ -879,12 +880,13 @@ def generate_XDSL_CPU_noop_PIPELINE():
 
 def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
     passes = [
-        f"dmp-decompose{decomp}",
+        f"distribute-stencil{decomp}",
         "canonicalize-dmp",
         f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
         "dmp-to-mpi{mpi_init=false}",
         "lower-mpi",
-        "printf-to-llvm"
+        "printf-to-llvm",
+        "canonicalize"
     ]
 
     return generate_pipeline(passes)

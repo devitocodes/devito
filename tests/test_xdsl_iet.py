@@ -50,7 +50,7 @@ def test_powi():
 
     mod = ModuleOp([
         cst1 := Constant.from_int_and_width(1, i32),
-        ut1 := FPowIOp.get(cst1, cst1),
+        ut1 := FPowIOp(cst1, cst1),
     ])
 
 
