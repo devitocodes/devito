@@ -45,14 +45,19 @@ RUN apt-get update -y && \
     apt-get install -y intel-oneapi-advisor
 
 # Drivers mandatory for intel gpu
-# https://dgpu-docs.intel.com/installation-guides/ubuntu/ubuntu-focal.html#ubuntu-20-04-focal
+# https://dgpu-docs.intel.com/driver/installation.html#ubuntu-install-steps
 RUN wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor > /usr/share/keyrings/intel-graphics.gpg
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu focal main" >  /etc/apt/sources.list.d/intel.list
+RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy unified" >  /etc/apt/sources.list.d/intel-gpu-jammy.list
 
 RUN apt-get update -y && apt-get dist-upgrade -y && \
-    apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero level-zero-dev \
-                     intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
-                     libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
+    # Compute and media runtime
+    apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero \
+            intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
+            libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
+            libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
+            mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo hwinfo clinfo \
+            # Development packages
+            libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
 
 ##############################################################
 # ICC image
