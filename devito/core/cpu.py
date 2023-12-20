@@ -371,9 +371,11 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 # instead of relying on a bash-only feature.
 
                 # xdsl-opt, get xDSL IR
-                xdsl_cmd = f'xdsl-opt {source_name} -p {xdsl_pipeline}'
-                out = self.compile(xdsl_cmd)
-                # Printer().print(out)
+                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    xdsl.run()
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
