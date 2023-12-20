@@ -885,21 +885,6 @@ def generate_XDSL_CPU_noop_PIPELINE():
     return generate_pipeline(passes)
 
 
-<<<<<<< HEAD
-=======
-def generate_XDSL_GPU_PIPELINE():
-    passes = [
-        "stencil-shape-inference",
-        "convert-stencil-to-ll-mlir{target=gpu}",
-        "reconcile-unrealized-casts",
-        "printf-to-llvm",
-        "canonicalize"
-    ]
-
-    return generate_pipeline(passes)
-
-
->>>>>>> c6e222aad (Bump to new xDSL main, include xDSL canonicalize in passes, also properly handle xDSL dependency.)
 def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
     passes = [
         f"distribute-stencil{decomp}",
