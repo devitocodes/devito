@@ -24,6 +24,8 @@ from devito.mpi import MPI
 from devito.tools import as_tuple, timed_pass
 
 from xdsl.printer import Printer
+from xdsl.xdsl_opt_main import xDSLOptMain
+
 from devito.ir.ietxdsl.cluster_to_ssa import finalize_module_with_globals
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
