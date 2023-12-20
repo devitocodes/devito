@@ -379,7 +379,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
                 # mlir-opt
                 mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out)
+                out = self.compile(mlir_cmd, out.getvalue())
                 #  Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
