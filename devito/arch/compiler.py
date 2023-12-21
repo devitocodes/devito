@@ -2,7 +2,8 @@ from functools import partial
 from hashlib import sha1
 from os import environ, path, makedirs
 from packaging.version import Version
-from subprocess import DEVNULL, PIPE, CalledProcessError, check_output, check_call, run
+from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
+                        check_call, run)
 import platform
 import warnings
 import sys
@@ -10,10 +11,11 @@ import time
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import GCCToolchain, call_capture_output as _call_capture_output
+from codepy.toolchain import (GCCToolchain,
+                              call_capture_output as _call_capture_output)
 
 from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
-                         INTELGPUX, PVC, get_nvidia_cc, check_cuda_runtime,
+                         IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning, error
@@ -716,7 +718,6 @@ class HipCompiler(Compiler):
 class IntelCompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
-
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
@@ -734,13 +735,20 @@ class IntelCompiler(Compiler):
         if language == 'openmp':
             self.ldflags.append('-qopenmp')
 
-        # Make sure the MPI compiler uses `icc` underneath -- whatever the MPI distro is
         if kwargs.get('mpi'):
-            mpi_distro = sniff_mpi_distro('mpiexec')
-            if mpi_distro != 'IntelMPI':
-                warning("Expected Intel MPI distribution with `%s`, but found `%s`"
-                        % (self.__class__.__name__, mpi_distro))
-            self.cflags.insert(0, '-cc=%s' % self.CC)
+            self.__init_intel_mpi__()
+            self.__init_intel_mpi_flags__()
+
+    def __init_intel_mpi__(self, **kwargs):
+        # Make sure the MPI compiler uses an Intel compiler underneath,
+        # whatever the MPI distro is
+        mpi_distro = sniff_mpi_distro('mpiexec')
+        if mpi_distro != 'IntelMPI':
+            warning("Expected Intel MPI distribution with `%s`, but found `%s`"
+                    % (self.__class__.__name__, mpi_distro))
+
+    def __init_intel_mpi_flags__(self, **kwargs):
+        self.cflags.insert(0, '-cc=%s' % self.CC)
 
     def get_version(self):
         if configuration['mpi']:
@@ -792,36 +800,80 @@ class OneapiCompiler(IntelCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an OpenMP bug
-        if self.version < Version('17.0.0') and language == 'openmp':
-            self.ldflags.remove('-qopenmp')
-            self.ldflags.append('-fopenmp')
-
         if language == 'sycl':
-            self.cflags.append('-fsycl')
-            if platform is NVIDIAX:
-                self.cflags.append('-fsycl-targets=nvptx64-cuda')
-            else:
-                self.cflags.append('-fsycl-targets=spir64')
+            raise ValueError("Use SyclCompiler to jit-compile sycl")
+
+        elif language == 'openmp':
+            # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
+            # OpenMP bug concerning reductions, hence with them we're forced to
+            # use the obsolete -fopenmp
+            if self.version < Version('17.0.0'):
+                self.ldflags.remove('-qopenmp')
+                self.ldflags.append('-fopenmp')
 
             if platform is NVIDIAX:
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
-        if platform in [INTELGPUX, PVC]:
-            self.ldflags.append('-fiopenmp')
-            self.ldflags.append('-fopenmp-targets=spir64')
-            self.ldflags.append('-fopenmp-target-simd')
+            elif isinstance(platform, IntelDevice):
+                self.cflags.append('-fiopenmp')
+                self.cflags.append('-fopenmp-targets=spir64')
+                self.cflags.append('-fopenmp-target-simd')
 
-            self.cflags.remove('-g')  # -g disables some optimizations in IGC
-            self.cflags.append('-gline-tables-only')
-            self.cflags.append('-fdebug-info-for-profiling')
+                self.cflags.remove('-g')  # -g disables some optimizations in IGC
+                self.cflags.append('-gline-tables-only')
+                self.cflags.append('-fdebug-info-for-profiling')
+
+    def __init_intel_mpi__(self, **kwargs):
+        IntelCompiler.__init_intel_mpi__(self, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        # The Intel toolchain requires the I_MPI_OFFLOAD env var to be set
+        # to enable GPU-aware MPI (that is, passing device pointers to MPI calls)
+        if isinstance(platform, IntelDevice):
+            environ['I_MPI_OFFLOAD'] = '1'
+
+    def __init_intel_mpi_flags__(self, **kwargs):
+        pass
+
+    get_version = Compiler.get_version
 
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,
         # and icx, which is clang
         self.CC = 'icx'
         self.CXX = 'icpx'
-        self.MPICC = 'mpicc'
-        self.MPICXX = 'mpicxx'
+        self.MPICC = 'mpiicx'
+        self.MPICXX = 'mpiicpx'
+
+
+class SyclCompiler(OneapiCompiler):
+
+    _cpp = True
+
+    def __init_finalize__(self, **kwargs):
+        IntelCompiler.__init_finalize__(self, **kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+        language = kwargs.pop('language', configuration['language'])
+
+        if language != 'sycl':
+            raise ValueError("Expected language sycl with SyclCompiler")
+
+        self.cflags.remove('-std=c99')
+        self.cflags.append('-fsycl')
+
+        self.cflags.remove('-g')  # -g disables some optimizations in IGC
+        self.cflags.append('-gline-tables-only')
+        self.cflags.append('-fdebug-info-for-profiling')
+
+        if isinstance(platform, Cpu64):
+            pass
+        elif platform is NVIDIAX:
+            self.cflags.append('-fsycl-targets=nvptx64-cuda')
+        elif isinstance(platform, IntelDevice):
+            self.cflags.append('-fsycl-targets=spir64')
+        else:
+            raise NotImplementedError("Unsupported platform %s" % platform)
 
 
 class CustomCompiler(Compiler):
@@ -845,7 +897,7 @@ class CustomCompiler(Compiler):
 
         if platform is M1:
             _base = ClangCompiler
-        elif platform is INTELGPUX:
+        elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler
         elif platform is NVIDIAX:
             if language == 'cuda':
@@ -915,6 +967,7 @@ compiler_registry = {
     'intel': OneapiCompiler,
     'icx': OneapiCompiler,
     'icpx': OneapiCompiler,
+    'sycl': SyclCompiler,
     'icc': IntelCompiler,
     'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,

@@ -29,7 +29,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            # Generic GPUs
            'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
            # Intel GPUs
-           'PVC']
+           'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
 
 
 @memoized_func
@@ -848,10 +848,14 @@ POWER9 = Power('power9')
 
 # Devices
 NVIDIAX = NvidiaDevice('nvidiaX')
-AMDGPUX = AmdDevice('amdgpuX')
-INTELGPUX = IntelDevice('intelgpuX')
 
-PVC = IntelDevice('pvc', max_threads_per_block=4096)  # Intel Ponte Vecchio GPU
+AMDGPUX = AmdDevice('amdgpuX')
+
+INTELGPUX = IntelDevice('intelgpuX')
+PVC = IntelDevice('pvc', max_threads_per_block=4096)  # Legacy codename for MAX GPUs
+INTELGPUMAX = IntelDevice('intelgpuMAX', max_threads_per_block=4096)
+MAX1100 = IntelDevice('max1100', max_threads_per_block=4096)
+MAX1550 = IntelDevice('max1550', max_threads_per_block=4096)
 
 platform_registry = Platform.registry
 platform_registry['cpu64'] = get_platform  # Autodetection

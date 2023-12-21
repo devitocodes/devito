@@ -24,8 +24,8 @@ __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 class MetaSite(object):
 
-    _items = ('allocs', 'objs', 'frees', 'pallocs', 'pfrees',
-              'maps', 'unmaps', 'efuncs')
+    _items = ('standalones', 'allocs', 'stacks', 'objs', 'frees', 'pallocs',
+              'pfrees', 'maps', 'unmaps', 'efuncs')
 
     def __init__(self):
         for i in self._items:
@@ -90,7 +90,10 @@ class DataManager(object):
 
         frees = obj._C_free
 
-        storage.update(obj, site, objs=definition, frees=frees)
+        if obj.free_symbols - {obj}:
+            storage.update(obj, site, objs=definition, frees=frees)
+        else:
+            storage.update(obj, site, standalones=definition, frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -98,7 +101,7 @@ class DataManager(object):
         """
         alloc = Definition(obj)
 
-        storage.update(obj, site, allocs=alloc)
+        storage.update(obj, site, stacks=alloc)
 
     def _alloc_array_on_global_mem(self, site, obj, storage):
         """
@@ -198,13 +201,13 @@ class DataManager(object):
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, *allocs, init, ret)
         efunc0 = make_callable(name, body, retval=obj)
-        assert len(efunc0.parameters) == 1  # `nbytes_param`
-        alloc = Call(name, nbytes_arg, retobj=obj)
+        args = list(efunc0.parameters)
+        args[args.index(nbytes_param)] = nbytes_arg
+        alloc = Call(name, args, retobj=obj)
 
         name = self.sregistry.make_name(prefix='free')
         efunc1 = make_callable(name, frees)
-        assert len(efunc1.parameters) == 1  # `obj`
-        free = Call(name, obj)
+        free = Call(name, efunc1.parameters)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
@@ -271,10 +274,12 @@ class DataManager(object):
             cbody = k.body
 
             # objects
+            standalones = as_list(cbody.standalones) + flatten(v.standalones)
             objs = as_list(cbody.objs) + flatten(v.objs)
 
             # allocs/pallocs
             allocs = as_list(cbody.allocs) + flatten(v.allocs)
+            stacks = as_list(cbody.stacks) + flatten(v.stacks)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
                 header = self.lang.Region._make_header(tid.symbolic_size)
                 init = self.lang['thread-num'](retobj=tid)
@@ -295,8 +300,10 @@ class DataManager(object):
             # efuncs
             efuncs.extend(v.efuncs)
 
-            mapper[cbody] = cbody._rebuild(allocs=allocs, maps=maps, objs=objs,
-                                           unmaps=unmaps, frees=frees)
+            mapper[cbody] = cbody._rebuild(
+                standalones=standalones, allocs=allocs, stacks=stacks,
+                maps=maps, objs=objs, unmaps=unmaps, frees=frees
+            )
 
         processed = Transformer(mapper, nested=True).visit(iet)
 

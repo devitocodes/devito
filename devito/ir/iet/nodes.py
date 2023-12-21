@@ -24,7 +24,7 @@ from devito.types.object import AbstractObject, LocalObject
 __all__ = ['Node', 'Block', 'Expression', 'Callable', 'Call', 'ExprStmt',
            'Conditional', 'Iteration', 'List', 'Section', 'TimedList', 'Prodder',
            'MetaCall', 'PointerCast', 'HaloSpot', 'Definition', 'ExpressionBundle',
-           'AugmentedExpression', 'Increment', 'Return', 'While',
+           'AugmentedExpression', 'Increment', 'Return', 'While', 'ListMajor',
            'ParallelIteration', 'ParallelBlock', 'Dereference', 'Lambda',
            'SyncSpot', 'Pragma', 'DummyExpr', 'BlankLine', 'ParallelTree',
            'BusyWait', 'CallableBody', 'Transfer']
@@ -132,12 +132,12 @@ class Node(Signer):
 
     @property
     def functions(self):
-        """All AbstractFunction objects used by this node."""
+        """All AbstractFunctions and AbstractObjects used by this node."""
         return ()
 
     @property
     def expr_symbols(self):
-        """All symbols appearing in an expression within this node."""
+        """All symbols appearing within this node."""
         return ()
 
     @property
@@ -243,12 +243,14 @@ class Call(ExprStmt, Node):
         Explicitly tagging these AbstractFunctions is useful in the case of external
         calls, that is whenever the compiler would be unable to retrieve that
         information by analysis of the IET graph.
+    templates : list of Basic, optional
+        The template arguments of the Call.
     """
 
     is_Call = True
 
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
-                 cast=False, writes=None):
+                 cast=False, writes=None, templates=None):
         if isinstance(name, CallFromPointer):
             self.base = name.base
         else:
@@ -259,10 +261,21 @@ class Call(ExprStmt, Node):
         self.is_indirect = is_indirect
         self.cast = cast
         self._writes = as_tuple(writes)
+        self.templates = as_tuple(templates)
 
     def __repr__(self):
         ret = "" if self.retobj is None else "%s = " % self.retobj
         return "%sCall::\n\t%s(...)" % (ret, self.name)
+
+    def _rebuild(self, *args, **kwargs):
+        if args:
+            # Not elegant, but basically it handles the fact that a Call might
+            # have nested Calls/Lambdas among its `arguments`, and these might
+            # change, and we are in such a case *if and only if* we have `args`
+            assert len(args) == len(self.children)
+            mapper = dict(zip(self.children, args))
+            kwargs['arguments'] = [mapper.get(i, i) for i in self.arguments]
+        return super()._rebuild(**kwargs)
 
     @property
     def children(self):
@@ -326,8 +339,6 @@ class Call(ExprStmt, Node):
     @property
     def defines(self):
         ret = ()
-        if self.base is not None:
-            ret += (self.base,)
         if isinstance(self.retobj, Basic):
             ret += (self.retobj,)
         return ret
@@ -743,8 +754,16 @@ class CallableBody(Node):
     init : Node, optional
         A piece of IET to perform some initialization relevant for `body`
         (e.g., to initialize the target language runtime).
+    standalones : list of Definitions, optional
+        Object definitions for `body`. Instantiating these objects does not
+        require passing any arguments to their constructors, so these
+        Definitions can be scheduled safely right after `init`. They may or may
+        not be required by some of the subsequent nodes (e.g., `allocs`,
+        `maps`).
     allocs : list of Nodes, optional
         Data definitions and allocations for `body`.
+    stacks : list of Definitions, optional
+        Definitions for the stack-scoped objects appearing in `body`.
     casts : list of PointerCasts, optional
         Sequence of PointerCasts required by the `body`.
     bundles : list of Nodes, optional
@@ -756,7 +775,9 @@ class CallableBody(Node):
     strides : list of Nodes, optional
         Statements defining symbols used to access linearized arrays.
     objs : list of Definitions, optional
-        Object definitions for `body`.
+        Object definitions for `body`. Instantiating these objects may or may
+        not require some of the symbols defined in the previous nodes (e.g.,
+        `allocs`, `maps`).
     unmaps : Transfer or list of Transfer, optional
         Data unmaps for `body`.
     unbundles : list of Nodes, optional
@@ -767,11 +788,13 @@ class CallableBody(Node):
 
     is_CallableBody = True
 
-    _traversable = ['unpacks', 'init', 'allocs', 'casts', 'bundles', 'maps',
-                    'strides', 'objs', 'body', 'unmaps', 'unbundles', 'frees']
+    _traversable = ['unpacks', 'init', 'standalones', 'allocs', 'stacks',
+                    'casts', 'bundles', 'maps', 'strides', 'objs', 'body',
+                    'unmaps', 'unbundles', 'frees']
 
-    def __init__(self, body, init=(), unpacks=(), strides=(), allocs=(), casts=(),
-                 bundles=(), objs=(), maps=(), unmaps=(), unbundles=(), frees=()):
+    def __init__(self, body, init=(), standalones=(), unpacks=(), strides=(),
+                 allocs=(), stacks=(), casts=(), bundles=(), objs=(), maps=(),
+                 unmaps=(), unbundles=(), frees=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -779,7 +802,9 @@ class CallableBody(Node):
 
         self.unpacks = as_tuple(unpacks)
         self.init = as_tuple(init)
+        self.standalones = as_tuple(standalones)
         self.allocs = as_tuple(allocs)
+        self.stacks = as_tuple(stacks)
         self.casts = as_tuple(casts)
         self.strides = as_tuple(strides)
         self.bundles = as_tuple(bundles)
@@ -894,7 +919,12 @@ class Definition(ExprStmt, Node):
 
     @property
     def functions(self):
-        return (self.function,)
+        ret = [self.function]
+        for i in self.expr_symbols:
+            f = i.function
+            if f.is_AbstractFunction or f.is_AbstractObject:
+                ret.append(i.function)
+        return tuple(ret)
 
     @property
     def defines(self):
@@ -905,16 +935,25 @@ class Definition(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        if not self.function.is_Array or self.function.initvalue is None:
-            return ()
-        # These are just a handful of values so it's OK to iterate them over
-        ret = set()
-        for i in self.function.initvalue:
+        f = self.function
+        if f.is_LocalObject:
+            ret = set(flatten(i.free_symbols for i in f.cargs))
             try:
-                ret.update(i.free_symbols)
+                ret.update(f.initvalue.free_symbols)
             except AttributeError:
                 pass
-        return tuple(ret)
+            return tuple(ret)
+        elif f.is_Array and f.initvalue is not None:
+            # These are just a handful of values so it's OK to iterate them over
+            ret = set()
+            for i in f.initvalue:
+                try:
+                    ret.update(i.free_symbols)
+                except AttributeError:
+                    pass
+            return tuple(ret)
+        else:
+            return ()
 
 
 class PointerCast(ExprStmt, Node):
@@ -1044,8 +1083,17 @@ class Lambda(Node):
     def __repr__(self):
         return "Lambda[%s](%s)" % (self.captures, self.parameters)
 
+    @property
+    def functions(self):
+        return tuple(i.function for i in self.parameters
+                     if isinstance(i.function, AbstractFunction))
+
     @cached_property
     def expr_symbols(self):
+        return tuple(self.parameters)
+
+    @property
+    def defines(self):
         return tuple(self.parameters)
 
 
@@ -1308,6 +1356,10 @@ class Return(Node):
 
     def __init__(self, value=None):
         self.value = value
+
+
+class ListMajor(List):
+    pass
 
 
 def DummyExpr(*args, init=False):

@@ -10,6 +10,7 @@ on:
       - '/docker/Dockerfile.nvidia'
       - '/docker/Dockerfile.cpu'
       - '/docker/Dockerfile.amd'
+      - '/docker/Dockerfile.intel'
   workflow_dispatch:
     inputs:
       tags:
@@ -95,11 +96,31 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: './docker/Dockerfile.cpu'
+          file: './docker/Dockerfile.intel'
           push: true
           target: 'icx'
           build-args: 'arch=icx'
           tags: 'devitocodes/bases:cpu-icx'
+
+      - name: SYCL CPU image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.intel'
+          push: true
+          target: 'cpu-sycl'
+          build-args: 'arch=cpu-sycl'
+          tags: 'devitocodes/bases:cpu-sycl'
+
+      - name: SYCL GPU image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: './docker/Dockerfile.intel'
+          push: true
+          target: 'gpu-sycl'
+          build-args: 'arch=gpu-sycl'
+          tags: 'devitocodes/bases:gpu-sycl'
 
 #######################################################
 ################### Nvidia nvhpc ######################

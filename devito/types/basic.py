@@ -39,7 +39,8 @@ class CodeSymbol(object):
 
         * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
         * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
-        * "scope": `_mem_stack`, `_mem_heap`, `_mem_constant`, `_mem_shared`
+        * "scope": `_mem_stack`, `_mem_heap`, `_mem_global`, `_mem_shared`,
+                   `_mem_constant`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
@@ -174,29 +175,36 @@ class CodeSymbol(object):
     @property
     def _mem_stack(self):
         """
-        True if the associated data should be allocated on the stack, False otherwise.
+        True if the associated data is allocated on the stack, False otherwise.
         """
         return False
 
     @property
     def _mem_heap(self):
         """
-        True if the associated data gets allocated on the heap, False otherwise.
+        True if the associated data is allocated on the heap, False otherwise.
         """
         return False
 
     @property
+    def _mem_global(self):
+        """
+        True if the symbol is globally scoped, False otherwise.
+        """
+        return self._mem_constant
+
+    @property
     def _mem_constant(self):
         """
-        True if the associated data gets allocated in global constant memory,
-        False otherwise.
+        True if the associated data is allocated in global constant memory,
+        False otherwise. This is a special case of `_mem_global`.
         """
         return False
 
     @property
     def _mem_shared(self):
         """
-        True if the associated data gets allocated in so called shared memory,
+        True if the associated data is allocated in so called shared memory,
         False otherwise.
         """
         return False

@@ -4,6 +4,7 @@ import pytest
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
                     Substitutions, Coefficient, cos, sin)
+from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
 from devito.parameters import switchconfig, configuration
@@ -91,7 +92,9 @@ class TestSymbolicCoeffs(object):
         op.cfunction
 
         # w0, w1, ...
-        assert len(op._globals) == expected
+        functions = FindSymbols().visit(op)
+        weights = [f for f in functions if isinstance(f, Weights)]
+        assert len(weights) == expected
 
 
 class Test1Pass(object):

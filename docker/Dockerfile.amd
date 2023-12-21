@@ -4,7 +4,6 @@
 ##############################################################
 
 ARG ROCM_VERSION=5.5.1
-ARG arch="aomp"
 
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
