@@ -326,7 +326,7 @@ class Test1Pass(object):
         exprs = FindNodes(Expression).visit(op)
         assert len(exprs) == 6
         temps = [i for i in FindSymbols().visit(exprs) if isinstance(i, Symbol)]
-        assert len(temps) == 3
+        assert len(temps) == 2
 
 
 class Test2Pass(object):
