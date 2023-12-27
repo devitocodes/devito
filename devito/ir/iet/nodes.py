@@ -27,7 +27,7 @@ __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Definition', 'ExpressionBundle', 'AugmentedExpression',
            'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
            'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
-           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait',
+           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
            'CallableBody', 'Transfer']
 
 # First-class IET nodes
@@ -1067,7 +1067,7 @@ class Lambda(Node):
     A callable C++ lambda function. Several syntaxes are possible; here we
     implement one of the common ones:
 
-        [captures](parameters){body}
+        [captures](parameters){body} SPECIAL [[attributes]]
 
     For more info about C++ lambda functions:
 
@@ -1081,16 +1081,20 @@ class Lambda(Node):
         The captures of the lambda function.
     parameters : list of Basic or expr-like, optional
         The objects in input to the lambda function.
+    special : list of Basic, optional
+        Placeholder for custom lambdas, to add in e.g. macros.
     attributes : list of str, optional
         The attributes of the lambda function.
     """
 
     _traversable = ['body']
 
-    def __init__(self, body, captures=None, parameters=None, attributes=None):
+    def __init__(self, body, captures=None, parameters=None, special=None,
+                 attributes=None):
         self.body = as_tuple(body)
         self.captures = as_tuple(captures)
         self.parameters = as_tuple(parameters)
+        self.special = as_tuple(special)
         self.attributes = as_tuple(attributes)
 
     def __repr__(self):
@@ -1189,6 +1193,19 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class UsingNamespace(Node):
+
+    """
+    A C++ using namespace directive.
+    """
+
+    def __init__(self, namespace):
+        self.namespace = namespace
+
+    def __repr__(self):
+        return "<UsingNamespace(%s)>" % self.namespace
 
 
 class Pragma(Node):
