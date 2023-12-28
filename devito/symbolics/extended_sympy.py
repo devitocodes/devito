@@ -541,8 +541,7 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    __rargs__ = ('name', 'arguments')
-    __rkwargs__ = ('template',)
+    __rargs__ = ('name', 'arguments', 'template')
 
     def __new__(cls, name, arguments=None, template=None, **kwargs):
         if isinstance(name, str):
