@@ -478,6 +478,23 @@ class AbstractSubDomain(CartesianDiscretization):
         except AttributeError:
             return None
 
+    def is_distributed(self, dim):
+        """
+        True if `dim` is a distributed Dimension for this CartesianDiscretization,
+        False otherwise.
+        """
+        if self.grid:
+            return any(dim is d for d in self.grid.distributor.dimensions)
+        return False
+
+    @property
+    def comm(self):
+        """The MPI communicator inherited from the distributor."""
+        if self.grid:
+            return self.grid.comm
+        raise ValueError("`SubDomain` %s has no `Grid` attached and thus no `comm`"
+                         % self.name)
+
     def _arg_values(self, **kwargs):
         try:
             return self.grid._arg_values(**kwargs)
@@ -609,11 +626,13 @@ class SubDomain(AbstractSubDomain):
         # Keep track of the edges of the rank crossed by the SubDomain
         # Format is {dimension: {side: crosses}} or {(sides,): crosses}
         crosses = {}
+        in_rank = []
+        off_rank = []
         for dim, sdim in zip(self.grid.dimensions, self.dimensions):
             if sdim.is_Sub:
-                in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
-                off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
-                if in_rank or off_rank:
+                in_rank.append(dist_interval[dim].issuperset(sdim_interval[dim]))
+                off_rank.append(dist_interval[dim].isdisjoint(sdim_interval[dim]))
+                if in_rank[-1] or off_rank[-1]:
                     crosses[dim] = {LEFT: False, RIGHT: False}
                 elif sdim.local:
                     raise ValueError("SubDimension %s is local and cannot be"
@@ -624,7 +643,11 @@ class SubDomain(AbstractSubDomain):
                                     RIGHT: sdim_interval[dim].right
                                     > dist_interval[dim].right}
             else:
+                in_rank.append(False)
+                off_rank.append(False)
                 crosses[dim] = {LEFT: True, RIGHT: True}
+
+        self._off_rank = tuple(off_rank)
 
         for i in product([LEFT, CENTER, RIGHT], repeat=len(self.shape)):
             crosses[i] = all(crosses[d][s] for d, s in zip(self.grid.dimensions, i)
@@ -644,6 +667,16 @@ class SubDomain(AbstractSubDomain):
     @property
     def shape_local(self):
         return self._shape_local
+
+    @property
+    def in_rank(self):
+        """SubDomain is completely contained on this rank. Corresponds with dimensions."""
+        return self._in_rank
+
+    @property
+    def off_rank(self):
+        """SubDomain is not on this rank. Corresponds with dimensions."""
+        return self._off_rank
 
     def define(self, dimensions):
         """
