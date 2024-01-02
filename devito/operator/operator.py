@@ -222,6 +222,7 @@ class Operator(Callable):
         op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
+        print("Dspace", op._dspace)
         op._profiler = profiler
 
         return op
@@ -592,7 +593,7 @@ class Operator(Callable):
             args.update(i._arg_values(**kwargs))
 
         # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if isinstance(i, Grid)}
+        grids = {i for i in discretizations if i.is_Grid or i.is_SubDomain}
         if len(grids) > 1:
             # We loosely tolerate multiple Grids for backwards compatibility
             # with spacial subsampling, which should be revisited however. And
@@ -623,6 +624,7 @@ class Operator(Callable):
         args.update({k: v for k, v in kwargs.items() if k not in args})
 
         # Sanity check
+        print("Parameters", self.parameters)
         for p in self.parameters:
             p._arg_check(args, self._dspace[p], am=self._access_modes.get(p))
         for d in self.dimensions:
