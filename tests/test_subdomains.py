@@ -981,17 +981,13 @@ class TestSubdomainFunctionsParallel:
     # Note that some of the 'left' and 'right' SubDomains here are swapped
     # with 'middle' as they are local by default and so cannot be decomposed
     # across MPI ranks.
-    # @pytest.mark.parametrize('x', [('left', 3), ('middle', 0, 5),
-    #                                ('right', 3), ('middle', 5, 0),
-    #                                ('middle', 2, 3), ('middle', 1, 7),
-    #                                None])
-    # @pytest.mark.parametrize('y', [('left', 3), ('middle', 0, 5),
-    #                                ('right', 3), ('middle', 5, 0),
-    #                                ('middle', 2, 3), ('middle', 1, 7),
-    #                                None])
+    _mpi_subdomain_specs = [('left', 3), ('middle', 0, 5),
+                            ('right', 3), ('middle', 5, 0),
+                            ('middle', 2, 3), ('middle', 1, 7),
+                            None]
+    @pytest.mark.parametrize('x', _mpi_subdomain_specs)
+    @pytest.mark.parametrize('y', _mpi_subdomain_specs)
     @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parametrize('x', [('middle', 2, 3)])
-    @pytest.mark.parametrize('y', [('middle', 2, 3)])
     def test_function_data_shape_mpi(self, x, y):
         """
         Check that defining a Function on a subset of a Grid results in arrays
@@ -1010,27 +1006,35 @@ class TestSubdomainFunctionsParallel:
 
         check_data = g.data[slices]
 
-        print("g data")
-        print(g.data)
-        print("Check data")
-        print(check_data)
-        print("Data")
-        print(f.data)
-        print("Data with halo")
-        print(f.data_with_halo)
-        for d in grid.dimensions:
-            print('Inhalo %s:' % d.name, f._size_inhalo[d])
-            print('Outhalo %s:' % d.name, f._size_outhalo[d])
-
         assert np.count_nonzero(check_data) == f.data.size
 
         if np.count_nonzero(check_data) != 0:
             coords = np.nonzero(check_data)
             shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
             assert f.data.shape == shape
-            # assert f.data_with_halo.shape == tuple(i+4 for i in f.data.shape)
-            # assert f._distributor.shape == grid.shape
-            # for d in grid.dimensions:
-            #     assert all([i == 2 for i in f._size_inhalo[d]])
-            #     assert all([i == 2 for i in f._size_outhalo[d]])
-        assert False
+            assert f._distributor.glb_shape == grid.shape
+
+    @pytest.mark.parametrize('x', _mpi_subdomain_specs)
+    @pytest.mark.parametrize('y', _mpi_subdomain_specs)
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    def test_basic_function_mpi(self, x, y):
+        """
+        Test a trivial operator with a single Function
+        """
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        reduced_domain = ReducedDomain(x, y, grid=grid)
+
+        f = Function(name='f', grid=reduced_domain)
+        eq = Eq(f, f+1)
+
+        Operator(eq)()
+
+        assert(np.all(f.data[:] == 1))

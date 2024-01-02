@@ -335,10 +335,28 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
                  for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
-        print("Decomposition", self._decomposition)
+        # If defined on a SubDomain then need to adjust halo sizes if the subdomain is
+        # entirely contained within this rank or is not present on this rank
+        if self.grid and self.grid.is_SubDomain:
+            # If any are off rank, then all halo sizes should be zero
+            if any(self.grid.off_rank):
+                left = [0]*len(self.dimensions)
+                right = [0]*len(self.dimensions)
+            else:
+                # If the SubDimension is entirely within a rank, then outhalo size
+                # should match inhalo
+                left = [i if not self.grid._crosses[j][LEFT] else k for i, j, k
+                        in zip(self._size_inhalo.left,
+                               self._distributor.dimensions,
+                               left)]
+                right = [i if not self.grid._crosses[j][RIGHT] else k for i, j, k
+                         in zip(self._size_inhalo.right,
+                                self._distributor.dimensions,
+                                right)]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
+        # FIXME: Garbled conditional
         if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
             try:
                 warning_msg = """A space order of {0} and a halo size of {1} has been
@@ -348,8 +366,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                                     self._distributor.myrank,
                                                     min(self.grid.shape_local))
                 if not self._distributor.is_boundary_rank:
+                    # FIXME: Will throw an error if a Function on a Subdomain doesn't
+                    # enter any boundary ranks -> Needs to not do this
+                    print("First warning")
                     warning(warning_msg)
                 else:
+                    # FIXME: This will also throw false warnings. Currently checking that
+                    # boundary ranks do not have outhalo on interior side. But this wants
+                    # skipping if there is no cross on this side
+
+                    # FIXME: This narrowing down to distributed dimensions causes
+                    # SubDimensions to be incorrectly skipped
+                    print("Current dims:", self.dimensions, self._distributor.dimensions)
                     left_dist = [i for i, d in zip(left, self.dimensions) if d
                                  in self._distributor.dimensions]
                     right_dist = [i for i, d in zip(right, self.dimensions) if d
@@ -358,6 +386,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
+                            print("Second warning")
                             warning(warning_msg)
                             break
             except AttributeError:
@@ -568,13 +597,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Typically, this accessor won't be used in user code to set or read
         data values.
         """
+        if self._distributor:
+            dims = self._distributor.dimensions
+        else:
+            dims = self.dimensions
         self._is_halo_dirty = True
         offset = getattr(getattr(self, '_offset_%s' % region.name)[dim], side.name)
         size = getattr(getattr(self, '_size_%s' % region.name)[dim], side.name)
         index_array = [
             slice(offset, offset+size) if d is dim else slice(pl, s - pr)
             for d, s, (pl, pr)
-            in zip(self.dimensions, self.shape_allocated, self._padding)
+            in zip(dims, self.shape_allocated, self._padding)
         ]
         return np.asarray(self._data[index_array])
 
@@ -762,18 +795,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise RuntimeError("`%s` cannot perform a halo exchange as it has "
                                "no Grid attached" % self.name)
 
-        # TODO: Will need a function to check the distributor neighbourhood against where
-        # the subdomain crosses the edges of the rank
         if self.grid and self.grid.is_SubDomain:
             neighborhood = self._distributor.neighborhood(subdomain=self.grid)
         else:
             neighborhood = self._distributor.neighborhood()
         comm = self._distributor.comm
-
-        print("Rank: %s" % comm.Get_rank(), self.shape,
-              self._size_inhalo, self._size_outhalo)
-
-        print("Neighbourhood", neighborhood)
 
         for d in self._dist_dimensions:
             for i in [LEFT, RIGHT]:
@@ -787,11 +813,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
-                print("Rank: %s" % comm.Get_rank(), d, i, dest, source, shape)
                 recvbuf = np.ndarray(shape=shape, dtype=self.dtype)
 
                 # Communication
-                # FIXME: This line fails
                 comm.Sendrecv(sendbuf, dest=dest, recvbuf=recvbuf, source=source)
 
                 # Scatter received data
@@ -850,6 +874,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 
+        print("Values returned", values)
         return values
 
     def _arg_check(self, args, intervals, **kwargs):

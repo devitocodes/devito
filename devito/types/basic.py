@@ -1247,9 +1247,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         if self._distributor is None:
             return ()
         else:
-            # FIXME: Generating the correct halo size breaks things when subdomains are off rank
             dims = [d.parent if d.is_Sub else d for d in self.dimensions]
-            # dims = self.dimensions
             return tuple(d for d in dims if d in self._distributor.dimensions)
 
     @cached_property
