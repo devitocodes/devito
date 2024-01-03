@@ -101,7 +101,6 @@ RUN rm -rf /tmp/ucx && rm -rf /tmp/ompi
 # Adding OpenMPI and UCX to Environment
 ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
     LD_LIBRARY_PATH=$OMPI_HOME/lib:$UCX_HOME/lib:$LD_LIBRARY_PATH \
-    LIBRARY_PATH=$OMPI_HOME/lib:$UCX_HOME/lib:$LIBRARY_PATH \
     C_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$C_INCLUDE_PATH \ 
     CPLUS_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$CPLUS_INCLUDE_PATH \ 
     CPATH=$OMPI_HOME/include:$UCX_HOME/include:$CPATH \
