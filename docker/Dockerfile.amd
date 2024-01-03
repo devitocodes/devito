@@ -51,7 +51,6 @@ RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/l
 # Adding rocm/cmake to the Environment 
 ENV PATH=$ROCM_HOME/bin:$ROCM_HOME/profiler/bin:$ROCM_HOME/opencl/bin:/opt/cmake/bin:$PATH \
     LD_LIBRARY_PATH=$ROCM_HOME/lib:$ROCM_HOME/lib64:$ROCM_HOME/llvm/lib:$LD_LIBRARY_PATH \
-    LIBRARY_PATH=$ROCM_HOME/lib:$ROCM_HOME/lib64:$LIBRARY_PATH \
     C_INCLUDE_PATH=$ROCM_HOME/include:$C_INCLUDE_PATH \
     CPLUS_INCLUDE_PATH=$ROCM_HOME/include:$CPLUS_INCLUDE_PATH \
     CPATH=$ROCM_HOME/include:$CPATH \
