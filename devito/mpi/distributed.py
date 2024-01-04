@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
 from math import ceil, pow
-from sympy import factorint
+from sympy import factorint, Interval
 
 import atexit
 
@@ -12,7 +12,7 @@ from cgen import Struct, Value
 
 from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered
+from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
 from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
@@ -170,10 +170,68 @@ class AbstractDistributor(ABC):
         return self.decomposition[dim].index_glb_to_loc(*args)
 
 
-class Distributor(AbstractDistributor):
+class DenseDistributor(AbstractDistributor):
 
     """
     Decompose a domain over a set of MPI processes.
+
+    Notes
+    -----
+    This is an abstract class, which defines the interface that
+    all subclasses are expected to implement.
+    """
+
+    @property
+    def comm(self):
+        return self._comm
+
+    @property
+    def myrank(self):
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.rank
+        else:
+            return 0
+
+    @property
+    def mycoords(self):
+        if self.comm is not MPI.COMM_NULL:
+            return tuple(self.comm.coords)
+        else:
+            return tuple(0 for _ in range(self.ndim))
+
+    @property
+    def nprocs(self):
+        if self.comm is not MPI.COMM_NULL:
+            return self.comm.size
+        else:
+            return 1
+
+    @property
+    def nprocs_local(self):
+        if self.comm is not MPI.COMM_NULL:
+            local_comm = MPI.Comm.Split_type(self.comm, MPI.COMM_TYPE_SHARED)
+            node_size = local_comm.Get_size()
+            local_comm.Free()
+            return node_size
+        else:
+            return 1
+
+    @property
+    def topology(self):
+        return self._topology
+
+    @property
+    def topology_logical(self):
+        if isinstance(self.topology, CustomTopology):
+            return self.topology.logical
+        else:
+            return None
+
+
+class Distributor(DenseDistributor):
+
+    """
+    Decompose a grid over a set of MPI processes.
 
     Parameters
     ----------
@@ -232,52 +290,6 @@ class Distributor(AbstractDistributor):
         # The domain decomposition
         self._decomposition = [Decomposition(np.array_split(range(i), j), c)
                                for i, j, c in zip(shape, self.topology, self.mycoords)]
-
-    @property
-    def comm(self):
-        return self._comm
-
-    @property
-    def myrank(self):
-        if self.comm is not MPI.COMM_NULL:
-            return self.comm.rank
-        else:
-            return 0
-
-    @property
-    def mycoords(self):
-        if self.comm is not MPI.COMM_NULL:
-            return tuple(self.comm.coords)
-        else:
-            return tuple(0 for _ in range(self.ndim))
-
-    @property
-    def nprocs(self):
-        if self.comm is not MPI.COMM_NULL:
-            return self.comm.size
-        else:
-            return 1
-
-    @property
-    def nprocs_local(self):
-        if self.comm is not MPI.COMM_NULL:
-            local_comm = MPI.Comm.Split_type(self.comm, MPI.COMM_TYPE_SHARED)
-            node_size = local_comm.Get_size()
-            local_comm.Free()
-            return node_size
-        else:
-            return 1
-
-    @property
-    def topology(self):
-        return self._topology
-
-    @property
-    def topology_logical(self):
-        if isinstance(self.topology, CustomTopology):
-            return self.topology.logical
-        else:
-            return None
 
     @cached_property
     def is_boundary_rank(self):
@@ -387,6 +399,7 @@ class Distributor(AbstractDistributor):
         is used to check the calling MPI rank's neighborhood in the decomposed grid
         against the footprint of the subdomain on this grid to identify no-ops.
         """
+        # TODO: Remove all the subdomain stuff
         if subdomain:
             crosses = subdomain._crosses
         # Set up horizontal neighbours
@@ -425,6 +438,141 @@ class Distributor(AbstractDistributor):
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
                            comm or self.comm)
+
+
+class SubDomainDistributor(DenseDistributor):
+
+    """
+    Decompose a subdomain over a set of MPI processes.
+
+    Parameters
+    ----------
+    subdomain : SubDomain
+        The subdomain to be decomposed
+
+    Notes
+    -----
+    This class is used internally by Devito for distributing
+    Functions defined on SubDomains.
+    """
+
+    def __init__(self, subdomain):
+        # NOTE: Does not want to keep reference to the SubDomain
+        # Since SubDomain will point to this SubDomainDistributor
+        # Furthermore Distributor does not point to the Grid
+
+        super().__init__(subdomain.shape, subdomain.dimensions)
+
+        self._dimension_map = subdomain.dimension_map
+
+        self._parent = subdomain.grid.distributor
+
+        self._comm = self.parent.comm
+        self._topology = self.parent.topology
+        self._input_comm = self.parent.input_comm
+
+        # Want to calculate and keep track of crosses here
+        self.__align_parent__()
+
+    def __align_parent__(self):
+        """
+        Routines for determining alignment of the SubDomain which this
+        SubDomainDistributor decomposes relative to the overarching
+        decomposition of the grid.
+        """
+        dist_interval = {dim: Interval(s.start, s.stop-1)
+                         for dim, s in self.parent.glb_slices.items()}
+
+        # Assumes no override of x_m and x_M supplied to operator
+        bounds_map = {**{dim.symbolic_min: 0
+                         for dim in self.parent.dimensions},
+                      **{dim.symbolic_max: sha-1
+                         for dim, sha in zip(self.parent.dimensions,
+                                             self.parent.shape)}}
+
+        sdim_interval = {dim:
+                         (sdim._interval.subs({**{k: v for k, v
+                                                  in sdim._thickness_map.items()
+                                                  if v is not None},
+                                               **bounds_map})
+                          if sdim.is_Sub else None)
+                         for dim, sdim in zip(self.parent.dimensions, self.dimensions)}
+
+        self._intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
+                                 else dist_interval[dim].intersect(sdim_interval[dim]))
+                                for dim in self.parent.dimensions)
+
+        # Keep track of the edges of the rank crossed by the SubDomain
+        # Format is {dimension: {side: crosses}} or {(sides,): crosses}
+        crosses = {}
+        off_rank = []
+        for dim, sdim in zip(self.parent.dimensions, self.dimensions):
+            if sdim.is_Sub:
+                i_rank = dist_interval[dim].issuperset(sdim_interval[dim])
+                o_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
+                off_rank.append(o_rank)
+                if i_rank or o_rank:
+                    crosses[dim] = {LEFT: False, RIGHT: False}
+                elif sdim.local:
+                    raise ValueError("SubDimension %s is local and cannot be"
+                                     " decomposed across MPI ranks" % dim)
+                else:
+                    crosses[dim] = {LEFT: sdim_interval[dim].left
+                                    < dist_interval[dim].left,
+                                    RIGHT: sdim_interval[dim].right
+                                    > dist_interval[dim].right}
+            else:
+                crosses[dim] = {LEFT: True, RIGHT: True}
+
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.shape)):
+            crosses[i] = all(crosses[d][s] for d, s in zip(self.parent.dimensions, i)
+                             if s in crosses[d])  # Skip over CENTER
+
+        self._crosses = frozendict(crosses)
+
+        self._off_rank = any(off_rank)
+
+    @property
+    def parent(self):
+        """The parent distributor of this SubDomainDistributor"""
+        return self._parent
+
+    @property
+    def dimension_map(self):
+        return self._dimension_map
+
+    @property
+    def intervals(self):
+        """The interval spanned by the SubDomain in each dimension on this rank"""
+        return self._intervals
+
+    @property
+    def crosses(self):
+        """
+        A mapper ``M`` indicating the sides of this MPI rank crossed by the SubDomain.
+        Let
+
+            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the decomposed
+              Dimensions.
+            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
+            * ``c`` be a bool indicating whether the SubDomain crosses the edge of the
+              rank on this side.
+
+        Then ``M`` can be indexed in two ways:
+
+            * ``M[d] -> (s -> c)``; that is, ``M[d]`` returns a further mapper
+              (from DataSide to bool) used to determine whether the SubDomain crosses
+              the edge of the rank on this side.
+            * ``M[(s0, s1, ..., sn)] -> c``, where ``s0`` is the DataSide along
+              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
+              determine whether the SubDomain crosses the edge of the rank on this side.
+              """
+        return self._crosses
+
+    @property
+    def off_rank(self):
+        """True if SubDomain is not present on this MPI rank"""
+        return self._off_rank
 
 
 class SparseDistributor(AbstractDistributor):
