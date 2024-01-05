@@ -1250,7 +1250,7 @@ class MPIMsgEnriched(MPIMsg):
         super()._arg_defaults(allocator, alias, args=args)
 
         f = alias or self.target.c0
-        neighborhood = f.grid.distributor.neighborhood()
+        neighborhood = f.grid.distributor.neighborhood
 
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
