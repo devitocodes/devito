@@ -6,6 +6,7 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
+from devito.arch import Cpu64
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
@@ -830,17 +831,21 @@ def optimize_schedule_rotations(schedule, sregistry):
 
 def optimize_schedule_padding(schedule, meta, platform):
     """
-    Round up the innermost IterationInterval of the tensor temporaries IterationSpace
-    to a multiple of the SIMD vector length. This is not always possible though (it
-    depends on how much halo is safely accessible in all read Functions).
+    Attempt roundin up the innermost IterationInterval of the tensor temporaries
+    IterationSpace to a multiple of the SIMD vector length.
     """
+    if not isinstance(platform, Cpu64):
+        return schedule
+
+    #TODO: REMOVE ROUNDABLE AND PERFORM ANALYSIS HERE
+
     processed = []
     for i in schedule:
         try:
             it = i.ispace.itintervals[-1]
             if it.dim is i.writeto[-1].dim and ROUNDABLE in meta.properties[it.dim]:
                 vl = platform.simd_items_per_reg(meta.dtype)
-                ispace = i.ispace.add(Interval(it.dim, 0, it.size % vl))
+                ispace = i.ispace.add(Interval(it.dim, 0, vl - it.size % vl))
             else:
                 ispace = i.ispace
             processed.append(ScheduledAlias(

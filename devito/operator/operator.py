@@ -624,7 +624,8 @@ class Operator(Callable):
 
         # Sanity check
         for p in self.parameters:
-            p._arg_check(args, self._dspace[p], am=self._access_modes.get(p))
+            p._arg_check(args, self._dspace[p], am=self._access_modes.get(p),
+                         **kwargs)
         for d in self.dimensions:
             if d.is_Derived:
                 d._arg_check(args, self._dspace[p])

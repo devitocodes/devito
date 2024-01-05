@@ -839,8 +839,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     True if data is allocated as a single, contiguous chunk of memory.
     """
 
-    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'alias',
-                   'space', 'function')
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
+                   'alias', 'space', 'function')
 
     def __new__(cls, *args, **kwargs):
         # Preprocess arguments
@@ -930,10 +930,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return class_key, args, exp, coeff
 
     def __init_finalize__(self, *args, **kwargs):
-        # Setup halo and padding regions
+        # Setup halo, padding, and ghost regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
+        self._ghost = self.__ghost_setup__(**kwargs)
 
         # There may or may not be a `Grid`
         self._grid = kwargs.get('grid')
@@ -987,6 +988,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def __padding_setup__(self, **kwargs):
         padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __ghost_setup__(self, **kwargs):
+        return (0, 0)
 
     def __distributor_setup__(self, **kwargs):
         # There may or may not be a `Distributor`. In the latter case, the
@@ -1172,6 +1176,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return self._padding
 
     @property
+    def ghost(self):
+        return self._ghost
+
+    @property
     def is_const(self):
         return False
 
@@ -1265,6 +1273,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _size_ghost(self):
+        """
+        Number of points in the ghost region, that is the two areas before
+        and after the allocated data.
+        """
+        return Size(*self._ghost)
 
     @cached_property
     def _offset_domain(self):

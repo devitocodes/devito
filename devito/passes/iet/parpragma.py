@@ -41,15 +41,15 @@ class PragmaSimdTransformer(PragmaTransformer):
         return True
 
     @property
-    def simd_reg_size(self):
-        return self.platform.simd_reg_size
+    def simd_reg_nbytes(self):
+        return self.platform.simd_reg_nbytes
 
     def _make_simd_pragma(self, iet):
         indexeds = FindSymbols('indexeds').visit(iet)
         aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
         if aligned:
             simd = self.lang['simd-for-aligned']
-            simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_size))
+            simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_nbytes))
         else:
             simd = as_tuple(self.lang['simd-for'])
 

@@ -126,7 +126,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 self._data = self._DataType(self.shape_allocated, self.dtype,
                                             modulo=self._mask_modulo,
                                             allocator=self._allocator,
-                                            distributor=self._distributor)
+                                            distributor=self._distributor,
+                                            padding=self._size_ghost)
 
                 # Initialize data
                 if self._first_touch:
@@ -836,32 +837,40 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Raises
         ------
         InvalidArgument
-            If, given the runtime values `args`, an out-of-bounds array
-            access would be performed, or if shape/dtype don't match with
-            self's shape/dtype.
+            If an incompatibility is detected.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
 
-        key = args[self.name]
-        if len(key.shape) != self.ndim:
+        obj = kwargs.get(self.name, self)
+        data = args[self.name]
+
+        if len(data.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
                                   "dimensions %s" %
-                                  (key.shape, self.name, self.dimensions))
-        if key.dtype != self.dtype:
+                                  (data.shape, self.name, self.dimensions))
+        if data.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
-                    "Function data type %s" % (key.dtype, self.name, self.dtype))
+                    "Function data type %s" % (data.dtype, self.name, self.dtype))
 
-        for i, s in zip(self.dimensions, key.shape):
-            i._arg_check(args, s, intervals[i])
+        if self._honors_autopadding and not obj._honors_autopadding:
+            raise InvalidArgument("Runtime override `%s` does not honour "
+                                  "`autopadding`" % new.name)
+
+        # Check each Dimension for potential OOB accesses
+        # NOTE: The contiguous dimension is special in that it can rely on the
+        # `ghost` region too
+        safezone = [0]*(self.ndim - 1) + [obj._size_ghost.right]
+        for i, s, z in zip(self.dimensions, data.shape, safezone):
+            i._arg_check(args, s + z, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
-           self.size - 1 >= np.iinfo(np.int32).max:
+           data.size - 1 >= np.iinfo(np.int32).max:
             raise InvalidArgument("`%s`, with its %d elements, may be too big for "
                                   "int32 pointer arithmetic, which might cause an "
                                   "overflow. Use the 'index-mode=int64' option"
-                                  % (self, self.size))
+                                  % (self, data.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
@@ -1119,37 +1128,38 @@ class Function(DiscreteFunction):
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
+
         if padding is None:
             if kwargs.get('autopadding', configuration['autopadding']):
-                # Auto-padding
-                # 0-padding in all Dimensions except in the Fastest Varying Dimension,
-                # `fvd`, which is the innermost one
-                padding = [(0, 0) for i in self.dimensions[:-1]]
-                fvd = self.dimensions[-1]
-                # Let UB be a function that rounds up a value `x` to the nearest
-                # multiple of the SIMD vector length, `vl`
-                vl = configuration['platform'].simd_items_per_reg(self.dtype)
-                ub = lambda x: int(ceil(x / vl)) * vl
-                # Given the HALO and DOMAIN sizes, the right-PADDING is such that:
-                # * the `fvd` size is a multiple of `vl`
-                # * it contains *at least* `vl` points
-                # This way:
-                # * all first grid points along the `fvd` will be cache-aligned
-                # * there is enough room to round up the loop trip counts to maximize
-                #   the effectiveness SIMD vectorization
-                fvd_pad_size = (ub(self._size_nopad[fvd]) - self._size_nopad[fvd]) + vl
-                padding.append((0, fvd_pad_size))
+                # Auto-padding is to maximize the efficiency of memory accesses:
+                # * Perform as many aligned accesses as possible
+                # * Ensure there's enough room to perform memory transactions
+                #   of maximum size. This essentially means that the remainder
+                #   DOMAIN region (i.e., the last block of elements that is not
+                #   a multiple of the maximum memory transaction size) plus the
+                #   NODOMAIN size has to be as large as the maximum memory
+                #   transaction size.
+                mmts = configuration['platform'].max_mem_trans_size(self.dtype)
+
+                d = self.dimensions[-1]
+                pad_size = mmts - self._size_nopad[d] % mmts
+                padding = [(0, 0) for i in self.dimensions[:-1]] + [(0, pad_size)]
             else:
                 padding = tuple((0, 0) for d in self.dimensions)
+
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
+
         elif isinstance(padding, int):
             padding = tuple((0, padding) if d.is_Space else (0, 0)
                             for d in self.dimensions)
+
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
+
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
