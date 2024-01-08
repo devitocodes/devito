@@ -134,20 +134,15 @@ class Array(ArrayBasic):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
-            padding = self.__padding_auto_setup__(**kwargs)
-
+            padding = ((0, 0),)*self.ndim
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
-
         elif isinstance(padding, int):
             padding = tuple((0, padding) for _ in range(self.ndim))
-
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
-
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property

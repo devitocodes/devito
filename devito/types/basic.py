@@ -990,14 +990,32 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
         return DimensionTuple(*padding, getters=self.dimensions)
 
-    def __padding_auto_setup__(self, **kwargs):
+    def __padding_setup_smart__(self, **kwargs):
+        nopadding = ((0, 0),)*self.ndim
+
         if kwargs.get('autopadding', configuration['autopadding']):
+            candidates = self.space_dimensions
+            if not candidates:
+                return nopadding
+
             mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-            d = self.dimensions[-1]
-            pad_size = mmts - self._size_nopad[d] % mmts
-            return ((0, 0),)*(self.ndim - 1) + ((0, pad_size),)
+            hint = configuration['platform'].suggested_alignment
+
+            if hint == '1-stride':
+                d = candidates[-1]
+            elif hint == 'max-stride':
+                d = candidates[0]
+            else:
+                assert False, 'Unknown platform hint `%s`' % str(hint)
+
+            dpadding = (0, mmts - self._size_nopad[d] % mmts)
+
+            padding = [(0, 0)]*self.ndim
+            padding[self.dimensions.index(d)] = dpadding
+
+            return tuple(padding)
         else:
-            return ((0, 0),)*self.ndim
+            return nopadding
 
     def __ghost_setup__(self, **kwargs):
         return (0, 0)
@@ -1039,6 +1057,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
         return self._dimensions
+
+    @cached_property
+    def space_dimensions(self):
+        """Tuple of Dimensions defining the physical space."""
+        return tuple(d for d in self.dimensions if d.is_Space)
 
     @property
     def base(self):

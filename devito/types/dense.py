@@ -628,11 +628,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return tuple(self._distributor.glb_slices.get(d, slice(0, s))
                          for s, d in zip(self.shape, self.dimensions))
 
-    @cached_property
-    def space_dimensions(self):
-        """Tuple of Dimensions defining the physical space."""
-        return tuple(d for d in self.dimensions if d.is_Space)
-
     @property
     def initializer(self):
         if isinstance(self._data, np.ndarray):
@@ -921,8 +916,6 @@ class Function(DiscreteFunction):
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
-        .. deprecated:: shouldn't be used; padding is now automatically inserted.
-
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
 
@@ -1121,23 +1114,17 @@ class Function(DiscreteFunction):
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
-
         if padding is None:
-            padding = self.__padding_auto_setup__(**kwargs)
-
+            padding = self.__padding_setup_smart__(**kwargs)
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
-
         elif isinstance(padding, int):
             padding = tuple((0, padding) if d.is_Space else (0, 0)
                             for d in self.dimensions)
-
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
-
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -1246,8 +1233,6 @@ class TimeFunction(Function):
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
-        .. deprecated:: shouldn't be used; padding is now automatically inserted.
-
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
 
