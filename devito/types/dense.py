@@ -121,6 +121,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
+                from mpi4py import MPI
+                print("Shape allocated on rank %s:" % MPI.COMM_WORLD.Get_rank(), self.shape_allocated)
+                print("Size halo on rank %s:" % MPI.COMM_WORLD.Get_rank(), self._size_halo)
+                print("Size padding on rank %s:" % MPI.COMM_WORLD.Get_rank(), self._size_padding)
+                print("Symbolic sizes on rank %s:" % MPI.COMM_WORLD.Get_rank(), [i.symbolic_size for i in self.dimensions])
+
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 
@@ -324,7 +330,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def _size_outhalo(self):
         """Number of points in the outer halo region."""
-        print("Started calculating halo")
 
         if self._distributor is None:
             # Computational domain is not distributed and hence the outhalo
@@ -378,7 +383,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                     # FIXME: This narrowing down to distributed dimensions causes
                     # SubDimensions to be incorrectly skipped
-                    print("Current dims:", self.dimensions, self._distributor.dimensions)
                     left_dist = [i for i, d in zip(left, self.dimensions) if d
                                  in self._distributor.dimensions]
                     right_dist = [i for i, d in zip(right, self.dimensions) if d
@@ -393,7 +397,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             except AttributeError:
                 pass
 
-        # print(DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right))
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @property
@@ -437,7 +440,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self._distributor is None:
             return (None,)*self.ndim
         mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
-        print("Mapper", mapper)
         return tuple(mapper.get(d) for d in self.dimensions)
 
     @cached_property
@@ -525,9 +527,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
-        print("Halo exchange completed")
-        print("Mask outhalo", self._mask_outhalo)  # NOTE: This seems to be the break point
-        print("Decomposition outhalo", self._decomposition_outhalo)
         return self._data._global(self._mask_outhalo, self._decomposition_outhalo)
 
     _data_with_outhalo = data_with_halo
@@ -877,7 +876,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         else:
             values = self._arg_defaults(alias=self).reduce_all()
 
-        print("Values returned", values)
         return values
 
     def _arg_check(self, args, intervals, **kwargs):
@@ -902,8 +900,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (data.dtype, self.name, self.dtype))
 
+<<<<<<< HEAD
         # Check each Dimension for potential OOB accesses
         for i, s in zip(self.dimensions, data.shape):
+=======
+        for i, s in zip(self.dimensions, key.shape):
+            # NOTE: This must be where the arg check occurs
+>>>>>>> 4ede6a6fd (dsl: Fix halo size on empty ranks with MPI)
             i._arg_check(args, s, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \
@@ -1159,6 +1162,10 @@ class Function(DiscreteFunction):
         return shape
 
     def __halo_setup__(self, **kwargs):
+        if self._distributor and self._distributor.is_empty_rank:
+            # No need to assign a halo on a completely empty rank
+            return DimensionTuple(*[(0, 0) for i in self.dimensions],
+                                  getters=self.dimensions)
         halo = kwargs.get('halo')
         if halo is not None:
             if isinstance(halo, DimensionTuple):
