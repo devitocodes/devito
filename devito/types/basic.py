@@ -935,6 +935,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     def __init_finalize__(self, *args, **kwargs):
         # Setup halo, padding, and ghost regions
+        # A `Distributor` to handle domain decomposition
+        self._distributor = self.__distributor_setup__(**kwargs)
+
+        # Setup halo and padding regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
@@ -942,9 +946,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # There may or may not be a `Grid`
         self._grid = kwargs.get('grid')
-
-        # A `Distributor` to handle domain decomposition
-        self._distributor = self.__distributor_setup__(**kwargs)
 
         # Symbol properties
 

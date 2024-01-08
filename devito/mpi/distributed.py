@@ -170,6 +170,11 @@ class AbstractDistributor(ABC):
                 return args[0]
         return self.decomposition[dim].index_glb_to_loc(*args)
 
+    @property
+    def is_empty_rank(self):
+        """No data should be assigned on this MPI rank"""
+        return False
+
 
 class DenseDistributor(AbstractDistributor):
 
@@ -474,7 +479,6 @@ class SubDomainDistributor(DenseDistributor):
         SubDomainDistributor decomposes relative to the overarching
         decomposition of the grid.
         """
-        # TODO: Really needs comments and tidy up
         dist_interval = {dim: Interval(s.start, s.stop-1)
                          for dim, s in self.parent.glb_slices.items()}
 
@@ -503,7 +507,6 @@ class SubDomainDistributor(DenseDistributor):
 
         self._decomposition = [Decomposition(d, c)
                                for d, c in zip(decompositions, self.mycoords)]
-        print(self.decomposition)
 
         self._intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
                                  else dist_interval[dim].intersect(sdim_interval[dim]))
@@ -511,28 +514,30 @@ class SubDomainDistributor(DenseDistributor):
 
         # Keep track of the edges of the rank crossed by the SubDomain
         # Format is {dimension: {side: crosses}} or {(sides,): crosses}
+        # (matches neighborhood)
         crosses = {}
         off_rank = []
-        for dim, sdim in zip(self.parent.dimensions, self.dimensions):
+        for dim in self.parent.dimensions:
+            sdim = self.dimension_map[dim]
             if sdim.is_Sub:
                 i_rank = dist_interval[dim].issuperset(sdim_interval[dim])
                 o_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
                 off_rank.append(o_rank)
                 if i_rank or o_rank:
-                    crosses[dim] = {LEFT: False, RIGHT: False}
+                    crosses[sdim] = {LEFT: False, RIGHT: False}
                 elif sdim.local:
                     raise ValueError("SubDimension %s is local and cannot be"
                                      " decomposed across MPI ranks" % dim)
                 else:
-                    crosses[dim] = {LEFT: sdim_interval[dim].left
-                                    < dist_interval[dim].left,
-                                    RIGHT: sdim_interval[dim].right
-                                    > dist_interval[dim].right}
+                    crosses[sdim] = {LEFT: sdim_interval[dim].left
+                                     < dist_interval[dim].left,
+                                     RIGHT: sdim_interval[dim].right
+                                     > dist_interval[dim].right}
             else:
-                crosses[dim] = {LEFT: True, RIGHT: True}
+                crosses[sdim] = {LEFT: True, RIGHT: True}
 
-        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.parent.dimensions)):
-            crosses[i] = all(crosses[d][s] for d, s in zip(self.parent.dimensions, i)
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
+            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
                              if s in crosses[d])  # Skip over CENTER
 
         self._crosses = frozendict(crosses)
@@ -586,9 +591,10 @@ class SubDomainDistributor(DenseDistributor):
         """
         MPI rank interfaces with the boundary of the subdomain.
         """
-        return any(not all(self.crosses[d].values()) for d in self.parent.dimensions)
-    
-    def neighborhood(self, subdomain=None):
+        return any(not all(self.crosses[d].values()) for d in self.dimensions)
+
+    @property
+    def neighborhood(self):
         """
         A mapper ``M`` describing the calling MPI rank's neighborhood in the
         decomposed grid. Let
@@ -607,28 +613,20 @@ class SubDomainDistributor(DenseDistributor):
               ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
               useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
               gives the top-left neighbour in a 2D grid).
-
-        An optional `subdomain` parameter allows a `SubDomain` to be passed. This
-        is used to check the calling MPI rank's neighborhood in the decomposed grid
-        against the footprint of the subdomain on this grid to identify no-ops.
         """
-        # TODO: Remove all the subdomain stuff
-        if subdomain:
-            crosses = subdomain._crosses
-        # Set up horizontal neighbours
         shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
         ret = {}
         for d, (src, dest) in shifts.items():
             ret[d] = {}
-            ret[d][LEFT] = MPI.PROC_NULL if subdomain and not crosses[d][LEFT] else src
-            ret[d][RIGHT] = MPI.PROC_NULL if subdomain and not crosses[d][RIGHT] else dest
+            ret[d][LEFT] = MPI.PROC_NULL if not self.crosses[d][LEFT] else src
+            ret[d][RIGHT] = MPI.PROC_NULL if not self.crosses[d][RIGHT] else dest
 
         # Set up diagonal neighbours
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
             neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
 
             if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)) \
-               or subdomain and not crosses[i]:
+               or not self.crosses[i]:
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
