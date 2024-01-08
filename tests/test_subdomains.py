@@ -807,7 +807,7 @@ class TestSubdomainFunctions:
         assert f.dimensions == reduced_domain.dimensions
         assert f.data.shape == shape
         assert f.data_with_halo.shape == tuple(i+2*so for i in f.data.shape)
-        assert f._distributor.shape == grid.shape
+        assert f._distributor.shape == reduced_domain.shape
         for d in grid.dimensions:
             assert all([i == so for i in f._size_inhalo[d]])
             assert all([i == so for i in f._size_outhalo[d]])
