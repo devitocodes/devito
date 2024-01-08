@@ -853,16 +853,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             warning("Data type %s of runtime value `%s` does not match the "
                     "Function data type %s" % (data.dtype, self.name, self.dtype))
 
-        if self._honors_autopadding and not obj._honors_autopadding:
-            raise InvalidArgument("Runtime override `%s` does not honour "
-                                  "`autopadding`" % new.name)
-
         # Check each Dimension for potential OOB accesses
-        # NOTE: The contiguous dimension is special in that it can rely on the
-        # `ghost` region too
-        safezone = [0]*(self.ndim - 1) + [obj._size_ghost.right]
-        for i, s, z in zip(self.dimensions, data.shape, safezone):
-            i._arg_check(args, s + z, intervals[i])
+        for i, s in zip(self.dimensions, data.shape):
+            i._arg_check(args, s, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
