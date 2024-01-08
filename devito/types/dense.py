@@ -1123,22 +1123,7 @@ class Function(DiscreteFunction):
         padding = kwargs.get('padding')
 
         if padding is None:
-            if kwargs.get('autopadding', configuration['autopadding']):
-                # Auto-padding is to maximize the efficiency of memory accesses:
-                # * Perform as many aligned accesses as possible
-                # * Ensure there's enough room to perform memory transactions
-                #   of maximum size. This essentially means that the remainder
-                #   DOMAIN region (i.e., the last block of elements that is not
-                #   a multiple of the maximum memory transaction size) plus the
-                #   NODOMAIN size has to be as large as the maximum memory
-                #   transaction size.
-                mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-
-                d = self.dimensions[-1]
-                pad_size = mmts - self._size_nopad[d] % mmts
-                padding = [(0, 0) for i in self.dimensions[:-1]] + [(0, pad_size)]
-            else:
-                padding = tuple((0, 0) for d in self.dimensions)
+            padding = self.__padding_auto_setup__(**kwargs)
 
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)

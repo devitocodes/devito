@@ -4,7 +4,6 @@ import numpy as np
 import sympy
 from sympy.core.core import ordering_of_classes
 
-from devito.parameters import configuration
 from devito.types import Array, CompositeObject, DimensionTuple, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
@@ -194,41 +193,7 @@ class TempArray(Array):
     sub-expressions.
     """
 
-    def __padding_setup__(self, **kwargs):
-        #TODO: CURRENTLY IDENTICAL TO dense.__padding_setup__
-        #TODO: MUST BE FACTORED OUT INTO A COMMON BASE CLASS
-        padding = kwargs.get('padding')
-        if padding is None:
-            if kwargs.get('autopadding', configuration['autopadding']):
-                # Auto-padding is to maximize the efficiency of memory accesses:
-                # * Perform as many aligned accesses as possible
-                # * Ensure there's enough room to perform memory transactions
-                #   of maximum size. This essentially means that the remainder
-                #   DOMAIN region (i.e., the last block of elements that is not
-                #   a multiple of the maximum memory transaction size) plus the
-                #   NODOMAIN size has to be as large as the maximum memory
-                #   transaction size.
-                mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-
-                d = self.dimensions[-1]
-                pad_size = mmts - self._size_nopad[d] % mmts
-                padding = [(0, 0) for i in self.dimensions[:-1]] + [(0, pad_size)]
-            else:
-                padding = tuple((0, 0) for d in self.dimensions)
-
-        elif isinstance(padding, DimensionTuple):
-            padding = tuple(padding[d] for d in self.dimensions)
-
-        elif isinstance(padding, int):
-            padding = tuple((0, padding) for _ in range(self.ndim))
-
-        elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
-
-        else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
-        return DimensionTuple(*padding, getters=self.dimensions)
+    pass
 
 
 class Fence(object):

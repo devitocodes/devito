@@ -12,6 +12,7 @@ from sympy.core.decorators import call_highest_priority
 from cached_property import cached_property
 
 from devito.data import default_allocator
+from devito.parameters import configuration
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
                           frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
@@ -982,12 +983,21 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return None
 
     def __halo_setup__(self, **kwargs):
-        halo = tuple(kwargs.get('halo', [(0, 0) for i in range(self.ndim)]))
+        halo = tuple(kwargs.get('halo', ((0, 0),)*self.ndim))
         return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
+        padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __padding_auto_setup__(self, **kwargs):
+        if kwargs.get('autopadding', configuration['autopadding']):
+            mmts = configuration['platform'].max_mem_trans_size(self.dtype)
+            d = self.dimensions[-1]
+            pad_size = mmts - self._size_nopad[d] % mmts
+            return ((0, 0),)*(self.ndim - 1) + ((0, pad_size),)
+        else:
+            return ((0, 0),)*self.ndim
 
     def __ghost_setup__(self, **kwargs):
         return (0, 0)
