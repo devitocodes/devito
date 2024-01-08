@@ -1000,16 +1000,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         except AttributeError:
             return kwargs.get('distributor')
 
-    @cached_property
-    def _honors_autopadding(self):
-        """
-        True if the actual padding is greater or equal than whatever autopadding
-        would produce, False otherwise.
-        """
-        autopadding = self.__padding_setup__(autopadding=True)
-        return all(l0 >= l1 and r0 >= r1
-                   for (l0, r0), (l1, r1) in zip(self.padding, autopadding))
-
     @property
     def name(self):
         """The name of the object."""
