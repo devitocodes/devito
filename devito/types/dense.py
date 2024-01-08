@@ -311,6 +311,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def _size_outhalo(self):
         """Number of points in the outer halo region."""
+        print("Started calculating halo")
 
         if self._distributor is None:
             # Computational domain is not distributed and hence the outhalo
@@ -322,29 +323,29 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
                  for i, j in zip(self._decomposition, self._size_inhalo.right)]
 
+        # TODO: Establish if the following is required
         # If defined on a SubDomain then need to adjust halo sizes if the subdomain is
         # entirely contained within this rank or is not present on this rank
-        if self.grid and self.grid.is_SubDomain:
-            # If any are off rank, then all halo sizes should be zero
-            if any(self.grid.off_rank):
-                left = [0]*len(self.dimensions)
-                right = [0]*len(self.dimensions)
-            else:
-                # If the SubDimension is entirely within a rank, then outhalo size
-                # should match inhalo
-                left = [i if not self.grid._crosses[j][LEFT] else k for i, j, k
-                        in zip(self._size_inhalo.left,
-                               self._distributor.dimensions,
-                               left)]
-                right = [i if not self.grid._crosses[j][RIGHT] else k for i, j, k
-                         in zip(self._size_inhalo.right,
-                                self._distributor.dimensions,
-                                right)]
+        # if self.grid and self.grid.is_SubDomain:
+        #     # If any are off rank, then all halo sizes should be zero
+        #     if any(self.grid.off_rank):
+        #         left = [0]*len(self.dimensions)
+        #         right = [0]*len(self.dimensions)
+        #     else:
+        #         # If the SubDimension is entirely within a rank, then outhalo size
+        #         # should match inhalo
+        #         left = [i if not self.grid._crosses[j][LEFT] else k for i, j, k
+        #                 in zip(self._size_inhalo.left,
+        #                        self._distributor.dimensions,
+        #                        left)]
+        #         right = [i if not self.grid._crosses[j][RIGHT] else k for i, j, k
+        #                  in zip(self._size_inhalo.right,
+        #                         self._distributor.dimensions,
+        #                         right)]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        # FIXME: Garbled conditional
-        if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
+        if self._distributor.is_parallel and (any(left) or any(right)):
             try:
                 warning_msg = """A space order of {0} and a halo size of {1} has been
                                  set but the current rank ({2}) has a domain size of
@@ -379,6 +380,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             except AttributeError:
                 pass
 
+        # print(DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right))
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @property
@@ -422,8 +424,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self._distributor is None:
             return (None,)*self.ndim
         mapper = {d: self._distributor.decomposition[d] for d in self._dist_dimensions}
-        return tuple(mapper.get(d.parent) if d.is_Sub else mapper.get(d)
-                     for d in self.dimensions)
+        print("Mapper", mapper)
+        return tuple(mapper.get(d) for d in self.dimensions)
 
     @cached_property
     def _decomposition_outhalo(self):
@@ -510,6 +512,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         self._is_halo_dirty = True
         self._halo_exchange()
+        print("Halo exchange completed")
+        print("Mask outhalo", self._mask_outhalo)  # NOTE: This seems to be the break point
+        print("Decomposition outhalo", self._decomposition_outhalo)
         return self._data._global(self._mask_outhalo, self._decomposition_outhalo)
 
     _data_with_outhalo = data_with_halo
@@ -787,10 +792,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             raise RuntimeError("`%s` cannot perform a halo exchange as it has "
                                "no Grid attached" % self.name)
 
-        if self.grid and self.grid.is_SubDomain:
-            neighborhood = self._distributor.neighborhood(subdomain=self.grid)
-        else:
-            neighborhood = self._distributor.neighborhood()
+        neighborhood = self._distributor.neighborhood
+
         comm = self._distributor.comm
 
         for d in self._dist_dimensions:
