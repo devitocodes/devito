@@ -994,22 +994,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         nopadding = ((0, 0),)*self.ndim
 
         if kwargs.get('autopadding', configuration['autopadding']):
+            # The padded Dimension
             candidates = self.space_dimensions
             if not candidates:
                 return nopadding
+            d = candidates[-1]
 
             mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-            hint = configuration['platform'].suggested_alignment
-
-            if hint == '1-stride':
-                d = candidates[-1]
-            elif hint == 'max-stride':
-                d = candidates[0]
-            else:
-                assert False, 'Unknown platform hint `%s`' % str(hint)
-
             dpadding = (0, mmts - self._size_nopad[d] % mmts)
-
             padding = [(0, 0)]*self.ndim
             padding[self.dimensions.index(d)] = dpadding
 

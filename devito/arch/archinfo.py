@@ -607,11 +607,6 @@ class Platform(object):
     max_mem_trans_nbytes = None
     """Maximum memory transaction size in bytes."""
 
-    suggested_alignment = None
-    """
-    The dimension along which data should be aligned for optimal performance.
-    """
-
     def __init__(self, name):
         self.name = name
 
@@ -665,10 +660,6 @@ class Cpu64(Platform):
 
     # The vast majority of CPUs have a 64-byte cache line size
     max_mem_trans_nbytes = 64
-
-    # The vast majority of CPUs expect the data's contiguous dimension to be
-    # aligned to the cache line size
-    suggested_alignment = '1-stride'  # AKA contiguous dimension
 
     # The known ISAs are to be provided by the subclasses
     known_isas = ()
@@ -817,9 +808,6 @@ class IntelDevice(Device):
 
     max_mem_trans_nbytes = 64
 
-    #TODO
-    suggested_alignment = None
-
     @property
     def march(self):
         return ''
@@ -828,7 +816,6 @@ class IntelDevice(Device):
 class NvidiaDevice(Device):
 
     max_mem_trans_nbytes = 128
-    suggested_alignment = 'max-stride'
 
     @cached_property
     def march(self):
@@ -843,7 +830,6 @@ class NvidiaDevice(Device):
 class AmdDevice(Device):
 
     max_mem_trans_nbytes = 256
-    suggested_alignment = 'max-stride'
 
     @cached_property
     def march(cls):
