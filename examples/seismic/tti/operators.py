@@ -1,5 +1,5 @@
 from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
-                    cos, sin, sqrt)
+                    cos, sin, sqrt, div, grad)
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import freesurface
 
@@ -57,78 +57,70 @@ def trig_func(model):
     return costheta, sintheta
 
 
-def Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gzz_centered(model, field):
     """
     3D rotated second order derivative in the direction z.
 
     Parameters
     ----------
+    model : Model
+        Physical parameters model structure.
     field : Function
         Input for which the derivative is computed.
-    costheta : Function or float
-        Cosine of the tilt angle.
-    sintheta : Function or float
-        Sine of the tilt angle.
-    cosphi : Function or float
-        Cosine of the azymuth angle.
-    sinphi : Function or float
-        Sine of the azymuth angle.
-    space_order : int
-        Space discretization order.
 
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order // 2
+    b = getattr(model, 'b', 1)
+    costheta, sintheta, cosphi, sinphi = trig_func(model)
+    order1 = field.space_order // 2
     Gz = -(sintheta * cosphi * field.dx(fd_order=order1) +
            sintheta * sinphi * field.dy(fd_order=order1) +
            costheta * field.dz(fd_order=order1))
 
-    Gzz = (Gz * costheta).dz(fd_order=order1).T
+    Gzz = (b * Gz * costheta).dz(fd_order=order1).T
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1).T
+        Gzz += (b * Gz * sintheta * cosphi).dx(fd_order=order1).T
     if sinphi != 0:
-        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1).T
+        Gzz += (b * Gz * sintheta * sinphi).dy(fd_order=order1).T
 
     return Gzz
 
 
-def Gzz_centered_2d(model, field, costheta, sintheta, space_order):
+def Gzz_centered_2d(model, field):
     """
     2D rotated second order derivative in the direction z.
 
     Parameters
     ----------
+    model : Model
+        Physical parameters model structure.
     field : Function
         Input for which the derivative is computed.
-    costheta : Function or float
-        Cosine of the tilt angle.
-    sintheta : Function or float
-        Sine of the tilt angle.
-    space_order : int
-        Space discretization order.
 
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
-    order1 = space_order // 2
+    costheta, sintheta = trig_func(model)
+    order1 = field.space_order // 2
+    b = getattr(model, 'b', 1)
     Gz = -(sintheta * field.dx(fd_order=order1) +
            costheta * field.dy(fd_order=order1))
-    Gzz = (Gz * costheta).dy(fd_order=order1).T
+    Gzz = (b * Gz * costheta).dy(fd_order=order1).T
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta).dx(fd_order=order1).T
+        Gzz += (b * Gz * sintheta).dx(fd_order=order1).T
     return Gzz
 
 
 # Centered case produces directly Gxx + Gyy
-def Gxxyy_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order):
+def Gh_centered(model, field):
     """
     Sum of the 3D rotated second order derivative in the direction x and y.
     As the Laplacian is rotation invariant, it is computed as the conventional
@@ -137,57 +129,29 @@ def Gxxyy_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order
 
     Parameters
     ----------
+    model : Model
+        Physical parameters model structure.
     field : Function
         Input field.
-    costheta : Function or float
-        Cosine of the tilt angle.
-    sintheta : Function or float
-        Sine of the tilt angle.
-    cosphi : Function or float
-        Cosine of the azymuth angle.
-    sinphi : Function or float
-        Sine of the azymuth angle.
-    space_order : int
-        Space discretization order.
 
     Returns
     -------
     Sum of the 3D rotated second order derivative in the direction x and y.
     """
-    Gzz = Gzz_centered(model, field, costheta, sintheta, cosphi, sinphi, space_order)
-    return field.laplace - Gzz
+    if model.dim == 3:
+        Gzz = Gzz_centered(model, field)
+    else:
+        Gzz = Gzz_centered_2d(model, field)
+    b = getattr(model, 'b', None)
+    if b is not None:
+        so = field.space_order // 2
+        lap = div(b * grad(field, shift=.5, order=so), shift=-.5, order=so)
+    else:
+        lap = field.laplace
+    return lap - Gzz
 
 
-def Gxx_centered_2d(model, field, costheta, sintheta, space_order):
-    """
-    2D rotated second order derivative in the direction x.
-    As the Laplacian is rotation invariant, it is computed as the conventional
-    Laplacian minus the second order rotated second order derivative in the direction z
-    Gxx = field.laplace - Gzz
-
-    Parameters
-    ----------
-    field : TimeFunction
-        Input field.
-    costheta : Function or float
-        Cosine of the tilt angle.
-    sintheta : Function or float
-        Sine of the tilt angle.
-    cosphi : Function or float
-        Cosine of the azymuth angle.
-    sinphi : Function or float
-        Sine of the azymuth angle.
-    space_order : int
-        Space discretization order.
-
-    Returns
-    -------
-    Sum of the 3D rotated second order derivative in the direction x.
-    """
-    return field.laplace - Gzz_centered_2d(model, field, costheta, sintheta, space_order)
-
-
-def kernel_centered_2d(model, u, v, space_order, **kwargs):
+def kernel_centered(model, u, v, **kwargs):
     """
     TTI finite difference kernel. The equation solved is:
 
@@ -229,9 +193,6 @@ def kernel_centered_2d(model, u, v, space_order, **kwargs):
     # Forward or backward
     forward = kwargs.get('forward', True)
 
-    # Tilt and azymuth setup
-    costheta, sintheta = trig_func(model)
-
     delta, epsilon = model.delta, model.epsilon
     epsilon = 1 + 2*epsilon
     delta = sqrt(1 + 2*delta)
@@ -240,82 +201,17 @@ def kernel_centered_2d(model, u, v, space_order, **kwargs):
     qu = kwargs.get('qu', 0)
     qv = kwargs.get('qv', 0)
 
+    Gzz = Gzz_centered_2d if model.dim == 2 else Gzz_centered
+
     if forward:
-        Gxx = Gxx_centered_2d(model, u, costheta, sintheta, space_order)
-        Gzz = Gzz_centered_2d(model, v, costheta, sintheta, space_order)
+        Gxx = Gh_centered(model, u)
+        Gzz = Gzz(model, v)
         H0 = epsilon*Gxx + delta*Gzz
         Hz = delta*Gxx + Gzz
         return second_order_stencil(model, u, v, H0, Hz, qu, qv)
     else:
-        H0 = Gxx_centered_2d(model, (epsilon*u + delta*v), costheta,
-                             sintheta, space_order)
-        Hz = Gzz_centered_2d(model, (delta*u + v), costheta, sintheta, space_order)
-        return second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=forward)
-
-
-def kernel_centered_3d(model, u, v, space_order, **kwargs):
-    """
-    TTI finite difference kernel. The equation solved is:
-
-    u.dt2 = H0
-    v.dt2 = Hz
-
-    where H0 and Hz are defined as:
-    H0 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
-    Hz = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
-
-    and
-
-    H0 = (Gxx+Gyy)((1+2 *epsilon)*u + sqrt(1+ 2*delta)*v)
-    Hz = Gzz(sqrt(1+ 2*delta)*u + v)
-
-    for the forward and adjoint cases, respectively. Epsilon and delta are the Thomsen
-    parameters. This function computes H0 and Hz.
-
-    References:
-        * Zhang, Yu, Houzhu Zhang, and Guanquan Zhang. "A stable TTI reverse
-          time migration and its implementation." Geophysics 76.3 (2011): WA3-WA11.
-        * Louboutin, Mathias, Philipp Witte, and Felix J. Herrmann. "Effects of
-          wrong adjoints for RTM in TTI media." SEG Technical Program Expanded
-          Abstracts 2018. Society of Exploration Geophysicists, 2018. 331-335.
-
-    Parameters
-    ----------
-    u : TimeFunction
-        First TTI field.
-    v : TimeFunction
-        Second TTI field.
-    space_order : int
-        Space discretization order.
-
-    Returns
-    -------
-    u and v component of the rotated Laplacian in 3D.
-    """
-    # Forward or backward
-    forward = kwargs.get('forward', True)
-
-    costheta, sintheta, cosphi, sinphi = trig_func(model)
-
-    delta, epsilon = model.delta, model.epsilon
-    epsilon = 1 + 2*epsilon
-    delta = sqrt(1 + 2*delta)
-
-    # Get source
-    qu = kwargs.get('qu', 0)
-    qv = kwargs.get('qv', 0)
-
-    if forward:
-        Gxx = Gxxyy_centered(model, u, costheta, sintheta, cosphi, sinphi, space_order)
-        Gzz = Gzz_centered(model, v, costheta, sintheta, cosphi, sinphi, space_order)
-        H0 = epsilon*Gxx + delta*Gzz
-        Hz = delta*Gxx + Gzz
-        return second_order_stencil(model, u, v, H0, Hz, qu, qv)
-    else:
-        H0 = Gxxyy_centered(model, (epsilon*u + delta*v), costheta, sintheta,
-                            cosphi, sinphi, space_order)
-        Hz = Gzz_centered(model, (delta*u + v), costheta, sintheta, cosphi,
-                          sinphi, space_order)
+        H0 = Gh_centered(model, (epsilon*u + delta*v))
+        Hz = Gzz(model, (delta*u + v))
         return second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=forward)
 
 
@@ -351,7 +247,7 @@ def particle_velocity_fields(model, space_order):
     return vx, vz, vy
 
 
-def kernel_staggered_2d(model, u, v, space_order, **kwargs):
+def kernel_staggered_2d(model, u, v, **kwargs):
     """
     TTI finite difference. The equation solved is:
 
@@ -360,6 +256,7 @@ def kernel_staggered_2d(model, u, v, space_order, **kwargs):
     m * v.dt = - sqrt(1 + 2 delta) vx.dx - vz.dz + Fh
     m * u.dt = - (1 + 2 epsilon) vx.dx - sqrt(1 + 2 delta) vz.dz + Fv
     """
+    space_order = u.space_order
     # Forward or backward
     forward = kwargs.get('forward', True)
 
@@ -413,7 +310,7 @@ def kernel_staggered_2d(model, u, v, space_order, **kwargs):
     return [u_vx, u_vz] + [pv_eq, ph_eq]
 
 
-def kernel_staggered_3d(model, u, v, space_order, **kwargs):
+def kernel_staggered_3d(model, u, v, **kwargs):
     """
     TTI finite difference. The equation solved is:
 
@@ -423,6 +320,7 @@ def kernel_staggered_3d(model, u, v, space_order, **kwargs):
     m * v.dt = - sqrt(1 + 2 delta) (vx.dx + vy.dy) - vz.dz + Fh
     m * u.dt = - (1 + 2 epsilon) (vx.dx + vy.dy) - sqrt(1 + 2 delta) vz.dz + Fv
     """
+    space_order = u.space_order
     # Forward or backward
     forward = kwargs.get('forward', True)
 
@@ -547,7 +445,7 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
-    stencils = FD_kernel(model, u, v, space_order)
+    stencils = FD_kernel(model, u, v)
 
     # Source and receivers
     expr = src * dt / m if kernel == 'staggered' else src * dt**2 / m
@@ -596,7 +494,7 @@ def AdjointOperator(model, geometry, space_order=4,
 
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
-    stencils = FD_kernel(model, p, r, space_order, forward=False)
+    stencils = FD_kernel(model, p, r, forward=False)
 
     # Construct expression to inject receiver values
     expr = rec * dt / m if kernel == 'staggered' else rec * dt**2 / m
@@ -650,13 +548,13 @@ def JacobianOperator(model, geometry, space_order=4,
 
     # FD kernels of the PDE
     FD_kernel = kernels[('centered', len(model.shape))]
-    eqn1 = FD_kernel(model, u0, v0, space_order)
+    eqn1 = FD_kernel(model, u0, v0)
 
     # Linearized source and stencil
     lin_usrc = -dm * u0.dt2
     lin_vsrc = -dm * v0.dt2
 
-    eqn2 = FD_kernel(model, du, dv, space_order, qu=lin_usrc, qv=lin_vsrc)
+    eqn2 = FD_kernel(model, du, dv, qu=lin_usrc, qv=lin_vsrc)
 
     # Construct expression to inject source values, injecting at u0(t+dt)/v0(t+dt)
     src_term = src.inject(field=(u0.forward, v0.forward), expr=src * dt**2 / m)
@@ -708,7 +606,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
 
     # FD kernels of the PDE
     FD_kernel = kernels[('centered', len(model.shape))]
-    eqn = FD_kernel(model, du, dv, space_order, forward=False)
+    eqn = FD_kernel(model, du, dv, forward=False)
 
     dm_update = Inc(dm, - (u0 * du.dt2 + v0 * dv.dt2))
 
@@ -720,5 +618,5 @@ def JacobianAdjOperator(model, geometry, space_order=4,
                     name='GradientTTI', **kwargs)
 
 
-kernels = {('centered', 3): kernel_centered_3d, ('centered', 2): kernel_centered_2d,
+kernels = {('centered', 3): kernel_centered, ('centered', 2): kernel_centered,
            ('staggered', 3): kernel_staggered_3d, ('staggered', 2): kernel_staggered_2d}
