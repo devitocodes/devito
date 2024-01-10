@@ -10,7 +10,7 @@ from cached_property import cached_property
 import numpy as np
 from cgen import Struct, Value
 
-from devito.data import LEFT, CENTER, RIGHT, Decomposition
+from devito.data import LEFT, CENTER, RIGHT, Decomposition, SubDecomposition
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
 from devito.types import CompositeObject, Object
@@ -501,6 +501,8 @@ class SubDomainDistributor(DenseDistributor):
         decompositions = []
         for dec, dim in zip(self.parent._decomposition, self.parent.dimensions):
             decompositions.append([d if sdim_interval[dim] is None
+                                   else np.zeros(0, dtype=np.int64)
+                                   if sdim_interval[dim].is_empty
                                    else d[np.logical_and(d >= sdim_interval[dim].start,
                                                          d <= sdim_interval[dim].end)]
                                    for d in dec])
