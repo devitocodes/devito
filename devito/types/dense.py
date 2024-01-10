@@ -983,10 +983,10 @@ class Function(DiscreteFunction):
         space_order = kwargs.get('space_order', 1)
         if isinstance(space_order, int):
             self._space_order = space_order
-        elif isinstance(space_order, tuple) and len(space_order) == 3:
-            self._space_order, _, _ = space_order
+        elif isinstance(space_order, tuple) and len(space_order) >= 2:
+            self._space_order = space_order[0]
         else:
-            raise TypeError("`space_order` must be int or 3-tuple of ints")
+            raise TypeError("Invalid `space_order`")
 
         # Acquire derivative shortcuts
         if self is self.function:
@@ -1103,26 +1103,41 @@ class Function(DiscreteFunction):
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                halo = (space_order, space_order)
+                v = (space_order, space_order)
+                halo = [v if i.is_Space else (0, 0) for i in self.dimensions]
+
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                _, left_points, right_points = space_order
-                halo = (left_points, right_points)
+                _, l, r = space_order
+                halo = [(l, r) if i.is_Space else (0, 0) for i in self.dimensions]
+
+            elif isinstance(space_order, tuple) and len(space_order) == 2:
+                _, space_halo = space_order
+                if not isinstance(space_halo, tuple) or \
+                   len(space_halo) != len(self.space_dimensions):
+                    raise TypeError("Invalid `space_order`")
+                v = list(space_halo)
+                halo = [v.pop(0) if i.is_Space else (0, 0)
+                        for i in self.dimensions]
+
             else:
-                raise TypeError("`space_order` must be int or 3-tuple of ints")
-            halo = tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
+                raise TypeError("Invalid `space_order`")
         return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
             padding = self.__padding_setup_smart__(**kwargs)
+
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
+
         elif isinstance(padding, int):
             padding = tuple((0, padding) if d.is_Space else (0, 0)
                             for d in self.dimensions)
+
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
+
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
         return DimensionTuple(*padding, getters=self.dimensions)
