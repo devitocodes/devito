@@ -121,12 +121,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
-                from mpi4py import MPI
-                print("Shape allocated on rank %s:" % MPI.COMM_WORLD.Get_rank(), self.shape_allocated)
-                print("Size halo on rank %s:" % MPI.COMM_WORLD.Get_rank(), self._size_halo)
-                print("Size padding on rank %s:" % MPI.COMM_WORLD.Get_rank(), self._size_padding)
-                print("Symbolic sizes on rank %s:" % MPI.COMM_WORLD.Get_rank(), [i.symbolic_size for i in self.dimensions])
-
                 debug("Allocating host memory for %s%s [%s]"
                       % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
 

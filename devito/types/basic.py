@@ -1356,8 +1356,22 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # If defined on a SubDomain, then need to offset indices accordingly
         if self.grid and self.grid.is_SubDomain:
             # Symbolic offsets to avoid potential issues with user overrides
-            offsets = tuple(d.thickness.left[0] if d.is_Sub else 0
-                            for d in self.dimensions)
+            offsets = []
+            for d in self.dimensions:
+                if d.is_Sub:
+                    ((l_sym, l_val), (r_sym, r_val)) = d.thickness
+                    if l_val is None:
+                        # Right subdimension
+                        offsets.append(-r_sym + d.symbolic_max + 1)
+                    elif r_val is None:
+                        # Left subdimension
+                        offsets.append(0)
+                    else:
+                        # Middle subdimension
+                        offsets.append(l_sym)
+                else:
+                    offsets.append(0)
+            offsets = tuple(offsets)
         else:
             offsets = (0,)*len(self.dimensions)
 

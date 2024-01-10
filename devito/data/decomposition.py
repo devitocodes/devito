@@ -6,7 +6,7 @@ import numpy as np
 from devito.data.meta import LEFT
 from devito.tools import is_integer, as_tuple
 
-__all__ = ['Decomposition']
+__all__ = ['Decomposition', 'SubDecomposition']
 
 
 class Decomposition(tuple):
@@ -322,6 +322,8 @@ class Decomposition(tuple):
             abs_ofs, side = args
             if side is LEFT:
                 rel_ofs = self.glb_min + abs_ofs - base
+                from mpi4py import MPI
+                print("Rank", MPI.COMM_WORLD.Get_rank(), "abs", abs_ofs, "rel", rel_ofs, "base", base, "top", top, "glb_min", self.glb_min)
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
                 elif abs_ofs > top:
@@ -536,3 +538,25 @@ class Decomposition(tuple):
         items = [i + nleft for i in items]
 
         return Decomposition(items, self.local)
+
+
+class SubDecomposition(Decomposition):
+    """
+    A decomposition of a SubDomain rather than a full Grid. Whilst global indices will
+    run from x_m to x_M, indices decomposed by this Decomposition will run over some
+    subset of these.
+    """
+
+    def __new__(cls, items, local, parent):
+        obj = super().__new__(cls, items, local)
+        obj._glb_min = parent.glb_min
+        obj._glb_max = parent.glb_max
+        return obj
+
+    @property
+    def glb_min(self):
+        return self._glb_min
+
+    @property
+    def glb_max(self):
+        return self._glb_max
