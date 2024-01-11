@@ -10,7 +10,7 @@ from cached_property import cached_property
 import numpy as np
 from cgen import Struct, Value
 
-from devito.data import LEFT, CENTER, RIGHT, Decomposition, SubDecomposition
+from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
 from devito.types import CompositeObject, Object
