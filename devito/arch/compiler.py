@@ -14,7 +14,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
-from devito.arch import (AMDGPUX, Cpu64, M1, NVIDIAX, POWER8, POWER9, GRAVITON,
+from devito.arch import (AMDGPUX, Cpu64, AppleArm, NVIDIAX, POWER8, POWER9, GRAVITON,
                          IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
@@ -486,14 +486,16 @@ class ClangCompiler(Compiler):
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
                 self.ldflags += ['-march=%s' % platform.march]
-        elif platform is M1:
+        elif isinstance(platform, AppleArm):
             # NOTE:
-            # Apple M1 supports OpenMP through Apple's LLVM compiler.
+            # Apple Mx supports OpenMP through Apple's LLVM compiler.
             # The compiler can be installed with Homebrew or can be built from scratch.
             # Check if installed and set compiler flags accordingly
             llvmm1 = get_m1_llvm_path(language)
             if llvmm1 and language == 'openmp':
-                self.ldflags += ['-mcpu=apple-m1', '-fopenmp', '-L%s' % llvmm1['libs']]
+                mx = platform.march
+                self.ldflags += ['-mcpu=apple-%s' % mx,
+                                 '-fopenmp', '-L%s' % llvmm1['libs']]
                 self.cflags += ['-Xclang', '-I%s' % llvmm1['include']]
         else:
             if platform in [POWER8, POWER9]:
@@ -895,7 +897,7 @@ class CustomCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        if platform is M1:
+        if isinstance(platform, AppleArm):
             _base = ClangCompiler
         elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler

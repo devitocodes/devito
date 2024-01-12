@@ -2768,7 +2768,7 @@ class TestTTI(object):
         # TTI layered model for the tti test, no need for a smooth interace
         # bewtween the two layer as the compilation passes are tested, not the
         # physical prettiness of the result -- which ultimately saves time
-        return demo_model('layers-tti', nlayers=3, nbl=10, space_order=4,
+        return demo_model('layers-tti', nlayers=3, nbl=10, space_order=8,
                           shape=(50, 50, 50), spacing=(20., 20., 20.), smooth=False)
 
     @cached_property
@@ -2816,7 +2816,7 @@ class TestTTI(object):
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 92
-        assert np.isclose(summary[('section1', None)].oi, 2.074, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 2.072, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
@@ -2874,7 +2874,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,exp_ops,exp_arrays', [
-        (4, 122, 6), (8, 221, 7)
+        (4, 122, 6), (8, 235, 7)
     ])
     def test_opcounts_adjoint(self, space_order, exp_ops, exp_arrays):
         wavesolver = self.tti_operator(space_order=space_order,

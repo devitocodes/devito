@@ -222,12 +222,12 @@ def demo_model(preset, **kwargs):
         for i in range(1, nlayers):
             v[..., i*int(shape[-1] / nlayers):] = vp_i[i]  # Bottom velocity
 
-        epsilon = .3*(v - 1.5)
-        delta = .2*(v - 1.5)
-        theta = .5*(v - 1.5)
+        epsilon = .1*(v - vp_top)
+        delta = .05*(v - vp_top)
+        theta = .5*(v - vp_top)
         phi = None
         if len(shape) > 2 and preset.lower() not in ['layers-tti-noazimuth']:
-            phi = .25*(v - 1.5)
+            phi = .25*(v - vp_top)
 
         if density:
             kwargs['b'] = Gardners(v)
