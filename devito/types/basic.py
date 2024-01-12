@@ -1001,7 +1001,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             d = candidates[-1]
 
             mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-            dpadding = (0, mmts - self._size_nopad[d] % mmts)
+            dpadding = (0, (mmts - self._size_nopad[d] % mmts) % mmts)
             padding = [(0, 0)]*self.ndim
             padding[self.dimensions.index(d)] = dpadding
 
