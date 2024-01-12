@@ -23,7 +23,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
            'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
            # ARM CPUs
-           'AMD', 'ARM', 'M1', 'GRAVITON',
+           'AMD', 'ARM', 'AppleArm', 'M1', 'M2', 'M3', 'GRAVITON',
            # Other legacy CPUs
            'POWER8', 'POWER9',
            # Generic GPUs
@@ -709,6 +709,15 @@ class Arm(Cpu64):
     known_isas = ('fp', 'asimd', 'asimdrdm')
 
 
+class AppleArm(Arm):
+
+    @cached_property
+    def march(self):
+        sysinfo = run(["sysctl", "-n", "machdep.cpu.brand_string"],
+                      stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8")
+        return sysinfo.split(' ')[1].lower()
+
+
 class Amd(Cpu64):
 
     known_isas = ('cpp', 'sse', 'avx', 'avx2')
@@ -839,7 +848,9 @@ SPR = IntelGoldenCove('spr')  # Sapphire Rapids
 
 ARM = Arm('arm')
 GRAVITON = Arm('graviton')
-M1 = Arm('m1')
+M1 = AppleArm('m1')
+M2 = AppleArm('m2')
+M3 = AppleArm('m3')
 
 AMD = Amd('amd')
 
