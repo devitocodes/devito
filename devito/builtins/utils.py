@@ -27,7 +27,7 @@ class MPIReduction(object):
         else:
             dtype = {f.dtype for f in functions}
             if len(dtype) == 1:
-                self.dtype = dtype.pop()
+                self.dtype = np.result_type(dtype.pop(), np.float32).type
             else:
                 raise ValueError("Illegal mixed data types")
         self.v = None
@@ -37,7 +37,7 @@ class MPIReduction(object):
         i = dv.Dimension(name='mri',)
         self.n = dv.Function(name='n', shape=(1,), dimensions=(i,),
                              grid=self.grid, dtype=self.dtype, space='host')
-        self.n.data[0] = 0
+        self.n.data[:] = 0
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
