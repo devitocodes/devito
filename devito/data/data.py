@@ -109,6 +109,7 @@ class Data(np.ndarray):
             self._is_distributed = False
             self._modulo = tuple(False for i in range(self.ndim))
             self._decomposition = (None,)*self.ndim
+            self._allocator = ALLOC_ALIGNED
         elif obj._index_stash is not None:
             # From `__getitem__`
             self._is_distributed = obj._is_distributed
@@ -125,9 +126,11 @@ class Data(np.ndarray):
                 else:
                     decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
+            self._allocator = obj._allocator
         else:
             self._is_distributed = obj._is_distributed
             self._distributor = obj._distributor
+            self._allocator = obj._allocator
             if self.ndim == obj.ndim:
                 # E.g., from a ufunc, such as `np.add`
                 self._modulo = obj._modulo
