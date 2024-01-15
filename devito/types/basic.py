@@ -835,6 +835,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     Functions; etc.
     """
 
+    is_autopaddable = False
+    """
+    True if the Function can be padded automatically by the Devito runtime,
+    thus increasing its size, False otherwise. Note that this property has no
+    effect if autopadding is disabled, which is the default behavior.
+    """
+
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
                    'alias', 'space', 'function')
 

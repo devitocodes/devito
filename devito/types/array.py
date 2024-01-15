@@ -416,6 +416,10 @@ class Bundle(ArrayBasic):
     def is_Input(self):
         return all(i.is_Input for i in self.components)
 
+    @property
+    def is_autopaddable(self):
+        return all(i.is_autopaddable for i in self.components)
+
     # Other properties and methods
 
     @property

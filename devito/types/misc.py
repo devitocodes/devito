@@ -193,6 +193,8 @@ class TempArray(Array):
     sub-expressions.
     """
 
+    is_autopaddable = True
+
     def __padding_setup__(self, **kwargs):
         padding = kwargs.pop('padding', None)
         if padding is None:

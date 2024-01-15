@@ -969,6 +969,8 @@ class Function(DiscreteFunction):
 
     is_Function = True
 
+    is_autopaddable = True
+
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
                    ('space_order', 'shape_global', 'dimensions'))
 
@@ -1126,7 +1128,10 @@ class Function(DiscreteFunction):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
-            padding = self.__padding_setup_smart__(**kwargs)
+            if self.is_autopaddable:
+                padding = self.__padding_setup_smart__(**kwargs)
+            else:
+                padding = super().__padding_setup__(**kwargs)
 
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
