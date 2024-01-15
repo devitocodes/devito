@@ -835,11 +835,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     Functions; etc.
     """
 
-    is_compact = True
-    """
-    True if data is allocated as a single, contiguous chunk of memory.
-    """
-
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
                    'alias', 'space', 'function')
 
