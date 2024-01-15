@@ -4,7 +4,7 @@ import numpy as np
 import sympy
 from sympy.core.core import ordering_of_classes
 
-from devito.types import Array, CompositeObject, DimensionTuple, Indexed, Symbol
+from devito.types import Array, CompositeObject, Indexed, Symbol
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 

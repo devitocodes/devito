@@ -1,7 +1,6 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
 from functools import wraps, reduce
-from math import ceil
 from operator import mul
 
 import numpy as np
@@ -837,7 +836,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
 
-        obj = kwargs.get(self.name, self)
         data = args[self.name]
 
         if len(data.shape) != self.ndim:

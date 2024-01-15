@@ -13,10 +13,9 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.parpragma import PragmaIteration
 from devito.symbolics import DefFunction, MacroArgument, ccode
 from devito.tools import Bunch, filter_ordered, prod
-from devito.types import (Array, Bundle, Symbol, FIndexed, Indexed, TempArray,
-                          Wildcard)
+from devito.types import Array, Bundle, Symbol, FIndexed, Indexed, Wildcard
 from devito.types.basic import IndexedData
-from devito.types.dense import DiscreteFunction, Function
+from devito.types.dense import DiscreteFunction
 
 
 __all__ = ['linearize']
@@ -82,7 +81,7 @@ def key1(f, d):
         * A 3-tuple `(Dimension, halo size, grid)` otherwise.
     """
     if f.is_regular:
-        # For pad-dable objects (Function and TempArray), the following holds:
+        # For paddable objects the following holds:
         # `same dim + same halo => same (auto-)padding`
         return (d, f._size_halo[d], f.is_autopaddable)
     else:

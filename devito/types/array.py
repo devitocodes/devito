@@ -1,11 +1,9 @@
 from ctypes import POINTER, Structure, c_void_p, c_ulong
-from math import ceil
 
 import numpy as np
 from cached_property import cached_property
 from sympy import Expr
 
-from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper)
 from devito.types.basic import AbstractFunction

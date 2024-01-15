@@ -6,7 +6,6 @@ from cached_property import cached_property
 import numpy as np
 import sympy
 
-from devito.arch import Cpu64
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,

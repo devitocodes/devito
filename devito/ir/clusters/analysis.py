@@ -1,6 +1,6 @@
 from devito.ir.clusters.visitors import QueueStateful
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               SEQUENTIAL, Forward)
+                               SEQUENTIAL)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
