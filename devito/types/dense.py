@@ -1156,7 +1156,7 @@ class Function(DiscreteFunction):
         return shape
 
     def __halo_setup__(self, **kwargs):
-        if self._distributor and self._distributor.is_empty_rank:
+        if self._distributor and self._distributor.loc_empty:
             # No need to assign a halo on a completely empty rank
             return DimensionTuple(*[(0, 0) for i in self.dimensions],
                                   getters=self.dimensions)
