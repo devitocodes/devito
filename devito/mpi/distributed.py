@@ -170,10 +170,10 @@ class AbstractDistributor(ABC):
                 return args[0]
         return self.decomposition[dim].index_glb_to_loc(*args)
 
-    @property
-    def is_empty_rank(self):
-        """No data should be assigned on this MPI rank"""
-        return False
+    @cached_property
+    def loc_empty(self):
+        """This rank is empty"""
+        return any(d.loc_empty for d in self.decomposition)
 
 
 class DenseDistributor(AbstractDistributor):
@@ -457,9 +457,8 @@ class SubDomainDistributor(DenseDistributor):
     """
 
     def __init__(self, subdomain):
-        # NOTE: Does not want to keep reference to the SubDomain
-        # Since SubDomain will point to this SubDomainDistributor
-        # Furthermore Distributor does not point to the Grid
+        # Does not keep reference to the SubDomain since SubDomain will point to
+        # this SubDomainDistributor and Distributor does not point to the Grid
 
         super().__init__(subdomain.shape, subdomain.dimensions)
 
@@ -518,14 +517,12 @@ class SubDomainDistributor(DenseDistributor):
         # Format is {dimension: {side: crosses}} or {(sides,): crosses}
         # (matches neighborhood)
         crosses = {}
-        off_rank = []
         for dim in self.parent.dimensions:
             sdim = self.dimension_map[dim]
             if sdim.is_Sub:
-                i_rank = dist_interval[dim].issuperset(sdim_interval[dim])
-                o_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
-                off_rank.append(o_rank)
-                if i_rank or o_rank:
+                in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
+                off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
+                if in_rank or off_rank:
                     crosses[sdim] = {LEFT: False, RIGHT: False}
                 elif sdim.local:
                     raise ValueError("SubDimension %s is local and cannot be"
@@ -543,8 +540,6 @@ class SubDomainDistributor(DenseDistributor):
                              if s in crosses[d])  # Skip over CENTER
 
         self._crosses = frozendict(crosses)
-
-        self._is_empty_rank = any(off_rank)
 
     @property
     def parent(self):
@@ -582,11 +577,6 @@ class SubDomainDistributor(DenseDistributor):
               determine whether the SubDomain crosses the edge of the rank on this side.
         """
         return self._crosses
-
-    @property
-    def is_empty_rank(self):
-        """SubDomain is not present on this MPI rank"""
-        return self._is_empty_rank
 
     @cached_property
     def is_boundary_rank(self):
