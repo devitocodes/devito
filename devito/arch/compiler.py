@@ -27,7 +27,7 @@ __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
 @memoized_func
-def sniff_compiler_version(cc):
+def sniff_compiler_version(cc, allow_fail=False):
     """
     Detect the compiler version.
 
@@ -43,8 +43,11 @@ def sniff_compiler_version(cc):
     except UnicodeDecodeError:
         return Version("0")
     except FileNotFoundError:
-        error("The `%s` compiler isn't available on this system" % cc)
-        sys.exit(1)
+        if allow_fail:
+            return Version("0")
+        else:
+            error("The `%s` compiler isn't available on this system" % cc)
+            sys.exit(1)
 
     if ver.startswith("gcc"):
         compiler = "gcc"
@@ -236,11 +239,10 @@ class Compiler(GCCToolchain):
             except (TypeError, ValueError):
                 version = Version(self.suffix)
         else:
-            try:
-                # Knowing the version may still be useful to pick supported flags
-                version = sniff_compiler_version(self.CC)
-            except (FileNotFoundError, OSError):
-                version = Version("0")
+            # Knowing the version may still be useful to pick supported flags
+            allow_fail = isinstance(self, CustomCompiler)
+            version = sniff_compiler_version(self.CC, allow_fail=allow_fail)
+
         return version
 
     def get_version(self):
@@ -950,13 +952,6 @@ class CustomCompiler(Compiler):
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
         self.MPICXX = environ.get('MPICXX', self.MPICXX)
-
-    @property
-    def version(self):
-        """
-        Custom compiler are assumed to be self-contained, hence no version.
-        """
-        return Version("0")
 
     def __new_with__(self, **kwargs):
         return super().__new_with__(base=self._base, **kwargs)

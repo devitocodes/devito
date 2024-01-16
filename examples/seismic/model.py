@@ -167,7 +167,7 @@ class GenericModel(object):
         return {i.name: kwargs.get(i.name, i) or i for i in known}
 
     def _gen_phys_param(self, field, name, space_order, is_param=True,
-                        default_value=0):
+                        default_value=0, **kwargs):
         if field is None:
             return default_value
         if isinstance(field, np.ndarray):

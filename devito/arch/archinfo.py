@@ -715,7 +715,9 @@ class AppleArm(Arm):
     def march(self):
         sysinfo = run(["sysctl", "-n", "machdep.cpu.brand_string"],
                       stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8")
-        return sysinfo.split(' ')[1].lower()
+        mx = sysinfo.split(' ')[1].lower()
+        # Currently clang only supports up to m2
+        return min(mx, 'm2')
 
 
 class Amd(Cpu64):
