@@ -210,15 +210,6 @@ class Compiler(GCCToolchain):
         else:
             raise NotImplementedError("Unsupported platform %s" % platform)
 
-        if self.suffix is not None:
-            try:
-                self.version = Version(str(float(self.suffix)))
-            except (TypeError, ValueError):
-                self.version = Version(self.suffix)
-        else:
-            # Knowing the version may still be useful to pick supported flags
-            self.version = sniff_compiler_version(self.CC)
-
         self.__init_finalize__(**kwargs)
 
     def __init_finalize__(self, **kwargs):
@@ -236,6 +227,21 @@ class Compiler(GCCToolchain):
     @property
     def name(self):
         return self.__class__.__name__
+
+    @property
+    def version(self):
+        if self.suffix is not None:
+            try:
+                version = Version(str(float(self.suffix)))
+            except (TypeError, ValueError):
+                version = Version(self.suffix)
+        else:
+            try:
+                # Knowing the version may still be useful to pick supported flags
+                version = sniff_compiler_version(self.CC)
+            except (FileNotFoundError, OSError):
+                version = Version("0")
+        return version
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -944,6 +950,13 @@ class CustomCompiler(Compiler):
         self.CXX = environ.get('CXX', self.CXX)
         self.MPICC = environ.get('MPICC', self.MPICC)
         self.MPICXX = environ.get('MPICXX', self.MPICXX)
+
+    @property
+    def version(self):
+        """
+        Custom compiler are assumed to be self-contained, hence no version.
+        """
+        return Version("0")
 
     def __new_with__(self, **kwargs):
         return super().__new_with__(base=self._base, **kwargs)
