@@ -368,7 +368,7 @@ class ExternalAllocator(MemoryAllocator):
     def __init__(self, numpy_array):
         self.numpy_array = numpy_array
 
-    def alloc(self, shape, dtype):
+    def alloc(self, shape, dtype, padding=0):
         assert shape == self.numpy_array.shape, \
             "Provided array has shape %s. Expected %s" %\
             (str(self.numpy_array.shape), str(shape))

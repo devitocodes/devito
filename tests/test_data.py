@@ -316,9 +316,9 @@ class TestMetaData(object):
         assert u0.shape_allocated == (4, 4, 16)
 
         assert u1._size_halo == ((3, 3), (3, 3), (3, 3))
-        assert u1._size_padding == ((0, 0), (0, 0), (0, 14))  # 14 stems from 6 + 8
-        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 17))
-        assert u1.shape_allocated == (10, 10, 24)
+        assert u1._size_padding == ((0, 0), (0, 0), (0, 6))  # 14 stems from 6 + 8
+        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 9))
+        assert u1.shape_allocated == (10, 10, 16)
 
 
 class TestDecomposition(object):
