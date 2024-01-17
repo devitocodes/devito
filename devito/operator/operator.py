@@ -857,10 +857,14 @@ class Operator(Callable):
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
 
-        # Output summary of performance achieved and
-        # temporarily drop MPI for printing arguments
-        with switchconfig(mpi=False):
-            return self._emit_apply_profiling(args)
+        # In case MPI is used restrict result logging to one rank only
+        if configuration['mpi']:
+            # Only temporarily change configuration
+            with switchconfig(mpi=True):
+                set_log_level('DEBUG', comm=args.comm)
+                return self._emit_apply_profiling(args)
+
+        return self._emit_apply_profiling(args)
 
     # Performance profiling
 
@@ -897,9 +901,6 @@ class Operator(Callable):
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
-
-        # In case MPI is used restrict result logging to one rank
-        set_log_level('DEBUG', comm=args.comm)
 
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
