@@ -890,14 +890,20 @@ class Function(DiscreteFunction):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional
-        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
-        impacts the number of points available around a generic point of interest.  By
-        default, ``space_order`` points are available on both sides of a generic point of
-        interest, including those nearby the grid boundary. Sometimes, fewer points
-        suffice; in other scenarios, more points are necessary. In such cases, instead of
-        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
-        order (``o``) as well as the number of points on the left (``lp``) and right
-        (``rp``) sides of a generic point of interest.
+        Discretisation order for space derivatives. Defaults to 1.
+        `space_order` also impacts the number of points available around a
+        generic point of interest.  By default, `space_order` points are
+        available on both sides of a generic point of interest, including those
+        nearby the grid boundary. Sometimes, fewer points suffice; in other
+        scenarios, more points are necessary. In such cases, instead of an
+        integer, one can pass:
+          * a 3-tuple `(o, lp, rp)` indicating the discretization order
+            (`o`) as well as the number of points on the left (`lp`) and
+            right (`rp`) sides of a generic point of interest;
+          * a 2-tuple `(o, ((lp0, rp0), (lp1, rp1), ...))` indicating the
+            discretization order (`o`) as well as the number of points on
+            the left/right sides of a generic point of interest for each
+            SpaceDimension.
     shape : tuple of ints, optional
         Shape of the domain region in grid points. Only necessary if `grid`
         isn't given.
@@ -1115,6 +1121,7 @@ class Function(DiscreteFunction):
             elif isinstance(space_order, tuple) and len(space_order) == 2:
                 _, space_halo = space_order
                 if not isinstance(space_halo, tuple) or \
+                   not all(isinstance(i, tuple) for i in space_halo) or \
                    len(space_halo) != len(self.space_dimensions):
                     raise TypeError("Invalid `space_order`")
                 v = list(space_halo)
@@ -1214,14 +1221,20 @@ class TimeFunction(Function):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional
-        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
-        impacts the number of points available around a generic point of interest.  By
-        default, ``space_order`` points are available on both sides of a generic point of
-        interest, including those nearby the grid boundary. Sometimes, fewer points
-        suffice; in other scenarios, more points are necessary. In such cases, instead of
-        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
-        order (``o``) as well as the number of points on the left (``lp``) and right
-        (``rp``) sides of a generic point of interest.
+        Discretisation order for space derivatives. Defaults to 1.
+        `space_order` also impacts the number of points available around a
+        generic point of interest.  By default, `space_order` points are
+        available on both sides of a generic point of interest, including those
+        nearby the grid boundary. Sometimes, fewer points suffice; in other
+        scenarios, more points are necessary. In such cases, instead of an
+        integer, one can pass:
+          * a 3-tuple `(o, lp, rp)` indicating the discretization order
+            (`o`) as well as the number of points on the left (`lp`) and
+            right (`rp`) sides of a generic point of interest;
+          * a 2-tuple `(o, ((lp0, rp0), (lp1, rp1), ...))` indicating the
+            discretization order (`o`) as well as the number of points on
+            the left/right sides of a generic point of interest for each
+            SpaceDimension.
     time_order : int, optional
         Discretization order for time derivatives. Defaults to 1.
     shape : tuple of ints, optional
