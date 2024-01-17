@@ -886,8 +886,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(self.dimensions, data.shape):
 =======
         for i, s in zip(self.dimensions, key.shape):
+<<<<<<< HEAD
             # NOTE: This must be where the arg check occurs
 >>>>>>> 4ede6a6fd (dsl: Fix halo size on empty ranks with MPI)
+=======
+>>>>>>> 9ee5d294a (dsl: Fix Function on SubDomain size)
             i._arg_check(args, s, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \

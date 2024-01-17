@@ -127,6 +127,7 @@ class Eq(sympy.Eq, Evaluable):
 
     @classmethod
     def __subdomain_setup__(cls, lhs, rhs, subdomain):
+        # TODO: Update this to require explicit subdomain specification
         subdomains = {subdomain} if subdomain else set()
 
         # Get all the functions in the LHS and RHS
