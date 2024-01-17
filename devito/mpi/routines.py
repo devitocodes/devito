@@ -1039,23 +1039,6 @@ class HaloUpdate(MPICallable):
         super().__init__(name, body, parameters)
 
 
-class ComputeFunction(ElementalFunction):
-
-    def make_call(self, dynamic_args_mapper=None, incr=False, retobj=None,
-                  is_indirect=False):
-        return ComputeCall(self.name, list(self.parameters), dict(self._mapper),
-                           dynamic_args_mapper, incr, retobj, is_indirect)
-
-
-def make_compute_func(name, iet, dynamic_parameters=None, retval='void', prefix='static'):
-    """
-    Shortcut to create a ComputeFunction.
-    """
-    return ComputeFunction(name, iet, retval=retval,
-                           parameters=derive_parameters(iet), prefix=prefix,
-                           dynamic_parameters=dynamic_parameters)
-
-
 class Remainder(ElementalFunction):
     pass
 
@@ -1097,10 +1080,6 @@ class HaloUpdateCall(MPICall):
 
 
 class HaloWaitCall(MPICall):
-    pass
-
-
-class ComputeCall(ElementalCall):
     pass
 
 
