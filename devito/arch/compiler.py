@@ -27,7 +27,7 @@ __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
 @memoized_func
-def sniff_compiler_version(cc):
+def sniff_compiler_version(cc, allow_fail=False):
     """
     Detect the compiler version.
 
@@ -43,8 +43,11 @@ def sniff_compiler_version(cc):
     except UnicodeDecodeError:
         return Version("0")
     except FileNotFoundError:
-        error("The `%s` compiler isn't available on this system" % cc)
-        sys.exit(1)
+        if allow_fail:
+            return Version("0")
+        else:
+            error("The `%s` compiler isn't available on this system" % cc)
+            sys.exit(1)
 
     if ver.startswith("gcc"):
         compiler = "gcc"
@@ -210,15 +213,6 @@ class Compiler(GCCToolchain):
         else:
             raise NotImplementedError("Unsupported platform %s" % platform)
 
-        if self.suffix is not None:
-            try:
-                self.version = Version(str(float(self.suffix)))
-            except (TypeError, ValueError):
-                self.version = Version(self.suffix)
-        else:
-            # Knowing the version may still be useful to pick supported flags
-            self.version = sniff_compiler_version(self.CC)
-
         self.__init_finalize__(**kwargs)
 
     def __init_finalize__(self, **kwargs):
@@ -236,6 +230,20 @@ class Compiler(GCCToolchain):
     @property
     def name(self):
         return self.__class__.__name__
+
+    @property
+    def version(self):
+        if self.suffix is not None:
+            try:
+                version = Version(str(float(self.suffix)))
+            except (TypeError, ValueError):
+                version = Version(self.suffix)
+        else:
+            # Knowing the version may still be useful to pick supported flags
+            allow_fail = isinstance(self, CustomCompiler)
+            version = sniff_compiler_version(self.CC, allow_fail=allow_fail)
+
+        return version
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
