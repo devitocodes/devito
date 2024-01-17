@@ -596,9 +596,9 @@ By default, Devito compiles the generated code using flags that maximize the run
 
 [top](#Frequently-Asked-Questions)
 
-## Can I control the MPI domain decomposition
+## Can I control the MPI domain decomposition?
 
-Until Devito v3.5 included, domain decomposition occurs along the fastest axis. As of later versions, domain decomposition occurs along the slowest axis, for performance reasons.  And yes, it is possible to control the domain decomposition in user code, but this is not neatly documented. Take a look at `test_custom_topology` in [this file](https://github.com/devitocodes/devito/blob/master/tests/test_mpi.py). In essence, `Grid` accepts the optional argument `topology`, which allows the user to pass a custom topology as an n-tuple, where `n` is the number of distributed dimensions. For example, for a two-dimensional grid, the topology `(4, 1)` will decompose the slowest axis into four partitions, one partition per MPI rank, while the fastest axis will be replicated over all MPI ranks.
+Until Devito v3.5 included, domain decomposition occurs along the fastest axis. As of later versions, domain decomposition occurs along the slowest axis, for performance reasons.  And yes, it is possible to control the domain decomposition in user code, but this is not neatly documented. Take a look at `class CustomTopology` in [distributed.py](https://github.com/devitocodes/devito/blob/master/devito/mpi/distributed.py) and `test_custom_topology` in [this file](https://github.com/devitocodes/devito/blob/master/tests/test_mpi.py). In essence, `Grid` accepts the optional argument `topology`, which allows the user to pass a custom topology as an n-tuple, where `n` is the number of distributed dimensions. For example, for a two-dimensional grid, the topology `(4, 1)` will decompose the slowest axis into four partitions, one partition per MPI rank, while the fastest axis will be replicated over all MPI ranks.
 
 
 [top](#Frequently-Asked-Questions)

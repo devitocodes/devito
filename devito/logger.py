@@ -13,13 +13,13 @@ logger = logging.getLogger('Devito')
 stream_handler = logging.StreamHandler()
 logger.addHandler(stream_handler)
 
-# Add extra logging levels (note: INFO has value=20, WARNING has value=30)
-DEBUG = logging.DEBUG
+# Add extra logging levels
+DEBUG = logging.DEBUG  # value=10
 PERF = 19
-INFO = logging.INFO
-WARNING = logging.WARNING
-ERROR = logging.ERROR
-CRITICAL = logging.CRITICAL
+INFO = logging.INFO  # value=20
+WARNING = logging.WARNING  # value=30
+ERROR = logging.ERROR  # value=40
+CRITICAL = logging.CRITICAL  # value=50
 
 logging.addLevelName(PERF, "PERF")
 
@@ -71,8 +71,8 @@ def set_log_level(level, comm=None):
     comm : MPI communicator, optional
         An MPI communicator the logger should be collective over. If provided, only
         rank-0 on that communicator will write to the registered handlers, other
-        ranks will use a `logging.NullHandler`.  By default, ``comm`` is set
-        to ``None``, so all ranks will use the default handlers.  This could be
+        ranks will use a `logging.NullHandler`. By default, ``comm`` is set
+        to ``None``, so all ranks will use the default handlers. This could be
         used, for example, if one wants to log to one file per rank.
     """
     from devito import configuration
