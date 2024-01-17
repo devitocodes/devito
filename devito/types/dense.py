@@ -98,7 +98,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after
                 # domain decomposition. We touch the data anyway to avoid the
-                # case ``self._data is None``
+                # case `self._data is None`
                 self.data
         else:
             raise ValueError("`initializer` must be callable or buffer, not %s"
@@ -219,7 +219,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Notes
         -----
         In an MPI context, this is the *local* domain region shape.
-        Alias to ``self.shape``.
+        Alias to `self.shape`.
         """
         return self.shape
 
@@ -436,7 +436,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Alias to ``self.data._gather``.
+        Alias to `self.data._gather`.
 
         Note that gathering data from large simulations onto a single rank may
         result in memory blow-up and hence should use this method judiciously.
@@ -453,7 +453,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Alias to ``self.data``.
+        Alias to `self.data`.
 
         With this accessor you are claiming that you will modify the values you
         get back. If you only need to look at the values, use
@@ -616,10 +616,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using
-        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``. On
+        Given a Function `f(x, y)` with shape `(nx, ny)`, when *not* using
+        MPI this property will return `(slice(0, nx-1), slice(0, ny-1))`. On
         the other hand, when MPI is used, the local ranges depend on the domain
-        decomposition, which is carried by ``self.grid``.
+        decomposition, which is carried by `self.grid`.
         """
         if self._distributor is None:
             return tuple(slice(0, s) for s in self.shape)
@@ -899,12 +899,14 @@ class Function(DiscreteFunction):
         order (``o``) as well as the number of points on the left (``lp``) and right
         (``rp``) sides of a generic point of interest.
     shape : tuple of ints, optional
-        Shape of the domain region in grid points. Only necessary if ``grid`` isn't given.
+        Shape of the domain region in grid points. Only necessary if `grid`
+        isn't given.
     dimensions : tuple of Dimension, optional
-        Dimensions associated with the object. Only necessary if ``grid`` isn't given.
+        Dimensions associated with the object. Only necessary if `grid` isn't
+        given.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
+        to `np.float32`.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, optional
@@ -962,7 +964,7 @@ class Function(DiscreteFunction):
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
-    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
+    uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_Function = True
@@ -1152,8 +1154,8 @@ class Function(DiscreteFunction):
 
     def sum(self, p=None, dims=None):
         """
-        Generate a symbolic expression computing the sum of ``p`` points
-        along the spatial dimensions ``dims``.
+        Generate a symbolic expression computing the sum of `p` points
+        along the spatial dimensions `dims`.
 
         Parameters
         ----------
@@ -1161,7 +1163,7 @@ class Function(DiscreteFunction):
             The number of summands. Defaults to the halo size.
         dims : tuple of Dimension, optional
             The Dimensions along which the sum is computed. Defaults to
-            ``self``'s spatial dimensions.
+            `self`'s spatial dimensions.
         """
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
@@ -1178,8 +1180,8 @@ class Function(DiscreteFunction):
 
     def avg(self, p=None, dims=None):
         """
-        Generate a symbolic expression computing the average of ``p`` points
-        along the spatial dimensions ``dims``.
+        Generate a symbolic expression computing the average of `p` points
+        along the spatial dimensions `dims`.
 
         Parameters
         ----------
@@ -1187,7 +1189,7 @@ class Function(DiscreteFunction):
             The number of summands. Defaults to the halo size.
         dims : tuple of Dimension, optional
             The Dimensions along which the average is computed. Defaults to
-            ``self``'s spatial dimensions.
+            `self`'s spatial dimensions.
         """
         tot = self.sum(p, dims)
         return tot / len(tot.args)
@@ -1223,25 +1225,28 @@ class TimeFunction(Function):
     time_order : int, optional
         Discretization order for time derivatives. Defaults to 1.
     shape : tuple of ints, optional
-        Shape of the domain region in grid points. Only necessary if `grid` isn't given.
+        Shape of the domain region in grid points. Only necessary if `grid`
+        isn't given.
     dimensions : tuple of Dimension, optional
-        Dimensions associated with the object. Only necessary if `grid` isn't given.
+        Dimensions associated with the object. Only necessary if `grid` isn't
+        given.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
         to `np.float32`.
     save : int or Buffer, optional
-        By default, ``save=None``, which indicates the use of alternating buffers. This
-        enables cyclic writes to the TimeFunction. For example, if the TimeFunction
-        ``u(t, x)`` has shape (3, 100), then, in an Operator, ``t`` will assume the
-        values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the very first value depends
-        on the stencil equation in which ``u`` is written.). The default size of the time
-        buffer when ``save=None`` is ``time_order + 1``.  To specify a different size for
-        the time buffer, one should use the syntax ``save=Buffer(mysize)``.
-        Alternatively, if all of the intermediate results are required (or, simply, to
-        avoid using an alternating buffer), an explicit value for ``save`` ( an integer)
-        must be provided.
+        By default, `save=None`, which indicates the use of alternating
+        buffers. This enables cyclic writes to the TimeFunction. For example,
+        if the TimeFunction `u(t, x)` has shape (3, 100), then, in an Operator,
+        `t` will assume the values `1, 2, 0, 1, 2, 0, 1, ...` (note that the
+        very first value depends on the stencil equation in which `u` is
+        written.). The default size of the time buffer when `save=None` is
+        `time_order + 1`.  To specify a different size for the time buffer, one
+        should use the syntax `save=Buffer(mysize)`.  Alternatively, if all of
+        the intermediate results are required (or, simply, to avoid using an
+        alternating buffer), an explicit value for `save` ( an integer) must be
+        provided.
     time_dim : Dimension, optional
-        TimeDimension to be used in the TimeFunction. Defaults to ``grid.time_dim``.
+        TimeDimension to be used in the TimeFunction. Defaults to `grid.time_dim`.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, optional
@@ -1278,14 +1283,14 @@ class TimeFunction(Function):
     Derivative(g(t, x, y), t)
 
     When using the alternating buffer protocol, the size of the time dimension
-    is given by ``time_order + 1``
+    is given by `time_order + 1`
 
     >>> f.shape
     (2, 4, 4)
     >>> g.shape
     (3, 4, 4)
 
-    One can drop the alternating buffer protocol specifying a value for ``save``
+    One can drop the alternating buffer protocol specifying a value for `save`
 
     >>> h = TimeFunction(name='h', grid=grid, save=20)
     >>> h
@@ -1296,10 +1301,10 @@ class TimeFunction(Function):
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy uses
-    ``*args`` to (re-)create the dimension arguments of the symbolic object.
-    If the parameter ``grid`` is provided, the values for ``shape``,
-    ``dimensions`` and ``dtype`` will be derived from it. When present, the
-    parameter ``shape`` should only define the spatial shape of the grid. The
+    `*args` to (re-)create the dimension arguments of the symbolic object.
+    If the parameter `grid` is provided, the values for `shape`,
+    `dimensions` and `dtype` will be derived from it. When present, the
+    parameter `shape` should only define the spatial shape of the grid. The
     temporal dimension will be inserted automatically as the leading dimension.
     """
 
