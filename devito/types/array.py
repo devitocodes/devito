@@ -5,7 +5,7 @@ from cached_property import cached_property
 from sympy import Expr
 
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
-                          dtype_to_ctype, dtypes_vector_mapper)
+                          dtype_to_ctype, dtypes_vector_mapper, is_integer)
 from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
@@ -135,10 +135,10 @@ class Array(ArrayBasic):
             padding = ((0, 0),)*self.ndim
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
-        elif isinstance(padding, int):
+        elif is_integer(padding):
             padding = tuple((0, padding) for _ in range(self.ndim))
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
+            padding = tuple((0, i) if is_integer(i) else i for i in padding)
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
         return DimensionTuple(*padding, getters=self.dimensions)
@@ -504,7 +504,7 @@ class ComponentAccess(Expr, Reconstructable):
     def __new__(cls, arg, index=0, **kwargs):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
-        if not isinstance(index, int) or index > 3:
+        if not is_integer(index) or index > 3:
             raise ValueError("Expected 0 <= index < 4")
 
         obj = Expr.__new__(cls, arg)

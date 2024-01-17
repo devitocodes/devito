@@ -11,7 +11,7 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import dtype_to_ctype
+from devito.tools import dtype_to_ctype, is_integer
 
 __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -77,7 +77,7 @@ class MemoryAllocator(object):
             padleft, padright = padding
         except TypeError:
             padleft, padright = padding, padding
-        if not isinstance(padleft, int) and not isinstance(padright, int):
+        if not is_integer(padleft) and not is_integer(padright):
             raise TypeError("padding must be an int or a 2-tuple of ints")
         size = datasize + padleft + padright
 
@@ -101,9 +101,8 @@ class MemoryAllocator(object):
         #   is copied, you should assign the new shape to the shape attribute
         #   of the array:
         array.shape = shape
-        ndarray = array  # At this point it's interpreted as an ndarray
 
-        return (ndarray, memfree_args)
+        return (array, memfree_args)
 
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
