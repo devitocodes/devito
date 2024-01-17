@@ -54,7 +54,6 @@ class TensorFunction(AbstractTensor):
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
-        .. deprecated:: shouldn't be used; padding is now automatically inserted.
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
     symmetric : bool, optional
