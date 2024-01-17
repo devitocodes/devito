@@ -599,7 +599,7 @@ class SubDomain(AbstractSubDomain):
 
         # Intervals of form Interval(n, n) automatically become FiniteSet
         # +1 as intervals are in terms of indices (inclusive of endpoints)
-        # Empty interval corresponds to a size of zero 
+        # Empty interval corresponds to a size of zero
         self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval
                                   else 1 for i in self.distributor.intervals)
 
