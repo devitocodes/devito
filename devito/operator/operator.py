@@ -224,7 +224,6 @@ class Operator(Callable):
         op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
-        print("Dspace", op._dspace)
         op._profiler = profiler
 
         return op
@@ -626,7 +625,6 @@ class Operator(Callable):
         args.update({k: v for k, v in kwargs.items() if k not in args})
 
         # Sanity check
-        print("Parameters", self.parameters)
         for p in self.parameters:
             p._arg_check(args, self._dspace[p], am=self._access_modes.get(p),
                          **kwargs)

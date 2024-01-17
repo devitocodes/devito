@@ -342,7 +342,6 @@ class Dimension(ArgProvider):
                 # Autopadding causes non-integer upper limit
                 from devito.symbolics import normalize_args
                 upper = interval.upper.subs(normalize_args(args))
-            print("Values checked at OOB for %s" % self.name, args[self.max_name], upper, size)
             if args[self.max_name] + upper >= size:
                 raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
                                                                      args[self.max_name]))

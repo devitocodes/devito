@@ -322,8 +322,6 @@ class Decomposition(tuple):
             abs_ofs, side = args
             if side is LEFT:
                 rel_ofs = self.glb_min + abs_ofs - base
-                from mpi4py import MPI
-                print("Rank", MPI.COMM_WORLD.Get_rank(), "abs", abs_ofs, "rel", rel_ofs, "base", base, "top", top, "glb_min", self.glb_min)
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
                 elif abs_ofs > top:

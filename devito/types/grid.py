@@ -595,14 +595,11 @@ class SubDomain(AbstractSubDomain):
         self._dtype = self.grid.dtype
         self._distributor = SubDomainDistributor(self)
 
-        if any([i.is_empty for i in self.distributor.intervals]):
-            # SubDomain does not overlap this rank
-            self._shape_local = tuple(0 for d in self.grid.dimensions)
-        else:
-            # Intervals of form Interval(n, n) automatically become FiniteSet
-            # +1 as intervals are in terms of indices (inclusive of endpoints)
-            self._shape_local = tuple(i.end-i.start + 1 if i.is_Interval else 1
-                                      for i in self.distributor.intervals)
+        # Intervals of form Interval(n, n) automatically become FiniteSet
+        # +1 as intervals are in terms of indices (inclusive of endpoints)
+        # Empty interval corresponds to a size of zero 
+        self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval else 1
+                                  for i in self.distributor.intervals)
 
     @property
     def shape_local(self):
