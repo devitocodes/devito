@@ -887,9 +887,10 @@ class TestSubdomainFunctionsParallel:
                             ('right', 3), ('middle', 5, 0),
                             ('middle', 2, 3), ('middle', 1, 7),
                             None]
+
     @pytest.mark.parametrize('x', _mpi_subdomain_specs)
     @pytest.mark.parametrize('y', _mpi_subdomain_specs)
-    @pytest.mark.parallel(mode=[(2, 'full')])
+    @pytest.mark.parallel(mode=[(2, 'full')])  # Need to also test 3 and 4 in due course
     def test_function_data_shape_mpi(self, x, y):
         """
         Check that defining a Function on a subset of a Grid results in arrays
@@ -910,11 +911,11 @@ class TestSubdomainFunctionsParallel:
 
         assert np.count_nonzero(check_data) == f.data.size
 
-        if np.count_nonzero(check_data) != 0:
-            coords = np.nonzero(check_data)
-            shape = tuple(np.amax(c)-np.amin(c)+1 for c in coords)
-            assert f.data.shape == shape
-            assert f._distributor.glb_shape == grid.shape
+        coords = np.nonzero(check_data)
+        shape = tuple(np.amax(c)-np.amin(c)+1 if c.size != 0 else 0 for c in coords)
+        assert f.data.shape == shape
+        assert f._distributor.parent.glb_shape == grid.shape
+        assert f._distributor.glb_shape == reduced_domain.shape
 
     @pytest.mark.parametrize('x', _mpi_subdomain_specs)
     @pytest.mark.parametrize('y', _mpi_subdomain_specs)
@@ -923,13 +924,6 @@ class TestSubdomainFunctionsParallel:
         """
         Test a trivial operator with a single Function
         """
-        class Middle(SubDomain):
-
-            name = 'middle'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
 
         grid = Grid(shape=(11, 11), extent=(10., 10.))
         reduced_domain = ReducedDomain(x, y, grid=grid)
