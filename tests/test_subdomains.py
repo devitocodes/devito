@@ -769,14 +769,10 @@ class ReducedDomain(SubDomain):
 class TestSubdomainFunctions:
     """Tests for functions defined on SubDomains"""
 
-    @pytest.mark.parametrize('x', [('left', 3), ('left', 6),
-                                   ('right', 3), ('right', 6),
-                                   ('middle', 2, 3), ('middle', 1, 7),
-                                   None])
-    @pytest.mark.parametrize('y', [('left', 3), ('left', 6),
-                                   ('right', 3), ('right', 6),
-                                   ('middle', 2, 3), ('middle', 1, 7),
-                                   None])
+    _subdomain_specs = [('left', 3), ('right', 3), ('middle', 2, 3), None]
+
+    @pytest.mark.parametrize('x', _subdomain_specs)
+    @pytest.mark.parametrize('y', _subdomain_specs)
     @pytest.mark.parametrize('so', [2, 4])
     def test_function_data_shape(self, x, y, so):
         """
@@ -812,25 +808,20 @@ class TestSubdomainFunctions:
             assert all([i == so for i in f._size_inhalo[d]])
             assert all([i == so for i in f._size_outhalo[d]])
 
-    def test_basic_function(self):
+    @pytest.mark.parametrize('x', _subdomain_specs)
+    @pytest.mark.parametrize('y', _subdomain_specs)
+    def test_basic_function(self, x, y):
         """
         Test a trivial operator with a single Function
         """
-        class Middle(SubDomain):
-
-            name = 'middle'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
 
         grid = Grid(shape=(10, 10), extent=(9., 9.))
-        mid = Middle(grid=grid)
+        reduced_domain = ReducedDomain(x, y, grid=grid)
 
-        f = Function(name='f', grid=mid)
+        f = Function(name='f', grid=reduced_domain)
         eq = Eq(f, f+1)
 
-        assert(f.shape == mid.shape)
+        assert(f.shape == reduced_domain.shape)
 
         Operator(eq)()
 
@@ -882,7 +873,8 @@ class TestSubdomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""
     # Note that some of the 'left' and 'right' SubDomains here are swapped
     # with 'middle' as they are local by default and so cannot be decomposed
-    # across MPI ranks.
+    # across MPI ranks. Also more options here as there is a need to check
+    # that empty MPI ranks don't cause issues
     _mpi_subdomain_specs = [('left', 3), ('middle', 0, 5),
                             ('right', 3), ('middle', 5, 0),
                             ('middle', 2, 3), ('middle', 1, 7),
