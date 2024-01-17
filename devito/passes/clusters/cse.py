@@ -13,7 +13,7 @@ from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import DAG, as_list, as_tuple, frozendict
+from devito.tools import as_list
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
