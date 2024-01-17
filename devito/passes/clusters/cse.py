@@ -10,7 +10,7 @@ from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import as_list
-from devito.types import Eq, Temp, Symbol
+from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
 
