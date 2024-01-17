@@ -107,8 +107,8 @@ class TestDistributor(object):
             7: {x: {LEFT: 4, RIGHT: PN}, y: {LEFT: 6, RIGHT: 8}},
             8: {x: {LEFT: 5, RIGHT: PN}, y: {LEFT: 7, RIGHT: PN}},
         }
-        assert expected[distributor.myrank][x] == distributor.neighborhood()[x]
-        assert expected[distributor.myrank][y] == distributor.neighborhood()[y]
+        assert expected[distributor.myrank][x] == distributor.neighborhood[x]
+        assert expected[distributor.myrank][y] == distributor.neighborhood[y]
 
     @pytest.mark.parallel(mode=9)
     def test_neighborhood_diagonal_2d(self, mode):
@@ -138,7 +138,7 @@ class TestDistributor(object):
             7: {(LEFT, LEFT): 3, (LEFT, RIGHT): 5, (RIGHT, LEFT): PN, (RIGHT, RIGHT): PN},
             8: {(LEFT, LEFT): 4, (LEFT, RIGHT): PN, (RIGHT, LEFT): PN, (RIGHT, RIGHT): PN}  # noqa
         }
-        assert all(expected[distributor.myrank][i] == distributor.neighborhood()[i]
+        assert all(expected[distributor.myrank][i] == distributor.neighborhood[i]
                    for i in [(LEFT, LEFT), (LEFT, RIGHT), (RIGHT, LEFT), (RIGHT, RIGHT)])
 
     @pytest.mark.parallel(mode=[2, 4])
