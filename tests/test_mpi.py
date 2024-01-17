@@ -573,6 +573,25 @@ class TestSparseFunction(object):
 
         assert np.allclose(rec.coordinates.data[:], ref.coordinates.data)
 
+    @pytest.mark.parallel(mode=2)
+    def test_issue2214(self):
+
+        u = Function(name="u", grid=Grid((5, 5)))
+
+        x, y = u.grid.dimensions
+
+        Operator(Eq(u, x+y))()
+
+        ans = u.data_gather(rank=0)
+    
+        expected = np.zeros((5), dtype=np.float32)
+        for i in range(5):
+            expected[i] = np.float32(i) + 3
+
+        myrank = u.grid._distributor.comm.Get_rank()
+        if myrank == 0:
+            assert np.all(ans[3] == expected)
+
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('r', [2])
     def test_precomputed_sparse(self, r):
