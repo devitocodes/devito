@@ -25,7 +25,7 @@ from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
                           timed_region, contains_val)
-from devito.types import Grid, Evaluable, SubFunction
+from devito.types import Evaluable, SubFunction
 
 __all__ = ['Operator']
 

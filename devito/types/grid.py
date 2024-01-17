@@ -1,16 +1,15 @@
 from abc import ABC
 from collections import namedtuple
-from itertools import product
 from math import floor
 
 import numpy as np
-from sympy import prod, Interval
+from sympy import prod
 from cached_property import cached_property
 
-from devito.data import LEFT, CENTER, RIGHT
+from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDomainDistributor
-from devito.tools import ReducerMap, as_tuple, frozendict
+from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -601,8 +600,8 @@ class SubDomain(AbstractSubDomain):
         # Intervals of form Interval(n, n) automatically become FiniteSet
         # +1 as intervals are in terms of indices (inclusive of endpoints)
         # Empty interval corresponds to a size of zero 
-        self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval else 1
-                                  for i in self.distributor.intervals)
+        self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval
+                                  else 1 for i in self.distributor.intervals)
 
     @property
     def shape_local(self):
