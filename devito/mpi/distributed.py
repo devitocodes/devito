@@ -505,6 +505,8 @@ class SubDomainDistributor(DenseDistributor):
                                    if sdim_interval[dim].is_empty
                                    else d[np.logical_and(d >= sdim_interval[dim].start,
                                                          d <= sdim_interval[dim].end)]
+                                   if sdim_interval[dim].is_Interval
+                                   else np.array(sdim_interval[dim].args, dtype=np.int64)
                                    for d in dec])
 
         self._decomposition = [Decomposition(d, c)
