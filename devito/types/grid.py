@@ -198,6 +198,11 @@ class Grid(CartesianDiscretization, ArgProvider):
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
         # Initialize SubDomains
+        if subdomains:
+            warning("Passing `SubDomain`s to a `Grid` and the `Grid.subdomains` property"
+                    " are deprecated. The updated API requires a `Grid` to be passed to"
+                    " the `SubDomain` on instantiation in the form mydomain ="
+                    " MyDomain(grid=grid).")
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for i in subdomains:
             i.__subdomain_finalize__(grid=self)
@@ -254,6 +259,10 @@ class Grid(CartesianDiscretization, ArgProvider):
     @property
     def subdomains(self):
         """The SubDomains defined in this Grid."""
+        warning("Passing `SubDomain`s to a `Grid` and the `Grid.subdomains` property"
+                " are deprecated. The updated API requires a `Grid` to be passed to"
+                " the `SubDomain` on instantiation in the form mydomain ="
+                " MyDomain(grid=grid).")
         return {i.name: i for i in self._subdomains}
 
     @property
