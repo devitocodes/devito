@@ -833,7 +833,7 @@ class TestMemoryLeaks(object):
         # But this is not the case anymore!
         # TODO: This cache doesn't clear currently as retained legacy SubDomain API
         # creates a circular reference between Grid and SubDomain. This test should be
-        # revisited once this feature is depreciated.
+        # revisited once this feature is deprecated.
         assert len(_SymbolCache) == 11
         clear_cache()
         assert len(_SymbolCache) == 11
