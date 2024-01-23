@@ -463,7 +463,9 @@ class SubDomainDistributor(DenseDistributor):
 
         super().__init__(subdomain.shape, subdomain.dimensions)
 
-        self._dimension_map = subdomain.dimension_map
+        self._dimension_map = frozendict({pd: sd for pd, sd
+                                          in zip(subdomain.grid.dimensions,
+                                                 subdomain.dimensions)})
 
         self._parent = subdomain.grid.distributor
 
