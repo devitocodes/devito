@@ -3,7 +3,7 @@
 # Based on  https://github.com/amd/InfinityHub-CI/tree/main/base-gpu-mpi-rocm-docker
 ##############################################################
 
-ARG ROCM_VERSION=5.7.1
+ARG ROCM_VERSION=5.5.1
 
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
