@@ -847,6 +847,7 @@ class SubDomainSet(MultiSubDomain):
                                  % self)
             else:
                 self._grid = grid
+        self._distributor = self.grid.distributor
         self._dtype = self.grid.dtype
 
         # Create the SubDomainSet SubDimensions
