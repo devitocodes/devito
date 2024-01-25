@@ -154,6 +154,12 @@ def iet_pass(func):
         else:
             maybe_timed = lambda func, name: func
         try:
+            # If the pass has been disabled, skip it
+            if not kwargs['options'][func.__name__]:
+                return
+        except KeyError:
+            pass
+        try:
             # Pure function case
             graph, = args
             return maybe_timed(call(graph), func.__name__)(func, **kwargs)

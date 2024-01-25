@@ -17,7 +17,7 @@ __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
 
 
 @iet_pass
-def avoid_denormals(iet, platform=None):
+def avoid_denormals(iet, platform=None, **kwargs):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
     macros telling the CPU to flush denormal numbers in hardware. Denormals

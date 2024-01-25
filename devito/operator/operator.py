@@ -1038,6 +1038,7 @@ class Operator(Callable):
 # dangerous as some of them (the minority) might break in some circumstances
 # if applied in cascade (e.g., `linearization` on top of `linearization`)
 rcompile_registry = {
+    'avoid_denormals': False,
     'mpi': False,
     'linearize': False,
     'place-transfers': False
