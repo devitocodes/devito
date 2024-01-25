@@ -45,6 +45,9 @@ ENV ROCM_HOME=/opt/rocm \
     UCX_HOME=/opt/ucx \
     OMPI_HOME=/opt/ompi
 
+# Until rocm base has it fixed
+RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch
+
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
