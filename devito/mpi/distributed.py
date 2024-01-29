@@ -343,7 +343,7 @@ class Distributor(DenseDistributor):
     @cached_property
     def glb_pos_map(self):
         """
-        A mapper ``Dimension -> DataSide`` providing the position of the calling
+        A mapper `Dimension -> DataSide` providing the position of the calling
         MPI rank in the decomposed domain.
         """
         ret = {}
@@ -392,22 +392,22 @@ class Distributor(DenseDistributor):
     @property
     def neighborhood(self):
         """
-        A mapper ``M`` describing the calling MPI rank's neighborhood in the
+        A mapper `M` describing the calling MPI rank's neighborhood in the
         decomposed grid. Let
 
-            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the decomposed
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the decomposed
               Dimensions.
-            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
-            * ``p`` be the rank of a neighbour MPI process.
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `p` be the rank of a neighbour MPI process.
 
-        Then ``M`` can be indexed in two ways:
+        Then `M` can be indexed in two ways:
 
-            * ``M[d] -> (s -> p)``; that is, ``M[d]`` returns a further mapper
+            * `M[d] -> (s -> p)`; that is, `M[d]` returns a further mapper
               (from DataSide to MPI rank) from which the two adjacent processes
-              along ``d`` can be retrieved.
-            * ``M[(s0, s1, ..., sn)] -> p``, where ``s0`` is the DataSide along
-              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
-              useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
+              along `d` can be retrieved.
+            * `M[(s0, s1, ..., sn)] -> p`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
+              useful to retrieve the diagonal neighbours (e.g., `M[(LEFT, LEFT)]`
               gives the top-left neighbour in a 2D grid).
         """
         # Set up horizontal neighbours
@@ -480,14 +480,11 @@ class SubDistributor(DenseDistributor):
         self._comm = self.parent.comm
         self._topology = self.parent.topology
 
-        # Want to calculate and keep track of crosses here
-        self.__align_parent__()
+        self.__decomposition_setup__()
 
-    def __align_parent__(self):
+    def __decomposition_setup__(self):
         """
-        Routines for determining alignment of the SubDomain which this
-        SubDistributor decomposes relative to the overarching
-        decomposition of the grid.
+        Set up the decomposition, aligned with that of the parent Distributor.
         """
         def interval_to_indices(interval):
             """Convert SubDimension Intervals to integer indices."""
@@ -502,61 +499,10 @@ class SubDistributor(DenseDistributor):
                 # Pop value into array
                 return np.array(interval.args, dtype=np.int64)
 
-        # Get the Interval of the indices distributed on this rank
-        d_interval = {d: Interval(s.start, s.stop-1)
-                      for d, s in self.par_slices.items()}
-
-        # Assumes no override of x_m and x_M supplied to operator
-        bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
-        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
-                                                               self.par_shape)})
-
-        sd_interval = {}  # The Interval of SubDimension indices
-        for d, sd in zip(self.par_dimensions, self.dimensions):
-            if sd.is_Sub:
-                tkn_map = {k: v for k, v in sd._thickness_map.items() if v is not None}
-                tkn_map.update(bounds_map)
-                # Evaluate SubDimension thicknesses and substitute into Interval
-                sd_interval[d] = sd._interval.subs(tkn_map)
-            else:
-                sd_interval[d] = None
-
-        self._intervals = tuple((d_interval[d] if sd_interval[d] is None
-                                 else d_interval[d].intersect(sd_interval[d]))
-                                for d in self.par_dimensions)
-
         # The domain decomposition
         decompositions = [interval_to_indices(i) for i in self.intervals]
         self._decomposition = [Decomposition(d, c)
                                for d, c in zip(decompositions, self.mycoords)]
-
-        # Keep track of the edges of the rank crossed by the SubDomain
-        # Format is {dimension: {side: crosses}} or {(sides,): crosses}
-        # (matches neighborhood)
-        crosses = {}
-        for d in self.par_dimensions:
-            sd = self.dimension_map[d]
-            if sd.is_Sub:
-                in_rank = d_interval[d].issuperset(sd_interval[d])
-                off_rank = d_interval[d].isdisjoint(sd_interval[d])
-                if in_rank or off_rank:
-                    crosses[sd] = {LEFT: False, RIGHT: False}
-                elif sd.local:
-                    raise ValueError("SubDimension %s is local and cannot be"
-                                     " decomposed across MPI ranks" % d)
-                else:
-                    crosses[sd] = {LEFT: sd_interval[d].left
-                                   < d_interval[d].left,
-                                   RIGHT: sd_interval[d].right
-                                   > d_interval[d].right}
-            else:
-                crosses[sd] = {LEFT: True, RIGHT: True}
-
-        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
-            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
-                             if s in crosses[d])  # Skip over CENTER
-
-        self._crosses = frozendict(crosses)
 
     @property
     def parent(self):
@@ -585,60 +531,111 @@ class SubDistributor(DenseDistributor):
     def dimension_map(self):
         return self._dimension_map
 
-    @property
+    @cached_property
+    def _d_interval(self):
+        """The interval spanned by this MPI rank"""
+        return tuple(Interval(self.par_slices[d].start, self.par_slices[d].stop-1)
+                     for d in self.par_dimensions)
+
+    @cached_property
+    def _sd_interval(self):
+        """The interval spanned by the SubDomain"""
+        # Assumes no override of x_m and x_M supplied to operator
+        bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
+        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
+                                                               self.par_shape)})
+
+        sd_interval = []  # The Interval of SubDimension indices
+        for d in self.dimensions:
+            if d.is_Sub:
+                # Need to filter None from thicknesses as used as placeholder
+                tkn_map = {k: v for k, v in d._thickness_map.items() if v is not None}
+                tkn_map.update(bounds_map)
+                # Evaluate SubDimension thicknesses and substitute into Interval
+                sd_interval.append(d._interval.subs(tkn_map))
+            else:
+                sd_interval.append(None)
+        return tuple(sd_interval)
+
+    @cached_property
     def intervals(self):
         """The interval spanned by the SubDomain in each dimension on this rank"""
-        return self._intervals
+        return tuple(d if s is None else d.intersect(s)
+                     for d, s in zip(self._d_interval, self._sd_interval))
 
-    @property
+    @cached_property
     def crosses(self):
         """
-        A mapper ``M`` indicating the sides of this MPI rank crossed by the SubDomain.
+        A mapper `M` indicating the sides of this MPI rank crossed by the SubDomain.
         Let
 
-            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the dimensions of the parent
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the dimensions of the parent
               distributor.
-            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
-            * ``c`` be a bool indicating whether the SubDomain crosses the edge of the
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `c` be a bool indicating whether the SubDomain crosses the edge of the
               rank on this side.
 
-        Then ``M`` can be indexed in two ways:
+        Then `M` can be indexed in two ways:
 
-            * ``M[d] -> (s -> c)``; that is, ``M[d]`` returns a further mapper
+            * `M[d] -> (s -> c)`; that is, `M[d]` returns a further mapper
               (from DataSide to bool) used to determine whether the SubDomain crosses
               the edge of the rank on this side.
-            * ``M[(s0, s1, ..., sn)] -> c``, where ``s0`` is the DataSide along
-              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
+            * `M[(s0, s1, ..., sn)] -> c`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
               determine whether the SubDomain crosses the edge of the rank on this side.
         """
-        return self._crosses
+        crosses = {}
+
+        for d, d_i, s_i in zip(self.dimensions, self._d_interval, self._sd_interval):
+            if d.is_Sub:
+                in_rank = d_i.issuperset(s_i)
+                off_rank = d_i.isdisjoint(s_i)
+                # SubDomain is either fully contained or not present on this rank
+                if in_rank or off_rank:
+                    crosses[d] = {LEFT: False, RIGHT: False}
+                elif d.local:
+                    raise ValueError("SubDimension %s is local and cannot be"
+                                     " decomposed across MPI ranks" % d)
+                else:
+                    crosses[d] = {LEFT: s_i.left < d_i.left,
+                                  RIGHT: s_i.right > d_i.right}
+            else:
+                crosses[d] = {LEFT: True, RIGHT: True}
+
+        for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
+            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
+                             if s in crosses[d])  # Skip over CENTER
+
+        return frozendict(crosses)
 
     @cached_property
     def is_boundary_rank(self):
         """
         MPI rank interfaces with the boundary of the subdomain.
         """
+        # FIXME: Does this behave correctly for domain edges?
+        # FIXME: May need an `or`` with parent.is_boundary_rank
         return any(not all(self.crosses[d].values()) for d in self.dimensions)
 
     @property
     def neighborhood(self):
         """
-        A mapper ``M`` describing the calling MPI rank's neighborhood in the
+        A mapper `M` describing the calling MPI rank's neighborhood in the
         decomposed grid. Let
 
-            * ``d`` be a Dimension -- ``d0, d1, ..., dn`` are the decomposed
+            * `d` be a Dimension -- `d0, d1, ..., dn` are the decomposed
               Dimensions.
-            * ``s`` be a DataSide -- possible values are ``LEFT, CENTER, RIGHT``,
-            * ``p`` be the rank of a neighbour MPI process.
+            * `s` be a DataSide -- possible values are `LEFT, CENTER, RIGHT`,
+            * `p` be the rank of a neighbour MPI process.
 
-        Then ``M`` can be indexed in two ways:
+        Then `M` can be indexed in two ways:
 
-            * ``M[d] -> (s -> p)``; that is, ``M[d]`` returns a further mapper
+            * `M[d] -> (s -> p)`; that is, `M[d]` returns a further mapper
               (from DataSide to MPI rank) from which the two adjacent processes
-              along ``d`` can be retrieved.
-            * ``M[(s0, s1, ..., sn)] -> p``, where ``s0`` is the DataSide along
-              ``d0``, ``s1`` the DataSide along ``d1``, and so on. This can be
-              useful to retrieve the diagonal neighbours (e.g., ``M[(LEFT, LEFT)]``
+              along `d` can be retrieved.
+            * `M[(s0, s1, ..., sn)] -> p`, where `s0` is the DataSide along
+              `d0`, `s1` the DataSide along `d1`, and so on. This can be
+              useful to retrieve the diagonal neighbours (e.g., `M[(LEFT, LEFT)]`
               gives the top-left neighbour in a 2D grid).
         """
         shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
