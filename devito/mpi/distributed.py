@@ -68,7 +68,7 @@ except ImportError as e:
             return None
 
 
-__all__ = ['Distributor', 'SubDomainDistributor', 'SparseDistributor', 'MPI',
+__all__ = ['Distributor', 'SubDistributor', 'SparseDistributor', 'MPI',
            'CustomTopology']
 
 
@@ -447,15 +447,16 @@ class Distributor(DenseDistributor):
                            comm or self.comm)
 
 
-class SubDomainDistributor(DenseDistributor):
+class SubDistributor(DenseDistributor):
 
     """
-    Decompose a subdomain over a set of MPI processes.
+    Decompose a subset of a domain over a set of MPI processes in a manner consistent
+    with the parent distributor.
 
     Parameters
     ----------
     subdomain : SubDomain
-        The subdomain to be decomposed
+        The subdomain to be decomposed.
 
     Notes
     -----
@@ -466,7 +467,7 @@ class SubDomainDistributor(DenseDistributor):
 
     def __init__(self, subdomain):
         # Does not keep reference to the SubDomain since SubDomain will point to
-        # this SubDomainDistributor and Distributor does not point to the Grid
+        # this SubDistributor and Distributor does not point to the Grid
 
         super().__init__(subdomain.shape, subdomain.dimensions)
 
@@ -485,67 +486,71 @@ class SubDomainDistributor(DenseDistributor):
     def __align_parent__(self):
         """
         Routines for determining alignment of the SubDomain which this
-        SubDomainDistributor decomposes relative to the overarching
+        SubDistributor decomposes relative to the overarching
         decomposition of the grid.
         """
-        dist_interval = {dim: Interval(s.start, s.stop-1)
-                         for dim, s in self.parent.glb_slices.items()}
+        def interval_to_indices(interval):
+            """Convert SubDimension Intervals to integer indices."""
+            if interval.is_empty:
+                # SubDimension not present on this rank. Empty array of indices
+                return np.arange(0)
+            elif interval.is_Interval:
+                # Interval containing two or more indices. Mask accordingly.
+                return np.arange(interval.start, interval.end+1)
+            else:
+                # Interval where start == end defaults to FiniteSet.
+                # Pop value into array
+                return np.array(interval.args, dtype=np.int64)
+
+        # Get the Interval of the indices distributed on this rank
+        d_interval = {d: Interval(s.start, s.stop-1)
+                      for d, s in self.par_slices.items()}
 
         # Assumes no override of x_m and x_M supplied to operator
-        bounds_map = {**{dim.symbolic_min: 0
-                         for dim in self.parent.dimensions},
-                      **{dim.symbolic_max: sha-1
-                         for dim, sha in zip(self.parent.dimensions,
-                                             self.parent.glb_shape)}}
+        bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
+        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
+                                                               self.par_shape)})
 
-        sdim_interval = {dim:
-                         (sdim._interval.subs({**{k: v for k, v
-                                                  in sdim._thickness_map.items()
-                                                  if v is not None},
-                                               **bounds_map})
-                          if sdim.is_Sub else None)
-                         for dim, sdim in zip(self.parent.dimensions, self.dimensions)}
+        sd_interval = {}  # The Interval of SubDimension indices
+        for d, sd in zip(self.par_dimensions, self.dimensions):
+            if sd.is_Sub:
+                tkn_map = {k: v for k, v in sd._thickness_map.items() if v is not None}
+                tkn_map.update(bounds_map)
+                # Evaluate SubDimension thicknesses and substitute into Interval
+                sd_interval[d] = sd._interval.subs(tkn_map)
+            else:
+                sd_interval[d] = None
+
+        self._intervals = tuple((d_interval[d] if sd_interval[d] is None
+                                 else d_interval[d].intersect(sd_interval[d]))
+                                for d in self.par_dimensions)
 
         # The domain decomposition
-        decompositions = []
-        for dec, dim in zip(self.parent._decomposition, self.parent.dimensions):
-            decompositions.append([d if sdim_interval[dim] is None
-                                   else np.zeros(0, dtype=np.int64)
-                                   if sdim_interval[dim].is_empty
-                                   else d[np.logical_and(d >= sdim_interval[dim].start,
-                                                         d <= sdim_interval[dim].end)]
-                                   if sdim_interval[dim].is_Interval
-                                   else np.array(sdim_interval[dim].args, dtype=np.int64)
-                                   for d in dec])
-
+        decompositions = [interval_to_indices(i) for i in self.intervals]
         self._decomposition = [Decomposition(d, c)
                                for d, c in zip(decompositions, self.mycoords)]
-
-        self._intervals = tuple((dist_interval[dim] if sdim_interval[dim] is None
-                                 else dist_interval[dim].intersect(sdim_interval[dim]))
-                                for dim in self.parent.dimensions)
 
         # Keep track of the edges of the rank crossed by the SubDomain
         # Format is {dimension: {side: crosses}} or {(sides,): crosses}
         # (matches neighborhood)
         crosses = {}
-        for dim in self.parent.dimensions:
-            sdim = self.dimension_map[dim]
-            if sdim.is_Sub:
-                in_rank = dist_interval[dim].issuperset(sdim_interval[dim])
-                off_rank = dist_interval[dim].isdisjoint(sdim_interval[dim])
+        for d in self.par_dimensions:
+            sd = self.dimension_map[d]
+            if sd.is_Sub:
+                in_rank = d_interval[d].issuperset(sd_interval[d])
+                off_rank = d_interval[d].isdisjoint(sd_interval[d])
                 if in_rank or off_rank:
-                    crosses[sdim] = {LEFT: False, RIGHT: False}
-                elif sdim.local:
+                    crosses[sd] = {LEFT: False, RIGHT: False}
+                elif sd.local:
                     raise ValueError("SubDimension %s is local and cannot be"
-                                     " decomposed across MPI ranks" % dim)
+                                     " decomposed across MPI ranks" % d)
                 else:
-                    crosses[sdim] = {LEFT: sdim_interval[dim].left
-                                     < dist_interval[dim].left,
-                                     RIGHT: sdim_interval[dim].right
-                                     > dist_interval[dim].right}
+                    crosses[sd] = {LEFT: sd_interval[d].left
+                                   < d_interval[d].left,
+                                   RIGHT: sd_interval[d].right
+                                   > d_interval[d].right}
             else:
-                crosses[sdim] = {LEFT: True, RIGHT: True}
+                crosses[sd] = {LEFT: True, RIGHT: True}
 
         for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
             crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
@@ -555,8 +560,26 @@ class SubDomainDistributor(DenseDistributor):
 
     @property
     def parent(self):
-        """The parent distributor of this SubDomainDistributor"""
+        """The parent distributor of this SubDistributor"""
         return self._parent
+
+    @property
+    def par_shape(self):
+        """Shape of the parent decomposition."""
+        return self.parent.glb_shape
+
+    @property
+    def par_dimensions(self):
+        """Dimensions of the parent decomposition."""
+        return self.parent.dimensions
+
+    @property
+    def par_slices(self):
+        """
+        The global indices owned by the calling MPI rank, as a mapper from
+        Dimensions to slices. Shortcut for `parent.glb_slices`.
+        """
+        return self.parent.glb_slices
 
     @property
     def dimension_map(self):

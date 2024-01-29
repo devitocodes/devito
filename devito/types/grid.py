@@ -9,7 +9,7 @@ from sympy import prod, Interval
 
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
-from devito.mpi import Distributor, MPI, SubDomainDistributor
+from devito.mpi import Distributor, MPI, SubDistributor
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
@@ -602,7 +602,7 @@ class SubDomain(AbstractSubDomain):
         self._shape = tuple(sdshape)
         self._dimensions = tuple(sub_dimensions)
         self._dtype = self.grid.dtype
-        self._distributor = SubDomainDistributor(self)
+        self._distributor = SubDistributor(self)
 
         # Intervals of form Interval(n, n) automatically become FiniteSet
         # +1 as intervals are in terms of indices (inclusive of endpoints)
