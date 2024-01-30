@@ -228,6 +228,48 @@ class TestDistributor(object):
         assert custom_topology == dist_topology
 
 
+class TestSubDistributor:
+
+    sd_specs = [('middle', 2, 1), ('left', 2), ('right', 3)]
+
+    @pytest.mark.parametrize('sd_x', sd_specs)
+    @pytest.mark.parametrize('sd_y', sd_specs)
+    @pytest.mark.parallel(mode=[2])
+    def test_subdomain_interval(self, sd_x, sd_y):
+        """
+        Check the interval of indices spanned by the SubDomain is correctly calculated
+        within SubDistributor.
+        """
+        def check_interval(interval, spec, size):
+            if spec[0] == 'middle':
+                start = spec[1]
+                end = size - spec[2] - 1
+            elif spec[0] == 'left':
+                start = 0
+                end = spec[1] - 1
+            else:
+                start = size - spec[1]
+                end = size - 1
+            assert interval.start == start
+            assert interval.end == end
+
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd_x, y: sd_y}
+
+        grid = Grid(shape=(10, 10))
+        mid = MyDomain(grid=grid)
+        d = mid.distributor
+        interval_x, interval_y = d._sd_interval
+
+        check_interval(interval_x, sd_x, grid.shape[0])
+        check_interval(interval_y, sd_y, grid.shape[1])
+
+
 class TestFunction(object):
 
     @pytest.mark.parallel(mode=2)
