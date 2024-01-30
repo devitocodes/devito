@@ -235,12 +235,13 @@ class TestSubDistributor:
     @pytest.mark.parametrize('sd_x', sd_specs)
     @pytest.mark.parametrize('sd_y', sd_specs)
     @pytest.mark.parallel(mode=[2])
-    def test_subdomain_interval(self, sd_x, sd_y):
+    def test_intervals(self, sd_x, sd_y):
         """
         Check the interval of indices spanned by the SubDomain is correctly calculated
-        within SubDistributor.
+        within SubDistributor. Also check that the interval of indices spanned by the
+        SubDomain on each rank is correct.
         """
-        def check_interval(interval, spec, size):
+        def check_interval(interval, spec, size, vmin=None, vmax=None):
             if spec[0] == 'middle':
                 start = spec[1]
                 end = size - spec[2] - 1
@@ -250,8 +251,16 @@ class TestSubDistributor:
             else:
                 start = size - spec[1]
                 end = size - 1
-            assert interval.start == start
-            assert interval.end == end
+
+            if vmin:
+                assert interval.start == max(start, vmin)
+            else:
+                assert interval.start == start
+
+            if vmax:
+                assert interval.end == min(end, vmax)
+            else:
+                assert interval.end == end
 
         class MyDomain(SubDomain):
 
@@ -264,10 +273,18 @@ class TestSubDistributor:
         grid = Grid(shape=(10, 10))
         mid = MyDomain(grid=grid)
         d = mid.distributor
-        interval_x, interval_y = d._sd_interval
 
-        check_interval(interval_x, sd_x, grid.shape[0])
-        check_interval(interval_y, sd_y, grid.shape[1])
+        check_interval(d._sd_interval[0], sd_x, grid.shape[0])
+        check_interval(d._sd_interval[1], sd_y, grid.shape[1])
+
+        if not d.intervals[0].is_empty:
+            check_interval(d.intervals[0], sd_x, grid.shape[0],
+                           vmin=grid.origin_ioffset[0],
+                           vmax=grid.origin_ioffset[0]+grid.shape_local[0]-1)
+        if not d.intervals[1].is_empty:
+            check_interval(d.intervals[1], sd_y, grid.shape[1],
+                           vmin=grid.origin_ioffset[1],
+                           vmax=grid.origin_ioffset[1]+grid.shape_local[1]-1)
 
 
 class TestFunction(object):
