@@ -486,21 +486,28 @@ class SubDistributor(DenseDistributor):
         """
         Set up the decomposition, aligned with that of the parent Distributor.
         """
-        def interval_to_indices(interval):
-            """Convert SubDimension Intervals to integer indices."""
+        def interval_bounds(interval):
+            """Extract SubDimension Interval bounds."""
             if interval.is_empty:
-                # SubDimension not present on this rank. Empty array of indices
-                return np.arange(0)
+                # SubDimension has no indices. Min and max are NaN.
+                return np.NaN, np.NaN
             elif interval.is_Interval:
-                # Interval containing two or more indices. Mask accordingly.
-                return np.arange(interval.start, interval.end+1)
+                # Interval containing two or more indices. Min and max are ends.
+                return interval.start, interval.end+1
             else:
                 # Interval where start == end defaults to FiniteSet.
-                # Pop value into array
-                return np.array(interval.args, dtype=np.int64)
+                # Repeat this value for min and max
+                return interval.args[0], interval.args[0]
 
-        # The domain decomposition
-        decompositions = [interval_to_indices(i) for i in self.intervals]
+        decompositions = []
+        for dec, i in zip(self.parent._decomposition, self._sd_interval):
+            if i is None:
+                decompositions.append(dec)
+            else:
+                start, end = interval_bounds(i)
+                decompositions.append([d[np.logical_and(d >= start, d <= end)]
+                                       for d in dec])
+
         self._decomposition = [Decomposition(d, c)
                                for d, c in zip(decompositions, self.mycoords)]
 
