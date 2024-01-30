@@ -490,7 +490,7 @@ def normalize_reductions_dense(cluster, sregistry, options):
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and e.lhs.is_Symbol and opt_mapify_reduce:
+        if e.is_Reduction and opt_mapify_reduce:
             # Transform `e` into what is in essence an explicit map-reduce
             # For example, turn:
             # `s += f(u[x], v[x], ...)`
@@ -499,10 +499,20 @@ def normalize_reductions_dense(cluster, sregistry, options):
             # `s += r[x]`
             # This makes it much easier to parallelize the map part regardless
             # of the target backend
-            name = sregistry.make_name()
-            a = Array(name=name, dtype=e.dtype, dimensions=dims)
-            processed.extend([Eq(a.indexify(), e.rhs),
-                              e.func(e.lhs, a.indexify())])
+
+            if e.lhs.function.is_Array:
+                # Probably a compiler-generated reduction, e.g. via
+                # recursive compilation; it's an Array already, so nothing to do
+                processed.append(e)
+            else:
+                # Here the LHS could be a Symbol or a user-level Function
+                # In the latter case we copy the data into a temporary Array
+                # because the Function might be padded, and reduction operations
+                # require, in general, the data values to be contiguous
+                name = sregistry.make_name()
+                a = Array(name=name, dtype=e.dtype, dimensions=dims)
+                processed.extend([Eq(a.indexify(), e.rhs),
+                                  e.func(e.lhs, a.indexify())])
         else:
             processed.append(e)
 

@@ -166,7 +166,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         sregistry = kwargs['sregistry']
 
         # Flush denormal numbers
-        avoid_denormals(graph, platform=platform)
+        avoid_denormals(graph, **kwargs)
 
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
@@ -260,7 +260,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
 
         return {
-            'denormals': avoid_denormals,
+            'denormals': partial(avoid_denormals, **kwargs),
             'blocking': partial(relax_incr_dimensions, **kwargs),
             'parallel': parizer.make_parallel,
             'openmp': parizer.make_parallel,

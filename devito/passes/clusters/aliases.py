@@ -7,7 +7,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, ROUNDABLE, SEPARABLE, Forward,
+from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
                        IntervalGroup, LabeledVector, Vector, normalize_properties,
                        relax_properties, unbounded, minimum, maximum, extrema,
@@ -140,7 +140,6 @@ class CireTransformer(object):
         # Schedule -> Schedule (optimization)
         if self.opt_rotate:
             schedule = optimize_schedule_rotations(schedule, self.sregistry)
-        schedule = optimize_schedule_padding(schedule, meta, self.platform)
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
@@ -828,30 +827,6 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def optimize_schedule_padding(schedule, meta, platform):
-    """
-    Round up the innermost IterationInterval of the tensor temporaries IterationSpace
-    to a multiple of the SIMD vector length. This is not always possible though (it
-    depends on how much halo is safely accessible in all read Functions).
-    """
-    processed = []
-    for i in schedule:
-        try:
-            it = i.ispace.itintervals[-1]
-            if it.dim is i.writeto[-1].dim and ROUNDABLE in meta.properties[it.dim]:
-                vl = platform.simd_items_per_reg(meta.dtype)
-                ispace = i.ispace.add(Interval(it.dim, 0, it.size % vl))
-            else:
-                ispace = i.ispace
-            processed.append(ScheduledAlias(
-                i.pivot, i.writeto, ispace, i.aliaseds, i.indicess,
-            ))
-        except (TypeError, KeyError, IndexError):
-            processed.append(i)
-
-    return schedule.rebuild(*processed)
-
-
 def lower_schedule(schedule, meta, sregistry, ftemps):
     """
     Turn a Schedule into a sequence of Clusters.
@@ -926,8 +901,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
                 if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                     properties[d] = normalize_properties(v, {SEQUENTIAL})
                 elif d not in writeto.itdims:
-                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT}) - \
-                        {ROUNDABLE}
+                    properties[d] = normalize_properties(v, {PARALLEL_IF_PVT})
             except KeyError:
                 # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
                 pass

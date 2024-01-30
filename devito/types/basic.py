@@ -12,6 +12,7 @@ from sympy.core.decorators import call_highest_priority
 from cached_property import cached_property
 
 from devito.data import default_allocator
+from devito.parameters import configuration
 from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
                           frozendict, memoized_meth, sympy_mutex)
 from devito.types.args import ArgProvider
@@ -834,13 +835,15 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     Functions; etc.
     """
 
-    is_compact = True
+    is_autopaddable = False
     """
-    True if data is allocated as a single, contiguous chunk of memory.
+    True if the Function can be padded automatically by the Devito runtime,
+    thus increasing its size, False otherwise. Note that this property has no
+    effect if autopadding is disabled, which is the default behavior.
     """
 
-    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'alias',
-                   'space', 'function')
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
+                   'alias', 'space', 'function')
 
     def __new__(cls, *args, **kwargs):
         # Preprocess arguments
@@ -930,10 +933,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return class_key, args, exp, coeff
 
     def __init_finalize__(self, *args, **kwargs):
-        # Setup halo and padding regions
+        # Setup halo, padding, and ghost regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)
+        self._ghost = self.__ghost_setup__(**kwargs)
 
         # There may or may not be a `Grid`
         self._grid = kwargs.get('grid')
@@ -981,12 +985,39 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return None
 
     def __halo_setup__(self, **kwargs):
-        halo = tuple(kwargs.get('halo', [(0, 0) for i in range(self.ndim)]))
+        halo = tuple(kwargs.get('halo', ((0, 0),)*self.ndim))
         return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        padding = tuple(kwargs.get('padding', [(0, 0) for i in range(self.ndim)]))
+        padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
         return DimensionTuple(*padding, getters=self.dimensions)
+
+    def __padding_setup_smart__(self, **kwargs):
+        nopadding = ((0, 0),)*self.ndim
+
+        if kwargs.get('autopadding', configuration['autopadding']):
+            # The padded Dimension
+            candidates = self.space_dimensions
+            if not candidates:
+                return nopadding
+            d = candidates[-1]
+
+            mmts = configuration['platform'].max_mem_trans_size(self.dtype)
+            remainder = self._size_nopad[d] % mmts
+            if remainder == 0:
+                # Already a multiple of `mmts`, no need to pad
+                return nopadding
+
+            dpadding = (0, (mmts - remainder))
+            padding = [(0, 0)]*self.ndim
+            padding[self.dimensions.index(d)] = dpadding
+
+            return tuple(padding)
+        else:
+            return nopadding
+
+    def __ghost_setup__(self, **kwargs):
+        return (0, 0)
 
     def __distributor_setup__(self, **kwargs):
         # There may or may not be a `Distributor`. In the latter case, the
@@ -995,16 +1026,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return kwargs.get('grid').distributor
         except AttributeError:
             return kwargs.get('distributor')
-
-    @cached_property
-    def _honors_autopadding(self):
-        """
-        True if the actual padding is greater or equal than whatever autopadding
-        would produce, False otherwise.
-        """
-        autopadding = self.__padding_setup__(autopadding=True)
-        return all(l0 >= l1 and r0 >= r1
-                   for (l0, r0), (l1, r1) in zip(self.padding, autopadding))
 
     @property
     def name(self):
@@ -1035,6 +1056,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
         return self._dimensions
+
+    @cached_property
+    def space_dimensions(self):
+        """Tuple of Dimensions defining the physical space."""
+        return tuple(d for d in self.dimensions if d.is_Space)
 
     @property
     def base(self):
@@ -1172,6 +1198,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return self._padding
 
     @property
+    def ghost(self):
+        return self._ghost
+
+    @property
     def is_const(self):
         return False
 
@@ -1265,6 +1295,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _size_ghost(self):
+        """
+        Number of points in the ghost region, that is the two areas before
+        and after the allocated data.
+        """
+        return Size(*self._ghost)
 
     @cached_property
     def _offset_domain(self):

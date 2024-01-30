@@ -26,12 +26,16 @@ class Data(np.ndarray):
     decomposition : tuple of Decomposition, optional
         The data decomposition, for each dimension.
     modulo : tuple of bool, optional
-        If the i-th entry is True, then the i-th array dimension uses modulo indexing.
+        If the i-th entry is True, then the i-th array dimension uses modulo
+        indexing.
     allocator : MemoryAllocator, optional
         Used to allocate memory. Defaults to `ALLOC_ALIGNED`.
     distributor : Distributor, optional
-        The distributor from which the original decomposition was produced. Note that
-        the decomposition Parameter above may be different to distributor.decomposition.
+        The distributor from which the original decomposition was produced.
+        Note that `decomposition` may differ from `distributor.decomposition`.
+    padding : int or 2-tuple of ints, optional
+        The number of points that are allocated before and after the data,
+        that is in addition to the requested shape. Defaults to 0.
 
     Notes
     -----
@@ -45,9 +49,9 @@ class Data(np.ndarray):
     """
 
     def __new__(cls, shape, dtype, decomposition=None, modulo=None,
-                allocator=ALLOC_ALIGNED, distributor=None):
+                allocator=ALLOC_ALIGNED, distributor=None, padding=0):
         assert len(shape) == len(modulo)
-        ndarray, memfree_args = allocator.alloc(shape, dtype)
+        ndarray, memfree_args = allocator.alloc(shape, dtype, padding=padding)
         obj = ndarray.view(cls)
         obj._allocator = allocator
         obj._memfree_args = memfree_args

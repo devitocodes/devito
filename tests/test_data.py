@@ -316,9 +316,21 @@ class TestMetaData(object):
         assert u0.shape_allocated == (4, 4, 16)
 
         assert u1._size_halo == ((3, 3), (3, 3), (3, 3))
-        assert u1._size_padding == ((0, 0), (0, 0), (0, 14))  # 14 stems from 6 + 8
-        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 17))
-        assert u1.shape_allocated == (10, 10, 24)
+        assert u1._size_padding == ((0, 0), (0, 0), (0, 6))  # 6 stems from 16-(3+4+3)
+        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 9))
+        assert u1.shape_allocated == (10, 10, 16)
+
+    def test_w_halo_custom(self):
+        grid = Grid(shape=(4, 4))
+
+        # Custom halo with not enougn entries raises an exception
+        with pytest.raises(TypeError):
+            Function(name='u', grid=grid, space_order=(8, (4, 3)))
+
+        u = TimeFunction(name='u', grid=grid, space_order=(8, ((4, 3), (1, 1))))
+
+        assert u._size_halo == ((0, 0), (4, 3), (1, 1))
+        assert u.shape_allocated == (2, 11, 6)
 
 
 class TestDecomposition(object):

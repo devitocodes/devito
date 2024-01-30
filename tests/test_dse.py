@@ -1289,53 +1289,6 @@ class TestAliases(object):
         assert np.all(u.data == u1.data)
         assert np.all(v.data == v1.data)
 
-    @skipif('cpu64-arm')
-    @pytest.mark.parametrize('rotate', [False, True])
-    @switchconfig(autopadding=True, platform='knl7210')  # Platform is to fix pad value
-    def test_minimize_remainders_due_to_autopadding(self, rotate):
-        """
-        Check that the bounds of the Iteration computing an aliasing expression are
-        relaxed (i.e., slightly larger) so that backend-compiler-generated remainder
-        loops are avoided.
-        """
-        grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions
-        t = grid.stepping_dim
-
-        u = TimeFunction(name='u', grid=grid, space_order=3)
-        u1 = TimeFunction(name='u1', grid=grid, space_order=3)
-
-        u.data_with_halo[:] = 0.5
-        u1.data_with_halo[:] = 0.5
-
-        # Leads to 3D aliases
-        eqn = Eq(u.forward, _R(_R(u[t, x, y, z] + u[t, x+1, y+1, z+1])*3. +
-                               _R(u[t, x+2, y+2, z+2] + u[t, x+3, y+3, z+3])*3. + 1.))
-
-        op0 = Operator(eqn, opt=('noop', {'openmp': False}))
-        op1 = Operator(eqn, opt=('advanced', {'openmp': False, 'cire-mingain': 0,
-                                              'cire-rotate': rotate}))
-
-        # Check code generation
-        bns, pbs = assert_blocking(op1, {'x0_blk0'})
-        xs, ys, zs = get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
-        assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 0
-        assert arrays[0].padding == ((0, 0), (0, 0), (0, 30))
-        check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+32), rotate)
-        # Check loop bounds
-        trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
-        expected_rounded = trees[0].inner
-        assert expected_rounded.symbolic_max ==\
-            z.symbolic_max + (z.symbolic_max - z.symbolic_min + 3) % 16 + 1
-
-        # Check numerical output
-        op0(time_M=1)
-        op1(time_M=1, u=u1)
-        assert np.all(u.data == u1.data)
-
     def test_catch_best_invariant_v1(self):
         """
         Make sure the best time-invariant sub-expressions are extracted.

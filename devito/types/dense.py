@@ -1,7 +1,6 @@
 from collections import namedtuple
 from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
 from functools import wraps, reduce
-from math import ceil
 from operator import mul
 
 import numpy as np
@@ -99,7 +98,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # This is a corner case -- we might get here, for example, when
                 # running with MPI and some processes get 0-size arrays after
                 # domain decomposition. We touch the data anyway to avoid the
-                # case ``self._data is None``
+                # case `self._data is None`
                 self.data
         else:
             raise ValueError("`initializer` must be callable or buffer, not %s"
@@ -126,7 +125,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 self._data = self._DataType(self.shape_allocated, self.dtype,
                                             modulo=self._mask_modulo,
                                             allocator=self._allocator,
-                                            distributor=self._distributor)
+                                            distributor=self._distributor,
+                                            padding=self._size_ghost)
 
                 # Initialize data
                 if self._first_touch:
@@ -219,7 +219,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Notes
         -----
         In an MPI context, this is the *local* domain region shape.
-        Alias to ``self.shape``.
+        Alias to `self.shape`.
         """
         return self.shape
 
@@ -436,7 +436,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Alias to ``self.data._gather``.
+        Alias to `self.data._gather`.
 
         Note that gathering data from large simulations onto a single rank may
         result in memory blow-up and hence should use this method judiciously.
@@ -453,7 +453,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Alias to ``self.data``.
+        Alias to `self.data`.
 
         With this accessor you are claiming that you will modify the values you
         get back. If you only need to look at the values, use
@@ -616,21 +616,16 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         Notes
         -----
-        Given a Function ``f(x, y)`` with shape ``(nx, ny)``, when *not* using
-        MPI this property will return ``(slice(0, nx-1), slice(0, ny-1))``. On
+        Given a Function `f(x, y)` with shape `(nx, ny)`, when *not* using
+        MPI this property will return `(slice(0, nx-1), slice(0, ny-1))`. On
         the other hand, when MPI is used, the local ranges depend on the domain
-        decomposition, which is carried by ``self.grid``.
+        decomposition, which is carried by `self.grid`.
         """
         if self._distributor is None:
             return tuple(slice(0, s) for s in self.shape)
         else:
             return tuple(self._distributor.glb_slices.get(d, slice(0, s))
                          for s, d in zip(self.shape, self.dimensions))
-
-    @cached_property
-    def space_dimensions(self):
-        """Tuple of Dimensions defining the physical space."""
-        return tuple(d for d in self.dimensions if d.is_Space)
 
     @property
     def initializer(self):
@@ -836,32 +831,32 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Raises
         ------
         InvalidArgument
-            If, given the runtime values `args`, an out-of-bounds array
-            access would be performed, or if shape/dtype don't match with
-            self's shape/dtype.
+            If an incompatibility is detected.
         """
         if self.name not in args:
             raise InvalidArgument("No runtime value for `%s`" % self.name)
 
-        key = args[self.name]
-        if len(key.shape) != self.ndim:
+        data = args[self.name]
+
+        if len(data.shape) != self.ndim:
             raise InvalidArgument("Shape %s of runtime value `%s` does not match "
                                   "dimensions %s" %
-                                  (key.shape, self.name, self.dimensions))
-        if key.dtype != self.dtype:
+                                  (data.shape, self.name, self.dimensions))
+        if data.dtype != self.dtype:
             warning("Data type %s of runtime value `%s` does not match the "
-                    "Function data type %s" % (key.dtype, self.name, self.dtype))
+                    "Function data type %s" % (data.dtype, self.name, self.dtype))
 
-        for i, s in zip(self.dimensions, key.shape):
+        # Check each Dimension for potential OOB accesses
+        for i, s in zip(self.dimensions, data.shape):
             i._arg_check(args, s, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
-           self.size - 1 >= np.iinfo(np.int32).max:
+           data.size - 1 >= np.iinfo(np.int32).max:
             raise InvalidArgument("`%s`, with its %d elements, may be too big for "
                                   "int32 pointer arithmetic, which might cause an "
                                   "overflow. Use the 'index-mode=int64' option"
-                                  % (self, self.size))
+                                  % (self, data.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
@@ -895,21 +890,29 @@ class Function(DiscreteFunction):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional
-        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
-        impacts the number of points available around a generic point of interest.  By
-        default, ``space_order`` points are available on both sides of a generic point of
-        interest, including those nearby the grid boundary. Sometimes, fewer points
-        suffice; in other scenarios, more points are necessary. In such cases, instead of
-        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
-        order (``o``) as well as the number of points on the left (``lp``) and right
-        (``rp``) sides of a generic point of interest.
+        Discretisation order for space derivatives. Defaults to 1.
+        `space_order` also impacts the number of points available around a
+        generic point of interest.  By default, `space_order` points are
+        available on both sides of a generic point of interest, including those
+        nearby the grid boundary. Sometimes, fewer points suffice; in other
+        scenarios, more points are necessary. In such cases, instead of an
+        integer, one can pass:
+          * a 3-tuple `(o, lp, rp)` indicating the discretization order
+            (`o`) as well as the number of points on the left (`lp`) and
+            right (`rp`) sides of a generic point of interest;
+          * a 2-tuple `(o, ((lp0, rp0), (lp1, rp1), ...))` indicating the
+            discretization order (`o`) as well as the number of points on
+            the left/right sides of a generic point of interest for each
+            SpaceDimension.
     shape : tuple of ints, optional
-        Shape of the domain region in grid points. Only necessary if ``grid`` isn't given.
+        Shape of the domain region in grid points. Only necessary if `grid`
+        isn't given.
     dimensions : tuple of Dimension, optional
-        Dimensions associated with the object. Only necessary if ``grid`` isn't given.
+        Dimensions associated with the object. Only necessary if `grid` isn't
+        given.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
+        to `np.float32`.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, optional
@@ -919,8 +922,6 @@ class Function(DiscreteFunction):
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
-        .. deprecated:: shouldn't be used; padding is now automatically inserted.
-
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
 
@@ -969,10 +970,12 @@ class Function(DiscreteFunction):
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy
-    uses ``*args`` to (re-)create the dimension arguments of the symbolic object.
+    uses `*args` to (re-)create the dimension arguments of the symbolic object.
     """
 
     is_Function = True
+
+    is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
                    ('space_order', 'shape_global', 'dimensions'))
@@ -988,10 +991,10 @@ class Function(DiscreteFunction):
         space_order = kwargs.get('space_order', 1)
         if isinstance(space_order, int):
             self._space_order = space_order
-        elif isinstance(space_order, tuple) and len(space_order) == 3:
-            self._space_order, _, _ = space_order
+        elif isinstance(space_order, tuple) and len(space_order) >= 2:
+            self._space_order = space_order[0]
         else:
-            raise TypeError("`space_order` must be int or 3-tuple of ints")
+            raise TypeError("Invalid `space_order`")
 
         # Acquire derivative shortcuts
         if self is self.function:
@@ -1108,46 +1111,45 @@ class Function(DiscreteFunction):
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
-                halo = (space_order, space_order)
+                v = (space_order, space_order)
+                halo = [v if i.is_Space else (0, 0) for i in self.dimensions]
+
             elif isinstance(space_order, tuple) and len(space_order) == 3:
-                _, left_points, right_points = space_order
-                halo = (left_points, right_points)
+                _, l, r = space_order
+                halo = [(l, r) if i.is_Space else (0, 0) for i in self.dimensions]
+
+            elif isinstance(space_order, tuple) and len(space_order) == 2:
+                _, space_halo = space_order
+                if not isinstance(space_halo, tuple) or \
+                   not all(isinstance(i, tuple) for i in space_halo) or \
+                   len(space_halo) != len(self.space_dimensions):
+                    raise TypeError("Invalid `space_order`")
+                v = list(space_halo)
+                halo = [v.pop(0) if i.is_Space else (0, 0)
+                        for i in self.dimensions]
+
             else:
-                raise TypeError("`space_order` must be int or 3-tuple of ints")
-            halo = tuple(halo if i.is_Space else (0, 0) for i in self.dimensions)
+                raise TypeError("Invalid `space_order`")
         return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
-            if kwargs.get('autopadding', configuration['autopadding']):
-                # Auto-padding
-                # 0-padding in all Dimensions except in the Fastest Varying Dimension,
-                # `fvd`, which is the innermost one
-                padding = [(0, 0) for i in self.dimensions[:-1]]
-                fvd = self.dimensions[-1]
-                # Let UB be a function that rounds up a value `x` to the nearest
-                # multiple of the SIMD vector length, `vl`
-                vl = configuration['platform'].simd_items_per_reg(self.dtype)
-                ub = lambda x: int(ceil(x / vl)) * vl
-                # Given the HALO and DOMAIN sizes, the right-PADDING is such that:
-                # * the `fvd` size is a multiple of `vl`
-                # * it contains *at least* `vl` points
-                # This way:
-                # * all first grid points along the `fvd` will be cache-aligned
-                # * there is enough room to round up the loop trip counts to maximize
-                #   the effectiveness SIMD vectorization
-                fvd_pad_size = (ub(self._size_nopad[fvd]) - self._size_nopad[fvd]) + vl
-                padding.append((0, fvd_pad_size))
+            if self.is_autopaddable:
+                padding = self.__padding_setup_smart__(**kwargs)
             else:
-                padding = tuple((0, 0) for d in self.dimensions)
+                padding = super().__padding_setup__(**kwargs)
+
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
+
         elif isinstance(padding, int):
             padding = tuple((0, padding) if d.is_Space else (0, 0)
                             for d in self.dimensions)
+
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
+
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
         return DimensionTuple(*padding, getters=self.dimensions)
@@ -1159,8 +1161,8 @@ class Function(DiscreteFunction):
 
     def sum(self, p=None, dims=None):
         """
-        Generate a symbolic expression computing the sum of ``p`` points
-        along the spatial dimensions ``dims``.
+        Generate a symbolic expression computing the sum of `p` points
+        along the spatial dimensions `dims`.
 
         Parameters
         ----------
@@ -1168,7 +1170,7 @@ class Function(DiscreteFunction):
             The number of summands. Defaults to the halo size.
         dims : tuple of Dimension, optional
             The Dimensions along which the sum is computed. Defaults to
-            ``self``'s spatial dimensions.
+            `self`'s spatial dimensions.
         """
         points = []
         for d in (as_tuple(dims) or self.space_dimensions):
@@ -1185,8 +1187,8 @@ class Function(DiscreteFunction):
 
     def avg(self, p=None, dims=None):
         """
-        Generate a symbolic expression computing the average of ``p`` points
-        along the spatial dimensions ``dims``.
+        Generate a symbolic expression computing the average of `p` points
+        along the spatial dimensions `dims`.
 
         Parameters
         ----------
@@ -1194,7 +1196,7 @@ class Function(DiscreteFunction):
             The number of summands. Defaults to the halo size.
         dims : tuple of Dimension, optional
             The Dimensions along which the average is computed. Defaults to
-            ``self``'s spatial dimensions.
+            `self`'s spatial dimensions.
         """
         tot = self.sum(p, dims)
         return tot / len(tot.args)
@@ -1219,36 +1221,45 @@ class TimeFunction(Function):
         provided, shape and dimensions must be given. For MPI execution, a
         Grid is compulsory.
     space_order : int or 3-tuple of ints, optional
-        Discretisation order for space derivatives. Defaults to 1. ``space_order`` also
-        impacts the number of points available around a generic point of interest.  By
-        default, ``space_order`` points are available on both sides of a generic point of
-        interest, including those nearby the grid boundary. Sometimes, fewer points
-        suffice; in other scenarios, more points are necessary. In such cases, instead of
-        an integer, one can pass a 3-tuple ``(o, lp, rp)`` indicating the discretization
-        order (``o``) as well as the number of points on the left (``lp``) and right
-        (``rp``) sides of a generic point of interest.
+        Discretisation order for space derivatives. Defaults to 1.
+        `space_order` also impacts the number of points available around a
+        generic point of interest.  By default, `space_order` points are
+        available on both sides of a generic point of interest, including those
+        nearby the grid boundary. Sometimes, fewer points suffice; in other
+        scenarios, more points are necessary. In such cases, instead of an
+        integer, one can pass:
+          * a 3-tuple `(o, lp, rp)` indicating the discretization order
+            (`o`) as well as the number of points on the left (`lp`) and
+            right (`rp`) sides of a generic point of interest;
+          * a 2-tuple `(o, ((lp0, rp0), (lp1, rp1), ...))` indicating the
+            discretization order (`o`) as well as the number of points on
+            the left/right sides of a generic point of interest for each
+            SpaceDimension.
     time_order : int, optional
         Discretization order for time derivatives. Defaults to 1.
     shape : tuple of ints, optional
-        Shape of the domain region in grid points. Only necessary if `grid` isn't given.
+        Shape of the domain region in grid points. Only necessary if `grid`
+        isn't given.
     dimensions : tuple of Dimension, optional
-        Dimensions associated with the object. Only necessary if `grid` isn't given.
+        Dimensions associated with the object. Only necessary if `grid` isn't
+        given.
     dtype : data-type, optional
         Any object that can be interpreted as a numpy data type. Defaults
         to `np.float32`.
     save : int or Buffer, optional
-        By default, ``save=None``, which indicates the use of alternating buffers. This
-        enables cyclic writes to the TimeFunction. For example, if the TimeFunction
-        ``u(t, x)`` has shape (3, 100), then, in an Operator, ``t`` will assume the
-        values ``1, 2, 0, 1, 2, 0, 1, ...`` (note that the very first value depends
-        on the stencil equation in which ``u`` is written.). The default size of the time
-        buffer when ``save=None`` is ``time_order + 1``.  To specify a different size for
-        the time buffer, one should use the syntax ``save=Buffer(mysize)``.
-        Alternatively, if all of the intermediate results are required (or, simply, to
-        avoid using an alternating buffer), an explicit value for ``save`` ( an integer)
-        must be provided.
+        By default, `save=None`, which indicates the use of alternating
+        buffers. This enables cyclic writes to the TimeFunction. For example,
+        if the TimeFunction `u(t, x)` has shape (3, 100), then, in an Operator,
+        `t` will assume the values `1, 2, 0, 1, 2, 0, 1, ...` (note that the
+        very first value depends on the stencil equation in which `u` is
+        written.). The default size of the time buffer when `save=None` is
+        `time_order + 1`.  To specify a different size for the time buffer, one
+        should use the syntax `save=Buffer(mysize)`.  Alternatively, if all of
+        the intermediate results are required (or, simply, to avoid using an
+        alternating buffer), an explicit value for `save` ( an integer) must be
+        provided.
     time_dim : Dimension, optional
-        TimeDimension to be used in the TimeFunction. Defaults to ``grid.time_dim``.
+        TimeDimension to be used in the TimeFunction. Defaults to `grid.time_dim`.
     staggered : Dimension or tuple of Dimension or Stagger, optional
         Define how the Function is staggered.
     initializer : callable or any object exposing the buffer interface, optional
@@ -1258,8 +1269,6 @@ class TimeFunction(Function):
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
     padding : int or tuple of ints, optional
-        .. deprecated:: shouldn't be used; padding is now automatically inserted.
-
         Allocate extra grid points to maximize data access alignment. When a tuple
         of ints, one int per Dimension should be provided.
 
@@ -1287,14 +1296,14 @@ class TimeFunction(Function):
     Derivative(g(t, x, y), t)
 
     When using the alternating buffer protocol, the size of the time dimension
-    is given by ``time_order + 1``
+    is given by `time_order + 1`
 
     >>> f.shape
     (2, 4, 4)
     >>> g.shape
     (3, 4, 4)
 
-    One can drop the alternating buffer protocol specifying a value for ``save``
+    One can drop the alternating buffer protocol specifying a value for `save`
 
     >>> h = TimeFunction(name='h', grid=grid, save=20)
     >>> h
@@ -1305,10 +1314,10 @@ class TimeFunction(Function):
     Notes
     -----
     The parameters must always be given as keyword arguments, since SymPy uses
-    ``*args`` to (re-)create the dimension arguments of the symbolic object.
-    If the parameter ``grid`` is provided, the values for ``shape``,
-    ``dimensions`` and ``dtype`` will be derived from it. When present, the
-    parameter ``shape`` should only define the spatial shape of the grid. The
+    `*args` to (re-)create the dimension arguments of the symbolic object.
+    If the parameter `grid` is provided, the values for `shape`,
+    `dimensions` and `dtype` will be derived from it. When present, the
+    parameter `shape` should only define the spatial shape of the grid. The
     temporal dimension will be inserted automatically as the leading dimension.
     """
 

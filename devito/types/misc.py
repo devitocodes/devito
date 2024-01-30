@@ -193,7 +193,13 @@ class TempArray(Array):
     sub-expressions.
     """
 
-    pass
+    is_autopaddable = True
+
+    def __padding_setup__(self, **kwargs):
+        padding = kwargs.pop('padding', None)
+        if padding is None:
+            padding = self.__padding_setup_smart__(**kwargs)
+        return super().__padding_setup__(padding=padding, **kwargs)
 
 
 class Fence(object):

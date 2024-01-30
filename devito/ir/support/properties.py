@@ -48,12 +48,6 @@ iteration space is likely to be very small.
 SKEWABLE = Property('skewable')
 """A fully parallel Dimension that would benefit from wavefront/skewed tiling."""
 
-ROUNDABLE = Property('roundable')
-"""
-A Dimension whose upper limit may be rounded up to a multiple of the SIMD
-vector length thanks to the presence of enough padding.
-"""
-
 AFFINE = Property('affine')
 """
 A Dimension used to index into tensor objects only through affine and regular
@@ -130,7 +124,7 @@ def normalize_properties(*args):
 
 
 def relax_properties(properties):
-    return frozenset(properties - {PARALLEL_INDEP, ROUNDABLE})
+    return frozenset(properties - {PARALLEL_INDEP})
 
 
 class Properties(frozendict):

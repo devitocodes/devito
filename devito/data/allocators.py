@@ -1,17 +1,17 @@
 import abc
 from functools import reduce
 from operator import mul
+import ctypes
+from ctypes.util import find_library
 import mmap
 import os
 import sys
 
 import numpy as np
-import ctypes
-from ctypes.util import find_library
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import dtype_to_ctype
+from devito.tools import dtype_to_ctype, is_integer
 
 __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -23,9 +23,6 @@ class MemoryAllocator(object):
     """Abstract class defining the interface to memory allocators."""
 
     __metaclass__ = abc.ABCMeta
-
-    is_Posix = False
-    is_Numa = False
 
     _attempted_init = False
     lib = None
@@ -51,7 +48,7 @@ class MemoryAllocator(object):
         """
         return
 
-    def alloc(self, shape, dtype):
+    def alloc(self, shape, dtype, padding=0):
         """
         Allocate memory.
 
@@ -61,6 +58,9 @@ class MemoryAllocator(object):
             Shape of the allocated array.
         dtype : numpy.dtype
             The data type of the raw data.
+        padding : int or 2-tuple of ints, optional
+            The number of points that are allocated before and after the data,
+            that is in addition to the requested shape. Defaults to 0.
 
         Returns
         -------
@@ -69,25 +69,40 @@ class MemoryAllocator(object):
             access the data as a ctypes object. The second element is an opaque
             object that is needed only for the "memfree" call.
         """
-        size = int(reduce(mul, shape))
+        datasize = int(reduce(mul, shape))
         ctype = dtype_to_ctype(dtype)
 
-        c_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
-        if c_pointer is None:
-            raise RuntimeError("Unable to allocate %d elements in memory", str(size))
+        # Add padding, if any
+        try:
+            padleft, padright = padding
+        except TypeError:
+            padleft, padright = padding, padding
+        if not is_integer(padleft) and not is_integer(padright):
+            raise TypeError("padding must be an int or a 2-tuple of ints")
+        size = datasize + padleft + padright
 
-        # cast to 1D array of the specified size
-        ctype_1d = ctype * size
+        padleft_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
+        if padleft_pointer is None:
+            raise RuntimeError("Unable to allocate %d elements in memory" % size)
+
+        # Compute the pointer to the user data
+        padleft_bytes = padleft * ctypes.sizeof(ctype)
+        c_pointer = ctypes.c_void_p(padleft_pointer.value + padleft_bytes)
+
+        # Cast to 1D array of the specified `datasize`
+        ctype_1d = ctype * datasize
         buf = ctypes.cast(c_pointer, ctypes.POINTER(ctype_1d)).contents
-        pointer = np.frombuffer(buf, dtype=dtype)
-        # pointer.reshape should not be used here because it may introduce a copy
-        # From https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html:
-        # It is not always possible to change the shape of an array without copying the
-        # data. If you want an error to be raised when the data is copied, you should
-        # assign the new shape to the shape attribute of the array:
-        pointer.shape = shape
+        array = np.frombuffer(buf, dtype=dtype)
 
-        return (pointer, memfree_args)
+        # `array.reshape` should not be used here because it may introduce
+        # a copy. From `docs.scipy.org/doc/numpy/reference/generated/numpy.reshape`:
+        #   It is not always possible to change the shape of an array without
+        #   copying the data. If you want an error to be raised when the data
+        #   is copied, you should assign the new shape to the shape attribute
+        #   of the array:
+        array.shape = shape
+
+        return (array, memfree_args)
 
     @abc.abstractmethod
     def _alloc_C_libcall(self, size, ctype):
@@ -123,8 +138,6 @@ class PosixAllocator(MemoryAllocator):
     Memory allocator based on ``posix`` functions. The allocated memory is
     aligned to page boundaries.
     """
-
-    is_Posix = True
 
     @classmethod
     def initialize(cls):
@@ -162,7 +175,7 @@ class PosixAllocator(MemoryAllocator):
 class GuardAllocator(PosixAllocator):
 
     """
-    Memory allocator based on ``posix`` functions. The allocated memory is
+    Memory allocator based on `posix` functions. The allocated memory is
     aligned to page boundaries.  Additionally, it allocates extra memory
     before and after the data, and configures it so that an SEGV is thrown
     immediately if an out-of-bounds access occurs.
@@ -195,20 +208,20 @@ class GuardAllocator(PosixAllocator):
         if ret != 0:
             return None, None
 
-        # generate pointers to the left padding, the user data, and the right pad
+        # Generate pointers to the left padding, the user data, and the right pad
         padleft_pointer = c_pointer
         c_pointer = ctypes.c_void_p(c_pointer.value + self.padding_bytes)
         padright_pointer = ctypes.c_void_p(c_pointer.value + npages_user * pagesize)
 
-        # and set the permissions on the pad memory to 0 (no access)
-        # if these fail, don't worry about failing the entire allocation
+        # And set the permissions on the pad memory to 0 (no access)
+        # If these fail, don't worry about failing the entire allocation
         c_padsize = ctypes.c_ulong(self.padding_bytes)
         if self.lib.mprotect(padleft_pointer, c_padsize, ctypes.c_int(0)):
             logger.warning("couldn't protect memory")
         if self.lib.mprotect(padright_pointer, c_padsize, ctypes.c_int(0)):
             logger.warning("couldn't protect memory")
 
-        # if there is a multiple of 4 bytes left, use the code below to poison
+        # If there is a multiple of 4 bytes left, use the code below to poison
         # the memory
         if nbytes_user % 4 == 0:
             poison_size = npages_user*pagesize - nbytes_user
@@ -216,16 +229,16 @@ class GuardAllocator(PosixAllocator):
             poison_ptr = ctypes.cast(ctypes.c_void_p(c_pointer.value + nbytes_user),
                                      intp_type)
 
-            # for both float32 and float64, a sequence of -100 int32s represents NaNs,
-            # at least on little-endian architectures.  It shouldn't matter what we
-            # put in there, anyway
+            # For both float32 and float64, a sequence of -100 int32s
+            # represents NaNs, at least on little-endian architectures;
+            # it shouldn't matter what we put in there, anyway
             for i in range(poison_size // 4):
                 poison_ptr[i] = -100
 
         return c_pointer, (padleft_pointer, c_bytesize)
 
     def free(self, c_pointer, total_size):
-        # unprotect it, since free() accesses it, I think...
+        # Unprotect it, since free() accesses it, I think...
         self.lib.mprotect(c_pointer, total_size,
                           ctypes.c_int(mmap.PROT_READ | mmap.PROT_WRITE))
         self.lib.free(c_pointer)
@@ -246,8 +259,6 @@ class NumaAllocator(MemoryAllocator):
         keywords ``local`` ("allocate on the local NUMA node") and ``any``
         ("allocate on any NUMA node with sufficient free memory") are accepted.
     """
-
-    is_Numa = True
 
     @classmethod
     def initialize(cls):
@@ -356,7 +367,7 @@ class ExternalAllocator(MemoryAllocator):
     def __init__(self, numpy_array):
         self.numpy_array = numpy_array
 
-    def alloc(self, shape, dtype):
+    def alloc(self, shape, dtype, padding=0):
         assert shape == self.numpy_array.shape, \
             "Provided array has shape %s. Expected %s" %\
             (str(self.numpy_array.shape), str(shape))
@@ -429,4 +440,4 @@ def default_allocator(name=None):
           infer_knl_mode() == 'flat'):
         return ALLOC_KNL_MCDRAM
     else:
-        return ALLOC_ALIGNED
+        return custom_allocators.get('default', ALLOC_ALIGNED)

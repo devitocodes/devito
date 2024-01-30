@@ -1,6 +1,6 @@
 from devito.ir.clusters.visitors import QueueStateful
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               ROUNDABLE, SEQUENTIAL, Forward)
+                               SEQUENTIAL)
 from devito.tools import as_tuple, flatten, timed_pass
 
 __all__ = ['analyze']
@@ -13,7 +13,6 @@ def analyze(clusters):
     # Collect properties
     clusters = Parallelism(state).process(clusters)
     clusters = Affiness(state).process(clusters)
-    clusters = Rounding(state).process(clusters)
 
     # Reconstruct Clusters attaching the discovered properties
     processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
@@ -112,41 +111,6 @@ class Parallelism(Detector):
             return {PARALLEL, PARALLEL_INDEP}
         else:
             return PARALLEL
-
-
-class Rounding(Detector):
-
-    def _callback(self, clusters, d, prefix):
-        itinterval = prefix[-1]
-
-        # The iteration direction must be Forward -- ROUNDABLE is for rounding *up*
-        if itinterval.direction is not Forward:
-            return
-
-        properties = self._fetch_properties(clusters, prefix)
-        if PARALLEL not in properties[d]:
-            return
-
-        scope = self._fetch_scope(clusters)
-
-        # All accessed Functions must have enough room in the PADDING region
-        # so that `i`'s trip count can safely be rounded up
-        # Note: autopadding guarantees that the padding size along the
-        # Fastest Varying Dimension is a multiple of the SIMD vector length
-        functions = [f for f in scope.functions if f.is_AbstractFunction]
-        try:
-            if any(not f._honors_autopadding for f in functions):
-                return
-        except ValueError:
-            # E.g., lazily allocated Functions don't have an accessible
-            # `.shape` until after the first call to `f._arg_values`
-            return
-
-        # Mixed data types (e.g., float and double) is unsupported
-        if len({f.dtype for f in functions}) > 1:
-            return
-
-        return ROUNDABLE
 
 
 class Affiness(Detector):

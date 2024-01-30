@@ -1,13 +1,11 @@
 from ctypes import POINTER, Structure, c_void_p, c_ulong
-from math import ceil
 
 import numpy as np
 from cached_property import cached_property
 from sympy import Expr
 
-from devito.parameters import configuration
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
-                          dtype_to_ctype, dtypes_vector_mapper)
+                          dtype_to_ctype, dtypes_vector_mapper, is_integer)
 from devito.types.basic import AbstractFunction
 from devito.types.utils import CtypesFactory, DimensionTuple
 
@@ -127,42 +125,23 @@ class Array(ArrayBasic):
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
 
-    def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding')
-        if padding is None:
-            padding = [(0, 0) for _ in range(self.ndim)]
-            if kwargs.get('autopadding', configuration['autopadding']):
-                # Heuristic 1; Arrays are typically introduced for temporaries
-                # introduced during compilation, and are almost always used together
-                # with loop blocking.  Since the typical block size is a multiple of
-                # the SIMD vector length, `vl`, padding is made such that the
-                # NODOMAIN size is a multiple of `vl` too
-
-                # Heuristic 2: the right-NODOMAIN size is not only a multiple of
-                # `vl`, but also guaranteed to be *at least* greater or equal than
-                # `vl`, so that the compiler can tweak loop trip counts to maximize
-                # the effectiveness of SIMD vectorization
-
-                # Let UB be a function that rounds up a value `x` to the nearest
-                # multiple of the SIMD vector length
-                vl = configuration['platform'].simd_items_per_reg(self.dtype)
-                ub = lambda x: int(ceil(x / vl)) * vl
-
-                fvd_halo_size = sum(self.halo[-1])
-                fvd_pad_size = (ub(fvd_halo_size) - fvd_halo_size) + vl
-
-                padding[-1] = (0, fvd_pad_size)
-            return tuple(padding)
-        elif isinstance(padding, int):
-            return tuple((0, padding) for _ in range(self.ndim))
-        elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            return tuple((0, i) if isinstance(i, int) else i for i in padding)
-        else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
-
     @classmethod
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
+
+    def __padding_setup__(self, **kwargs):
+        padding = kwargs.get('padding')
+        if padding is None:
+            padding = ((0, 0),)*self.ndim
+        elif isinstance(padding, DimensionTuple):
+            padding = tuple(padding[d] for d in self.dimensions)
+        elif is_integer(padding):
+            padding = tuple((0, padding) for _ in range(self.ndim))
+        elif isinstance(padding, tuple) and len(padding) == self.ndim:
+            padding = tuple((0, i) if is_integer(i) else i for i in padding)
+        else:
+            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+        return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
     def liveness(self):
@@ -435,6 +414,10 @@ class Bundle(ArrayBasic):
     def is_Input(self):
         return all(i.is_Input for i in self.components)
 
+    @property
+    def is_autopaddable(self):
+        return all(i.is_autopaddable for i in self.components)
+
     # Other properties and methods
 
     @property
@@ -521,7 +504,7 @@ class ComponentAccess(Expr, Reconstructable):
     def __new__(cls, arg, index=0, **kwargs):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
-        if not isinstance(index, int) or index > 3:
+        if not is_integer(index) or index > 3:
             raise ValueError("Expected 0 <= index < 4")
 
         obj = Expr.__new__(cls, arg)

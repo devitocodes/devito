@@ -5,7 +5,7 @@ import sys
 from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for',
-           'log', 'warning', 'error', 'perf', 'perf_adv',
+           'log', 'warning', 'error', 'perf', 'hint',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -124,8 +124,8 @@ def perf(msg, *args, **kwargs):
     log(msg, PERF, *args, **kwargs)
 
 
-def perf_adv(msg, *args, **kwargs):
-    log("Potential optimisation missed: %s" % msg, PERF, *args, **kwargs)
+def hint(msg, *args, **kwargs):
+    log("Hint: %s" % msg, PERF, *args, **kwargs)
 
 
 def warning(msg, *args, **kwargs):
