@@ -613,9 +613,11 @@ class SubDistributor(DenseDistributor):
         """
         MPI rank interfaces with the boundary of the subdomain.
         """
-        # FIXME: Does this behave correctly for domain edges?
-        # FIXME: May need an `or`` with parent.is_boundary_rank
-        return any(not all(self.crosses[d].values()) for d in self.dimensions)
+        # Note that domain edges may also be boundaries of the subdomain
+        grid_boundary = self.parent.is_boundary_rank
+        subdomain_boundary = any(not all(self.crosses[d].values())
+                                 for d in self.dimensions)
+        return grid_boundary or subdomain_boundary
 
     @property
     def neighborhood(self):

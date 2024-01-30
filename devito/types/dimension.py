@@ -742,7 +742,7 @@ class SubDimension(DerivedDimension):
                 # decomposition still use the global indices and offsets are applied
                 # to get the correct indices within the SubDomain. As such, thickness
                 # overrides should be calculated using the global Distributor. This
-                # Distributor is the parent of the SubDomainDistributor attached to
+                # Distributor is the parent of the SubDistributor attached to
                 # the SubDomain. The function index_glb_to_loc considers the SubDomain
                 # indices to be 'global' in the case of a Function on a SubDomain and
                 # so the parent must be used for the following thickness override check.
