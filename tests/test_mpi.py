@@ -273,8 +273,8 @@ class TestSubDistributor:
                 return {x: sd_x, y: sd_y}
 
         grid = Grid(shape=(10, 10))
-        mid = MyDomain(grid=grid)
-        d = mid.distributor
+        md = MyDomain(grid=grid)
+        d = md.distributor
 
         check_interval(d._sd_interval[0], sd_x, grid.shape[0])
         check_interval(d._sd_interval[1], sd_y, grid.shape[1])
@@ -287,6 +287,40 @@ class TestSubDistributor:
             check_interval(d.intervals[1], sd_y, grid.shape[1],
                            vmin=grid.origin_ioffset[1],
                            vmax=grid.origin_ioffset[1]+grid.shape_local[1]-1)
+
+    @pytest.mark.parametrize('sd', sd_specs)
+    @pytest.mark.parallel(mode=[3])
+    def test_crosses(self, sd):
+        """
+        Check that the edges of the rank crossed by the subdomain are correctly
+        identified.
+        """
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd, y: y}
+
+        grid = Grid(shape=(10, 10))
+        md = MyDomain(grid=grid)
+        xi, yi = md.dimensions
+        d = md.distributor
+
+        # Decomposition is [[0, 1, 2, 3], [4, 5, 6], [7, 8, 9]]
+        rank = grid.distributor.comm.rank
+        if sd[0] == 'middle':
+            if rank == 0:
+                check = {LEFT: False, RIGHT: True}
+            elif rank == 1:
+                check = {LEFT: True, RIGHT: True}
+            else:
+                check = {LEFT: True, RIGHT: False}
+        else:
+            check = {LEFT: False, RIGHT: False}
+
+        assert d.crosses[xi] == check
 
 
 class TestFunction(object):
