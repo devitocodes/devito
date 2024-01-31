@@ -573,7 +573,7 @@ class CGen(Visitor):
         signature = self._gen_signature(o)
         return c.FunctionBody(signature, c.Block(body))
 
-    def visit_CallableBody(self, o):
+    def visit_MultiTraversable(self, o):
         body = []
         prev = None
         for i in o.children:
@@ -585,6 +585,9 @@ class CGen(Visitor):
                 body.extend(as_tuple(v))
         return c.Collection(body)
 
+    def visit_UsingNamespace(self, o):
+        return c.Statement('using namespace %s' % ccode(o.namespace))
+
     def visit_Lambda(self, o):
         body = []
         for i in o.children:
@@ -595,7 +598,15 @@ class CGen(Visitor):
                 body.extend(as_tuple(v))
         captures = [str(i) for i in o.captures]
         decls = [i.inline() for i in self._args_decl(o.parameters)]
-        top = c.Line('[%s](%s)' % (', '.join(captures), ', '.join(decls)))
+        extra = []
+        if o.special:
+            extra.append(' ')
+            extra.append(' '.join(str(i) for i in o.special))
+        if o.attributes:
+            extra.append(' ')
+            extra.append(' '.join('[[%s]]' % i for i in o.attributes))
+        top = c.Line('[%s](%s)%s' %
+                     (', '.join(captures), ', '.join(decls), ''.join(extra)))
         return LambdaCollection([top, c.Block(body)])
 
     def visit_HaloSpot(self, o):
@@ -677,7 +688,7 @@ class CGen(Visitor):
         includes = self._operator_includes(o) + [blankline]
 
         # Namespaces
-        namespaces = [c.Statement('using namespace %s' % i) for i in o._namespaces]
+        namespaces = [self._visit(i) for i in o._namespaces]
         if namespaces:
             namespaces.append(blankline)
 

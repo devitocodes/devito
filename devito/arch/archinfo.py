@@ -808,6 +808,11 @@ class IntelDevice(Device):
 
     max_mem_trans_nbytes = 64
 
+    def __init__(self, *args, sub_group_size=32, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.sub_group_size = sub_group_size
+
     @property
     def march(self):
         return ''
@@ -894,10 +899,10 @@ NVIDIAX = NvidiaDevice('nvidiaX')
 AMDGPUX = AmdDevice('amdgpuX')
 
 INTELGPUX = IntelDevice('intelgpuX')
-PVC = IntelDevice('pvc', max_threads_per_block=4096)  # Legacy codename for MAX GPUs
-INTELGPUMAX = IntelDevice('intelgpuMAX', max_threads_per_block=4096)
-MAX1100 = IntelDevice('max1100', max_threads_per_block=4096)
-MAX1550 = IntelDevice('max1550', max_threads_per_block=4096)
+PVC = IntelDevice('pvc')  # Legacy codename for MAX GPUs
+INTELGPUMAX = IntelDevice('intelgpuMAX')
+MAX1100 = IntelDevice('max1100')
+MAX1550 = IntelDevice('max1550')
 
 platform_registry = Platform.registry
 platform_registry['cpu64'] = get_platform  # Autodetection

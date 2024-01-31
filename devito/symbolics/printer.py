@@ -241,6 +241,8 @@ class CodePrinter(C99CodePrinter):
             template = ''
         return "%s%s(%s)" % (expr.name, template, ','.join(arguments))
 
+    _print_MathFunction = _print_DefFunction
+
     def _print_Fallback(self, expr):
         return expr.__str__()
 

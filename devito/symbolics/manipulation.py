@@ -2,7 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
-from sympy import Pow, Add, Mul, Min, Max, SympifyError, Tuple, sympify
+from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
@@ -146,6 +146,11 @@ def _(expr, args, kwargs):
 
 @_uxreplace_handle.register(Mul)
 def _(expr, args, kwargs):
+    # Perform some basic simplifications at least
+    args = [i for i in args if i != 1]
+    if any(i == 0 for i in args):
+        return S.Zero
+
     if all(i.is_commutative for i in args):
         _mulsort(args)
         _eval_numbers(expr, args)

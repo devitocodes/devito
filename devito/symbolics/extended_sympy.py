@@ -16,10 +16,10 @@ from devito.types.basic import Basic
 __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'InlineIf', 'ReservedWord', 'Keyword', 'String', 'Macro', 'Class',
-           'MacroArgument', 'CustomType', 'Deref', 'Namespace', 'Rvalue',
-           'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null', 'SizeOf', 'rfunc',
-           'cast_mapper', 'BasicWrapperMixin']
+           'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
+           'Macro', 'Class', 'MacroArgument', 'CustomType', 'Deref',
+           'Namespace', 'Rvalue', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null',
+           'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
 
 
 class CondEq(sympy.Eq):
@@ -541,8 +541,7 @@ class DefFunction(Function, Pickable):
         https://github.com/sympy/sympy/issues/4297
     """
 
-    __rargs__ = ('name', 'arguments')
-    __rkwargs__ = ('template',)
+    __rargs__ = ('name', 'arguments', 'template')
 
     def __new__(cls, name, arguments=None, template=None, **kwargs):
         if isinstance(name, str):
@@ -607,6 +606,12 @@ class DefFunction(Function, Pickable):
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class MathFunction(DefFunction):
+
+    # Supposed to involve real operands
+    is_commutative = True
 
 
 class InlineIf(sympy.Expr, Pickable):
