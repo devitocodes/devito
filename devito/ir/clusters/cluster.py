@@ -297,9 +297,9 @@ class Cluster(object):
                 continue
 
             intervals = [Interval(d,
-                                  min([minimum(i) for i in offs]),
-                                  max([maximum(i) for i in offs]))
-                         for d, offs in v.items()]
+                                  min([minimum(i, ispace=self.ispace) for i in o]),
+                                  max([maximum(i, ispace=self.ispace) for i in o]))
+                         for d, o in v.items()]
             intervals = IntervalGroup(intervals)
 
             # Factor in the IterationSpace -- if the min/max points aren't zero,

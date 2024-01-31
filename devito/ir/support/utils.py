@@ -308,30 +308,42 @@ def _relational(expr, callback, udims=None):
     return expr.subs(mapper)
 
 
-def minimum(expr, udims=None):
+def minimum(expr, udims=None, ispace=None):
     """
     Substitute the unbounded Dimensions in `expr` with their minimum point.
 
     Unbounded Dimensions whose possible minimum value is not known are ignored.
     """
-    return _relational(expr, lambda e: e._min, udims)
+    def callback(sd):
+        try:
+            return sd._min + ispace[sd].lower
+        except (TypeError, KeyError):
+            return sd._min
+
+    return _relational(expr, callback, udims)
 
 
-def maximum(expr, udims=None):
+def maximum(expr, udims=None, ispace=None):
     """
     Substitute the unbounded Dimensions in `expr` with their maximum point.
 
     Unbounded Dimensions whose possible maximum value is not known are ignored.
     """
-    return _relational(expr, lambda e: e._max, udims)
+    def callback(sd):
+        try:
+            return sd._max + ispace[sd].upper
+        except (TypeError, KeyError):
+            return sd._max
+
+    return _relational(expr, callback, udims)
 
 
-def extrema(expr):
+def extrema(expr, ispace=None):
     """
     The minimum and maximum extrema assumed by `expr` once the unbounded
     Dimensions are resolved.
     """
-    return Extrema(minimum(expr), maximum(expr))
+    return Extrema(minimum(expr, ispace=ispace), maximum(expr, ispace=ispace))
 
 
 def minmax_index(expr, d):
