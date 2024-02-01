@@ -193,10 +193,6 @@ def get_arg_types(symbols):
             processed.append(
                 iet_ssa.Profiler()
             )
-        elif symbol._C_typedata == 'struct dataobj':
-            processed.append(
-                iet_ssa.Dataobj()
-            )
         elif symbol._C_ctype == ctypes.c_float:
             processed.append(f32)
         else:
