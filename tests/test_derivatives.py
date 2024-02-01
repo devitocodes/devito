@@ -6,7 +6,7 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
 from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
-                                                      IndexDerivative, Weights)
+                                                      IndexDerivative, Weights, Pow)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 
@@ -708,24 +708,26 @@ class TestTwoStageEvaluation(object):
         grid = Grid((10,))
         x, = grid.dimensions
 
+        so = 2
         i = StencilDimension('i', 0, 2)
 
-        u = Function(name="u", grid=grid, space_order=2)
+        u = Function(name="u", grid=grid, space_order=so)
 
         ui = u.subs(x, x + i*x.spacing)
         w = Weights(name='w0', dimensions=i, initvalue=[-0.5, 0, 0.5])
 
-        idxder = IndexDerivative(ui*w, {x: i})
+        idxder = IndexDerivative(ui*w, {x: i}, so)
 
+        assert idxder.scaling == Pow(x.spacing, so)
         assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
 
         # Make sure subs works as expected
-        v = Function(name="v", grid=grid, space_order=2)
+        v = Function(name="v", grid=grid, space_order=so)
 
         vi0 = v.subs(x, x + i*x.spacing)
         vi1 = idxder.subs(ui, vi0)
 
-        assert IndexDerivative(vi0*w, {x: i}) == vi1
+        assert IndexDerivative(vi0*w, {x: i}, so) == vi1
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))

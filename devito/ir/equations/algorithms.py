@@ -1,7 +1,5 @@
 from collections.abc import Iterable
 
-from sympy import sympify
-
 from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
@@ -89,7 +87,7 @@ def dimension_sort(expr):
     return ordering
 
 
-def lower_exprs(expressions, **kwargs):
+def lower_exprs(expressions, subs=None, **kwargs):
     """
     Lowering an expression consists of the following passes:
 
@@ -101,9 +99,10 @@ def lower_exprs(expressions, **kwargs):
     --------
     f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
     """
-    # Normalize subs
-    subs = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}
+    return _lower_exprs(expressions, subs or {})
 
+
+def _lower_exprs(expressions, subs):
     processed = []
     for expr in as_tuple(expressions):
         try:
@@ -113,7 +112,7 @@ def lower_exprs(expressions, **kwargs):
             dimension_map = {}
 
         # Handle Functions (typical case)
-        mapper = {f: lower_exprs(f.indexify(subs=dimension_map), **kwargs)
+        mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
                   for f in expr.find(AbstractFunction)}
 
         # Handle Indexeds (from index notation)
@@ -121,7 +120,7 @@ def lower_exprs(expressions, **kwargs):
             f = i.function
 
             # Introduce shifting to align with the computational domain
-            indices = [(lower_exprs(a) + o) for a, o in
+            indices = [_lower_exprs(a, subs) + o for a, o in
                        zip(i.indices, f._size_nodomain.left)]
 
             # Substitute spacing (spacing only used in own dimension)

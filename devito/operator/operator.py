@@ -1,9 +1,11 @@
 from collections import OrderedDict, namedtuple
+import ctypes
 from operator import attrgetter
 from math import ceil
 
 from cached_property import cached_property
-import ctypes
+import numpy as np
+from sympy import sympify
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
@@ -1218,5 +1220,20 @@ def parse_kwargs(**kwargs):
                       kwargs['language'],
                       kwargs['platform'])
     )
+
+    # Normalize `subs`, if any
+    subs = {}
+    for k, v in kwargs.get('subs', {}).items():
+        if isinstance(v, np.floating):
+            # Cast to a Python float, as otherwise SymPy would behave as follows:
+            # sympy.Float(np.float32(10)) -> 10.0000
+            # sympy.Float(10) -> 10.0000000000000
+            v1 = float(v)
+        else:
+            # Other handlers might be added in the future
+            v1 = v
+
+        subs[k] = sympify(v1)
+    kwargs['subs'] = subs
 
     return kwargs

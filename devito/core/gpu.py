@@ -82,7 +82,7 @@ class DeviceOperatorMixin(object):
 
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)
-        o['optcomms'] = oo.pop('optcomms', True)
+        o['opt-comms'] = oo.pop('opt-comms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)

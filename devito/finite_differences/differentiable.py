@@ -15,7 +15,7 @@ from devito.finite_differences.tools import make_shift_x0
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
                           infer_dtype, is_integer, split)
-from devito.types import (Array, DimensionTuple, Evaluable, Indexed, Spacing,
+from devito.types import (Array, DimensionTuple, Evaluable, Indexed,
                           StencilDimension)
 
 __all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative', 'Weights']
@@ -685,8 +685,6 @@ class Weights(Array):
         from devito.symbolics import pow_to_mul  # noqa, sigh
         weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
 
-        self._spacings = set().union(*[i.find(Spacing) for i in weights])
-
         kwargs['scope'] = kwargs.get('scope', 'stack')
         kwargs['initvalue'] = weights
 
@@ -708,10 +706,6 @@ class Weights(Array):
     def dimension(self):
         return self.dimensions[0]
 
-    @property
-    def spacings(self):
-        return self._spacings
-
     weights = Array.initvalue
 
     def _xreplace(self, rule):
@@ -732,9 +726,9 @@ class Weights(Array):
 
 class IndexDerivative(IndexSum):
 
-    __rargs__ = ('expr', 'mapper')
+    __rargs__ = ('expr', 'mapper', 'order')
 
-    def __new__(cls, expr, mapper, **kwargs):
+    def __new__(cls, expr, mapper, order, **kwargs):
         dimensions = as_tuple(set(mapper.values()))
 
         # Detect the Weights among the arguments
@@ -755,11 +749,12 @@ class IndexDerivative(IndexSum):
         obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights
         obj._mapper = frozendict(mapper)
+        obj._order = order
 
         return obj
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.mapper,)
+        return super()._hashable_content() + (self.mapper, self.order)
 
     def compare(self, other):
         if self is other:
@@ -782,6 +777,14 @@ class IndexDerivative(IndexSum):
     @property
     def mapper(self):
         return self._mapper
+
+    @property
+    def order(self):
+        return self._order
+
+    @property
+    def scaling(self):
+        return Mul(*[d.spacing**self.order for d in self.mapper])
 
     @property
     def depth(self):
