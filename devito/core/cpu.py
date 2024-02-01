@@ -155,7 +155,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         options = kwargs['options']
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
-
+       
         # Toposort+Fusion (the former to expose more fusion opportunities)
         clusters = fuse(clusters, toposort=True)
 

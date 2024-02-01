@@ -48,8 +48,8 @@ grid = Grid(shape=(nx, ny, nz), extent=(2., 2., 2.))
 u = TimeFunction(name='u', grid=grid, space_order=so)
 devito_out = TimeFunction(name='u', grid=grid, space_order=so)
 
-a = Constant(name='a')
 # Create an equation with second-order derivatives
+a = Constant(name='a')
 eq = Eq(u.dt, a * u.laplace)
 stencil = solve(eq, u.forward)
 eq_stencil = Eq(u.forward, stencil)
@@ -91,4 +91,4 @@ if args.xdsl:
 if args.xdsl and args.devito:
     assert np.isclose(norm(u), norm(devito_out), rtol=1e-5)
     max_error = np.max(np.abs(u.data - devito_out.data))
-    assert np.isclose(norm(u), norm(devito_out), rtol=1e-5)
+    print("Max error: ", max_error)

@@ -141,7 +141,7 @@ class ExtractDevitoStencilConversion:
             return cst.result
         # Handle Floats
         elif isinstance(node, Float):
-            cst = arith.Constant.from_float_and_width(float(node), builtin.f32)
+            cst = arith.Constant(builtin.FloatAttr(float(node), builtin.f32))
             self.block.add_op(cst)
             return cst.result
         # Handle Symbols
@@ -466,8 +466,10 @@ class _InsertSymbolicConstants(RewritePattern):
 
         if op.result.type in (builtin.f32, builtin.f64):
             rewriter.replace_matched_op(
-                arith.Constant.from_float_and_width(
-                    float(self.known_symbols[symb_name]), op.result.type
+                arith.Constant(builtin.FloatAttr
+                    (
+                        float(self.known_symbols[symb_name]), op.result.type
+                    )
                 )
             )
             return
