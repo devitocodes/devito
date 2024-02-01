@@ -85,7 +85,7 @@ if args.devito:
         u.data[:] = u2.data[:]
         configuration['mpi'] = mpiconf
 
-# Reset data
+# Reset our data field and ICs
 init_hat(field=u.data[0], dx=dx, dy=dy, value=1.)
 
 if args.xdsl:

@@ -94,7 +94,7 @@ class LowerIetForToScfFor(RewritePattern):
         rewriter.replace_matched_op([
             cst1 := arith.Constant.from_int_and_width(1, builtin.IndexType()),
             new_ub := arith.Addi(op.ub, cst1),
-            scf_for := scf.For.get(op.lb, new_ub.result, op.step, subindice_vals, body),
+            scf_for := scf.For(op.lb, new_ub.result, op.step, subindice_vals, body),
         ], [scf_for.results[0]])
 
         for use in scf_for.results[0].uses:
