@@ -8,7 +8,7 @@ from xdsl.dialects.builtin import (IntegerType, StringAttr, ArrayAttr,
                                    ContainerOf, IndexType, Float16Type, Float32Type,
                                    Float64Type, AnyIntegerAttr, f32, IntAttr)
 
-from xdsl.dialects import builtin, memref, llvm
+from xdsl.dialects import builtin, memref
 from xdsl.dialects import stencil
 
 from xdsl.irdl import (irdl_op_definition, operand_def, result_def, attr_def, region_def,
@@ -46,26 +46,6 @@ class IET:
 class Profiler(ParametrizedAttribute):
     name = "iet.profiler"
 
-
-# TODO: might be replacable by `llvm.LLVMStruct`?
-@irdl_attr_definition
-class Dataobj(ParametrizedAttribute):
-    """
-    The Dataobject type represents a pointer to a struct with this layout:
-
-    struct dataobj
-    {
-        void *restrict data;
-        unsigned long * size;
-        unsigned long * npsize;
-        unsigned long * dsize;
-        int * hsize;
-        int * hofs;
-        int * oofs;
-        void * dmap;
-    };
-    """
-    name = "iet.dataobj"
 
 @irdl_op_definition
 class Modi(IRDLOperation):
@@ -129,7 +109,7 @@ class PointerCast(IRDLOperation):
     name: str = "iet.pointercast"
     statement: StringAttr = attr_def(StringAttr)
     shape_indices: ArrayAttr[IntAttr] = attr_def(ArrayAttr[IntAttr])
-    arg: Operand = operand_def(Dataobj)  # TOOD: Make it Dataobj()!
+    arg: Operand = operand_def(ParametrizedAttribute)  # TOOD: Make it Dataobj()!
     result: OpResult = result_def(memref.MemRefType[Attribute])
 
     @staticmethod
@@ -498,7 +478,6 @@ IET_SSA = Dialect([
     Powi
 ], [
     Profiler,
-    Dataobj
 ])
 
 DEVITO_SSA = Dialect([
