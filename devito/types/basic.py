@@ -1245,7 +1245,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         if self._distributor is None:
             return ()
         else:
-            # NOTE: changed some stuff here. May need reverting
             return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @cached_property
@@ -1333,23 +1332,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @property
-    def _data_alignment(self):
-        """
-        The base virtual address of the data carried by the object is a multiple
-        of the alignment.
-        """
-        return default_allocator().guaranteed_alignment
-
-    def indexify(self, indices=None, subs=None):
-        """Create a types.Indexed from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        # Substitution for each index (spacing only used in own dimension)
-        subs = subs or {}
-        subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
-
+    @cached_property
+    def _offset_subdomain(self):
+        """Offset of subdomain incides versus the global index."""
         # If defined on a SubDomain, then need to offset indices accordingly
         if self.grid and self.grid.is_SubDomain:
             # Symbolic offsets to avoid potential issues with user overrides
@@ -1368,13 +1353,31 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
                         offsets.append(l_sym)
                 else:
                     offsets.append(0)
-            offsets = tuple(offsets)
+            return tuple(offsets)
         else:
-            offsets = (0,)*len(self.dimensions)
+            return (0,)*len(self.dimensions)
+
+    @property
+    def _data_alignment(self):
+        """
+        The base virtual address of the data carried by the object is a multiple
+        of the alignment.
+        """
+        return default_allocator().guaranteed_alignment
+
+    def indexify(self, indices=None, subs=None):
+        """Create a types.Indexed from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
+        # Substitution for each index (spacing only used in own dimension)
+        subs = subs or {}
+        subs = [{**{d.spacing: 1, -d.spacing: -1}, **subs} for d in self.dimensions]
 
         # Indices after substitutions
         indices = []
-        for a, d, o, s, of in zip(self.args, self.dimensions, self.origin, subs, offsets):
+        for a, d, o, of, s in zip(self.args, self.dimensions, self.origin,
+                                  self._offset_subdomain, subs):
             if d in a.free_symbols:
                 # Shift by origin and offset d -> d - o - of.
                 indices.append(sympy.sympify(a.subs(d, d - o - of).xreplace(s)))
