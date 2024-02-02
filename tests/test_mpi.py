@@ -320,6 +320,29 @@ class TestSubDistributor:
 
         assert d.crosses[xi] == check
 
+    @pytest.mark.parametrize('sd', sd_specs)
+    @pytest.mark.parallel(mode=[2])
+    def test_decomposition(self, sd):
+        """
+        Check that the subdomain is correctly decomposed.
+        """
+        class MyDomain(SubDomain):
+
+            name = 'mydomain'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: sd, y: y}
+
+        grid = Grid(shape=(10, 10))
+        md = MyDomain(grid=grid)
+        xi, yi = md.dimensions
+        d = md.distributor
+
+        print(d.decomposition)
+
+        assert False
+
 
 class TestFunction(object):
 
