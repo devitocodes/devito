@@ -115,6 +115,12 @@ def _core(expr, c, weights, reusables, mapper, sregistry):
     extra = (c.ispace.itdims + dims,)
     ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
 
+    # Set the IterationSpace along the StencilDimensions to start from 0
+    # (rather than the default `d._min`) to minimize the amount of integer
+    # arithmetic to calculate the various index access functions
+    for d in dims:
+        ispace = ispace.translate(d, -d._min)
+
     try:
         s = reusables.pop()
         assert s.dtype is w.dtype
@@ -125,12 +131,12 @@ def _core(expr, c, weights, reusables, mapper, sregistry):
     ispace1 = ispace.project(lambda d: d is not dims[-1])
     processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
 
-    # Transform e.g. `w[i0] -> w[i0 + 2]` for alignment with the
-    # StencilDimensions starting points
-    subs = {expr.weights:
-            expr.weights.subs(d, d - d._min)
-            for d in dims}
-    expr1 = Inc(s, uxreplace(expr.expr, subs))
+    # Transform e.g. `r0[x + i0 + 2, y] -> r0[x + i0, y, z]` for alignment
+    # with the shifted `ispace`
+    base = expr.base
+    for d in dims:
+        base = base.subs(d, d + d._min)
+    expr1 = Inc(s, base*expr.weights)
     processed.append(c.rebuild(exprs=expr1, ispace=ispace))
 
     # Track lowered IndexDerivative for subsequent optimization by the caller

@@ -93,7 +93,7 @@ class TestSymbolicCoeffs(object):
 
         # w0, w1, ...
         functions = FindSymbols().visit(op)
-        weights = [f for f in functions if isinstance(f, Weights)]
+        weights = {f for f in functions if isinstance(f, Weights)}
         assert len(weights) == expected
 
 
