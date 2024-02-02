@@ -506,7 +506,7 @@ class SubDistributor(DenseDistributor):
 
     @property
     def parent(self):
-        """The parent distributor of this SubDistributor"""
+        """The parent distributor of this SubDistributor."""
         return self._parent
 
     @property
@@ -533,13 +533,13 @@ class SubDistributor(DenseDistributor):
 
     @cached_property
     def _d_interval(self):
-        """The interval spanned by this MPI rank"""
+        """The interval spanned by this MPI rank."""
         return tuple(Interval(self.par_slices[d].start, self.par_slices[d].stop-1)
                      for d in self.par_dimensions)
 
     @cached_property
     def _sd_interval(self):
-        """The interval spanned by the SubDomain"""
+        """The interval spanned by the SubDomain."""
         # Assumes no override of x_m and x_M supplied to operator
         bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
         bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
@@ -559,7 +559,7 @@ class SubDistributor(DenseDistributor):
 
     @cached_property
     def intervals(self):
-        """The interval spanned by the SubDomain in each dimension on this rank"""
+        """The interval spanned by the SubDomain in each dimension on this rank."""
         return tuple(d if s is None else d.intersect(s)
                      for d, s in zip(self._d_interval, self._sd_interval))
 
