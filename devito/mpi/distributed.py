@@ -486,7 +486,7 @@ class SubDistributor(DenseDistributor):
                 return np.NaN, np.NaN
             elif interval.is_Interval:
                 # Interval containing two or more indices. Min and max are ends.
-                return interval.start, interval.end+1
+                return interval.start, interval.end
             else:
                 # Interval where start == end defaults to FiniteSet.
                 # Repeat this value for min and max

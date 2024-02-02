@@ -899,12 +899,16 @@ class TestSubdomainFunctionsParallel:
         slices = tuple(grid.distributor.glb_slices[dim]
                        for dim in grid.dimensions)
 
-        check_data = g.data[slices]
+        assert np.count_nonzero(g.data) == f.data.size
 
-        assert np.count_nonzero(check_data) == f.data.size
+        shape = []
+        for i, s in zip(f._distributor._sd_interval, slices):
+            if i is None:
+                shape.append(s.stop - s.start)
+            else:
+                shape.append(max(0, 1 + min(s.stop-1, i.end) - max(s.start, i.start)))
+        shape = tuple(shape)
 
-        coords = np.nonzero(check_data)
-        shape = tuple(np.amax(c)-np.amin(c)+1 if c.size != 0 else 0 for c in coords)
         assert f.data.shape == shape
         assert f._distributor.parent.glb_shape == grid.shape
         assert f._distributor.glb_shape == reduced_domain.shape
