@@ -323,7 +323,7 @@ class TestSubDistributor:
         assert d.crosses[xi] == check
 
     @pytest.mark.parametrize('sd', sd_specs)
-    @pytest.mark.parallel(mode=[2])
+    @pytest.mark.parallel(mode=[3])
     def test_decomposition(self, sd):
         """
         Check that the subdomain is correctly decomposed.
@@ -338,12 +338,39 @@ class TestSubDistributor:
 
         grid = Grid(shape=(10, 10))
         md = MyDomain(grid=grid)
-        xi, yi = md.dimensions
         d = md.distributor
 
-        print(d.decomposition)
+        for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
+                                      d._sd_interval, grid.shape):
+            # Get the global min and max
+            lower_bounds = [np.amin(i) for i in dec if i.size != 0]
+            upper_bounds = [np.amax(i) for i in dec if i.size != 0]
 
-        assert False
+            parent_lower_bounds = [np.amin(i) for i in pdec]
+            parent_upper_bounds = [np.amax(i) for i in pdec]
+
+            dM = np.amax(upper_bounds)
+            dm = np.amin(lower_bounds)
+
+            irange = np.arange(dm, dM+1)
+
+            # Indices increase monotonically over correct range
+            assert np.all(np.concatenate(dec) == irange)
+
+            # Inner boundaries line up with parent decomposition
+            # Skip the check if the subdomain means there are no inner boundaries
+            if len(lower_bounds) > 1:
+                assert np.all(parent_lower_bounds[1:] == lower_bounds[1:])
+            if len(upper_bounds) > 1:
+                assert np.all(parent_upper_bounds[:-1] == upper_bounds[:-1])
+
+            # Outer boundaries line up with subdomain
+            if sdi is None:
+                assert lower_bounds[0] == 0
+                assert upper_bounds[-1] == sh - 1
+            else:
+                assert lower_bounds[0] == sdi.start
+                assert upper_bounds[-1] == sdi.end
 
 
 class TestFunction(object):
