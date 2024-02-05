@@ -9,7 +9,6 @@ from devito.tools import as_tuple
 from devito.types.lazy import Evaluable
 from devito.types.grid import SubDomain
 from devito.symbolics.search import retrieve_functions
-from devito.symbolics.manipulation import _uxreplace_registry
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
 
@@ -186,9 +185,6 @@ class Eq(sympy.Eq, Evaluable):
         return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
 
     __repr__ = __str__
-
-
-_uxreplace_registry.register(Eq)
 
 
 class Reduction(Eq):
