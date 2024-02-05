@@ -102,11 +102,13 @@ def _core(expr, c, weights, reusables, mapper, sregistry):
     dims = retrieve_dimensions(expr, deep=True)
     dims = filter_ordered(d for d in dims if isinstance(d, StencilDimension))
 
-    dims = tuple(reversed(dims))
-
     # If a StencilDimension already appears in `c.ispace`, perhaps with its custom
     # upper and lower offsets, we honor it
     dims = tuple(d for d in dims if d not in c.ispace)
+
+    # The IndexDerivative iteration Dimensions must be, by construction, the
+    # innermost ones
+    dims = tuple(sorted(dims, key=lambda d: d in expr.dimensions))
 
     intervals = [Interval(d) for d in dims]
     directions = {d: Backward if d.backward else Forward for d in dims}
