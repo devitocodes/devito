@@ -344,14 +344,16 @@ class SynthesizeBlocking(Queue):
                 ispace = decompose(c.ispace, d, block_dims)
 
                 # Use the innermost BlockDimension in place of `d`
-                exprs = [uxreplace(e, {d: bd}) for e in c.exprs]
+                subs = {d: bd}
+                exprs = [uxreplace(e, subs) for e in c.exprs]
+                guards = {subs.get(i, i): v for i, v in c.guards.items()}
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
                 properties = c.properties.drop(d)
                 properties = properties.add(block_dims, c.properties[d] - TILABLES)
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                           properties=properties))
+                                           guards=guards, properties=properties))
             else:
                 processed.append(c)
 

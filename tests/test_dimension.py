@@ -891,6 +891,38 @@ class TestConditionalDimension(object):
         # Verify that u2[x,y]= u[2*x, 2*y]
         assert np.allclose(u.data[:-1, 0::2, 0::2], u2.data[:-1, :, :])
 
+    def test_spacial_filtering(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        g.data[:] = [[-.7, -.8, 0, .4],
+                     [-.3, -.5, 0, .6],
+                     [.1, .2, -.1, .8],
+                     [.5, .7, 0, .9]]
+
+        condition = And(Ge(g, -0.5), Le(g, 0.5))
+        cd = ConditionalDimension(name='cd1', parent=y, condition=condition)
+
+        eqn = Eq(f, g, implicit_dims=cd)
+
+        # NOTE: bypass heuristics and enforce loop blocking. Now `cd` is defined
+        # along `y` but loop blocking will generate two different BlockDimensions,
+        # `y0_blk0` and `Y`, in place of `y`. So the compiler must be smart
+        # enough to stick `cd` inside `Y`
+        opt = ('advanced', {'blockrelax': 'device-aware'})
+
+        op = Operator(eqn, opt=opt)
+
+        op()
+
+        assert np.all(f.data == np.array([[0, 0, 0, .4],
+                                          [-.3, -.5, 0, 0],
+                                          [.1, .2, -.1, 0],
+                                          [.5, 0, 0, 0]], dtype=f.dtype))
+
     def test_time_subsampling_fd(self):
         nt = 19
         grid = Grid(shape=(11, 11))
