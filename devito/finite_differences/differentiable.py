@@ -18,7 +18,8 @@ from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
 from devito.types import (Array, DimensionTuple, Evaluable, Indexed,
                           StencilDimension)
 
-__all__ = ['Differentiable', 'IndexDerivative', 'EvalDerivative', 'Weights']
+__all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
+           'Weights']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -251,6 +252,14 @@ class Differentiable(sympy.Expr, Evaluable):
             return False
         return all(getattr(self, i, None) == getattr(other, i, None)
                    for i in self.__rkwargs__)
+
+    def _hashable_content(self):
+        # SymPy computes the hash of all Basic objects as:
+        # `hash((type(self).__name__,) + self._hashable_content())`
+        # However, our subclasses will be named after the main SymPy classes,
+        # for example sympy.Add -> differentiable.Add, so we need to override
+        # the hashable content to specify it's our own subclasses
+        return super()._hashable_content() + ('differentiable',)
 
     @property
     def name(self):
@@ -583,7 +592,7 @@ class Mod(DifferentiableOp, sympy.Mod):
     __sympy_class__ = sympy.Mod
 
 
-class IndexSum(DifferentiableOp):
+class IndexSum(sympy.Expr, Evaluable):
 
     """
     Represent the summation over a multiindex, that is a collection of
@@ -806,9 +815,13 @@ class IndexDerivative(IndexSum):
         return EvalDerivative(expr, base=self.base)
 
 
+class DiffDerivative(IndexDerivative, DifferentiableOp):
+    pass
+
+
 # SymPy args ordering is the same for Derivatives and IndexDerivatives
-ordering_of_classes.insert(ordering_of_classes.index('Derivative') + 1,
-                           'IndexDerivative')
+for i in ('DiffDerivative', 'IndexDerivative'):
+    ordering_of_classes.insert(ordering_of_classes.index('Derivative') + 1, i)
 
 
 class EvalDerivative(DifferentiableOp, sympy.Add):
@@ -920,6 +933,12 @@ def diff2sympy(expr):
             ax, af = _diff2sympy(a)
             args.append(ax)
             flag |= af
+
+        # Handle special objects
+        if isinstance(obj, DiffDerivative):
+            return IndexDerivative(*args, obj.mapper, obj.order), True
+
+        # Handle generic objects such as arithmetic operations
         try:
             return obj.__sympy_class__(*args, evaluate=False), True
         except AttributeError:

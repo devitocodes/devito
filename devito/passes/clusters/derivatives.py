@@ -96,7 +96,7 @@ def _core(expr, c, weights, reusables, mapper, sregistry):
     try:
         w = weights[k]
     except KeyError:
-        w = weights[k] = w0._rebuild(name=name, dtype=expr.dtype)
+        w = weights[k] = w0._rebuild(name=name, dtype=c.dtype)
     expr = uxreplace(expr, {w0.indexed: w.indexed})
 
     dims = retrieve_dimensions(expr, deep=True)
