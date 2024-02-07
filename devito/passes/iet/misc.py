@@ -140,6 +140,8 @@ def generate_macros(iet):
     # Generate Macros from higher-level SymPy objects
     applications = FindApplications().visit(iet)
     headers = set().union(*[_generate_macros(i) for i in applications])
+    # Sort for deterministic code generation
+    headers = sorted(headers)
 
     # Some special Symbols may represent Macros defined in standard libraries,
     # so we need to include the respective includes
