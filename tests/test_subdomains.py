@@ -163,8 +163,8 @@ class TestSubdomains(object):
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
 
     sd_specs = [('middle', 1, 7), ('middle', 2, 3), ('middle', 7, 1),
-                ('middle', 5, 5), ('right', 3), ('middle', 3, 0), ('left', 3),
-                ('middle', 0, 3)]
+                ('middle', 5, 5), ('right', 3), ('right', 7), ('left', 3),
+                ('left', 7)]
 
     @pytest.mark.parametrize('spec', sd_specs)
     @pytest.mark.parallel(mode=[2, 3])
@@ -202,28 +202,6 @@ class TestSubdomains(object):
         check[slice(start, stop)] = 1
 
         assert np.all(check[grid.distributor.glb_slices[x]] == f.data)
-
-    def test_subdomain_w_grid(self):
-        """
-        Test that SubDomains can be passed a Grid on instantiation, rather than
-        using the legacy behaviour.
-        """
-        class sd0(SubDomain):
-            name = 'd0'
-
-            def define(self, dimensions):
-                x = dimensions[0]
-                return {x: ('middle', 2, 2)}
-
-        grid = Grid(shape=(11,), extent=(10.,))
-        s_d0 = sd0(grid=grid)
-
-        f = Function(name='f', grid=grid)
-
-        Operator(Eq(f, f+1, subdomain=s_d0))()
-        check = np.zeros(grid.shape)
-        check[2:-2] = 1
-        assert np.all(check == f.data)
 
 
 class TestMultiSubDomain(object):
@@ -328,42 +306,6 @@ class TestMultiSubDomain(object):
         exprs = FindNodes(Expression).visit(op)
         reads = set().union(*[e.reads for e in exprs])
         assert len(reads) == 7  # f, g, h, xi_n_m, xi_n_M, yi_n_m, yi_n_M
-
-    def test_subdomainset_w_grid(self):
-        """
-        Test that SubDomainSets can be passed a Grid on instantiation, rather than
-        using the legacy behaviour.
-        """
-        Nx = 10
-        Ny = Nx
-        n_domains = 2
-
-        class MySubdomains(SubDomainSet):
-            name = 'mydomains'
-
-        bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
-        bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
-        bounds_ym = 1
-        bounds_yM = 1
-        bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
-        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
-        my_sd = MySubdomains(N=n_domains, bounds=bounds, grid=grid)
-
-        f = Function(name='f', grid=grid, dtype=np.int32)
-
-        Operator(Eq(f, f+1, subdomain=my_sd))()
-
-        expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
-                             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int32)
-        assert((np.array(f.data) == expected).all())
 
     def test_multi_sets(self):
         """
@@ -546,7 +488,7 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n1', 't,n1,x,y'], 'x,y,t,n1,x,y')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,x,y'], 'x,y,t,n0,x,y')
 
     def test_issue_1761_b(self):
         """
@@ -584,8 +526,9 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n1', 't,n1,x,y', 't,n2', 't,n2,x,y'],
-                         'x,y,t,n1,x,y,n2,x,y')
+        assert_structure(op,
+                         ['x,y', 't,n0', 't,n0,x,y', 't,n1', 't,n1,x,y'],
+                         'x,y,t,n0,x,y,n1,x,y')
 
     def test_issue_1761_c(self):
         """
@@ -620,9 +563,9 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['x,y', 't,n1', 't,n1,x,y',
-                              't,n2', 't,n2,x,y', 't,n1', 't,n1,x,y'],
-                         'x,y,t,n1,x,y,n2,x,y,n1,x,y')
+        assert_structure(op, ['x,y', 't,n0', 't,n0,x,y',
+                              't,n1', 't,n1,x,y', 't,n0', 't,n0,x,y'],
+                         'x,y,t,n0,x,y,n1,x,y,n0,x,y')
 
     def test_issue_1761_d(self):
         """
@@ -647,8 +590,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n1', 't,n1,x,y', 't,n1,x,y'],
-                         't,n1,x,y,x,y')
+        assert_structure(op, ['t,n0', 't,n0,x,y', 't,n0,x,y'],
+                         't,n0,x,y,x,y')
 
     def test_guarding(self):
 
@@ -675,8 +618,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t', 't,n1', 't,n1,x,y', 't,n1', 't,n1,x,y'],
-                         't,n1,x,y,n1,x,y')
+        assert_structure(op, ['t', 't,n0', 't,n0,x,y', 't,n0', 't,n0,x,y'],
+                         't,n0,x,y,n0,x,y')
 
     def test_3D(self):
 
@@ -696,8 +639,8 @@ class TestMultiSubDomain(object):
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n1', 't,n1,xi10_blk0,yi10_blk0,x,y,z'],
-                         't,n1,xi10_blk0,yi10_blk0,x,y,z')
+        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
+                         't,n0,xi20_blk0,yi20_blk0,x,y,z')
 
     def test_sequential_implicit(self):
         """
@@ -925,6 +868,30 @@ class TestSubdomainFunctions:
 
         assert(np.all(f.data[:] == 1))
 
+    def test_indices(self):
+        """
+        Test that indices when iterating over a Function defined on a
+        SubDomain are aligned with the global indices
+        """
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        reduced_domain = ReducedDomain(('middle', 2, 3),
+                                       ('right', 6),
+                                       grid=grid)
+        x, y = reduced_domain.dimensions
+        f = Function(name='f', grid=reduced_domain)
+        eq = Eq(f, x*y)
+
+        Operator(eq)()
+
+        check = np.array([[0., 0., 0., 0., 0., 0., 0., 0.],
+                          [0., 8., 10., 12., 14., 16., 18., 0.],
+                          [0., 12., 15., 18., 21., 24., 27., 0.],
+                          [0., 16., 20., 24., 28., 32., 36., 0.],
+                          [0., 20., 25., 30., 35., 40., 45., 0.],
+                          [0., 24., 30., 36., 42., 48., 54., 0.],
+                          [0., 0., 0., 0., 0., 0., 0., 0.]])
+        assert np.all(f.data_with_halo == check)
+
     def test_mixed_functions(self):
         """
         Test with some Functions on a `SubDomain` and some not.
@@ -948,9 +915,9 @@ class TestSubdomainFunctions:
         assert(f.shape == mid.shape)
         assert(g.shape == grid.shape)
 
-        eq0 = Eq(f, g+f+1)
-        eq1 = Eq(g, 2*f)
-        eq2 = Eq(f, g+1)
+        eq0 = Eq(f, g+f+1, subdomain=mid)
+        eq1 = Eq(g, 2*f, subdomain=mid)
+        eq2 = Eq(f, g+1, subdomain=mid)
         eq3 = Eq(h, g+1)
 
         op = Operator([eq0, eq1, eq2, eq3])
@@ -1028,3 +995,47 @@ class TestSubdomainFunctionsParallel:
         Operator(eq)()
 
         assert(np.all(f.data[:] == 1))
+
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    def test_mixed_functions_mpi(self):
+        """
+        Check that mixing Functions on SubDomains with regular Functions behaves
+        correctly with MPI.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        eq0 = Eq(f, g+f+1, subdomain=mid)
+        eq1 = Eq(g, 2*f, subdomain=mid)
+        eq2 = Eq(f, g+1, subdomain=mid)
+        eq3 = Eq(h, g+1)
+
+        op = Operator([eq0, eq1, eq2, eq3])
+
+        op()
+
+        slices = tuple(grid._distributor.glb_slices[d]
+                       for d in grid.dimensions)
+
+        f_check = np.full(f.shape_global, 3, dtype=float)
+        g_check = np.zeros(g.shape_global, dtype=float)
+        g_check[2:-2, 3:-1] = 2
+        h_check = np.full(h.shape_global, 1, dtype=float)
+        h_check[2:-2, 3:-1] = 3
+
+        assert np.all(f.data == f_check[slices])
+        assert np.all(g.data == g_check[slices])
+        assert np.all(h.data == h_check[slices])
