@@ -189,9 +189,9 @@ class UxreplaceRegistry(list):
 
 
 _uxreplace_registry = UxreplaceRegistry()
+_uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
-_uxreplace_registry.register(Eq)
 
 
 class Uxmapper(dict):
