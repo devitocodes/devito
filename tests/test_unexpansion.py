@@ -324,9 +324,11 @@ class Test1Pass(object):
         assert len(get_arrays(op)) == 0
         assert op._profiler._sections['section0'].sops == 74
         exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 6
+        assert len(exprs) == 5
         temps = [i for i in FindSymbols().visit(exprs) if isinstance(i, Symbol)]
         assert len(temps) == 2
+
+        op.cfunction
 
 
 class Test2Pass(object):

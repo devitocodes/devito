@@ -1,10 +1,11 @@
+from sympy import S
+
 from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
-from devito.symbolics import (retrieve_dimensions, reuse_if_untouched, q_leaf,
-                              uxreplace)
-from devito.tools import filter_ordered, timed_pass
-from devito.types import Eq, Inc, StencilDimension, Symbol
+from devito.symbolics import reuse_if_untouched, q_leaf, uxreplace
+from devito.tools import timed_pass
+from devito.types import Eq, Inc, Symbol
 
 __all__ = ['lower_index_derivatives']
 
@@ -28,7 +29,9 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
     return clusters
 
 
-def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
+def _lower_index_derivatives(clusters, sregistry=None, options=None, **kwargs):
+    callback = deriv_schedule_registry[options['deriv-schedule']]
+
     weights = {}
     processed = []
     mapper = {}
@@ -48,7 +51,8 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
             else:
                 reusable = set()
 
-            expr, v = _core(e, c, weights, reusable, mapper, sregistry)
+            expr, v = _core(e, c, c.ispace, weights, reusable, mapper, callback,
+                            sregistry)
 
             if v:
                 dump(exprs, c)
@@ -70,81 +74,101 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     return processed, weights, mapper
 
 
-def _core(expr, c, weights, reusables, mapper, sregistry):
+def _core(expr, c, ispace, weights, reusables, mapper, callback, sregistry):
     """
     Recursively carry out the core of `lower_index_derivatives`.
     """
     if q_leaf(expr):
         return expr, []
 
-    args = []
-    processed = []
-    for a in expr.args:
-        e, clusters = _core(a, c, weights, reusables, mapper, sregistry)
-        args.append(e)
-        processed.extend(clusters)
-
-    expr = reuse_if_untouched(expr, args)
-
     if not isinstance(expr, IndexDerivative):
+        args = []
+        processed = []
+        for a in expr.args:
+            e, clusters = _core(a, c, ispace, weights, reusables, mapper, callback,
+                                sregistry)
+            args.append(e)
+            processed.extend(clusters)
+
+        expr = reuse_if_untouched(expr, args)
+
         return expr, processed
 
-    # Create concrete Weights and reuse them whenever possible
+    # Lower the IndexDerivative
+    init, ideriv = callback(expr)
+
+    # TODO: When we'll support unrolling, probably all we have to check at this
+    # point is whether `ideriv` is actually an IndexDerivative. If it's not, then
+    # we can just return `init` as is, which is expected to contain the result of
+    # the unrolled IndexDerivative computation
+
+    # Create the concrete Weights array, or reuse an already existing one
+    # if possible
     name = sregistry.make_name(prefix='w')
-    w0 = expr.weights.function
+    w0 = ideriv.weights.function
     k = tuple(w0.weights)
     try:
         w = weights[k]
     except KeyError:
         w = weights[k] = w0._rebuild(name=name, dtype=c.dtype)
-    expr = uxreplace(expr, {w0.indexed: w.indexed})
 
-    dims = retrieve_dimensions(expr, deep=True)
-    dims = filter_ordered(d for d in dims if isinstance(d, StencilDimension))
+    # Replace the abstract Weights array with the concrete one
+    subs = {w0.indexed: w.indexed}
+    init = uxreplace(init, subs)
+    ideriv = uxreplace(ideriv, subs)
 
-    # If a StencilDimension already appears in `c.ispace`, perhaps with its custom
-    # upper and lower offsets, we honor it
-    dims = tuple(d for d in dims if d not in c.ispace)
-
-    # The IndexDerivative iteration Dimensions must be, by construction, the
-    # innermost ones
-    dims = tuple(sorted(dims, key=lambda d: d in expr.dimensions))
+    # The IterationSpace in which the IndexDerivative will be computed
+    dims = ideriv.dimensions
 
     intervals = [Interval(d) for d in dims]
     directions = {d: Backward if d.backward else Forward for d in dims}
     ispace0 = IterationSpace(intervals, directions=directions)
 
-    extra = (c.ispace.itdims + dims,)
-    ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
+    extra = (ispace.itdims + dims,)
+    ispace1 = IterationSpace.union(ispace, ispace0, relations=extra)
 
-    # Set the IterationSpace along the StencilDimensions to start from 0
-    # (rather than the default `d._min`) to minimize the amount of integer
-    # arithmetic to calculate the various index access functions
+    # Minimize the amount of integer arithmetic to calculate the various index
+    # access functions by enforcing start at 0, e.g. `r0[x + i0 + 2] -> r0[x + i0]`
+    base = ideriv.base
     for d in dims:
-        ispace = ispace.translate(d, -d._min)
+        ispace1 = ispace1.translate(d, -d._min)
+        base = base.subs(d, d + d._min)
+    ideriv = ideriv._subs(ideriv.base, base)
 
+    # The Symbol that will hold the result of the IndexDerivative computation
+    # NOTE: created before recurring so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert s.dtype is w.dtype
+        assert s.dtype is c.dtype
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=w.dtype)
-    expr0 = Eq(s, 0.)
-    ispace1 = ispace.project(lambda d: d is not dims[-1])
-    processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
+        s = Symbol(name=name, dtype=c.dtype)
 
-    # Transform e.g. `r0[x + i0 + 2, y] -> r0[x + i0, y, z]` for alignment
-    # with the shifted `ispace`
-    base = expr.base
-    for d in dims:
-        base = base.subs(d, d + d._min)
-    expr1 = Inc(s, base*expr.weights)
-    processed.append(c.rebuild(exprs=expr1, ispace=ispace))
+    expr0 = Eq(s, init)
+    processed = [c.rebuild(exprs=expr0, ispace=ispace)]
 
-    # Track lowered IndexDerivative for subsequent optimization by the caller
-    mapper.setdefault(expr1.rhs, []).append(s)
+    # Go inside `ideriv`
+    expr, clusters = _core(ideriv.expr, c, ispace1, weights, reusables, mapper,
+                           callback, sregistry)
+    processed.extend(clusters)
+
+    # Finally append the lowered IndexDerivative
+    expr1 = Inc(s, expr)
+    processed.append(c.rebuild(exprs=expr1, ispace=ispace1))
+
+    # Track the lowered IndexDerivative for subsequent optimization by the caller
+    mapper.setdefault(expr, []).append(s)
 
     return s, processed
+
+
+def _lower_index_derivative_base(ideriv):
+    return S.Zero, ideriv
+
+
+deriv_schedule_registry = {
+    'basic': _lower_index_derivative_base,
+}
 
 
 class CDE(Queue):

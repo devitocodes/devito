@@ -82,6 +82,7 @@ class DeviceOperatorMixin(object):
 
         # Misc
         o['expand'] = oo.pop('expand', cls.EXPAND)
+        o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
         o['opt-comms'] = oo.pop('opt-comms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)

@@ -96,6 +96,12 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
+    DERIV_SCHEDULE = 'basic'
+    """
+    The schedule to use for the computation of finite-difference derivatives.
+    Only meaningful when `EXPAND=False`.
+    """
+
     MPI_MODES = tuple(mpi_registry)
     """
     The supported MPI modes.
