@@ -473,6 +473,7 @@ class ClangCompiler(Compiler):
         self.cflags += ['-Wno-unused-result', '-Wno-unused-variable']
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
+        self.cflags.append('-fdenormal-fp-math=ieee')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
