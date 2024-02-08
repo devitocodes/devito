@@ -7,8 +7,6 @@ from functools import cached_property
 from devito.finite_differences import default_rules
 from devito.tools import as_tuple
 from devito.types.lazy import Evaluable
-from devito.types.grid import SubDomain
-from devito.symbolics.search import retrieve_functions
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
 
@@ -69,7 +67,7 @@ class Eq(sympy.Eq, Evaluable):
                 **kwargs):
         kwargs['evaluate'] = False
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
-        obj._subdomain = cls.__subdomain_setup__(lhs, rhs, subdomain)
+        obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
 
@@ -123,22 +121,6 @@ class Eq(sympy.Eq, Evaluable):
                     for l in lhss]
         else:
             return [self]
-
-    @classmethod
-    def __subdomain_setup__(cls, lhs, rhs, subdomain):
-        # TODO: Update this to require explicit subdomain specification
-        subdomains = {subdomain} if subdomain else set()
-
-        # Get all the functions in the LHS and RHS
-        functions = {*retrieve_functions(lhs), *retrieve_functions(rhs)}
-        # If any of these are defined on SubDomains, then append to set of subdomains
-        subdomains.update({f.grid for f in functions if f.grid and f.grid.is_SubDomain})
-
-        if not subdomains:  # No SubDomains present
-            return None
-
-        # Intersect SubDomains in the set if it exists and return the result
-        return SubDomain.intersect(subdomains)
 
     @property
     def subdomain(self):
