@@ -1017,25 +1017,29 @@ class TestSubdomainFunctionsParallel:
         f = Function(name='f', grid=mid)
         g = Function(name='g', grid=grid)
         h = Function(name='h', grid=grid)
+        i = Function(name='i', grid=mid)
 
         eq0 = Eq(f, g+f+1, subdomain=mid)
         eq1 = Eq(g, 2*f, subdomain=mid)
         eq2 = Eq(f, g+1, subdomain=mid)
         eq3 = Eq(h, g+1)
+        eq4 = Eq(i, h+1, subdomain=mid)
 
-        op = Operator([eq0, eq1, eq2, eq3])
+        op = Operator([eq0, eq1, eq2, eq3, eq4])
 
         op()
 
         slices = tuple(grid._distributor.glb_slices[d]
                        for d in grid.dimensions)
 
-        f_check = np.full(f.shape_global, 3, dtype=float)
+        f_check = np.full(f.shape, 3, dtype=float)
         g_check = np.zeros(g.shape_global, dtype=float)
         g_check[2:-2, 3:-1] = 2
         h_check = np.full(h.shape_global, 1, dtype=float)
         h_check[2:-2, 3:-1] = 3
+        i_check = np.full(i.shape, 4)
 
-        assert np.all(f.data == f_check[slices])
+        assert np.all(f.data == f_check)
         assert np.all(g.data == g_check[slices])
         assert np.all(h.data == h_check[slices])
+        assert np.all(i.data == i_check)
