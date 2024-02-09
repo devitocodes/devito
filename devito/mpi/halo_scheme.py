@@ -290,9 +290,7 @@ class HaloScheme:
                  for d in filter_sorted(self.dimensions)]
 
         processed = []
-
         for item in product(*items):
-            print(item)
 
             where = []
             mapper = {}
