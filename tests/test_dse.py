@@ -2335,10 +2335,10 @@ class TestAliases(object):
         if rotate:
             assert_structure(
                 op1,
-                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xx,y,z',
-                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yy,z',
+                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yc,z',
                           't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z'],
-                't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xx,y,z,y,yy,z,z'
+                't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z,y,yc,z,z'
             )
         else:
             assert_structure(
