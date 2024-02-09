@@ -784,7 +784,7 @@ class TestOperatorSimple:
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'diag'), (4, 'overlap'),
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
     def test_trivial_eq_2d(self, mode):
         grid = Grid(shape=(8, 8,))
@@ -820,7 +820,7 @@ class TestOperatorSimple:
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic1'), (8, 'diag'), (8, 'overlap'),
+    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic2'), (8, 'diag'), (8, 'overlap'),
                                 (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
     def test_trivial_eq_3d(self, mode):
         grid = Grid(shape=(8, 8, 8))
@@ -1571,7 +1571,7 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=[
         (1, 'basic'),
-        (1, 'basic1'),
+        (1, 'basic2'),
         (1, 'diag'),
         (1, 'overlap'),
         (1, 'overlap2'),
@@ -1598,7 +1598,7 @@ class TestCodeGeneration:
             assert len(calls) == 1
             assert calls[0].name == 'haloupdate0'
             assert calls[0].ncomps == 2
-        elif configuration['mpi'] in ('basic1'):
+        elif configuration['mpi'] in ('basic2'):
             assert len(op._func_table) == 4
             assert len(calls) == 1  # haloupdate, halowait, compute
             assert calls[0].name == 'haloupdate0'  # haloupdate, halowait, compute
@@ -2135,7 +2135,7 @@ class TestOperatorAdvanced:
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic1'), (4, 'overlap'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
@@ -2755,7 +2755,7 @@ class TestIsotropicAcoustic:
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [3])
-    @pytest.mark.parallel(mode=[(4, 'basic1')])
+    @pytest.mark.parallel(mode=[(4, 'basic2')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
