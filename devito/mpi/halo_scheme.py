@@ -292,7 +292,6 @@ class HaloScheme(object):
 
         processed = []
         for item in product(*items):
-
             where = []
             mapper = {}
             for d, s in item:

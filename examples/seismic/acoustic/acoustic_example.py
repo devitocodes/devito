@@ -49,9 +49,6 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
-    print("Norm", norm(rec), norm(u))
-    import pdb;pdb.set_trace()
-
     # Smooth velocity
     initial_vp = Function(name='v0', grid=solver.model.grid, space_order=space_order)
     smooth(initial_vp, solver.model.vp)
