@@ -849,6 +849,57 @@ class TestSubdomainFunctions:
             assert all([i == so for i in f._size_inhalo[d]])
             assert all([i == so for i in f._size_outhalo[d]])
 
+    def test_slicing(self):
+        """
+        Test that slicing data for a function defined on a subdomain behaves
+        as expected.
+        """
+        # Think both __getitem__ and __setitem__ are not behaving correctly
+        # TODO: Need to also check ::2 slices
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        reduced_domain = ReducedDomain(('middle', 3, 1), ('left', 7), grid=grid)
+        f = Function(name='f', grid=reduced_domain)
+
+        f.data[:] = 1
+        f.data[2:-1, 1:-1] = 2
+        f.data[3:-2, 2:-3] = 3
+        # f.data[4, 2] = 4
+        # f.data[0, 0] = 5
+        # f.data[1, 1] = 6
+        # f.data[0, -2] = 7
+        # f.data[-2, 2] = 8
+
+        # check = np.zeros(f.shape)
+        check = np.full(f.shape, 1.)
+        check[2:-1, 1:-1] = 2
+        check[3:-2, 2:-3] = 3
+        # check[4, 2] = 4
+        # check[0, 0] = 5
+        # check[1, 1] = 6
+        # check[0, -2] = 7
+        # check[-2, 2] = 8
+
+        # check2 = np.zeros(grid.shape)
+        check2 = np.full(grid.shape, 1.)
+        check2[2:-1, 1:-1] = 2
+        check2[3:-2, 2:-3] = 3
+        # check2[4, 2] = 4
+        # check2[0, 0] = 5
+        # check2[1, 1] = 6
+        # check2[0, -2] = 7
+        # check2[-2, 2] = 8
+
+        print(f.data)
+        # print(f.data[1, 1])
+        # print(f.data[4, 2])
+        # print(f.data[1, 2])
+        # print(f.data[0, -2])
+        # print(f.data[-2, 2])
+        print(check)
+        print(check2)
+        assert False
+
     @pytest.mark.parametrize('x', _subdomain_specs)
     @pytest.mark.parametrize('y', _subdomain_specs)
     def test_basic_function(self, x, y):

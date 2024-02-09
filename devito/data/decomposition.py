@@ -205,8 +205,15 @@ class Decomposition(tuple):
         (5, 6)
         """
 
+        # IDEA: Maybe we need an offset argument in here?
+        # This would be based on the glb_min
         base = self.loc_abs_min if rel is True else 0
         top = self.loc_abs_max
+
+        ### Test thingy ###
+        base -= self.glb_min if rel is True else base
+        top -= self.glb_min if rel is True else top
+        ### Test thingy ###
 
         if len(args) == 1:
             glb_idx = args[0]
@@ -217,7 +224,12 @@ class Decomposition(tuple):
                     return None
                 # -> Handle negative index
                 if glb_idx < 0:
+                    print("Handled negative index")
                     glb_idx = self.glb_max + glb_idx + 1
+                    ### Test thingy ###
+                    # FIXME: Maybe don't need the conditional here
+                    glb_idx -= self.glb_min if rel is True else glb_idx
+                    ### Test thingy ###
                 # -> Do the actual conversion
                 if self.loc_abs_min <= glb_idx <= self.loc_abs_max:
                     return glb_idx - base
