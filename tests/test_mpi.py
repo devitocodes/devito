@@ -2736,18 +2736,12 @@ class TestIsotropicAcoustic:
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
 
-        print(norm(rec))
-        print("Erec is:", Erec)
-
-        print("----------------------------==============----------------------")
         # Run adjoint operator
         srca = src.func(name='srca')
         srca, v, _ = solver.adjoint(srca=srca, rec=rec)
 
         assert np.isclose(norm(v) / Ev, 1.0)
         assert np.isclose(norm(srca) / Esrca, 1.0)
-
-        print("----------------------------==============----------------------")
 
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
