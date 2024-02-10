@@ -2700,12 +2700,12 @@ class TestIsotropicAcoustic:
 
         # Run forward operator
         rec, u, _ = solver.forward()
-        # printf(norm(u))
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
 
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
+
         assert np.isclose(norm(v) / Ev, 1.0)
         assert np.isclose(norm(srca) / Esrca, 1.0)
 
