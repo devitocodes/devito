@@ -753,8 +753,10 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
     """
 
     def _make_msg(self, f, hse, key):
-        # Pass the whole of hse
-        return MPIMsgBasic('msg%d' % key, f, hse.halos, hse)
+        # Pass the fixed mapper e.g. {t: otime}
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        return MPIMsgBasic2('msg%d' % key, f, hse.halos, fixed)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
         cast = cast_mapper[(f.c0.dtype, '*')]
@@ -1312,7 +1314,6 @@ class MPIMsgBase(CompositeObject):
         self._allocator = allocator
 
         f = alias or self.target.c0
-
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
 
@@ -1374,7 +1375,6 @@ class MPIMsg(MPIMsgBase):
         self._allocator = allocator
 
         f = alias or self.target.c0
-
         for i, halo in enumerate(self.halos):
             entry = self.value[i]
 
@@ -1401,9 +1401,9 @@ class MPIMsg(MPIMsgBase):
         return {self.name: self.value}
 
 
-class MPIMsgBasic(MPIMsgBase):
+class MPIMsgBasic2(MPIMsgBase):
 
-    def __init__(self, name, target, halos, hse=None):
+    def __init__(self, name, target, halos, fixed=None):
         self._target = target
         self._halos = halos
 
@@ -1411,13 +1411,9 @@ class MPIMsgBasic(MPIMsgBase):
 
         # Required for buffer allocation/deallocation before/after jumping/returning
         # to/from C-land
-        self._hse = hse
+        self._fixed = fixed
         self._allocator = None
         self._memfree_args = []
-
-    @property
-    def hse(self):
-        return self._hse
 
     def _arg_defaults(self, allocator, alias, args=None):
         # Lazy initialization if `allocator` is necessary as the `allocator`
@@ -1426,7 +1422,7 @@ class MPIMsgBasic(MPIMsgBase):
 
         f = alias or self.target.c0
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in self.hse.loc_indices}
+        fixed = self._fixed
 
         # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
         # `ofs` are symbolic objects. This mapper tells what data values should be
@@ -1440,7 +1436,6 @@ class MPIMsgBasic(MPIMsgBase):
                 if d1 in fixed:
                     continue
                 else:
-                    # meta = f._C_get_field(region if d0 is d1 else NOPAD, d1, side)
                     if d0 is d1:
                         if region is OWNED:
                             sizes.append(getattr(f._size_owned[d0], side.name))
@@ -1455,7 +1450,7 @@ class MPIMsgBasic(MPIMsgBase):
             if d in fixed:
                 continue
 
-            if (d, LEFT) in self.hse.halos:
+            if (d, LEFT) in self.halos:
                 entry = self.value[i]
                 i = i + 1
                 # Sending to left, receiving from right
@@ -1471,14 +1466,13 @@ class MPIMsgBasic(MPIMsgBase):
                 # returning from C-land
                 self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
 
-            if (d, RIGHT) in self.hse.halos:
+            if (d, RIGHT) in self.halos:
                 entry = self.value[i]
                 i = i + 1
                 # Sending to right, receiving from left
                 shape = mapper[(d, RIGHT, OWNED)]
-                entry.sizes = (c_int*len(shape))(*shape)
-
                 # Allocate the send/recv buffers
+                entry.sizes = (c_int*len(shape))(*shape)
                 size = reduce(mul, shape)*dtype_len(self.target.dtype)
                 ctype = dtype_to_ctype(f.dtype)
                 entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
