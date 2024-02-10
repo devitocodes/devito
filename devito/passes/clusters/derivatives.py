@@ -24,6 +24,7 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
     # previously were just not detectable via e.g. plain CSE. For example, if
     # there were two IndexDerivatives such as `(p.dx + m.dx).dx` and `m.dx.dx`
     # then it's only after `_lower_index_derivatives` that they're detectable!
+    # TODO: see https://github.com/devitocodes/devito/issues/2306
     clusters = CDE(mapper).process(clusters)
 
     return clusters
@@ -188,6 +189,9 @@ class CDE(Queue):
     """
     Common derivative elimination.
     """
+
+    _q_guards_in_key = True
+    _q_syncs_in_key = True
 
     def __init__(self, mapper):
         super().__init__()
