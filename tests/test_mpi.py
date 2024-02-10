@@ -2643,12 +2643,12 @@ class TestIsotropicAcoustic(object):
                                 preset='layers-isotropic', dtype=np.float64)
         # Run forward operator
         rec, u, _ = solver.forward()
-        # printf(norm(u))
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
 
         # Run adjoint operator
         srca, v, _ = solver.adjoint(rec=rec)
+
         assert np.isclose(norm(v) / Ev, 1.0)
         assert np.isclose(norm(srca) / Esrca, 1.0)
 
@@ -2657,8 +2657,9 @@ class TestIsotropicAcoustic(object):
         term2 = norm(rec)**2
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
-    @pytest.mark.parametrize('nd', [3])
-    @pytest.mark.parallel(mode=[(4, 'basic2')])
+    @pytest.mark.parametrize('nd', [1, 2, 3])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'diag'),
+                                (4, 'overlap'), (4, 'overlap2'), (4, 'full')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 

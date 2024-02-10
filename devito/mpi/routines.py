@@ -744,7 +744,8 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
 
     """
-    A BasicHaloExchangeBuilder making use of pre-allocated buffers.
+    A BasicHaloExchangeBuilder making use of pre-allocated buffers for
+    message size.
 
     Generates:
 
