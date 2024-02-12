@@ -3,8 +3,9 @@ from collections import OrderedDict, defaultdict
 from sympy import And
 
 from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
-                       FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
-from devito.passes.clusters.utils import bind_critical_regions, is_memcpy
+                       FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs,
+                       bind_critical_regions)
+from devito.passes.clusters.utils import is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
