@@ -41,7 +41,7 @@ TILABLE = Property('tilable')
 
 TILABLE_SMALL = Property('tilable*')
 """
-Like TILABLE, but it would benefit from relatively small block, since the
+Like TILABLE, but it would benefit from relatively small blocks, since the
 iteration space is likely to be very small.
 """
 

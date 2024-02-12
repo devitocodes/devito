@@ -522,6 +522,7 @@ def normalize_reductions_dense(cluster, sregistry, options):
                 # to guarantee correctness
                 eq = e.func(e.lhs, a.indexify())
                 ispace = cluster.ispace.lift(dims[0])
+                from IPython import embed; embed()
                 items.append(cluster.rebuild(exprs=eq, ispace=ispace))
         else:
             items.append(e)

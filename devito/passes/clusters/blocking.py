@@ -97,10 +97,12 @@ class AnayzeBlockingBase(Queue):
         return super()._process_fatd(clusters, level, prefix)
 
     def _has_data_reuse(self, cluster):
-        # A sufficient condition for the existance of data reuse in `cluster`
-        # is that the same Function is accessed twice at the same memory location,
-        # which translates into the existance of any Relation accross Indexeds
-        if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+        # A sufficient condition for the existance of data reuse is that the
+        # same Function is accessed twice at the same memory location, which
+        # translates into the existance of at least one non-trivial Relation
+        # accross any two Indexeds in `cluster`
+        if any(r.function.is_AbstractFunction and r.distance != 0
+               for r in cluster.scope.r_gen()):
             return True
         if search(cluster.exprs, IndexSum):
             return True
