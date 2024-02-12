@@ -488,7 +488,7 @@ def normalize_reductions_dense(cluster, sregistry, options):
     if not dims:
         return cluster
 
-    processed = []
+    items = []
     for e in cluster.exprs:
         if e.is_Reduction and opt_mapify_reduce:
             # Transform `e` into what is in essence an explicit map-reduce
@@ -497,13 +497,12 @@ def normalize_reductions_dense(cluster, sregistry, options):
             # into
             # `r[x] = f(u[x], v[x], ...)`
             # `s += r[x]`
-            # This makes it much easier to parallelize the map part regardless
-            # of the target backend
+            # This makes it easier to implement parallelism
 
             if e.lhs.function.is_Array:
                 # Probably a compiler-generated reduction, e.g. via
                 # recursive compilation; it's an Array already, so nothing to do
-                processed.append(e)
+                items.append(e)
             else:
                 # Here the LHS could be a Symbol or a user-level Function
                 # In the latter case we copy the data into a temporary Array
@@ -511,12 +510,30 @@ def normalize_reductions_dense(cluster, sregistry, options):
                 # require, in general, the data values to be contiguous
                 name = sregistry.make_name()
                 a = Array(name=name, dtype=e.dtype, dimensions=dims)
-                processed.extend([Eq(a.indexify(), e.rhs),
-                                  e.func(e.lhs, a.indexify())])
-        else:
-            processed.append(e)
 
-    return cluster.rebuild(processed)
+                # The map
+                eq = Eq(a.indexify(), e.rhs)
+                properties = cluster.properties.parallelize(dims)
+                items.append(cluster.rebuild(exprs=eq, properties=properties))
+
+                # The reduction
+                # NOTE: lifting ensures the map and the reduction will be
+                # executed in separate iteration spaces, which is necessary
+                # to guarantee correctness
+                eq = e.func(e.lhs, a.indexify())
+                ispace = cluster.ispace.lift(dims[0])
+                items.append(cluster.rebuild(exprs=eq, ispace=ispace))
+        else:
+            items.append(e)
+
+    processed = []
+    for k, g in groupby(items, lambda i: isinstance(i, sympy.Eq)):
+        if k:
+            processed.append(cluster.rebuild(g))
+        else:
+            processed.extend(g)
+
+    return processed
 
 
 @cluster_pass(mode='sparse')
