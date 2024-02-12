@@ -250,19 +250,6 @@ class LowerIetPointerCastAndDataObject(RewritePattern):
         )
 
 
-class CleanupDanglingIetDatatypes(RewritePattern):
-
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: func.FuncOp, rewriter: PatternRewriter, /):
-        for i, arg_typ in enumerate(op.function_type.inputs.data):
-            if isinstance(arg_typ, iet_ssa.Dataobj):
-                op.body.blocks[0].args[i].type = llvm.LLVMPointerType.typed(
-                    iet_ssa.Dataobj.get_llvm_struct_type(), )
-            elif isinstance(arg_typ, iet_ssa.Profiler):
-                op.body.blocks[0].args[i].type = llvm.LLVMPointerType.opaque()
-        recalc_func_type(op)
-
-
 def recalc_func_type(op: func.FuncOp):
     # Only if blocks exist
     if op.body.blocks:
@@ -370,7 +357,6 @@ def iet_to_standard_mlir(module: builtin.ModuleOp):
             LowerIetForToScfFor(),
             ConvertScfForArgsToIndex(),
             ConvertScfParallelArgsToIndex(),
-            CleanupDanglingIetDatatypes(),
             ptr_lower := LowerIetPointerCastAndDataObject(),
             LowerMemrefLoadToLLvmPointer(ptr_lower),
             LowerMemrefStoreToLLvmPointer(ptr_lower),
