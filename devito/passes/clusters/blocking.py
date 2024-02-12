@@ -7,8 +7,8 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import (UnboundedMultiTuple, as_tuple, filter_ordered,
-                          flatten, is_integer, prod)
+from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_tuple,
+                          filter_ordered, flatten, is_integer, prod)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -433,12 +433,14 @@ class BlockSizeGenerator(object):
     """
 
     def __init__(self, par_tile):
-        self.umt = par_tile
         self.tip = -1
 
-        # This is for Clusters that need a small par-tile to avoid under-utilizing
-        # computational resources (e.g., kernels running over iteration spaces that
-        # are relatively small for the underlying architecture)
+        # The default par-tile, as an UnboundedMultiTuple. It will be used
+        # for most cases
+        self.umt = par_tile
+
+        # Special case 1: a smaller par-tile to avoid under-utilizing
+        # computational resources when the iteration spaces are too small
         if (len(par_tile) == 1 and
             (len(par_tile[0]) < len(par_tile.default) or
              prod(par_tile[0]) < prod(par_tile.default))):
@@ -447,6 +449,22 @@ class BlockSizeGenerator(object):
         else:
             self.umt_small = UnboundedMultiTuple(par_tile.default)
 
+        # Special case 2: par-tiles for iteration spaces that must be fully
+        # blocked for correctness
+        if par_tile.sparse:
+            self.umt_sparse = UnboundTuple(*par_tile.sparse, 1)
+        elif len(par_tile) == 1:
+            self.umt_sparse = UnboundTuple(*par_tile[0], 1)
+        else:
+            self.umt_sparse = UnboundTuple(*par_tile.default, 1)
+
+        if par_tile.reduce:
+            self.umt_reduce = UnboundTuple(*par_tile.reduce, 1)
+        elif len(par_tile) == 1:
+            self.umt_reduce = UnboundTuple(*par_tile[0], 1)
+        else:
+            self.umt_reduce = UnboundTuple(*par_tile.default, 1)
+
     def next(self, prefix, d, clusters):
         # If a whole new set of Dimensions, move the tip -- this means `clusters`
         # at `d` represents a new loop nest or kernel
@@ -454,7 +472,19 @@ class BlockSizeGenerator(object):
         if not x:
             self.tip += 1
 
-        # TODO: This is for now exceptionally rudimentary
+        # Correctness -- enforce blocking where necessary.
+        # See also issue #276:PRO
+        if any(c.properties.is_parallel_atomic(d) for c in clusters):
+            if any(c.is_sparse for c in clusters):
+                if not x:
+                    self.umt_sparse.iter()
+                return self.umt_sparse.next()
+            else:
+                if not x:
+                    self.umt_reduce.iter()
+                return self.umt_reduce.next()
+
+        # Performance heuristics -- use a smaller par-tile
         if all(c.properties.is_blockable_small(d) for c in clusters):
             if not x:
                 self.umt_small.iter()
