@@ -707,8 +707,7 @@ class Operator(Callable):
         """
         if self._lib is None:
             with self._profiler.timer_on('jit-compile'):
-                recompiled, src_file = self._compiler.jit_compile(self._soname,
-                                                                  str(self.ccode))
+                recompiled, src_file = self._compiler.jit_compile(self._soname, str(self))
 
             elapsed = self._profiler.py_timers['jit-compile']
             if recompiled:
