@@ -36,7 +36,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set VIRTUAL_ENV
       run: |
@@ -61,7 +61,7 @@ jobs:
         asv run -v --show-stderr --config benchmarks/regression/asv.conf.json --cpu-affinity 0-7 --machine i7-6700K
 
     - name: Checkout asv-results branch
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         ref: asv-results
         clean: false
