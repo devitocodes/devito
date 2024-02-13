@@ -46,7 +46,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
