@@ -528,11 +528,16 @@ def _normalize_reductions_dense(cluster, sregistry, options, mapper):
     return cluster.rebuild(processed)
 
 
-@cluster_pass(mode='sparse')
 def normalize_reductions_sparse(cluster, sregistry, options):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
     """
+
+    return _normalize_reductions_sparse(cluster, sregistry, options, {})
+
+
+@cluster_pass(mode='sparse')
+def _normalize_reductions_sparse(cluster, sregistry, options, mapper):
     processed = []
     for e in cluster.exprs:
         if e.is_Reduction and e.lhs.is_Indexed:
@@ -543,10 +548,13 @@ def normalize_reductions_sparse(cluster, sregistry, options):
             # into
             # `s = f(u[t, i], src, ...)`
             # `u[t, i] += s`
-            name = sregistry.make_name()
-            v = Symbol(name=name, dtype=e.dtype)
-            processed.extend([e.func(v, e.rhs, operation=None),
-                              e.func(e.lhs, v)])
+            if e.rhs in mapper:
+                processed.append(e.func(e.lhs, mapper[e.rhs]))
+            else:
+                name = sregistry.make_name()
+                v = mapper[e.rhs] = Symbol(name=name, dtype=e.dtype)
+                processed.extend([e.func(v, e.rhs, operation=None),
+                                  e.func(e.lhs, v)])
         else:
             processed.append(e)
 
