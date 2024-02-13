@@ -2697,12 +2697,11 @@ class TestIsoAcoustic(object):
     def test_fullopt(self):
         u0, rec0, summary0, op0 = self.run_acoustic_forward(opt=None)
         u1, rec1, summary1, op1 = self.run_acoustic_forward(opt='advanced')
-
         bns, _ = assert_blocking(op0, {})
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 50
-        assert summary0[('section1', None)].ops == 44
+        assert summary0[('section1', None)].ops == 61
         assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31

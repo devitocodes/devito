@@ -553,7 +553,7 @@ def _normalize_reductions_sparse(cluster, sregistry, options, mapper):
             else:
                 name = sregistry.make_name()
                 v = mapper[e.rhs] = Symbol(name=name, dtype=e.dtype)
-                processed.extend([e.func(v, e.rhs, operation=None),
+                processed.extend([Eq(v, e.rhs, operation=None),
                                   e.func(e.lhs, v)])
         else:
             processed.append(e)
