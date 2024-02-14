@@ -385,12 +385,12 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                     xdsl.run()
 
                 # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out.getvalue())
-                #  Printer().print(out)
+                # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
+                # out = self.compile(mlir_cmd, out.getvalue())
+                # #  Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
+                out = self.compile(mlir_translate_cmd, out.getvalue())
                 # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
