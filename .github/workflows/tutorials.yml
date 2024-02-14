@@ -23,6 +23,7 @@ jobs:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
       PYTHON_VERSION: "3.9"
+      DEVITO_SAFE_MATH: "1"
 
     strategy:
       # Prevent all build to stop if a single one fails

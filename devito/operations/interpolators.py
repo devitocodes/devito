@@ -7,7 +7,7 @@ from cached_property import cached_property
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
-from devito.tools import as_tuple, flatten, filter_ordered
+from devito.tools import as_tuple, flatten, filter_ordered, UnboundTuple
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension)
 from devito.types.utils import DimensionTuple
@@ -117,6 +117,39 @@ class Injection(UnevaluatedSparseOperation):
 
     def __repr__(self):
         return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
+
+    def __add__(self, other):
+        # If the next equation is the same type and sparse function
+        # such as src.inject + src.inject we can merged them into a single
+        # injection avoiding duplicate temporaries
+        if isinstance(other, list):
+            o0, rest = other[0], other[1:]
+        else:
+            o0, rest = other, []
+        return flatten([self._merge(o0), rest])
+
+    def __radd__(self, other):
+        # If the previous equation is the same type and sparse function
+        # such as src.inject + src.inject we can merged them into a single
+        # injection avoiding duplicate temporaries
+        if isinstance(other, list):
+            o0, rest = other[-1], other[:-1]
+        else:
+            o0, rest = other, []
+        return flatten([rest, self._merge(o0, left=True)])
+
+    def _merge(self, other, left=False):
+        s1, s2 = (other, self) if left else (self, other)
+        if isinstance(other, Injection) and \
+                other.interpolator.sfunction is self.interpolator.sfunction:
+            if self.expr is other.expr:
+                expr = self.expr
+            else:
+                expr = (*as_tuple(s1.expr), *as_tuple(s2.expr))
+            fields = (*as_tuple(s1.field), *as_tuple(s2.field))
+            return Injection(fields, expr, self.implicit_dims, self.interpolator)
+        else:
+            return [s1, s2]
 
 
 class GenericInterpolator(ABC):
@@ -324,19 +357,19 @@ class WeightedInterpolator(GenericInterpolator):
         # or inject((u, v), expr=(expr1, expr2))
         fields, exprs = as_tuple(field), as_tuple(expr)
 
-        # Provide either one expr per field or on expr for all fields
-        if len(fields) > 1:
-            if len(exprs) == 1:
-                exprs = tuple(exprs[0] for _ in fields)
-            else:
-                assert len(exprs) == len(fields)
-
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
             _exprs = tuple(e.evaluate for e in exprs)
         except AttributeError:
             # E.g., a generic SymPy expression or a number
             _exprs = exprs
+
+        # Provide either one expr per field or on expr for all fields
+        if len(fields) > 1:
+            if len(_exprs) == 1:
+                _exprs = UnboundTuple(_exprs[0])
+            else:
+                assert len(_exprs) == len(fields)
 
         variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
 
@@ -354,9 +387,9 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
-                    (_expr * self._weights).xreplace(idx_subs),
+                    (_exprs[i] * self._weights).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
-                for (_field, _expr) in zip(fields, _exprs)]
+                for (i, _field) in enumerate(fields)]
 
         return temps + eqns
 
