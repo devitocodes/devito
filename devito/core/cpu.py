@@ -373,7 +373,10 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+','+mlir_pipeline]
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1]+','+mlir_pipeline]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
@@ -638,7 +641,10 @@ class XdslAdvOperator(XdslnoopOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+','+mlir_pipeline]
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1]+','+mlir_pipeline]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
@@ -906,13 +912,19 @@ def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
     return generate_pipeline(passes)
 
 
-def generate_pipeline(passes:Iterable[str]):
+def generate_pipeline(passes: Iterable[str]):
     passes_string = ",".join(passes)
     return f'"{passes_string}"'
 
-def generate_mlir_pipeline(passes:Iterable[str]):
+
+def generate_mlir_pipeline(passes: Iterable[str]):
     passes_string = ",".join(passes)
-    return f'mlir-opt{{arguments="--mlir-print-op-generic","--allow-unregistered-dialect","-p","builtin.module({passes_string})"}}'
+    return 'mlir-opt{arguments='\
+           '"--mlir-print-op-generic",'\
+           '"--allow-unregistered-dialect"'\
+           ','\
+           f'"-p","builtin.module({passes_string})"'\
+           '}'
 
 
 # small interop shim script for stuff that we don't want to implement in mlir-ir

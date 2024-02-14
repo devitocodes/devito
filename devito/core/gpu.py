@@ -439,7 +439,10 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+','+mlir_pipeline]
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1]+','+mlir_pipeline]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
