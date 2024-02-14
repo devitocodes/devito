@@ -7,9 +7,10 @@ import sympy
 from sympy import Expr, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
-from devito.tools import (Pickable, as_tuple, is_integer, float2, float3, float4,  # noqa
-                          double2, double3, double4, int2, int3, int4)
 from devito.finite_differences.elementary import Min, Max
+from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
+                          float3, float4, double2, double3, double4, int2, int3,
+                          int4)
 from devito.types import Symbol
 from devito.types.basic import Basic
 
@@ -17,9 +18,9 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'CustomType', 'Deref',
-           'Namespace', 'Rvalue', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null',
-           'SizeOf', 'rfunc', 'cast_mapper', 'BasicWrapperMixin']
+           'Macro', 'Class', 'MacroArgument', 'CustomType', 'Deref', 'Namespace',
+           'Rvalue', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'Null', 'SizeOf', 'rfunc',
+           'cast_mapper', 'BasicWrapperMixin', 'ValueLimit', 'limits_mapper']
 
 
 class CondEq(sympy.Eq):
@@ -497,6 +498,9 @@ class ReservedWord(sympy.Atom, Pickable):
     def _hashable_content(self):
         return (self.value,)
 
+    def _sympystr(self, printer):
+        return str(self)
+
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
 
@@ -531,6 +535,24 @@ class MacroArgument(sympy.Symbol):
         return "(%s)" % self.name
 
     __repr__ = __str__
+
+
+class ValueLimit(ReservedWord, sympy.Expr):
+
+    """
+    Symbolic representation of the so called limits macros, which provide the
+    minimum and maximum limits for various types, such as INT_MIN, INT_MAX etc.
+    """
+
+    pass
+
+
+limits_mapper = {
+    np.int32: Bunch(min=ValueLimit('INT_MIN'), max=ValueLimit('INT_MAX')),
+    np.int64: Bunch(min=ValueLimit('LONG_MIN'), max=ValueLimit('LONG_MAX')),
+    np.float32: Bunch(min=-ValueLimit('FLT_MAX'), max=ValueLimit('FLT_MAX')),
+    np.float64: Bunch(min=-ValueLimit('DBL_MAX'), max=ValueLimit('DBL_MAX')),
+}
 
 
 class DefFunction(Function, Pickable):

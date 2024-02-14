@@ -79,7 +79,7 @@ class IREq(sympy.Eq, Pickable):
         elif self.operation is OpInc:
             return '%s += %s' % (self.lhs, self.rhs)
         else:
-            return '%s = %s(%s, %s)' % (self.lhs, self.operation, self.lhs, self.rhs)
+            return '%s = %s(%s)' % (self.lhs, self.operation, self.rhs)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__

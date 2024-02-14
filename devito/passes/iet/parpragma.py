@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import cgen as c
 from cached_property import cached_property
@@ -173,7 +175,7 @@ class PragmaIteration(ParallelIteration):
         Build a string representing of a reduction clause given a list of
         2-tuples `(symbol, ir.Operation)`.
         """
-        args = []
+        mapper = defaultdict(list)
         for i, imask, r in reductions:
             if i.is_Indexed:
                 f = i.function
@@ -188,10 +190,13 @@ class PragmaIteration(ParallelIteration):
                     else:
                         assert isinstance(k, tuple) and len(k) == 2
                         bounds.append('[%s:%s]' % k)
-                args.append('%s%s' % (i.name, ''.join(bounds)))
+                mapper[r.name].append('%s%s' % (i.name, ''.join(bounds)))
             else:
-                args.append(str(i))
-        return 'reduction(%s:%s)' % (r.name, ','.join(args))
+                mapper[r.name].append(str(i))
+
+        args = ['reduction(%s:%s)' % (k, ','.join(v)) for k, v in mapper.items()]
+
+        return ' '.join(args)
 
     @cached_property
     def collapsed(self):

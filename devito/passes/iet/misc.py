@@ -1,6 +1,7 @@
 from functools import singledispatch
 
 import cgen
+import numpy as np
 import sympy
 
 from devito.finite_differences import Max, Min
@@ -9,7 +10,7 @@ from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
                        filter_iterations, retrieve_iteration_tree, pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import evalrel, has_integer_args
+from devito.symbolics import ValueLimit, evalrel, has_integer_args, limits_mapper
 from devito.tools import as_mapper, filter_ordered, split
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
@@ -136,10 +137,20 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
 
 @iet_pass
 def generate_macros(iet):
+    # Generate Macros from higher-level SymPy objects
     applications = FindApplications().visit(iet)
     headers = set().union(*[_generate_macros(i) for i in applications])
 
-    return iet, {'headers': headers}
+    # Some special Symbols may represent Macros defined in standard libraries,
+    # so we need to include the respective includes
+    limits = FindApplications(ValueLimit).visit(iet)
+    includes = set()
+    if limits & (set(limits_mapper[np.int32]) | set(limits_mapper[np.int64])):
+        includes.add('limits.h')
+    elif limits & (set(limits_mapper[np.float32]) | set(limits_mapper[np.float64])):
+        includes.add('float.h')
+
+    return iet, {'headers': headers, 'includes': includes}
 
 
 @singledispatch
