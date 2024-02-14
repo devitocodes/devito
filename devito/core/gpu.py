@@ -9,7 +9,7 @@ from devito.arch.archinfo import get_nvidia_cc
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 
-from devito.core.cpu import XdslAdvOperator, generate_pipeline
+from devito.core.cpu import XdslAdvOperator, generate_mlir_pipeline, generate_pipeline
 
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
@@ -439,7 +439,7 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+f',mlir-opt{{arguments=--mlir-print-op-generic,--allow-unregistered-dialect,-p,{mlir_pipeline}}}']
+                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+','+mlir_pipeline]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
@@ -565,7 +565,7 @@ def generate_XDSL_GPU_PIPELINE():
 # gpu-launch-sink-index-computations seemed to have no impact
 def generate_MLIR_GPU_PIPELINE(block_sizes):
     passes = [
-        "builtin.module(test-math-algebraic-simplification",
+        "test-math-algebraic-simplification",
         f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
         "func.func(gpu-map-parallel-loops)",
         "convert-parallel-loops-to-gpu",
@@ -596,7 +596,7 @@ def generate_MLIR_GPU_PIPELINE(block_sizes):
         "gpu-to-llvm",
         "gpu-module-to-binary",
         "canonicalize",
-        "cse)"
+        "cse"
     ]
 
-    return generate_pipeline(passes)
+    return generate_mlir_pipeline(passes)
