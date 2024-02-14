@@ -551,6 +551,7 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
         return MPIMsgBasic2('msg%d' % key, f, hse.halos, fixed)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
+
         cast = cast_mapper[(f.c0.dtype, '*')]
         comm = f.grid.distributor._obj_comm
 
@@ -649,6 +650,132 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
         call = super()._call_haloupdate(name, f, hse)
         call = call._rebuild(arguments=call.arguments + (msg,))
         return call
+
+
+class Basic3HaloExchangeBuilder(Basic2HaloExchangeBuilder):
+
+    """
+    A BasicHaloExchangeBuilder making use of "enriched" pre-allocated
+    buffers for message size.
+
+    Generates:
+
+        haloupdate()
+        compute()
+    """
+
+    def _make_msg(self, f, hse, key):
+        # Pass the fixed mapper e.g. {t: otime}
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        return MPIMsgBasic3('msg%d' % key, f, hse.halos, fixed)
+
+    def _make_sendrecv(self, f, hse, key, msg=None):
+        cast = cast_mapper[(f.c0.dtype, '*')]
+        comm = f.grid.distributor._obj_comm
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        dim = Dimension(name='i')
+        msgi = IndexedPointer(msg, dim)
+
+        bufg = FieldFromPointer(msg._C_field_bufg, msgi)
+        bufs = FieldFromPointer(msg._C_field_bufs, msgi)
+
+        fromrank = FieldFromComposite(msg._C_field_from, msgi)
+        torank = FieldFromComposite(msg._C_field_to, msgi)
+
+        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
+                for i in range(len(f._dist_dimensions))]
+
+        ofss = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
+                for i in range(len(f._dist_dimensions))]
+
+        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
+                 for i in range(len(f._dist_dimensions))]
+
+        arguments = [cast(bufg)] + sizes + list(f.handles) + ofsg
+        gather = Gather('gather%s' % key, arguments)
+        # The `gather` is unnecessary if sending to MPI.PROC_NULL
+        gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
+
+        arguments = [cast(bufs)] + sizes + list(f.handles) + ofss
+        scatter = Scatter('scatter%s' % key, arguments)
+        # The `scatter` must be guarded as we must not alter the halo values along
+        # the domain boundary, where the sender is actually MPI.PROC_NULL
+        scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
+
+        count = reduce(mul, sizes, 1)*dtype_len(f.dtype)
+        rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
+        rsend = Byref(FieldFromComposite(msg._C_field_rsend, msgi))
+        recv = IrecvCall([bufs, count, Macro(dtype_to_mpitype(f.dtype)),
+                         fromrank, Integer(13), comm, rrecv])
+        send = IsendCall([bufg, count, Macro(dtype_to_mpitype(f.dtype)),
+                         torank, Integer(13), comm, rsend])
+
+        waitrecv = Call('MPI_Wait', [rrecv, Macro('MPI_STATUS_IGNORE')])
+        waitsend = Call('MPI_Wait', [rsend, Macro('MPI_STATUS_IGNORE')])
+
+        # The -1 below is because an Iteration, by default, generates <=
+        ncomms = Symbol(name='ncomms')
+        iet = Iteration([recv, gather, send, waitsend, waitrecv, scatter], dim, ncomms - 1)
+
+        import pdb;pdb.set_trace()
+        parameters = (f.handles + (comm, msg, ncomms) + tuple(fixed.values()))
+
+        return SendRecv2('sendrecv%s' % key, iet, parameters)
+
+    def _call_sendrecv(self, name, *args, msg=None, haloid=None):
+        # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
+        import pdb;pdb.set_trace()
+        f, _, ofsg, ofss, fromrank, torank, comm = args
+        # msg = Byref(IndexedPointer(msg, haloid))
+        return Call(name, list(f.handles) + [comm, msg, msg.npeers])
+
+    def _make_haloupdate(self, f, hse, key, sendrecv, **kwargs):
+        distributor = f.grid.distributor
+        nb = distributor._obj_neighborhood
+        comm = distributor._obj_comm
+
+        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+
+        mapper = self._make_basic_mapper(f, fixed)
+
+        body = []
+        for d in f.dimensions:
+            if d in fixed:
+                continue
+
+            name = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
+            rpeer = FieldFromPointer(name, nb)
+            name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
+            lpeer = FieldFromPointer(name, nb)
+
+            if (d, LEFT) in hse.halos:
+                # Sending to left, receiving from right
+                lsizes, lofs = mapper[(d, LEFT, OWNED)]
+                rsizes, rofs = mapper[(d, RIGHT, HALO)]
+                args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
+                kwargs['haloid'] = len(body)
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+
+            if (d, RIGHT) in hse.halos:
+                # Sending to right, receiving from left
+                rsizes, rofs = mapper[(d, RIGHT, OWNED)]
+                lsizes, lofs = mapper[(d, LEFT, HALO)]
+                args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
+                kwargs['haloid'] = len(body)
+                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+
+        iet = List(body=body)
+
+        parameters = list(f.handles) + [comm, nb] + list(fixed.values())
+
+        node = HaloUpdate('haloupdate%s' % key, iet, parameters)
+
+        node = node._rebuild(parameters=node.parameters + (kwargs['msg'],))
+
+        return node
 
 
 class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
@@ -1128,6 +1255,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 mpi_registry = {
     'basic': BasicHaloExchangeBuilder,
     'basic2': Basic2HaloExchangeBuilder,
+    'basic3': Basic3HaloExchangeBuilder,
     'diag': DiagHaloExchangeBuilder,
     'diag2': Diag2HaloExchangeBuilder,
     'overlap': OverlapHaloExchangeBuilder,
@@ -1156,6 +1284,12 @@ class SendRecv(MPICallable):
         super().__init__(name, body, parameters)
         self.bufg = bufg
         self.bufs = bufs
+
+
+class SendRecv2(MPICallable):
+
+    def __init__(self, name, body, parameters):
+        super().__init__(name, body, parameters)
 
 
 class HaloUpdate(MPICallable):
@@ -1473,6 +1607,104 @@ class MPIMsgBasic2(MPIMsgBase):
         return {self.name: self.value}
 
 
+class MPIMsgBasic3(MPIMsgBasic2):
+
+    _C_field_ofss = 'ofss'
+    _C_field_ofsg = 'ofsg'
+    _C_field_from = 'fromrank'
+    _C_field_to = 'torank'
+
+    fields = MPIMsg.fields + [
+        (_C_field_ofss, POINTER(c_int)),
+        (_C_field_ofsg, POINTER(c_int)),
+        (_C_field_from, c_int),
+        (_C_field_to, c_int)
+    ]
+
+    def _arg_defaults(self, allocator, alias, args=None):
+        super()._arg_defaults(allocator, alias, args=args)
+
+        f = alias or self.target.c0
+        neighborhood = f.grid.distributor.neighborhood
+
+        fixed = self._fixed
+
+        # Build a mapper `(dim, side, region) -> (size)` for `f`.
+        mapper = {}
+        for d0, side, region in product(f.dimensions, (LEFT, RIGHT), (OWNED, HALO)):
+            if d0 in fixed:
+                continue
+            sizes = []
+            ofs = []
+            for d1 in f.dimensions:
+                if d1 in fixed:
+                    # v = fixed[d1]
+                    # ofs.append(self._as_number(v, args))
+                    continue
+                else:
+                    if d0 is d1:
+                        if region is OWNED:
+                            sizes.append(getattr(f._size_owned[d0], side.name))
+                            v = getattr(f._offset_owned[d0], side.name)
+                            ofs.append(v)
+                            
+                            ############################
+                            import pdb;pdb.set_trace()
+                            # ofs.append(meta.offset)
+                        elif region is HALO:
+                            sizes.append(getattr(f._size_halo[d0], side.name))
+                    else:
+                        sizes.append(self._as_number(f._size_nopad[d1], args))
+            mapper[(d0, side, region)] = (sizes)
+
+        i = 0
+        for d in f.dimensions:
+            if d in fixed:
+                continue
+
+            if (d, LEFT) in self.halos:
+                entry = self.value[i]
+
+                import pdb;pdb.set_trace()
+
+                entry.torank = -1
+
+                i = i + 1
+                # Sending to left, receiving from right
+                shape = mapper[(d, LEFT, OWNED)]
+                # Allocate the send/recv buffers
+                entry.sizes = (c_int*len(shape))(*shape)
+                size = reduce(mul, shape)*dtype_len(self.target.dtype)
+                ctype = dtype_to_ctype(f.dtype)
+                entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
+                entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+
+                # The `memfree_args` will be used to deallocate the buffer upon
+                # returning from C-land
+                self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+
+            if (d, RIGHT) in self.halos:
+                entry = self.value[i]
+
+                entry.fromrank = -1
+
+                i = i + 1
+                # Sending to right, receiving from left
+                shape = mapper[(d, RIGHT, OWNED)]
+                # Allocate the send/recv buffers
+                entry.sizes = (c_int*len(shape))(*shape)
+                size = reduce(mul, shape)*dtype_len(self.target.dtype)
+                ctype = dtype_to_ctype(f.dtype)
+                entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
+                entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+
+                # The `memfree_args` will be used to deallocate the buffer upon
+                # returning from C-land
+                self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
+
+        return {self.name: self.value}
+
+
 class MPIMsgEnriched(MPIMsg):
 
     _C_field_ofss = 'ofss'
@@ -1497,6 +1729,7 @@ class MPIMsgEnriched(MPIMsg):
             entry = self.value[i]
 
             # `torank` peer + gather offsets
+            import pdb;pdb.set_trace()
             entry.torank = neighborhood[halo.side]
             ofsg = []
             for dim, side in zip(*halo):
