@@ -205,16 +205,18 @@ class Decomposition(tuple):
         (5, 6)
         """
 
-        # IDEA: Maybe we need an offset argument in here?
-        # This would be based on the glb_min
-        base = self.loc_abs_min if rel is True else 0
-        top = self.loc_abs_max
+        # Need to offset the loc_abs_min, loc_abs_min, glb_min, and glb_max
+        # Distributed indices may not go from 0-i_M, but array indices will
+        # Subtract glb_min from all of these
+        loc_abs_min = self.loc_abs_min - self.glb_min
+        loc_abs_max = self.loc_abs_max - self.glb_min
+        glb_min = 0
+        glb_max = self.glb_max - self.glb_min
 
-        ### Test thingy ###
-        # TODO: integrate directly into base and top
-        base -= self.glb_min if rel is True else base
-        top -= self.glb_min if rel is True else top
-        ### Test thingy ###
+        base = loc_abs_min if rel is True else 0
+        top = loc_abs_max
+
+        print("Base", base, "Top", top)
 
         if len(args) == 1:
             glb_idx = args[0]
@@ -225,17 +227,11 @@ class Decomposition(tuple):
                     return None
                 # -> Handle negative index
                 if glb_idx < 0:
-                    print("Handled negative index")
-                    glb_idx = self.glb_max + glb_idx + 1
-                    ### Test thingy ###
-                    # FIXME: Maybe don't need the conditional here
-                    # TODO: Build directly into glb_idx setting
-                    glb_idx -= self.glb_min if rel is True else glb_idx
-                    ### Test thingy ###
+                    glb_idx = glb_max + glb_idx + 1
                 # -> Do the actual conversion
-                if self.loc_abs_min <= glb_idx <= self.loc_abs_max:
+                if loc_abs_min <= glb_idx <= loc_abs_max:
                     return glb_idx - base
-                elif self.glb_min <= glb_idx <= self.glb_max:
+                elif glb_min <= glb_idx <= glb_max:
                     return None
                 else:
                     # This should raise an exception when used to access a numpy.array
@@ -253,39 +249,39 @@ class Decomposition(tuple):
                 elif isinstance(glb_idx, slice):
                     if self.loc_empty:
                         return slice(-1, -3)
-                    if glb_idx.step >= 0 and glb_idx.stop == self.glb_min:
+                    if glb_idx.step >= 0 and glb_idx.stop == glb_min:
                         # TODO: Figure out why glb_min is checked for here
                         # TODO: Probably needs fixing up too
-                        glb_idx_min = self.glb_min if glb_idx.start is None \
+                        glb_idx_min = glb_min if glb_idx.start is None \
                             else glb_idx.start
-                        glb_idx_max = self.glb_min
+                        glb_idx_max = glb_min
                         retfunc = lambda a, b: slice(a, b, glb_idx.step)
                     elif glb_idx.step >= 0:
                         # FIXME: Should be 0 if glb_idx.start is None
                         # FIXME: Should be glb_max - glb_min if glb_idx.stop is None
                         glb_idx_min = 0 if glb_idx.start is None \
                             else glb_idx.start
-                        glb_idx_max = self.glb_max - self.glb_min \
+                        glb_idx_max = glb_max - glb_min \
                             if glb_idx.stop is None \
                             else glb_idx.stop-1
-                        glb_idx_min = self.glb_min if glb_idx.start is None \
+                        glb_idx_min = glb_min if glb_idx.start is None \
                             else glb_idx.start
-                        glb_idx_max = self.glb_max if glb_idx.stop is None \
+                        glb_idx_max = glb_max if glb_idx.stop is None \
                             else glb_idx.stop-1
                         retfunc = lambda a, b: slice(a, b + 1, glb_idx.step)
                     else:
-                        glb_idx_min = self.glb_min if glb_idx.stop is None \
+                        glb_idx_min = glb_min if glb_idx.stop is None \
                             else glb_idx.stop+1
-                        glb_idx_max = self.glb_max if glb_idx.start is None \
+                        glb_idx_max = glb_max if glb_idx.start is None \
                             else glb_idx.start
                         retfunc = lambda a, b: slice(b, a - 1, glb_idx.step)
                 else:
                     raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
                 # -> Handle negative min/max
                 if glb_idx_min is not None and glb_idx_min < 0:
-                    glb_idx_min = self.glb_max + glb_idx_min + 1
+                    glb_idx_min = glb_max + glb_idx_min + 1
                 if glb_idx_max is not None and glb_idx_max < 0:
-                    glb_idx_max = self.glb_max + glb_idx_max + 1
+                    glb_idx_max = glb_max + glb_idx_max + 1
 
                 # -> Do the actual conversion
                 # Compute loc_min. For a slice with step > 0 this will be
@@ -295,19 +291,19 @@ class Decomposition(tuple):
                 # coincide with loc_abs_min.
                 if isinstance(glb_idx, slice) and glb_idx.step is not None \
                         and glb_idx.step > 1:
-                    if glb_idx_min > self.loc_abs_max:
+                    if glb_idx_min > loc_abs_max:
                         return retfunc(-1, -3)
                     elif glb_idx.start is None:  # glb start is zero.
-                        loc_min = self.loc_abs_min - base \
+                        loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base, glb_idx.step),
                                      glb_idx.step)
                     else:  # glb start is given explicitly
-                        loc_min = self.loc_abs_min - base \
+                        loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
-                elif glb_idx_min is None or glb_idx_min < self.loc_abs_min:
-                    loc_min = self.loc_abs_min - base
-                elif glb_idx_min > self.loc_abs_max:
+                elif glb_idx_min is None or glb_idx_min < loc_abs_min:
+                    loc_min = loc_abs_min - base
+                elif glb_idx_min > loc_abs_max:
                     return retfunc(-1, -3)
                 else:
                     loc_min = glb_idx_min - base
@@ -318,19 +314,19 @@ class Decomposition(tuple):
                 # coincide with loc_abs_max.
                 if isinstance(glb_idx, slice) and glb_idx.step is not None \
                         and glb_idx.step < -1:
-                    if glb_idx_max < self.loc_abs_min:
+                    if glb_idx_max < loc_abs_min:
                         return retfunc(-1, -3)
                     elif glb_idx.start is None:
                         loc_max = top - base \
-                            + np.mod(glb_idx.step - np.mod(top - self.glb_max,
+                            + np.mod(glb_idx.step - np.mod(top - glb_max,
                                                            glb_idx.step), glb_idx.step)
                     else:
                         loc_max = top - base \
                             + np.mod(glb_idx.step - np.mod(top - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
-                elif glb_idx_max is None or glb_idx_max > self.loc_abs_max:
-                    loc_max = self.loc_abs_max - base
-                elif glb_idx_max < self.loc_abs_min:
+                elif glb_idx_max is None or glb_idx_max > loc_abs_max:
+                    loc_max = loc_abs_max - base
+                elif glb_idx_max < loc_abs_min:
                     return retfunc(-1, -3)
                 else:
                     loc_max = glb_idx_max - base
@@ -345,7 +341,7 @@ class Decomposition(tuple):
                 return None
             abs_ofs, side = args
             if side is LEFT:
-                rel_ofs = self.glb_min + abs_ofs - base
+                rel_ofs = glb_min + abs_ofs - base
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
                 elif abs_ofs > top:
@@ -353,11 +349,11 @@ class Decomposition(tuple):
                 else:
                     return None
             else:
-                rel_ofs = abs_ofs - (self.glb_max - top)
-                if abs_ofs >= self.glb_max - top and abs_ofs <= self.glb_max - base:
+                rel_ofs = abs_ofs - (glb_max - top)
+                if abs_ofs >= glb_max - top and abs_ofs <= glb_max - base:
                     return rel_ofs
-                elif abs_ofs > self.glb_max - base:
-                    return self.glb_max - base + 1
+                elif abs_ofs > glb_max - base:
+                    return glb_max - base + 1
                 else:
                     return None
         else:

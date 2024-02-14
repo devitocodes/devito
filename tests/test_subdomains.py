@@ -756,55 +756,55 @@ class TestSubdomainFunctions:
         Test that slicing data for a function defined on a subdomain behaves
         as expected.
         """
-        # Think both __getitem__ and __setitem__ are not behaving correctly
-        # TODO: Need to also check ::2 slices
-        # TODO: Need to also check :2 and -2: slices
-
         grid = Grid(shape=(10, 10), extent=(9., 9.))
         reduced_domain = ReducedDomain(('middle', 3, 1), ('right', 7), grid=grid)
-        f = Function(name='f', grid=reduced_domain)
 
-        f.data[:] = 1
-        f.data[2:4, 1:-1] = 2
-        f.data[3:-2, 2:-3] = 3
-        f.data[-5:-3, -3:-2] = 4
-        # f.data[4, 2] = 5
-        # f.data[0, 0] = 6
-        # f.data[1, 1] = 7
-        # f.data[0, -2] = 8
-        # f.data[-2, 2] = 9
+        # 3 Functions for clarity and to minimise overlap
+        f0 = Function(name='f0', grid=reduced_domain)
+        f1 = Function(name='f1', grid=reduced_domain)
+        f2 = Function(name='f2', grid=reduced_domain)
 
-        # check = np.zeros(f.shape)
-        check = np.full(f.shape, 1.)
-        check[2:4, 1:-1] = 2
-        check[3:-2, 2:-3] = 3
-        check[-5:-3, -3:-2] = 4
-        # check[4, 2] = 5
-        # check[0, 0] = 6
-        # check[1, 1] = 7
-        # check[0, -2] = 8
-        # check[-2, 2] = 9
+        # Check slicing
+        f0.data[:] = 1
+        f0.data[2:4, 1:-1] = 2
+        f0.data[3:-2, 2:-3] = 3
+        f0.data[-5:-3, -3:-2] = 4
 
-        # check2 = np.zeros(grid.shape)
-        check2 = np.full(grid.shape, 1.)
-        check2[2:4, 1:-1] = 2
-        check2[3:-2, 2:-3] = 3
-        check2[-5:-3, -3:-2] = 4
-        # check2[4, 2] = 5
-        # check2[0, 0] = 6
-        # check2[1, 1] = 7
-        # check2[0, -2] = 8
-        # check2[-2, 2] = 9
+        # Check slicing without ends and modulo slices
+        f1.data[::2] = 1
+        f1.data[::-2] = 2
+        f1.data[2:] = 3
+        f1.data[-2:] = 4
 
-        print(f.data)
-        # print(f.data[1, 1])
-        # print(f.data[4, 2])
-        # print(f.data[1, 2])
-        # print(f.data[0, -2])
-        # print(f.data[-2, 2])
-        print(check)
-        print(check2)
-        assert False
+        # Check indexing of individual points
+        f2.data[4, 2] = 5
+        f2.data[0, 0] = 6
+        f2.data[1, 1] = 7
+        f2.data[0, -2] = 8
+        f2.data[-2, 2] = 9
+
+        check0 = np.full(f0.shape, 1.)
+        check1 = np.zeros(f1.shape)
+        check2 = np.zeros(f2.shape)
+
+        check0[2:4, 1:-1] = 2
+        check0[3:-2, 2:-3] = 3
+        check0[-5:-3, -3:-2] = 4
+
+        check1[::2] = 1
+        check1[::-2] = 2
+        check1[2:] = 3
+        check1[-2:] = 4
+
+        check2[4, 2] = 5
+        check2[0, 0] = 6
+        check2[1, 1] = 7
+        check2[0, -2] = 8
+        check2[-2, 2] = 9
+
+        assert np.all(f0.data == check0)
+        assert np.all(f1.data == check1)
+        assert np.all(f2.data == check2)
 
     @pytest.mark.parametrize('x', _subdomain_specs)
     @pytest.mark.parametrize('y', _subdomain_specs)
