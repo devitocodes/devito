@@ -6,13 +6,16 @@ import numpy as np
 import sympy
 
 from devito.exceptions import InvalidOperator
+from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
                                pull_dims)
+from devito.ir.equations import OpMin, OpMax
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
-from devito.symbolics import retrieve_indexed, uxreplace, xreplace_indices
+from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
+                              xreplace_indices)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
@@ -41,7 +44,7 @@ def clusterize(exprs, **kwargs):
     # Determine relevant computational properties (e.g., parallelism)
     clusters = analyze(clusters)
 
-    # Input normalization (e.g., SSA)
+    # Input normalization
     clusters = normalize(clusters, **kwargs)
 
     # Derive the necessary communications for distributed-memory parallelism
@@ -432,8 +435,11 @@ def normalize(clusters, **kwargs):
     sregistry = kwargs['sregistry']
 
     clusters = normalize_nested_indexeds(clusters, sregistry)
-    clusters = normalize_reductions_dense(clusters, sregistry, options)
-    clusters = normalize_reductions_sparse(clusters, sregistry, options)
+    if options['mapify-reduce']:
+        clusters = normalize_reductions_dense(clusters, sregistry)
+    else:
+        clusters = normalize_reductions_minmax(clusters)
+    clusters = normalize_reductions_sparse(clusters, sregistry)
 
     return clusters
 
@@ -475,26 +481,62 @@ def normalize_nested_indexeds(cluster, sregistry):
     return cluster.rebuild(processed)
 
 
-def normalize_reductions_dense(cluster, sregistry, options):
+@cluster_pass(mode='dense')
+def normalize_reductions_minmax(cluster):
+    """
+    Initialize the reduction variables to their neutral element and use them
+    to compute the reduction.
+    """
+    dims = [d for d in cluster.ispace.itdims
+            if cluster.properties.is_parallel_atomic(d)]
+    if not dims:
+        return cluster
+
+    init = []
+    processed = []
+    for e in cluster.exprs:
+        lhs, rhs = e.args
+        f = lhs.function
+
+        if e.operation is OpMin:
+            if not f.is_Input:
+                expr = Eq(lhs, limits_mapper[lhs.dtype].max)
+                ispace = cluster.ispace.project(lambda i: i not in dims)
+                init.append(cluster.rebuild(exprs=expr, ispace=ispace))
+
+            processed.append(e.func(lhs, Min(lhs, rhs)))
+
+        elif e.operation is OpMax:
+            if not f.is_Input:
+                expr = Eq(lhs, limits_mapper[lhs.dtype].min)
+                ispce = cluster.ispace.project(lambda i: i not in dims)
+                init.append(cluster.rebuild(exprs=expr, ispace=ispce))
+
+            processed.append(e.func(lhs, Max(lhs, rhs)))
+
+        else:
+            processed.append(e)
+
+    return init + [cluster.rebuild(processed)]
+
+
+def normalize_reductions_dense(cluster, sregistry):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
     """
-    return _normalize_reductions_dense(cluster, sregistry, options, {})
+    return _normalize_reductions_dense(cluster, sregistry, {})
 
 
 @cluster_pass(mode='dense')
-def _normalize_reductions_dense(cluster, sregistry, options, mapper):
-    opt_mapify_reduce = options['mapify-reduce']
-
+def _normalize_reductions_dense(cluster, sregistry, mapper):
     dims = [d for d in cluster.ispace.itdims
             if cluster.properties.is_parallel_atomic(d)]
-
     if not dims:
         return cluster
 
     processed = []
     for e in cluster.exprs:
-        if e.is_Reduction and opt_mapify_reduce:
+        if e.is_Reduction:
             # Transform `e` into what is in essence an explicit map-reduce
             # For example, turn:
             # `s += f(u[x], v[x], ...)`
@@ -529,7 +571,7 @@ def _normalize_reductions_dense(cluster, sregistry, options, mapper):
 
 
 @cluster_pass(mode='sparse')
-def normalize_reductions_sparse(cluster, sregistry, options):
+def normalize_reductions_sparse(cluster, sregistry):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
     """

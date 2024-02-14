@@ -251,7 +251,7 @@ class CodePrinter(C99CodePrinter):
     _print_MacroArgument = _print_Fallback
     _print_IndexedBase = _print_Fallback
     _print_IndexSum = _print_Fallback
-    _print_Keyword = _print_Fallback
+    _print_ReservedWord = _print_Fallback
     _print_Basic = _print_Fallback
 
 

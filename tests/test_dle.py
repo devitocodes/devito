@@ -7,8 +7,8 @@ import pytest
 from conftest import assert_structure, assert_blocking, _R, skipif
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
                     CustomDimension, Dimension, SubDimension,
-                    PrecomputedSparseTimeFunction, Eq, Inc, ReduceMax, Operator,
-                    configuration, dimensions, info, cos)
+                    PrecomputedSparseTimeFunction, Eq, Inc, ReduceMin, ReduceMax,
+                    Operator, configuration, dimensions, info, cos)
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree, Expression)
@@ -877,7 +877,7 @@ class TestNodeParallelism(object):
 
     def test_array_max_reduction(self):
         """
-        Test generation of OpenMP sum-reduction clauses involving Function's.
+        Test generation of OpenMP max-reduction clauses involving Function's.
         """
         grid = Grid(shape=(3, 3, 3))
         i = Dimension(name='i')
@@ -901,6 +901,40 @@ class TestNodeParallelism(object):
             # Unsupported min/max reductions with obsolete compilers
             with pytest.raises(NotImplementedError):
                 Operator(eqn, opt=('advanced', {'openmp': True}))
+
+    def test_array_minmax_reduction(self):
+        """
+        Test generation of OpenMP combined min- and max-reduction clauses
+        involving Function's.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        i = Dimension(name='i')
+
+        f = Function(name='f', grid=grid)
+        n = Function(name='n', grid=grid, shape=(2,), dimensions=(i,))
+        r0 = Symbol(name='r0', dtype=grid.dtype)
+        r1 = Symbol(name='r1', dtype=grid.dtype)
+
+        f.data[:] = np.arange(0, 27).reshape((3, 3, 3))
+
+        eqns = [ReduceMax(r0, f),
+                ReduceMin(r1, f),
+                Eq(n[0], r0),
+                Eq(n[1], r1)]
+
+        if not Ompizer._support_array_reduction(configuration['compiler']):
+            return
+
+        op = Operator(eqns)
+
+        if configuration['language'] == 'openmp':
+            iterations = FindNodes(Iteration).visit(op)
+            expected = "reduction(max:r0) reduction(min:r1)"
+            assert expected in iterations[0].pragmas[0].value
+
+        op()
+        assert n.data[0] == 26
+        assert n.data[1] == 0
 
     def test_incs_no_atomic(self):
         """

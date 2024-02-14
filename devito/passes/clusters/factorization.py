@@ -180,8 +180,7 @@ def _collect_nested(expr):
         return expr, {'funcs': expr}
     elif expr.is_Pow:
         return expr, {'pows': expr}
-    elif (expr.is_Symbol or
-          expr.is_Indexed or
+    elif (expr.is_Symbol or expr.is_Indexed or not expr.args or
           isinstance(expr, (BasicWrapperMixin, AbstractObject))):
         return expr, {}
     elif expr.is_Add:
