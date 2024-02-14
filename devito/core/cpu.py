@@ -372,8 +372,11 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+f',mlir-opt{{arguments=--mlir-print-op-generic,--allow-unregistered-dialect,-p,{mlir_pipeline}}}']
+                xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
 
@@ -634,19 +637,22 @@ class XdslAdvOperator(XdslnoopOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                xdsl_args=[source_name, "--allow-unregistered-dialect", "-p", xdsl_pipeline[1:-1]+f',mlir-opt{{arguments=--mlir-print-op-generic,--allow-unregistered-dialect,-p,{mlir_pipeline}}}']
+                xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
 
                 # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out.getvalue())
+                # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
+                # out = self.compile(mlir_cmd, out.getvalue())
 
                 # Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
+                out = self.compile(mlir_translate_cmd, out.getvalue())
                 # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
