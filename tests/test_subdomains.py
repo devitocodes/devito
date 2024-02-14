@@ -856,39 +856,43 @@ class TestSubdomainFunctions:
         """
         # Think both __getitem__ and __setitem__ are not behaving correctly
         # TODO: Need to also check ::2 slices
+        # TODO: Need to also check :2 and -2: slices
 
         grid = Grid(shape=(10, 10), extent=(9., 9.))
-        reduced_domain = ReducedDomain(('middle', 3, 1), ('left', 7), grid=grid)
+        reduced_domain = ReducedDomain(('middle', 3, 1), ('right', 7), grid=grid)
         f = Function(name='f', grid=reduced_domain)
 
         f.data[:] = 1
-        f.data[2:-1, 1:-1] = 2
+        f.data[2:4, 1:-1] = 2
         f.data[3:-2, 2:-3] = 3
-        # f.data[4, 2] = 4
-        # f.data[0, 0] = 5
-        # f.data[1, 1] = 6
-        # f.data[0, -2] = 7
-        # f.data[-2, 2] = 8
+        f.data[-5:-3, -3:-2] = 4
+        # f.data[4, 2] = 5
+        # f.data[0, 0] = 6
+        # f.data[1, 1] = 7
+        # f.data[0, -2] = 8
+        # f.data[-2, 2] = 9
 
         # check = np.zeros(f.shape)
         check = np.full(f.shape, 1.)
-        check[2:-1, 1:-1] = 2
+        check[2:4, 1:-1] = 2
         check[3:-2, 2:-3] = 3
-        # check[4, 2] = 4
-        # check[0, 0] = 5
-        # check[1, 1] = 6
-        # check[0, -2] = 7
-        # check[-2, 2] = 8
+        check[-5:-3, -3:-2] = 4
+        # check[4, 2] = 5
+        # check[0, 0] = 6
+        # check[1, 1] = 7
+        # check[0, -2] = 8
+        # check[-2, 2] = 9
 
         # check2 = np.zeros(grid.shape)
         check2 = np.full(grid.shape, 1.)
-        check2[2:-1, 1:-1] = 2
+        check2[2:4, 1:-1] = 2
         check2[3:-2, 2:-3] = 3
-        # check2[4, 2] = 4
-        # check2[0, 0] = 5
-        # check2[1, 1] = 6
-        # check2[0, -2] = 7
-        # check2[-2, 2] = 8
+        check2[-5:-3, -3:-2] = 4
+        # check2[4, 2] = 5
+        # check2[0, 0] = 6
+        # check2[1, 1] = 7
+        # check2[0, -2] = 8
+        # check2[-2, 2] = 9
 
         print(f.data)
         # print(f.data[1, 1])

@@ -211,6 +211,7 @@ class Decomposition(tuple):
         top = self.loc_abs_max
 
         ### Test thingy ###
+        # TODO: integrate directly into base and top
         base -= self.glb_min if rel is True else base
         top -= self.glb_min if rel is True else top
         ### Test thingy ###
@@ -228,6 +229,7 @@ class Decomposition(tuple):
                     glb_idx = self.glb_max + glb_idx + 1
                     ### Test thingy ###
                     # FIXME: Maybe don't need the conditional here
+                    # TODO: Build directly into glb_idx setting
                     glb_idx -= self.glb_min if rel is True else glb_idx
                     ### Test thingy ###
                 # -> Do the actual conversion
@@ -252,11 +254,20 @@ class Decomposition(tuple):
                     if self.loc_empty:
                         return slice(-1, -3)
                     if glb_idx.step >= 0 and glb_idx.stop == self.glb_min:
+                        # TODO: Figure out why glb_min is checked for here
+                        # TODO: Probably needs fixing up too
                         glb_idx_min = self.glb_min if glb_idx.start is None \
                             else glb_idx.start
                         glb_idx_max = self.glb_min
                         retfunc = lambda a, b: slice(a, b, glb_idx.step)
                     elif glb_idx.step >= 0:
+                        # FIXME: Should be 0 if glb_idx.start is None
+                        # FIXME: Should be glb_max - glb_min if glb_idx.stop is None
+                        glb_idx_min = 0 if glb_idx.start is None \
+                            else glb_idx.start
+                        glb_idx_max = self.glb_max - self.glb_min \
+                            if glb_idx.stop is None \
+                            else glb_idx.stop-1
                         glb_idx_min = self.glb_min if glb_idx.start is None \
                             else glb_idx.start
                         glb_idx_max = self.glb_max if glb_idx.stop is None \
@@ -275,6 +286,7 @@ class Decomposition(tuple):
                     glb_idx_min = self.glb_max + glb_idx_min + 1
                 if glb_idx_max is not None and glb_idx_max < 0:
                     glb_idx_max = self.glb_max + glb_idx_max + 1
+
                 # -> Do the actual conversion
                 # Compute loc_min. For a slice with step > 0 this will be
                 # used to produce slice.start and for a slice with step < 0 slice.stop.
