@@ -46,7 +46,7 @@ jobs:
         export DEVITO_LANGUAGE=C
         # Add mlir-opt to the path
         export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
-        pytest -m "not parallel" -k "not adjoint" tests/test_xdsl_*
+        pytest -m "not parallel" -k "not adjoint" tests/test_xdsl_* -vvv
 
     - name: Test no-MPI, Openmp
       run: |
@@ -54,4 +54,4 @@ jobs:
           export DEVITO_LANGUAGE=openmp
           # Add mlir-opt to the path
           export PATH=/xdsl-sc/llvm-project/build/bin/:$PATH
-          pytest -m "not parallel" -k "not adjoint" tests/test_xdsl_*
+          pytest -m "not parallel" -k "not adjoint" tests/test_xdsl_* -vvv
