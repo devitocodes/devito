@@ -781,7 +781,7 @@ def optimize_schedule_rotations(schedule, sregistry):
         iib = candidate.upper
 
         ii = ModuloDimension('%sii' % d.root.name, ds, iis, incr=iib)
-        cd = CustomDimension(name='%s%s' % (d.root.name, d.root.name), symbolic_min=ii,
+        cd = CustomDimension(name='%sc' % d.root.name, symbolic_min=ii,
                              symbolic_max=iib, symbolic_size=n)
         dsi = ModuloDimension('%si' % ds.root.name, cd, cd + ds - iis, n)
 
