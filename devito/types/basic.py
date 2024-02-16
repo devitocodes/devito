@@ -1414,11 +1414,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _offset_nopad(self):
         """Number of points before the first and last halo elements."""
-        left = tuple(self._size_padding.left)
-        right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
-
-        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
-
+        # ====================================
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
 
