@@ -1534,8 +1534,8 @@ class TestCodeGeneration(object):
             assert calls[0].ncomps == 2
         elif configuration['mpi'] in ('basic2'):
             assert len(op._func_table) == 4
-            assert len(calls) == 1  # haloupdate, halowait, compute
-            assert calls[0].name == 'haloupdate0'  # haloupdate, halowait, compute
+            assert len(calls) == 1  # haloupdate
+            assert calls[0].name == 'haloupdate0'
             assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('overlap'):
             assert len(op._func_table) == 8
