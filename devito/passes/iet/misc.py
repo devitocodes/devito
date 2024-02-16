@@ -151,10 +151,8 @@ def _generate_macros(iet, tracker=None, **kwargs):
     headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    headers.extend(_generate_macros_math(iet))
-
-    # Remove redundancies while preserving the order
-    headers = filter_ordered(headers)
+    applications = FindApplications().visit(iet)
+    headers = set().union(*[_generate_macros(i) for i in applications])
 
     # Some special Symbols may represent Macros defined in standard libraries,
     # so we need to include the respective includes
