@@ -1115,12 +1115,17 @@ class Function(DiscreteFunction):
         else:
             space_order = kwargs.get('space_order', 1)
             if isinstance(space_order, int):
+                # v = (space_order, space_order)
+                # halo = [v if i.is_Space else (0, 0) for i in self.dimensions]
+                # import pdb;pdb.set_trace()
                 if configuration['safe-halo'] == 'HALF':
-                    halo = (int(space_order/2), int(space_order/2))
+                    v = (int(space_order/2), int(space_order/2))
                 elif configuration['safe-halo'] == 'CUSTOM':
-                    halo = (int(space_order/2) + 1, int(space_order/2) + 1)
+                    v = (int(space_order/2) + 1, int(space_order/2) + 1)
                 else:
-                    halo = (space_order, space_order)
+                    v = (space_order, space_order)
+
+                halo = [v if i.is_Space else (0, 0) for i in self.dimensions]
             elif isinstance(space_order, tuple) and len(space_order) == 3:
                 _, l, r = space_order
                 halo = [(l, r) if i.is_Space else (0, 0) for i in self.dimensions]
