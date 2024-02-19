@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer)
+                          frozendict, is_integer, filter_sorted)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -287,7 +287,8 @@ class HaloScheme(object):
         ranks*, so the output of this method is guaranteed to be consistent
         across *all MPI ranks*.
         """
-        items = [((d, CENTER), (d, LEFT), (d, RIGHT)) for d in self.dimensions]
+        items = [((d, CENTER), (d, LEFT), (d, RIGHT))
+                 for d in filter_sorted(self.dimensions)]
 
         processed = []
         for item in product(*items):
