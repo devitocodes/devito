@@ -753,7 +753,7 @@ class TestSubdomainFunctions:
 
     def test_slicing(self):
         """
-        Test that slicing data for a function defined on a subdomain behaves
+        Test that slicing data for a Function defined on a SubDomain behaves
         as expected.
         """
         grid = Grid(shape=(10, 10), extent=(9., 9.))
@@ -942,7 +942,6 @@ class TestSubdomainFunctionsParallel:
         """
         Test a trivial operator with a single Function
         """
-
         grid = Grid(shape=(11, 11), extent=(10., 10.))
         reduced_domain = ReducedDomain(x, y, grid=grid)
 
@@ -951,7 +950,7 @@ class TestSubdomainFunctionsParallel:
 
         Operator(eq)()
 
-        assert(np.all(f.data[:] == 1))
+        assert(np.all(f.data == 1))
 
     @pytest.mark.parallel(mode=[(2, 'full')])
     def test_mixed_functions_mpi(self):
@@ -1000,3 +999,35 @@ class TestSubdomainFunctionsParallel:
         assert np.all(g.data == g_check[slices])
         assert np.all(h.data == h_check[slices])
         assert np.all(i.data == i_check)
+
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    def test_indexing_mpi(self):
+        """
+        Check that indexing into the Data of a Function defined on a SubDomain
+        behaves as expected.
+        """
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        reduced_domain = ReducedDomain(('middle', 3, 1), ('right', 7), grid=grid)
+
+        f = Function(name='f', grid=reduced_domain)
+
+        # Check indexing of individual points
+        f.data[4, 2] = 5
+        f.data[0, 0] = 6
+        f.data[1, 1] = 7
+        f.data[0, -2] = 8
+        f.data[-2, 2] = 9
+
+        check = np.zeros(reduced_domain.shape)
+
+        check[4, 2] = 5
+        check[0, 0] = 6
+        check[1, 1] = 7
+        check[0, -2] = 8
+        check[-2, 2] = 9
+
+        print(grid.distributor.all_coords)
+        print(grid.distributor.all_numb)
+        print(grid.distributor.all_ranges)
+
+        assert np.all(f.data_gather() == check)

@@ -329,7 +329,7 @@ class Data(np.ndarray):
     def __setitem__(self, glb_idx, val, comm_type):
         loc_idx = self._index_glb_to_loc(glb_idx)
 
-        print("Remap", glb_idx, loc_idx)
+        print("Remap on rank %s:" % self._distributor.comm.Get_rank(), glb_idx, loc_idx)
         if loc_idx is NONLOCAL:
             # no-op
             return
