@@ -247,7 +247,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
             # Pure number
             pass
 
-        deriv = DiffDerivative(expr*weights, {dim: indices.free_dim}, deriv_order)
+        deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
     else:
         terms = []
         for i, c in zip(indices, weights):

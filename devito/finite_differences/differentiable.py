@@ -735,9 +735,9 @@ class Weights(Array):
 
 class IndexDerivative(IndexSum):
 
-    __rargs__ = ('expr', 'mapper', 'order')
+    __rargs__ = ('expr', 'mapper')
 
-    def __new__(cls, expr, mapper, order, **kwargs):
+    def __new__(cls, expr, mapper, **kwargs):
         dimensions = as_tuple(set(mapper.values()))
 
         # Detect the Weights among the arguments
@@ -758,12 +758,11 @@ class IndexDerivative(IndexSum):
         obj = super().__new__(cls, expr, dimensions)
         obj._weights = weights
         obj._mapper = frozendict(mapper)
-        obj._order = order
 
         return obj
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.mapper, self.order)
+        return super()._hashable_content() + (self.mapper,)
 
     def compare(self, other):
         if self is other:
@@ -786,14 +785,6 @@ class IndexDerivative(IndexSum):
     @property
     def mapper(self):
         return self._mapper
-
-    @property
-    def order(self):
-        return self._order
-
-    @property
-    def scaling(self):
-        return Mul(*[d.spacing**self.order for d in self.mapper])
 
     @property
     def depth(self):
@@ -936,7 +927,7 @@ def diff2sympy(expr):
 
         # Handle special objects
         if isinstance(obj, DiffDerivative):
-            return IndexDerivative(*args, obj.mapper, obj.order), True
+            return IndexDerivative(*args, obj.mapper), True
 
         # Handle generic objects such as arithmetic operations
         try:
