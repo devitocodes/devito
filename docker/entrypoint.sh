@@ -15,7 +15,7 @@ fi
 
 if [[ -z "${DEPLOY_ENV}" ]]; then
     exec "$@"
-    ./codecov -t -t ${CODECOV_TOKEN} -F "${DEVITO_ARCH}-${DEVITO-PLATFORM}"
+    ./codecov -t ${CODECOV_TOKEN} -F "${DEVITO_ARCH}-${DEVITO-PLATFORM}" || echo "no coverage report exported"
 else
     exec "$@"
 fi
