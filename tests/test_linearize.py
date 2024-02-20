@@ -290,7 +290,7 @@ def test_strides_forwarding0():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+    linearize(graph, callback=True, options={'index-mode': 'int32'},
               sregistry=SymbolRegistry())
 
     # Since `f` is passed via `f.indexed`, we expect the stride exprs to be
@@ -320,7 +320,7 @@ def test_strides_forwarding1():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+    linearize(graph, callback=True, options={'index-mode': 'int32'},
               sregistry=SymbolRegistry())
 
     # Despite `a` is passed via `a.indexed`, and since it's an Array (which
@@ -368,7 +368,7 @@ def test_strides_forwarding2():
     graph.efuncs['foo0'] = foo0
     graph.efuncs['foo1'] = foo1
 
-    linearize(graph, lmode=True, options={'index-mode': 'int32'},
+    linearize(graph, callback=True, options={'index-mode': 'int32'},
               sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
@@ -408,7 +408,7 @@ def test_strides_forwarding3():
     graph = Graph(root)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+    linearize(graph, callback=True, options={'index-mode': 'int64'},
               sregistry=SymbolRegistry())
 
     # Both foo's are expected to define `a`!
@@ -440,7 +440,7 @@ def test_strides_forwarding4():
     graph = Graph(root)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+    linearize(graph, callback=True, options={'index-mode': 'int64'},
               sregistry=SymbolRegistry())
 
     root = graph.root
@@ -514,7 +514,7 @@ def test_call_retval_indexed():
     # Emulate what the compiler would do
     graph = Graph(foo)
 
-    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+    linearize(graph, callback=True, options={'index-mode': 'int64'},
               sregistry=SymbolRegistry())
 
     foo = graph.root
@@ -540,7 +540,7 @@ def test_bundle():
     graph = Graph(foo)
     graph.efuncs['bar'] = bar
 
-    linearize(graph, lmode=True, options={'index-mode': 'int64'},
+    linearize(graph, callback=True, options={'index-mode': 'int64'},
               sregistry=SymbolRegistry())
 
     foo = graph.root
