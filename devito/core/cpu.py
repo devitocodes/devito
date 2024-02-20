@@ -377,10 +377,10 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                              "--allow-unregistered-dialect",
                              "-p",
                              xdsl_pipeline[1:-1]+','+mlir_pipeline]
-                xdsl = xDSLOptMain(args=xdsl_args)
-                out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
+                xdsl = xDSLOptMain(args=xdsl_args)
+                out = io.StringIO()
                 with redirect_stdout(out):
                     xdsl.run()
 
@@ -645,10 +645,10 @@ class XdslAdvOperator(XdslnoopOperator):
                              "--allow-unregistered-dialect",
                              "-p",
                              xdsl_pipeline[1:-1]+','+mlir_pipeline]
-                xdsl = xDSLOptMain(args=xdsl_args)
-                out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
+                xdsl = xDSLOptMain(args=xdsl_args)
+                out = io.StringIO()
                 with redirect_stdout(out):
                     xdsl.run()
 
@@ -845,7 +845,8 @@ def generate_MLIR_CPU_noop_PIPELINE():
 
 
 def generate_MLIR_OPENMP_PIPELINE():
-    passes = [
+    return generate_pipeline([
+        generate_mlir_pipeline([
         "canonicalize",
         "cse",
         "loop-invariant-code-motion",
@@ -862,25 +863,27 @@ def generate_MLIR_OPENMP_PIPELINE():
         # "loop-invariant-code-motion",
         # "canonicalize",
         # "cse",
-        "convert-scf-to-openmp",
+        ]),
+        "convert-scf-to-openmp{collapse=1}",
+        generate_mlir_pipeline([
         "finalize-memref-to-llvm",
-        "convert-scf-to-cf",
+        "convert-scf-to-cf"
+        ]),
+        generate_mlir_pipeline([
         "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
         "convert-openmp-to-llvm",
         "convert-math-to-llvm",
         # "reconcile-unrealized-casts",
         "canonicalize",
         # "print-ir",
-        "cse"
-    ]
-
-    return generate_mlir_pipeline(passes)
+        "cse"])])[1:-1]
 
 
 def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
     passes = [
         "stencil-shape-inference",
-        f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
+        "convert-stencil-to-ll-mlir",
+        f"scf-parallel-loop-tiling{{{generate_tiling_arg(nb_tiled_dims)}}}",
         "printf-to-llvm",
         "canonicalize"
     ]
@@ -902,7 +905,8 @@ def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
     passes = [
         f"distribute-stencil{decomp}",
         "canonicalize-dmp",
-        f"convert-stencil-to-ll-mlir{{{generate_tiling_arg(nb_tiled_dims)}}}",
+        "convert-stencil-to-ll-mlir",
+        f"scf-parallel-loop-tiling{{{generate_tiling_arg(nb_tiled_dims)}}}",
         "dmp-to-mpi{mpi_init=false}",
         "lower-mpi",
         "printf-to-llvm",
@@ -953,8 +957,7 @@ def generate_tiling_arg(nb_tiled_dims: int):
     """
     if nb_tiled_dims == 0:
         return ''
-    return "tile-sizes=" + ",".join(["64"]*nb_tiled_dims)
-
+    return "parallel-loop-tile-sizes=" + ",".join(["64"]*nb_tiled_dims) + ",0"
 
 def get_arg_names_from_module(op):
     return [
