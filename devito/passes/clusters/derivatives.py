@@ -1,11 +1,13 @@
+from functools import singledispatch
+
 from sympy import S
 
 from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
-from devito.symbolics import reuse_if_untouched, q_leaf, uxreplace
+from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
 from devito.tools import timed_pass
-from devito.types import Eq, Inc, Symbol
+from devito.types import Eq, Inc, Indexed, Symbol
 
 __all__ = ['lower_index_derivatives']
 
@@ -32,8 +34,8 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
 
 def _lower_index_derivatives(clusters, sregistry=None, options=None, **kwargs):
     try:
-        callback0 = deriv_schedule_registry[options['deriv-schedule']]
-        callback1 = deriv_unroll_registry[options['deriv-unroll']]
+        cbk0 = deriv_schedule_registry[options['deriv-schedule']]
+        cbk1 = deriv_unroll_registry[options['deriv-unroll']]
     except KeyError:
         raise ValueError("Unknown derivative lowering mode")
 
@@ -57,7 +59,7 @@ def _lower_index_derivatives(clusters, sregistry=None, options=None, **kwargs):
                 reusable = set()
 
             expr, v = _core(e, c, c.ispace, weights, reusable, mapper,
-                            callback0, callback1, sregistry)
+                            cbk0, cbk1, sregistry)
 
             if v:
                 dump(exprs, c)
@@ -79,29 +81,36 @@ def _lower_index_derivatives(clusters, sregistry=None, options=None, **kwargs):
     return processed, weights, mapper
 
 
-def _core(expr, c, ispace, weights, reusables, mapper, callback0, callback1,
-          sregistry):
+@singledispatch
+def _core(expr, c, ispace, weights, reusables, mapper, cbk0, cbk1, sregistry):
     """
-    Recursively carry out the core of `lower_index_derivatives`.
+    Recursively carry out the core of `lower_index_derivatives` based
+    on single-dispatch.
     """
-    if q_leaf(expr):
-        return expr, []
+    args = []
+    processed = []
+    for a in expr.args:
+        e, clusters = _core(a, c, ispace, weights, reusables, mapper,
+                            cbk0, cbk1, sregistry)
+        args.append(e)
+        processed.extend(clusters)
 
-    if not isinstance(expr, IndexDerivative):
-        args = []
-        processed = []
-        for a in expr.args:
-            e, clusters = _core(a, c, ispace, weights, reusables, mapper,
-                                callback0, callback1, sregistry)
-            args.append(e)
-            processed.extend(clusters)
+    expr = reuse_if_untouched(expr, args)
 
-        expr = reuse_if_untouched(expr, args)
+    return expr, processed
 
-        return expr, processed
 
+@_core.register(Symbol)
+@_core.register(Indexed)
+@_core.register(BasicWrapperMixin)
+def _(expr, c, ispace, weights, reusables, mapper, cbk0, cbk1, sregistry):
+    return expr, []
+
+
+@_core.register(IndexDerivative)
+def _(expr, c, ispace, weights, reusables, mapper, cbk0, cbk1, sregistry):
     # Lower the IndexDerivative
-    init, ideriv = callback0(expr)
+    init, ideriv = cbk0(expr)
 
     # Create the concrete Weights array, or reuse an already existing one
     # if possible
@@ -134,7 +143,7 @@ def _core(expr, c, ispace, weights, reusables, mapper, callback0, callback1,
     ideriv = ideriv._subs(ideriv.base, base)
 
     # Should the IndexDerivative be unrolled?
-    init, expr, ispace0 = callback1(init, ideriv, ispace0)
+    init, expr, ispace0 = cbk1(init, ideriv, ispace0)
 
     # The full IterationSpace
     extra = (ispace.itdims + ispace0.itdims,)
@@ -151,7 +160,7 @@ def _core(expr, c, ispace, weights, reusables, mapper, callback0, callback1,
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper,
-                            callback0, callback1, sregistry)
+                            cbk0, cbk1, sregistry)
 
     # Finally inject the lowered IndexDerivative
     if init is not None:
