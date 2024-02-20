@@ -6,7 +6,7 @@ from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
 from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
-from devito.tools import timed_pass
+from devito.tools import infer_dtype, timed_pass
 from devito.types import Eq, Inc, Indexed, Symbol
 
 __all__ = ['lower_index_derivatives']
@@ -116,11 +116,12 @@ def _(expr, c, ispace, weights, reusables, mapper, cbk0, cbk1, sregistry):
     # if possible
     name = sregistry.make_name(prefix='w')
     w0 = ideriv.weights.function
+    dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
     k = tuple(w0.weights)
     try:
         w = weights[k]
     except KeyError:
-        w = weights[k] = w0._rebuild(name=name, dtype=c.dtype)
+        w = weights[k] = w0._rebuild(name=name, dtype=dtype)
 
     # Replace the abstract Weights array with the concrete one
     subs = {w0.indexed: w.indexed}
@@ -153,10 +154,10 @@ def _(expr, c, ispace, weights, reusables, mapper, cbk0, cbk1, sregistry):
     # NOTE: created before recurring so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert s.dtype is c.dtype
+        assert s.dtype is dtype
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=c.dtype)
+        s = Symbol(name=name, dtype=dtype)
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper,
