@@ -556,7 +556,7 @@ def make_callbacks(options, key=None):
 def generate_XDSL_GPU_PIPELINE():
     passes = [
         "stencil-shape-inference",
-        "convert-stencil-to-ll-mlir{target=gpu}",
+        "convert-stencil-to-ll-mlir",
         "reconcile-unrealized-casts",
         "printf-to-llvm",
         "canonicalize"
@@ -567,10 +567,12 @@ def generate_XDSL_GPU_PIPELINE():
 
 # gpu-launch-sink-index-computations seemed to have no impact
 def generate_MLIR_GPU_PIPELINE(block_sizes):
-    passes = [
+    return generate_pipeline([
+        generate_mlir_pipeline([
         "test-math-algebraic-simplification",
-        f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
-        "func.func(gpu-map-parallel-loops)",
+        f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",]),
+        "gpu-map-parallel-loops",
+        generate_mlir_pipeline([
         "convert-parallel-loops-to-gpu",
         "lower-affine",
         "canonicalize",
@@ -600,6 +602,5 @@ def generate_MLIR_GPU_PIPELINE(block_sizes):
         "gpu-module-to-binary",
         "canonicalize",
         "cse"
-    ]
-
-    return generate_mlir_pipeline(passes)
+    ]),
+    ])[1:-1]
