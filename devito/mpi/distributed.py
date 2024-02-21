@@ -241,6 +241,33 @@ class DenseDistributor(AbstractDistributor):
         else:
             return None
 
+    @cached_property
+    def all_coords(self):
+        """
+        The coordinates of each MPI rank in the decomposed domain, ordered
+        based on the MPI rank.
+        """
+        ret = product(*[range(i) for i in self.topology])
+        return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
+
+    @cached_property
+    def all_numb(self):
+        """The global numbering of all MPI ranks."""
+        ret = []
+        for c in self.all_coords:
+            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
+            ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
+        return tuple(ret)
+
+    @cached_property
+    def all_ranges(self):
+        """The global ranges of all MPI ranks."""
+        ret = []
+        for i in self.all_numb:
+            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
+                                     getters=self.dimensions))
+        return tuple(ret)
+
 
 class Distributor(DenseDistributor):
 
@@ -312,33 +339,6 @@ class Distributor(DenseDistributor):
         """
         return any([True if i == 0 or i == j-1 else False for i, j in
                    zip(self.mycoords, self.topology)])
-
-    @cached_property
-    def all_coords(self):
-        """
-        The coordinates of each MPI rank in the decomposed domain, ordered
-        based on the MPI rank.
-        """
-        ret = product(*[range(i) for i in self.topology])
-        return tuple(sorted(ret, key=lambda i: self.comm.Get_cart_rank(i)))
-
-    @cached_property
-    def all_numb(self):
-        """The global numbering of all MPI ranks."""
-        ret = []
-        for c in self.all_coords:
-            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
-            ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
-        return tuple(ret)
-
-    @cached_property
-    def all_ranges(self):
-        """The global ranges of all MPI ranks."""
-        ret = []
-        for i in self.all_numb:
-            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
-                                     getters=self.dimensions))
-        return tuple(ret)
 
     @cached_property
     def glb_pos_map(self):

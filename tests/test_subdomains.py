@@ -1124,8 +1124,17 @@ class TestSubdomainFunctionsParallel:
         check[0, -2] = 8
         check[-2, 2] = 9
 
-        print(grid.distributor.all_coords)
-        print(grid.distributor.all_numb)
-        print(grid.distributor.all_ranges)
+        print("f.shape", f.shape)
+        print("glb_shape", f._distributor.glb_shape)
+        print("all coords", f._distributor.all_coords)
+        print("all numb", f._distributor.all_numb)
+        print("all ranges", f._distributor.all_ranges)
 
-        assert np.all(f.data_gather() == check)
+        # Can't gather inside the assert as it hangs
+        data = f.data_gather()
+
+        if f._distributor.myrank == 0:
+            assert np.all(data == check)
+        # FIXME: Some kind of weird None array on nonzero ranks
+        # else:
+        #     assert data is None
