@@ -38,7 +38,7 @@ jobs:
       run: |
         pip install -e .[tests]
         pip install mpi4py
-        pip install git+https://github.com/xdslproject/xdsl@8c3e32c8dd316f432401a85aa0ff76bf32c0e172
+        pip install git+https://github.com/xdslproject/xdsl@03f26e32b6a32470bd8ab6d8da83607cf08b5d1b
         
     - name: Test no-MPI, no-Openmp
       run: |
