@@ -372,23 +372,29 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 # TODO More detailed error handling manually,
                 # instead of relying on a bash-only feature.
 
-                # xdsl-opt, get xDSL IR
-                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+               # Run the first pipeline, mostly xDSL-centric
                 xdsl_args = [source_name,
                              "--allow-unregistered-dialect",
                              "-p",
                              xdsl_pipeline[1:-1],]
+                # We use the Python API to run xDSL rather than a subprocess
+                # This avoids reimport overhead
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
-                out.seek(0)
 
+                # To use as input in the next stage
+                out.seek(0)
+                # Run the second pipeline, mostly MLIR-centric
                 xdsl_mlir_args = ["--allow-unregistered-dialect",
                                   "-p",
                                   mlir_pipeline]
+                # We drive it though xDSL rather than a mlir-opt call for:
+                # - ability to use xDSL replacement passes in the middle
+                # - Avoiding complex process cmanagement code here: xDSL provides
                 xdsl = xDSLOptMain(args=xdsl_mlir_args)
                 out2 = io.StringIO()
                 perf("-----------------")
@@ -399,15 +405,9 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                     xdsl.run()
                     sys.stdin = old_stdin
 
-                # mlir-opt
-                # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                # out = self.compile(mlir_cmd, out.getvalue())
-
-                # Printer().print(out)
-
+                # mlir-translate to translate to LLVM-IR
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
                 out = self.compile(mlir_translate_cmd, out2.getvalue())
-                # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
                 clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
@@ -657,21 +657,29 @@ class XdslAdvOperator(XdslnoopOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
+                # Run the first pipeline, mostly xDSL-centric
                 xdsl_args = [source_name,
                              "--allow-unregistered-dialect",
                              "-p",
                              xdsl_pipeline[1:-1],]
+                # We use the Python API to run xDSL rather than a subprocess
+                # This avoids reimport overhead
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
-                out.seek(0)
 
+                # To use as input in the next stage
+                out.seek(0)
+                # Run the second pipeline, mostly MLIR-centric
                 xdsl_mlir_args = ["--allow-unregistered-dialect",
                                   "-p",
                                   mlir_pipeline]
+                # We drive it though xDSL rather than a mlir-opt call for:
+                # - ability to use xDSL replacement passes in the middle
+                # - Avoiding complex process cmanagement code here: xDSL provides
                 xdsl = xDSLOptMain(args=xdsl_mlir_args)
                 out2 = io.StringIO()
                 perf("-----------------")
@@ -682,15 +690,9 @@ class XdslAdvOperator(XdslnoopOperator):
                     xdsl.run()
                     sys.stdin = old_stdin
 
-                # mlir-opt
-                # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                # out = self.compile(mlir_cmd, out.getvalue())
-
-                # Printer().print(out)
-
+                # mlir-translate to translate to LLVM-IR
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
                 out = self.compile(mlir_translate_cmd, out2.getvalue())
-                # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
                 clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
