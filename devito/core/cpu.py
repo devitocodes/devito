@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 import io
 import os
+import sys
 import subprocess
 import ctypes
 import tempfile
@@ -376,21 +377,36 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 xdsl_args = [source_name,
                              "--allow-unregistered-dialect",
                              "-p",
-                             xdsl_pipeline[1:-1]+','+mlir_pipeline]
+                             xdsl_pipeline[1:-1],]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
+                out.seek(0)
+
+                xdsl_mlir_args = ["--allow-unregistered-dialect",
+                                  "-p",
+                                  mlir_pipeline]
+                xdsl = xDSLOptMain(args=xdsl_mlir_args)
+                out2 = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_mlir_args)}")
+                with redirect_stdout(out2):
+                    old_stdin = sys.stdin
+                    sys.stdin = out
+                    xdsl.run()
+                    sys.stdin = old_stdin
 
                 # mlir-opt
                 # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
                 # out = self.compile(mlir_cmd, out.getvalue())
-                # #  Printer().print(out)
+
+                # Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out.getvalue())
+                out = self.compile(mlir_translate_cmd, out2.getvalue())
                 # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
@@ -644,13 +660,27 @@ class XdslAdvOperator(XdslnoopOperator):
                 xdsl_args = [source_name,
                              "--allow-unregistered-dialect",
                              "-p",
-                             xdsl_pipeline[1:-1]+','+mlir_pipeline]
+                             xdsl_pipeline[1:-1],]
                 xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
                 perf("-----------------")
                 perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
+                out.seek(0)
+
+                xdsl_mlir_args = ["--allow-unregistered-dialect",
+                                  "-p",
+                                  mlir_pipeline]
+                xdsl = xDSLOptMain(args=xdsl_mlir_args)
+                out2 = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_mlir_args)}")
+                with redirect_stdout(out2):
+                    old_stdin = sys.stdin
+                    sys.stdin = out
+                    xdsl.run()
+                    sys.stdin = old_stdin
 
                 # mlir-opt
                 # mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
@@ -659,7 +689,7 @@ class XdslAdvOperator(XdslnoopOperator):
                 # Printer().print(out)
 
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out.getvalue())
+                out = self.compile(mlir_translate_cmd, out2.getvalue())
                 # Printer().print(out)
 
                 # Compile with clang and get LLVM-IR
