@@ -372,7 +372,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 # TODO More detailed error handling manually,
                 # instead of relying on a bash-only feature.
 
-               # Run the first pipeline, mostly xDSL-centric
+                # Run the first pipeline, mostly xDSL-centric
                 xdsl_args = [source_name,
                              "--allow-unregistered-dialect",
                              "-p",
