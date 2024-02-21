@@ -883,36 +883,38 @@ def generate_MLIR_CPU_noop_PIPELINE():
 def generate_MLIR_OPENMP_PIPELINE():
     return generate_pipeline([
         generate_mlir_pipeline([
-        "canonicalize",
-        "cse",
-        "loop-invariant-code-motion",
-        "canonicalize",
-        "cse",
-        "loop-invariant-code-motion",
-        "cse",
-        "canonicalize",
-        "fold-memref-alias-ops",
-        "expand-strided-metadata",
-        "loop-invariant-code-motion",
-        "lower-affine",
-        # "finalize-memref-to-llvm",
-        # "loop-invariant-code-motion",
-        # "canonicalize",
-        # "cse",
+            "canonicalize",
+            "cse",
+            "loop-invariant-code-motion",
+            "canonicalize",
+            "cse",
+            "loop-invariant-code-motion",
+            "cse",
+            "canonicalize",
+            "fold-memref-alias-ops",
+            "expand-strided-metadata",
+            "loop-invariant-code-motion",
+            "lower-affine",
+            # "finalize-memref-to-llvm",
+            # "loop-invariant-code-motion",
+            # "canonicalize",
+            # "cse",
         ]),
         "convert-scf-to-openmp{collapse=1}",
         generate_mlir_pipeline([
-        "finalize-memref-to-llvm",
-        "convert-scf-to-cf"
+            "finalize-memref-to-llvm",
+            "convert-scf-to-cf"
         ]),
         generate_mlir_pipeline([
-        "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
-        "convert-openmp-to-llvm",
-        "convert-math-to-llvm",
-        # "reconcile-unrealized-casts",
-        "canonicalize",
-        # "print-ir",
-        "cse"])])[1:-1]
+            "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
+            "convert-openmp-to-llvm",
+            "convert-math-to-llvm",
+            # "reconcile-unrealized-casts",
+            "canonicalize",
+            # "print-ir",
+            "cse"
+        ])
+    ])[1:-1]
 
 
 def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
@@ -989,6 +991,7 @@ def generate_tiling_arg(nb_tiled_dims: int):
     if nb_tiled_dims == 0:
         return ''
     return "parallel-loop-tile-sizes=" + ",".join(["64"]*nb_tiled_dims) + ",0"
+
 
 def get_arg_names_from_module(op):
     return [
