@@ -949,12 +949,7 @@ def generate_pipeline(passes: Iterable[str]):
 
 def generate_mlir_pipeline(passes: Iterable[str]):
     passes_string = ",".join(passes)
-    return 'mlir-opt{arguments='\
-           '"--mlir-print-op-generic",'\
-           '"--allow-unregistered-dialect"'\
-           ','\
-           f'"-p","builtin.module({passes_string})"'\
-           '}'
+    return f'mlir-opt[{passes_string}]'
 
 
 # small interop shim script for stuff that we don't want to implement in mlir-ir
