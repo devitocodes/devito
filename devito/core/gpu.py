@@ -573,7 +573,7 @@ def make_callbacks(options, key=None):
 def generate_XDSL_GPU_PIPELINE():
     passes = [
         "stencil-shape-inference",
-        "convert-stencil-to-ll-mlir{target=gpu}",
+        "convert-stencil-to-ll-mlir",
         "reconcile-unrealized-casts",
         "printf-to-llvm",
         "canonicalize"
@@ -584,39 +584,41 @@ def generate_XDSL_GPU_PIPELINE():
 
 # gpu-launch-sink-index-computations seemed to have no impact
 def generate_MLIR_GPU_PIPELINE(block_sizes):
-    passes = [
-        "test-math-algebraic-simplification",
-        f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
-        "func.func(gpu-map-parallel-loops)",
-        "convert-parallel-loops-to-gpu",
-        "lower-affine",
-        "canonicalize",
-        "cse",
-        "fold-memref-alias-ops",
-        "gpu-launch-sink-index-computations",
-        "gpu-kernel-outlining",
-        "canonicalize{region-simplify}",
-        "cse",
-        "fold-memref-alias-ops",
-        "expand-strided-metadata",
-        "lower-affine",
-        "canonicalize",
-        "cse",
-        "func.func(gpu-async-region)",
-        "canonicalize",
-        "cse",
-        "convert-arith-to-llvm{index-bitwidth=64}",
-        "convert-scf-to-cf",
-        "convert-cf-to-llvm{index-bitwidth=64}",
-        "canonicalize",
-        "cse",
-        "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
-        f"nvvm-attach-target{{O=3 ftz fast chip=sm_{get_nvidia_cc()}}}",
-        "gpu.module(convert-gpu-to-nvvm,canonicalize,cse)",
-        "gpu-to-llvm",
-        "gpu-module-to-binary",
-        "canonicalize",
-        "cse"
-    ]
-
-    return generate_mlir_pipeline(passes)
+    return generate_pipeline([
+        generate_mlir_pipeline([
+            "test-math-algebraic-simplification",
+            f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
+        ]),
+        "gpu-map-parallel-loops",
+        generate_mlir_pipeline([
+            "convert-parallel-loops-to-gpu",
+            "lower-affine",
+            "canonicalize",
+            "cse",
+            "fold-memref-alias-ops",
+            "gpu-launch-sink-index-computations",
+            "gpu-kernel-outlining",
+            "canonicalize{region-simplify}",
+            "cse",
+            "fold-memref-alias-ops",
+            "expand-strided-metadata",
+            "lower-affine",
+            "canonicalize",
+            "cse",
+            "func.func(gpu-async-region)",
+            "canonicalize",
+            "cse",
+            "convert-arith-to-llvm{index-bitwidth=64}",
+            "convert-scf-to-cf",
+            "convert-cf-to-llvm{index-bitwidth=64}",
+            "canonicalize",
+            "cse",
+            "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
+            f"nvvm-attach-target{{O=3 ftz fast chip=sm_{get_nvidia_cc()}}}",
+            "gpu.module(convert-gpu-to-nvvm,canonicalize,cse)",
+            "gpu-to-llvm",
+            "gpu-module-to-binary",
+            "canonicalize",
+            "cse"
+        ]),
+    ])[1:-1]
