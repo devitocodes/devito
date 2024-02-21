@@ -989,7 +989,7 @@ def generate_tiling_arg(nb_tiled_dims: int):
     Generating no argument if the diled_dims arg is 0
     """
     if nb_tiled_dims == 0:
-        return ''
+        return 'parallel-loop-tile-sizes=0'
     return "parallel-loop-tile-sizes=" + ",".join(["64"]*nb_tiled_dims) + ",0"
 
 
