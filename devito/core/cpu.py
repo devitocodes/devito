@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 import io
 import os
+import sys
 import subprocess
 import ctypes
 import tempfile
@@ -9,6 +10,7 @@ from io import StringIO
 from collections import OrderedDict
 
 from functools import partial
+from typing import Iterable
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
@@ -370,21 +372,42 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
                 # TODO More detailed error handling manually,
                 # instead of relying on a bash-only feature.
 
-                # xdsl-opt, get xDSL IR
-                # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                # Run the first pipeline, mostly xDSL-centric
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1],]
+                # We use the Python API to run xDSL rather than a subprocess
+                # This avoids reimport overhead
+                xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
 
-                # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out.getvalue())
-                #  Printer().print(out)
+                # To use as input in the next stage
+                out.seek(0)
+                # Run the second pipeline, mostly MLIR-centric
+                xdsl_mlir_args = ["--allow-unregistered-dialect",
+                                  "-p",
+                                  mlir_pipeline]
+                # We drive it though xDSL rather than a mlir-opt call for:
+                # - ability to use xDSL replacement passes in the middle
+                # - Avoiding complex process cmanagement code here: xDSL provides
+                xdsl = xDSLOptMain(args=xdsl_mlir_args)
+                out2 = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_mlir_args)}")
+                with redirect_stdout(out2):
+                    old_stdin = sys.stdin
+                    sys.stdin = out
+                    xdsl.run()
+                    sys.stdin = old_stdin
 
+                # mlir-translate to translate to LLVM-IR
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
-                # Printer().print(out)
+                out = self.compile(mlir_translate_cmd, out2.getvalue())
 
                 # Compile with clang and get LLVM-IR
                 clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
@@ -634,20 +657,42 @@ class XdslAdvOperator(XdslnoopOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                # Run the first pipeline, mostly xDSL-centric
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1],]
+                # We use the Python API to run xDSL rather than a subprocess
+                # This avoids reimport overhead
+                xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
 
-                # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out.getvalue())
+                # To use as input in the next stage
+                out.seek(0)
+                # Run the second pipeline, mostly MLIR-centric
+                xdsl_mlir_args = ["--allow-unregistered-dialect",
+                                  "-p",
+                                  mlir_pipeline]
+                # We drive it though xDSL rather than a mlir-opt call for:
+                # - ability to use xDSL replacement passes in the middle
+                # - Avoiding complex process cmanagement code here: xDSL provides
+                xdsl = xDSLOptMain(args=xdsl_mlir_args)
+                out2 = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_mlir_args)}")
+                with redirect_stdout(out2):
+                    old_stdin = sys.stdin
+                    sys.stdin = out
+                    xdsl.run()
+                    sys.stdin = old_stdin
 
-                # Printer().print(out)
-
+                # mlir-translate to translate to LLVM-IR
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
-                # Printer().print(out)
+                out = self.compile(mlir_translate_cmd, out2.getvalue())
 
                 # Compile with clang and get LLVM-IR
                 clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
@@ -791,7 +836,7 @@ class Cpu64FsgOmpOperator(Cpu64FsgOperator):
 
 def generate_MLIR_CPU_PIPELINE():
     passes = [
-        "builtin.module(canonicalize",
+        "canonicalize",
         "cse",
         "loop-invariant-code-motion",
         "canonicalize",
@@ -808,15 +853,15 @@ def generate_MLIR_CPU_PIPELINE():
         "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
         "finalize-memref-to-llvm",
         "canonicalize",
-        "cse)"
+        "cse"
     ]
 
-    return generate_pipeline(passes)
+    return generate_mlir_pipeline(passes)
 
 
 def generate_MLIR_CPU_noop_PIPELINE():
     passes = [
-        "builtin.module(canonicalize",
+        "canonicalize",
         "cse",
         # "remove-dead-values",
         "canonicalize",
@@ -825,15 +870,15 @@ def generate_MLIR_CPU_noop_PIPELINE():
         "convert-math-to-llvm",
         "convert-func-to-llvm{use-bare-ptr-memref-call-conv}",
         "finalize-memref-to-llvm",
-        "canonicalize)",
+        "canonicalize",
     ]
 
-    return generate_pipeline(passes)
+    return generate_mlir_pipeline(passes)
 
 
 def generate_MLIR_OPENMP_PIPELINE():
     passes = [
-        "builtin.module(canonicalize",
+        "canonicalize",
         "cse",
         "loop-invariant-code-motion",
         "canonicalize",
@@ -858,10 +903,10 @@ def generate_MLIR_OPENMP_PIPELINE():
         # "reconcile-unrealized-casts",
         "canonicalize",
         # "print-ir",
-        "cse)"
+        "cse"
     ]
 
-    return generate_pipeline(passes)
+    return generate_mlir_pipeline(passes)
 
 
 def generate_XDSL_CPU_PIPELINE(nb_tiled_dims):
@@ -899,9 +944,14 @@ def generate_XDSL_MPI_PIPELINE(decomp, nb_tiled_dims):
     return generate_pipeline(passes)
 
 
-def generate_pipeline(passes):
+def generate_pipeline(passes: Iterable[str]):
     passes_string = ",".join(passes)
     return f'"{passes_string}"'
+
+
+def generate_mlir_pipeline(passes: Iterable[str]):
+    passes_string = ",".join(passes)
+    return f'mlir-opt[{passes_string}]'
 
 
 # small interop shim script for stuff that we don't want to implement in mlir-ir

@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 import io
 import os
+import sys
 from functools import partial
 from io import StringIO
 
@@ -9,7 +10,7 @@ from devito.arch.archinfo import get_nvidia_cc
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 
-from devito.core.cpu import XdslAdvOperator, generate_pipeline
+from devito.core.cpu import XdslAdvOperator, generate_mlir_pipeline, generate_pipeline
 
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
@@ -439,20 +440,42 @@ class XdslAdvDeviceOperator(XdslAdvOperator):
 
                 # xdsl-opt, get xDSL IR
                 # TODO: Remove quotes in pipeline; currently workaround with [1:-1]
-                xdsl = xDSLOptMain(args=[source_name, "-p", xdsl_pipeline[1:-1]])
+                # Run the first pipeline, mostly xDSL-centric
+                xdsl_args = [source_name,
+                             "--allow-unregistered-dialect",
+                             "-p",
+                             xdsl_pipeline[1:-1],]
+                # We use the Python API to run xDSL rather than a subprocess
+                # This avoids reimport overhead
+                xdsl = xDSLOptMain(args=xdsl_args)
                 out = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_args)}")
                 with redirect_stdout(out):
                     xdsl.run()
 
-                # mlir-opt
-                mlir_cmd = f'mlir-opt -p {mlir_pipeline}'
-                out = self.compile(mlir_cmd, out.getvalue())
+                # To use as input in the next stage
+                out.seek(0)
+                # Run the second pipeline, mostly MLIR-centric
+                xdsl_mlir_args = ["--allow-unregistered-dialect",
+                                  "-p",
+                                  mlir_pipeline]
+                # We drive it though xDSL rather than a mlir-opt call for:
+                # - ability to use xDSL replacement passes in the middle
+                # - Avoiding complex process cmanagement code here: xDSL provides
+                xdsl = xDSLOptMain(args=xdsl_mlir_args)
+                out2 = io.StringIO()
+                perf("-----------------")
+                perf(f"xdsl-opt {' '.join(xdsl_mlir_args)}")
+                with redirect_stdout(out2):
+                    old_stdin = sys.stdin
+                    sys.stdin = out
+                    xdsl.run()
+                    sys.stdin = old_stdin
 
-                # Printer().print(out)
-
+                # mlir-translate to translate to LLVM-IR
                 mlir_translate_cmd = 'mlir-translate --mlir-to-llvmir'
-                out = self.compile(mlir_translate_cmd, out)
-                # Printer().print(out)
+                out = self.compile(mlir_translate_cmd, out2.getvalue())
 
                 # Compile with clang and get LLVM-IR
                 clang_cmd = f'{cc} {cflags} -o {self._tf.name} {self._interop_tf.name} -xir -'  # noqa
@@ -562,7 +585,7 @@ def generate_XDSL_GPU_PIPELINE():
 # gpu-launch-sink-index-computations seemed to have no impact
 def generate_MLIR_GPU_PIPELINE(block_sizes):
     passes = [
-        "builtin.module(test-math-algebraic-simplification",
+        "test-math-algebraic-simplification",
         f"scf-parallel-loop-tiling{{parallel-loop-tile-sizes={block_sizes}}}",
         "func.func(gpu-map-parallel-loops)",
         "convert-parallel-loops-to-gpu",
@@ -593,7 +616,7 @@ def generate_MLIR_GPU_PIPELINE(block_sizes):
         "gpu-to-llvm",
         "gpu-module-to-binary",
         "canonicalize",
-        "cse)"
+        "cse"
     ]
 
-    return generate_pipeline(passes)
+    return generate_mlir_pipeline(passes)
