@@ -1037,6 +1037,7 @@ class TestSubdomainFunctionsParallel:
 
         if f._distributor.myrank == 0:
             assert np.all(data == check)
-        # FIXME: Some kind of weird None array on nonzero ranks
-        # else:
-        #     assert data is None
+        else:
+            # Size zero array of None, so can't check "is None"
+            # But check equal to None works, even though this is discouraged
+            assert data == None  # noqa
