@@ -88,13 +88,8 @@ jobs:
 
     - name: Seismic notebooks
       run: |
-        ${{ env.RUN_CMD }} py.test --nbval -k 'not dask' -k 'not synthetics' examples/seismic/tutorials/
+        ${{ env.RUN_CMD }} py.test --nbval -k 'not dask' -k examples/seismic/tutorials/
         ${{ env.RUN_CMD }} py.test --nbval examples/seismic/acoustic/accuracy.ipynb
-
-    - name: Failing notebooks
-      continue-on-error: true
-      run: |
-        ${{ env.RUN_CMD }} py.test --nbval examples/seismic/tutorials/14_creating_synthetics.ipynb
 
     - name: Dask notebooks
       if: runner.os != 'macOS'
