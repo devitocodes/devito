@@ -80,9 +80,13 @@ class DeviceOperatorMixin(object):
         # Distributed parallelism
         o['dist-drop-unwritten'] = oo.pop('dist-drop-unwritten', cls.DIST_DROP_UNWRITTEN)
 
-        # Misc
+        # Code generation options for derivatives
         o['expand'] = oo.pop('expand', cls.EXPAND)
-        o['optcomms'] = oo.pop('optcomms', True)
+        o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
+        o['deriv-unroll'] = oo.pop('deriv-unroll', False)
+
+        # Misc
+        o['opt-comms'] = oo.pop('opt-comms', True)
         o['linearize'] = oo.pop('linearize', False)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)

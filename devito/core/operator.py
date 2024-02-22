@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 from devito.core.autotuning import autotune
-from devito.exceptions import InvalidOperator
+from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.logger import warning
 from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
@@ -96,6 +96,12 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
+    DERIV_SCHEDULE = 'basic'
+    """
+    The schedule to use for the computation of finite-difference derivatives.
+    Only meaningful when `EXPAND=False`.
+    """
+
     MPI_MODES = tuple(mpi_registry)
     """
     The supported MPI modes.
@@ -143,6 +149,11 @@ class BasicOperator(Operator):
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
+
+        if oo['deriv-schedule'] not in ('basic', 'smart'):
+            raise InvalidArgument("Illegal `deriv-schedule` value")
+        if oo['deriv-unroll'] not in (False, 'inner', 'full'):
+            raise InvalidArgument("Illegal `deriv-unroll` value")
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

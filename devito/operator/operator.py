@@ -1,9 +1,10 @@
 from collections import OrderedDict, namedtuple
+import ctypes
 from operator import attrgetter
 from math import ceil
 
 from cached_property import cached_property
-import ctypes
+from sympy import sympify
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
@@ -1218,5 +1219,8 @@ def parse_kwargs(**kwargs):
                       kwargs['language'],
                       kwargs['platform'])
     )
+
+    # Normalize `subs`, if any
+    kwargs['subs'] = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}
 
     return kwargs

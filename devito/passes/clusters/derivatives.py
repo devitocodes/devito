@@ -1,10 +1,13 @@
+from functools import singledispatch
+
+from sympy import S
+
 from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
-from devito.symbolics import (retrieve_dimensions, reuse_if_untouched, q_leaf,
-                              uxreplace)
-from devito.tools import filter_ordered, timed_pass
-from devito.types import Eq, Inc, StencilDimension, Symbol
+from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
+from devito.tools import infer_dtype, timed_pass
+from devito.types import Eq, Inc, Indexed, Symbol
 
 __all__ = ['lower_index_derivatives']
 
@@ -23,12 +26,13 @@ def lower_index_derivatives(clusters, mode=None, **kwargs):
     # previously were just not detectable via e.g. plain CSE. For example, if
     # there were two IndexDerivatives such as `(p.dx + m.dx).dx` and `m.dx.dx`
     # then it's only after `_lower_index_derivatives` that they're detectable!
+    # TODO: see https://github.com/devitocodes/devito/issues/2306
     clusters = CDE(mapper).process(clusters)
 
     return clusters
 
 
-def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
+def _lower_index_derivatives(clusters, **kwargs):
     weights = {}
     processed = []
     mapper = {}
@@ -48,7 +52,7 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
             else:
                 reusable = set()
 
-            expr, v = _core(e, c, weights, reusable, mapper, sregistry)
+            expr, v = _core(e, c, c.ispace, weights, reusable, mapper, **kwargs)
 
             if v:
                 dump(exprs, c)
@@ -70,79 +74,126 @@ def _lower_index_derivatives(clusters, sregistry=None, **kwargs):
     return processed, weights, mapper
 
 
-def _core(expr, c, weights, reusables, mapper, sregistry):
+@singledispatch
+def _core(expr, c, ispace, weights, reusables, mapper, **kwargs):
     """
-    Recursively carry out the core of `lower_index_derivatives`.
+    Recursively carry out the core of `lower_index_derivatives` based
+    on single-dispatch.
     """
-    if q_leaf(expr):
-        return expr, []
-
     args = []
     processed = []
     for a in expr.args:
-        e, clusters = _core(a, c, weights, reusables, mapper, sregistry)
+        e, clusters = _core(a, c, ispace, weights, reusables, mapper, **kwargs)
         args.append(e)
         processed.extend(clusters)
 
     expr = reuse_if_untouched(expr, args)
 
-    if not isinstance(expr, IndexDerivative):
-        return expr, processed
+    return expr, processed
 
-    # Create concrete Weights and reuse them whenever possible
+
+@_core.register(Symbol)
+@_core.register(Indexed)
+@_core.register(BasicWrapperMixin)
+def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
+    return expr, []
+
+
+@_core.register(IndexDerivative)
+def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
+    sregistry = kwargs['sregistry']
+    options = kwargs['options']
+    subs_user = kwargs['subs']
+
+    try:
+        cbk0 = deriv_schedule_registry[options['deriv-schedule']]
+        cbk1 = deriv_unroll_registry[options['deriv-unroll']]
+    except KeyError:
+        raise ValueError("Unknown derivative lowering mode")
+
+    # Lower the IndexDerivative
+    init, ideriv = cbk0(expr)
+
+    # Create the concrete Weights array, or reuse an already existing one
+    # if possible
     name = sregistry.make_name(prefix='w')
-    w0 = expr.weights.function
+    w0 = ideriv.weights.function
+    dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
     k = tuple(w0.weights)
     try:
         w = weights[k]
     except KeyError:
-        w = weights[k] = w0._rebuild(name=name, dtype=expr.dtype)
-    expr = uxreplace(expr, {w0.indexed: w.indexed})
+        initvalue = tuple(i.subs(subs_user) for i in k)
+        w = weights[k] = w0._rebuild(name=name, dtype=dtype, initvalue=initvalue)
 
-    dims = retrieve_dimensions(expr, deep=True)
-    dims = filter_ordered(d for d in dims if isinstance(d, StencilDimension))
+    # Replace the abstract Weights array with the concrete one
+    subs = {w0.indexed: w.indexed}
+    init = uxreplace(init, subs)
+    ideriv = uxreplace(ideriv, subs)
 
-    dims = tuple(reversed(dims))
-
-    # If a StencilDimension already appears in `c.ispace`, perhaps with its custom
-    # upper and lower offsets, we honor it
-    dims = tuple(d for d in dims if d not in c.ispace)
+    # The IterationSpace in which the IndexDerivative will be computed
+    dims = ideriv.dimensions
 
     intervals = [Interval(d) for d in dims]
     directions = {d: Backward if d.backward else Forward for d in dims}
     ispace0 = IterationSpace(intervals, directions=directions)
 
-    extra = (c.ispace.itdims + dims,)
-    ispace = IterationSpace.union(c.ispace, ispace0, relations=extra)
-
-    # Set the IterationSpace along the StencilDimensions to start from 0
-    # (rather than the default `d._min`) to minimize the amount of integer
-    # arithmetic to calculate the various index access functions
+    # Minimize the amount of integer arithmetic to calculate the various index
+    # access functions by enforcing start at 0, e.g. `r0[x + i0 + 2] -> r0[x + i0]`
+    base = ideriv.base
     for d in dims:
-        ispace = ispace.translate(d, -d._min)
+        ispace0 = ispace0.translate(d, -d._min)
+        base = base.subs(d, d + d._min)
+    ideriv = ideriv._subs(ideriv.base, base)
 
+    # Should the IndexDerivative be unrolled?
+    init, expr, ispace0 = cbk1(init, ideriv, ispace0)
+
+    # The full IterationSpace
+    extra = (ispace.itdims + ispace0.itdims,)
+    ispace1 = IterationSpace.union(ispace, ispace0, relations=extra)
+
+    # The Symbol that will hold the result of the IndexDerivative computation
+    # NOTE: created before recurring so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert s.dtype is w.dtype
+        assert s.dtype is dtype
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=w.dtype)
-    expr0 = Eq(s, 0.)
-    ispace1 = ispace.project(lambda d: d is not dims[-1])
-    processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace1))
+        s = Symbol(name=name, dtype=dtype)
 
-    # Transform e.g. `r0[x + i0 + 2, y] -> r0[x + i0, y, z]` for alignment
-    # with the shifted `ispace`
-    base = expr.base
-    for d in dims:
-        base = base.subs(d, d + d._min)
-    expr1 = Inc(s, base*expr.weights)
-    processed.append(c.rebuild(exprs=expr1, ispace=ispace))
+    # Go inside `expr` and recursively lower any nested IndexDerivatives
+    expr, processed = _core(expr, c, ispace1, weights, reusables, mapper, **kwargs)
 
-    # Track lowered IndexDerivative for subsequent optimization by the caller
-    mapper.setdefault(expr1.rhs, []).append(s)
+    # Finally inject the lowered IndexDerivative
+    if init is not None:
+        expr0 = Eq(s, init)
+        processed.insert(0, c.rebuild(exprs=expr0, ispace=ispace))
+
+        expr1 = Inc(s, expr)
+        processed.append(c.rebuild(exprs=expr1, ispace=ispace1))
+    else:
+        expr1 = Eq(s, expr)
+        processed.append(c.rebuild(exprs=expr1, ispace=ispace1))
+
+    # Track the lowered IndexDerivative for subsequent optimization by the caller
+    mapper.setdefault(expr, []).append(s)
 
     return s, processed
+
+
+def _lower_index_derivative_base(ideriv):
+    return S.Zero, ideriv
+
+
+deriv_schedule_registry = {
+    'basic': _lower_index_derivative_base,
+}
+
+
+deriv_unroll_registry = {
+    False: lambda init, ideriv, ispace: (init, ideriv.expr, ispace)
+}
 
 
 class CDE(Queue):
@@ -150,6 +201,9 @@ class CDE(Queue):
     """
     Common derivative elimination.
     """
+
+    _q_guards_in_key = True
+    _q_syncs_in_key = True
 
     def __init__(self, mapper):
         super().__init__()

@@ -345,7 +345,7 @@ def mpiize(graph, **kwargs):
     """
     options = kwargs['options']
 
-    if options['optcomms']:
+    if options['opt-comms']:
         optimize_halospots(graph, **kwargs)
 
     mpimode = options['mpi']

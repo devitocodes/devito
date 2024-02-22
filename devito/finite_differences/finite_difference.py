@@ -1,6 +1,6 @@
 from sympy import sympify
 
-from .differentiable import EvalDerivative, IndexDerivative, Weights
+from .differentiable import EvalDerivative, DiffDerivative, Weights
 from .tools import (numeric_weights, symbolic_weights, left, right,
                     generate_indices, centered, direct, transpose,
                     check_input, check_symbolic)
@@ -247,7 +247,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic
             # Pure number
             pass
 
-        deriv = IndexDerivative(expr*weights, {dim: indices.free_dim})
+        deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
     else:
         terms = []
         for i, c in zip(indices, weights):
