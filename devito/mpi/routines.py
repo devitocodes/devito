@@ -625,16 +625,16 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
                 lsizes, lofs = mapper[(d, LEFT, OWNED)]
                 rsizes, rofs = mapper[(d, RIGHT, HALO)]
                 args = [f, lsizes, lofs, rofs, rpeer, lpeer, comm]
-                kwargs['haloid'] = len(body)
-                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+                body.append(self._call_sendrecv(sendrecv.name, *args, haloid=len(body),
+                            **kwargs))
 
             if (d, RIGHT) in hse.halos:
                 # Sending to right, receiving from left
                 rsizes, rofs = mapper[(d, RIGHT, OWNED)]
                 lsizes, lofs = mapper[(d, LEFT, HALO)]
                 args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
-                kwargs['haloid'] = len(body)
-                body.append(self._call_sendrecv(sendrecv.name, *args, **kwargs))
+                body.append(self._call_sendrecv(sendrecv.name, *args, haloid=len(body),
+                            **kwargs))
 
         iet = List(body=body)
 
@@ -1305,7 +1305,6 @@ class MPIMsgBase(CompositeObject):
         # The `memfree_args` will be used to deallocate the buffer upon
         # returning from C-land
         self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
-        return
 
     def _arg_defaults(self, allocator, alias, args=None):
         # Lazy initialization if `allocator` is necessary as the `allocator`
@@ -1416,15 +1415,14 @@ class MPIMsgBasic2(MPIMsgBase):
             for d1 in f.dimensions:
                 if d1 in fixed:
                     continue
+                if d0 is d1:
+                    if region is OWNED:
+                        sizes.append(getattr(f._size_owned[d0], side.name))
+                    elif region is HALO:
+                        sizes.append(getattr(f._size_halo[d0], side.name))
                 else:
-                    if d0 is d1:
-                        if region is OWNED:
-                            sizes.append(getattr(f._size_owned[d0], side.name))
-                        elif region is HALO:
-                            sizes.append(getattr(f._size_halo[d0], side.name))
-                    else:
-                        sizes.append(self._as_number(f._size_nopad[d1], args))
-            mapper[(d0, side, region)] = (sizes)
+                    sizes.append(self._as_number(f._size_nopad[d1], args))
+            mapper[(d0, side, region)] = sizes
 
         i = 0
         for d in f.dimensions:
