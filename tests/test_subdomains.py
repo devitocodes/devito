@@ -1000,39 +1000,66 @@ class TestSubdomainFunctionsParallel:
         assert np.all(h.data == h_check[slices])
         assert np.all(i.data == i_check)
 
+    def set_indices(data):
+        """
+        Set up individual indices for indexing/slicing check.
+        """
+        data[4, 2] = 1
+        data[0, 0] = 2
+        data[1, 1] = 3
+        data[0, -2] = 4
+        data[-2, 2] = 5
+
+    def set_open_slices(data):
+        """
+        Set up open-ended slices for indexing/slicing check.
+        """
+        data[2:] = 1
+        data[-2:] = 2
+
+    def set_closed_slices(data):
+        """
+        Set up closed slices for indexing/slicing check.
+        """
+        data[:] = 1
+        data[2:4, 1:-1] = 2
+        data[3:-2, 2:-3] = 3
+        data[-5:-3, -3:-2] = 4
+
+    def set_modulo_slices(data):
+        """
+        Set up modulo slices for indexing/slices check.
+        """
+        # TODO: Assignment with negative modulo indexing currently doesn't work for
+        # Functions defined on Grids or SubDomains. The two commented-out lines in
+        # this function should be reinstated when this is fixed.
+        data[::2, ::2] = 1
+        # data[-2::-3] = 2
+        # data[::-2] = 3
+        data[:, ::3] = 4
+        data[1::3] = 5
+
+    @pytest.mark.parametrize('setter', [set_indices, set_open_slices,
+                                        set_closed_slices, set_modulo_slices])
     @pytest.mark.parallel(mode=[(2, 'full')])
-    def test_indexing_mpi(self):
+    def test_indexing_mpi(self, setter):
         """
         Check that indexing into the Data of a Function defined on a SubDomain
         behaves as expected.
         """
+        # TODO: Check more subdomain configurations
         grid = Grid(shape=(10, 10), extent=(9., 9.))
         reduced_domain = ReducedDomain(('middle', 3, 1), ('right', 7), grid=grid)
 
         f = Function(name='f', grid=reduced_domain)
 
-        # Check indexing of individual points
-        f.data[4, 2] = 5
-        f.data[0, 0] = 6
-        f.data[1, 1] = 7
-        f.data[0, -2] = 8
-        f.data[-2, 2] = 9
+        # Set the points
+        setter(f.data)
 
         check = np.zeros(reduced_domain.shape)
+        setter(check)
 
-        check[4, 2] = 5
-        check[0, 0] = 6
-        check[1, 1] = 7
-        check[0, -2] = 8
-        check[-2, 2] = 9
-
-        print("f.shape", f.shape)
-        print("glb_shape", f._distributor.glb_shape)
-        print("all coords", f._distributor.all_coords)
-        print("all numb", f._distributor.all_numb)
-        print("all ranges", f._distributor.all_ranges)
-
-        # Can't gather inside the assert as it hangs
+        # Can't gather inside the assert as it hangs due to the if condition
         data = f.data_gather()
 
         if f._distributor.myrank == 0:
