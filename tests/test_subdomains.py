@@ -1137,17 +1137,21 @@ class TestSubdomainFunctionsParallel:
         data[:, ::3] = 4
         data[1::3] = 5
 
+    _mpi_subdomain_specs_x = [('middle', 3, 1), None]
+    _mpi_subdomain_specs_y = [('right', 7), ('middle', 2, 1), ('left', 7), None]
+
     @pytest.mark.parametrize('setter', [set_indices, set_open_slices,
                                         set_closed_slices, set_modulo_slices])
+    @pytest.mark.parametrize('x', _mpi_subdomain_specs_x)
+    @pytest.mark.parametrize('y', _mpi_subdomain_specs_y)
     @pytest.mark.parallel(mode=[(2, 'full')])
-    def test_indexing_mpi(self, setter):
+    def test_indexing_mpi(self, setter, x, y):
         """
         Check that indexing into the Data of a Function defined on a SubDomain
         behaves as expected.
         """
-        # TODO: Check more subdomain configurations
         grid = Grid(shape=(10, 10), extent=(9., 9.))
-        reduced_domain = ReducedDomain(('middle', 3, 1), ('right', 7), grid=grid)
+        reduced_domain = ReducedDomain(x, y, grid=grid)
 
         f = Function(name='f', grid=reduced_domain)
 
