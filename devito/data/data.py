@@ -244,11 +244,6 @@ class Data(np.ndarray):
                     for i in range(len(self.shape) - len(self._distributor.glb_shape)):
                         shape.insert(i, glb_shape[i])
                         idx.insert(i, slice(0, glb_shape[i]+1, 1))
-                    print("idx", idx)
-                    print("shape", shape, "data_slice", data_slice)
-                    print("reshaped", data_slice.reshape(tuple(shape)))
-                    print("retval", retval)
-                    print("retval[tuple(idx)]", retval[tuple(idx)])
                     retval[tuple(idx)] = data_slice.reshape(tuple(shape))
                 return retval
             else:
@@ -336,7 +331,6 @@ class Data(np.ndarray):
     def __setitem__(self, glb_idx, val, comm_type):
         loc_idx = self._index_glb_to_loc(glb_idx)
 
-        print("Remap on rank %s:" % self._distributor.comm.Get_rank(), glb_idx, loc_idx)
         if loc_idx is NONLOCAL:
             # no-op
             return
