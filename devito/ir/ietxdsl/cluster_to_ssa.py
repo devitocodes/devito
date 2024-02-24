@@ -1,8 +1,10 @@
 # ------------- General imports -------------#
 
-from typing import Any
+from typing import Any, Iterable
 from dataclasses import dataclass, field
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
+from devito.tools.data_structures import OrderedSet
+from devito.types.dense import DiscreteFunction
 
 # ------------- xdsl imports -------------#
 from xdsl.dialects import (arith, builtin, func, memref, scf,
@@ -16,6 +18,7 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
 )
+from xdsl.builder import ImplicitBuilder
 
 # ------------- devito imports -------------#
 from devito import Grid, SteppingDimension
@@ -30,6 +33,13 @@ from devito.ir.ietxdsl.ietxdsl_functions import dtypes_to_xdsltypes
 from devito.ir.ietxdsl.lowering import LowerIetForToScfFor
 
 # flake8: noqa
+
+def field_from_function(f: DiscreteFunction) -> stencil.FieldType:
+    halo = [f.halo[d] for d in f.grid.dimensions]
+    shape = f.grid.shape
+    bounds = [(-h[0], s+h[1]) for h, s in zip(halo, shape)]
+    return stencil.FieldType(bounds, element_type=dtypes_to_xdsltypes[f.dtype])
+
 
 class ExtractDevitoStencilConversion:
     """
@@ -58,76 +68,165 @@ class ExtractDevitoStencilConversion:
         self.block = outermost_block
 
         # u(t, x, y)
-        function = eq.lhs.function
-        mlir_type = dtypes_to_xdsltypes[function.dtype]
-        grid: Grid = function.grid
+        output_function = eq.lhs.function
+        mlir_type = dtypes_to_xdsltypes[output_function.dtype]
+        grid: Grid = output_function.grid
+        step_dim = grid.stepping_dim
 
         # Get the halo of the grid.dimensions
         # e.g [(2, 2), (2, 2)] for the 2D case
         # Do not forget the issue with Devito adding an extra point!
         # Check 'def halo_setup' for more
         # (for derivative regions)
-        halo = [function.halo[d] for d in grid.dimensions]
+        halo = [output_function.halo[d] for d in grid.dimensions]
 
         # Shift all time values so that for all accesses at t + n, n>=0.
-        
-        indexeds = retrieve_indexed(eq.rhs)
-        self.time_offs = int(indexeds[0].indices[0] - grid.stepping_dim)
-       
+
+        indexeds = retrieve_indexed(eq)
+        self.time_offs = -min(ind.indices[step_dim] - step_dim for ind in indexeds)
+
         # Get the time_size
         func_carriers = retrieve_function_carriers(eq)
         time_size = max(d.function.time_size for d in func_carriers)
-        
+
+        # Get all functions used in the equation
+        functions = OrderedSet(*(f.function for f in retrieve_function_carriers(eq)))
+
+        # For each used function, define as many fields as its time_size
+        fields = [[field_from_function(f)]*f.time_size for f in functions]
+        # Flatten the list for function signature
+        flat_fields = [f for ff in fields for f in ff]
+        # Create a function with the fields as arguments
+        f = func.FuncOp("apply_kernel", ([*flat_fields], []))
+        arg_names = [f"{f.name}_vec_{i}" for f in functions for i in range(f.time_size)]
+        f.attributes["param_names"] = builtin.ArrayAttr(builtin.StringAttr(a) for a in arg_names)
+        for i, arg_name in enumerate(arg_names):
+            f.body.block.args[i].name_hint = arg_names[i]
+
+        # import pdb; pdb.set_trace()
+        with ImplicitBuilder(f.body.block):
+            loop = self._build_step_loop(step_dim, functions, eq)
+            # func wants a return
+            func.Return()
+
+        # import pdb; pdb.set_trace()
         # Build the for loop
         perf("Build Time Loop")
-        loop = self._build_iet_for(grid.stepping_dim, time_size)
+        # loop = self._build_iet_for(step_dim, time_size)
 
         # build stencil
         perf("Initialize a stencil Op")
-        stencil_op = iet_ssa.Stencil.get(
-            loop.subindice_ssa_vals(),
-            grid.shape_local,
-            halo,
-            time_size,
-            mlir_type,
-            eq.lhs.function._C_name,
-        )
-        self.block.add_op(stencil_op)
-        self.block = stencil_op.block
+        # stencil_op = iet_ssa.Stencil.get(
+        #     loop.subindice_ssa_vals(),
+        #     grid.shape_local,
+        #     halo,
+        #     time_size,
+        #     mlir_type,
+        #     eq.lhs.function._C_name,
+        # )
+        # self.block.add_op(stencil_op)
+        # self.block = stencil_op.block
 
+        # import pdb; pdb.set_trace()
         # dims -> ssa vals
-        perf("Apply time offsets")
-        time_offset_to_field: dict[str, SSAValue] = {
-            i: stencil_op.block.args[i] for i in range(time_size - 1)
-        }
+        # perf("Apply time offsets")
+        # time_offset_to_field: dict[str, SSAValue] = {
+        #     i: stencil_op.block.args[i] for i in range(time_size - 1)
+        # }
 
         # reset loaded values
-        self.loaded_values: dict[tuple[int, ...], SSAValue] = dict()
+        # self.loaded_values: dict[tuple[int, ...], SSAValue] = dict()
 
         # add all loads into the stencil
-        perf("Add stencil Loads")
-        self._add_access_ops(retrieve_indexed(eq.rhs), time_offset_to_field)
+        # perf("Add stencil Loads")
+        # self._add_access_ops(retrieve_indexed(eq.rhs), time_offset_to_field)
 
         # add math
-        perf("Visiting math equations")
-        rhs_result = self._visit_math_nodes(eq.rhs)
+        # perf("Visiting math equations")
+        # rhs_result = self._visit_math_nodes(eq.rhs)
 
         # emit return
-        offsets = _get_dim_offsets(eq.lhs, self.time_offs)
+        # offsets = _get_dim_offsets(eq.lhs, self.time_offs)
 
-        assert (
-            offsets[0] == time_size - 1
-        ), "result should be written to last time buffer"
-        assert all(
-            o == 0 for o in offsets[1:]
-        ), f"can only write to offset [0,0,0], given {offsets[1:]}"
+        # assert (
+        #     offsets[0] == time_size - 1
+        # ), "result should be written to last time buffer"
+        # assert all(
+        #     o == 0 for o in offsets[1:]
+        # ), f"can only write to offset [0,0,0], given {offsets[1:]}"
 
-        self.block.add_op(stencil.ReturnOp.get([rhs_result]))
-        outermost_block.add_op(func.Return())
+        # self.block.add_op(stencil.ReturnOp.get([rhs_result]))
+        # outermost_block.add_op(func.Return())
 
-        return func.FuncOp.from_region(
-            "apply_kernel", [], [], Region([outermost_block])
-        )
+        # return func.FuncOp.from_region(
+        #     "apply_kernel", [], [], Region([outermost_block])
+        # )
+        return f
+    def _visit_math_nodes_bis(self, dim: SteppingDimension, node: Expr, temps: dict[tuple[DiscreteFunction, int], SSAValue], output_indexed:Indexed) -> SSAValue:
+        # Handle Indexeds
+        if isinstance(node, Indexed):
+            space_offsets = [node.indices[d] - output_indexed.indices[d] for d in node.function.space_dimensions]
+            # import pdb; pdb.set_trace()
+            temp = temps[(node.function, node.indices[dim] - dim + self.time_offs)]
+            access = stencil.AccessOp.get(temp, space_offsets)
+            return access.res
+        # Handle Integers
+        elif isinstance(node, Integer):
+            cst = arith.Constant.from_int_and_width(int(node), builtin.i64)
+            return cst.result
+        # Handle Floats
+        elif isinstance(node, Float):
+            cst = arith.Constant(builtin.FloatAttr(float(node), builtin.f32))
+            return cst.result
+        # Handle Symbols
+        elif isinstance(node, Symbol):
+            symb = iet_ssa.LoadSymbolic.get(node.name, builtin.f32)
+            return symb.result     
+        # Handle Add Mul
+        elif isinstance(node, (Add, Mul)):
+            args = [self._visit_math_nodes_bis(dim, arg, temps, output_indexed) for arg in node.args]
+            # add casts when necessary
+            # get first element out, store the rest in args
+            # this makes the reduction easier
+            carry, *args = self._ensure_same_type_bis(*args)
+            # select the correct op from arith.addi, arith.addf, arith.muli, arith.mulf
+            if isinstance(carry.type, builtin.IntegerType):
+                op_cls = arith.Addi if isinstance(node, Add) else arith.Muli
+            elif isinstance(carry.type, builtin.Float32Type):
+                op_cls = arith.Addf if isinstance(node, Add) else arith.Mulf
+            else:
+                raise("Add support for another type")
+            for arg in args:
+                op = op_cls(carry, arg)
+                carry = op.result
+            return carry
+        # Handle Pow
+        elif isinstance(node, Pow):
+            args = [self._visit_math_nodes_bis(dim, arg, temps, output_indexed) for arg in node.args]
+            assert len(args) == 2, "can't pow with != 2 args!"
+            base, ex = args
+            if is_int(base):
+                if is_int(ex):
+                    op_cls = math.IpowIOP
+                else:
+                    raise ValueError("no IPowFOp yet!")
+            elif is_float(base):
+                if is_float(ex):
+                    op_cls = math.PowFOp
+                elif is_int(ex):
+                    op_cls = math.FPowIOp
+                else:
+                    raise ValueError("Expected float or int as pow args!")
+            else:
+                raise ValueError("Expected float or int as pow args!")
+
+            op = op_cls(base, ex)
+            return op.result
+        # Handle Mod
+        elif isinstance(node, Mod):
+            raise NotImplementedError("Go away, no mod here. >:(")
+        else:
+            raise NotImplementedError(f"Unknown math: {node}", node)
 
     def _visit_math_nodes(self, node: Expr) -> SSAValue:
         # Handle Indexeds
@@ -197,7 +296,6 @@ class ExtractDevitoStencilConversion:
         else:
             raise NotImplementedError(f"Unknown math: {node}", node)
 
-
     def _add_access_ops(
         self, reads: list[Indexed], time_offset_to_field: dict[int, SSAValue]
     ):
@@ -211,7 +309,7 @@ class ExtractDevitoStencilConversion:
             """
             # get the compile time constant offsets for this read
             offsets = _get_dim_offsets(read, self.time_offs)
-            
+
             if offsets in self.loaded_values:
                 continue
 
@@ -228,6 +326,104 @@ class ExtractDevitoStencilConversion:
             # cache the resulting ssa value for later use
             # by the offsets (same offset = same value)
             self.loaded_values[offsets] = access_op.res
+
+    def _build_step_body(self, dim: SteppingDimension, functions:Iterable[DiscreteFunction], eq:LoweredEq) -> None:
+        iter_args = ImplicitBuilder.get().insertion_point.block.args[1:]
+
+        output_function = eq.lhs.function
+        output_time_offset = eq.lhs.indices[dim] - dim + self.time_offs
+
+        function_fields : dict[tuple[DiscreteFunction, int], SSAValue] = {}
+        handled_args = 0
+        for f in functions:
+            for i in range(f.time_size):
+                function_fields[(f, i)] = iter_args[handled_args + i]
+            handled_args += f.time_size
+
+        function_temps : dict[tuple[DiscreteFunction, int], SSAValue] = {}
+        for (function, time_offset), field in function_fields.items():
+            # import pdb; pdb.set_trace()
+            if (function, time_offset) == (output_function, output_time_offset):
+                continue
+            load = stencil.LoadOp.get(field)
+
+            function_temps[(function, time_offset)] = load.res
+
+        shape = output_function.grid.shape_local
+        apply = stencil.ApplyOp.get(
+            function_temps.values(),
+            Block(arg_types=[a.type for a in function_temps.values()]),
+            result_types=[stencil.TempType(len(shape), element_type=dtypes_to_xdsltypes[output_function.dtype])]
+        )
+
+        apply_temps = {k:v for k,v in zip(function_temps.keys(), apply.region.block.args)}
+
+        with ImplicitBuilder(apply.region.block):
+            stencil.ReturnOp.get([self._visit_math_nodes_bis(dim, eq.rhs, apply_temps, eq.lhs)])
+        # TODO Think about multiple outputs
+        stencil.StoreOp.get(
+            apply.res[0],
+            function_fields[output_function, output_time_offset],
+            stencil.IndexAttr.get(*([0] * len(shape))),
+            stencil.IndexAttr.get(*shape),
+        )
+
+    def _build_step_loop(
+        self,
+        dim: SteppingDimension,
+        functions: Iterable[DiscreteFunction],
+        eq: LoweredEq,
+    ) -> scf.For:
+        # Bounds and step boilerpalte
+        lb = iet_ssa.LoadSymbolic.get(dim.symbolic_min._C_name, builtin.IndexType())
+        ub = iet_ssa.LoadSymbolic.get(dim.symbolic_max._C_name, builtin.IndexType())
+        one = arith.Constant.from_int_and_width(1, builtin.IndexType())
+        try:
+            step = arith.Constant.from_int_and_width(
+                int(dim.symbolic_incr), builtin.IndexType()
+            )
+            step.result.name_hint = "step"
+        except:
+            raise ValueError("step must be int!")
+
+        # Get the function arguments for iteration arguments
+        func_args = ImplicitBuilder.get().insertion_point.block.args
+
+        # Do the inital buffer permutation
+        # Devito starts with the order t, t-1, t-2, ... t-(to-1)
+        # In our language, this gives: t, t+(to-1), t+(to-2), ..., t+1
+
+        for_args = []
+        handled_args = 0
+        # For each Devito function
+        for f in functions:
+            # Get their corresponding fields
+            fargs = func_args[handled_args : handled_args + f.time_size]
+            fargs = [fargs[2], fargs[0], fargs[1]]
+            for_args += fargs
+
+            handled_args += f.time_size
+
+        # Create the for loop
+        loop = scf.For(lb, arith.Addi(ub, one), step, for_args, Block(arg_types=[builtin.IndexType()] + [a.type for a in func_args]))
+        with ImplicitBuilder(loop.body.block):
+
+            self._build_step_body(dim, functions, eq)
+
+            # Compute the yield order to implement the buffer swap in MLIR
+            yield_args = []
+            # Skip the induction variable
+            handled_args = 1
+            # For each Devito function
+            for f in functions:
+                # Get their corresponding iteration fields
+                fargs = loop.body.block.args[handled_args:handled_args + f.time_size]
+                # Yield them swapped
+                yield_args.append(fargs[-1])
+                yield_args += fargs[:-1]
+
+                handled_args += f.time_size
+            scf.Yield(*yield_args)
 
     def _build_iet_for(
         self, dim: SteppingDimension, subindices: int
@@ -286,6 +482,35 @@ class ExtractDevitoStencilConversion:
             processed.append(conv.result)
         return processed
 
+    def _ensure_same_type_bis(self, *vals: SSAValue):
+        if all(isinstance(val.type, builtin.IntegerAttr) for val in vals):
+            return vals
+        if all(is_float(val) for val in vals):
+            return vals
+        # not everything homogeneous
+        processed = []
+        for val in vals:
+            if is_float(val):
+                processed.append(val)
+                continue
+            # if the val is the result of a arith.constant with no uses,
+            # we change the type of the arith.constant to our desired type
+            if (
+                isinstance(val, OpResult)
+                and isinstance(val.op, arith.Constant)
+                and val.uses == 0
+            ):
+                val.type = builtin.f32
+                val.op.attributes["value"] = builtin.FloatAttr(
+                    float(val.op.value.value.data), builtin.f32
+                )
+                processed.append(val)
+                continue
+            # insert an integer to float cast op
+            conv = arith.SIToFPOp(val, builtin.f32)
+            processed.append(conv.result)
+        return processed
+
 
 def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
     # shift all time values so that for all accesses at t + n, n>=0.
@@ -301,7 +526,6 @@ def _get_dim_offsets(idx: Indexed, t_offset: int) -> tuple:
         )
     except Exception as ex:
         raise ValueError("Indices must be constant offset from dimension!") from ex
-
 
 
 # -------------------------------------------------------- ####
@@ -495,23 +719,29 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
     def match_and_rewrite(self, op: iet_ssa.LoadSymbolic, rewriter: PatternRewriter, /):
         parent: func.FuncOp | None = get_containing_func(op)
         assert parent is not None
-        args = self.func_to_args[func]
+        args = list(parent.body.block.args)
         symb_name = op.symbol_name.data
 
-        if symb_name not in args:
-            body = parent.body.blocks[0]
-            args[symb_name] = body.insert_arg(op.result.type, len(body.args))
+        try:
+            arg_index = [a.name_hint for a in args].index(symb_name)
+        except ValueError:
+            arg_index = -1
+
+        if arg_index == -1:
+            body = parent.body.block
+            args.append(body.insert_arg(op.result.type, len(body.args)))
+            arg_index = len(args) - 1
             
 
-        op.result.replace_by(args[symb_name])
+        op.result.replace_by(args[arg_index])
 
         rewriter.erase_matched_op()
         parent.update_function_type()
         # attach information on parameter names to func
         parent.attributes["param_names"] = builtin.ArrayAttr(
             [
-                builtin.StringAttr(name)
-                for name, _ in sorted(args.items(), key=lambda tpl: tpl[1].index)
+                builtin.StringAttr(arg.name_hint)
+                for arg in args
             ]
         )
 
