@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from xdsl.ir import Block, SSAValue, Operation, OpResult
+from xdsl.ir import Block, SSAValue, Operation
 from xdsl.dialects import builtin, scf, arith, func, llvm, memref
 
 from devito.ir.ietxdsl import iet_ssa
@@ -66,119 +66,6 @@ class ConvertForLoopVarToIndex(RewritePattern):
 
             loop_var.replace_by(i64_val.result)
             i64_val.operands[0] = loop_var
-
-
-class LowerIetForToScfFor(RewritePattern):
-    """
-    This lowers ALL `iet.for` loops it finds to *sequential* scf.for loops
-    regardless of whether the loop is declared "parallel".
-    """
-
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
-        body = op.body.detach_block(0)
-
-        field_name = op.attributes['index_owner'].data
-
-        subindice_vals = [
-            iet_ssa.LoadSymbolic.get(
-                f"{field_name}_{i}",
-                body.args[i+1].type,
-            ) for i in range(op.subindices.data)
-        ]
-        rewriter.insert_op_before_matched_op(subindice_vals)
-
-        subindice_vals = list(reversed(subindice_vals))
-        subindice_vals.append(subindice_vals.pop(0))
-
-        rewriter.replace_matched_op([
-            cst1 := arith.Constant.from_int_and_width(1, builtin.IndexType()),
-            new_ub := arith.Addi(op.ub, cst1),
-            scf_for := scf.For(op.lb, new_ub.result, op.step, subindice_vals, body),
-        ], [scf_for.results[0]])
-
-        for use in scf_for.results[0].uses:
-            if isinstance(use.operation, func.Return):
-                assert isinstance(use.operation.parent_op(), func.FuncOp)
-                use.operation.parent_op().update_function_type()
-
-
-class LowerIetForToScfParallel(RewritePattern):
-    """
-    This converts all loops with a "parallel" property to `scf.parallel`
-
-    It does not currently fuse together multiple nested parallel runs
-    """
-
-    @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: iet_ssa.For, rewriter: PatternRewriter, /):
-        if op.parallelism_property != 'parallel':
-            return
-
-        body: Block = op.body.detach_block(0)
-
-        assert op.subindices.data == 0
-
-        lb, ub, step, new_body = self.recurse_scf_parallel([op.lb], [op.ub],
-                                                           [op.step], body,
-                                                           rewriter)
-
-        # insert scf.yield at the bacl
-        rewriter.insert_op_at_pos(scf.Yield(), new_body, len(new_body.ops))
-
-        rewriter.replace_matched_op(
-            par_op := scf.ParallelOp.get(lb, ub, step, [new_body])
-        )
-
-        cst1 = arith.Constant.from_int_and_width(1, builtin.IndexType())
-        rewriter.insert_op_before_matched_op(cst1)
-        for ub_val in ub:
-            rewriter.insert_op_before_matched_op(
-                new_ub := arith.Addi.get(ub_val, cst1)
-            )
-            par_op.replace_operand(
-                par_op.operands.index(ub_val),
-                new_ub.result
-            )
-
-    def recurse_scf_parallel(
-        self,
-        lbs: list[SSAValue],
-        ubs: list[SSAValue],
-        steps: list[SSAValue],
-        body: Block,
-        rewriter: PatternRewriter,
-    ):
-        if not (len(body.ops) == 2 and isinstance(body.ops[1], iet_ssa.For)
-                and body.ops[1].parallelism_property == 'parallel'):
-            return lbs, ubs, steps, body
-        inner_for = body.ops[1]
-        # re-use step
-        step = inner_for.step
-        if isinstance(inner_for.step, OpResult) and isinstance(
-                inner_for.step.op, arith.Constant):
-            if inner_for.step.op.value.value.data == steps[
-                    0].op.value.value.data:
-                step = steps[0]
-                if len(inner_for.step.uses) > 1:
-                    assert False, "TODO: move op out of loop"
-
-        steps.append(step)
-        lbs.append(inner_for.lb)
-        ubs.append(inner_for.ub)
-
-        new_body = inner_for.body.detach_block(0)
-        for arg in body.args:
-            new_body.insert_arg(arg.type, arg.index)
-            arg.replace_by(new_body.args[arg.index])
-
-        body = new_body
-
-        lbs, ubs, steps, body = self.recurse_scf_parallel(
-            lbs, ubs, steps, body, rewriter)
-
-        return lbs, ubs, steps, body
-
 
 @dataclass
 class LowerIetPointerCastAndDataObject(RewritePattern):
