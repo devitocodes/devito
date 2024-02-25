@@ -6,7 +6,6 @@ from xdsl.ir import (OpResult,
                      Dialect)
 
 
-
 @irdl_op_definition
 class LoadSymbolic(IRDLOperation):
     name = "devito.load_symbolic"
@@ -22,6 +21,7 @@ class LoadSymbolic(IRDLOperation):
         )
         op.result.name_hint = name
         return op
+
 
 DEVITO_SSA = Dialect([
     LoadSymbolic
