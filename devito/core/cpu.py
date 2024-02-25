@@ -288,8 +288,8 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
     def _lower_stencil(cls, expressions):
         # [Eq] -> [xdsl]
         # Lower expressions to a builtin.ModuleOp
-        conv = ExtractDevitoStencilConversion(expressions)
-        module = conv.convert()
+        conv = ExtractDevitoStencilConversion()
+        module = conv.convert(expressions)
         # Uncomment to print
         # Printer().print(module)
         convert_devito_stencil_to_xdsl_stencil(module, timed=True)

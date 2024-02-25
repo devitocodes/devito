@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from sympy import Add, Expr, Float, Indexed, Integer, Mod, Mul, Pow, Symbol
 from devito.tools.data_structures import OrderedSet
 from devito.types.dense import DiscreteFunction
+from devito.types.equation import Eq
 
 # ------------- xdsl imports -------------#
 from xdsl.dialects import (arith, builtin, func, memref, scf,
@@ -57,10 +58,6 @@ class ExtractDevitoStencilConversion:
     loaded_values: dict[tuple[int, ...], SSAValue]
     time_offs: int
 
-    def __init__(self, eqs: list[LoweredEq]) -> None:
-        self.eqs = eqs
-        self.loaded_values = dict()
-
     def _convert_eq(self, eq: LoweredEq):
         # Convert a Devito equation to a func.func op
         # an equation may look like this:
@@ -68,9 +65,6 @@ class ExtractDevitoStencilConversion:
         if isinstance(eq.lhs, Symbol):
             return func.FuncOp.external(eq.lhs.name, [], [builtin.i32])
         assert isinstance(eq.lhs, Indexed)
-
-        outermost_block = Block([])
-        self.block = outermost_block
 
         # u(t, x, y)
         output_function = eq.lhs.function
@@ -256,10 +250,10 @@ class ExtractDevitoStencilConversion:
                 handled_args += f.time_size
             scf.Yield(*yield_args)
 
-    def convert(self) -> builtin.ModuleOp:
+    def convert(self, eqs: Iterable[Eq]) -> builtin.ModuleOp:
         # Lower equations to a ModuleOp
         return builtin.ModuleOp(
-            Region([Block([self._convert_eq(eq) for eq in self.eqs])])
+            Region([Block([self._convert_eq(eq) for eq in eqs])])
         )
 
 
