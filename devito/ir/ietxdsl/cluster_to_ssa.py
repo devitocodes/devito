@@ -60,7 +60,6 @@ class ExtractDevitoStencilConversion:
     def __init__(self, eqs: list[LoweredEq]) -> None:
         self.eqs = eqs
         self.loaded_values = dict()
-        self.time_offs = 0
 
     def _convert_eq(self, eq: LoweredEq):
         # Convert a Devito equation to a func.func op
@@ -78,22 +77,6 @@ class ExtractDevitoStencilConversion:
         grid: Grid = output_function.grid
         step_dim = grid.stepping_dim
 
-        # Get the halo of the grid.dimensions
-        # e.g [(2, 2), (2, 2)] for the 2D case
-        # Do not forget the issue with Devito adding an extra point!
-        # Check 'def halo_setup' for more
-        # (for derivative regions)
-        halo = [output_function.halo[d] for d in grid.dimensions]
-
-        # Shift all time values so that for all accesses at t + n, n>=0.
-
-        indexeds = retrieve_indexed(eq)
-        self.time_offs = -min(ind.indices[step_dim] - step_dim for ind in indexeds)
-
-        # Get the time_size
-        func_carriers = retrieve_function_carriers(eq)
-        time_size = max(d.function.time_size for d in func_carriers)
-
         # Get all functions used in the equation
         functions = OrderedSet(*(f.function for f in retrieve_function_carriers(eq)))
 
@@ -106,11 +89,10 @@ class ExtractDevitoStencilConversion:
         arg_names = [f"{f.name}_vec_{i}" for f in functions for i in range(f.time_size)]
         f.attributes["param_names"] = builtin.ArrayAttr(builtin.StringAttr(a) for a in arg_names)
         for i, arg_name in enumerate(arg_names):
-            f.body.block.args[i].name_hint = arg_names[i]
+            f.body.block.args[i].name_hint = arg_name
 
-        # import pdb; pdb.set_trace()
         with ImplicitBuilder(f.body.block):
-            loop = self._build_step_loop(step_dim, functions, eq)
+            self._build_step_loop(step_dim, functions, eq)
             # func wants a return
             func.Return()
         
@@ -246,21 +228,6 @@ class ExtractDevitoStencilConversion:
 
         # Get the function arguments for iteration arguments
         func_args = ImplicitBuilder.get().insertion_point.block.args
-
-        # Do the inital buffer permutation
-        # Devito starts with the order t, t-1, t-2, ... t-(to-1)
-        # In our language, this gives: t, t+(to-1), t+(to-2), ..., t+1
-
-        # for_args = []
-        # handled_args = 0
-        # # For each Devito function
-        # for f in functions:
-        #     # Get their corresponding fields
-        #     fargs = func_args[handled_args : handled_args + f.time_size]
-        #     fargs = [fargs[0], *reversed(fargs[1:])]
-        #     for_args += fargs
-
-        #     handled_args += f.time_size
 
         # Create the for loop
         loop = scf.For(lb, arith.Addi(ub, one), step, func_args, Block(arg_types=[builtin.IndexType()] + [a.type for a in func_args]))
