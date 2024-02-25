@@ -108,10 +108,10 @@ class ExtractDevitoStencilConversion:
             loop = self._build_step_loop(step_dim, functions, eq)
             # func wants a return
             func.Return()
-
-        # import pdb; pdb.set_trace()
+        
+        # import pdb; pdb.set_trace()s
         # Build the for loop
-        perf("Build Time Loop")
+        # perf("Build Time Loop")
         # loop = self._build_iet_for(step_dim, time_size)
 
         # build stencil
@@ -167,7 +167,7 @@ class ExtractDevitoStencilConversion:
         if isinstance(node, Indexed):
             space_offsets = [node.indices[d] - output_indexed.indices[d] for d in node.function.space_dimensions]
             # import pdb; pdb.set_trace()
-            temp = temps[(node.function, node.indices[dim] - dim + self.time_offs)]
+            temp = temps[(node.function, (node.indices[dim] - dim) % node.function.time_size)]
             access = stencil.AccessOp.get(temp, space_offsets)
             return access.res
         # Handle Integers
@@ -331,7 +331,7 @@ class ExtractDevitoStencilConversion:
         iter_args = ImplicitBuilder.get().insertion_point.block.args[1:]
 
         output_function = eq.lhs.function
-        output_time_offset = eq.lhs.indices[dim] - dim + self.time_offs
+        output_time_offset = (eq.lhs.indices[dim] - dim) % eq.lhs.function.time_size
 
         function_fields : dict[tuple[DiscreteFunction, int], SSAValue] = {}
         handled_args = 0
@@ -346,6 +346,7 @@ class ExtractDevitoStencilConversion:
             if (function, time_offset) == (output_function, output_time_offset):
                 continue
             load = stencil.LoadOp.get(field)
+            load.res.name_hint = f"{function.name}_t{time_offset}_temp"
 
             function_temps[(function, time_offset)] = load.res
 
@@ -355,6 +356,8 @@ class ExtractDevitoStencilConversion:
             Block(arg_types=[a.type for a in function_temps.values()]),
             result_types=[stencil.TempType(len(shape), element_type=dtypes_to_xdsltypes[output_function.dtype])]
         )
+        for apply_arg, apply_op in zip(apply.region.block.args, apply.operands):
+            apply_arg.name_hint = apply_op.name_hint[:-4]+"_blk"
 
         apply_temps = {k:v for k,v in zip(function_temps.keys(), apply.region.block.args)}
 
@@ -393,19 +396,25 @@ class ExtractDevitoStencilConversion:
         # Devito starts with the order t, t-1, t-2, ... t-(to-1)
         # In our language, this gives: t, t+(to-1), t+(to-2), ..., t+1
 
-        for_args = []
-        handled_args = 0
-        # For each Devito function
-        for f in functions:
-            # Get their corresponding fields
-            fargs = func_args[handled_args : handled_args + f.time_size]
-            fargs = [fargs[2], fargs[0], fargs[1]]
-            for_args += fargs
+        # for_args = []
+        # handled_args = 0
+        # # For each Devito function
+        # for f in functions:
+        #     # Get their corresponding fields
+        #     fargs = func_args[handled_args : handled_args + f.time_size]
+        #     fargs = [fargs[0], *reversed(fargs[1:])]
+        #     for_args += fargs
 
-            handled_args += f.time_size
+        #     handled_args += f.time_size
 
         # Create the for loop
-        loop = scf.For(lb, arith.Addi(ub, one), step, for_args, Block(arg_types=[builtin.IndexType()] + [a.type for a in func_args]))
+        loop = scf.For(lb, arith.Addi(ub, one), step, func_args, Block(arg_types=[builtin.IndexType()] + [a.type for a in func_args]))
+        loop.body.block.args[0].name_hint = "time"
+        handled_args = 0
+        for f in functions:
+            for i in range(f.time_size):
+                loop.body.block.args[1+handled_args+i].name_hint = f"{f.name}_t{i}"
+            handled_args += f.time_size
         with ImplicitBuilder(loop.body.block):
 
             self._build_step_body(dim, functions, eq)
@@ -419,8 +428,8 @@ class ExtractDevitoStencilConversion:
                 # Get their corresponding iteration fields
                 fargs = loop.body.block.args[handled_args:handled_args + f.time_size]
                 # Yield them swapped
-                yield_args.append(fargs[-1])
-                yield_args += fargs[:-1]
+                yield_args += fargs[1:]
+                yield_args.append(fargs[0])
 
                 handled_args += f.time_size
             scf.Yield(*yield_args)
