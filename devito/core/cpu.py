@@ -995,5 +995,5 @@ def generate_tiling_arg(nb_tiled_dims: int):
 
 def get_arg_names_from_module(op):
     return [
-        str_attr.data for str_attr in op.body.block.ops.first.attributes['param_names'].data  # noqa
+        str_attr.name_hint for str_attr in op.body.block.ops.first.body.block.args  # noqa
     ]

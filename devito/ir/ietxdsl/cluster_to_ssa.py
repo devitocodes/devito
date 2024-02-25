@@ -86,8 +86,8 @@ class ExtractDevitoStencilConversion:
         flat_fields = [f for ff in fields for f in ff]
         # Create a function with the fields as arguments
         f = func.FuncOp("apply_kernel", ([*flat_fields], []))
+        # Define nice argument names to try and stay sane while debugging
         arg_names = [f"{f.name}_vec_{i}" for f in functions for i in range(f.time_size)]
-        f.attributes["param_names"] = builtin.ArrayAttr(builtin.StringAttr(a) for a in arg_names)
         for i, arg_name in enumerate(arg_names):
             f.body.block.args[i].name_hint = arg_name
 
@@ -431,13 +431,6 @@ class _LowerLoadSymbolidToFuncArgs(RewritePattern):
 
         rewriter.erase_matched_op()
         parent.update_function_type()
-        # attach information on parameter names to func
-        parent.attributes["param_names"] = builtin.ArrayAttr(
-            [
-                builtin.StringAttr(arg.name_hint)
-                for arg in args
-            ]
-        )
 
 
 def convert_devito_stencil_to_xdsl_stencil(module, timed: bool = True):
