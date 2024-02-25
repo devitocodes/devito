@@ -76,6 +76,10 @@ class ExtractDevitoStencilConversion:
         # We identify time buffers by their function and positive time offset.
         # We store a list of those here to help the following steps.
         self.time_buffers = [(f, i) for f in functions for i in range(f.time_size)]
+        # Also store the time buffer used for output in this equation
+        output_time_offset = (eq.lhs.indices[step_dim] - step_dim) % eq.lhs.function.time_size
+        self.out_time_buffer = (output_function, output_time_offset)
+
 
         # For each used function, define as many fields as its time_size
         fields_types = [field_from_function(f) for (f, _) in self.time_buffers]
@@ -162,18 +166,15 @@ class ExtractDevitoStencilConversion:
             raise NotImplementedError(f"Unknown math: {node}", node)
 
     def _build_step_body(self, dim: SteppingDimension, eq:LoweredEq) -> None:
-        output_function = eq.lhs.function
-        output_time_offset = (eq.lhs.indices[dim] - dim) % eq.lhs.function.time_size
-
         loop_temps = {
             (f, t): stencil.LoadOp.get(a).res
             for (f, t), a in self.block_args.items()
-            if (f, t) != (output_function, output_time_offset)
+            if (f, t) != self.out_time_buffer
         }
         for (f,t), a in loop_temps.items():
             a.name_hint = f"{f.name}_t{t}_temp"        
 
-
+        output_function = self.out_time_buffer[0]
         shape = output_function.grid.shape_local
         apply = stencil.ApplyOp.get(
             loop_temps.values(),
@@ -190,7 +191,7 @@ class ExtractDevitoStencilConversion:
         # TODO Think about multiple outputs
         stencil.StoreOp.get(
             apply.res[0],
-            self.block_args[output_function, output_time_offset],
+            self.block_args[self.out_time_buffer],
             stencil.IndexAttr.get(*([0] * len(shape))),
             stencil.IndexAttr.get(*shape),
         )
