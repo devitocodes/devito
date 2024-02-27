@@ -244,8 +244,3 @@ def test_standard_mlir_rewrites(shape, so, to, nt):
     # XDSL Operator
     xdslop = Operator([stencil], opt='xdsl')
     xdslop.apply(time=nt, dt=dt)
-
-    from devito.ir.ietxdsl.lowering import iet_to_standard_mlir
-
-    # Check coverage of unused iet iet_to_standard_mlir
-    iet_to_standard_mlir(xdslop._module)
