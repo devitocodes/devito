@@ -66,22 +66,31 @@ class ExtractDevitoStencilConversion:
             return xdsl_func.FuncOp.external(eq.lhs.name, [], [builtin.i32])
         assert isinstance(eq.lhs, Indexed)
 
-        # u(t, x, y)
+        # Get the left hand side, called "output function" here because it tells us
+        # Where to write the results of each step.
         output_function = eq.lhs.function
+        # Get its grid: contains all necessary discretization information
+        # (Grid size, halo width, ...)
         grid: Grid = output_function.grid
+        # Get the stepping dimension. It's usually time, and usually the first one.
+        # Getting it here; more readable and less input assumptions :)
         step_dim = grid.stepping_dim
 
         # Get all functions used in the equation
         functions = OrderedSet(*(f.function for f in retrieve_function_carriers(eq)))
         # We identify time buffers by their function and positive time offset.
+        # e.g., u(t+2, x-1, y) would be indentified as (u, 2)
+        # NB. We map time offsets to positive with simple modulo arithmetic: if u has a
+        # a time size of 3, then u(t-2, ...) is identified as u(t, 1).
+
         # We store a list of those here to help the following steps.
         self.time_buffers = [(f, i) for f in functions for i in range(f.time_size)]
-        # Also store the time buffer used for output in this equation
+
+        # Also, store the output function's time buffer of this equation
         output_time_offset = (eq.lhs.indices[step_dim] - step_dim) % eq.lhs.function.time_size
         self.out_time_buffer = (output_function, output_time_offset)
 
-
-        # For each used function, define as many fields as its time_size
+        # For each used time_buffer, define a stencil.field type for the function .
         fields_types = [field_from_function(f) for (f, _) in self.time_buffers]
 
         # Create a function with the fields as arguments
