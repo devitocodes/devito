@@ -448,7 +448,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
             lpeer = FieldFromPointer(name, nb)
 
+            import pdb;pdb.set_trace()
             if (d, LEFT) in hse.halos:
+                print(lpeer, rpeer)
                 # Sending to left, receiving from right
                 lsizes, lofs = mapper[(d, LEFT, OWNED)]
                 rsizes, rofs = mapper[(d, RIGHT, HALO)]
@@ -457,6 +459,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
             if (d, RIGHT) in hse.halos:
                 # Sending to right, receiving from left
+                print(lpeer, rpeer)
                 rsizes, rofs = mapper[(d, RIGHT, OWNED)]
                 lsizes, lofs = mapper[(d, LEFT, HALO)]
                 args = [f, rsizes, rofs, lofs, lpeer, rpeer, comm]
@@ -1636,8 +1639,8 @@ class MPIMsgBasic3(MPIMsgBasic2):
             ofs = []
             for d1 in f.dimensions:
                 if d1 in fixed:
-                    # v = fixed[d1]
-                    # ofs.append(self._as_number(v, args))
+                    v = fixed[d1]
+                    ofs.append(v)
                     continue
                 else:
                     if d0 is d1:
@@ -1653,11 +1656,11 @@ class MPIMsgBasic3(MPIMsgBasic2):
                             ofs.append(v)
                     else:
                         sizes.append(self._as_number(f._size_nopad[d1], args))
-                        import pdb;pdb.set_trace()
-                        v = getattr(f._offset_domain[d0], side.name)
+                        # import pdb;pdb.set_trace()
+                        v = f._offset_domain[d0]
                         ofs.append(v)
 
-            import pdb;pdb.set_trace()
+            # import pdb;pdb.set_trace()
             mapper[(d0, side, region)] = (sizes, ofs)
 
         i = 0
@@ -1670,17 +1673,22 @@ class MPIMsgBasic3(MPIMsgBasic2):
 
                 import pdb;pdb.set_trace()
 
+                # We should try to construct the lpeer and rpeer as per basichalo
+                # Then feed this neighbothood and get back the communication
+                # Check how it is done in basichalo!!!!
                 entry.torank = -1
 
                 i = i + 1
                 # Sending to left, receiving from right
-                shape = mapper[(d, LEFT, OWNED)]
+                shape, ofs = mapper[(d, LEFT, OWNED)]
                 # Allocate the send/recv buffers
                 entry.sizes = (c_int*len(shape))(*shape)
                 size = reduce(mul, shape)*dtype_len(self.target.dtype)
                 ctype = dtype_to_ctype(f.dtype)
                 entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
                 entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
+
+                entry.ofsg = (c_int*len(ofs))(*ofs)
 
                 # The `memfree_args` will be used to deallocate the buffer upon
                 # returning from C-land
@@ -1693,7 +1701,7 @@ class MPIMsgBasic3(MPIMsgBasic2):
 
                 i = i + 1
                 # Sending to right, receiving from left
-                shape = mapper[(d, RIGHT, OWNED)]
+                shape, ofs = mapper[(d, RIGHT, OWNED)]
                 # Allocate the send/recv buffers
                 entry.sizes = (c_int*len(shape))(*shape)
                 size = reduce(mul, shape)*dtype_len(self.target.dtype)
@@ -1701,6 +1709,9 @@ class MPIMsgBasic3(MPIMsgBasic2):
                 entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
                 entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
 
+                entry.ofsg = (c_int*len(ofs))(*ofs)
+                
+                
                 # The `memfree_args` will be used to deallocate the buffer upon
                 # returning from C-land
                 self._memfree_args.extend([bufg_memfree_args, bufs_memfree_args])
