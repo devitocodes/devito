@@ -184,8 +184,12 @@ class ExtractDevitoStencilConversion:
             Block(arg_types=[a.type for a in loop_temps.values()]),
             result_types=[stencil.TempType(len(shape), element_type=dtypes_to_xdsltypes[output_function.dtype])]
         )
+
+        #Give names to stencil.apply's block arguments
         for apply_arg, apply_op in zip(apply.region.block.args, apply.operands):
-            apply_arg.name_hint = apply_op.name_hint[:-4]+"_blk"
+            # Just reuse the corresponding operand name
+            # i.e. %v_t1_temp -> %v_t1_blk
+            apply_arg.name_hint = apply_op.name_hint[:-5]+"_blk"
 
         self.apply_temps = {k:v for k,v in zip(loop_temps.keys(), apply.region.block.args)}
 
