@@ -83,8 +83,10 @@ class ExtractDevitoStencilConversion:
 
         # For each used function, define as many fields as its time_size
         fields_types = [field_from_function(f) for (f, _) in self.time_buffers]
+
         # Create a function with the fields as arguments
         xdsl_func = func.FuncOp("apply_kernel", (fields_types, []))
+
         # Define nice argument names to try and stay sane while debugging
         # And store in self.function_args a mapping from time_buffers to their
         # corresponding function arguments.
@@ -99,6 +101,7 @@ class ExtractDevitoStencilConversion:
             func.Return()
 
         return xdsl_func
+
     def _visit_math_nodes(self, dim: SteppingDimension, node: Expr, output_indexed:Indexed) -> SSAValue:
         # Handle Indexeds
         if isinstance(node, Indexed):
