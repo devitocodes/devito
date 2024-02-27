@@ -732,6 +732,24 @@ class Weights(Array):
                 pass
             return super()._xreplace(rule)
 
+    @cached_property
+    def _npweights(self):
+        # NOTE: `self.weights` cannot just be an array or SymPy will fail
+        # internally at `__eq__` since numpy arrays requite .all, not ==,
+        # for equality comparison
+        return np.array(self.weights)
+
+    def value(self, idx):
+        try:
+            v = self.weights[idx]
+        except TypeError:
+            # E.g., `idx` is a tuple
+            v = self._npweights[idx]
+        if v.is_Number:
+            return sympy.sympify(v)
+        else:
+            return self[idx]
+
 
 class IndexDerivative(IndexSum):
 
