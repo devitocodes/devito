@@ -249,7 +249,7 @@ class ExtractDevitoStencilConversion:
 
         with ImplicitBuilder(apply.region.block):
             stencil.ReturnOp.get([self._visit_math_nodes(dim, eq.rhs, eq.lhs)])
-        # TODO Think about multiple outputs
+            
         stencil.StoreOp.get(
             apply.res[0],
             self.block_args[self.out_time_buffer],
