@@ -50,7 +50,7 @@ class Dimension(ArgProvider):
     ----------
     name : str
         Name of the dimension.
-    spacing : symbol, optional
+    spacing : symbol, optional, default=h_name
         A symbol to represent the physical spacing along this Dimension.
 
     Examples
@@ -774,19 +774,19 @@ class ConditionalDimension(DerivedDimension):
     ----------
     name : str
         Name of the dimension.
-    parent : Dimension, optional
+    parent : Dimension
         The parent Dimension.
-    factor : int, optional
+    factor : int, optional, default=None
         The number of iterations between two executions of the if-branch. If None
         (default), ``condition`` must be provided.
-    condition : expr-like, optional
+    condition : expr-like, optional, default=None
         An arbitrary SymPy expression, typically involving the ``parent``
         Dimension. When it evaluates to True, the if-branch is executed. If None
         (default), ``factor`` must be provided.
-    indirect : bool, optional
+    indirect : bool, optional, default=False
         If True, use `self`, rather than the parent Dimension, to
         index into arrays. A typical use case is when arrays are accessed
-        indirectly via the ``condition`` expression. Defaults to False.
+        indirectly via the ``condition`` expression.
 
     Examples
     --------

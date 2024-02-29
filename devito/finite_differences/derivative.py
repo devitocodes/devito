@@ -25,18 +25,18 @@ class Derivative(sympy.Derivative, Differentiable):
     expr : expr-like
         Expression for which the Derivative is produced.
     dims : Dimension or tuple of Dimension
-        Dimenions w.r.t. which to differentiate.
-    fd_order : int or tuple of int, optional
+        Dimensions w.r.t. which to differentiate.
+    fd_order : int or tuple of int, optional, default=1
         Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil. Defaults to 1.
-    deriv_order: int or tuple of int, optional
-        Derivative order. Defaults to 1.
-    side : Side or tuple of Side, optional
+        the resulting stencil.
+    deriv_order: int or tuple of int, optional, default=1
+        Derivative order.
+    side : Side or tuple of Side, optional, default=centered
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to ``centered``.
-    transpose : Transpose, optional
+        or right (at x +1).
+    transpose : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to ``direct``.
+        finite difference.
     subs : dict, optional
         Substitutions to apply to the finite-difference expression after evaluation.
     x0 : dict, optional

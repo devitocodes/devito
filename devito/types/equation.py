@@ -25,15 +25,15 @@ class Eq(sympy.Eq, Evaluable):
     ----------
     lhs : Function or SparseFunction
         The left-hand side.
-    rhs : expr-like, optional
-        The right-hand side. Defaults to 0.
-    subdomain : SubDomain, optional
+    rhs : expr-like, optional, default=0
+        The right-hand side.
+    subdomain : SubDomain, optional, default=None
         To restrict the computation of the Eq to a particular sub-region in the
         computational domain.
-    coefficients : Substitutions, optional
+    coefficients : Substitutions, optional, default=None
         Can be used to replace symbolic finite difference weights with user
         defined weights.
-    implicit_dims : Dimension or list of Dimension, optional
+    implicit_dims : Dimension or list of Dimension, optional, default=None
         An ordered list of Dimensions that do not explicitly appear in either the
         left-hand side or in the right-hand side, but that should be honored when
         constructing an Operator.

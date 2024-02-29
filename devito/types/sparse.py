@@ -734,17 +734,16 @@ class SparseFunction(AbstractSparseFunction):
         The computational domain from which the sparse points are sampled.
     coordinates : np.ndarray, optional
         The coordinates of each sparse point.
-    space_order : int, optional
-        Discretisation order for space derivatives. Defaults to 0.
-    shape : tuple of ints, optional
-        Shape of the object. Defaults to ``(npoint,)``.
+    space_order : int, optional, default=0
+        Discretisation order for space derivatives.
+    shape : tuple of ints, optional, default=(npoint,)
+        Shape of the object.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
-    dtype : data-type, optional
-        Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
-    initializer : callable or any object exposing the buffer interface, optional
+    dtype : data-type, optional, default=np.float32
+        Any object that can be interpreted as a numpy data type.
+    initializer : callable or any object exposing the buffer interface, default=None
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
@@ -853,19 +852,18 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         The computational domain from which the sparse points are sampled.
     coordinates : np.ndarray, optional
         The coordinates of each sparse point.
-    space_order : int, optional
-        Discretisation order for space derivatives. Defaults to 0.
-    time_order : int, optional
-        Discretisation order for time derivatives. Defaults to 1.
-    shape : tuple of ints, optional
-        Shape of the object. Defaults to ``(nt, npoint)``.
+    space_order : int, optional, default=0
+        Discretisation order for space derivatives.
+    time_order : int, optional, default=1
+        Discretisation order for time derivatives.
+    shape : tuple of ints, optional, default=(nt, npoint)
+        Shape of the object.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
-    dtype : data-type, optional
-        Any object that can be interpreted as a numpy data type. Defaults
-        to ``np.float32``.
-    initializer : callable or any object exposing the buffer interface, optional
+    dtype : data-type, optional, default=np.float32
+        Any object that can be interpreted as a numpy data type.
+    initializer : callable or any object exposing the buffer interface, default=None
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants
@@ -1003,16 +1001,15 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
-    space_order : int, optional
-        Discretisation order for space derivatives. Defaults to 0.
-    shape : tuple of ints, optional
-        Shape of the object. Defaults to `(npoint,)`.
+    space_order : int, optional, default=0
+        Discretisation order for space derivatives.
+    shape : tuple of ints, optional, default=(npoint,)
+        Shape of the object.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
-    dtype : data-type, optional
-        Any object that can be interpreted as a numpy data type. Defaults
-        to `np.float32`.
+    dtype : data-type, optional, default=np.float32
+        Any object that can be interpreted as a numpy data type.
     initializer : callable or any object exposing the buffer interface, optional
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
@@ -1168,19 +1165,18 @@ class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
         So for `r=6`, we will store 18 coefficients per sparse point (instead of
         potentially 216).  Must be a three-dimensional array of shape
         `(npoint, grid.ndim, r)`.
-    space_order : int, optional
-        Discretisation order for space derivatives. Defaults to 0.
-    time_order : int, optional
-        Discretisation order for time derivatives. Default to 1.
-    shape : tuple of ints, optional
-        Shape of the object. Defaults to `(npoint,)`.
+    space_order : int, optional, default=0
+        Discretisation order for space derivatives.
+    time_order : int, optional, default=1
+        Discretisation order for time derivatives.
+    shape : tuple of ints, optional, default=(npoint,)
+        Shape of the object.
     dimensions : tuple of Dimension, optional
         Dimensions associated with the object. Only necessary if the SparseFunction
         defines a multi-dimensional tensor.
-    dtype : data-type, optional
-        Any object that can be interpreted as a numpy data type. Defaults
-        to `np.float32`.
-    initializer : callable or any object exposing the buffer interface, optional
+    dtype : data-type, optional, default=np.float32
+        Any object that can be interpreted as a numpy data type.
+    initializer : callable or any object exposing the buffer interface, default=None
         Data initializer. If a callable is provided, data is allocated lazily.
     allocator : MemoryAllocator, optional
         Controller for memory allocation. To be used, for example, when one wants

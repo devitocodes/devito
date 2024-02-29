@@ -31,8 +31,8 @@ def norm(f, order=2):
     ----------
     f : Function
         Input Function.
-    order : int, optional
-        The order of the norm. Defaults to 2.
+    order : int, default=2
+        The order of the norm.
     """
     Pow = dv.finite_differences.differentiable.Pow
     kwargs = {}

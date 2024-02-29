@@ -168,10 +168,10 @@ class Compiler(GCCToolchain):
     suffix : str, optional
         The JIT compiler version to be used. For example, assuming ``CC=gcc`` and
         ``suffix='4.9'``, the ``gcc-4.9`` will be used as JIT compiler.
-    cpp : bool, optional
-        If True, JIT compile using a C++ compiler. Defaults to False.
-    mpi : bool, optional
-        If True, JIT compile using an MPI compiler. Defaults to False.
+    cpp : bool, optional, default=False
+        If True, JIT compile using a C++ compiler.
+    mpi : bool, optional, default=False
+        If True, JIT compile using an MPI compiler.
     platform : Platform, optional
         The target Platform on which the JIT compiler will be used.
     """

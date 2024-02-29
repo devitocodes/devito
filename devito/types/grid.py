@@ -68,21 +68,18 @@ class Grid(CartesianDiscretization, ArgProvider):
     ----------
     shape : tuple of ints
         Shape of the computational domain in grid points.
-    extent : tuple of floats, optional
-        Physical extent of the domain in m; defaults to a unit box of extent 1m
-        in all dimensions.
-    origin : tuple of floats, optional
-        Physical coordinate of the origin of the domain; defaults to 0.0 in all
-        dimensions.
+    extent : tuple of floats, default=unit box of extent 1m in all dimensions
+        Physical extent of the domain in m.
+    origin : tuple of floats, default=0.0 in all dimensions
+        Physical coordinate of the origin of the domain.
     dimensions : tuple of SpaceDimension, optional
         The dimensions of the computational domain encapsulated by this Grid.
     time_dimension : TimeDimension, optional
         The dimension used to define time in a `TimeFunction` created from
         this Grid.
-    dtype : data-type, optional
+    dtype : data-type, default=np.float32
         Any object that can be interpreted as a numpy data type, used as default
         data type to be inherited by all Functions created from this Grid.
-        Defaults to ``np.float32``.
     subdomains : tuple of SubDomain, optional
         If no subdomains are specified, the Grid only defines the two default
         subdomains ``interior`` and ``domain``.
