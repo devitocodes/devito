@@ -267,7 +267,8 @@ class TestSC(object):
         eq_f = Eq(f, f.dx2, coefficients=Substitutions(coeffs_f))
         eq_g = Eq(g, g.dx2, coefficients=Substitutions(coeffs_g))
 
-        Operator([eq_f, eq_g])()
+        op = Operator([eq_f, eq_g])
+        op()
 
         assert np.allclose(f.data, g.data, atol=1e-7)
 
@@ -302,6 +303,25 @@ class TestSC(object):
         Operator([eq_f, eq_g])()
 
         assert np.allclose(f.data, g.data, atol=1e-7)
+
+    def test_staggered_function_evalat(self):
+        grid = Grid(shape=(11,), extent=(10.,))
+        x = grid.dimensions[0]
+
+        f = Function(name='f', grid=grid, space_order=2,
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=2,
+                     coefficients='symbolic', staggered=x)
+
+        w = Function(name='w', space_order=0, shape=(3,),
+                     dimensions=(Dimension("p"),))
+        coeffs_g = Coefficient(2, g, x, w)
+
+        eq_fg = Eq(f, g.dx2, coefficients=Substitutions(coeffs_g))
+
+        expected = 'Eq(f(x), g(x - h_x/2)*w[0] + g(x + h_x/2)*w[1])'
+
+        assert str(eq_fg.evaluate) == expected
 
     def test_staggered_equation(self):
         """
