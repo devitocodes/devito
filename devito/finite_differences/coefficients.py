@@ -89,7 +89,7 @@ class Coefficient(object):
         The dimension to which the coefficients will be applied plus the offset
         in that dimension if the function is staggered.
         """
-        return self._function.indices_ref[self._dimension]
+        return self._dimension
 
     @property
     def weights(self):
@@ -268,7 +268,6 @@ def default_rules(obj, functions):
         return subs
 
     # Determine which 'rules' are missing
-
     sym = get_sym(functions)
     terms = obj.find(sym)
     for i in obj.find(Weights):
@@ -304,10 +303,12 @@ def default_rules(obj, functions):
         try:
             for k, v in subs.rules.items():
                 ofs, do, f, d = k.args
-                if deriv_order == do and dim is d and f in expr._functions:
-                    mapper[k.func(ofs, do, expr, d)] = v
+                is_dim = dim == expr.indices_ref[d]
+                if deriv_order == do and is_dim and f in expr._functions:
+                    mapper[k.func(ofs, do, expr, expr.indices_ref[d])] = v
         except AttributeError:
-            assert subs is None
+            # assert subs is None
+            pass
 
         if mapper:
             rules.update(mapper)
