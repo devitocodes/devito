@@ -1,4 +1,4 @@
-def div(func, shift=None, order=None):
+def div(func, shift=None, order=None, method='FD'):
     """
     Divergence of the input Function.
 
@@ -11,15 +11,36 @@ def div(func, shift=None, order=None):
     order: int, optional, default=None
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
-
+    method: str, optional, default='FD'
+        Discretization method. Options are 'FD' (default) and 'RSFD'
     """
     try:
-        return func.div(shift=shift, order=order)
+        return func.div(shift=shift, order=order, method=method)
     except AttributeError:
         return 0
 
 
-def grad(func, shift=None, order=None):
+def div45(func, shift=None, order=None, method='FD'):
+    """
+    Divergence of the input Function, using the 45 degrees rotated derivative.
+
+    Parameters
+    ----------
+    func : Function or TensorFunction
+        Function to take the divergence of
+    shift: Number, optional, default=None
+        Shift for the center point of the derivative in number of gridpoints
+    order: int, optional, default=None
+        Discretization order for the finite differences.
+        Uses `func.space_order` when not specified
+    """
+    try:
+        return func.div(shift=shift, order=order, method='RSFD')
+    except AttributeError:
+        return 0
+
+
+def grad(func, shift=None, order=None, method='FD'):
     """
     Gradient of the input Function.
 
@@ -32,15 +53,36 @@ def grad(func, shift=None, order=None):
     order: int, optional, default=None
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
-
+    method: str, optional, default='FD'
+        Discretization method. Options are 'FD' (default) and 'RSFD'
     """
     try:
-        return func.grad(shift=shift, order=order)
+        return func.grad(shift=shift, order=order, method=method)
     except AttributeError:
         raise AttributeError("Gradient not supported for class %s" % func.__class__)
 
 
-def curl(func, shift=None, order=None):
+def grad45(func, shift=None, order=None):
+    """
+    Gradient of the input Function, using the 45 degrees rotated derivative.
+
+    Parameters
+    ----------
+    func : Function or TensorFunction
+        Function to take the gradient of
+    shift: Number, optional, default=None
+        Shift for the center point of the derivative in number of gridpoints
+    order: int, optional, default=None
+        Discretization order for the finite differences.
+        Uses `func.space_order` when not specified
+    """
+    try:
+        return func.grad(shift=shift, order=order, method='RSFD')
+    except AttributeError:
+        raise AttributeError("Gradient not supported for class %s" % func.__class__)
+
+
+def curl(func, shift=None, order=None, method='FD'):
     """
     Curl of the input Function. Only supported for VectorFunction
 
@@ -53,14 +95,37 @@ def curl(func, shift=None, order=None):
     order: int, optional, default=None
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
+    method: str, optional, default='FD'
+        Discretization method. Options are 'FD' (default) and 'RSFD'
     """
     try:
-        return func.curl(shift=shift, order=order)
+        return func.curl(shift=shift, order=order, method=method)
     except AttributeError:
         raise AttributeError("Curl only supported for 3D VectorFunction")
 
 
-def laplace(func, shift=None, order=None):
+def curl45(func, shift=None, order=None):
+    """
+    Curl of the input Function, using the 45 degrees rotated derivative.
+    Only supported for VectorFunction
+
+    Parameters
+    ----------
+    func : VectorFunction
+        VectorFunction to take curl of
+    shift: Number, optional, default=None
+        Shift for the center point of the derivative in number of gridpoints
+    order: int, optional, default=None
+        Discretization order for the finite differences.
+        Uses `func.space_order` when not specified
+    """
+    try:
+        return func.curl(shift=shift, order=order, method='RSFD')
+    except AttributeError:
+        raise AttributeError("Curl only supported for 3D VectorFunction")
+
+
+def laplace(func, shift=None, order=None, method='FD'):
     """
     Laplacian of the input Function.
 
@@ -73,9 +138,11 @@ def laplace(func, shift=None, order=None):
     order: int, optional, default=None
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
+    method: str, optional, default='FD'
+        Discretization method. Options are 'FD' (default) and 'RSFD'
     """
     try:
-        return func.laplacian(shift=shift, order=order)
+        return func.laplacian(shift=shift, order=order, method=method)
     except AttributeError:
         return 0
 

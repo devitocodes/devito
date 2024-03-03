@@ -305,7 +305,7 @@ class Differentiable(sympy.Expr, Evaluable):
                                       fd_order=order)
                      for i, d in enumerate(derivs)])
 
-    def div(self, shift=None, order=None):
+    def div(self, shift=None, order=None, method='FD'):
         """
         Divergence of the input Function.
 
@@ -318,16 +318,17 @@ class Differentiable(sympy.Expr, Evaluable):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
-
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and 'RSFD'
         """
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                   fd_order=order)
+                                                   fd_order=order, method=method)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None, order=None):
+    def grad(self, shift=None, order=None, method='FD'):
         """
         Gradient of the input Function.
 
@@ -340,14 +341,15 @@ class Differentiable(sympy.Expr, Evaluable):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
-
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and 'RSFD'
         """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                               fd_order=order)
+                                               fd_order=order, method=method)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,

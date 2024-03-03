@@ -64,7 +64,7 @@ def check_symbolic(func):
                 raise NotImplementedError("Applying the chain rule to functions "
                                           "with symbolic coefficients is not currently "
                                           "supported")
-        kwargs['symbolic'] = expr._uses_symbolic_coefficients
+            kwargs['fd_mode'] = 'symbolic'
         return func(expr, *args, **kwargs)
     return wrapper
 
@@ -136,6 +136,15 @@ def generate_fd_shortcuts(dims, so, to=0):
         name_fd = 'd%sr' % name
         desciption = 'right first order derivative w.r.t dimension %s' % d.name
         derivatives[name_fd] = (deriv, desciption)
+
+    # Add RSFD for first order derivatives
+    for d, o in zip(dims, orders):
+        if not d.is_Time:
+            name = d.root.name
+            deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, method='RSFD')
+            name_fd = 'd%s45' % name
+            desciption = 'Derivative w.r.t %s with rotated 45 degree FD' % d.name
+            derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
 
@@ -225,14 +234,17 @@ def make_stencil_dimension(expr, _min, _max):
     return StencilDimension(name='i%d' % n, _min=_min, _max=_max)
 
 
-def symbolic_weights(function, deriv_order, indices, dim):
-    return [function._coeff_symbol(indices[j], deriv_order, function, dim)
+def symbolic_weights(function, deriv_order, indices, x0):
+    return [function._coeff_symbol(indices[j], deriv_order, function, x0)
             for j in range(0, len(indices))]
 
 
 @cacheit
-def numeric_weights(deriv_order, indices, x0):
+def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+
+
+weights_registry = {'taylor': numeric_weights, 'symbolic': symbolic_weights}
 
 
 def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):

@@ -1,7 +1,7 @@
 from sympy import sympify
 
 from .differentiable import EvalDerivative, DiffDerivative, Weights
-from .tools import (numeric_weights, symbolic_weights, left, right,
+from .tools import (weights_registry, left, right,
                     generate_indices, centered, direct, transpose,
                     check_input, check_symbolic)
 
@@ -16,7 +16,7 @@ _PRECISION = 9
 @check_input
 @check_symbolic
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=None,
-                     symbolic=False, expand=True):
+                     fd_mode='taylor', expand=True):
     """
     First-order derivative of a given expression.
 
@@ -37,8 +37,8 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
         finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
+    fd_mode : strong, optional
+        Use taylor or custom coefficients (weights). Defaults to taylor.
     expand : bool, optional
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned. Defaults to True.
@@ -89,7 +89,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
     deriv_order = 1
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, symbolic, expand)
+                           matvec, x0, fd_mode, expand)
 
 
 @check_input
@@ -114,8 +114,8 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
         finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
+    fd_mode : strong, optional
+        Use taylor or custom coefficients (weights). Defaults to taylor.
     expand : bool, optional
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned. Defaults to True.
@@ -166,7 +166,7 @@ g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
 @check_input
 @check_symbolic
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
-                       symbolic=False, expand=True):
+                       fd_mode='taylor', expand=True):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -186,8 +186,8 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
+    fd_mode : strong, optional
+        Use taylor or custom coefficients (weights). Defaults to taylor.
     expand : bool, optional
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned. Defaults to True.
@@ -200,24 +200,21 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     side = None
     # First order derivative with 2nd order FD is highly non-recommended so taking
     # first order fd that is a lot better
-    if deriv_order == 1 and fd_order == 2 and not symbolic:
+    if deriv_order == 1 and fd_order == 2 and fd_mode != 'symbolic':
         fd_order = 1
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, symbolic, expand)
+                           matvec, x0, fd_mode, expand)
 
 
-def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic,
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, fd_mode,
                     expand):
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0)
 
     # Finite difference weights from Taylor approximation given these positions
-    if symbolic:
-        weights = symbolic_weights(expr, deriv_order, indices, x0)
-    else:
-        weights = numeric_weights(deriv_order, indices, x0)
+    weights = weights_registry[fd_mode](expr, deriv_order, indices, x0)
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     weights = [sympify(w).evalf(_PRECISION) for w in weights][::matvec.val]
