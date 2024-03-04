@@ -87,7 +87,8 @@ class Derivative(sympy.Derivative, Differentiable):
     _fd_priority = 3
 
     __rargs__ = ('expr', 'dims')
-    __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs', 'x0', 'method')
+    __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
+                   'x0', 'method')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) is sympy.Derivative:

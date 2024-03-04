@@ -64,7 +64,7 @@ def check_symbolic(func):
                 raise NotImplementedError("Applying the chain rule to functions "
                                           "with symbolic coefficients is not currently "
                                           "supported")
-            kwargs['fd_mode'] = 'symbolic'
+        kwargs['coefficients'] = expr.coefficients
         return func(expr, *args, **kwargs)
     return wrapper
 
@@ -244,7 +244,7 @@ def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-weights_registry = {'taylor': numeric_weights, 'symbolic': symbolic_weights}
+fd_weights_registry = {'taylor': numeric_weights, 'symbolic': symbolic_weights}
 
 
 def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):

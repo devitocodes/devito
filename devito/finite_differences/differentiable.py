@@ -126,6 +126,17 @@ class Differentiable(sympy.Expr, Evaluable):
         return bool(self._symbolic_functions)
 
     @cached_property
+    def coefficients(self):
+        coefficients = {f.coefficients for f in self._functions}
+        # If there is multiple ones, we have to revert to the highest priority
+        # i.e we have to remove symbolic
+        if len(coefficients) == 2:
+            return (coefficients - {'symbolic'}).pop()
+        else:
+            assert len(coefficients) == 1
+            return coefficients.pop()
+
+    @cached_property
     def _coeff_symbol(self, *args, **kwargs):
         if self._uses_symbolic_coefficients:
             return W

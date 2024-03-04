@@ -5,6 +5,7 @@ from operator import mul
 
 import numpy as np
 import sympy
+import warnings
 from psutil import virtual_memory
 from cached_property import cached_property
 
@@ -17,6 +18,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.tools import fd_weights_registry
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
                           memoized_meth, dtype_to_ctype, humanbytes)
 from devito.types.dimension import Dimension
@@ -42,6 +44,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     Users should not instantiate this class directly. Use Function or
     SparseFunction (or their subclasses) instead.
     """
+    _default_fd = 'taylor'
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
     # think that a DiscreteFunction is actually iterable, thus breaking many of
@@ -67,9 +70,16 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         super().__init_finalize__(*args, **kwargs)
 
         # Symbolic (finite difference) coefficients
-        self._coefficients = kwargs.get('coefficients', 'standard')
-        if self._coefficients not in ('standard', 'symbolic'):
-            raise ValueError("coefficients must be `standard` or `symbolic`")
+        self._coefficients = kwargs.get('coefficients', self._default_fd)
+        if self._coefficients not in fd_weights_registry.keys():
+            if self._coefficients == 'standard':
+                self._coefficients = 'taylor'
+                warnings.warn("The `standard` mode is deprecated and will be removed in "
+                              "future versions of Devito, use `taylor` instead",
+                              category=DeprecationWarning, stacklevel=2)
+            else:
+                raise ValueError("coefficients must be `taylor` or `symbolic`"
+                                 " not %s" % self._coefficients)
 
         # Data-related properties
         self._data = None
