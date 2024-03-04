@@ -73,7 +73,7 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator):
+    def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator, subdomain):
         obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
@@ -81,13 +81,15 @@ class Interpolation(UnevaluatedSparseOperation):
         obj.increment = increment
         obj.self_subs = self_subs
         obj.implicit_dims = implicit_dims
+        obj.subdomain = subdomain
 
         return obj
 
     def operation(self, **kwargs):
         return self.interpolator._interpolate(expr=self.expr, increment=self.increment,
                                               self_subs=self.self_subs,
-                                              implicit_dims=self.implicit_dims)
+                                              implicit_dims=self.implicit_dims,
+                                              subdomain=self.subdomain)
 
     def __repr__(self):
         return "Interpolation(%s into %s)" % (repr(self.expr),
@@ -204,7 +206,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None):
+    def _interp_idx(self, variables, implicit_dims=None, subdomain=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -219,6 +221,23 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitution mapper for variables
         mapper = self._rdim._getters
+
+        # TODO: This can be pulled out into its own function if reused elsewhere
+        if subdomain:
+            # Rebuild the ConditionalDimensions to use the SubDomain
+            # minima and maxima in the condition
+            subs = {d.symbolic_min: sd.symbolic_min
+                    for d, sd in subdomain.dimension_map.items()}
+            subs.update({d.symbolic_max: sd.symbolic_max
+                         for d, sd in subdomain.dimension_map.items()})
+
+            for d, cd in list(mapper.items()):
+                cond = cd.condition.subs(subs)
+                # Rebuild the ConditionalDimension with an updated condition
+                # Note that rebuilding introduces a factor if factor is None
+                # This is not desired here.
+                mapper[d] = cd._rebuild(condition=cond, factor=cd._factor)
+
         idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
@@ -226,7 +245,8 @@ class WeightedInterpolator(GenericInterpolator):
         return idx_subs, temps
 
     @check_radius
-    def interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
+    def interpolate(self, expr, increment=False, self_subs={},
+                    implicit_dims=None, subdomain=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -240,8 +260,9 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             interpolation expression, but that should be honored when constructing
             the operator.
+        subdomain : The SubDomain to which injection should be limited.
         """
-        return Interpolation(expr, increment, implicit_dims, self_subs, self)
+        return Interpolation(expr, increment, implicit_dims, self_subs, self, subdomain)
 
     @check_radius
     def inject(self, field, expr, implicit_dims=None):
@@ -261,7 +282,8 @@ class WeightedInterpolator(GenericInterpolator):
         """
         return Injection(field, expr, implicit_dims, self)
 
-    def _interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
+    def _interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None,
+                     subdomain=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -275,6 +297,7 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             interpolation expression, but that should be honored when constructing
             the operator.
+        subdomain : The SubDomain to which injection should be limited.
         """
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
@@ -288,8 +311,14 @@ class WeightedInterpolator(GenericInterpolator):
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
 
+        # FIXME: SubDomain needs to be introduced at the ConditionalDimension
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
+                                           subdomain=subdomain)
+
+        print(idx_subs)
+        print()
+        print(temps)
 
         # Accumulate point-wise contributions into a temporary
         rhs = Symbol(name='sum', dtype=self.sfunction.dtype)

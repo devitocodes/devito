@@ -7,7 +7,7 @@ from sympy import Float
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-                    MatrixSparseTimeFunction)
+                    MatrixSparseTimeFunction, SubDomain)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -411,6 +411,68 @@ def test_interpolate_indexed(shape, coords, npoints=20):
     assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
     assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+def test_interpolate_subdomain():
+    """
+    Test interpolation limited to a SubDomain
+    """
+
+    class SD1(SubDomain):
+        name = 'sd1'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: ('left', 6), y: ('right', 4)}
+
+    class SD2(SubDomain):
+        name = 'sd2'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: ('middle', 2, 1), y: y}
+
+    sd1 = SD1()
+    sd2 = SD2()
+
+    grid = Grid(shape=(11, 11), extent=(10., 10.), subdomains=(sd1, sd2))
+
+    f = Function(name='f', grid=grid)
+    xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+    f.data[:] = xmsh*ymsh
+
+    sr1 = SparseFunction(name='sr1', grid=grid, npoint=6)
+    sr2 = SparseFunction(name='sr2', grid=grid, npoint=6)
+
+    coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                       [0.5, 6.], [7.5, 4.], [5.5, 5.5]])
+
+    sr1.coordinates.data[:] = coords
+    sr2.coordinates.data[:] = coords
+
+    rec1 = sr1.interpolate(f, subdomain=sd1)
+    # rec2 = sr2.interpolate(f, subdomain=sd2)
+
+    # src1 = sr1.inject(f, Float(1.), subdomain=sd1)
+    # src2 = sr2.inject(f, Float(2.), subdomain=sd2)
+
+    op = Operator([rec1])
+
+    op.apply()
+
+    # print(op.ccode)
+
+    # print(f.data)
+    # print()
+    # print(sr1.data)
+    # print()
+    # print(sr2.data)
+
+    assert False
+    # TODO: Assert that f.data is correct
+    # TODO: Assert receiver data correct
+    # sum += (rsr1x*px + (1 - rsr1x)*(1 - px))*(rsr1y*py + (1 - rsr1y)*(1 - py))*f[rsr1x + posx + 1][rsr1y + posy + 1];
+    # sum += (rsr1x*px + (1 - rsr1x)*(1 - px))*(rsr1y*py + (1 - rsr1y)*(1 - py))*f[posx + (rsr1x / rsr1xf) + 1][posy + (rsr1y / rsr1yf) + 1];
+
 
 
 @pytest.mark.parametrize('shape, coords, result', [
