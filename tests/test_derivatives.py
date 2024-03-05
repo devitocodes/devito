@@ -261,6 +261,56 @@ class TestFD(object):
                     Dpolyvalues[space_border:-space_border])
         assert np.isclose(np.mean(error), 0., atol=1e-3)
 
+    @pytest.mark.parametrize('staggered', [(True, True), (False, False),
+                                           (True, False), (False, True)])
+    @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    def test_fd_space_45(self, staggered, space_order):
+        """
+        Rotated derivatives require at least 2D to get access to diagonal points.
+        We create a simple 1D gradient over a 2D grid to check against a polynomial
+        """
+        # dummy axis dimension
+        nx = 100
+        ny = nx
+        xx = np.linspace(-1, 1, nx)
+        dx = xx[1] - xx[0]
+        if staggered[0] and not staggered[1]:
+            xx_s = xx + dx/2
+        elif not staggered[0] and staggered[1]:
+            xx_s = xx - dx/2
+        else:
+            xx_s = xx
+        # Symbolic data
+        grid = Grid(shape=(nx, ny), dtype=np.float32)
+        x = grid.dimensions[0]
+        u = Function(name="u", grid=grid, space_order=space_order,
+                     staggered=None if staggered[0] else grid.dimensions)
+        du = Function(name="du", grid=grid, space_order=space_order,
+                      staggered=None if staggered[1] else grid.dimensions)
+        # Define polynomial with exact fd
+        coeffs = np.ones((space_order,), dtype=np.float32)
+        polynome = sum([coeffs[i]*x**i for i in range(0, space_order)])
+        polyvalues = np.array([polynome.subs(x, xi) for xi in xx], np.float32)
+        # Fill original data with the polynomial values
+        for i in range(ny):
+            u.data[:, i] = polyvalues
+        # True derivative of the polynome
+        Dpolynome = diff(polynome)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_s], np.float32)
+        # FD derivative, symbolic
+        u_deriv = getattr(u, 'dx45')
+        # Compute numerical FD
+        stencil = Eq(du, u_deriv)
+        op = Operator(stencil, subs={d.spacing: dx for d in grid.dimensions})
+        op.apply()
+
+        # Check exactness of the numerical derivative except inside space_brd
+        space_border = space_order
+        error = abs(du.data[space_border:-space_border, ny//2] -
+                    Dpolyvalues[space_border:-space_border])
+
+        assert np.isclose(np.mean(error), 0., atol=1e-3)
+
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
     @pytest.mark.parametrize('stagger', [centered, left, right])
     # Only test x and t as y and z are the same as x

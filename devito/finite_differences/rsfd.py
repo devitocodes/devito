@@ -1,8 +1,9 @@
-from sympy import finite_diff_weights
+from functools import wraps
 
+from devito.types import NODE
 from devito.types.dimension import StencilDimension
 from .differentiable import Weights, DiffDerivative
-from .tools import generate_indices_staggered
+from .tools import generate_indices_staggered, fd_weights_registry
 from .elementary import sqrt
 
 __all__ = ['drot', 'dxrot', 'dyrot', 'dzrot']
@@ -41,22 +42,28 @@ def drot(expr, dim, dir=1, x0=None):
     # Spacing along diagonal
     r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
 
-    # Center point
+    # Center point and indices
     start, indices = generate_indices_staggered(expr, dim, expr.space_order, x0=x0)
-    adim_start = start.subs({dim: 0, dim.spacing: 1})
+
+    # a-dimensional center for FD coefficients.
+    adim_start = x0.get(dim, expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
+    mid = expr.indices_ref[dim].subs({dim: 0, dim.spacing: 1})
+
+    # a-dimensional indices
     adim_indices = [i.subs({dim: 0, dim.spacing: 1}) for i in indices]
-    coeffs = finite_diff_weights(1, adim_indices, adim_start)[-1][-1]
 
-    i = StencilDimension('i', adim_indices[0]-adim_start, adim_indices[-1]-adim_start)
-
-    # FD weights
+    # FD coeffs
+    # Dispersion reduction weights currently not working as the lsqr
+    # system needs to be setup for the whole stencil
+    coeffs = fd_weights_registry['taylor'](expr, 1, adim_indices, adim_start)
+    i = StencilDimension('i', adim_indices[0]-mid, adim_indices[-1]-mid)
     w0 = Weights(name='w0', dimensions=i, initvalue=coeffs)
 
     # Skip y if 2D
     signs = smapper[dir][::(1 if ndim == 3 else 2)]
 
     # Direction substitutions
-    dim_mapper = {d: d + signs[di]*i*d.spacing - shift(signs[di], adim_start)*d.spacing
+    dim_mapper = {d: d + signs[di]*i*d.spacing - shift(signs[di], mid)*d.spacing
                   for (di, d) in enumerate(expr.grid.dimensions)}
 
     # Create IndexDerivative
@@ -67,6 +74,46 @@ def drot(expr, dim, dir=1, x0=None):
     return deriv/r
 
 
+grid_node = lambda grid: {d: d for d in grid.dimensions}
+all_staggered = lambda grid: {d: d + d.spacing/2 for d in grid.dimensions}
+
+
+def check_staggering(func):
+    """
+    Because of the very specific structure of the 45 degree stencil
+    only two cases can happen:
+
+    1. No staggering. In this case the stencil is center on the node where
+       the Function/Expr is defined and the diagonal is well defined.
+    2. Full staggering. The center node must be either NODE or grid.dimension so that
+       the diagonal align with the staggering of the expression. I.e a NODE center point
+       for a `grid.dimension` staggered expression
+       or a `grid.dimension` center point for a NODE staggered expression.
+
+    Therefore acceptable combinations are:
+    - NODE center point and NODE staggering
+    - grid.dimension center point and grid.dimension staggering
+    - NODE center point and grid.dimension staggering
+    - grid.dimension center point and NODE staggering
+    """
+    @wraps(func)
+    def wrapper(expr, x0=None, expand=True):
+        grid = expr.grid
+        x0 = {k: v for k, v in x0.items() if k.is_Space}
+        if expr.staggered is NODE or expr.staggered is None:
+            cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
+        elif expr.staggered == grid.dimensions:
+            cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
+        else:
+            cond = False
+        if cond:
+            return func(expr, x0=x0, expand=expand)
+        else:
+            raise ValueError('Invalid staggering or x0 for rotated finite differences')
+    return wrapper
+
+
+@check_staggering
 def dxrot(expr, x0=None, expand=True):
     x = expr.grid.dimensions[0]
     r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
@@ -80,6 +127,7 @@ def dxrot(expr, x0=None, expand=True):
         return dx45
 
 
+@check_staggering
 def dyrot(expr, x0=None, expand=True):
     y = expr.grid.dimensions[1]
     r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
@@ -93,6 +141,7 @@ def dyrot(expr, x0=None, expand=True):
         return dy45
 
 
+@check_staggering
 def dzrot(expr, x0=None, expand=True):
     z = expr.grid.dimensions[-1]
     r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))

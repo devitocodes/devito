@@ -87,6 +87,10 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
     fd_order = fd_order or expr.space_order
     deriv_order = 1
 
+    # Enforce sable time coefficients
+    if dim.is_Time and coefficients != 'symbolic':
+        coefficients = 'taylor'
+
     return make_derivative(expr, dim, fd_order, deriv_order, side,
                            matvec, x0, coefficients, expand)
 
@@ -201,6 +205,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
         fd_order = 1
+
+    # Enforce sable time coefficients
+    if dim.is_Time and coefficients != 'symbolic':
+        coefficients = 'taylor'
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
                            matvec, x0, coefficients, expand)
