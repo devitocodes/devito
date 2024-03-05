@@ -50,7 +50,7 @@ def drot(expr, dim, dir=1, x0=None):
     mid = expr.indices_ref[dim].subs({dim: 0, dim.spacing: 1})
 
     # a-dimensional indices
-    adim_indices = [i.subs({dim: 0, dim.spacing: 1}) for i in indices]
+    adim_indices = sorted([i.subs({dim: 0, dim.spacing: 1}) for i in indices])
 
     # FD coeffs
     # Dispersion reduction weights currently not working as the lsqr

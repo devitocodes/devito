@@ -64,7 +64,7 @@ def check_symbolic(func):
                 raise NotImplementedError("Applying the chain rule to functions "
                                           "with symbolic coefficients is not currently "
                                           "supported")
-        kwargs['coefficients'] = expr.coefficients
+            kwargs['coefficients'] = 'symbolic'
         return func(expr, *args, **kwargs)
     return wrapper
 
