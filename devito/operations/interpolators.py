@@ -103,19 +103,21 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    def __new__(cls, field, expr, implicit_dims, interpolator):
+    def __new__(cls, field, expr, implicit_dims, interpolator, subdomain):
         obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
         obj.implicit_dims = implicit_dims
+        obj.subdomain = subdomain
 
         return obj
 
     def operation(self, **kwargs):
         return self.interpolator._inject(expr=self.expr, field=self.field,
-                                         implicit_dims=self.implicit_dims)
+                                         implicit_dims=self.implicit_dims,
+                                         subdomain=self.subdomain)
 
     def __repr__(self):
         return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
@@ -260,12 +262,12 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             interpolation expression, but that should be honored when constructing
             the operator.
-        subdomain : The SubDomain to which injection should be limited.
+        subdomain : The SubDomain to which interpolation should be limited.
         """
         return Interpolation(expr, increment, implicit_dims, self_subs, self, subdomain)
 
     @check_radius
-    def inject(self, field, expr, implicit_dims=None):
+    def inject(self, field, expr, implicit_dims=None, subdomain=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -279,8 +281,9 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             injection expression, but that should be honored when constructing
             the operator.
+        subdomain : The SubDomain to which injection should be limited.
         """
-        return Injection(field, expr, implicit_dims, self)
+        return Injection(field, expr, implicit_dims, self, subdomain)
 
     def _interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None,
                      subdomain=None):
@@ -297,7 +300,7 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             interpolation expression, but that should be honored when constructing
             the operator.
-        subdomain : The SubDomain to which injection should be limited.
+        subdomain : The SubDomain to which interpolation should be limited.
         """
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
@@ -311,14 +314,9 @@ class WeightedInterpolator(GenericInterpolator):
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
 
-        # FIXME: SubDomain needs to be introduced at the ConditionalDimension
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
                                            subdomain=subdomain)
-
-        print(idx_subs)
-        print()
-        print(temps)
 
         # Accumulate point-wise contributions into a temporary
         rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
@@ -334,7 +332,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return temps + summands + last
 
-    def _inject(self, field, expr, implicit_dims=None):
+    def _inject(self, field, expr, implicit_dims=None, subdomain=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -348,6 +346,7 @@ class WeightedInterpolator(GenericInterpolator):
             An ordered list of Dimensions that do not explicitly appear in the
             injection expression, but that should be honored when constructing
             the operator.
+        subdomain : The SubDomain to which injection should be limited.
         """
         # Make iterable to support inject((u, v), expr=expr)
         # or inject((u, v), expr=(expr1, expr2))
@@ -379,7 +378,8 @@ class WeightedInterpolator(GenericInterpolator):
         variables = variables + list(fields)
 
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
+                                           subdomain=subdomain)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),

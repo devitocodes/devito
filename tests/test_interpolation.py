@@ -412,6 +412,7 @@ def test_interpolate_indexed(shape, coords, npoints=20):
     assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
     assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
 
+
 def test_interpolate_subdomain():
     """
     Test interpolation limited to a SubDomain
@@ -422,14 +423,15 @@ def test_interpolate_subdomain():
 
         def define(self, dimensions):
             x, y = dimensions
-            return {x: ('left', 6), y: ('right', 4)}
+            # return {x: x, y: y}
+            return {x: ('left', 6), y: y}
 
     class SD2(SubDomain):
         name = 'sd2'
 
         def define(self, dimensions):
             x, y = dimensions
-            return {x: ('middle', 2, 1), y: y}
+            return {x: ('middle', 2, 1), y: ('right', 6)}
 
     sd1 = SD1()
     sd2 = SD2()
@@ -437,6 +439,7 @@ def test_interpolate_subdomain():
     grid = Grid(shape=(11, 11), extent=(10., 10.), subdomains=(sd1, sd2))
 
     f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
     xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
     f.data[:] = xmsh*ymsh
 
@@ -450,29 +453,29 @@ def test_interpolate_subdomain():
     sr2.coordinates.data[:] = coords
 
     rec1 = sr1.interpolate(f, subdomain=sd1)
-    # rec2 = sr2.interpolate(f, subdomain=sd2)
+    rec2 = sr2.interpolate(f, subdomain=sd2)
 
-    # src1 = sr1.inject(f, Float(1.), subdomain=sd1)
-    # src2 = sr2.inject(f, Float(2.), subdomain=sd2)
+    src1 = sr1.inject(g, Float(1.), subdomain=sd1)
+    src2 = sr2.inject(g, Float(2.), subdomain=sd2)
 
-    op = Operator([rec1])
+    op = Operator([rec1, rec2, src1, src2])
+
+    print(op.ccode)
 
     op.apply()
 
-    # print(op.ccode)
-
-    # print(f.data)
-    # print()
-    # print(sr1.data)
-    # print()
-    # print(sr2.data)
+    print(f.data)
+    print()
+    print(g.data)
+    print()
+    print(sr1.data)
+    print()
+    print(sr2.data)
 
     assert False
     # TODO: Assert that f.data is correct
     # TODO: Assert receiver data correct
-    # sum += (rsr1x*px + (1 - rsr1x)*(1 - px))*(rsr1y*py + (1 - rsr1y)*(1 - py))*f[rsr1x + posx + 1][rsr1y + posy + 1];
-    # sum += (rsr1x*px + (1 - rsr1x)*(1 - px))*(rsr1y*py + (1 - rsr1y)*(1 - py))*f[posx + (rsr1x / rsr1xf) + 1][posy + (rsr1y / rsr1yf) + 1];
-
+    # TODO: Do this by comparing to run with no subdomain
 
 
 @pytest.mark.parametrize('shape, coords, result', [
