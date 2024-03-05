@@ -65,6 +65,8 @@ def check_symbolic(func):
                                           "with symbolic coefficients is not currently "
                                           "supported")
             kwargs['coefficients'] = 'symbolic'
+        else:
+            kwargs['coefficients'] = expr.coefficients
         return func(expr, *args, **kwargs)
     return wrapper
 

@@ -4,9 +4,8 @@ from devito.types import NODE
 from devito.types.dimension import StencilDimension
 from .differentiable import Weights, DiffDerivative
 from .tools import generate_indices_staggered, fd_weights_registry
-from .elementary import sqrt
 
-__all__ = ['drot', 'dxrot', 'dyrot', 'dzrot']
+__all__ = ['drot', 'd45']
 
 smapper = {1: (1, 1, 1), 2: (1, 1, -1), 3: (1, -1, 1), 4: (1, -1, -1)}
 
@@ -20,12 +19,12 @@ def shift(sign, x0):
 
 def drot(expr, dim, dir=1, x0=None):
     """
-    Finite difference approximation of the derivative along d1
+    Finite difference approximation of the derivative along dir
     of a Function `f` at point `x0`.
 
     Rotated finite differences based on:
     https://www.sciencedirect.com/science/article/pii/S0165212599000232
-    The rotated axis (the four diagonal of a cube) are:
+    The rotated axis (the four diagonals of a cube) are:
       d1 = dx/dr x + dz/dl y + dy/dl z
       d2 = dx/dl x + dz/dl y - dy/dr z
       d3 = dx/dr x - dz/dl y + dy/dl z
@@ -39,8 +38,8 @@ def drot(expr, dim, dir=1, x0=None):
     if dir > 2 and ndim == 2:
         return 0
 
-    # Spacing along diagonal
-    r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
+    # RSFD scaling
+    s = 2**(expr.grid.dim - 1)
 
     # Center point and indices
     start, indices = generate_indices_staggered(expr, dim, expr.space_order, x0=x0)
@@ -63,15 +62,17 @@ def drot(expr, dim, dir=1, x0=None):
     signs = smapper[dir][::(1 if ndim == 3 else 2)]
 
     # Direction substitutions
-    dim_mapper = {d: d + signs[di]*i*d.spacing - shift(signs[di], mid)*d.spacing
-                  for (di, d) in enumerate(expr.grid.dimensions)}
+    dim_mapper = {}
+    for (di, d) in enumerate(expr.grid.dimensions):
+        s0 = 0 if mid == adim_start else shift(signs[di], mid)*d.spacing
+        dim_mapper[d] = d + signs[di]*i*d.spacing - s0
 
     # Create IndexDerivative
     ui = expr.subs(dim_mapper)
 
-    deriv = DiffDerivative(w0*ui, {d: i for d in expr.grid.dimensions})
+    deriv = DiffDerivative(w0*ui/(s*dim.spacing), {d: i for d in expr.grid.dimensions})
 
-    return deriv/r
+    return deriv
 
 
 grid_node = lambda grid: {d: d for d in grid.dimensions}
@@ -97,7 +98,7 @@ def check_staggering(func):
     - grid.dimension center point and NODE staggering
     """
     @wraps(func)
-    def wrapper(expr, x0=None, expand=True):
+    def wrapper(expr, dim, x0=None, expand=True):
         grid = expr.grid
         x0 = {k: v for k, v in x0.items() if k.is_Space}
         if expr.staggered is NODE or expr.staggered is None:
@@ -107,52 +108,46 @@ def check_staggering(func):
         else:
             cond = False
         if cond:
-            return func(expr, x0=x0, expand=expand)
+            return func(expr, dim, x0=x0, expand=expand)
         else:
             raise ValueError('Invalid staggering or x0 for rotated finite differences')
     return wrapper
 
 
 @check_staggering
-def dxrot(expr, x0=None, expand=True):
-    x = expr.grid.dimensions[0]
-    r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
-    s = 2**(expr.grid.dim - 1)
-    dxrsfd = (drot(expr, x, x0=x0, dir=1) + drot(expr, x, x0=x0, dir=2) +
-              drot(expr, x, x0=x0, dir=3) + drot(expr, x, x0=x0, dir=4))
-    dx45 = r / (s * x.spacing) * dxrsfd
-    if expand:
-        return dx45.evaluate
-    else:
-        return dx45
+def d45(expr, dim, x0=None, expand=True):
+    """
+    RSFD approximation of the derivative of `expr` along `dim` at point `x0`.
+
+    Parameters
+    ----------
+    expr : expr-like
+        Expression for which the derivative is produced.
+    dim : Dimension
+        The Dimension w.r.t. which to differentiate.
+    x0 : dict, optional
+        Origin of the finite-difference. Defaults to 0 for all dimensions.
+    expand : bool, optional
+        Expand the expression. Defaults to True.
+    """
+    # Make sure the grid supports RSFD
+    if expr.grid.dim == 1:
+        raise ValueError('RSFD only supported in 2D and 3D')
+
+    # Diagonals weights
+    w = dir_weights[(dim.name, expr.grid.dim)]
+
+    # RSFD
+    rsfd = (w[0] * drot(expr, dim, x0=x0, dir=1) +
+            w[1] * drot(expr, dim, x0=x0, dir=2) +
+            w[2] * drot(expr, dim, x0=x0, dir=3) +
+            w[3] * drot(expr, dim, x0=x0, dir=4))
+
+    # Evaluate
+    return rsfd._evaluate(expand=expand)
 
 
-@check_staggering
-def dyrot(expr, x0=None, expand=True):
-    y = expr.grid.dimensions[1]
-    r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
-    s = 2**(expr.grid.dim - 1)
-    dyrsfd = (drot(expr, y, x0=x0, dir=1) + drot(expr, y, x0=x0, dir=2) -
-              drot(expr, y, x0=x0, dir=3) - drot(expr, y, x0=x0, dir=4))
-    dy45 = r / (s * y.spacing) * dyrsfd
-    if expand:
-        return dy45.evaluate
-    else:
-        return dy45
-
-
-@check_staggering
-def dzrot(expr, x0=None, expand=True):
-    z = expr.grid.dimensions[-1]
-    r = sqrt(sum(d.spacing**2 for d in expr.grid.dimensions))
-    s = 2**(expr.grid.dim - 1)
-    dzrsfd = (drot(expr, z, x0=x0, dir=1) - drot(expr, z, x0=x0, dir=2) +
-              drot(expr, z, x0=x0, dir=3) - drot(expr, z, x0=x0, dir=4))
-    dz45 = r / (s * z.spacing) * dzrsfd
-    if expand:
-        return dz45.evaluate
-    else:
-        return dz45
-
-
-difrot = {2: {'dx': dxrot, 'dy': dzrot}, 3: {'dx': dxrot, 'dy': dyrot, 'dz': dzrot}}
+# How to sum d1, d2, d3, d4 depending on the dimension
+dir_weights = {('x', 2): (1, 1, 1, 1), ('x', 3): (1, 1, 1, 1),
+               ('y', 2): (1, -1, 1, -1), ('y', 3): (1, 1, -1, -1),
+               ('z', 2): (1, -1, 1, -1), ('z', 3): (1, -1, 1, -1)}

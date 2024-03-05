@@ -672,7 +672,7 @@ class IndexSum(sympy.Expr, Evaluable):
         expr = self.expr._evaluate(**kwargs)
 
         if not kwargs.get('expand', True):
-            return self.func(expr, self.dimensions)
+            return self._rebuild(expr)
 
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
@@ -834,7 +834,7 @@ class IndexDerivative(IndexSum):
         mapper = {w.subs(d, i): f.weights[n] for n, i in enumerate(d.range)}
         expr = expr.xreplace(mapper)
 
-        return EvalDerivative(expr, base=self.base)
+        return EvalDerivative(*expr.args, base=self.base)
 
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):

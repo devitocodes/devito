@@ -7,7 +7,7 @@ import sympy
 from .finite_difference import generic_derivative, first_derivative, cross_derivative
 from .differentiable import Differentiable
 from .tools import direct, transpose
-from .rsfd import difrot
+from .rsfd import d45
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
 
@@ -396,8 +396,7 @@ class Derivative(sympy.Derivative, Differentiable):
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order == 1
-            fdfunc = difrot[expr.grid.dim]['d%s' % self.dims[0].name]
-            res = fdfunc(expr, self.x0, expand=expand)
+            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
         elif self.side is not None and self.deriv_order == 1:
             assert self.method == 'FD'
             res = first_derivative(expr, self.dims[0], self.fd_order,

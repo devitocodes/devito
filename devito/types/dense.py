@@ -2,10 +2,10 @@ from collections import namedtuple
 from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
 from functools import wraps, reduce
 from operator import mul
+import warnings
 
 import numpy as np
 import sympy
-import warnings
 from psutil import virtual_memory
 from cached_property import cached_property
 
@@ -44,6 +44,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     Users should not instantiate this class directly. Use Function or
     SparseFunction (or their subclasses) instead.
     """
+
+    # Default method for the finite difference approximation weights computation.
     _default_fd = 'taylor'
 
     # Required by SymPy, otherwise the presence of __getitem__ will make SymPy
@@ -71,7 +73,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', self._default_fd)
-        if self._coefficients not in fd_weights_registry.keys():
+        if self._coefficients not in fd_weights_registry:
             if self._coefficients == 'standard':
                 self._coefficients = 'taylor'
                 warnings.warn("The `standard` mode is deprecated and will be removed in "
