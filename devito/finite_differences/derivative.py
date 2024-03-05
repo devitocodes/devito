@@ -188,12 +188,12 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def __call__(self, x0=None, fd_order=None, side=None, method=None):
         if self.ndims == 1:
-            _fd_order = fd_order or self._fd_order
-            _side = side or self._side
-            _method = method or self._method
-            new_x0 = {self.dims[0]: x0} if x0 is not None else self.x0
-            return self._new_from_self(fd_order=_fd_order, side=_side, x0=new_x0,
-                                       method=_method)
+            fd_order = fd_order or self._fd_order
+            side = side or self._side
+            method = method or self._method
+            x0 = {self.dims[0]: x0} if x0 is not None else self.x0
+            return self._new_from_self(fd_order=fd_order, side=side, x0=x0,
+                                       method=method)
 
         if side is not None:
             raise TypeError("Side only supported for first order single"
