@@ -646,6 +646,9 @@ class Operator(Callable):
 
         return args
 
+    def _postprocess_errors(self, retval):
+        return
+
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
@@ -842,7 +845,7 @@ class Operator(Callable):
         try:
             cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
-                cfunction(*arg_values)
+                retval = cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -853,6 +856,9 @@ class Operator(Callable):
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
+
+        # Perform error checking
+        self._postprocess_errors(retval)
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
