@@ -6,8 +6,9 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     factorize, fission, fuse, optimize_pows,
                                     optimize_hyperplanes)
-from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize, mpiize,
-                               hoist_prodders, relax_incr_dimensions)
+from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize,
+                               mpiize, hoist_prodders, relax_incr_dimensions,
+                               check_stability)
 from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
@@ -76,6 +77,7 @@ class Cpu64OperatorMixin(object):
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
+        o['errctl'] = oo.pop('errctl', cls.ERRCTL)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
@@ -188,6 +190,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Misc optimizations
         hoist_prodders(graph)
+
+        # Perform error checking
+        check_stability(graph, **kwargs)
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
