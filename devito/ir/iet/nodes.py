@@ -794,17 +794,19 @@ class CallableBody(MultiTraversable):
         Data unbundling for `body`.
     frees : list of Calls, optional
         Data deallocations for `body`.
+    errors : list of Nodes, optional
+        Error handling for `body`.
     """
 
     is_CallableBody = True
 
     _traversable = ['unpacks', 'init', 'standalones', 'allocs', 'stacks',
                     'casts', 'bundles', 'maps', 'strides', 'objs', 'body',
-                    'unmaps', 'unbundles', 'frees']
+                    'unmaps', 'unbundles', 'frees', 'errors']
 
     def __init__(self, body, init=(), standalones=(), unpacks=(), strides=(),
                  allocs=(), stacks=(), casts=(), bundles=(), objs=(), maps=(),
-                 unmaps=(), unbundles=(), frees=()):
+                 unmaps=(), unbundles=(), frees=(), errors=()):
         # Sanity check
         assert not isinstance(body, CallableBody), "CallableBody's cannot be nested"
 
@@ -823,6 +825,7 @@ class CallableBody(MultiTraversable):
         self.unmaps = as_tuple(unmaps)
         self.unbundles = as_tuple(unbundles)
         self.frees = as_tuple(frees)
+        self.errors = as_tuple(errors)
 
     def __repr__(self):
         return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, maps=%d, "
