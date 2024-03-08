@@ -423,7 +423,6 @@ def test_interpolate_subdomain():
 
         def define(self, dimensions):
             x, y = dimensions
-            # return {x: x, y: y}
             return {x: ('left', 6), y: y}
 
     class SD2(SubDomain):
@@ -440,8 +439,10 @@ def test_interpolate_subdomain():
 
     f = Function(name='f', grid=grid)
     g = Function(name='g', grid=grid)
+
     xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
-    f.data[:] = xmsh*ymsh
+    msh = xmsh*ymsh
+    f.data[:] = msh
 
     sr1 = SparseFunction(name='sr1', grid=grid, npoint=6)
     sr2 = SparseFunction(name='sr2', grid=grid, npoint=6)
@@ -460,22 +461,26 @@ def test_interpolate_subdomain():
 
     op = Operator([rec1, rec2, src1, src2])
 
-    print(op.ccode)
-
     op.apply()
 
-    print(f.data)
-    print()
-    print(g.data)
-    print()
-    print(sr1.data)
-    print()
-    print(sr2.data)
+    g_check = np.array([[0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.],
+                        [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0.5, 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0.5, 0., 0., 0.75, 0.75, 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0., 0.75, 0.75, 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 2., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
 
-    assert False
-    # TODO: Assert that f.data is correct
-    # TODO: Assert receiver data correct
-    # TODO: Do this by comparing to run with no subdomain
+    sr1_check = np.array([3.75, 9., 0., 3., 0., 30.25])
+    sr2_check = np.array([0., 0., 34., 3., 30., 30.25])
+
+    assert np.all(np.isclose(g.data, g_check))
+    assert np.all(np.isclose(sr1.data, sr1_check))
+    assert np.all(np.isclose(sr2.data, sr2_check))
 
 
 @pytest.mark.parametrize('shape, coords, result', [

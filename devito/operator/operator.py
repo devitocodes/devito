@@ -179,7 +179,12 @@ class Operator(Callable):
         profiler = create_profile('timers')
 
         # FIXME: Not sure I like this
-        sdims = set().union(*[set(e.subdomain.dimensions) for e in expressions])
+        try:
+            sdims = set().union(*[set(e.subdomain.dimensions)
+                                  for e in expressions if e.subdomain])
+        except TypeError:  # Single expression passed to operator
+            sdims = set(expressions.subdomain.dimensions) \
+                if expressions.subdomain else set()
 
         # Lower the input expressions into an IET
         irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
