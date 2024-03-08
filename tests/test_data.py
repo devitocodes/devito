@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-import cupy as cp
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
                     Eq, Operator, ALLOC_GUARD, ALLOC_FLAT, ALLOC_CUPY,
@@ -10,6 +9,7 @@ from devito.tools import as_tuple
 from devito.types import Scalar
 from devito.data.allocators import ExternalAllocator
 
+from conftest import skipif
 
 class TestDataBasic(object):
 
@@ -1477,10 +1477,13 @@ class TestDataGather(object):
 
 class TestAllocators(object):
 
+    @skipif('nodevice')
     def test_uma_allocation(self):
         """
         Test Unified Memory allocation.
         """
+        import cupy as cp
+
         nt = 5
         grid = Grid(shape=(4, 4, 4))
 
