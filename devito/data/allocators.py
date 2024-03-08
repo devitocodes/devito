@@ -345,9 +345,9 @@ class CupyAllocator(MemoryAllocator):
                 from devito.mpi import MPI
                 cls.MPI = MPI
                 cls._set_device_for_mpi()
-            except:
+            except ImportError:
                 cls.MPI = None
-        except:
+        except ImportError:
             cls.lib = None
 
     @classmethod
