@@ -24,7 +24,7 @@ def drot(expr, dim, dir=1, x0=None):
 
     Rotated finite differences based on:
     https://www.sciencedirect.com/science/article/pii/S0165212599000232
-    The rotated axis (the four diagonals of a cube) are:
+    The rotated axes (the four diagonals of a cube) are:
       d1 = dx/dr x + dz/dl y + dy/dl z
       d2 = dx/dl x + dz/dl y - dy/dr z
       d3 = dx/dr x - dz/dl y + dy/dl z
@@ -131,7 +131,7 @@ def d45(expr, dim, x0=None, expand=True):
         Expand the expression. Defaults to True.
     """
     # Make sure the grid supports RSFD
-    if expr.grid.dim == 1:
+    if expr.grid.dim not in [2, 3]:
         raise ValueError('RSFD only supported in 2D and 3D')
 
     # Diagonals weights

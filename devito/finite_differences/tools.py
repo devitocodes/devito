@@ -273,7 +273,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
     -------
     An IndexSet, representing an ordered list of indices.
     """
-    if expr.is_Staggered and not dim.is_Time:
+    if expr.is_Staggered and not dim.is_Time and side is None:
         x0, indices = generate_indices_staggered(expr, dim, order, side=side, x0=x0)
     else:
         x0 = (x0 or {dim: dim}).get(dim, dim)
@@ -363,7 +363,7 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = [start - diff/2, start + diff/2]
             indices = IndexSet(dim, indices)
         else:
-            o_min = -order//2+1
+            o_min = -order//2 + 1
             o_max = order//2
 
             d = make_stencil_dimension(expr, o_min, o_max)
@@ -374,11 +374,16 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = [start, start - diff]
             indices = IndexSet(dim, indices)
         else:
-            o_min = -order//2
-            o_max = order//2
-
+            if start is dim:
+                o_min = -order//2 + 1
+                o_max = order//2
+                start = dim + diff/2
+            else:
+                o_min = -order//2
+                o_max = order//2 - 1
+                start = dim
             d = make_stencil_dimension(expr, o_min, o_max)
-            iexpr = start + d * diff
+            iexpr = ind0 + d * diff
             indices = IndexSet(dim, expr=iexpr)
 
     return start, indices

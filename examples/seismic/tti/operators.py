@@ -223,7 +223,6 @@ def particle_velocity_fields(model, space_order):
         x, z = model.space_dimensions
         stagg_x = x
         stagg_z = z
-        x, z = model.grid.dimensions
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
                           time_order=1, space_order=space_order)
@@ -235,7 +234,6 @@ def particle_velocity_fields(model, space_order):
         stagg_x = x
         stagg_y = y
         stagg_z = z
-        x, y, z = model.grid.dimensions
         # Create symbols for forward wavefield, source and receivers
         vx = TimeFunction(name='vx', grid=model.grid, staggered=stagg_x,
                           time_order=1, space_order=space_order)
@@ -277,14 +275,14 @@ def kernel_staggered_2d(model, u, v, **kwargs):
 
     if forward:
         # Stencils
-        phdx = costheta * u.dx - sintheta * u.dy
+        phdx = costheta * u.dx - sintheta * u.dyc
         u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-        pvdz = sintheta * v.dx + costheta * v.dy
+        pvdz = sintheta * v.dxc + costheta * v.dy
         u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-        dvx = costheta * vx.forward.dx - sintheta * vx.forward.dy
-        dvz = sintheta * vz.forward.dx + costheta * vz.forward.dy
+        dvx = costheta * vx.forward.dx - sintheta * vx.forward.dyc
+        dvz = sintheta * vz.forward.dxc + costheta * vz.forward.dy
 
         # u and v equations
         pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)) + s / m * qv)
@@ -292,16 +290,16 @@ def kernel_staggered_2d(model, u, v, **kwargs):
                    s / m * qu)
     else:
         # Stencils
-        phdx = ((costheta*epsilon*u).dx - (sintheta*epsilon*u).dy +
-                (costheta*delta*v).dx - (sintheta*delta*v).dy)
+        phdx = ((costheta*epsilon*u).dx - (sintheta*epsilon*u).dyc +
+                (costheta*delta*v).dxc - (sintheta*delta*v).dy)
         u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
 
-        pvdz = ((sintheta*delta*u).dx + (costheta*delta*u).dy +
-                (sintheta*v).dx + (costheta*v).dy)
+        pvdz = ((sintheta*delta*u).dx + (costheta*delta*u).dyc +
+                (sintheta*v).dxc + (costheta*v).dy)
         u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
 
-        dvx = (costheta * vx.backward).dx - (sintheta * vx.backward).dy
-        dvz = (sintheta * vz.backward).dx + (costheta * vz.backward).dy
+        dvx = (costheta * vx.backward).dx - (sintheta * vx.backward).dyc
+        dvz = (sintheta * vz.backward).dxc + (costheta * vz.backward).dy
 
         # u and v equations
         pv_eq = Eq(v.backward, dampl * (v + s / m * dvz))

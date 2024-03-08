@@ -117,7 +117,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
         finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : strong, optional
+    coefficients : string, optional
         Use taylor or custom coefficients (weights). Defaults to taylor.
     expand : bool, optional
         If True, the derivative is fully expanded as a sum of products,
@@ -189,7 +189,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         finite difference. Defaults to `direct`.
     x0 : dict, optional
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : strong, optional
+    coefficients : string, optional
         Use taylor or custom coefficients (weights). Defaults to taylor.
     expand : bool, optional
         If True, the derivative is fully expanded as a sum of products,
@@ -201,12 +201,12 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         ``deriv-order`` derivative of ``expr``.
     """
     side = None
-    # First order derivative with 2nd order FD is highly non-recommended so taking
+    # First order derivative with 2nd order FD is strongly discouraged so taking
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
         fd_order = 1
 
-    # Enforce sable time coefficients
+    # Enforce stable time coefficients
     if dim.is_Time and coefficients != 'symbolic':
         coefficients = 'taylor'
 
@@ -219,7 +219,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0)
-
     # Finite difference weights corresponding to the indices. Computed via the
     # `coefficients` method (`taylor` or `symbolic`)
     weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
