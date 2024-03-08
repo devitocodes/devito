@@ -336,7 +336,7 @@ class CupyAllocator(MemoryAllocator):
             cls.lib = cp
             cls._initialize_shared_memory()
             try:
-                from mpi4py import MPI
+                from devito.mpi import MPI
                 cls.MPI = MPI
                 cls._set_device_for_mpi()
             except:
