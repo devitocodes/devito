@@ -374,7 +374,10 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = [start, start - diff]
             indices = IndexSet(dim, indices)
         else:
-            if start is dim:
+            if x0 is None or order % 2 == 0:
+                o_min = -order//2
+                o_max = order//2
+            elif start is dim:
                 o_min = -order//2 + 1
                 o_max = order//2
                 start = dim + diff/2
@@ -382,6 +385,7 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
                 o_min = -order//2
                 o_max = order//2 - 1
                 start = dim
+
             d = make_stencil_dimension(expr, o_min, o_max)
             iexpr = ind0 + d * diff
             indices = IndexSet(dim, expr=iexpr)
