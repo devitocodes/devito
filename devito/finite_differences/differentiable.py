@@ -330,7 +330,8 @@ class Differentiable(sympy.Expr, Evaluable):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
@@ -353,7 +354,8 @@ class Differentiable(sympy.Expr, Evaluable):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = [d for d in self.dimensions if d.is_Space]

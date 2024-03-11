@@ -25,22 +25,22 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
         Expression for which the first-order derivative is produced.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
-    fd_order : int, optional
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil. Defaults to `expr.space_order`.
-    side : Side, optional
+        the resulting stencil.
+    side : Side, optional, default=centered
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to `centered`.
-    matvec : Transpose, optional
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : string, optional
-        Use taylor or custom coefficients (weights). Defaults to taylor.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------
@@ -87,7 +87,7 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
     fd_order = fd_order or expr.space_order
     deriv_order = 1
 
-    # Enforce sable time coefficients
+    # Enforce stable time coefficients
     if dim.is_Time and coefficients != 'symbolic':
         coefficients = 'taylor'
 
@@ -107,21 +107,22 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
         Expression for which the cross derivative is produced.
     dims : tuple of Dimension
         Dimensions w.r.t. which to differentiate.
-    fd_order : tuple of ints
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    deriv_order : tuple of ints
-        Derivative order, e.g. 2 for a second-order derivative.
-    matvec : Transpose, optional
+    side : Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : string, optional
-        Use taylor or custom coefficients (weights). Defaults to taylor.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------
@@ -179,21 +180,22 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         Expression for which the derivative is produced.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
-    fd_order : int
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
-    matvec : Transpose, optional
+    side : Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : string, optional
-        Use taylor or custom coefficients (weights). Defaults to taylor.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------

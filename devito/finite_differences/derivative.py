@@ -337,8 +337,6 @@ class Derivative(sympy.Derivative, Differentiable):
         """
         # If an x0 already exists do not overwrite it
         x0 = self.x0 or dict(func.indices_ref._getters)
-        # expr_x0 = self.expr.indices_ref._getters
-        # x0 = {k: v for k, v in x0.items() if k in self.dims and expr_x0[k] is not v}
         if self.expr.is_Add:
             # If `expr` has both staggered and non-staggered terms such as
             # `(u(x + h_x/2) + v(x)).dx` then we exploit linearity of FD to split

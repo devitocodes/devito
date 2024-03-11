@@ -12,7 +12,8 @@ def div(func, shift=None, order=None, method='FD'):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     method: str, optional, default='FD'
-        Discretization method. Options are 'FD' (default) and 'RSFD'
+        Discretization method. Options are 'FD' (default) and
+        'RSFD' (rotated staggered grid finite-difference).
     """
     try:
         return func.div(shift=shift, order=order, method=method)
@@ -20,9 +21,9 @@ def div(func, shift=None, order=None, method='FD'):
         return 0
 
 
-def div45(func, shift=None, order=None, method='FD'):
+def div45(func, shift=None, order=None):
     """
-    Divergence of the input Function, using the 45 degrees rotated derivative.
+    Divergence of the input Function, using 45 degrees rotated derivative.
 
     Parameters
     ----------
@@ -34,10 +35,7 @@ def div45(func, shift=None, order=None, method='FD'):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     """
-    try:
-        return func.div(shift=shift, order=order, method='RSFD')
-    except AttributeError:
-        return 0
+    return div(func, shift=shift, order=order, method='RSFD')
 
 
 def grad(func, shift=None, order=None, method='FD'):
@@ -54,7 +52,8 @@ def grad(func, shift=None, order=None, method='FD'):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     method: str, optional, default='FD'
-        Discretization method. Options are 'FD' (default) and 'RSFD'
+        Discretization method. Options are 'FD' (default) and
+        'RSFD' (rotated staggered grid finite-difference).
     """
     try:
         return func.grad(shift=shift, order=order, method=method)
@@ -64,7 +63,7 @@ def grad(func, shift=None, order=None, method='FD'):
 
 def grad45(func, shift=None, order=None):
     """
-    Gradient of the input Function, using the 45 degrees rotated derivative.
+    Gradient of the input Function, using 45 degrees rotated derivative.
 
     Parameters
     ----------
@@ -76,10 +75,7 @@ def grad45(func, shift=None, order=None):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     """
-    try:
-        return func.grad(shift=shift, order=order, method='RSFD')
-    except AttributeError:
-        raise AttributeError("Gradient not supported for class %s" % func.__class__)
+    return grad(func, shift=shift, order=order, method='RSFD')
 
 
 def curl(func, shift=None, order=None, method='FD'):
@@ -96,7 +92,8 @@ def curl(func, shift=None, order=None, method='FD'):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     method: str, optional, default='FD'
-        Discretization method. Options are 'FD' (default) and 'RSFD'
+        Discretization method. Options are 'FD' (default) and
+        'RSFD' (rotated staggered grid finite-difference).
     """
     try:
         return func.curl(shift=shift, order=order, method=method)
@@ -106,7 +103,7 @@ def curl(func, shift=None, order=None, method='FD'):
 
 def curl45(func, shift=None, order=None):
     """
-    Curl of the input Function, using the 45 degrees rotated derivative.
+    Curl of the input Function, using 45 degrees rotated derivative.
     Only supported for VectorFunction
 
     Parameters
@@ -119,10 +116,7 @@ def curl45(func, shift=None, order=None):
         Discretization order for the finite differences.
         Uses `func.space_order` when not specified
     """
-    try:
-        return func.curl(shift=shift, order=order, method='RSFD')
-    except AttributeError:
-        raise AttributeError("Curl only supported for 3D VectorFunction")
+    return curl(func, shift=shift, order=order, method='RSFD')
 
 
 def laplace(func, shift=None, order=None, method='FD'):

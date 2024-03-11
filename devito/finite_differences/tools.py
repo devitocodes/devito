@@ -246,7 +246,8 @@ def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-fd_weights_registry = {'taylor': numeric_weights, 'symbolic': symbolic_weights}
+fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
+                       'symbolic': symbolic_weights}
 
 
 def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
@@ -375,9 +376,13 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = IndexSet(dim, indices)
         else:
             if x0 is None or order % 2 == 0:
+                # No _eval_at or even order derivatives
+                # keep the centered indices
                 o_min = -order//2
                 o_max = order//2
             elif start is dim:
+                # Staggered FD requires half cell shift
+                # for stability
                 o_min = -order//2 + 1
                 o_max = order//2
                 start = dim + diff/2

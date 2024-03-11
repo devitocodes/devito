@@ -200,7 +200,8 @@ class TensorFunction(AbstractTensor):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         comps = []
         func = vec_func(self)
@@ -327,7 +328,8 @@ class VectorFunction(TensorFunction):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
@@ -375,7 +377,8 @@ class VectorFunction(TensorFunction):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
@@ -411,7 +414,8 @@ class VectorFunction(TensorFunction):
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
         method: str, optional, default='FD'
-            Discretization method. Options are 'FD' (default) and 'RSFD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         func = tens_func(self)
         ndim = len(self.space_dimensions)

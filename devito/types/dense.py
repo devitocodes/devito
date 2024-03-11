@@ -2,7 +2,6 @@ from collections import namedtuple
 from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
 from functools import wraps, reduce
 from operator import mul
-import warnings
 
 import numpy as np
 import sympy
@@ -74,14 +73,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # Symbolic (finite difference) coefficients
         self._coefficients = kwargs.get('coefficients', self._default_fd)
         if self._coefficients not in fd_weights_registry:
-            if self._coefficients == 'standard':
-                self._coefficients = 'taylor'
-                warnings.warn("The `standard` mode is deprecated and will be removed in "
-                              "future versions of Devito, use `taylor` instead",
-                              category=DeprecationWarning, stacklevel=2)
-            else:
-                raise ValueError("coefficients must be `taylor` or `symbolic`"
-                                 " not %s" % self._coefficients)
+            raise ValueError("coefficients must be one of %s"
+                             " not %s" % (str(fd_weights_registry), self._coefficients))
 
         # Data-related properties
         self._data = None
