@@ -745,7 +745,7 @@ class Weights(Array):
         except TypeError:
             # E.g., `idx` is a tuple
             v = self._npweights[idx]
-        if v.is_Number:
+        if v.is_Number or v.is_Indexed:
             return sympy.sympify(v)
         else:
             return self[idx]
