@@ -6,7 +6,8 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
 from devito.finite_differences import Derivative, Differentiable
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
-                                                      IndexDerivative, Weights)
+                                                      IndexDerivative, Weights,
+                                                      DiffDerivative)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 
@@ -261,8 +262,59 @@ class TestFD(object):
                     Dpolyvalues[space_border:-space_border])
         assert np.isclose(np.mean(error), 0., atol=1e-3)
 
+    @pytest.mark.parametrize('staggered', [(True, True), (False, False),
+                                           (True, False), (False, True)])
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_fd_space_45(self, staggered, space_order, ndim):
+        """
+        Rotated derivatives require at least 2D to get access to diagonal points.
+        We create a simple 1D gradient over a 2D grid to check against a polynomial
+        """
+        # dummy axis dimension
+        nx = 100
+        xx = np.linspace(-1, 1, nx)
+        dx = xx[1] - xx[0]
+        if staggered[0] and not staggered[1]:
+            xx_s = xx + dx/2
+        elif not staggered[0] and staggered[1]:
+            xx_s = xx - dx/2
+        else:
+            xx_s = xx
+        # Symbolic data
+        grid = Grid(shape=tuple([nx]*ndim), dtype=np.float32)
+        x = grid.dimensions[0]
+        u = Function(name="u", grid=grid, space_order=space_order,
+                     staggered=None if staggered[0] else grid.dimensions)
+        du = Function(name="du", grid=grid, space_order=space_order,
+                      staggered=None if staggered[1] else grid.dimensions)
+        # Define polynomial with exact fd
+        coeffs = np.ones((space_order,), dtype=np.float32)
+        polynome = sum([coeffs[i]*x**i for i in range(0, space_order)])
+        polyvalues = np.array([polynome.subs(x, xi) for xi in xx], np.float32)
+        # Fill original data with the polynomial values
+        u.data[:] = polyvalues.reshape(nx, *[1]*(ndim-1))
+        # True derivative of the polynome
+        Dpolynome = diff(polynome)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_s], np.float32)
+        # FD derivative, symbolic
+        u_deriv = getattr(u, 'dx45')
+        # Compute numerical FD
+        stencil = Eq(du, u_deriv)
+        op = Operator(stencil, subs={d.spacing: dx for d in grid.dimensions})
+        op.apply()
+
+        # Check exactness of the numerical derivative except inside space_brd
+        space_border = space_order
+        mid = tuple([slice(space_border, -space_border, 1)] +
+                    [nx//2 for i in range(ndim-1)])
+        error = abs(du.data[mid] -
+                    Dpolyvalues[space_border:-space_border])
+
+        assert np.isclose(np.mean(error), 0., atol=1e-3)
+
     @pytest.mark.parametrize('stagger', [centered, left, right])
+    @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
     # Only test x and t as y and z are the same as x
     def test_fd_space_staggered(self, space_order, stagger):
         """
@@ -282,26 +334,32 @@ class TestFD(object):
         if stagger == left:
             off = -.5
             side = -x
-            xx2 = xx + off * dx
+            xx_u = xx + off * dx
+            duside = NODE
+            xx_du = xx
         elif stagger == right:
             off = .5
             side = x
-            xx2 = xx + off * dx
+            xx_u = xx + off * dx
+            duside = NODE
+            xx_du = xx
         else:
             side = NODE
-            xx2 = xx
+            xx_u = xx
+            xx_du = xx + .5 * dx
+            duside = x
 
         u = Function(name="u", grid=grid, space_order=space_order, staggered=side)
-        du = Function(name="du", grid=grid, space_order=space_order, staggered=side)
+        du = Function(name="du", grid=grid, space_order=space_order, staggered=duside)
         # Define polynomial with exact fd
         coeffs = np.ones((space_order-1,), dtype=np.float32)
         polynome = sum([coeffs[i]*x**i for i in range(0, space_order-1)])
-        polyvalues = np.array([polynome.subs(x, xi) for xi in xx2], np.float32)
+        polyvalues = np.array([polynome.subs(x, xi) for xi in xx_u], np.float32)
         # Fill original data with the polynomial values
         u.data[:] = polyvalues
         # True derivative of the polynome
         Dpolynome = diff(polynome)
-        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx2], np.float32)
+        Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_du], np.float32)
         # Compute numerical FD
         stencil = Eq(du, u.dx)
         op = Operator(stencil, subs={x.spacing: dx})
@@ -718,7 +776,7 @@ class TestTwoStageEvaluation(object):
 
         idxder = IndexDerivative(ui*w, {x: i})
 
-        assert idxder.evaluate == -0.5*u + 0.5*ui.subs(i, 2)
+        assert simplify(idxder.evaluate - (-0.5*u + 0.5*ui.subs(i, 2))) == 0
 
         # Make sure subs works as expected
         v = Function(name="v", grid=grid, space_order=so)
@@ -737,10 +795,34 @@ class TestTwoStageEvaluation(object):
         assert isinstance(term0, EvalDerivative)
 
         term1 = f.dx2._evaluate(expand=False)
-        assert isinstance(term1, IndexDerivative)
+        print(type(term1))
+        assert isinstance(term1, DiffDerivative)
         assert term1.depth == 1
         term1 = term1.evaluate
-        assert isinstance(term1, Add)  # devito.fd.Add
+
+        assert isinstance(term1, EvalDerivative)  # devito.fd.Add
+
+        # Check that the first partially evaluated then fully evaluated
+        # `term1` matches up the fully evaluated `term0`
+        assert EvalDerivative(*term0.args) == term1
+
+    def test_dx45(self):
+        grid = Grid(shape=(4, 4))
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        term0 = f.dx45.evaluate
+        assert len(term0.args) == 2
+
+        term1 = f.dx45._evaluate(expand=False)
+        assert len(term1.args) == 2
+        for i in range(2):
+            assert isinstance(term0.args[i], EvalDerivative)
+            assert isinstance(term1.args[i], DiffDerivative)
+            assert term1.args[i].depth == 1
+
+        term1 = term1.evaluate
+        assert isinstance(term1, Add)  # devito.fd.EvalDerivative
 
         # Check that the first partially evaluated then fully evaluated
         # `term1` matches up the fully evaluated `term0`
@@ -755,14 +837,14 @@ class TestTwoStageEvaluation(object):
         assert isinstance(term0, EvalDerivative)
 
         term1 = f.dx.dy._evaluate(expand=False)
-        assert isinstance(term1, IndexDerivative)
+        assert isinstance(term1, DiffDerivative)
         assert term1.depth == 2
         term1 = term1.evaluate
-        assert isinstance(term1, Add)  # devito.fd.Add
+        assert isinstance(term1, EvalDerivative)  # devito.fd.Add
 
         # Through expansion and casting we also check that `term0`
         # is indeed mathematically equivalent to `term1`
-        assert Add(*term0.expand().args) == term1.expand()
+        assert EvalDerivative(*term0.expand().args) == term1.expand()
 
     def test_dxdy_v2(self):
         grid = Grid(shape=(4, 4))
@@ -770,7 +852,7 @@ class TestTwoStageEvaluation(object):
         f = TimeFunction(name='f', grid=grid, space_order=4)
 
         term1 = f.dxdy._evaluate(expand=False)
-        assert len(term1.find(IndexDerivative)) == 2
+        assert len(term1.find(DiffDerivative)) == 2
 
     def test_transpose(self):
         grid = Grid(shape=(4, 4))
@@ -780,7 +862,7 @@ class TestTwoStageEvaluation(object):
         f = TimeFunction(name='f', grid=grid, space_order=4)
 
         term = f.dx.T._evaluate(expand=False)
-        assert isinstance(term, IndexDerivative)
+        assert isinstance(term, DiffDerivative)
 
         i0, = term.dimensions
         assert term.base == f.subs(x, x + i0*h_x)

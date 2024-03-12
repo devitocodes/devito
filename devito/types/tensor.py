@@ -188,7 +188,7 @@ class TensorFunction(AbstractTensor):
         else:
             return super().values()
 
-    def div(self, shift=None, order=None):
+    def div(self, shift=None, order=None, method='FD'):
         """
         Divergence of the TensorFunction (is a VectorFunction).
 
@@ -199,6 +199,9 @@ class TensorFunction(AbstractTensor):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         comps = []
         func = vec_func(self)
@@ -207,7 +210,8 @@ class TensorFunction(AbstractTensor):
         order = order or self.space_order
         for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
-                              (x0=shift_x0(shift, d, i, j), fd_order=order)
+                              (x0=shift_x0(shift, d, i, j), fd_order=order,
+                               method=method)
                               for j, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
@@ -312,7 +316,7 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    def div(self, shift=None, order=None):
+    def div(self, shift=None, order=None, method='FD'):
         """
         Divergence of the VectorFunction, creates the divergence Function.
 
@@ -323,11 +327,14 @@ class VectorFunction(TensorFunction):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                     fd_order=order)
+                                                     fd_order=order, method=method)
                     for i, d in enumerate(self.space_dimensions)])
 
     @property
@@ -358,7 +365,7 @@ class VectorFunction(TensorFunction):
                  for s in self]
         return func._new(comps)
 
-    def curl(self, shift=None, order=None):
+    def curl(self, shift=None, order=None, method='FD'):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
 
@@ -369,6 +376,9 @@ class VectorFunction(TensorFunction):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
@@ -378,21 +388,21 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
         order = order or self.space_order
         comp1 = (getattr(self[2], derivs[1])(x0=shift_x0(shift, dims[1], 2, 1),
-                                             fd_order=order) -
+                                             fd_order=order, method=method) -
                  getattr(self[1], derivs[2])(x0=shift_x0(shift, dims[2], 1, 2),
-                                             fd_order=order))
+                                             fd_order=order, method=method))
         comp2 = (getattr(self[0], derivs[2])(x0=shift_x0(shift, dims[2], 0, 2),
-                                             fd_order=order) -
+                                             fd_order=order, method=method) -
                  getattr(self[2], derivs[0])(x0=shift_x0(shift, dims[0], 2, 0),
-                                             fd_order=order))
+                                             fd_order=order, method=method))
         comp3 = (getattr(self[1], derivs[0])(x0=shift_x0(shift, dims[0], 1, 0),
-                                             fd_order=order) -
+                                             fd_order=order, method=method) -
                  getattr(self[0], derivs[1])(x0=shift_x0(shift, dims[1], 0, 1),
-                                             fd_order=order))
+                                             fd_order=order, method=method))
         func = vec_func(self)
         return func._new(3, 1, [comp1, comp2, comp3])
 
-    def grad(self, shift=None, order=None):
+    def grad(self, shift=None, order=None, method='FD'):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
 
@@ -403,13 +413,16 @@ class VectorFunction(TensorFunction):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
         """
         func = tens_func(self)
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
         comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j),
-                                             fd_order=order)
+                                             fd_order=order, method=method)
                   for j, d in enumerate(self.space_dimensions)]
                  for i, f in enumerate(self)]
         return func._new(comps)

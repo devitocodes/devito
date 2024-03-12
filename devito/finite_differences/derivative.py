@@ -7,6 +7,7 @@ import sympy
 from .finite_difference import generic_derivative, first_derivative, cross_derivative
 from .differentiable import Differentiable
 from .tools import direct, transpose
+from .rsfd import d45
 from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
 from devito.types.utils import DimensionTuple
 
@@ -86,7 +87,8 @@ class Derivative(sympy.Derivative, Differentiable):
     _fd_priority = 3
 
     __rargs__ = ('expr', 'dims')
-    __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs', 'x0')
+    __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
+                   'x0', 'method')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) is sympy.Derivative:
@@ -106,6 +108,7 @@ class Derivative(sympy.Derivative, Differentiable):
         obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
+        obj._method = kwargs.get("method", 'FD')
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -183,12 +186,14 @@ class Derivative(sympy.Derivative, Differentiable):
                           for s in filter_ordered(new_dims)]
         return new_dims, orders, fd_orders, variable_count
 
-    def __call__(self, x0=None, fd_order=None, side=None):
+    def __call__(self, x0=None, fd_order=None, side=None, method=None):
         if self.ndims == 1:
-            _fd_order = fd_order or self._fd_order
-            _side = side or self._side
-            new_x0 = {self.dims[0]: x0} if x0 is not None else self.x0
-            return self._new_from_self(fd_order=_fd_order, side=_side, x0=new_x0)
+            fd_order = fd_order or self._fd_order
+            side = side or self._side
+            method = method or self._method
+            x0 = {self.dims[0]: x0} if x0 is not None else self.x0
+            return self._new_from_self(fd_order=fd_order, side=side, x0=x0,
+                                       method=method)
 
         if side is not None:
             raise TypeError("Side only supported for first order single"
@@ -210,7 +215,7 @@ class Derivative(sympy.Derivative, Differentiable):
         expr = kwargs.pop('expr', self.expr)
         _kwargs = {'deriv_order': self.deriv_order, 'fd_order': self.fd_order,
                    'side': self.side, 'transpose': self.transpose, 'subs': self._ppsubs,
-                   'x0': self.x0, 'preprocessed': True}
+                   'x0': self.x0, 'preprocessed': True, 'method': self.method}
         _kwargs.update(**kwargs)
         return Derivative(expr, *self.dims, **_kwargs)
 
@@ -306,6 +311,10 @@ class Derivative(sympy.Derivative, Differentiable):
         return self.expr.is_TimeDependent
 
     @property
+    def method(self):
+        return self._method
+
+    @property
     def T(self):
         """Transpose of the Derivative.
 
@@ -384,14 +393,21 @@ class Derivative(sympy.Derivative, Differentiable):
         expand = kwargs.get('expand', True)
 
         # Step 2: Evaluate FD of the new expression
-        if self.side is not None and self.deriv_order == 1:
+        if self.method == 'RSFD':
+            assert len(self.dims) == 1
+            assert self.deriv_order == 1
+            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
+        elif self.side is not None and self.deriv_order == 1:
+            assert self.method == 'FD'
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
                                    x0=self.x0, expand=expand)
         elif len(self.dims) > 1:
+            assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, x0=self.x0, expand=expand)
         else:
+            assert self.method == 'FD'
             res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
                                      matvec=self.transpose, x0=self.x0, expand=expand)
 

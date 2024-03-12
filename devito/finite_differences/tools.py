@@ -64,7 +64,9 @@ def check_symbolic(func):
                 raise NotImplementedError("Applying the chain rule to functions "
                                           "with symbolic coefficients is not currently "
                                           "supported")
-        kwargs['symbolic'] = expr._uses_symbolic_coefficients
+            kwargs['coefficients'] = 'symbolic'
+        else:
+            kwargs['coefficients'] = expr.coefficients
         return func(expr, *args, **kwargs)
     return wrapper
 
@@ -136,6 +138,15 @@ def generate_fd_shortcuts(dims, so, to=0):
         name_fd = 'd%sr' % name
         desciption = 'right first order derivative w.r.t dimension %s' % d.name
         derivatives[name_fd] = (deriv, desciption)
+
+    # Add RSFD for first order derivatives
+    for d, o in zip(dims, orders):
+        if not d.is_Time:
+            name = d.root.name
+            deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, method='RSFD')
+            name_fd = 'd%s45' % name
+            desciption = 'Derivative w.r.t %s with rotated 45 degree FD' % d.name
+            derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
 
@@ -225,14 +236,18 @@ def make_stencil_dimension(expr, _min, _max):
     return StencilDimension(name='i%d' % n, _min=_min, _max=_max)
 
 
-def symbolic_weights(function, deriv_order, indices, dim):
-    return [function._coeff_symbol(indices[j], deriv_order, function, dim)
+def symbolic_weights(function, deriv_order, indices, x0):
+    return [function._coeff_symbol(indices[j], deriv_order, function, x0)
             for j in range(0, len(indices))]
 
 
 @cacheit
-def numeric_weights(deriv_order, indices, x0):
+def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+
+
+fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
+                       'symbolic': symbolic_weights}
 
 
 def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
@@ -259,7 +274,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
     -------
     An IndexSet, representing an ordered list of indices.
     """
-    if expr.is_Staggered and not dim.is_Time:
+    if expr.is_Staggered and not dim.is_Time and side is None:
         x0, indices = generate_indices_staggered(expr, dim, order, side=side, x0=x0)
     else:
         x0 = (x0 or {dim: dim}).get(dim, dim)
@@ -349,7 +364,7 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = [start - diff/2, start + diff/2]
             indices = IndexSet(dim, indices)
         else:
-            o_min = -order//2+1
+            o_min = -order//2 + 1
             o_max = order//2
 
             d = make_stencil_dimension(expr, o_min, o_max)
@@ -360,11 +375,24 @@ def generate_indices_staggered(expr, dim, order, side=None, x0=None):
             indices = [start, start - diff]
             indices = IndexSet(dim, indices)
         else:
-            o_min = -order//2
-            o_max = order//2
+            if x0 is None or order % 2 == 0:
+                # No _eval_at or even order derivatives
+                # keep the centered indices
+                o_min = -order//2
+                o_max = order//2
+            elif start is dim:
+                # Staggered FD requires half cell shift
+                # for stability
+                o_min = -order//2 + 1
+                o_max = order//2
+                start = dim + diff/2
+            else:
+                o_min = -order//2
+                o_max = order//2 - 1
+                start = dim
 
             d = make_stencil_dimension(expr, o_min, o_max)
-            iexpr = start + d * diff
+            iexpr = ind0 + d * diff
             indices = IndexSet(dim, expr=iexpr)
 
     return start, indices

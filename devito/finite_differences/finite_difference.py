@@ -1,9 +1,8 @@
 from sympy import sympify
 
 from .differentiable import EvalDerivative, DiffDerivative, Weights
-from .tools import (numeric_weights, symbolic_weights, left, right,
-                    generate_indices, centered, direct, transpose,
-                    check_input, check_symbolic)
+from .tools import (left, right, generate_indices, centered, direct, transpose,
+                    check_input, check_symbolic, fd_weights_registry)
 
 __all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
            'left', 'right', 'centered', 'transpose', 'generate_indices']
@@ -16,7 +15,7 @@ _PRECISION = 9
 @check_input
 @check_symbolic
 def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=None,
-                     symbolic=False, expand=True):
+                     coefficients='taylor', expand=True):
     """
     First-order derivative of a given expression.
 
@@ -26,22 +25,22 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
         Expression for which the first-order derivative is produced.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
-    fd_order : int, optional
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil. Defaults to `expr.space_order`.
-    side : Side, optional
+        the resulting stencil.
+    side : Side, optional, default=centered
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1). Defaults to `centered`.
-    matvec : Transpose, optional
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------
@@ -88,8 +87,12 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
     fd_order = fd_order or expr.space_order
     deriv_order = 1
 
+    # Enforce stable time coefficients
+    if dim.is_Time and coefficients != 'symbolic':
+        coefficients = 'taylor'
+
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, symbolic, expand)
+                           matvec, x0, coefficients, expand)
 
 
 @check_input
@@ -104,21 +107,22 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
         Expression for which the cross derivative is produced.
     dims : tuple of Dimension
         Dimensions w.r.t. which to differentiate.
-    fd_order : tuple of ints
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    deriv_order : tuple of ints
-        Derivative order, e.g. 2 for a second-order derivative.
-    matvec : Transpose, optional
+    side : Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------
@@ -166,7 +170,7 @@ g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
 @check_input
 @check_symbolic
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
-                       symbolic=False, expand=True):
+                       coefficients='taylor', expand=True):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -176,21 +180,22 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         Expression for which the derivative is produced.
     dim : Dimension
         The Dimension w.r.t. which to differentiate.
-    fd_order : int
+    fd_order : int, optional, default=expr.space_order
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
-    deriv_order : int
-        Derivative order, e.g. 2 for a second-order derivative.
-    matvec : Transpose, optional
+    side : Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1).
+    matvec : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference. Defaults to `direct`.
-    x0 : dict, optional
+        finite difference.
+    x0 : dict, optional, default=None
         Origin of the finite-difference scheme as a map dim: origin_dim.
-    symbolic : bool, optional
-        Use default or custom coefficients (weights). Defaults to False.
-    expand : bool, optional
+    coefficients : string, optional, default='taylor'
+        Use taylor or custom coefficients (weights).
+    expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned. Defaults to True.
+        otherwise an IndexSum is returned.
 
     Returns
     -------
@@ -198,32 +203,34 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         ``deriv-order`` derivative of ``expr``.
     """
     side = None
-    # First order derivative with 2nd order FD is highly non-recommended so taking
+    # First order derivative with 2nd order FD is strongly discouraged so taking
     # first order fd that is a lot better
-    if deriv_order == 1 and fd_order == 2 and not symbolic:
+    if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
         fd_order = 1
 
+    # Enforce stable time coefficients
+    if dim.is_Time and coefficients != 'symbolic':
+        coefficients = 'taylor'
+
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, symbolic, expand)
+                           matvec, x0, coefficients, expand)
 
 
-def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, symbolic,
+def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
                     expand):
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0)
-
-    # Finite difference weights from Taylor approximation given these positions
-    if symbolic:
-        weights = symbolic_weights(expr, deriv_order, indices, x0)
-    else:
-        weights = numeric_weights(deriv_order, indices, x0)
+    # Finite difference weights corresponding to the indices. Computed via the
+    # `coefficients` method (`taylor` or `symbolic`)
+    weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
 
     # Enforce fixed precision FD coefficients to avoid variations in results
-    weights = [sympify(w).evalf(_PRECISION) for w in weights][::matvec.val]
+    weights = [sympify(w).evalf(_PRECISION) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:
+        weights = weights[::-1]
         indices = indices.transpose()
 
     # Shift index due to staggering, if any

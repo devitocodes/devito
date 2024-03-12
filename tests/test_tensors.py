@@ -200,6 +200,9 @@ def test_tensor_eq(func1, symm, diag, expected):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid, symmetric=symm, diagonal=diag)
     for attr in f1[0]._fd:
+        # Skip rotated derivatives as the staggering isn't compatible with it
+        if '45' in attr:
+            continue
         eq = Eq(f1, getattr(f1, attr))
         assert len(eq.evaluate._flatten) == expected
 

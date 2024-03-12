@@ -257,7 +257,7 @@ def default_rules(obj, functions):
         indices, x0 = generate_indices(function, dim,
                                        fd_order, side=None, x0=mapper)
 
-        coeffs = numeric_weights(deriv_order, indices, x0)
+        coeffs = numeric_weights(function, deriv_order, indices, x0)
 
         for (c, i) in zip(coeffs, indices):
             subs.update({function._coeff_symbol(i, deriv_order, function, index): c})

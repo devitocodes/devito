@@ -5,3 +5,4 @@ from .derivative import *  # noqa
 from .tools import generate_fd_shortcuts  # noqa
 from .coefficients import *  # noqa
 from .operators import *  # noqa
+from .rsfd import *  # noqa
