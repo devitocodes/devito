@@ -8,7 +8,7 @@ from sympy import sympify
 
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
-from devito.exceptions import InvalidOperator
+from devito.exceptions import InvalidOperator, ExecutionError
 from devito.logger import debug, info, perf, warning, is_log_enabled_for
 from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
@@ -21,7 +21,8 @@ from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
-                           generate_macros, minimize_symbols, unevaluate)
+                           generate_macros, minimize_symbols, unevaluate,
+                           error_mapper)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -646,6 +647,16 @@ class Operator(Callable):
 
         return args
 
+    def _postprocess_errors(self, retval):
+        if retval == 0:
+            return
+        elif retval == error_mapper['Stability']:
+            raise ExecutionError("Detected nan/inf in some output Functions")
+        elif retval == error_mapper['KernelLaunch']:
+            raise ExecutionError("Kernel launch failed")
+        else:
+            raise ExecutionError("An error occurred during execution")
+
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
@@ -842,7 +853,7 @@ class Operator(Callable):
         try:
             cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
-                cfunction(*arg_values)
+                retval = cfunction(*arg_values)
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
@@ -853,6 +864,9 @@ class Operator(Callable):
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
+
+        # Perform error checking
+        self._postprocess_errors(retval)
 
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)

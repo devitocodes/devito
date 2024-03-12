@@ -10,8 +10,9 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
                                     cire, cse, factorize, fission, fuse,
                                     optimize_pows)
-from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize, hoist_prodders,
-                               linearize, pthreadify, relax_incr_dimensions)
+from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
+                               hoist_prodders, linearize, pthreadify,
+                               relax_incr_dimensions, check_stability)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
@@ -91,6 +92,7 @@ class DeviceOperatorMixin(object):
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
+        o['errctl'] = oo.pop('errctl', cls.ERRCTL)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"
@@ -225,6 +227,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Misc optimizations
         hoist_prodders(graph)
+
+        # Perform error checking
+        check_stability(graph, **kwargs)
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)

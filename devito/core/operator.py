@@ -119,6 +119,13 @@ class BasicOperator(Operator):
     (default) or `int32`.
     """
 
+    ERRCTL = None
+    """
+    Runtime error checking. If this option is enabled, the generated code will
+    include runtime checks for various things that might go south, such as
+    instability (e.g., NaNs), failed library calls (e.g., kernel launches).
+    """
+
     _Target = None
     """
     The target language constructor, to be specified by subclasses.
@@ -154,6 +161,9 @@ class BasicOperator(Operator):
             raise InvalidArgument("Illegal `deriv-schedule` value")
         if oo['deriv-unroll'] not in (False, 'inner', 'full'):
             raise InvalidArgument("Illegal `deriv-unroll` value")
+
+        if oo['errctl'] not in (None, False, 'basic', 'max'):
+            raise InvalidArgument("Illegal `errctl` value")
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

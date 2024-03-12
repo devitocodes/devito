@@ -14,5 +14,9 @@ class InvalidOperator(DevitoError):
     pass
 
 
+class ExecutionError(DevitoError):
+    pass
+
+
 class VisitorException(DevitoError):
     pass
