@@ -313,13 +313,16 @@ class CGen(Visitor):
                 ret.append(ccode(i))
         return ret
 
-    def _gen_signature(self, o):
+    def _gen_signature(self, o, is_declaration=False):
         decls = self._args_decl(o.parameters)
         prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
         signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
         if o.templates:
             tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
-            signature = c.Template(tparams, signature)
+            if is_declaration:
+                signature = TemplateDecl(tparams, signature)
+            else:
+                signature = c.Template(tparams, signature)
         return signature
 
     def _blankline_logic(self, children):
@@ -614,8 +617,10 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_KernelLaunch(self, o):
-        arguments = self._args_call(o.arguments)
-        arguments = ','.join(arguments)
+        if o.templates:
+            templates = '<%s>' % ','.join([str(i) for i in o.templates])
+        else:
+            templates = ''
 
         launch_args = [o.grid, o.block]
         if o.shm is not None:
@@ -624,7 +629,11 @@ class CGen(Visitor):
             launch_args.append(o.stream)
         launch_config = ','.join(str(i) for i in launch_args)
 
-        return c.Statement('%s<<<%s>>>(%s)' % (o.name, launch_config, arguments))
+        arguments = self._args_call(o.arguments)
+        arguments = ','.join(arguments)
+
+        return c.Statement('%s%s<<<%s>>>(%s)'
+                           % (o.name, templates, launch_config, arguments))
 
     # Operator-handle machinery
 
@@ -678,7 +687,7 @@ class CGen(Visitor):
         efuncs = [blankline]
         items = [i.root for i in o._func_table.values() if i.local]
         for i in sorted_efuncs(items):
-            esigns.append(self._gen_signature(i))
+            esigns.append(self._gen_signature(i, is_declaration=True))
             efuncs.extend([self._visit(i), blankline])
 
         # Definitions
@@ -1356,6 +1365,14 @@ class MultilineCall(c.Generable):
         if self.cast:
             tip = '(%s)%s' % (self.cast, tip)
         yield tip
+
+
+class TemplateDecl(c.Template):
+
+    # Workaround to generate ';' at the end
+
+    def generate(self):
+        return super().generate(with_semicolon=True)
 
 
 def sorted_efuncs(efuncs):

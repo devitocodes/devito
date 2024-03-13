@@ -250,9 +250,9 @@ class Call(ExprStmt, Node):
         Defaults to False.
     writes : list, optional
         The AbstractFunctions that will be written to by the called function.
-        Explicitly tagging these AbstractFunctions is useful in the case of external
-        calls, that is whenever the compiler would be unable to retrieve that
-        information by analysis of the IET graph.
+        Explicitly tagging these AbstractFunctions is useful in the case of
+        external calls, that is whenever the compiler would be unable to
+        retrieve that information by analysis of the IET graph.
     templates : list of Basic, optional
         The template arguments of the Call.
     """

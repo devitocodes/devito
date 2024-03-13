@@ -7,10 +7,10 @@ import sympy
 
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
-from devito.ir.iet import (Call, Callable, Conditional, DummyExpr, Iteration, List,
-                           KernelLaunch, Lambda, ElementalFunction, CGen, FindSymbols,
-                           filter_iterations, make_efunc, retrieve_iteration_tree,
-                           Transformer)
+from devito.ir.iet import (Call, Callable, Conditional, DeviceCall, DummyExpr,
+                           Iteration, List, KernelLaunch, Lambda, ElementalFunction,
+                           CGen, FindSymbols, filter_iterations, make_efunc,
+                           retrieve_iteration_tree, Transformer)
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
@@ -428,13 +428,14 @@ void foo(struct dataobj *restrict u_vec)
 }"""
 
 
-def test_templates_call():
+@pytest.mark.parametrize('cls', [Call, DeviceCall])
+def test_templates_call(cls):
     grid = Grid(shape=(10, 10))
     x, y = grid.dimensions
 
     u = Function(name='u', grid=grid)
 
-    foo = Call('foo', u, templates=[Class('a'), Class('b')])
+    foo = cls('foo', u, templates=[Class('a'), Class('b')])
 
     assert str(foo) == "foo<class a, class b>(u_vec);"
 
@@ -443,14 +444,15 @@ def test_kernel_launch():
     grid = Grid(shape=(10, 10))
 
     u = Function(name='u', grid=grid)
+    s = Symbol(name='s')
 
     class Dim3(LocalObject):
         dtype = type('dim3', (c_void_p,), {})
 
     kl = KernelLaunch('mykernel', Dim3('mygrid'), Dim3('myblock'),
-                      arguments=(u.indexed,))
+                      arguments=(u.indexed,), templates=[s])
 
-    assert str(kl) == 'mykernel<<<mygrid,myblock,0>>>(d_u);'
+    assert str(kl) == 'mykernel<s><<<mygrid,myblock,0>>>(d_u);'
 
 
 def test_codegen_quality0():
