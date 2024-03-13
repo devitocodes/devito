@@ -248,6 +248,7 @@ def numeric_weights(function, deriv_order, indices, x0):
 
 fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
                        'symbolic': symbolic_weights}
+coeff_priority = {'taylor': 1, 'standard': 1, 'symbolic': 0}
 
 
 def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
