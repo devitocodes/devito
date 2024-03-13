@@ -11,7 +11,7 @@ from sympy.core.core import ordering_of_classes
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
 
-from devito.finite_differences.tools import make_shift_x0
+from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
                           infer_dtype, is_integer, split)
@@ -130,11 +130,8 @@ class Differentiable(sympy.Expr, Evaluable):
         coefficients = {f.coefficients for f in self._functions}
         # If there is multiple ones, we have to revert to the highest priority
         # i.e we have to remove symbolic
-        if len(coefficients) == 2:
-            return (coefficients - {'symbolic'}).pop()
-        else:
-            assert len(coefficients) == 1
-            return coefficients.pop()
+        key = lambda x: coeff_priority[x]
+        return sorted(coefficients, key=key, reverse=True)[0]
 
     @cached_property
     def _coeff_symbol(self, *args, **kwargs):

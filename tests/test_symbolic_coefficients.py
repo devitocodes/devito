@@ -510,3 +510,10 @@ class TestSC(object):
 
         # `str` simply because some objects are of type EvalDerivative
         assert str(eq.evaluate.rhs) == str(term0 + term1 + term2)
+
+    def test_priority(self):
+        grid = Grid(shape=(11,))
+        m = Function(name='m', grid=grid, space_order=2, coefficients='symbolic')
+        p = Function(name='p', grid=grid, space_order=2)
+
+        assert (p*m).coefficients == 'taylor'
