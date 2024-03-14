@@ -18,7 +18,7 @@ import pandas as pd
 import sys
 import os
 
-from benchmarks.user.advisor.advisor_logging import check, err, log
+from advisor_logging import check, err, log
 
 
 try:
