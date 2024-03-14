@@ -14,7 +14,7 @@ from sympy import S
 from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
-from devito.logger import warning, error
+from devito.logger import warning, error, log
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
@@ -368,14 +368,16 @@ class AdvisorProfiler(AdvancedProfiler):
 
     def __init__(self, name):
         self.path = locate_intel_advisor()
+        # import pdb;pdb.set_trace()
         if self.path is None:
             self.initialized = False
         else:
-            super().__init__(name)
+            super(AdvisorProfiler, self).__init__(name)
             # Make sure future compilations will get the proper header and
             # shared object files
             compiler = configuration['compiler']
             compiler.add_include_dirs(self.path.joinpath('include').as_posix())
+            print(compiler.include_dirs)
             compiler.add_libraries(self._default_libs)
             libdir = self.path.joinpath('lib64').as_posix()
             compiler.add_library_dirs(libdir)

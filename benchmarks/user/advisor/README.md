@@ -2,7 +2,7 @@ Example runs:
 
 * `python3 run_advisor.py --name isotropic --path <path-to-devito>/examples/seismic/acoustic/acoustic_example.py`
 * `python3 run_advisor.py --name tti_so8 --path <path-to-devito>/examples/seismic/tti/tti_example.py --exec-args "-so 8"`
-* `python3 run_advisor.py --name iso_ac_so6 --path <path-to-devito>/benchmarks/user/benchmark.py --exec-args "bench -P acoustic -so 6 --tn 200 -d 100 100 100 --autotune off -x 1"`
+* `python3 run_advisor.py --name iso_ac_so4 --path <path-to-devito>/benchmarks/user/benchmark.py --exec-args "bench -P acoustic -so 4 --tn 200 -d 100 100 100"`
 
 After the run has finished you should be able to plot a roofline with the results and export roofline data to JSON using:
 * `python3 roofline.py --name Roofline --project <advisor-project-name>`
@@ -12,8 +12,8 @@ To create a read-only snapshot for use with Intel Advisor GUI, use:
 
 Prerequisites:
 * Support guaranteed only for Intel Advisor as installed with Intel Parallel Studio v 2020 Update 2
-  and Intel oneAPI 2021; earlier years may not work; other 2020/2021 versions, as well as later years,
-  may or may not work.
+  and Intel oneAPI 2021, 2022, 2023; earlier versions may not work.
+
 * In Linux systems you may need to enable system-wide profiling by setting:
   - `/proc/sys/kernel/yama/ptrace_scope` to `0`
   - `/proc/sys/kernel/perf_event_paranoid` to `1`
@@ -29,7 +29,7 @@ Limitations:
 * Running the `tripcounts` analysis takes a lot, despite starting in paused
   mode. This analysis, together with the `survey` analysis, is necessary to
   generate a roofline. Both are run by `run_advisor.py`.
-* Requires python3, untested in earlier versions of python and conda environments
+* Requires Python3, untested in conda environments
 * Currently requires download of repository and running `pip3 install .`, the scripts
   are currently not included as a package with the user installation of Devito
 

@@ -748,6 +748,20 @@ class IntelCompiler(Compiler):
         if language == 'openmp':
             self.ldflags.append('-qopenmp')
 
+        # import pdb;pdb.set_trace()
+
+        from devito.operator.profiling import locate_intel_advisor
+        path = locate_intel_advisor()
+        self.add_include_dirs(path.joinpath('include').as_posix())
+        
+        _default_libs = ['ittnotify']
+        self.add_libraries(_default_libs)
+
+        libdir = path.joinpath('lib64').as_posix()
+        self.add_library_dirs(libdir)
+        self.add_ldflags('-Wl,-rpath,%s' % libdir)
+
+
         if kwargs.get('mpi'):
             self.__init_intel_mpi__()
             self.__init_intel_mpi_flags__()

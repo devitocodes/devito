@@ -9,8 +9,7 @@ from tempfile import gettempdir, mkdtemp
 import click
 
 
-from benchmarks.user.advisor.advisor_logging import (check, log, progress,
-                                                     log_process)
+from advisor_logging import (check, log, progress, log_process)
 
 
 @click.command()
@@ -63,7 +62,7 @@ def run_with_advisor(path, output, name, exec_args):
         check(False, "Error: Couldn't detect Intel Compiler (icc).")
 
     # All good, Intel compiler and advisor are available
-    os.environ['DEVITO_ARCH'] = 'intel'
+    os.environ['DEVITO_ARCH'] = 'icc'
 
     # Tell Devito to instrument the generated code for Advisor
     os.environ['DEVITO_PROFILING'] = 'advisor'
@@ -109,7 +108,7 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     advisor_cmd = [
         'advixe-cl',
-        '-data-limit=500',
+        '-data-limit=5000',
         '-project-dir', str(output),
         '-search-dir src:r=%s' % gettempdir(),  # Root directory where Devito stores the generated code  # noqa
     ]
@@ -124,7 +123,7 @@ def run_with_advisor(path, output, name, exec_args):
         '--collect=tripcounts',
         '--enable-cache-simulation', # Switch to '-enable-cache-simulation' for a CARM roofline model `https://software.intel.com/content/www/us/en/develop/articles/integrated-roofline-model-with-intel-advisor.html`  # noqa
         '--flop',
-        '--stacks',
+        # '--stacks',
         '--collect=map',
         '-start-paused',
     ]
@@ -147,12 +146,16 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)
 
+    log("Logging in: `%s`" % str(advixe_handler))
+    
     with progress('Performing `cache warm-up` run'):
         try:
             p_warm_up = Popen(py_cmd, stdout=PIPE, stderr=PIPE)
             log_process(p_warm_up, advixe_logger)
         except OSError:
             check(False, 'Failed!')
+
+    # import pdb;pdb.set_trace()
 
     with progress('Performing `survey` analysis'):
         cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_survey + ['--'] + py_cmd
@@ -164,6 +167,7 @@ def run_with_advisor(path, output, name, exec_args):
 
     with progress('Performing `tripcounts` analysis'):
         cmd = numactl_cmd + ['--'] + advisor_cmd + advisor_flops + ['--'] + py_cmd
+        # import pdb;pdb.set_trace()
         try:
             p_tripcounts = Popen(cmd, stdout=PIPE, stderr=PIPE)
             log_process(p_tripcounts, advixe_logger)
