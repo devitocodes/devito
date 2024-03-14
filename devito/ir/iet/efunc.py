@@ -158,8 +158,10 @@ class DeviceFunction(Callable):
     A Callable executed asynchronously on a device.
     """
 
-    def __init__(self, name, body, retval='void', parameters=None, prefix='__global__'):
-        super().__init__(name, body, retval, parameters=parameters, prefix=prefix)
+    def __init__(self, name, body, retval='void', parameters=None,
+                 prefix='__global__', templates=None):
+        super().__init__(name, body, retval, parameters=parameters, prefix=prefix,
+                         templates=templates)
 
 
 class DeviceCall(Call):
@@ -171,7 +173,7 @@ class DeviceCall(Call):
     def __init__(self, name, arguments=None, **kwargs):
         # Explicitly convert host pointers into device pointers
         processed = []
-        for a in arguments:
+        for a in as_tuple(arguments):
             try:
                 f = a.function
             except AttributeError:
@@ -192,8 +194,9 @@ class KernelLaunch(DeviceCall):
     """
 
     def __init__(self, name, grid, block, shm=0, stream=None,
-                 arguments=None, writes=None):
-        super().__init__(name, arguments=arguments, writes=writes)
+                 arguments=None, writes=None, templates=None):
+        super().__init__(name, arguments=arguments, writes=writes,
+                         templates=templates)
 
         # Kernel launch arguments
         self.grid = grid
