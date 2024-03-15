@@ -18,8 +18,6 @@ from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
 
-__all__ = ['CustomTopology']
-
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
 # that has *already* initialized MPI
@@ -208,13 +206,15 @@ class Distributor(AbstractDistributor):
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
             if topology is None:
-                # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
-                # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
+                # `MPI.Compute_dims` sets the dimension sizes to be as close to
+                # each other as possible, using an appropriate divisibility
+                # algorithm. Thus, in 3D:
                 # * topology[0] >= topology[1] >= topology[2]
                 # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-                # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
-                # some properties through our own wrapper (e.g., OpenMPI v3 does not
-                # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+                # However, `MPI.Compute_dims` is distro-dependent, so we have
+                # to enforce some properties through our own wrapper (e.g.,
+                # OpenMPI v3 does not guarantee that 9 ranks are arranged into
+                # a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
                 # A custom topology may contain integers or the wildcard '*'
