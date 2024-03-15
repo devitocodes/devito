@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from functools import wraps, cached_property
 
 import sympy
 import numpy as np
+
 
 try:
     from scipy.special import i0
@@ -225,6 +227,16 @@ class WeightedInterpolator(GenericInterpolator):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
+        # Check if any Functions are defined on SubDomains
+        sdms = set(v.grid for v in variables if v.grid.is_SubDomain)
+        if len(sdms) > 1:
+            raise NotImplementedError("Sparse operation on multiple Functions defined on"
+                                      " different SubDomains currently unsupported")
+        elif len(sdms) == 1:
+            subdomain = sdms.pop()
+        else:
+            subdomain = None
+
         mapper = {}
         pos = self.sfunction._position_map.values()
 
@@ -236,9 +248,46 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitution mapper for variables
         mapper = self._rdim._getters
-        idx_subs = {v: v.subs({k: c + p
-                    for ((k, c), p) in zip(mapper.items(), pos)})
-                    for v in variables}
+
+        # Need to adjust bounds if Function defined on a SubDomain
+        if subdomain:
+            # Corresponding mapper just for the SubDomain
+            smapper = OrderedDict()
+            # Rebuild the ConditionalDimensions to use the SubDomain
+            # minima and maxima in the condition
+            subs = {d.symbolic_min: sd.symbolic_min
+                    for d, sd in subdomain.dimension_map.items()}
+            subs.update({d.symbolic_max: sd.symbolic_max
+                         for d, sd in subdomain.dimension_map.items()})
+
+            for d, cd in list(mapper.items()):
+                cond = cd.condition.subs(subs)
+                # Rebuild the ConditionalDimension with an updated condition
+                # Note that rebuilding introduces a factor of 1 if factor is None
+                # This is not desired here.
+                sd = subdomain.dimension_map[d]
+                rebuilt_cd = cd._rebuild(condition=cond, factor=cd._factor)
+                mapper[d] = rebuilt_cd
+                smapper[sd] = rebuilt_cd
+
+        # Index substitution to make in variables
+        i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
+        if subdomain:  # Add subdimension substitutions if necessary
+            i_subs.update({k: c + p for ((k, c), p) in zip(smapper.items(), pos)})
+
+        idx_subs = {v: v.subs(i_subs) for v in variables}
+
+        c_dims = set(c for c in mapper.values()).union(set(c for c in smapper.values()))
+        conditions = [c.condition for c in c_dims]
+        print("ConditionalDimensions", c_dims)
+        print("Conditions", conditions)
+
+        # FIXME: Still generates more conditionals than is needed
+        # For some reason global bounds are sometimes checked? -> This is inconsistent
+        # Some conditions get checked twice
+        # The output here is very non-deterministic
+        # The conditions are correct at this stage however
+        # The additional conditions must be getting added down the line
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points

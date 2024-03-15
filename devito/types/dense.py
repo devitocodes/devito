@@ -296,7 +296,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self.shape
         retval = []
         for d, s in zip(self.dimensions, self.shape):
-            size = self.grid.dimension_map.get(d)
+            size = self.grid.size_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
@@ -1113,7 +1113,7 @@ class Function(DiscreteFunction):
             loc_shape = []
             for d, s in zip(dimensions, shape):
                 if d in grid.dimensions:
-                    size = grid.dimension_map[d]
+                    size = grid.size_map[d]
                     if size.glb != s and s is not None:
                         raise ValueError("Dimension `%s` is given size `%d`, "
                                          "while `grid` says `%s` has size `%d` "

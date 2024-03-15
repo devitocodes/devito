@@ -1,3 +1,5 @@
+# TODO: Fix inheritance before PR goes in. Currently a bit of a mess.
+
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
@@ -311,7 +313,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         return self._distributor.shape
 
     @property
-    def dimension_map(self):
+    def size_map(self):
         """Map between SpaceDimensions and their global/local size."""
         return {d: GlobalLocal(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
@@ -351,7 +353,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         args = ReducerMap()
 
         # Dimensions size
-        for k, v in self.dimension_map.items():
+        for k, v in self.size_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
         # Dimensions spacing
@@ -613,6 +615,12 @@ class SubDomain(AbstractSubDomain):
     @property
     def shape_local(self):
         return self._shape_local
+
+    @property
+    def size_map(self):
+        """Map between SpaceDimensions and their global/local size."""
+        return {d: GlobalLocal(g, l)
+                for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     def define(self, dimensions):
         """
