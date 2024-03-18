@@ -365,7 +365,7 @@ class CupyAllocator(MemoryAllocator):
     def _alloc_C_libcall(self, size, ctype):
         if not self.available():
             raise ImportError("Couldn't initialize cupy or MPI elements of alocation")
-        mem_obj = self.lib.zeros(size, dtype=self.lib.float64)
+        mem_obj = self.lib.zeros(size, dtype=ctype)
         return mem_obj.data.ptr, (mem_obj,)
 
     def free(self, _):
