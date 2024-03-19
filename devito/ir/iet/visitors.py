@@ -458,6 +458,9 @@ class CGen(Visitor):
         body = flatten(self._visit(i) for i in o.children)
         return c.Module(body)
 
+    def visit_Break(self, o):
+        return c.Statement('break')
+
     def visit_Return(self, o):
         v = 'return'
         if o.value is not None:
@@ -679,7 +682,13 @@ class CGen(Visitor):
         # Kernel signature and body
         body = flatten(self._visit(i) for i in o.children)
         signature = self._gen_signature(o)
-        retval = [c.Line(), c.Statement("return 0")]
+
+        # Honor the `retstmt` flag if set
+        if o.body.retstmt:
+            retval = []
+        else:
+            retval = [c.Line(), c.Statement("return 0")]
+
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
         # Elemental functions
