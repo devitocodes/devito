@@ -1,13 +1,14 @@
 import cgen as c
 import numpy as np
-from sympy import Not
+from sympy import Expr, Not, S
 
-from devito.ir.iet import (Call, Conditional, EntryFunction, Iteration, List,
-                           Return, FindNodes, FindSymbols, Transformer,
+from devito.ir.iet import (Call, Conditional, DummyExpr, EntryFunction, Iteration,
+                           List, Break, Return, FindNodes, FindSymbols, Transformer,
                            make_callable)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import CondEq, DefFunction
-from devito.types import Eq, Inc, Symbol
+from devito.tools import dtype_to_ctype
+from devito.types import Eq, Inc, LocalObject, Symbol
 
 __all__ = ['check_stability', 'error_mapper']
 
@@ -69,16 +70,39 @@ def _check_stability(iet, wmovs=(), rcompile=None, sregistry=None):
         name = sregistry.make_name(prefix='check')
         check = Symbol(name=name, dtype=np.int32)
 
+        retval = Retval(name='retval')
+
         errctl = Conditional(CondEq(n.dim % 100, 0), List(body=[
             Call(efunc.name, efunc.parameters, retobj=check),
-            Conditional(Not(check), Return(error_mapper['Stability']))
+            Conditional(Not(check), List(body=[
+                DummyExpr(retval, error_mapper['Stability']),
+                Break()
+            ]))
         ]))
         errctl = List(header=c.Comment("Stability check"), body=[errctl])
         mapper[n] = n._rebuild(nodes=n.nodes + (errctl,))
 
+        # One check is enough
+        break
+    else:
+        return iet, {}
+
     iet = Transformer(mapper).visit(iet)
 
+    # We now must return a suitable error code
+    body = iet.body._rebuild(
+        body=(DummyExpr(retval, 0, init=True),) + iet.body.body,
+        retstmt=Return(retval)
+    )
+    iet = iet._rebuild(body=body)
+
     return iet, {'efuncs': efuncs, 'includes': includes}
+
+
+class Retval(LocalObject, Expr):
+
+    dtype = dtype_to_ctype(np.int32)
+    default_initvalue = S.Zero
 
 
 error_mapper = {

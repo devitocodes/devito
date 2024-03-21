@@ -7,7 +7,7 @@ from sympy import Float
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-                    MatrixSparseTimeFunction)
+                    MatrixSparseTimeFunction, initialize_function)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -19,7 +19,7 @@ def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
     grid = grid or Grid(shape=shape)
     a = Function(name=name, grid=grid, space_order=space_order)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
-    a.data[:] = np.meshgrid(*dims)[1]
+    initialize_function(a, np.meshgrid(*dims)[1], 0)
     return a
 
 
@@ -33,11 +33,12 @@ def unit_box_time(name='a', shape=(11, 11), space_order=1):
     return a
 
 
-def points(grid, ranges, npoints, name='points'):
+def points(grid, ranges, npoints, interpolator='linear', r=1, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    points = SparseFunction(name=name, grid=grid, npoint=npoints,
+                            interpolator=interpolator, r=r)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -433,6 +434,32 @@ def test_inject(shape, coords, result, npoints=19):
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
+    assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+
+@pytest.mark.parametrize('shape, coords, result', [
+    ((11, 11), [(.05, .95), (.45, .45)], 1.),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
+])
+@pytest.mark.parametrize('r', range(2, 11))
+def test_inject_sinc(shape, coords, result, r, npoints=19):
+    """Test point injection with a set of points forming a line
+    through the middle of the grid.
+    """
+    a = unit_box(shape=shape, space_order=r)
+    a.data_with_halo.fill(0)
+    p = points(a.grid, ranges=coords, npoints=npoints, interpolator='sinc', r=r)
+
+    expr = p.inject(a, Float(1.))
+
+    op = Operator(expr)
+
+    op(a=a)
+    print(op)
+
+    indices = [slice(4, 6, 1) for _ in coords]
+    indices[0] = slice(1, -1, 1)
+    print(a.data[indices], result)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 

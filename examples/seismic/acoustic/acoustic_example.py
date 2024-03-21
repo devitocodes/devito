@@ -39,6 +39,10 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Define receiver geometry (spread across x, just below surface)
     rec, u, summary = solver.forward(save=save, autotune=autotune)
 
+    import matplotlib.pyplot as plt
+    plt.imshow(rec.data, aspect='auto', cmap='seismic', vmin=-1e1, vmax=1e1)
+    plt.show()
+
     if preset == 'constant-isotropic':
         # With a new m as Constant
         v0 = Constant(name="v", value=2.0, dtype=np.float32)

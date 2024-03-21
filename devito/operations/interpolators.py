@@ -2,17 +2,18 @@ from abc import ABC, abstractmethod
 from functools import wraps
 
 import sympy
+import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences.differentiable import Mul
-from devito.finite_differences.elementary import floor
+from devito.finite_differences.elementary import floor, sqrt, besseli, sinc
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension)
 from devito.types.utils import DimensionTuple
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
 
 
 def check_radius(func):
@@ -421,3 +422,32 @@ class PrecomputedInterpolator(WeightedInterpolator):
                    for (ri, rd) in enumerate(self._rdim)]
         return Mul(*[self.interpolation_coeffs.subs(mapper)
                      for mapper in mappers])
+
+
+class SincInterpolator(LinearInterpolator):
+    """
+    Hicks windowed sinc interpolation scheme.
+
+    Arbitrary source and receiver positioning in finite‐difference schemes
+    using Kaiser windowed sinc functions
+
+    https://library.seg.org/doi/10.1190/1.1451454
+
+    """
+
+    # Table 1
+    _b_table = {1: 0.0, 2: 1.84, 3: 3.04,
+                4: 4.14, 5: 5.26, 6: 6.40,
+                7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
+
+    @property
+    def _weights(self):
+        b = self._b_table[self.r]
+        b0 = besseli(0, b).evalf()
+        W = sympy.S.One
+        for (rd, pos) in zip(self._rdim, self._point_symbols):
+            rpos = rd - pos
+            Wd = besseli(0, b*sqrt(1 - (rpos/self.r)**2))/b0
+            S = sinc(sympy.pi*rpos)
+            W *= Wd*S
+        return W
