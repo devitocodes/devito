@@ -1199,7 +1199,7 @@ class MPIMsg(CompositeObject):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
                 except AttributeError:
-                    assert side is CENTER
+                    assert side == CENTER
                     shape.append(self._as_number(f._size_domain[dim], args))
             entry.sizes = (c_int*len(shape))(*shape)
 
@@ -1263,7 +1263,7 @@ class MPIMsgEnriched(MPIMsg):
                     v = getattr(f._offset_owned[dim], side.name)
                     ofsg.append(self._as_number(v, args))
                 except AttributeError:
-                    assert side is CENTER
+                    assert side == CENTER
                     ofsg.append(f._offset_owned[dim].left)
             entry.ofsg = (c_int*len(ofsg))(*ofsg)
 
@@ -1275,7 +1275,7 @@ class MPIMsgEnriched(MPIMsg):
                     v = getattr(f._offset_halo[dim], side.flip().name)
                     ofss.append(self._as_number(v, args))
                 except AttributeError:
-                    assert side is CENTER
+                    assert side == CENTER
                     # Note `_offset_owned`, and not `_offset_halo`, is *not* a bug
                     # here. If it's the CENTER we need, we can't just use
                     # `_offset_halo[d].left` as otherwise we would pick the corner
