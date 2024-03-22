@@ -329,7 +329,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
+        if self._distributor.is_parallel and (any(left) or any(right)):
             try:
                 warning_msg = """A space order of {0} and a halo size of {1} has been
                                  set but the current rank ({2}) has a domain size of
@@ -338,8 +338,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                                     self._distributor.myrank,
                                                     min(self.grid.shape_local))
                 if not self._distributor.is_boundary_rank:
+                    # FIXME: Will throw an error if a Function on a Subdomain doesn't
+                    # enter any boundary ranks -> Needs to not do this
+                    print("First warning")
                     warning(warning_msg)
                 else:
+                    # FIXME: This will also throw false warnings. Currently checking that
+                    # boundary ranks do not have outhalo on interior side. But this wants
+                    # skipping if there is no cross on this side
+
+                    # FIXME: This narrowing down to distributed dimensions causes
+                    # SubDimensions to be incorrectly skipped
                     left_dist = [i for i, d in zip(left, self.dimensions) if d
                                  in self._distributor.dimensions]
                     right_dist = [i for i, d in zip(right, self.dimensions) if d
@@ -348,6 +357,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
+                            print("Second warning")
                             warning(warning_msg)
                             break
             except AttributeError:
@@ -1108,6 +1118,10 @@ class Function(DiscreteFunction):
         return shape
 
     def __halo_setup__(self, **kwargs):
+        if self._distributor and self._distributor.loc_empty:
+            # No need to assign a halo on a completely empty rank
+            return DimensionTuple(*[(0, 0) for i in self.dimensions],
+                                  getters=self.dimensions)
         halo = kwargs.get('halo')
         if halo is not None:
             if isinstance(halo, DimensionTuple):

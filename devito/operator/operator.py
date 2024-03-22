@@ -27,7 +27,7 @@ from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
                           timed_region, contains_val)
-from devito.types import Grid, Evaluable, SubFunction
+from devito.types import Evaluable, SubFunction
 
 __all__ = ['Operator']
 
@@ -594,7 +594,7 @@ class Operator(Callable):
             args.update(i._arg_values(**kwargs))
 
         # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if isinstance(i, Grid)}
+        grids = {i for i in discretizations if i.is_Grid or i.is_SubDomain}
         if len(grids) > 1:
             # We loosely tolerate multiple Grids for backwards compatibility
             # with spacial subsampling, which should be revisited however. And

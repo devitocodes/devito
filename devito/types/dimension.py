@@ -736,30 +736,48 @@ class SubDimension(DerivedDimension):
             kwargs.get(k.name, v) for k, v in self.thickness
         )
 
-        if grid is not None and grid.is_distributed(self.root):
-            # Get local thickness
-            if self.local:
-                # dimension is of type ``left``/right`` - compute the 'offset'
-                # and then add 1 to get the appropriate thickness
-                if r_ltkn is not None:
-                    ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
-                    ltkn = ltkn+1 if ltkn is not None else 0
-                else:
-                    ltkn = 0
+        if grid is not None:
+            if grid.is_SubDomain:
+                # In cases with Functions defined on SubDomains, the iterators and
+                # decomposition still use the global indices and offsets are applied
+                # to get the correct indices within the SubDomain. As such, thickness
+                # overrides should be calculated using the global Distributor. This
+                # Distributor is the parent of the SubDistributor attached to
+                # the SubDomain. The function index_glb_to_loc considers the SubDomain
+                # indices to be 'global' in the case of a Function on a SubDomain and
+                # so the parent must be used for the following thickness override check.
 
-                if r_rtkn is not None:
-                    rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
-                    rtkn = rtkn+1 if rtkn is not None else 0
-                else:
-                    rtkn = 0
+                distributed = grid.is_distributed(self)
+                distributor = grid.distributor.parent
             else:
-                # dimension is of type ``middle``
-                ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
-                rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
+                distributed = grid.is_distributed(self.root)
+                distributor = grid.distributor
+            if distributed:
+                # Get local thickness
+                if self.local:
+                    # dimension is of type ``left``/right`` - compute the 'offset'
+                    # and then add 1 to get the appropriate thickness
+                    if r_ltkn is not None:
+                        ltkn = distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
+                        ltkn = ltkn+1 if ltkn is not None else 0
+                    else:
+                        ltkn = 0
+
+                    if r_rtkn is not None:
+                        rtkn = distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
+                        rtkn = rtkn+1 if rtkn is not None else 0
+                    else:
+                        rtkn = 0
+                else:
+                    # dimension is of type ``middle``
+                    ltkn = distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
+                    rtkn = distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
+            else:
+                ltkn = r_ltkn or 0
+                rtkn = r_rtkn or 0
         else:
             ltkn = r_ltkn or 0
             rtkn = r_rtkn or 0
-
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
 
