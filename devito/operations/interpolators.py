@@ -423,11 +423,16 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
                                            pos_only=variables)
 
+        print("_exprs", _exprs)
+        print("self._weights", self._weights)
+
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
                     (self._weights * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs)]
+        
+        print("Eqns", eqns)
 
         return temps + eqns
 

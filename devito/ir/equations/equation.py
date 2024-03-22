@@ -158,8 +158,11 @@ class LoweredEq(IREq):
             raise ValueError("Cannot construct LoweredEq from args=%s "
                              "and kwargs=%s" % (str(args), str(kwargs)))
 
+        print("Expr", expr)
+
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
+        # FIXME: Should this remove/consolidate duplicates?
 
         # Analyze the expression
         accesses = detect_accesses(expr)
@@ -185,6 +188,7 @@ class LoweredEq(IREq):
 
         # Construct the conditionals and replace the ConditionalDimensions in `expr`
         conditionals = {}
+        print("Ordering", ordering)
         for d in ordering:
             if not d.is_Conditional:
                 continue
@@ -195,6 +199,7 @@ class LoweredEq(IREq):
             if d.factor is not None:
                 expr = uxreplace(expr, {d: IntDiv(d.index, d.factor)})
         conditionals = frozendict(conditionals)
+        print("Conditionals later", conditionals)
 
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)
