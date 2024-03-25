@@ -249,6 +249,7 @@ class WeightedInterpolator(GenericInterpolator):
         # Substitution mapper for variables
         mapper = self._rdim._getters
 
+        cdmapper = {}
         # Need to adjust bounds if Function defined on a SubDomain
         if subdomain:
             # Corresponding mapper just for the SubDomain
@@ -269,6 +270,7 @@ class WeightedInterpolator(GenericInterpolator):
                 rebuilt_cd = cd._rebuild(condition=cond, factor=cd._factor)
                 mapper[d] = rebuilt_cd
                 smapper[sd] = rebuilt_cd
+                cdmapper[cd] = rebuilt_cd
 
         # Index substitution to make in variables
         i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
@@ -277,17 +279,15 @@ class WeightedInterpolator(GenericInterpolator):
 
         idx_subs = {v: v.subs(i_subs) for v in variables}
 
+        # NOTE: Not sure if this is the right approach. Seems messy but works
+        # Add the mapping from old ConditionalDimension to rebuilt ConditionalDimension
+        idx_subs.update(cdmapper)
+
         c_dims = set(c for c in mapper.values()).union(set(c for c in smapper.values()))
         conditions = [c.condition for c in c_dims]
         print("ConditionalDimensions", c_dims)
         print("Conditions", conditions)
-
-        # FIXME: Still generates more conditionals than is needed
-        # For some reason global bounds are sometimes checked? -> This is inconsistent
-        # Some conditions get checked twice
-        # The output here is very non-deterministic
-        # The conditions are correct at this stage however
-        # The additional conditions must be getting added down the line
+        print("Cdmapper", cdmapper)
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
@@ -423,8 +423,10 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
                                            pos_only=variables)
 
+        print("idx_subs", idx_subs)
         print("_exprs", _exprs)
         print("self._weights", self._weights)
+        print("self._weights.xreplace(idx_subs)", self._weights.xreplace(idx_subs))
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
