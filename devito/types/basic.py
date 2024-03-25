@@ -842,7 +842,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     """
 
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
-                   'alias', 'space', 'function')
+                   'alias', 'space', 'function', 'is_transient')
 
     def __new__(cls, *args, **kwargs):
         # Preprocess arguments
@@ -956,6 +956,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # See `_mem_{local,mapped,host}.__doc__` for more info
         self._space = kwargs.get('space', 'mapped')
         assert self._space in ['local', 'mapped', 'host']
+
+        # If True, the AbstractFunction is treated by the compiler as a "transient
+        # field", meaning that its content is only useful within an Operator
+        # execution, but the final data is not expected to be read back in
+        # Python-land by the user. This allows the compiler/run-time to apply
+        # certain optimizations, such as avoiding memory copies
+        self._is_transient = kwargs.get('is_transient', False)
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -1207,6 +1214,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_const(self):
         return False
+
+    @property
+    def is_transient(self):
+        return self._is_transient
 
     @property
     def alias(self):
