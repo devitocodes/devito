@@ -18,8 +18,8 @@ from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.tools import fd_weights_registry
-from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten, is_integer,
-                          memoized_meth, dtype_to_ctype, humanbytes)
+from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
+                          is_integer, memoized_meth, dtype_to_ctype, humanbytes)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
