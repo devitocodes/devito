@@ -179,6 +179,14 @@ class Operator(Callable):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
 
+        # FIXME: Not sure I like this
+        try:
+            sdims = set().union(*[set(e.subdomain.dimensions)
+                                  for e in expressions if e.subdomain])
+        except TypeError:  # Single expression passed to operator
+            sdims = set(expressions.subdomain.dimensions) \
+                if expressions.subdomain else set()
+
         # Lower the input expressions into an IET
         irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
 
@@ -222,7 +230,7 @@ class Operator(Callable):
         # Produced by the various compilation passes
         op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
         op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
-        op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
+        op._dimensions = set().union(sdims, *[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
 
@@ -487,6 +495,8 @@ class Operator(Callable):
 
     @cached_property
     def dimensions(self):
+        # TODO: This needs to spot the SubDimensions
+        # Why does this work for Eq SubDomains?
         ret = set().union(*[d._defines for d in self._dimensions])
 
         # During compilation other Dimensions may have been produced
