@@ -197,7 +197,13 @@ class Distributor(AbstractDistributor):
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
             if not MPI.Is_initialized():
-                MPI.Init()
+                try:
+                    thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
+                except KeyError:
+                    assert False
+
+                MPI.Init_thread(thread_level)
+
                 global init_by_devito
                 init_by_devito = True
 
@@ -706,3 +712,12 @@ def compute_dims(nprocs, ndim):
     else:
         v = int(v)
     return tuple(v for _ in range(ndim))
+
+
+# Yes, AFAICT, nothing like this is available in mpi4py
+mpi4py_thread_levels = {
+    'single': MPI.THREAD_SINGLE,
+    'funneled': MPI.THREAD_FUNNELED,
+    'serialized': MPI.THREAD_SERIALIZED,
+    'multiple': MPI.THREAD_MULTIPLE
+}
