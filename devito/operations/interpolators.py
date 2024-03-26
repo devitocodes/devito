@@ -203,6 +203,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
+            # FIXME: This needs to check all the grid dimensions
             extra = filter_ordered([i for v in extras for i in v.dimensions
                                     if i not in self._gdims and
                                     i not in self.sfunction.dimensions])
@@ -359,6 +360,8 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+        print("Variables", variables)
+        print("Implicit dims", implicit_dims)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
@@ -423,18 +426,11 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
                                            pos_only=variables)
 
-        print("idx_subs", idx_subs)
-        print("_exprs", _exprs)
-        print("self._weights", self._weights)
-        print("self._weights.xreplace(idx_subs)", self._weights.xreplace(idx_subs))
-
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
                     (self._weights * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs)]
-        
-        print("Eqns", eqns)
 
         return temps + eqns
 
