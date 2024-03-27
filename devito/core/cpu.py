@@ -278,18 +278,18 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
-
-        module = cls._lower_stencil(irs.expressions)
+        module = cls._lower_stencil(irs.expressions, **kwargs)
         op._module = module
 
         return op
 
     @classmethod
-    def _lower_stencil(cls, expressions):
+    def _lower_stencil(cls, expressions, **kwargs):
         # [Eq] -> [xdsl]
         # Lower expressions to a builtin.ModuleOp
         conv = ExtractDevitoStencilConversion()
-        module = conv.convert(expressions)
+        # import pdb; pdb.set_trace()
+        module = conv.convert(expressions, **kwargs)
         # Uncomment to print
         # Printer().print(module)
         convert_devito_stencil_to_xdsl_stencil(module, timed=True)
@@ -490,7 +490,7 @@ class XdslnoopOperator(Cpu64OperatorMixin, CoreOperator):
             self._lib.name = self._tf.name
 
         if self._cfunction is None:
-            self._cfunction = getattr(self._lib, "apply_kernel")
+            self._cfunction = getattr(self._lib, self.name)
             # Associate a C type to each argument for runtime type check
             argtypes = self._construct_cfunction_args(self._jit_kernel_constants,
                                                       get_types=True)
