@@ -203,9 +203,11 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
-            # FIXME: This needs to check all the grid dimensions
+            # Get grid dimensions from the variables supplied
+            edims = tuple(d for v in extras for d in v.grid.dimensions if v.grid)
+            gdims = set([*edims, *self._gdims])
             extra = filter_ordered([i for v in extras for i in v.dimensions
-                                    if i not in self._gdims and
+                                    if i not in gdims and
                                     i not in self.sfunction.dimensions])
             extra = tuple(extra)
         else:
