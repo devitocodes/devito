@@ -42,13 +42,19 @@ try:
         if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
             MPI.Finalize()
     atexit.register(cleanup)
-except ImportError:
+except ImportError as e:
     # Dummy fallback in case mpi4py/MPI aren't available
     class NoneMetaclass(type):
         def __getattr__(self, name):
             return None
 
     class MPI(object, metaclass=NoneMetaclass):
+        init_error = e
+
+        @classmethod
+        def Init(cls):
+            raise cls.init_error
+
         @classmethod
         def Is_initialized(cls):
             return False
