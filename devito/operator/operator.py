@@ -585,11 +585,17 @@ class Operator(Callable):
         discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         discretizations.update({getattr(p, 'grid', None) for p in defaults})
         discretizations.discard(None)
+        print("Discretisations before", discretizations)
+        print("Arg values before", [i._arg_values(**kwargs) for i in discretizations])
+
+        # FIXME: Pretty sure this needs to grab subdomains now and arg_values them separately
         # Remove subgrids if multiple grids
         if len(discretizations) > 1:
             discretizations = {g for g in discretizations
                                if not any(d.is_Derived for d in g.dimensions)}
 
+        print("Discretisations", discretizations)
+        print("Arg values", [i._arg_values(**kwargs) for i in discretizations])
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 

@@ -362,8 +362,6 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
-        print("Variables", variables)
-        print("Implicit dims", implicit_dims)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
