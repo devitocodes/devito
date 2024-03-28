@@ -585,31 +585,34 @@ class Operator(Callable):
         discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
         discretizations.update({getattr(p, 'grid', None) for p in defaults})
         discretizations.discard(None)
-        print("Discretisations before", discretizations)
-        print("Arg values before", [i._arg_values(**kwargs) for i in discretizations])
 
-        # FIXME: Pretty sure this needs to grab subdomains now and arg_values them separately
-        # Remove subgrids if multiple grids
+        # Remove subgrids if multiple Grids
         if len(discretizations) > 1:
             discretizations = {g for g in discretizations
-                               if not any(d.is_Derived for d in g.dimensions)}
+                               if not any(d.is_Derived for d in g.dimensions)
+                               or g.is_SubDomain}
 
-        print("Discretisations", discretizations)
-        print("Arg values", [i._arg_values(**kwargs) for i in discretizations])
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
         # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if i.is_Grid or i.is_SubDomain}
-        if len(grids) > 1:
+        grids = {i for i in discretizations if i.is_Grid}
+        # Some functions may be defined on SubDomains.
+        # These SubDomains must be on this Grid.
+        parent_grids = {i.grid for i in discretizations if i.is_SubDomain}
+
+        if len(grids.union(parent_grids)) > 1:
             # We loosely tolerate multiple Grids for backwards compatibility
-            # with spacial subsampling, which should be revisited however. And
+            # with spatial subsampling, which should be revisited however. And
             # With MPI it would definitely break!
             if configuration['mpi']:
                 raise ValueError("Multiple Grids found")
-        try:
+
+        if grids:
             grid = grids.pop()
-        except KeyError:
+        elif parent_grids:
+            grid = parent_grids.pop()
+        else:
             grid = None
 
         # An ArgumentsMap carries additional metadata that may be used by

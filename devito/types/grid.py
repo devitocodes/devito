@@ -664,8 +664,10 @@ class SubDomain(AbstractSubDomain):
                                  % self)
 
         # SubDomain thicknesses
-        thicknesses = {k: v for d in self.dimensions for k, v
-                       in d._thickness_map.items() if d.is_Sub}
+        thicknesses = {}
+        for d in self.dimensions:
+            if d.is_Sub:
+                thicknesses.update({k.name: v for k, v in d._thickness_map.items()})
 
         # Override thicknesses if necessary
         thicknesses.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
@@ -681,8 +683,13 @@ class SubDomain(AbstractSubDomain):
             raise AttributeError("%s is not attached to a Grid and has no _arg_names"
                                  % self)
 
-        ret += tuple(k.name for d in self.dimensions for k
-                     in d._thickness_map if d.is_Sub)
+        # Names for SubDomain thicknesses
+        thickness_names = []
+        for d in self.dimensions:
+            if d.is_Sub:
+                thickness_names += [k.name for k in d._thickness_map]
+
+        ret += tuple(thickness_names)
 
         return ret
 
