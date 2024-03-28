@@ -6,11 +6,11 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences.differentiable import Mul
-from devito.finite_differences.elementary import floor, sqrt, besseli, sinc
+from devito.finite_differences.elementary import floor, sqrt
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension)
+                          CustomDimension, SubFunction)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -133,6 +133,9 @@ class GenericInterpolator(ABC):
     @abstractmethod
     def interpolate(self, *args, **kwargs):
         pass
+
+    def _arg_defaults(self, **args):
+        return {}
 
 
 class WeightedInterpolator(GenericInterpolator):
@@ -424,7 +427,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
                      for mapper in mappers])
 
 
-class SincInterpolator(LinearInterpolator):
+class SincInterpolator(PrecomputedInterpolator):
     """
     Hicks windowed sinc interpolation scheme.
 
@@ -441,13 +444,41 @@ class SincInterpolator(LinearInterpolator):
                 7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
 
     @property
+    def interpolation_coeffs(self):
+        coeffs = {}
+        shape = (self.sfunction.npoint, 2 * self.r)
+        for r in self._rdim:
+            dimensions = (self.sfunction._sparse_dim, r.parent)
+            sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
+                             shape=shape, dimensions=dimensions,
+                             space_order=0, alias=self.sfunction.alias,
+                             distributor=self.sfunction._distributor,
+                             parent=self.sfunction)
+            coeffs[r] = sf
+        return coeffs
+
+    @property
     def _weights(self):
+        return Mul(*[w._subs(rd, rd-rd.parent.symbolic_min)
+                     for (rd, w) in self.interpolation_coeffs.items()])
+
+    def _arg_defaults(self, coords=None, sfunc=None):
+        args = {}
         b = self._b_table[self.r]
-        b0 = besseli(0, b).evalf()
-        W = sympy.S.One
-        for (rd, pos) in zip(self._rdim, self._point_symbols):
-            rpos = rd - pos
-            Wd = besseli(0, b*sqrt(1 - (rpos/self.r)**2))/b0
-            S = sinc(sympy.pi*rpos)
-            W *= Wd*S
-        return W
+        b0 = np.i0(b)
+        if coords is None or sfunc is None:
+            raise ValueError("No coordinates or sparse function provided")
+        # Coords to indices
+        coords = (coords - np.array(sfunc.grid.origin)) / np.array(sfunc.grid.spacing)
+        coords = coords - np.floor(coords)
+        # Precompute sinc
+        for j, r in enumerate(self._rdim):
+            data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
+            for i in range(coords.shape[0]):
+                for ri in range(2*self.r):
+                    rpos = ri - self.r + 1 - coords[i, j]
+                    num = np.i0(b*sqrt(1 - (rpos/self.r)**2))
+                    data[i, ri] = num / b0 * np.sinc(rpos)
+            args[self.interpolation_coeffs[r].name] = data
+
+        return args

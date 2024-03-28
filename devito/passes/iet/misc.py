@@ -4,7 +4,7 @@ import cgen
 import numpy as np
 import sympy
 
-from devito.finite_differences import Max, Min, sinc
+from devito.finite_differences import Max, Min
 from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
                        FindNodes, FindSymbols, Transformer, Uxreplace,
                        filter_iterations, retrieve_iteration_tree, pull_dims)
@@ -174,12 +174,6 @@ def _(expr):
         return {('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))}
     else:
         return set()
-
-
-@_generate_macros.register(sinc)
-@_generate_macros.register(sympy.sinc)
-def _(expr):
-    return {('sinc(a)', ('(((a) == 0) ? (1) : (sin((a))/(a)))'))}
 
 
 @iet_pass

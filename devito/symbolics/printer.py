@@ -11,10 +11,7 @@ from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
-from devito import configuration
 from devito.arch.compiler import AOMPCompiler
-from devito.arch.archinfo import AppleArm
-from devito.symbolics.extended_sympy import MathFunction
 from devito.symbolics.inspection import has_integer_args
 from devito.types.basic import AbstractFunction
 
@@ -243,26 +240,6 @@ class CodePrinter(C99CodePrinter):
         else:
             template = ''
         return "%s%s(%s)" % (expr.name, template, ','.join(arguments))
-
-    def _print_besselK(self, expr, kind):
-        # Most platform support float version, arm doesn't (only checked OSX)
-        # TODO: Check graviton
-        if self.dtype == np.float32 and \
-                not isinstance(configuration['platform'], AppleArm):
-            ext = 'f'
-        else:
-            ext = ''
-        # Get order and args
-        if expr.order == 0:
-            name = "cyl_bessel_%s0%s" % (kind, ext)
-            args = expr.args[1]
-        elif expr.order == 1:
-            name = "cyl_bessel_%s1%s" % (kind, ext)
-            args = expr.args[1]
-        else:
-            name = "cyl_bessel_%sn%s" % (kind, ext)
-            args = ", ".join([self._print(i) for i in expr.args])
-        return self._print(MathFunction(name, args))
 
     _print_MathFunction = _print_DefFunction
 

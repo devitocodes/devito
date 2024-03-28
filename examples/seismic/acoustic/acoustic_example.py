@@ -4,7 +4,7 @@ import pytest
 from devito.logger import info
 from devito import Constant, Function, smooth, norm
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, setup_geometry, seismic_args
+from examples.seismic import demo_model, setup_geometry, seismic_args, Receiver
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),

@@ -834,6 +834,15 @@ class SparseFunction(AbstractSparseFunction):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
 
+    def _arg_defaults(self, alias=None):
+        defaults = super()._arg_defaults(alias=alias)
+
+        key = alias or self
+        coords = defaults.get(key.coordinates.name)
+        defaults.update(key.interpolator._arg_defaults(coords=coords,
+                                                       sfunc=key))
+        return defaults
+
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
     """
