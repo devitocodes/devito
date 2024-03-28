@@ -752,12 +752,14 @@ def test_inject_function():
             assert u.data[1, i, j] == 0
 
 
-def test_interpolation_radius():
+@pytest.mark.parametrize('r, interp', [(2, 'linear'), (4, 'cubic')])
+def test_interpolation_radius(rm interp):
     nt = 11
 
     grid = Grid(shape=(5, 5))
     u = TimeFunction(name="u", grid=grid, space_order=0)
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1)
+    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                             r=r, interpolator=interp)
     try:
         src.interpolate(u)
         assert False

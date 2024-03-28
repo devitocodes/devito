@@ -12,7 +12,8 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import LinearInterpolator, PrecomputedInterpolator
+from devito.operations import (LinearInterpolator, PrecomputedInterpolator,
+                               SincInterpolator)
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           is_integer, dtype_to_mpidtype)
@@ -27,6 +28,10 @@ from devito.types.utils import IgnoreDimSort
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
+
+
+_interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
+_default_radius = {'linear': 1, 'sinc': 2}
 
 
 class AbstractSparseFunction(DiscreteFunction):
@@ -799,16 +804,18 @@ class SparseFunction(AbstractSparseFunction):
 
     is_SparseFunction = True
 
-    _radius = 1
     """The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ('coordinates',)
 
-    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates',)
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolator')
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
-        self.interpolator = LinearInterpolator(self)
+
+        interp = kwargs.get('interpolator', 'linear')
+        self.interpolator = _interpolators[interp](self)
+        self._radius = kwargs.get('r', _default_radius[interp])
 
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
@@ -826,6 +833,15 @@ class SparseFunction(AbstractSparseFunction):
     def _decomposition(self):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
+
+    def _arg_defaults(self, alias=None):
+        defaults = super()._arg_defaults(alias=alias)
+
+        key = alias or self
+        coords = 
+        defaults.update(key.interpolator._arg_defaults(coords=coords,
+                                                       sfunc=key))
+        return defaults
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):

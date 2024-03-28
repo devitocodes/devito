@@ -117,6 +117,8 @@ class PointSource(SparseTimeFunction):
                 raise TypeError("Need either `npoint` or `coordinates`")
             kwargs['npoint'] = coordinates.shape[0]
 
+        kwargs.setdefault('r', 1)
+        kwargs.setdefault('interpolator', 'linear')
         return args, kwargs
 
     def __init_finalize__(self, *args, **kwargs):
