@@ -34,16 +34,12 @@ def skipif(items, whole_module=False):
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
                      'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc', 'cpu64-arm',
                      'cpu64-icpx', 'chkpnt'})
-    accepted.update({'nompi', 'nodevice'})
+    accepted.update({'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
     skipit = False
     for i in items:
-        # Skip if no MPI
-        if i == 'nompi' and MPI is None:
-            skipit = "mpi4py/MPI not installed"
-            break
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
             skipit = "device `%s` unsupported" % configuration['platform'].name
@@ -171,6 +167,9 @@ def parallel(item):
         os.environ['DEVITO_MPI'] = scheme
         try:
             check_call(call)
+            return True
+        except:
+            return False
         finally:
             os.environ['DEVITO_MPI'] = '0'
 
@@ -189,18 +188,21 @@ def pytest_runtest_setup(item):
         partest = int(partest)
     except ValueError:
         pass
-    if item.get_closest_marker("parallel") and not partest:
-        # Blow away function arg in "master" process, to ensure
-        # this test isn't run on only one process
-        dummy_test = lambda *args, **kwargs: True
-        # For pytest <7
-        if item.cls is not None:
-            attr = item.originalname or item.name
-            setattr(item.cls, attr, dummy_test)
+    if item.get_closest_marker("parallel"):
+        if MPI is None:
+            pytest.skip("mpi4py/MPI not installed")
         else:
-            item.obj = dummy_test
-        # For pytest >= 7
-        setattr(item, '_obj', dummy_test)
+            # Blow away function arg in "master" process, to ensure
+            # this test isn't run on only one process
+            dummy_test = lambda *args, **kwargs: True
+            # For pytest <7
+            if item.cls is not None:
+                attr = item.originalname or item.name
+                setattr(item.cls, attr, dummy_test)
+            else:
+                item.obj = dummy_test
+            # For pytest >= 7
+            setattr(item, '_obj', dummy_test)
 
 
 def pytest_runtest_call(item):
@@ -211,7 +213,27 @@ def pytest_runtest_call(item):
         pass
     if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
-        parallel(item)
+        passed = parallel(item)
+        if not passed:
+            pytest.fail(f"{item} failed in parallel execution")
+        else:
+            pytest.skip(f"{item}t passed in parallel execution")
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    result = outcome.get_result()
+
+    partest = os.environ.get('DEVITO_MPI', 0)
+    try:
+        partest = int(partest)
+    except ValueError:
+        pass
+
+    if item.get_closest_marker("parallel") and not partest:
+        if call.when == 'call' and result.outcome == 'skipped':
+            result.outcome = 'passed'
 
 
 # A list of optimization options/pipelines to be used in testing

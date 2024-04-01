@@ -2799,7 +2799,6 @@ class TestTTI(object):
         vexpanded = 2 if configuration['language'] == 'openmp' else 0
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == vexpanded
 
-    @skipif(['nompi'])
     @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
     def test_fullopt_w_mpi(self):

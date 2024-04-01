@@ -753,7 +753,7 @@ def test_inject_function():
             assert u.data[1, i, j] == 0
 
 
-@pytest.mark.parametrize('r, interp', [(2, 'linear'), (4, 'cubic')])
+@pytest.mark.parametrize('r, interp', [(2, 'linear'), (4, 'sinc')])
 def test_interpolation_radius(r, interp):
     nt = 11
 
@@ -778,7 +778,7 @@ def test_interp_default():
 
     src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1, interpolation='sinc')
     assert isinstance(src.interpolator, SincInterpolator)
-    assert src.r == 2
+    assert src.r == 4
 
     src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
                              interpolation='sinc', r=6)

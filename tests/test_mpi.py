@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from cached_property import cached_property
 
-from conftest import skipif, _R, assert_blocking, assert_structure
+from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
                     SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
@@ -18,8 +18,6 @@ from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
 from examples.seismic.acoustic import acoustic_setup
-
-pytestmark = skipif(['nompi'], whole_module=True)
 
 
 class TestDistributor(object):
