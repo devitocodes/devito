@@ -11,15 +11,20 @@ To create a read-only snapshot for use with Intel Advisor GUI, use:
 * `advixe-cl --snapshot --project-dir=<advisor-project-name> pack -- /<new-snapshot-name>`
 
 Prerequisites:
-* Support guaranteed only for Intel Advisor as installed with Intel Parallel Studio v 2020 Update 2
+* Support is guaranteed only for Intel Advisor as installed with Intel Parallel Studio v 2020 Update 2
   and Intel oneAPI 2021, 2022, 2023; earlier versions may not work.
 
 * In Linux systems you may need to enable system-wide profiling by setting:
-  - `/proc/sys/kernel/yama/ptrace_scope` to `0`
-  - `/proc/sys/kernel/perf_event_paranoid` to `1`
 
-* `numactl` must be available on the system. If not available, install with:
-	`sudo apt-get install numactl`
+```sh
+/proc/sys/kernel/yama/ptrace_scope to 0
+/proc/sys/kernel/perf_event_paranoid to 1
+```
+
+* `numactl` must be available on the system. If not available, install using:
+  ```bash
+	sudo apt-get install numactl
+  ```
 * Install `pandas` and `matplotlib`. They are not included in the core Devito installation.
 
 Limitations:

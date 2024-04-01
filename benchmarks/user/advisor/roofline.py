@@ -68,6 +68,7 @@ def roofline(name, project, scale, precision, mode, th):
     log('Opening project...')
     project = advisor.open_project(str(project))
 
+    import pdb;pdb.set_trace()
     if not project:
         err('Could not open project %s.' % project)
     log('Loading data...')
