@@ -1,6 +1,5 @@
 from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign
 from devito.symbolics import retrieve_functions, INT
-from examples.seismic import PointSource, Receiver
 
 
 def freesurface(model, eq):
@@ -119,11 +118,8 @@ def ForwardOperator(model, geometry, space_order=4,
     u = TimeFunction(name='u', grid=model.grid,
                      save=geometry.nt if save else None,
                      time_order=2, space_order=space_order)
-    src = PointSource(name='src', grid=geometry.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
-
-    rec = Receiver(name='rec', grid=geometry.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    src = geometry.src
+    rec = geometry.rec
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(u, model, kernel)
@@ -160,10 +156,8 @@ def AdjointOperator(model, geometry, space_order=4,
 
     v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
-    srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
-                       npoint=geometry.nsrc)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    srca = geometry.new_src(name='srca', src_type=None)
+    rec = geometry.rec
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, model, kernel, forward=False)
@@ -206,8 +200,7 @@ def GradientOperator(model, geometry, space_order=4, save=True,
                      else None, time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    rec = geometry.rec
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, model, kernel, forward=False)
@@ -244,11 +237,8 @@ def BornOperator(model, geometry, space_order=4,
     m = model.m
 
     # Create source and receiver symbols
-    src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nsrc)
-
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    src = geometry.src
+    rec = geometry.rec
 
     # Create wavefields and a dm field
     u = TimeFunction(name="u", grid=model.grid, save=None,

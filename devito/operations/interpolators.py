@@ -2,21 +2,18 @@ from abc import ABC, abstractmethod
 from functools import wraps
 
 import sympy
+import numpy as np
 from cached_property import cached_property
 
 from devito.finite_differences.differentiable import Mul
-<<<<<<< HEAD
 from devito.finite_differences.elementary import floor
-=======
-from devito.finite_differences.elementary import floor, sqrt
->>>>>>> 5815a494d (api: support sinc interpolation)
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension, SubFunction)
 from devito.types.utils import DimensionTuple
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator']
+__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
 
 
 def check_radius(func):
@@ -129,6 +126,8 @@ class GenericInterpolator(ABC):
     Abstract base class defining the interface for an interpolator.
     """
 
+    _name = "generic"
+
     @abstractmethod
     def inject(self, *args, **kwargs):
         pass
@@ -136,6 +135,10 @@ class GenericInterpolator(ABC):
     @abstractmethod
     def interpolate(self, *args, **kwargs):
         pass
+
+    @property
+    def name(self):
+        return self._name
 
     def _arg_defaults(self, **args):
         return {}
@@ -148,6 +151,8 @@ class WeightedInterpolator(GenericInterpolator):
     in space, meaning the coefficients are defined for each Dimension separately
     and multiplied at a given point: `w[x, y] = wx[x] * wy[y]`
     """
+
+    _name = 'weighted'
 
     def __init__(self, sfunction):
         self.sfunction = sfunction
@@ -377,6 +382,9 @@ class LinearInterpolator(WeightedInterpolator):
     ----------
     sfunction: The SparseFunction that this Interpolator operates on.
     """
+
+    _name = 'linear'
+
     @property
     def _weights(self):
         c = [(1 - p) * (1 - r) + p * r
@@ -410,6 +418,8 @@ class PrecomputedInterpolator(WeightedInterpolator):
     sfunction: The SparseFunction that this Interpolator operates on.
     """
 
+    _name = 'precomp'
+
     def _positions(self, implicit_dims):
         if self.sfunction.gridpoints is None:
             return super()._positions(implicit_dims)
@@ -441,12 +451,14 @@ class SincInterpolator(PrecomputedInterpolator):
 
     """
 
+    _name = 'sinc'
+
     # Table 1
-    _b_table = {1: 0.0, 2: 1.84, 3: 3.04,
+    _b_table = {2: 2.94, 3: 4.53,
                 4: 4.14, 5: 5.26, 6: 6.40,
                 7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
 
-    @property
+    @cached_property
     def interpolation_coeffs(self):
         coeffs = {}
         shape = (self.sfunction.npoint, 2 * self.r)
@@ -473,13 +485,14 @@ class SincInterpolator(PrecomputedInterpolator):
             raise ValueError("No coordinates or sparse function provided")
         # Coords to indices
         coords = (coords - np.array(sfunc.grid.origin)) / np.array(sfunc.grid.spacing)
-        coords = np.floor(coords) - coords + 1 - self.r
+        coords = coords - np.floor(coords)
+
         # Precompute sinc
         for j, r in enumerate(self._rdim):
             data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
             for ri in range(2*self.r):
-                rpos = ri + coords[:, j]
-                num = np.i0(b*sqrt(1 - (rpos/self.r)**2))
+                rpos = ri - self.r + 1 - coords[:, j]
+                num = np.i0(b*np.sqrt(1 - (rpos/self.r)**2))
                 data[:, ri] = num / b0 * np.sinc(rpos)
             args[self.interpolation_coeffs[r].name] = data
 

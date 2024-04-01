@@ -31,7 +31,7 @@ __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
 
 
 _interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
-_default_radius = {'linear': 1, 'sinc': 2}
+_default_radius = {'linear': 1, 'sinc': 4}
 
 
 class AbstractSparseFunction(DiscreteFunction):
@@ -808,14 +808,17 @@ class SparseFunction(AbstractSparseFunction):
 
     _sub_functions = ('coordinates',)
 
-    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolator')
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolation')
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
-        interp = kwargs.get('interpolator', 'linear')
+        interp = kwargs.get('interpolation', 'linear')
+        self.interpolation = interp
         self.interpolator = _interpolators[interp](self)
         self._radius = kwargs.get('r', _default_radius[interp])
+        if interp == 'sinc' and self._radius < 2:
+            raise ValueError("The 'sinc' interpolator requires a radius of at least 2")
 
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
@@ -838,7 +841,7 @@ class SparseFunction(AbstractSparseFunction):
         defaults = super()._arg_defaults(alias=alias)
 
         key = alias or self
-        coords = 
+        coords = defaults.get(key.coordinates.name, key.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
                                                        sfunc=key))
         return defaults
