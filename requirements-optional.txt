@@ -1,5 +1,0 @@
-matplotlib
-pandas
-pyrevolve==2.2.4
-scipy
-distributed

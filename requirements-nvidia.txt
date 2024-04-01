@@ -1,6 +1,0 @@
-cupy-cuda12x
-dask-cuda
-jupyterlab>=3
-jupyterlab-nvdashboard
-dask_labextension
-fsspec

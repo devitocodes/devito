@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools", "wheel", "versioneer"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devito"
+dynamic = ["version"]
+description = "Finite Difference DSL for symbolic computation."
+readme = "README.md"
+authors = [
+    { name = "Imperial College London", email = "g.gorman@imperial.ac.uk" },
+    { name = "Fabio Luporini", email = "fabio@devitocodes.com"},
+    { name = "Mathias Louboutin", email = "mathias@devitocodes.com"},
+    { name = "Gerard Gorman", email = "gerard@devitocodes.com"},
+]
+license = { file = "LICENSE.md" }
+keywords = ["DSL", "Finite Difference", "Symbolic Computation", "Optimised Computation"]
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Unix",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Compilers",
+]
+dependencies = [
+    "pip>=9.0.1",
+    "numpy>1.16",
+    "sympy>=1.9,<1.13",
+    "cached-property",
+    "psutil>=5.1.0,<6.0",
+    "py-cpuinfo<10",
+    "cgen>=2020.1",
+    "codepy>=2019.1",
+    "click<9.0",
+    "multidict",
+    "anytree>=2.4.3,<=2.12.1",
+    "cloudpickle"
+]
+
+[project.urls]
+homepage = "http://www.devitoproject.org"
+documentation = "https://www.devitoproject.org/devito/index.html"
+source = "https://github.com/devitocodes/devito"
+tracker = "https://github.com/devitocodes/devito/issues"
+download = "https://pypi.org/project/devito/#files"
+"release notes" = "https://github.com/devitocodes/devito/releases"
+
+[project.optional-dependencies]
+extras = ["matplotlib", "pandas", "pyrevolve==2.2.4", "scipy", "distributed"]
+mpi = ["mpi4py<3.1.6", "ipyparallel<8.8"]
+nvidia = ["cupy-cuda12x", "dask-cuda", "jupyterlab>=3", "jupyterlab-nvdashboard", "dask_labextension", "fsspec"]
+tests = ["pytest>=7.2,<9.0", "pytest-runner", "pytest-cov",
+         "codecov", "flake8>=2.1.0", "nbval", "scipy", "pooch",
+         # TODO: Remove this when flake8 adds native support for pyproject.toml.
+         "flake8-pyproject"] 
+
+[tool.versioneer]
+VCS = "git"
+style = "pep440"
+versionfile_source = "devito/_version.py"
+versionfile_build = "devito/_version.py"
+tag_prefix = "v"
+parentdir_prefix = "devito-"
+
+[tool.setuptools.dynamic]
+version = {attr = "devito.__version__"}
