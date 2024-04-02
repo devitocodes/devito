@@ -7,7 +7,8 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
-from devito.mpi.routines import HaloExchangeBuilder
+from devito.mpi.reduction_scheme import DistributedReduction
+from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
 from devito.tools import generator
 
@@ -298,12 +299,13 @@ def _mark_overlappable(iet):
 @iet_pass
 def make_mpi(iet, mpimode=None, **kwargs):
     """
-    Inject MPI Callables and Calls implementing halo exchanges for
+    Inject MPI Callables and Calls implementing halo exchanges and reductions for
     distributed-memory parallelism.
     """
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
 
+    # Halo exchanges
     sync_heb = HaloExchangeBuilder('basic', generators, **kwargs)
     user_heb = HaloExchangeBuilder(mpimode, generators, **kwargs)
     mapper = {}
@@ -326,6 +328,12 @@ def make_mpi(iet, mpimode=None, **kwargs):
                 mapper.update({n: n._rebuild(properties=set(n.properties)-{PARALLEL})
                                for n in tree[:tree.index(i)+1]})
                 break
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    # Reductions
+    rb = ReductionBuilder()
+    mapper = {e: rb.make(e.expr.rhs) for e in FindNodes(Expression).visit(iet)
+              if isinstance(e.expr.rhs, DistributedReduction)}
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}

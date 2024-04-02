@@ -11,6 +11,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                normalize_properties, normalize_syncs, minimum,
                                maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
+from devito.mpi.reduction_scheme import DistributedReduction
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 from devito.types import WeakFence, CriticalRegion
@@ -232,11 +233,16 @@ class Cluster:
         """
         True if encoding a non-mathematical operation, False otherwise.
         """
-        return self.is_halo_touch or self.is_fence
+        return self.is_halo_touch or self.is_dist_reduce or self.is_fence
 
     @property
     def is_halo_touch(self):
         return self.exprs and all(isinstance(e.rhs, HaloTouch) for e in self.exprs)
+
+    @property
+    def is_dist_reduce(self):
+        return self.exprs and all(isinstance(e.rhs, DistributedReduction)
+                                  for e in self.exprs)
 
     @property
     def is_fence(self):

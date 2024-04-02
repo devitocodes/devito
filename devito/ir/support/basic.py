@@ -991,6 +991,13 @@ class Scope:
         return as_mapper(self.reads_gen(), key=lambda i: i.function)
 
     @cached_property
+    def read_only(self):
+        """
+        Create a mapper from functions to read accesses.
+        """
+        return set(self.reads) - set(self.writes)
+
+    @cached_property
     def initialized(self):
         return frozenset(e.lhs.function for e in self.exprs
                          if not e.is_Reduction and e.is_scalar)

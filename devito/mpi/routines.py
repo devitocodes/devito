@@ -8,7 +8,7 @@ from operator import mul
 from sympy import Integer
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
-from devito.ir.equations import DummyEq
+from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
                            Expression, ExpressionBundle, AugmentedExpression,
                            Iteration, List, Prodder, Return, make_efunc, FindNodes,
@@ -21,13 +21,13 @@ from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype
 from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
 
-__all__ = ['HaloExchangeBuilder', 'mpi_registry']
+__all__ = ['HaloExchangeBuilder', 'ReductionBuilder, ''mpi_registry']
 
 
 class HaloExchangeBuilder:
 
     """
-    Build IET-based routines to implement MPI halo exchange.
+    Build IET routines to generate MPI halo exchanges.
     """
 
     def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None, **kwargs):
@@ -1351,3 +1351,38 @@ class MPIRegion(CompositeObject):
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values
+
+
+class AllreduceCall(Call):
+
+    def __init__(self, arguments, **kwargs):
+        super().__init__('MPI_Allreduce', arguments)
+
+
+class ReductionBuilder(object):
+
+    """
+    Build IET routines performing MPI reductions.
+    """
+
+    mapper = {
+        OpInc: 'MPI_SUM',
+        OpMax: 'MPI_MAX',
+        OpMin: 'MPI_MIN',
+    }
+
+    def make(self, dr):
+        """
+        Construct Callables and Calls implementing distributed-memory reductions.
+        """
+        f = dr.var
+        comm = dr.grid.distributor._obj_comm
+
+        inplace = Macro('MPI_IN_PLACE')
+        mpitype = Macro(dtype_to_mpitype(f.dtype))
+        op = self.mapper[dr.op]
+
+        arguments = [inplace, Byref(f), Integer(1), mpitype, op, comm]
+        allreduce = AllreduceCall(arguments)
+
+        return allreduce

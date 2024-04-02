@@ -1049,7 +1049,7 @@ class Operator(Callable):
 # if applied in cascade (e.g., `linearization` on top of `linearization`)
 rcompile_registry = {
     'avoid_denormals': False,
-    'mpi': False,
+    #'mpi': False,  #TODO: DROP / DON'T DROP?? NEED IT FOR GLB REDUCTIONS...
     'linearize': False,
     'place-transfers': False
 }
