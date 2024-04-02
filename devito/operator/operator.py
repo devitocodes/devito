@@ -597,7 +597,7 @@ class Operator(Callable):
 
         # There can only be one Grid from which DiscreteFunctions were created
         grids = {i for i in discretizations if i.is_Grid}
-        # Some functions may be defined on SubDomains.
+        # Some Functions may be defined on SubDomains.
         # These SubDomains must be on this Grid.
         parent_grids = {i.grid for i in discretizations if i.is_SubDomain}
 
