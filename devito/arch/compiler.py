@@ -668,7 +668,11 @@ class CudaCompiler(Compiler):
                     proc_link_flags.append(i)
             self.ldflags.extend(proc_link_flags)
 
-        self.cflags.append('-arch=native')
+        cc = get_nvidia_cc()
+        if cc:
+            self.cflags.append(f'-arch=sm_{cc}')
+        else:
+            self.cflags.append('-arch=native')
 
         # Disable `warning #1650-D: result of call is not used`
         # See `https://gist.github.com/gavinb/f2320f9eaa0e0a7efca6877a34047a9d` about
