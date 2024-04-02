@@ -484,7 +484,13 @@ class SincInterpolator(PrecomputedInterpolator):
         if coords is None or sfunc is None:
             raise ValueError("No coordinates or sparse function provided")
         # Coords to indices
-        coords = (coords - np.array(sfunc.grid.origin)) / np.array(sfunc.grid.spacing)
+        if sfunc.grid._distributor.nprocs == 1:
+            origin = sfunc.grid.origin
+        else:
+            # Already shifted to zero through scatter
+            origin = tuple([0]*sfunc.grid.dim)
+
+        coords = (coords - np.array(origin)) / np.array(sfunc.grid.spacing)
         coords = coords - np.floor(coords)
 
         # Precompute sinc
