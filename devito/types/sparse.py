@@ -811,14 +811,16 @@ class SparseFunction(AbstractSparseFunction):
     __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolation')
 
     def __init_finalize__(self, *args, **kwargs):
-        super().__init_finalize__(*args, **kwargs)
-
-        interp = kwargs.get('interpolation', 'linear')
+        # Interpolation method
+        interp = kwargs.pop('interpolation', 'linear')
         self.interpolation = interp
         self.interpolator = _interpolators[interp](self)
-        self._radius = kwargs.get('r', _default_radius[interp])
+        self._radius = kwargs.pop('r', _default_radius[interp])
         if interp == 'sinc' and self._radius < 2:
             raise ValueError("The 'sinc' interpolator requires a radius of at least 2")
+
+        # Set space ordert to `r` for safety
+        super().__init_finalize__(*args, **kwargs)
 
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))

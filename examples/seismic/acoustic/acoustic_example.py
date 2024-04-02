@@ -60,7 +60,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
     solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
-    return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
+    return summary.gflopss, summary.oi, summary.timings, [rec, u.data._local]
 
 
 @pytest.mark.parametrize('shape', [(101,), (51, 51), (16, 16, 16)])

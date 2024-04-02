@@ -23,7 +23,7 @@ def check_radius(func):
         funcs = set().union(*[retrieve_functions(a) for a in args])
         so = min({f.space_order for f in funcs if not f.is_SparseFunction} or {r})
         if so < r:
-            raise ValueError("Space order %d smaller than interpolation r %d" % (so, r))
+            raise ValueError("Space order %d too small for interpolation r %d" % (so, r))
         return func(interp, *args, **kwargs)
     return wrapper
 
@@ -216,7 +216,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None):
+    def _interp_idx(self, variables, implicit_dims=None, pos_only=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -234,6 +234,14 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs = {v: v.subs({k: c + p
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
+
+        # Position only replacement, not radius dependent.
+        # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
+        # not vp[posx + rx]
+        if pos_only is not None:
+            idx_subs.update({v: v.subs({k: p
+                             for (k, p) in zip(mapper, pos)})
+                             for v in pos_only})
 
         return idx_subs, temps
 
@@ -359,10 +367,9 @@ class WeightedInterpolator(GenericInterpolator):
         # summing temp that wouldn't allow collapsing
         implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
 
-        variables = variables + list(fields)
-
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+        idx_subs, temps = self._interp_idx(list(fields), implicit_dims=implicit_dims,
+                                           pos_only=variables)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
@@ -424,7 +431,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
         if self.sfunction.gridpoints is None:
             return super()._positions(implicit_dims)
         # No position temp as we have directly the gridpoints
-        return [Eq(p, k, implicit_dims=implicit_dims)
+        return [Eq(p, floor(k), implicit_dims=implicit_dims)
                 for (k, p) in self.sfunction._position_map.items()]
 
     @property
@@ -484,13 +491,7 @@ class SincInterpolator(PrecomputedInterpolator):
         if coords is None or sfunc is None:
             raise ValueError("No coordinates or sparse function provided")
         # Coords to indices
-        if sfunc.grid._distributor.nprocs == 1:
-            origin = sfunc.grid.origin
-        else:
-            # Already shifted to zero through scatter
-            origin = tuple([0]*sfunc.grid.dim)
-
-        coords = (coords - np.array(origin)) / np.array(sfunc.grid.spacing)
+        coords = coords / np.array(sfunc.grid.spacing)
         coords = coords - np.floor(coords)
 
         # Precompute sinc
