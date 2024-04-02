@@ -432,7 +432,6 @@ class DeviceAwareMixin:
                         break
                     except AttributeError:
                         pass
-                assert objcomm is not None
 
             devicetype = as_list(self.lang[self.platform])
             deviceid = self.deviceid

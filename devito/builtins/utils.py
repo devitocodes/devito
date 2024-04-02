@@ -1,52 +1,26 @@
 from functools import wraps
 
-import numpy as np
-
 import devito as dv
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['MPIReduction', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
+__all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
 
 
-class MPIReduction:
+def make_retval(grid, dtype):
     """
-    A context manager to build MPI-aware reduction Operators.
+    Devito does not support passing values by reference. This function
+    creates a dummy Function of size 1 to store the return value of a builtin
+    applied to `f`.
     """
+    if grid is None:
+        raise ValueError("Expected Grid, got None")
 
-    def __init__(self, *functions, op=dv.mpi.MPI.SUM, dtype=None):
-        grids = {f.grid for f in functions}
-        if len(grids) == 0:
-            self.grid = None
-        elif len(grids) == 1:
-            self.grid = grids.pop()
-        else:
-            raise ValueError("Multiple Grids found")
-        if dtype is not None:
-            self.dtype = dtype
-        else:
-            dtype = {f.dtype for f in functions}
-            if len(dtype) == 1:
-                self.dtype = np.result_type(dtype.pop(), np.float32).type
-            else:
-                raise ValueError("Illegal mixed data types")
-        self.v = None
-        self.op = op
-
-    def __enter__(self):
-        i = dv.Dimension(name='mri',)
-        self.n = dv.Function(name='n', shape=(1,), dimensions=(i,),
-                             grid=self.grid, dtype=self.dtype, space='host')
-        self.n.data[:] = 0
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.grid is None or not dv.configuration['mpi']:
-            assert self.n.data.size == 1
-            self.v = self.n.data[0]
-        else:
-            comm = self.grid.distributor.comm
-            self.v = comm.allreduce(np.asarray(self.n.data), self.op)[0]
+    i = dv.Dimension(name='mri',)
+    n = dv.Function(name='n', shape=(1,), dimensions=(i,), grid=grid,
+                    dtype=dtype, space='host')
+    n.data[:] = 0
+    return n
 
 
 def nbl_to_padsize(nbl, ndim):

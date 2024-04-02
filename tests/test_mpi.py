@@ -13,7 +13,8 @@ from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
-from devito.mpi.routines import HaloUpdateCall, HaloUpdateList, MPICall, ComputeCall
+from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
+                                 ComputeCall, AllreduceCall)
 from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
@@ -928,7 +929,8 @@ class TestCodeGeneration:
 
         # No stencil in the expressions, so no halo update required!
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 0
+        assert len(calls) == 2
+        assert all(isinstance(i, AllreduceCall) for i in calls)
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_redundant_haloupdate(self, mode):

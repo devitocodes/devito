@@ -21,7 +21,7 @@ from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype
 from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
 
-__all__ = ['HaloExchangeBuilder', 'ReductionBuilder, ''mpi_registry']
+__all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
 
 
 class HaloExchangeBuilder:
@@ -30,7 +30,8 @@ class HaloExchangeBuilder:
     Build IET routines to generate MPI halo exchanges.
     """
 
-    def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None, **kwargs):
+    def __new__(cls, mpimode, generators=None, rcompile=None, sregistry=None,
+                **kwargs):
         obj = object.__new__(mpi_registry[mpimode])
 
         obj.rcompile = rcompile
@@ -370,7 +371,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
 
         # Compile `eqns` into an IET via recursive compilation
-        irs, _ = self.rcompile(eqns)
+        irs, _ = self.rcompile(eqns, mpi=False)
 
         parameters = [buf] + bshape + list(f.handles) + ofs
 

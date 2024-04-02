@@ -11,7 +11,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                normalize_properties, normalize_syncs, minimum,
                                maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
-from devito.mpi.reduction_scheme import DistributedReduction
+from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 from devito.types import WeakFence, CriticalRegion
@@ -181,8 +181,11 @@ class Cluster:
 
     @cached_property
     def grid(self):
-        grids = set(f.grid for f in self.functions if f.is_DiscreteFunction) - {None}
-        if len(grids) == 1:
+        grids = set(f.grid for f in self.functions if f.is_AbstractFunction)
+        grids.discard(None)
+        if len(grids) == 0:
+            return None
+        elif len(grids) == 1:
             return grids.pop()
         else:
             raise ValueError("Cluster has no unique Grid")
@@ -211,7 +214,7 @@ class Cluster:
             dims = {d for d in self.properties if d._defines & target}
             if any(pset & self.properties[d] for d in dims):
                 return True
-        except ValueError:
+        except (AttributeError, ValueError):
             pass
 
         # Fallback to legacy is_dense checks
@@ -241,8 +244,7 @@ class Cluster:
 
     @property
     def is_dist_reduce(self):
-        return self.exprs and all(isinstance(e.rhs, DistributedReduction)
-                                  for e in self.exprs)
+        return self.exprs and all(isinstance(e.rhs, DistReduce) for e in self.exprs)
 
     @property
     def is_fence(self):

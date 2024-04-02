@@ -14,11 +14,11 @@ from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
-from devito.mpi.reduction_scheme import DistributedReduction
+from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
                               xreplace_indices)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, timed_pass, toposort)
+                          is_integer, split, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -378,25 +378,16 @@ def communications(clusters):
     return clusters
 
 
-class Comms(Queue):
-    #TODO: MAYBE DROP ME
+class HaloComms(Queue):
 
     """
-    Abstract base class for injecting Clusters representing communications
-    for distributed-memory parallelism.
+    Inject Clusters representing halo exchanges for distributed-memory parallelism.
     """
 
     _q_guards_in_key = True
     _q_properties_in_key = True
 
     B = Symbol(name='⊥')
-
-
-class HaloComms(Comms):
-
-    """
-    A specialization of Comms to handle halo exchanges.
-    """
 
     def process(self, clusters):
         return self._process_fatd(clusters, 1, seen=set())
@@ -453,49 +444,41 @@ class HaloComms(Comms):
 
 
 def reduction_comms(clusters):
-    # Detect the underlying Grid
-    #TODO: pretty rudimentary, but it's a start
+    processed = []
+    fifo = []
     for c in clusters:
-        try:
-            grid = c.grid
-            break
-        except ValueError:
-            continue
-    else:
-        return clusters
+        # Schedule the global reductions encountered before `c`, if the
+        # IterationSpace of `c` is such that the reduction can be carried out
+        found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
+        if found:
+            exprs = [Eq(dr.var, dr) for dr in found]
+            processed.append(c.rebuild(exprs=exprs))
 
-    # Detect global reductions along the distributed Dimensions
-    found = {}
-    for c in clusters:
-        if not any(grid.is_distributed(d) for d in c.ispace.itdims):
-            continue
-
+        # Detect the global reductions in `c`
         for e in c.exprs:
             op = e.operation
-            if op is None:
+            if op is None or c.is_sparse:
                 continue
-            elif found.get(e.lhs, op) != op:
-                raise ValueError("Inconsistent reduction operations")
-            else:
-                found[e.lhs] = e.operation
 
-    # Place global reductions right before they're required
-    processed = []
-    for c in clusters:
-        for var, op in list(found.items()):
-            if var in c.scope.read_only:
-                expr = Eq(var, DistributedReduction(var, op=op, grid=grid))
-                processed.append(c.rebuild(exprs=expr))
+            var = e.lhs
+            grid = c.grid
+            if grid is None:
+                continue
 
-                found.pop(var)
+            # The IterationSpace within which the global reduction is carried out
+            ispace = c.ispace.project(lambda d: d in var.free_symbols)
+            if ispace.itdims == c.ispace.itdims:
+                # Inc/Max/Min/... being used for a non-reduction operation
+                continue
+
+            fifo.append(DistReduce(var, op=op, grid=grid, ispace=ispace))
 
         processed.append(c)
 
     # Leftover reductions are placed at the very end
-    while found:
-        var, op = found.popitem()
-        expr = Eq(var, DistributedReduction(var, op=op, grid=grid))
-        processed.append(Cluster(exprs=[expr], ispace=null_ispace))
+    if fifo:
+        exprs = [Eq(dr.var, dr) for dr in fifo]
+        processed.append(Cluster(exprs=exprs, ispace=null_ispace))
 
     return processed
 
