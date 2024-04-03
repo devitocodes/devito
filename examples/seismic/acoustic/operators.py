@@ -1,5 +1,5 @@
 from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign
-from devito.symbolics import retrieve_functions, INT
+from devito.symbolics import retrieve_functions, INT, retrieve_derivatives
 
 
 def freesurface(model, eq):
@@ -14,13 +14,21 @@ def freesurface(model, eq):
     eq : Eq
         Time-stepping stencil (time update) to mirror at the freesurface.
     """
-    lhs, rhs = eq.evaluate.args
+    lhs, rhs = eq.args
     # Get vertical dimension and corresponding subdimension
-    zfs = model.grid.subdomains['fsdomain'].dimensions[-1]
+    fsdomain = model.grid.subdomains['fsdomain']
+    zfs = fsdomain.dimensions[-1]
     z = zfs.parent
 
-    # Functions present in the stencil
-    funcs = retrieve_functions(rhs)
+    # Retrieve vertical derivatives
+    Dz = {d for d in retrieve_derivatives(rhs) if z in d.dims}
+    # Remove inner duplicate
+    Dz = Dz - {d for D in Dz for d in retrieve_derivatives(D.expr) if z in d.dims}
+    Dz = {d: d._eval_at(lhs).evaluate for d in Dz}
+
+    # Finally get functions for evaluated derivatives
+    funcs = {f for f in retrieve_functions(Dz.values())}
+
     mapper = {}
     # Antisymmetric mirror at negative indices
     # TODO: Make a proper "mirror_indices" tool function
@@ -29,7 +37,14 @@ def freesurface(model, eq):
         if (zind - z).as_coeff_Mul()[0] < 0:
             s = sign(zind.subs({z: zfs, z.spacing: 1}))
             mapper.update({f: s * f.subs({zind: INT(abs(zind))})})
-    return Eq(lhs, rhs.subs(mapper), subdomain=model.grid.subdomains['fsdomain'])
+
+    # Mapper for vertical derivatives
+    dzmapper = {d: v.subs(mapper) for d, v in Dz.items()}
+
+    fs_eq = [eq.func(lhs, rhs.subs(dzmapper), subdomain=fsdomain)]
+    fs_eq.append(eq.func(lhs._subs(z, 0), 0, subdomain=fsdomain))
+
+    return fs_eq
 
 
 def laplacian(field, model, kernel):
