@@ -48,7 +48,7 @@ jobs:
         python3 scripts/clear_devito_cache.py
         python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
-    - name: Test examples
+    - name: Test examples with MPI
       run: |
         python3 scripts/clear_devito_cache.py
         DEVITO_MPI=1 mpirun -n 2 python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic

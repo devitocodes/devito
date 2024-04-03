@@ -21,13 +21,13 @@ def freesurface(model, eq):
     z = zfs.parent
 
     # Retrieve vertical derivatives
-    Dz = {d for d in retrieve_derivatives(rhs) if z in d.dims}
+    dzs = {d for d in retrieve_derivatives(rhs) if z in d.dims}
     # Remove inner duplicate
-    Dz = Dz - {d for D in Dz for d in retrieve_derivatives(D.expr) if z in d.dims}
-    Dz = {d: d._eval_at(lhs).evaluate for d in Dz}
+    dzs = dzs - {d for D in dzs for d in retrieve_derivatives(D.expr) if z in d.dims}
+    dzs = {d: d._eval_at(lhs).evaluate for d in dzs}
 
     # Finally get functions for evaluated derivatives
-    funcs = {f for f in retrieve_functions(Dz.values())}
+    funcs = {f for f in retrieve_functions(dzs.values())}
 
     mapper = {}
     # Antisymmetric mirror at negative indices
@@ -39,7 +39,7 @@ def freesurface(model, eq):
             mapper.update({f: s * f.subs({zind: INT(abs(zind))})})
 
     # Mapper for vertical derivatives
-    dzmapper = {d: v.subs(mapper) for d, v in Dz.items()}
+    dzmapper = {d: v.subs(mapper) for d, v in dzs.items()}
 
     fs_eq = [eq.func(lhs, rhs.subs(dzmapper), subdomain=fsdomain)]
     fs_eq.append(eq.func(lhs._subs(z, 0), 0, subdomain=fsdomain))

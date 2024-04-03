@@ -812,20 +812,27 @@ class SparseFunction(AbstractSparseFunction):
 
     def __init_finalize__(self, *args, **kwargs):
         # Interpolation method
-        interp = kwargs.pop('interpolation', 'linear')
-        self.interpolation = interp
-        self.interpolator = _interpolators[interp](self)
-        self._radius = kwargs.pop('r', _default_radius[interp])
-        if interp == 'sinc' and self._radius < 2:
-            raise ValueError("The 'sinc' interpolator requires a radius of at least 2")
+        self.__interp_setup__(**kwargs)
 
-        # Set space ordert to `r` for safety
+        # Initialization
         super().__init_finalize__(*args, **kwargs)
 
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
         self._dist_origin = {self._coordinates: self.grid.origin_offset}
+
+    def __interp_setup__(self, interp='linear', r=None, **kwargs):
+        self.interpolation = interp
+        self.interpolator = _interpolators[interp](self)
+        self._radius = r or _default_radius[interp]
+        if interp == 'sinc':
+            if self._radius < 2:
+                raise ValueError("'sinc' interpolator requires a radius of at least 2")
+            elif self._radius > 10:
+                raise ValueError("'sinc' interpolator requires a radius of at most 10")
+        elif interp == 'linear' and self._radius != 1:
+            self._radius = 1
 
     @cached_property
     def _coordinate_symbols(self):
