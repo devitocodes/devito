@@ -253,4 +253,6 @@ def seismic_args(description):
                         type=float, help="Simulation time in millisecond")
     parser.add_argument("-dtype", action=_dtype_store, dest="dtype", default=np.float32,
                         choices=['float32', 'float64'])
+    parser.add_argument("-interp", dest="interp", default="linear",
+                        choices=['linear', 'sinc'])
     return parser

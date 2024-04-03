@@ -5,8 +5,14 @@ import sympy
 import numpy as np
 from cached_property import cached_property
 
+try:
+    from scipy.special import i0
+except ImportError:
+    from numpy import i0
+
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
+from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
@@ -216,7 +222,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None, pos_only=None):
+    def _interp_idx(self, variables, implicit_dims=None, pos_only=()):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -238,10 +244,8 @@ class WeightedInterpolator(GenericInterpolator):
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
         # not vp[posx + rx]
-        if pos_only is not None:
-            idx_subs.update({v: v.subs({k: p
-                             for (k, p) in zip(mapper, pos)})
-                             for v in pos_only})
+        idx_subs.update({v: v.subs({k: p for (k, p) in zip(mapper, pos)})
+                         for v in pos_only})
 
         return idx_subs, temps
 
@@ -368,7 +372,7 @@ class WeightedInterpolator(GenericInterpolator):
         implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
 
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(list(fields), implicit_dims=implicit_dims,
+        idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
                                            pos_only=variables)
 
         # Substitute coordinate base symbols into the interpolation coefficients
@@ -465,6 +469,14 @@ class SincInterpolator(PrecomputedInterpolator):
                 4: 4.14, 5: 5.26, 6: 6.40,
                 7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
 
+    def __init__(self, sfunction):
+        if i0 is np.i0:
+            warning("""
+Using `numpy.i0`. We (and numpy) recommend to install scipy to improve the performance
+of the SincInterpolator that uses i0 (Bessel function).
+""")
+        super().__init__(sfunction)
+
     @cached_property
     def interpolation_coeffs(self):
         coeffs = {}
@@ -487,7 +499,7 @@ class SincInterpolator(PrecomputedInterpolator):
     def _arg_defaults(self, coords=None, sfunc=None):
         args = {}
         b = self._b_table[self.r]
-        b0 = np.i0(b)
+        b0 = i0(b)
         if coords is None or sfunc is None:
             raise ValueError("No coordinates or sparse function provided")
         # Coords to indices
@@ -499,7 +511,7 @@ class SincInterpolator(PrecomputedInterpolator):
             data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
             for ri in range(2*self.r):
                 rpos = ri - self.r + 1 - coords[:, j]
-                num = np.i0(b*np.sqrt(1 - (rpos/self.r)**2))
+                num = i0(b*np.sqrt(1 - (rpos/self.r)**2))
                 data[:, ri] = num / b0 * np.sinc(rpos)
             args[self.interpolation_coeffs[r].name] = data
 

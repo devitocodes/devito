@@ -822,16 +822,16 @@ class SparseFunction(AbstractSparseFunction):
         self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
         self._dist_origin = {self._coordinates: self.grid.origin_offset}
 
-    def __interp_setup__(self, interp='linear', r=None, **kwargs):
-        self.interpolation = interp
-        self.interpolator = _interpolators[interp](self)
-        self._radius = r or _default_radius[interp]
-        if interp == 'sinc':
+    def __interp_setup__(self, interpolation='linear', r=None, **kwargs):
+        self.interpolation = interpolation
+        self.interpolator = _interpolators[interpolation](self)
+        self._radius = r or _default_radius[interpolation]
+        if interpolation == 'sinc':
             if self._radius < 2:
                 raise ValueError("'sinc' interpolator requires a radius of at least 2")
             elif self._radius > 10:
                 raise ValueError("'sinc' interpolator requires a radius of at most 10")
-        elif interp == 'linear' and self._radius != 1:
+        elif interpolation == 'linear' and self._radius != 1:
             self._radius = 1
 
     @cached_property
