@@ -10,7 +10,7 @@ fi
 
 if [[ "$DEVITO_ARCH" = "icx" || "$DEVITO_ARCH" = "icc" ]]; then
     echo "Initializing oneapi environement"
-    source /opt/intel/oneapi/setvars.sh
+    source /opt/intel/oneapi/setvars.sh intel64
 fi
 
 if [[ -z "${DEPLOY_ENV}" ]]; then

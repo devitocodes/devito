@@ -12,7 +12,8 @@ from cached_property import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import LinearInterpolator, PrecomputedInterpolator
+from devito.operations import (LinearInterpolator, PrecomputedInterpolator,
+                               SincInterpolator)
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
                           is_integer, dtype_to_mpidtype)
@@ -27,6 +28,10 @@ from devito.types.utils import IgnoreDimSort
 
 __all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
            'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
+
+
+_interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
+_default_radius = {'linear': 1, 'sinc': 4}
 
 
 class AbstractSparseFunction(DiscreteFunction):
@@ -799,21 +804,35 @@ class SparseFunction(AbstractSparseFunction):
 
     is_SparseFunction = True
 
-    _radius = 1
     """The radius of the stencil operators provided by the SparseFunction."""
 
     _sub_functions = ('coordinates',)
 
-    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates',)
+    __rkwargs__ = AbstractSparseFunction.__rkwargs__ + ('coordinates', 'interpolation')
 
     def __init_finalize__(self, *args, **kwargs):
+        # Interpolation method
+        self.__interp_setup__(**kwargs)
+
+        # Initialization
         super().__init_finalize__(*args, **kwargs)
-        self.interpolator = LinearInterpolator(self)
 
         # Set up sparse point coordinates
         coordinates = kwargs.get('coordinates', kwargs.get('coordinates_data'))
         self._coordinates = self.__subfunc_setup__(coordinates, 'coords')
         self._dist_origin = {self._coordinates: self.grid.origin_offset}
+
+    def __interp_setup__(self, interpolation='linear', r=None, **kwargs):
+        self.interpolation = interpolation
+        self.interpolator = _interpolators[interpolation](self)
+        self._radius = r or _default_radius[interpolation]
+        if interpolation == 'sinc':
+            if self._radius < 2:
+                raise ValueError("'sinc' interpolator requires a radius of at least 2")
+            elif self._radius > 10:
+                raise ValueError("'sinc' interpolator requires a radius of at most 10")
+        elif interpolation == 'linear' and self._radius != 1:
+            self._radius = 1
 
     @cached_property
     def _coordinate_symbols(self):
@@ -826,6 +845,15 @@ class SparseFunction(AbstractSparseFunction):
     def _decomposition(self):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
+
+    def _arg_defaults(self, alias=None):
+        defaults = super()._arg_defaults(alias=alias)
+
+        key = alias or self
+        coords = defaults.get(key.coordinates.name, key.coordinates.data)
+        defaults.update(key.interpolator._arg_defaults(coords=coords,
+                                                       sfunc=key))
+        return defaults
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):

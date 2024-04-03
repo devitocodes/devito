@@ -48,6 +48,12 @@ jobs:
         python3 scripts/clear_devito_cache.py
         python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel tests/
 
+    - name: Test examples with MPI
+      run: |
+        python3 scripts/clear_devito_cache.py
+        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic
+        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/tti
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
@@ -64,9 +70,12 @@ jobs:
             - name: gcc
               arch: gcc
               os: ubuntu-latest
+              mpiflag: ""
             - name: icx
               arch: icx
               os: ubuntu-latest
+              # Need safe math for icx due to inaccuracy with mpi+sinc interpolation
+              mpiflag: "-e DEVITO_SAFE_MATH=1"
       
       steps:
       - name: Checkout devito
@@ -79,3 +88,8 @@ jobs:
       - name: Test with pytest
         run: |
           docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py
+
+      - name: Test examples with MPI
+        run: |
+          docker run --rm ${{ matrix.mpiflag }} -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/acoustic
+          docker run --rm -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/tti

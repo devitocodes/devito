@@ -15,7 +15,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                        fs=fs, **kwargs)
 
     # Source and receiver geometries
-    geometry = setup_geometry(model, tn)
+    geometry = setup_geometry(model, tn, **kwargs)
 
     # Create solver object to provide relevant operators
     solver = AcousticWaveSolver(model, geometry, kernel=kernel,
@@ -60,21 +60,26 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver.jacobian(dm, autotune=autotune)
     info("Applying Gradient")
     solver.jacobian_adjoint(rec, u, autotune=autotune, checkpointing=checkpointing)
-    return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
+    return summary.gflopss, summary.oi, summary.timings, [rec, u.data._local]
 
 
 @pytest.mark.parametrize('shape', [(101,), (51, 51), (16, 16, 16)])
 @pytest.mark.parametrize('k', ['OT2', 'OT4'])
-def test_isoacoustic_stability(shape, k):
+@pytest.mark.parametrize('interp', ['linear', 'sinc'])
+def test_isoacoustic_stability(shape, k, interp):
     spacing = tuple([20]*len(shape))
-    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=k)
+    _, _, _, [rec, _] = run(shape=shape, spacing=spacing, tn=20000.0, nbl=0, kernel=k,
+                            interpolation=interp)
     assert np.isfinite(norm(rec))
 
 
-@pytest.mark.parametrize('fs, normrec, dtype', [(True, 369.955, np.float32),
-                                                (False, 459.1678, np.float64)])
-def test_isoacoustic(fs, normrec, dtype):
-    _, _, _, [rec, _] = run(fs=fs, dtype=dtype)
+@pytest.mark.parametrize('fs, normrec, dtype, interp', [
+    (True, 369.955, np.float32, 'linear'),
+    (False, 459.1678, np.float64, 'linear'),
+    (True, 402.216, np.float32, 'sinc'),
+    (False, 509.0681, np.float64, 'sinc')])
+def test_isoacoustic(fs, normrec, dtype, interp):
+    _, _, _, [rec, _] = run(fs=fs, dtype=dtype, interpolation=interp)
     assert np.isclose(norm(rec), normrec, rtol=1e-3, atol=0)
 
 
@@ -98,4 +103,4 @@ if __name__ == "__main__":
     run(shape=shape, spacing=spacing, nbl=args.nbl, tn=tn, fs=args.fs,
         space_order=args.space_order, preset=preset, kernel=args.kernel,
         autotune=args.autotune, opt=args.opt, full_run=args.full,
-        checkpointing=args.checkpointing, dtype=args.dtype)
+        checkpointing=args.checkpointing, dtype=args.dtype, interpolation=args.interp)

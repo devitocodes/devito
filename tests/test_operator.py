@@ -1207,7 +1207,6 @@ class TestApplyArguments(object):
         except:
             assert False
 
-    @skipif('nompi')
     @pytest.mark.parallel(mode=1)
     def test_new_distributor(self):
         """

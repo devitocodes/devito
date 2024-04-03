@@ -180,7 +180,6 @@ def test_discarding_runs():
     assert op._state['autotuning'][1]['tuned']['nthreads'] == 1
 
 
-@skipif('nompi')
 @pytest.mark.parallel(mode=[(2, 'diag'), (2, 'full')])
 def test_at_w_mpi():
     """Make sure autotuning works in presence of MPI. MPI ranks work
