@@ -94,3 +94,8 @@ def test_geom(shape):
 
     assert geometry.new_rec(name="bonjour").name == "bonjour"
     assert geometry.new_src(name="bonjour").name == "bonjour"
+
+    src1 = geometry.src
+    src2 = geometry.src
+    assert src1.coordinates is src2.coordinates
+    assert src1._sparse_dim is src2._sparse_dim
