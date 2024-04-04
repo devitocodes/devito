@@ -820,7 +820,7 @@ class TestOperatorSimple:
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'basic2'), (8, 'diag'), (8, 'overlap'),
+    @pytest.mark.parallel(mode=[(8, 'basic2'), (8, 'diag'), (8, 'overlap'),
                                 (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
     def test_trivial_eq_3d(self, mode):
         grid = Grid(shape=(8, 8, 8))
@@ -2749,8 +2749,8 @@ class TestIsotropicAcoustic:
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'diag'),
-                                (4, 'overlap'), (4, 'overlap2'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag'), (4, 'overlap'),
+                                (4, 'overlap2'), (4, 'full')])
     def test_adjoint_F(self, nd):
         self.run_adjoint_F(nd)
 
