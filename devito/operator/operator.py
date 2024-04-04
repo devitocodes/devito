@@ -659,12 +659,13 @@ class Operator(Callable):
 
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
+        pnames = {p.name for p in self.parameters}
         for p in self.parameters:
             try:
                 subfuncs = (args[getattr(p, s).name] for s in p._sub_functions)
                 p._arg_apply(args[p.name], *subfuncs, alias=kwargs.get(p.name))
             except AttributeError:
-                if not (isinstance(p, SubFunction) and p.parent in self.parameters):
+                if not (isinstance(p, SubFunction) and p.parent.name in pnames):
                     p._arg_apply(args[p.name], alias=kwargs.get(p.name))
 
     @cached_property
