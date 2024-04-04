@@ -3,7 +3,6 @@ import numpy as np
 
 from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
                     div, grad, solve)
-from examples.seismic import PointSource, Receiver
 
 
 def src_rec(p, model, geometry, **kwargs):
@@ -14,10 +13,8 @@ def src_rec(p, model, geometry, **kwargs):
     dt = model.grid.time_dim.spacing
     m = model.m
     # Source symbol with input wavelet
-    src = PointSource(name="src", grid=model.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    src = geometry.src
+    rec = geometry.rec
 
     forward = kwargs.get('forward', True)
     time_order = p.time_order
