@@ -754,6 +754,11 @@ class SparseFunction(AbstractSparseFunction):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
+    interpolation: String, optional, default='linear'
+        The interpolation type to be used by the SparseFunction. Supported types
+        are 'linear' and 'sinc'.
+    r: int, optional, default=1 for 'linear', 4 for 'sinc'
+        The radius of the interpolation operators provided by the SparseFunction.
 
     Examples
     --------
