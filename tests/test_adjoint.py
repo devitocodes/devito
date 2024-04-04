@@ -3,7 +3,7 @@ import pytest
 
 from devito import Operator, norm, Function, Grid, SparseFunction, inner
 from devito.logger import info
-from examples.seismic import demo_model, Receiver
+from examples.seismic import demo_model
 from examples.seismic.acoustic import acoustic_setup
 from examples.seismic.tti import tti_setup
 from examples.seismic.viscoacoustic import viscoacoustic_setup
@@ -105,9 +105,7 @@ class TestAdjoint(object):
                             **(presets[mkey]), dtype=np.float64)
 
         # Create adjoint receiver symbol
-        srca = Receiver(name='srca', grid=solver.model.grid,
-                        time_range=solver.geometry.time_axis,
-                        coordinates=solver.geometry.src_positions)
+        srca = solver.geometry.new_src(name="srca", src_type=None)
 
         # Run forward and adjoint operators
         rec = solver.forward(save=False)[0]

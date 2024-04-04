@@ -169,16 +169,21 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def rec(self):
-        rec = self.new_rec()
+        return self.new_rec()
         self._rec_coordinates = rec.coordinates
         return rec
 
     def new_rec(self, name='rec'):
         coords = self.rec_coords or self.rec_positions
-        return Receiver(name=name, grid=self.grid,
-                        time_range=self.time_axis, npoint=self.nrec,
-                        interpolation=self.interpolation, r=self._r,
-                        coordinates=coords)
+        rec = Receiver(name=name, grid=self.grid,
+                       time_range=self.time_axis, npoint=self.nrec,
+                       interpolation=self.interpolation, r=self._r,
+                       coordinates=coords)
+
+        if self.rec_coords is None:
+            self._rec_coordinates = rec.coordinates
+
+        return rec
 
     @property
     def adj_src(self):
@@ -196,24 +201,27 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def src(self):
-        src = self.new_src()
-        self._src_coordinates = src.coordinates
-        return src
+        return self.new_src()
 
     def new_src(self, name='src', src_type='self'):
         coords = self.src_coords or self.src_positions
         if self.src_type is None or src_type is None:
             warning("No source type defined, returning uninitiallized (zero) source")
-            return PointSource(name=name, grid=self.grid,
-                               time_range=self.time_axis, npoint=self.nsrc,
-                               coordinates=coords,
-                               interpolation=self.interpolation, r=self._r)
+            src = PointSource(name=name, grid=self.grid,
+                              time_range=self.time_axis, npoint=self.nsrc,
+                              coordinates=coords,
+                              interpolation=self.interpolation, r=self._r)
         else:
-            return sources[self.src_type](name=name, grid=self.grid, f0=self.f0,
-                                          time_range=self.time_axis, npoint=self.nsrc,
-                                          coordinates=coords,
-                                          t0=self._t0w, a=self._a,
-                                          interpolation=self.interpolation, r=self._r)
+            src = sources[self.src_type](name=name, grid=self.grid, f0=self.f0,
+                                         time_range=self.time_axis, npoint=self.nsrc,
+                                         coordinates=coords,
+                                         t0=self._t0w, a=self._a,
+                                         interpolation=self.interpolation, r=self._r)
+
+        if self.src_coords is None:
+            self._src_coordinates = src.coordinates
+
+        return src
 
 
 sources = {'Wavelet': WaveletSource, 'Ricker': RickerSource, 'Gabor': GaborSource}

@@ -1,9 +1,4 @@
 from collections import OrderedDict
-try:
-    from collections.abc import Iterable
-except ImportError:
-    # Before python 3.10
-    from collections import Iterable
 from itertools import product
 
 import sympy
@@ -49,7 +44,8 @@ class AbstractSparseFunction(DiscreteFunction):
     _sub_functions = ()
     """SubFunctions encapsulated within this AbstractSparseFunction."""
 
-    __rkwargs__ = DiscreteFunction.__rkwargs__ + ('npoint_global', 'space_order')
+    __rkwargs__ = (DiscreteFunction.__rkwargs__ +
+                   ('dimensions', 'npoint_global', 'space_order'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -62,8 +58,19 @@ class AbstractSparseFunction(DiscreteFunction):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         dimensions = as_tuple(kwargs.get('dimensions'))
+        # If a subfunction provided use the sparse dimension
+        for f in cls._sub_functions:
+            if f in kwargs:
+                try:
+                    sparse_dim = kwargs[f].indices[0]
+                    break
+                except AttributeError:
+                    continue
+        else:
+            sparse_dim = Dimension(name='p_%s' % kwargs["name"])
+
         if not dimensions:
-            dimensions = (Dimension(name='p_%s' % kwargs["name"]),)
+            dimensions = (sparse_dim,)
 
         if args:
             return tuple(dimensions), tuple(args)
@@ -133,21 +140,25 @@ class AbstractSparseFunction(DiscreteFunction):
             shape = (self.npoint, self.grid.dim)
 
         # Check if already a SubFunction
+        d = self.indices[self._sparse_position]
         if isinstance(key, SubFunction):
-            # Need to rebuild so the dimensions match the parent SparseFunction
-            indices = (self.indices[self._sparse_position], *key.indices[1:])
-            return key._rebuild(*indices, name=name, shape=shape,
-                                alias=self.alias, halo=None)
-        elif key is not None and not isinstance(key, Iterable):
-            raise ValueError("`%s` must be either SubFunction "
-                             "or iterable (e.g., list, np.ndarray)" % key)
+            if d in key.dimensions and not self.alias:
+                # From a reconstruction which leaves `dimensions` intact
+                return key
+            else:
+                # Need to rebuild so the dimensions match the parent
+                # SparseFunction, for example we end up here via `.subs(d, new_d)`
+                indices = (d, *key.indices[1:])
+                return key._rebuild(*indices, name=name, shape=shape,
+                                    alias=self.alias, halo=None)
 
         if key is None:
             # Fallback to default behaviour
             dtype = dtype or self.dtype
         else:
-            if (shape != key.shape and key.shape != (shape[1],)) and \
-                    self._distributor.nprocs == 1:
+            if shape != key.shape and \
+               key.shape != (shape[1],) and \
+               self._distributor.nprocs == 1:
                 raise ValueError("Incompatible shape for %s, `%s`; expected `%s`" %
                                  (suffix, key.shape[:2], shape))
 
@@ -698,7 +709,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
         dimensions = as_tuple(kwargs.get('dimensions'))
         if not dimensions:
             dimensions = (kwargs['grid'].time_dim,
-                          Dimension(name='p_%s' % kwargs["name"]),)
+                          *super().__indices_setup__(*args, **kwargs)[0])
 
         if args:
             return tuple(dimensions), tuple(args)
