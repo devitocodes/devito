@@ -7,8 +7,12 @@ from sympy import Float
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
+<<<<<<< HEAD
                     MatrixSparseTimeFunction)
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
+=======
+                    MatrixSparseTimeFunction, SubDomain)
+>>>>>>> 4cd032194 (tests: Added test for interpolation off Functions on SubDomains)
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
@@ -838,3 +842,73 @@ def test_sinc_accuracy(r, tol):
     assert np.isclose(err_sinc, 0, rtol=0, atol=tol)
     assert err_sinc < err_lin
     assert err_lin > 0.01
+
+
+class TestSubDomainInterpolation:
+    """
+    Tests for interpolation onto and off of Functions defined on
+    SubDomains.
+    """
+
+    def test_interpolate_subdomain(self):
+        """
+        Test interpolation off of a function defined on a SubDomain.
+        """
+
+        class SD0(SubDomain):
+            name = 'sd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 6), y: y}
+
+        class SD1(SubDomain):
+            name = 'sd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 1), y: ('right', 6)}
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD0(grid=grid)
+        sd1 = SD1(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0)
+        f1 = Function(name='f1', grid=sd1)
+        f2 = Function(name='f2', grid=grid)
+
+        xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+        msh = xmsh*ymsh
+        f0.data[:] = msh[:6, :]
+        f1.data[:] = msh[2:-1, -6:]
+        f2.data[:] = msh
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
+        sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+        sr2.coordinates.data[:] = coords
+
+        rec0 = sr0.interpolate(f0)
+        rec1 = sr1.interpolate(f1)
+        rec2 = sr2.interpolate(f1 + f2)
+
+        op = Operator([rec0, rec1, rec2])
+
+        op.apply()
+
+        # Note that interpolation points can go into the halo by
+        # the radius of the SparseFunction.
+        check0 = np.array([3.75, 9., 0., 3., 0., 13.75, 6.75, 0.])
+        check1 = np.array([0., 0., 0., 0., 0., 30.25, 2.5, 63.75])
+        check2 = np.array([[0., 0., 34., 3., 30., 60.5, 9.25, 127.5]])
+
+        assert np.all(np.isclose(sr0.data, check0))
+        assert np.all(np.isclose(sr1.data, check1))
+        assert np.all(np.isclose(sr2.data, check2))

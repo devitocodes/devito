@@ -807,7 +807,7 @@ class ReducedDomain(SubDomain):
                 y: self._y_param if self._y_param is not None else y}
 
 
-class TestSubdomainFunctions:
+class TestSubDomainFunctions:
     """Tests for functions defined on SubDomains"""
 
     _subdomain_specs = [('left', 3), ('right', 3), ('middle', 2, 3), None]
@@ -989,7 +989,7 @@ class TestSubdomainFunctions:
         assert(np.all(h.data == h_check))
 
 
-class TestSubdomainFunctionsParallel:
+class TestSubDomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""
     # Note that some of the 'left' and 'right' SubDomains here are swapped
     # with 'middle' as they are local by default and so cannot be decomposed
