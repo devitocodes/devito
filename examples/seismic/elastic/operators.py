@@ -10,7 +10,7 @@ def src_rec(v, tau, model, geometry):
     # Source symbol with input wavelet
     src = geometry.src
     rec1 = geometry.new_rec(name="rec1")
-    rec2 = geometry.new_rec(name="rec1")
+    rec2 = geometry.new_rec(name="rec2")
 
     # The source injection term
     src_expr = src.inject(tau.forward.diagonal(), expr=src * s)
