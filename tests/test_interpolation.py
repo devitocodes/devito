@@ -7,12 +7,8 @@ from sympy import Float
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-<<<<<<< HEAD
-                    MatrixSparseTimeFunction)
-from devito.operations.interpolators import LinearInterpolator, SincInterpolator
-=======
                     MatrixSparseTimeFunction, SubDomain)
->>>>>>> 4cd032194 (tests: Added test for interpolation off Functions on SubDomains)
+from devito.operations.interpolators import LinearInterpolator, SincInterpolator
 from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
                               AcquisitionGeometry)
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
@@ -844,6 +840,22 @@ def test_sinc_accuracy(r, tol):
     assert err_lin > 0.01
 
 
+class SD0(SubDomain):
+    name = 'sd0'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('left', 6), y: y}
+
+
+class SD1(SubDomain):
+    name = 'sd1'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 2, 1), y: ('right', 6)}
+
+
 class TestSubDomainInterpolation:
     """
     Tests for interpolation onto and off of Functions defined on
@@ -852,22 +864,8 @@ class TestSubDomainInterpolation:
 
     def test_interpolate_subdomain(self):
         """
-        Test interpolation off of a function defined on a SubDomain.
+        Test interpolation off of a Function defined on a SubDomain.
         """
-
-        class SD0(SubDomain):
-            name = 'sd0'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('left', 6), y: y}
-
-        class SD1(SubDomain):
-            name = 'sd1'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('middle', 2, 1), y: ('right', 6)}
 
         grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd0 = SD0(grid=grid)
@@ -912,3 +910,49 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr0.data, check0))
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
+
+    def test_inject_subdomain(self):
+        """
+        Test injection into a Function defined on a SubDomain.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD0(grid=grid)
+        sd1 = SD1(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0)
+        f1 = Function(name='f1', grid=sd1)
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+
+        src0 = sr0.inject(f0, Float(1.))
+        src1 = sr1.inject(f1, Float(1.))
+
+        op = Operator([src0, src1])
+
+        op.apply()
+
+        check0 = np.array([[0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0.25, 0.25, 0.5, 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0.25, 0.25, 0., 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0.5, 0., 0., 0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0.5, 0., 0., 0.25, 0.25, 0., 0., 0., 0.]])
+        check1 = np.array([[0.25, 0., 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0., 0.],
+                           [0., 0., 0., 0., 0., 0.],
+                           [0.25, 0.25, 0., 0., 0., 0.],
+                           [0.25, 0.25, 0., 0., 0., 0.],
+                           [0., 0., 0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0., 0., 0.]])
+
+        assert np.all(np.isclose(f0.data, check0))
+        assert np.all(np.isclose(f1.data, check1))
