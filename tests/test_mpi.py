@@ -2637,14 +2637,17 @@ class TestIsotropicAcoustic:
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape],
                                 tn=tn, space_order=so, nrec=nrec,
                                 preset='layers-isotropic', dtype=np.float64)
+
         # Run forward operator
-        rec, u, _ = solver.forward()
+        src = solver.geometry.src
+        rec, u, _ = solver.forward(src=src)
 
         assert np.isclose(norm(u) / Eu, 1.0)
         assert np.isclose(norm(rec) / Erec, 1.0)
 
         # Run adjoint operator
-        srca, v, _ = solver.adjoint(rec=rec)
+        srca = src.func(name='srca')
+        srca, v, _ = solver.adjoint(srca=srca, rec=rec)
 
         assert np.isclose(norm(v) / Ev, 1.0)
         assert np.isclose(norm(srca) / Esrca, 1.0)
