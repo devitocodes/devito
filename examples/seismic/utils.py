@@ -93,6 +93,10 @@ class AcquisitionGeometry(Pickable):
         self._interpolation = kwargs.get('interpolation', 'linear')
         self._r = kwargs.get('r', _default_radius[self.interpolation])
 
+        # Initialize to empty, created at new src/rec
+        self._src_coordinates = None
+        self._rec_coordinates = None
+
     def resample(self, dt):
         self._dt = dt
         return self
@@ -154,27 +158,35 @@ class AcquisitionGeometry(Pickable):
     @property
     def interpolation(self):
         return self._interpolation
+    def src_coords(self):
+        return self._src_coordinates
+
+    @property
+    def rec_coords(self):
+        return self._rec_coordinates
 
     @property
     def rec(self):
-        return self.new_rec()
+        rec = self.new_rec()
+        self._rec_coordinates = rec.coordinates
+        return rec
 
     def new_rec(self, name='rec'):
+        coords = self.rec_coords or self.rec_positions
         return Receiver(name=name, grid=self.grid,
                         time_range=self.time_axis, npoint=self.nrec,
-                        coordinates=self.rec_positions,
-                        interpolation=self.interpolation, r=self._r)
+                        interpolation=self.interpolation, r=self._r,
+                        coordinates=coords)
 
     @property
     def adj_src(self):
         if self.src_type is None:
-            warning("No source type defined, returning uninitiallized (zero) shot record")
             return self.new_rec()
+        coords = self.rec_coords or self.rec_positions
         adj_src = sources[self.src_type](name='rec', grid=self.grid, f0=self.f0,
                                          time_range=self.time_axis, npoint=self.nrec,
-                                         coordinates=self.rec_positions,
-                                         t0=self._t0w, a=self._a,
-                                         interpolation=self.interpolation, r=self._r)
+                                         interpolation=self.interpolation, r=self._r,
+                                         coordinates=coords, t0=self._t0w, a=self._a)
         # Revert time axis to have a proper shot record and not compute on zeros
         for i in range(self.nrec):
             adj_src.data[:, i] = adj_src.wavelet[::-1]
@@ -182,19 +194,22 @@ class AcquisitionGeometry(Pickable):
 
     @property
     def src(self):
-        return self.new_src()
+        src = self.new_src()
+        self._src_coordinates = src.coordinates
+        return src
 
     def new_src(self, name='src', src_type='self'):
+        coords = self.src_coords or self.src_positions
         if self.src_type is None or src_type is None:
             warning("No source type defined, returning uninitiallized (zero) source")
             return PointSource(name=name, grid=self.grid,
                                time_range=self.time_axis, npoint=self.nsrc,
-                               coordinates=self.src_positions,
+                               coordinates=coords,
                                interpolation=self.interpolation, r=self._r)
         else:
             return sources[self.src_type](name=name, grid=self.grid, f0=self.f0,
                                           time_range=self.time_axis, npoint=self.nsrc,
-                                          coordinates=self.src_positions,
+                                          coordinates=coords,
                                           t0=self._t0w, a=self._a,
                                           interpolation=self.interpolation, r=self._r)
 
