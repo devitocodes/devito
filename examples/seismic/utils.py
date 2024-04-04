@@ -159,6 +159,7 @@ class AcquisitionGeometry(Pickable):
     def interpolation(self):
         return self._interpolation
 
+    @property
     def src_coords(self):
         return self._src_coordinates
 
