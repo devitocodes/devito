@@ -148,7 +148,7 @@ def test_cache_blocking_structure_subdims():
 
 
 @pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
-def test_cache_blocking_structure_distributed():
+def test_cache_blocking_structure_distributed(mode):
     """
     Test cache blocking in multiple nested elemental functions.
     """

@@ -343,7 +343,7 @@ class TestMatrixSparseTimeFunction(object):
         assert m.data[0, 40, 39] == pytest.approx(2.0)
 
     @pytest.mark.parallel(mode=4)
-    def test_mpi(self):
+    def test_mpi(self, mode):
         # Shape chosen to get a source in multiple ranks
         shape = (91, 91)
         grid = Grid(shape=shape)
@@ -458,7 +458,7 @@ class TestSparseFunction(object):
 
     @switchconfig(safe_math=True)
     @pytest.mark.parallel(mode=[1, 4])
-    def test_mpi_no_data(self):
+    def test_mpi_no_data(self, mode):
         grid = Grid((11, 11), extent=(10, 10))
         time = grid.time_dim
         # Base object

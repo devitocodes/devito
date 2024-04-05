@@ -492,7 +492,7 @@ class TestDataDistributed(object):
     """
 
     @pytest.mark.parallel(mode=4)
-    def test_localviews(self):
+    def test_localviews(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -520,7 +520,7 @@ class TestDataDistributed(object):
             assert np.all(u.data_ro_with_halo._local[2] == 0.)
 
     @pytest.mark.parallel(mode=4)
-    def test_trivial_insertion(self):
+    def test_trivial_insertion(self, mode):
         grid = Grid(shape=(4, 4))
         u = Function(name='u', grid=grid, space_order=0)
         v = Function(name='v', grid=grid, space_order=1)
@@ -536,7 +536,7 @@ class TestDataDistributed(object):
         assert np.all(v.data_with_halo._local == 1.)
 
     @pytest.mark.parallel(mode=4)
-    def test_indexing(self):
+    def test_indexing(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -567,7 +567,7 @@ class TestDataDistributed(object):
             assert np.all(u.data[:, 2] == [myrank, myrank])
 
     @pytest.mark.parallel(mode=4)
-    def test_slicing(self):
+    def test_slicing(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -594,7 +594,7 @@ class TestDataDistributed(object):
             assert u.data[:2, 2:].size == u.data[2:, :2].size == u.data[:2, :2].size == 0
 
     @pytest.mark.parallel(mode=4)
-    def test_slicing_ns(self):
+    def test_slicing_ns(self, mode):
         # Test slicing with a negative step
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -619,7 +619,7 @@ class TestDataDistributed(object):
             assert np.all(u.data == [[5, 4], [1, 0]])
 
     @pytest.mark.parallel(mode=4)
-    def test_getitem(self):
+    def test_getitem(self, mode):
         # __getitem__ mpi slicing tests:
         grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
@@ -697,7 +697,7 @@ class TestDataDistributed(object):
             assert np.all(result4 == [[28, 27, 26]])
 
     @pytest.mark.parallel(mode=4)
-    def test_big_steps(self):
+    def test_big_steps(self, mode):
         # Test slicing with a step size > 1
         grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
@@ -749,7 +749,7 @@ class TestDataDistributed(object):
             assert np.all(r3 == [[0]])
 
     @pytest.mark.parallel(mode=4)
-    def test_setitem(self):
+    def test_setitem(self, mode):
         # __setitem__ mpi slicing tests
         grid = Grid(shape=(12, 12))
         x, y = grid.dimensions
@@ -810,7 +810,7 @@ class TestDataDistributed(object):
                                                [0, 0, 0, 0, 0, 0]])
 
     @pytest.mark.parallel(mode=4)
-    def test_hd_slicing(self):
+    def test_hd_slicing(self, mode):
         # Test higher dimension slices
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
@@ -889,7 +889,7 @@ class TestDataDistributed(object):
                                          [63]])
 
     @pytest.mark.parallel(mode=4)
-    def test_niche_slicing(self):
+    def test_niche_slicing(self, mode):
         grid0 = Grid(shape=(8, 8))
         x0, y0 = grid0.dimensions
         glb_pos_map0 = grid0.distributor.glb_pos_map
@@ -1029,7 +1029,7 @@ class TestDataDistributed(object):
         ((8, 8, 8), (slice(None, None, 1), 5, slice(None, None, 1)),
          (slice(None, None, 1), 1, slice(None, None, 1)),
          (slice(None, None, 1), 7, slice(None, None, 1)))])
-    def test_niche_slicing2(self, shape, slice0, slice1, slice2):
+    def test_niche_slicing2(self, shape, slice0, slice1, slice2, mode):
         grid = Grid(shape=shape)
         f = Function(name='f', grid=grid)
         f.data[:] = 1
@@ -1063,7 +1063,7 @@ class TestDataDistributed(object):
         assert(g.data[1:1, 0:0, 1:1].shape == (0, 0, 0))
 
     @pytest.mark.parallel(mode=4)
-    def test_neg_start_stop(self):
+    def test_neg_start_stop(self, mode):
         grid0 = Grid(shape=(8, 8))
         f = Function(name='f', grid=grid0, space_order=0, dtype=np.int32)
         dat = np.arange(64, dtype=np.int32)
@@ -1094,7 +1094,7 @@ class TestDataDistributed(object):
             assert np.count_nonzero(h.data[:]) == 0
 
     @pytest.mark.parallel(mode=4)
-    def test_indexing_in_views(self):
+    def test_indexing_in_views(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         glb_pos_map = grid.distributor.glb_pos_map
@@ -1158,7 +1158,7 @@ class TestDataDistributed(object):
             assert view2.size == 0
 
     @pytest.mark.parallel(mode=4)
-    def test_from_replicated_to_distributed(self):
+    def test_from_replicated_to_distributed(self, mode):
         shape = (4, 4)
         grid = Grid(shape=shape)
         x, y = grid.dimensions
@@ -1207,7 +1207,7 @@ class TestDataDistributed(object):
             assert False
 
     @pytest.mark.parallel(mode=4)
-    def test_misc_setup(self):
+    def test_misc_setup(self, mode):
         """Test setup of Functions with mixed distributed/replicated Dimensions."""
         grid = Grid(shape=(4, 4))
         _, y = grid.dimensions
@@ -1248,7 +1248,7 @@ class TestDataDistributed(object):
             assert True
 
     @pytest.mark.parallel(mode=4)
-    def test_misc_data(self):
+    def test_misc_data(self, mode):
         """
         Test data insertion/indexing for Functions with mixed
         distributed/replicated Dimensions.
@@ -1294,7 +1294,7 @@ class TestDataDistributed(object):
         (slice(None, None, -1), slice(0, 1, 1), slice(None, None, -1)),
         (0, slice(None, None, -1), slice(None, None, -1)),
         (slice(0, 1, 1), slice(None, None, -1), slice(None, None, -1))])
-    def test_inversions(self, gslice):
+    def test_inversions(self, gslice, mode):
         """ Test index flipping along different axes."""
         nx = 8
         ny = 8
@@ -1337,7 +1337,7 @@ class TestDataDistributed(object):
             assert res.shape == vdat[tuple(sl)].shape
 
     @pytest.mark.parallel(mode=4)
-    def test_setitem_shorthands(self):
+    def test_setitem_shorthands(self, mode):
         # Test setitem with various slicing shorthands
         nx = 8
         ny = 8
@@ -1387,7 +1387,7 @@ class TestDataGather(object):
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('rank', [0, 1, 2, 3])
-    def test_simple_gather(self, rank):
+    def test_simple_gather(self, rank, mode):
         """ Test a simple gather on various ranks."""
         grid = Grid(shape=(10, 10), extent=(9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
@@ -1408,7 +1408,7 @@ class TestDataGather(object):
         (None, None, -2),
         (1, 8, 3),
         ((0, 4), None, (2, 1))])
-    def test_sliced_gather_2D(self, start, stop, step):
+    def test_sliced_gather_2D(self, start, stop, step, mode):
         """ Test gather for various 2D slices."""
         grid = Grid(shape=(10, 10), extent=(9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
@@ -1442,7 +1442,7 @@ class TestDataGather(object):
         (None, None, -2),
         (1, 8, 3),
         ((0, 4, 4), None, (2, 1, 1))])
-    def test_sliced_gather_3D(self, start, stop, step):
+    def test_sliced_gather_3D(self, start, stop, step, mode):
         """ Test gather for various 3D slices."""
         grid = Grid(shape=(10, 10, 10), extent=(9, 9, 9))
         f = Function(name='f', grid=grid, dtype=np.int32)
@@ -1469,7 +1469,7 @@ class TestDataGather(object):
             assert ans == np.array(None)
 
     @pytest.mark.parallel(mode=[4, 6])
-    def test_gather_time_function(self):
+    def test_gather_time_function(self, mode):
         """ Test gathering of TimeFunction objects. """
         grid = Grid(shape=(11, 11))
         f = TimeFunction(name='f', grid=grid, save=11)

@@ -1184,7 +1184,7 @@ class TestStreaming(object):
     @pytest.mark.skip(reason="Unsupported MPI + .dx when streaming backwards")
     @pytest.mark.parallel(mode=4)
     @switchconfig(safe_math=True)  # Or NVC will crash
-    def test_streaming_w_mpi(self):
+    def test_streaming_w_mpi(self, mode):
         nt = 5
         grid = Grid(shape=(16, 16))
 
@@ -1382,7 +1382,7 @@ class TestAPI(object):
 
     @skipif('device-openmp')
     @pytest.mark.parallel(mode=1)
-    def test_deviceid_w_mpi(self):
+    def test_deviceid_w_mpi(self, mode):
         self.check_deviceid()
 
     def test_devicerm(self):
@@ -1503,7 +1503,7 @@ class TestEdgeCases(object):
 
     @skipif('device-openmp')
     @pytest.mark.parallel(mode=4)
-    def test_degenerate_subdomainset(self):
+    def test_degenerate_subdomainset(self, mode):
         """
         MFE for issue #1766
         """

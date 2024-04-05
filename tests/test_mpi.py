@@ -23,7 +23,7 @@ from examples.seismic.acoustic import acoustic_setup
 class TestDistributor(object):
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_partitioning(self):
+    def test_partitioning(self, mode):
         grid = Grid(shape=(15, 15))
         f = Function(name='f', grid=grid)
 
@@ -37,7 +37,7 @@ class TestDistributor(object):
         assert distributor.nprocs_local == distributor.nprocs
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_partitioning_fewer_dims(self):
+    def test_partitioning_fewer_dims(self, mode):
         """Test domain decomposition for Functions defined over a strict subset
         of grid-decomposed dimensions."""
         size_x, size_y = 16, 16
@@ -55,7 +55,7 @@ class TestDistributor(object):
         assert f.shape == expected[distributor.nprocs][distributor.myrank]
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_partitioning_fewer_dims_timefunc(self):
+    def test_partitioning_fewer_dims_timefunc(self, mode):
         """Test domain decomposition for Functions defined over a strict subset
         of grid-decomposed dimensions."""
         size_x, size_y = 16, 16
@@ -80,7 +80,7 @@ class TestDistributor(object):
         assert f.shape[1:] == expected[distributor.nprocs][distributor.myrank]
 
     @pytest.mark.parallel(mode=9)
-    def test_neighborhood_horizontal_2d(self):
+    def test_neighborhood_horizontal_2d(self, mode):
         grid = Grid(shape=(3, 3))
         x, y = grid.dimensions
 
@@ -111,7 +111,7 @@ class TestDistributor(object):
         assert expected[distributor.myrank][y] == distributor.neighborhood[y]
 
     @pytest.mark.parallel(mode=9)
-    def test_neighborhood_diagonal_2d(self):
+    def test_neighborhood_diagonal_2d(self, mode):
         grid = Grid(shape=(3, 3))
         x, y = grid.dimensions
 
@@ -142,7 +142,7 @@ class TestDistributor(object):
                    for i in [(LEFT, LEFT), (LEFT, RIGHT), (RIGHT, LEFT), (RIGHT, RIGHT)])
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_ctypes_neighborhood(self):
+    def test_ctypes_neighborhood(self, mode):
         grid = Grid(shape=(4, 4))
         distributor = grid.distributor
 
@@ -163,7 +163,7 @@ class TestDistributor(object):
         assert all(getattr(value._obj, k) == v for k, v in mapper.items())
 
     @pytest.mark.parallel(mode=[4])
-    def test_custom_topology(self):
+    def test_custom_topology(self, mode):
         grid = Grid(shape=(15, 15))
         f = Function(name='f', grid=grid)
 
@@ -222,7 +222,7 @@ class TestDistributor(object):
         (256, ('*', 32, 2), (4, 32, 2)),
     ])
     @pytest.mark.parallel(mode=[2])
-    def test_custom_topology_v2(self, comm_size, topology, dist_topology):
+    def test_custom_topology_v2(self, comm_size, topology, dist_topology, mode):
         dummy_comm = Bunch(size=comm_size)
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
@@ -231,7 +231,7 @@ class TestDistributor(object):
 class TestFunction(object):
 
     @pytest.mark.parallel(mode=2)
-    def test_halo_exchange_bilateral(self):
+    def test_halo_exchange_bilateral(self, mode):
         """
         Test halo exchange between two processes organised in a 2x1 cartesian grid.
 
@@ -282,7 +282,7 @@ class TestFunction(object):
         ((1, 0), (0, 1)),
     ])
     @pytest.mark.parallel(mode=2)
-    def test_halo_exchange_bilateral_asymmetric(self, paddings):
+    def test_halo_exchange_bilateral_asymmetric(self, paddings, mode):
         """
         Test halo exchange between two processes organised in a 2x1 cartesian grid.
 
@@ -332,7 +332,7 @@ class TestFunction(object):
         assert np.all(f._data_ro_with_inhalo[:, -2:] == 0.)
 
     @pytest.mark.parallel(mode=4)
-    def test_halo_exchange_quadrilateral(self):
+    def test_halo_exchange_quadrilateral(self, mode):
         """
         Test halo exchange between four processes organised in a 2x2 cartesian grid.
 
@@ -412,7 +412,7 @@ class TestFunction(object):
         ((15, 15), [((0, 8), (0, 8)), ((0, 8), (8, 15)),
                     ((8, 15), (0, 8)), ((8, 15), (8, 15))]),
     ])
-    def test_local_indices(self, shape, expected):
+    def test_local_indices(self, shape, expected, mode):
         grid = Grid(shape=shape)
         f = Function(name='f', grid=grid)
 
@@ -421,7 +421,7 @@ class TestFunction(object):
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])
-    def test_mpi4py_nodevmpi(self, shape):
+    def test_mpi4py_nodevmpi(self, shape, mode):
 
         with switchconfig(mpi=False):
             # Mimic external mpi init
@@ -443,7 +443,7 @@ class TestSparseFunction(object):
         ((8, ), ((1.,), (3.,), (5.,), (7.,)), 1),
         ((8, ), ((1.,), (2.,), (3.,), (4.,), (5.,), (6.,), (7.,), (8.,)), 2)
     ])
-    def test_ownership(self, shape, coords, points):
+    def test_ownership(self, shape, coords, points, mode):
         """Given a sparse point ``p`` with known coordinates, this test checks
         that the MPI rank owning ``p`` is retrieved correctly."""
         grid = Grid(shape=shape, extent=shape)
@@ -463,7 +463,7 @@ class TestSparseFunction(object):
         ([(1.5, 1.5), ], [[], [], [], [0.]],
          [(slice(0, -1), ), (slice(0, -1), ), (slice(0, -1), ), (slice(0, 1), )])
     ])
-    def test_local_indices(self, coords, expected, expectedinds):
+    def test_local_indices(self, coords, expected, expectedinds, mode):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         data = np.array([0., 1., 2., 3.])
@@ -483,7 +483,7 @@ class TestSparseFunction(object):
         assert sf.local_indices == expectedinds
 
     @pytest.mark.parallel(mode=4)
-    def test_scatter_gather(self):
+    def test_scatter_gather(self, mode):
         """
         Test scattering and gathering of sparse data from and to a single MPI rank.
 
@@ -533,7 +533,7 @@ class TestSparseFunction(object):
     @pytest.mark.parallel(mode=4)
     @switchconfig(condition=isinstance(configuration['compiler'],
                   (OneapiCompiler)), safe_math=True)
-    def test_sparse_coords(self):
+    def test_sparse_coords(self, mode):
         grid = Grid(shape=(21, 31, 21), extent=(20, 30, 20))
         x, y, z = grid.dimensions
 
@@ -556,7 +556,7 @@ class TestSparseFunction(object):
             assert sf.data[i] == coords_loc
 
     @pytest.mark.parallel(mode=4)
-    def test_sparse_coords_issue1823(self):
+    def test_sparse_coords_issue1823(self, mode):
         grid = Grid((101, 101, 101), extent=(1000, 1000, 1000))
         coords = np.array([[1000., 0., 900.], [1000., 300., 700.],
                            [1000., 500., 500.], [1000., 700., 300.],
@@ -573,7 +573,7 @@ class TestSparseFunction(object):
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('r', [2])
-    def test_precomputed_sparse(self, r):
+    def test_precomputed_sparse(self, r, mode):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         coords = np.array([(1.0, 1.0), (2.0, 2.0), (1.0, 2.0), (2.0, 1.0)])
@@ -601,7 +601,7 @@ class TestSparseFunction(object):
         assert np.all(sf1.data == 4)
 
     @pytest.mark.parallel(mode=4)
-    def test_sparse_first(self):
+    def test_sparse_first(self, mode):
         """
         Tests custom sprase function with sparse dimension as first index.
         """
@@ -639,7 +639,7 @@ class TestSparseFunction(object):
         assert np.allclose(s.data, expected)
 
     @pytest.mark.parallel(mode=[(4, 'diag2')])
-    def test_no_grid_dim_slow(self):
+    def test_no_grid_dim_slow(self, mode):
         shape = (12, 13, 14)
         nfreq = 5
         nrec = 2
@@ -669,7 +669,7 @@ class TestSparseFunction(object):
         assert np.all(s.data == 1)
 
     @pytest.mark.parallel(mode=4)
-    def test_no_grid_dim_slow_time(self):
+    def test_no_grid_dim_slow_time(self, mode):
         shape = (12, 13, 14)
         nfreq = 5
         nrec = 2
@@ -702,7 +702,7 @@ class TestSparseFunction(object):
 class TestOperatorSimple(object):
 
     @pytest.mark.parallel(mode=[2, 4, 8])
-    def test_trivial_eq_1d(self):
+    def test_trivial_eq_1d(self, mode):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -724,7 +724,7 @@ class TestOperatorSimple(object):
             assert np.all(f.data_ro_domain[0] == 7.)
 
     @pytest.mark.parallel(mode=[2])
-    def test_trivial_eq_1d_asymmetric(self):
+    def test_trivial_eq_1d_asymmetric(self, mode):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -743,7 +743,7 @@ class TestOperatorSimple(object):
             assert f.data_ro_domain[0, -1] == 2.
 
     @pytest.mark.parallel(mode=2)
-    def test_trivial_eq_1d_save(self):
+    def test_trivial_eq_1d_save(self, mode):
         grid = Grid(shape=(32,))
         x = grid.dimensions[0]
         time = grid.time_dim
@@ -765,7 +765,7 @@ class TestOperatorSimple(object):
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
-    def test_trivial_eq_2d(self):
+    def test_trivial_eq_2d(self, mode):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -801,7 +801,7 @@ class TestOperatorSimple(object):
 
     @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
                                 (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
-    def test_trivial_eq_3d(self):
+    def test_trivial_eq_3d(self, mode):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
@@ -842,7 +842,7 @@ class TestOperatorSimple(object):
         assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag')])
-    def test_multiple_eqs_funcs(self):
+    def test_multiple_eqs_funcs(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -874,7 +874,7 @@ class TestOperatorSimple(object):
         assert calls[0].ncomps == 2
 
     @pytest.mark.parallel(mode=2)
-    def test_reapply_with_different_functions(self):
+    def test_reapply_with_different_functions(self, mode):
         grid1 = Grid(shape=(30, 30, 30))
         f1 = Function(name='f', grid=grid1, space_order=4)
 
@@ -894,7 +894,7 @@ class TestOperatorSimple(object):
 class TestCodeGeneration(object):
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_as_nostencil_basic(self):
+    def test_avoid_haloupdate_as_nostencil_basic(self, mode):
         grid = Grid(shape=(12,))
 
         f = TimeFunction(name='f', grid=grid)
@@ -907,7 +907,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_as_nostencil_advanced(self):
+    def test_avoid_haloupdate_as_nostencil_advanced(self, mode):
         grid = Grid(shape=(4, 4))
         u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=None)
         v = TimeFunction(name='v', grid=grid, space_order=0, time_order=0, save=5)
@@ -927,7 +927,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_redundant_haloupdate(self):
+    def test_avoid_redundant_haloupdate(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -946,7 +946,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_if_distr_but_sequential(self):
+    def test_avoid_haloupdate_if_distr_but_sequential(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -970,7 +970,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_with_subdims(self):
+    def test_avoid_haloupdate_with_subdims(self, mode):
         grid = Grid(shape=(4,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -996,7 +996,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_with_constant_index(self):
+    def test_avoid_haloupdate_with_constant_index(self, mode):
         grid = Grid(shape=(4,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1010,7 +1010,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_do_haloupdate_with_constant_locindex(self):
+    def test_do_haloupdate_with_constant_locindex(self, mode):
         """
         Like `test_avoid_haloupdate_with_constant_index`, there is again
         a constant index, but this time along a loc-index (`t` Dimension),
@@ -1029,7 +1029,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
-    def test_hoist_haloupdate_if_no_flowdep(self):
+    def test_hoist_haloupdate_if_no_flowdep(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1055,7 +1055,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 2
 
     @pytest.mark.parallel(mode=1)
-    def test_hoist_haloupdate_with_subdims(self):
+    def test_hoist_haloupdate_with_subdims(self, mode):
         """
         This test stems from https://github.com/devitocodes/devito/issues/1119
 
@@ -1088,7 +1088,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_hoist_haloupdate_from_innerloop(self):
+    def test_hoist_haloupdate_from_innerloop(self, mode):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
 
@@ -1108,7 +1108,7 @@ class TestCodeGeneration(object):
         assert op.body.body[-1].body[1].body[0].body[0].body[1].is_Iteration
 
     @pytest.mark.parallel(mode=2)
-    def test_unhoist_haloupdate_if_invariant(self):
+    def test_unhoist_haloupdate_if_invariant(self, mode):
         """
         Test an Operator that computes coupled equations in which the first
         one *does require* a halo update on a Dimension-invariant Function.
@@ -1140,7 +1140,7 @@ class TestCodeGeneration(object):
             assert np.allclose(f.data_ro_domain[5:], [67., 67., 62., 56., 30.], rtol=R)
 
     @pytest.mark.parallel(mode=[(2, 'basic'), (2, 'diag')])
-    def test_redo_haloupdate_due_to_antidep(self):
+    def test_redo_haloupdate_due_to_antidep(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1163,7 +1163,7 @@ class TestCodeGeneration(object):
             assert np.all(g.data_ro_domain[1, :-1] == 2.)
 
     @pytest.mark.parallel(mode=[(1, 'full')])
-    def test_avoid_fullmode_if_crossloop_dep(self):
+    def test_avoid_fullmode_if_crossloop_dep(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
 
@@ -1184,7 +1184,7 @@ class TestCodeGeneration(object):
         assert np.all(f.data[:] == 2.)
 
     @pytest.mark.parallel(mode=2)
-    def test_avoid_haloudate_if_flowdep_along_other_dim(self):
+    def test_avoid_haloudate_if_flowdep_along_other_dim(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1219,7 +1219,7 @@ class TestCodeGeneration(object):
             assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
 
     @pytest.mark.parallel(mode=2)
-    def test_unmerge_haloupdate_if_no_locindices(self):
+    def test_unmerge_haloupdate_if_no_locindices(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1260,7 +1260,7 @@ class TestCodeGeneration(object):
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
     @pytest.mark.parallel(mode=1)
-    def test_merge_haloupdate_if_diff_locindices_v0(self):
+    def test_merge_haloupdate_if_diff_locindices_v0(self, mode):
         grid = Grid(shape=(101, 101))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -1281,7 +1281,7 @@ class TestCodeGeneration(object):
         op.cfunction
 
     @pytest.mark.parallel(mode=2)
-    def test_merge_haloupdate_if_diff_locindices_v1(self):
+    def test_merge_haloupdate_if_diff_locindices_v1(self, mode):
         """
         This test is a revisited, more complex version of
         `test_merge_haloupdate_if_diff_locindices_v0`. And in addition to
@@ -1335,7 +1335,7 @@ class TestCodeGeneration(object):
 
     @pytest.mark.parallel(mode=1)
     @switchconfig(autopadding=True)
-    def test_process_but_avoid_haloupdate_along_replicated(self):
+    def test_process_but_avoid_haloupdate_along_replicated(self, mode):
         dx = Dimension(name='dx')
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
@@ -1357,7 +1357,7 @@ class TestCodeGeneration(object):
             assert calls[0].arguments[0] is u
 
     @pytest.mark.parallel(mode=1)
-    def test_conditional_dimension(self):
+    def test_conditional_dimension(self, mode):
         """
         Test the case of Functions in the condition of a ConditionalDimension.
         """
@@ -1381,7 +1381,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_conditional_dimension_v2(self):
+    def test_conditional_dimension_v2(self, mode):
         """
         Make sure optimizations don't move around halo exchanges if embedded
         within conditionals.
@@ -1414,7 +1414,7 @@ class TestCodeGeneration(object):
         ('f[t,x-1,y-1] + f[t,x+1,y+1]', {'cr', 'rr', 'rc', 'cl', 'll', 'lc'}),
     ])
     @pytest.mark.parallel(mode=[(1, 'diag')])
-    def test_diag_comm_scheme(self, expr, expected):
+    def test_diag_comm_scheme(self, expr, expected, mode):
         """
         Check that the 'diag' mode does not generate more communications
         than strictly necessary.
@@ -1432,7 +1432,7 @@ class TestCodeGeneration(object):
         assert destinations == expected
 
     @pytest.mark.parallel(mode=[(1, 'full')])
-    def test_poke_progress(self):
+    def test_poke_progress(self, mode):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -1485,7 +1485,7 @@ class TestCodeGeneration(object):
             assert call._single_thread
 
     @pytest.mark.parallel(mode=[(1, 'diag2')])
-    def test_diag2_quality(self):
+    def test_diag2_quality(self, mode):
         grid = Grid(shape=(10, 10, 10))
 
         f = TimeFunction(name='f', grid=grid, space_order=2)
@@ -1509,7 +1509,7 @@ class TestCodeGeneration(object):
         (1, 'diag2'),
         (1, 'full'),
     ])
-    def test_min_code_size(self):
+    def test_min_code_size(self, mode):
         grid = Grid(shape=(10, 10, 10))
 
         f = TimeFunction(name='f', grid=grid, space_order=2)
@@ -1550,7 +1550,7 @@ class TestCodeGeneration(object):
             assert len(FindNodes(ComputeCall).visit(op)) == 1
 
     @pytest.mark.parallel(mode=[(1, 'diag2')])
-    def test_many_functions(self):
+    def test_many_functions(self, mode):
         grid = Grid(shape=(10, 10, 10))
 
         eqns = []
@@ -1570,7 +1570,7 @@ class TestCodeGeneration(object):
     @pytest.mark.parallel(mode=[
         (1, 'full'),
     ])
-    def test_profiled_regions(self):
+    def test_profiled_regions(self, mode):
         grid = Grid(shape=(10, 10, 10))
 
         f = TimeFunction(name='f', grid=grid, space_order=2)
@@ -1584,7 +1584,7 @@ class TestCodeGeneration(object):
                                              'remainder0', 'compute0']
 
     @pytest.mark.parallel(mode=1)
-    def test_enforce_haloupdate_if_unwritten_function(self):
+    def test_enforce_haloupdate_if_unwritten_function(self, mode):
         grid = Grid(shape=(16, 16))
 
         u = TimeFunction(name='u', grid=grid)
@@ -1607,7 +1607,7 @@ class TestCodeGeneration(object):
 class TestOperatorAdvanced(object):
 
     @pytest.mark.parallel(mode=4)
-    def test_injection_wodup(self):
+    def test_injection_wodup(self, mode):
         """
         Test injection operator when the sparse points don't need to be replicated
         ("wodup" -> w/o duplication) over multiple MPI ranks.
@@ -1640,7 +1640,7 @@ class TestOperatorAdvanced(object):
     @pytest.mark.parallel(mode=4)
     @switchconfig(condition=isinstance(configuration['compiler'],
                   (OneapiCompiler)), safe_math=True)
-    def test_injection_wodup_wtime(self):
+    def test_injection_wodup_wtime(self, mode):
         """
         Just like ``test_injection_wodup``, but using a SparseTimeFunction
         instead of a SparseFunction. Hence, the data scattering/gathering now
@@ -1666,7 +1666,7 @@ class TestOperatorAdvanced(object):
         assert np.all(f.data[2] == 3.25)
 
     @pytest.mark.parallel(mode=4)
-    def test_injection_dup(self):
+    def test_injection_dup(self, mode):
         """
         Test injection operator when the sparse points are replicated over
         multiple MPI ranks.
@@ -1721,7 +1721,7 @@ class TestOperatorAdvanced(object):
             assert np.all(f.data_ro_domain == [[3.75, 1.25], [1.25, 0.]])
 
     @pytest.mark.parallel(mode=4)
-    def test_interpolation_wodup(self):
+    def test_interpolation_wodup(self, mode):
         grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
 
         f = Function(name='f', grid=grid, space_order=1)
@@ -1748,7 +1748,7 @@ class TestOperatorAdvanced(object):
         assert np.all(sf.data == 4.)
 
     @pytest.mark.parallel(mode=4)
-    def test_interpolation_dup(self):
+    def test_interpolation_dup(self, mode):
         """
         Test interpolation operator when the sparse points are replicated over
         multiple MPI ranks.
@@ -1800,7 +1800,7 @@ class TestOperatorAdvanced(object):
         assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5][grid.distributor.myrank])
 
     @pytest.mark.parallel(mode=2)
-    def test_subsampling(self):
+    def test_subsampling(self, mode):
         grid = Grid(shape=(40,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1837,7 +1837,7 @@ class TestOperatorAdvanced(object):
         assert len(FindNodes(Call).visit(conditional[0])) == 0
 
     @pytest.mark.parallel(mode=2)
-    def test_arguments_subrange(self):
+    def test_arguments_subrange(self, mode):
         """
         Test op.apply when a subrange is specified for a distributed dimension.
         """
@@ -1858,7 +1858,7 @@ class TestOperatorAdvanced(object):
             assert np.all(f.data_ro_domain[1, -4:] == 0.)
 
     @pytest.mark.parallel(mode=2)
-    def test_bcs_basic(self):
+    def test_bcs_basic(self, mode):
         """
         Test MPI in presence of boundary condition loops. Here, no halo exchange
         is expected (as there is no stencil in the computed expression) but we
@@ -1897,7 +1897,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, -thickness:] == range(2, thickness+2))
 
     @pytest.mark.parallel(mode=2)
-    def test_interior_w_stencil(self):
+    def test_interior_w_stencil(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1916,7 +1916,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[0, :-2] == 3.)
 
     @pytest.mark.parallel(mode=4)
-    def test_misc_dims(self):
+    def test_misc_dims(self, mode):
         """
         Test MPI in presence of Functions with mixed distributed/replicated
         Dimensions, with only a strict subset of the Grid dimensions used.
@@ -1959,7 +1959,7 @@ class TestOperatorAdvanced(object):
             assert(np.all(u.data[1, 3, :] == 8.0))
 
     @pytest.mark.parallel(mode=9)
-    def test_nontrivial_operator(self):
+    def test_nontrivial_operator(self, mode):
         """
         Test MPI in a non-trivial scenario: ::
 
@@ -2040,7 +2040,7 @@ class TestOperatorAdvanced(object):
             assert np.all(u.data_ro_domain[1] == 3)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
-    def test_coupled_eqs_mixed_dims(self):
+    def test_coupled_eqs_mixed_dims(self, mode):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
         of Dimensions (e.g., one Eq over [x, y, z], the other Eq over [x, yi, zi]).
@@ -2089,7 +2089,7 @@ class TestOperatorAdvanced(object):
         assert np.all(v.data_ro_domain[1, :, 3] == 0.)
 
     @pytest.mark.parallel(mode=2)
-    def test_haloupdate_same_timestep(self):
+    def test_haloupdate_same_timestep(self, mode):
         """
         Test an Operator that computes coupled equations in which the second
         one requires a halo update right after the computation of the first one.
@@ -2112,7 +2112,7 @@ class TestOperatorAdvanced(object):
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
     @pytest.mark.parallel(mode=2)
-    def test_haloupdate_same_timestep_v2(self):
+    def test_haloupdate_same_timestep_v2(self, mode):
         """
         Similar to test_haloupdate_same_timestep, but switching the expression that
         writes to subsequent time step. Also checks halo update call placement.
@@ -2143,7 +2143,7 @@ class TestOperatorAdvanced(object):
         assert np.all(v.data_ro_domain[-1, :, 1:-1] == 6.)
 
     @pytest.mark.parallel(mode=4)
-    def test_haloupdate_multi_op(self):
+    def test_haloupdate_multi_op(self, mode):
         """
         Test that halo updates are carried out correctly when multiple operators
         are applied consecutively.
@@ -2168,7 +2168,7 @@ class TestOperatorAdvanced(object):
         assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=1)
-    def test_haloupdate_issue_1613(self):
+    def test_haloupdate_issue_1613(self, mode):
         """
         Test the HaloScheme construction and generation when using u.dt2.
 
@@ -2194,7 +2194,7 @@ class TestOperatorAdvanced(object):
         assert dims[0].origin is t
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
-    def test_cire(self):
+    def test_cire(self, mode):
         """
         Check correctness when the DSE extracts aliases and places them
         into offset-ed loop (nest). For example, the compiler may generate:
@@ -2236,7 +2236,7 @@ class TestOperatorAdvanced(object):
         assert u0_norm == u1_norm
 
     @pytest.mark.parallel(mode=[(4, 'overlap2'), (4, 'diag2')])
-    def test_cire_with_shifted_diagonal_halo_touch(self):
+    def test_cire_with_shifted_diagonal_halo_touch(self, mode):
         """
         Like ``test_cire`` but now the diagonal halos required to compute
         the aliases are shifted due to the iteration space. Basically, this
@@ -2274,7 +2274,7 @@ class TestOperatorAdvanced(object):
         {'cire-rotate': True},  # Issue #1490
         {'min-storage': True},  # Issue #1491
     ])
-    def test_cire_options(self, opt_options):
+    def test_cire_options(self, opt_options, mode):
         """
         MFEs for issues #1490 and #1491.
         """
@@ -2309,7 +2309,7 @@ class TestOperatorAdvanced(object):
         assert np.allclose(p.data, p1.data, rtol=10e-11)
 
     @pytest.mark.parallel(mode=[(4, 'full')])
-    def test_staggering(self):
+    def test_staggering(self, mode):
         """
         Test MPI in presence of staggered grids.
 
@@ -2339,7 +2339,7 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(uxy), 61427.853, rtol=1.e-4)
 
     @pytest.mark.parallel(mode=2)
-    def test_op_new_dist(self):
+    def test_op_new_dist(self, mode):
         """
         Test that an operator made with one distributor produces correct results
         when executed with a different distributor.
@@ -2367,7 +2367,7 @@ class TestOperatorAdvanced(object):
         assert abs(norm(u) - norm(u2)) < 1.e-3
 
     @pytest.mark.parallel(mode=[(4, 'full')])
-    def test_misc_subdims(self):
+    def test_misc_subdims(self, mode):
         """
         Test MPI full mode with an Operator having:
 
@@ -2410,7 +2410,7 @@ class TestOperatorAdvanced(object):
         assert np.all(u.data[1, :, 1:] == 1.)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'full')])
-    def test_misc_subdims_3D(self):
+    def test_misc_subdims_3D(self, mode):
         """
         Test `SubDims` in 3D (so that spatial blocking is introduced).
 
@@ -2447,7 +2447,7 @@ class TestOperatorAdvanced(object):
         assert np.all(u.data[1, :, :, -2:] == 1.)
 
     @pytest.mark.parallel(mode=[(4, 'full')])
-    def test_custom_subdomain(self):
+    def test_custom_subdomain(self, mode):
         """
         This test uses a custom SubDomain such that we end up with two loop
         nests with a data dependence across them inducing two halo exchanges,
@@ -2497,7 +2497,7 @@ class TestOperatorAdvanced(object):
         assert np.isclose(norm(v), 21.14994, atol=1e-5, rtol=0)
 
     @pytest.mark.parallel(mode=2)
-    def test_overriding_from_different_grid(self):
+    def test_overriding_from_different_grid(self, mode):
         """
         MFE for issue #1629.
         """
@@ -2523,7 +2523,7 @@ class TestOperatorAdvanced(object):
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
 
     @pytest.mark.parallel(mode=4)
-    def test_fission_due_to_antidep(self):
+    def test_fission_due_to_antidep(self, mode):
         grid = Grid(shape=(16, 16, 64), dtype=np.float64)
 
         u = TimeFunction(name='u', grid=grid, space_order=4)
@@ -2604,7 +2604,7 @@ class TestIsotropicAcoustic(object):
         ((60, 70), 'OT2', 8, False),
     ])
     @pytest.mark.parallel(mode=1)
-    def test_adjoint_codegen(self, shape, kernel, space_order, save):
+    def test_adjoint_codegen(self, shape, kernel, space_order, save, mode):
         solver = acoustic_setup(shape=shape, spacing=[15. for _ in shape], kernel=kernel,
                                 tn=500, space_order=space_order, nrec=130,
                                 preset='layers-isotropic', dtype=np.float64)
@@ -2653,12 +2653,12 @@ class TestIsotropicAcoustic(object):
     @pytest.mark.parametrize('nd', [1, 2, 3])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'full')])
-    def test_adjoint_F(self, nd):
+    def test_adjoint_F(self, nd, mode):
         self.run_adjoint_F(nd)
 
     @pytest.mark.parallel(mode=[(8, 'diag2'), (8, 'full')])
     @switchconfig(openmp=False)
-    def test_adjoint_F_no_omp(self):
+    def test_adjoint_F_no_omp(self, mode):
         """
         ``run_adjoint_F`` with OpenMP disabled. By disabling OpenMP, we can
         practically scale up to higher process counts.

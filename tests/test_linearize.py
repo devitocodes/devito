@@ -31,7 +31,7 @@ def test_basic():
 
 
 @pytest.mark.parallel(mode=[(1, 'basic'), (1, 'diag2'), (1, 'full')])
-def test_mpi():
+def test_mpi(mode):
     grid = Grid(shape=(4, 4))
 
     u = TimeFunction(name='u', grid=grid, space_order=2)
@@ -153,15 +153,13 @@ def test_interpolation_msf():
 
 
 @pytest.mark.parallel(mode=[(1, 'diag2')])
-def test_codegen_quality0():
+def test_codegen_quality0(mode):
     grid = Grid(shape=(4, 4))
-
     u = TimeFunction(name='u', grid=grid, space_order=2)
 
     eqn = Eq(u.forward, u.dx2 + 1.)
 
     op = Operator(eqn, opt=('advanced', {'linearize': True}))
-
     assert 'uL0' in str(op)
 
     exprs = FindNodes(Expression).visit(op)
@@ -172,6 +170,7 @@ def test_codegen_quality0():
     # for the efunc args
     # (the other three obviously are _POSIX_C_SOURCE, START, STOP)
     assert len(op._headers) == 6
+    return "bonjour"
 
 
 def test_codegen_quality1():
