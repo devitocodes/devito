@@ -4,17 +4,17 @@ from functools import cached_property
 
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension, SubDimension,
-                    SubDomain, Eq, Ne, Inc, NODE, Operator, norm, inner, configuration,
-                    switchconfig, generic_derivative, PrecomputedSparseFunction,
-                    DefaultDimension)
+                    SparseTimeFunction, Dimension, ConditionalDimension,
+                    SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
+                    inner, configuration, switchconfig, generic_derivative,
+                    PrecomputedSparseFunction, DefaultDimension)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
                            retrieve_iteration_tree)
 from devito.mpi import MPI
 from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
-                                 ComputeCall, AllreduceCall)
+                                 ComputeCall)
 from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
@@ -929,8 +929,7 @@ class TestCodeGeneration:
 
         # No stencil in the expressions, so no halo update required!
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 2
-        assert all(isinstance(i, AllreduceCall) for i in calls)
+        assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_redundant_haloupdate(self, mode):

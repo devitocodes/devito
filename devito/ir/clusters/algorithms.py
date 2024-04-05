@@ -447,14 +447,14 @@ def reduction_comms(clusters):
     processed = []
     fifo = []
     for c in clusters:
-        # Schedule the global reductions encountered before `c`, if the
-        # IterationSpace of `c` is such that the reduction can be carried out
+        # Schedule the global distributed reductions encountered before `c`,
+        # if `c`'s IterationSpace is such that the reduction can be carried out
         found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
         if found:
             exprs = [Eq(dr.var, dr) for dr in found]
             processed.append(c.rebuild(exprs=exprs))
 
-        # Detect the global reductions in `c`
+        # Detect the global distributed reductions in `c`
         for e in c.exprs:
             op = e.operation
             if op is None or c.is_sparse:
@@ -465,11 +465,22 @@ def reduction_comms(clusters):
             if grid is None:
                 continue
 
-            # The IterationSpace within which the global reduction is carried out
+            # Is Inc/Max/Min/... actually used for a reduction?
             ispace = c.ispace.project(lambda d: d in var.free_symbols)
             if ispace.itdims == c.ispace.itdims:
-                # Inc/Max/Min/... being used for a non-reduction operation
                 continue
+
+            # The reduced Dimensions
+            rdims = set(c.ispace.itdims) - set(ispace.itdims)
+
+            # The reduced Dimensions inducing a global distributed reduction
+            grdims = {d for d in rdims if d._defines & c.dist_dimensions}
+            if not grdims:
+                continue
+
+            # The IterationSpace within which the global distributed reduction
+            # must be carried out
+            ispace = c.ispace.prefix(lambda d: d in var.free_symbols)
 
             fifo.append(DistReduce(var, op=op, grid=grid, ispace=ispace))
 

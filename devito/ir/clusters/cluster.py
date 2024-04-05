@@ -168,6 +168,19 @@ class Cluster:
         return {i for i in self.free_symbols if i.is_Dimension} | idims
 
     @cached_property
+    def dist_dimensions(self):
+        """
+        The Cluster's distributed Dimensions.
+        """
+        ret = set()
+        for f in self.functions:
+            try:
+                ret.update(f._dist_dimensions)
+            except AttributeError:
+                pass
+        return frozenset(ret)
+
+    @cached_property
     def scope(self):
         return Scope(self.exprs)
 
