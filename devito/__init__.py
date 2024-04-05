@@ -1,3 +1,4 @@
+import atexit
 from itertools import product
 from . import _version
 
@@ -159,4 +160,14 @@ def mode_performance():
     configuration['opt-options']['blockinner'] = True
 
 
+# Ensure the SymPy caches are purged at exit
+# For whatever reason, if we don't do this the garbage collector won't its
+# job properly and thus we may end up missing some custom __del__'s
+atexit.register(clear_cache)
+
+
 __version__ = _version.get_versions()['version']
+
+
+# Clean up namespace
+del atexit, product
