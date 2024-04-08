@@ -248,7 +248,7 @@ class TestOperator(object):
 class TestMPI(object):
 
     @pytest.mark.parallel(mode=2)
-    def test_basic(self):
+    def test_basic(self, mode):
         grid = Grid(shape=(6, 6))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -276,5 +276,5 @@ class TestMPI(object):
                                         [11., 16., 17., 17., 16., 11.]])
 
     @pytest.mark.parallel(mode=2)
-    def test_iso_ac(self):
+    def test_iso_ac(self, mode):
         TestOperator().iso_acoustic(opt='advanced')

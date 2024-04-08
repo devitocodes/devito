@@ -168,7 +168,7 @@ class TestSubdomains(object):
 
     @pytest.mark.parametrize('spec', sd_specs)
     @pytest.mark.parallel(mode=[2, 3])
-    def test_subdomains_mpi(self, spec):
+    def test_subdomains_mpi(self, spec, mode):
 
         class sd0(SubDomain):
             name = 'd0'
@@ -362,7 +362,7 @@ class TestMultiSubDomain(object):
         assert((np.array(f.data[:]+g.data[:]) == expected).all())
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap')])
-    def test_subdomainset_mpi(self):
+    def test_subdomainset_mpi(self, mode):
 
         n_domains = 5
 

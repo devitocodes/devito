@@ -636,7 +636,7 @@ class TestOperator(object):
         assert str(op) == str(new_op)
 
     @pytest.mark.parallel(mode=[1])
-    def test_mpi_objects(self, pickle):
+    def test_mpi_objects(self, pickle, mode):
         grid = Grid(shape=(4, 4, 4))
 
         # Neighbours
@@ -684,7 +684,7 @@ class TestOperator(object):
         assert tid.symbolic_max.name == new_tid.symbolic_max.name
 
     @pytest.mark.parallel(mode=[2])
-    def test_mpi_grid(self, pickle):
+    def test_mpi_grid(self, pickle, mode):
         grid = Grid(shape=(4, 4, 4))
 
         pkl_grid = pickle.dumps(grid)
@@ -704,7 +704,7 @@ class TestOperator(object):
         MPI.COMM_WORLD.Barrier()
 
     @pytest.mark.parallel(mode=[(1, 'full')])
-    def test_mpi_fullmode_objects(self, pickle):
+    def test_mpi_fullmode_objects(self, pickle, mode):
         grid = Grid(shape=(4, 4, 4))
         x, y, _ = grid.dimensions
 
@@ -743,7 +743,7 @@ class TestOperator(object):
             assert v[1] == Min(d.symbolic_max, d.symbolic_min)
 
     @pytest.mark.parallel(mode=[(1, 'basic'), (1, 'full')])
-    def test_mpi_operator(self, pickle):
+    def test_mpi_operator(self, pickle, mode):
         grid = Grid(shape=(4,))
         f = TimeFunction(name='f', grid=grid)
 

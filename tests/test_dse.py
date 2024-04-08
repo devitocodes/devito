@@ -2801,7 +2801,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parallel(mode=[(1, 'full')])
-    def test_fullopt_w_mpi(self):
+    def test_fullopt_w_mpi(self, mode):
         tti_noopt = self.tti_operator(opt=None)
         rec0, u0, v0, _ = tti_noopt.forward()
         tti_agg = self.tti_operator(opt='advanced')

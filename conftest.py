@@ -122,7 +122,7 @@ def EVAL(exprs, *args):
     return processed[0] if isinstance(exprs, str) else processed
 
 
-def parallel(item):
+def parallel(item, m):
     """
     Run a test in parallel. Readapted from:
 
@@ -131,47 +131,44 @@ def parallel(item):
     mpi_exec = 'mpiexec'
     mpi_distro = sniff_mpi_distro(mpi_exec)
 
-    marker = item.get_closest_marker("parallel")
-    mode = as_tuple(marker.kwargs.get("mode", 2))
-    for m in mode:
-        # Parse the `mode`
-        if isinstance(m, int):
-            nprocs = m
-            scheme = 'basic'
+    # Parse the `mode`
+    if isinstance(m, int):
+        nprocs = m
+        scheme = 'basic'
+    else:
+        if len(m) == 2:
+            nprocs, scheme = m
         else:
-            if len(m) == 2:
-                nprocs, scheme = m
-            else:
-                raise ValueError("Can't run test: unexpected mode `%s`" % m)
+            raise ValueError("Can't run test: unexpected mode `%s`" % m)
 
-        pyversion = sys.executable
-        # Only spew tracebacks on rank 0.
-        # Run xfailing tests to ensure that errors are reported to calling process
-        if item.cls is not None:
-            testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
-        else:
-            testname = "%s::%s" % (item.fspath, item.name)
-        args = ["-n", "1", pyversion, "-m", "pytest", "--runxfail", "-s",
-                "-q", testname]
-        if nprocs > 1:
-            args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
-                         "--runxfail", "--tb=no", "-q", testname])
-        # OpenMPI requires an explicit flag for oversubscription. We need it as some
-        # of the MPI tests will spawn lots of processes
-        if mpi_distro == 'OpenMPI':
-            call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
-        else:
-            call = [mpi_exec] + args
+    pyversion = sys.executable
+    # Only spew tracebacks on rank 0.
+    # Run xfailing tests to ensure that errors are reported to calling process
+    if item.cls is not None:
+        testname = "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
+    else:
+        testname = "%s::%s" % (item.fspath, item.name)
+    args = ["-n", "1", pyversion, "-m", "pytest", "--runxfail", "-q", testname]
+    if nprocs > 1:
+        args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
+                     "--runxfail", "--tb=no", "-q", testname])
+    # OpenMPI requires an explicit flag for oversubscription. We need it as some
+    # of the MPI tests will spawn lots of processes
+    if mpi_distro == 'OpenMPI':
+        call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
+    else:
+        call = [mpi_exec] + args
 
-        # Tell the MPI ranks that they are running a parallel test
-        os.environ['DEVITO_MPI'] = scheme
-        try:
-            check_call(call)
-            return True
-        except:
-            return False
-        finally:
-            os.environ['DEVITO_MPI'] = '0'
+    # Tell the MPI ranks that they are running a parallel test
+    os.environ['DEVITO_MPI'] = scheme
+    try:
+        check_call(call)
+        res = True
+    except:
+        res = False
+    finally:
+        os.environ['DEVITO_MPI'] = '0'
+    return res
 
 
 def pytest_configure(config):
@@ -182,55 +179,45 @@ def pytest_configure(config):
     )
 
 
-def pytest_runtest_setup(item):
-    partest = os.environ.get('DEVITO_MPI', 0)
-    try:
-        partest = int(partest)
-    except ValueError:
-        pass
-    if item.get_closest_marker("parallel"):
-        if MPI is None:
-            pytest.skip("mpi4py/MPI not installed")
-        else:
-            # Blow away function arg in "master" process, to ensure
-            # this test isn't run on only one process
-            dummy_test = lambda *args, **kwargs: True
-            # For pytest <7
-            if item.cls is not None:
-                attr = item.originalname or item.name
-                setattr(item.cls, attr, dummy_test)
-            else:
-                item.obj = dummy_test
-            # For pytest >= 7
-            setattr(item, '_obj', dummy_test)
+def pytest_generate_tests(metafunc):
+    # Process custom parallel marker as a parametrize to avoid
+    # running a single test for all modes
+    if 'mode' in metafunc.fixturenames:
+        markers = metafunc.definition.iter_markers()
+        for marker in markers:
+            if marker.name == 'parallel':
+                mode = list(as_tuple(marker.kwargs.get('mode', 2)))
+                metafunc.parametrize("mode", mode)
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_call(item):
     partest = os.environ.get('DEVITO_MPI', 0)
     try:
         partest = int(partest)
     except ValueError:
         pass
+
     if item.get_closest_marker("parallel") and not partest:
         # Spawn parallel processes to run test
-        passed = parallel(item)
-        if not passed:
-            pytest.fail(f"{item} failed in parallel execution")
+        outcome = parallel(item, item.funcargs['mode'])
+        if outcome:
+            pytest.skip(f"{item} success in parallel")
         else:
-            pytest.skip(f"{item}t passed in parallel execution")
+            pytest.fail(f"{item} failed in parallel")
+    else:
+        outcome = yield
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield
     result = outcome.get_result()
-
     partest = os.environ.get('DEVITO_MPI', 0)
     try:
         partest = int(partest)
     except ValueError:
         pass
-
     if item.get_closest_marker("parallel") and not partest:
         if call.when == 'call' and result.outcome == 'skipped':
             result.outcome = 'passed'

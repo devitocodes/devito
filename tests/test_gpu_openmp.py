@@ -24,7 +24,7 @@ class TestCodeGeneration(object):
             'if (deviceid != -1)\n{\n  omp_set_default_device(deviceid);\n}'
 
     @pytest.mark.parallel(mode=1)
-    def test_init_omp_env_w_mpi(self):
+    def test_init_omp_env_w_mpi(self, mode):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid)
@@ -321,7 +321,7 @@ class TestOperator(object):
 class TestMPI(object):
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_mpi_nocomms(self):
+    def test_mpi_nocomms(self, mode):
         grid = Grid(shape=(3, 3, 3))
 
         u = TimeFunction(name='u', grid=grid, dtype=np.int32)
@@ -337,5 +337,5 @@ class TestMPI(object):
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
     @pytest.mark.parallel(mode=[2, 4])
-    def test_iso_ac(self):
+    def test_iso_ac(self, mode):
         TestOperator().iso_acoustic(opt='advanced')
