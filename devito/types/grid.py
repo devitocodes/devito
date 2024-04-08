@@ -576,13 +576,13 @@ class SubDomain(AbstractSubDomain):
                 name = 'i%d%s' % (self._counter, k.name)
                 try:
                     # Case ('middle', int, int)
-                    side, thickness_left, thickness_right = v
+                    side, ltkn, rtkn = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
                     sub_dimensions.append(SubDimension.middle(name, k,
-                                                              thickness_left,
-                                                              thickness_right))
-                    thickness = s-thickness_left-thickness_right
+                                                              ltkn,
+                                                              rtkn))
+                    thickness = s-ltkn-rtkn
                     sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
@@ -631,28 +631,6 @@ class SubDomain(AbstractSubDomain):
         This method should be overridden by each SubDomain subclass. For more
         information, refer to ``SubDomain.__doc__``.
         """
-        raise NotImplementedError
-
-    def intersection(self, other):
-        """
-        Return the intersection of two subdomains as a new subdomain.
-        """
-        return SubDomain.intersect(self, other)
-
-    @classmethod
-    def intersect(cls, sds):
-        """
-        Build a new SubDomain from the intersection of an iterable of subdomains.
-        """
-        # TODO: Finish this so it actually carries out intersection
-        sds = set(sds)  # Purge duplicates
-        if len(sds) == 1:  # Only one unique SubDomain. No op.
-            return sds.pop()
-
-        if any(d.grid is not sds[0].grid for d in sds):  # Sanity check
-            raise ValueError("Only SubDomains defined on a common Grid can be"
-                             " intersected")
-
         raise NotImplementedError
 
     def _arg_values(self, **kwargs):
