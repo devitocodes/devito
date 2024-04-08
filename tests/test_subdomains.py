@@ -1030,8 +1030,6 @@ class TestSubDomainFunctions:
         op = Operator([eq0, eq1, eq2, eq3])
         op()
 
-        print(fdx.data[:])
-
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
@@ -1217,3 +1215,49 @@ class TestSubDomainFunctionsParallel:
             # Size zero array of None, so can't check "is None"
             # But check equal to None works, even though this is discouraged
             assert data == None  # noqa
+
+    @pytest.mark.parametrize('s_o', [2, 4, 6])
+    @pytest.mark.parallel(mode=[(2, 'full')])
+    def test_derivatives(self, s_o):
+        """Test that derivatives are correctly evaluated."""
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1)}
+
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid, space_order=s_o)
+        g = Function(name='g', grid=grid, space_order=s_o)
+
+        fdx = Function(name='fdx', grid=mid)
+        gdx = Function(name='gdx', grid=grid)
+
+        fdy = Function(name='fdy', grid=mid)
+        gdy = Function(name='gdy', grid=grid)
+
+        msh_x, msh_y = np.meshgrid(np.arange(2, 8), np.arange(3, 9), indexing='ij')
+
+        # One wavelength
+        lam = 9./(2*np.pi)
+        field = np.sin(lam*msh_x) + 0.4*np.sin(2*lam*msh_y) \
+            + 0.2*np.sin(3*lam*msh_x + 2*lam*msh_y)
+
+        f.data[:] = field
+        g.data[2:-2, 3:-1] = field
+
+        eq0 = Eq(fdx, f.dx, subdomain=mid)
+        eq1 = Eq(fdy, f.dy, subdomain=mid)
+        eq2 = Eq(gdx, g.dx, subdomain=mid)
+        eq3 = Eq(gdy, g.dy, subdomain=mid)
+
+        op = Operator([eq0, eq1, eq2, eq3])
+        op()
+
+        assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
+        assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
