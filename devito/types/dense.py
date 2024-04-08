@@ -346,17 +346,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                                     self._distributor.myrank,
                                                     min(self.grid.shape_local))
                 if not self._distributor.is_boundary_rank:
-                    # FIXME: Will throw an error if a Function on a Subdomain doesn't
-                    # enter any boundary ranks -> Needs to not do this
-                    print("First warning")
                     warning(warning_msg)
                 else:
-                    # FIXME: This will also throw false warnings. Currently checking that
-                    # boundary ranks do not have outhalo on interior side. But this wants
-                    # skipping if there is no cross on this side
-
-                    # FIXME: This narrowing down to distributed dimensions causes
-                    # SubDimensions to be incorrectly skipped
                     left_dist = [i for i, d in zip(left, self.dimensions) if d
                                  in self._distributor.dimensions]
                     right_dist = [i for i, d in zip(right, self.dimensions) if d
@@ -365,7 +356,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                           self._distributor.mycoords,
                                           self._distributor.topology):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
-                            print("Second warning")
                             warning(warning_msg)
                             break
             except AttributeError:

@@ -204,7 +204,14 @@ class WeightedInterpolator(GenericInterpolator):
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
             # Get grid dimensions from the variables supplied
-            edims = tuple(d for v in extras for d in v.grid.dimensions if v.grid)
+            edims = []
+            for v in extras:
+                try:
+                    edims += [d for d in v.grid.dimensions]
+                except AttributeError:
+                    # Not on a grid, grab its space dimensions instead
+                    edims += [d for d in v.dimensions]
+
             gdims = set([*edims, *self._gdims])
             extra = filter_ordered([i for v in extras for i in v.dimensions
                                     if i not in gdims and
@@ -231,7 +238,15 @@ class WeightedInterpolator(GenericInterpolator):
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
         # Check if any Functions are defined on SubDomains
-        sdms = set(v.grid for v in variables if v.grid.is_SubDomain)
+        sdms = set()
+        for v in variables:
+            try:
+                if v.grid.is_SubDomain:
+                    sdms.add(v.grid)
+            except AttributeError:
+                # Variable not on a grid (Indexed for example)
+                pass
+
         if len(sdms) > 1:
             raise NotImplementedError("Sparse operation on multiple Functions defined on"
                                       " different SubDomains currently unsupported")
@@ -282,15 +297,8 @@ class WeightedInterpolator(GenericInterpolator):
 
         idx_subs = {v: v.subs(i_subs) for v in variables}
 
-        # NOTE: Not sure if this is the right approach. Seems messy but works
         # Add the mapping from old ConditionalDimension to rebuilt ConditionalDimension
         idx_subs.update(cdmapper)
-
-        c_dims = set(c for c in mapper.values()).union(set(c for c in smapper.values()))
-        conditions = [c.condition for c in c_dims]
-        print("ConditionalDimensions", c_dims)
-        print("Conditions", conditions)
-        print("Cdmapper", cdmapper)
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points

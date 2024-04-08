@@ -237,7 +237,6 @@ class Data(np.ndarray):
                     stop += sendcounts[i]
                     data_slice = recvbuf[slice(start, stop, step)]
                     shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
-                    # FIXME: This needs to account for the glb_min offset
                     idx = [slice(r.start - d.glb_min, r.stop - d.glb_min, r.step)
                            for r, d in zip(self._distributor.all_ranges[i],
                                            self._distributor.decomposition)]
