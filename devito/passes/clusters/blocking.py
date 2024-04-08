@@ -160,13 +160,16 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
 
+    def _has_other_blockable_dim(self, cluster, d):
+        return any(cluster.properties.is_parallel_relaxed(i) and
+                   not self._has_short_trip_count(i)
+                   for i in set(cluster.ispace.itdims) - {d})
+
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
 
         d = prefix[-1].dim
-        if self._has_short_trip_count(d):
-            return clusters
 
         processed = []
         for c in clusters:
@@ -174,7 +177,12 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
                 return clusters
 
             if is_on_device(c.functions, self.gpu_fit):
-                if self._has_data_reuse(c):
+                if self._has_short_trip_count(d):
+                    if self._has_other_blockable_dim(c, d):
+                        return clusters
+                    else:
+                        properties = c.properties.block(d, 'small')
+                elif self._has_data_reuse(c):
                     properties = c.properties.block(d)
                 else:
                     properties = c.properties.block(d, 'small')
