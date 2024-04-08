@@ -179,141 +179,138 @@ def test_cache_blocking_structure_distributed(mode):
         assert iters[4].dim is z
 
 
-def test_cache_blocking_structure_optrelax():
-    grid = Grid(shape=(8, 8, 8))
+class TestBlockingOptRelax:
 
-    u = TimeFunction(name="u", grid=grid, space_order=2)
-    src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
-                             coordinates=np.array([(0.5, 0.5, 0.5)]))
+    def test_basic(self):
+        grid = Grid(shape=(8, 8, 8))
 
-    eqns = [Eq(u.forward, u.dx)]
-    eqns += src.inject(field=u.forward, expr=src)
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+        src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                                 coordinates=np.array([(0.5, 0.5, 0.5)]))
 
-    op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
+        eqns = [Eq(u.forward, u.dx)]
+        eqns += src.inject(field=u.forward, expr=src)
 
-    bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
+        op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
 
-    iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
-    assert len(iters) == 5
-    assert iters[0].dim.is_Block
-    assert iters[1].dim.is_Block
+        bns, _ = assert_blocking(op, {'x0_blk0', 'p_src0_blk0'})
 
+        iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
+        assert len(iters) == 5
+        assert iters[0].dim.is_Block
+        assert iters[1].dim.is_Block
 
-def test_cache_blocking_structure_optrelax_customdim():
-    grid = Grid(shape=(8, 8, 8))
-    d = CustomDimension(name='d', symbolic_size=2)
-    x, y, z = grid.dimensions
+    def test_customdim(self):
+        grid = Grid(shape=(8, 8, 8))
+        d = CustomDimension(name='d', symbolic_size=2)
+        x, y, z = grid.dimensions
 
-    u = TimeFunction(name="u", grid=grid)
-    f = Function(name="f", grid=grid, dimensions=(d, x, y, z),
-                 shape=(2,) + grid.shape)
+        u = TimeFunction(name="u", grid=grid)
+        f = Function(name="f", grid=grid, dimensions=(d, x, y, z),
+                     shape=(2,) + grid.shape)
 
-    eqn = Eq(f, u[d, x, y, z] + u[d, x + 1, y, z])
+        eqn = Eq(f, u[d, x, y, z] + u[d, x + 1, y, z])
 
-    op = Operator(eqn, opt=('advanced', {'blockrelax': True}))
+        op = Operator(eqn, opt=('advanced', {'blockrelax': True}))
 
-    _, _ = assert_blocking(op, {'x0_blk0'})
-    assert_structure(op, ['d,x0_blk0,y0_blk0,z0_blk0,x,y,z'],
-                     'd,x0_blk0,y0_blk0,z0_blk0,x,y,z')
+        assert_blocking(op, {'x0_blk0'})
+        assert_structure(op, ['d,x0_blk0,y0_blk0,z0_blk0,x,y,z'],
+                         'd,x0_blk0,y0_blk0,z0_blk0,x,y,z')
 
+    def test_defaultdim_alone(self):
+        grid = Grid(shape=(8, 8, 8))
+        d = DefaultDimension(name='d', default_value=2)
+        time = grid.time_dim
+        x, y, z = grid.dimensions
 
-def test_cache_blocking_structure_optrelax_defaultdim_alone():
-    grid = Grid(shape=(8, 8, 8))
-    d = DefaultDimension(name='d', default_value=2)
-    time = grid.time_dim
-    x, y, z = grid.dimensions
+        u = TimeFunction(name="u", grid=grid)
+        f = Function(name="f", grid=grid, dimensions=(d, x, y, z),
+                     shape=(2,) + grid.shape)
 
-    u = TimeFunction(name="u", grid=grid)
-    f = Function(name="f", grid=grid, dimensions=(d, x, y, z),
-                 shape=(2,) + grid.shape)
+        eqn = Inc(f, u*cos(time*d))
 
-    eqn = Inc(f, u*cos(time*d))
+        op = Operator(eqn, opt=('advanced', {'blockrelax': 'device-aware'}))
 
-    op = Operator(eqn, opt=('advanced', {'blockrelax': 'device-aware'}))
+        assert_blocking(op, {'d0_blk0', 'x0_blk0'})
+        assert_structure(op,
+                         ['t,d0_blk0,d', 't,d,x0_blk0,y0_blk0,z0_blk0,x,y,z'],
+                         't,d0_blk0,d,d,x0_blk0,y0_blk0,z0_blk0,x,y,z')
 
-    _, _ = assert_blocking(op, {'d0_blk0', 'x0_blk0'})
-    assert_structure(op,
-                     ['t,d0_blk0,d', 't,d,x0_blk0,y0_blk0,z0_blk0,x,y,z'],
-                     't,d0_blk0,d,d,x0_blk0,y0_blk0,z0_blk0,x,y,z')
+    def test_leftright_subdims(self):
+        grid = Grid(shape=(12, 12))
+        nbl = 3
 
+        damp = Function(name='damp', grid=grid)
 
-def test_cache_blocking_structure_leftright_subdims():
-    grid = Grid(shape=(12, 12))
-    nbl = 3
+        eqns = [Eq(damp, 0.)]
+        for d in damp.dimensions:
+            # Left
+            dl = SubDimension.left(name='%sl' % d.name, parent=d, thickness=nbl)
+            eqns.extend([Inc(damp.subs({d: dl}), 1.)])
+            # right
+            dr = SubDimension.right(name='%sr' % d.name, parent=d, thickness=nbl)
+            eqns.extend([Inc(damp.subs({d: dr}), 1.)])
 
-    damp = Function(name='damp', grid=grid)
+        op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
 
-    eqns = [Eq(damp, 0.)]
-    for d in damp.dimensions:
-        # Left
-        dl = SubDimension.left(name='%sl' % d.name, parent=d, thickness=nbl)
-        eqns.extend([Inc(damp.subs({d: dl}), 1.)])
-        # right
-        dr = SubDimension.right(name='%sr' % d.name, parent=d, thickness=nbl)
-        eqns.extend([Inc(damp.subs({d: dr}), 1.)])
+        bns, _ = assert_blocking(op, {'x0_blk0', 'xl0_blk0', 'xr0_blk0',
+                                      'x1_blk0', 'x2_blk0'})
+        assert all(IsPerfectIteration().visit(i) for i in bns.values())
+        assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 
-    op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
+    @pytest.mark.parametrize('opt, expected', [('noop', ('ijk', 'ikl')),
+                             (('advanced', {'blockinner': True, 'blockrelax': True}),
+                             ('i0_blk0ijk', 'i0_blk0ikl'))])
+    def test_linalg(self, opt, expected):
+        mat_shape = (4, 4)
 
-    bns, _ = assert_blocking(op,
-                             {'x0_blk0', 'xl0_blk0', 'xr0_blk0', 'x1_blk0', 'x2_blk0'})
-    assert all(IsPerfectIteration().visit(i) for i in bns.values())
-    assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
+        i, j, k, l = dimensions('i j k l')
+        A = Function(name='A', shape=mat_shape, dimensions=(i, j))
+        B = Function(name='B', shape=mat_shape, dimensions=(j, k))
+        C = Function(name='C', shape=mat_shape, dimensions=(j, k))
+        D = Function(name='D', shape=mat_shape, dimensions=(i, k))
+        E = Function(name='E', shape=mat_shape, dimensions=(k, l))
+        F = Function(name='F', shape=mat_shape, dimensions=(i, l))
 
+        eqs = [Inc(D, A*B + A*C), Inc(F, D*E)]
 
-@pytest.mark.parametrize('opt, expected', [('noop', ('ijk', 'ikl')),
-                         (('advanced', {'blockinner': True, 'blockrelax': True}),
-                         ('i0_blk0ijk', 'i0_blk0ikl'))])
-def test_cache_blocking_structure_optrelax_linalg(opt, expected):
-    mat_shape = (4, 4)
+        A.data[:] = 1
+        B.data[:] = 1
+        C.data[:] = 1
+        E.data[:] = 1
 
-    i, j, k, l = dimensions('i j k l')
-    A = Function(name='A', shape=mat_shape, dimensions=(i, j))
-    B = Function(name='B', shape=mat_shape, dimensions=(j, k))
-    C = Function(name='C', shape=mat_shape, dimensions=(j, k))
-    D = Function(name='D', shape=mat_shape, dimensions=(i, k))
-    E = Function(name='E', shape=mat_shape, dimensions=(k, l))
-    F = Function(name='F', shape=mat_shape, dimensions=(i, l))
+        op0 = Operator(eqs, opt=opt)
+        op0.apply()
+        assert_structure(op0, expected)
+        assert np.linalg.norm(D.data) == 32.0
+        assert np.linalg.norm(F.data) == 128.0
 
-    eqs = [Inc(D, A*B + A*C), Inc(F, D*E)]
+    def test_prec_inject(self):
+        grid = Grid(shape=(10, 10))
+        dt = grid.stepping_dim.spacing
 
-    A.data[:] = 1
-    B.data[:] = 1
-    C.data[:] = 1
-    E.data[:] = 1
+        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
 
-    op0 = Operator(eqs, opt=opt)
-    op0.apply()
-    assert_structure(op0, expected)
-    assert np.linalg.norm(D.data) == 32.0
-    assert np.linalg.norm(F.data) == 128.0
+        # The values we put it don't matter, we won't run an Operator
+        points = [(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)]
+        gridpoints = [(5, 90), (1, 80), (7, 84)]
+        interpolation_coeffs = np.ndarray(shape=(3, 2, 2))
+        sf = PrecomputedSparseTimeFunction(
+            name='s', grid=grid, r=2, npoint=len(points), nt=5,
+            gridpoints=gridpoints, interpolation_coeffs=interpolation_coeffs
+        )
 
+        eqns = sf.inject(field=u.forward, expr=sf * dt**2)
 
-def test_cache_blocking_structure_optrelax_prec_inject():
-    grid = Grid(shape=(10, 10))
-    dt = grid.stepping_dim.spacing
+        op = Operator(eqns, opt=('advanced', {'blockrelax': 'device-aware',
+                                              'openmp': True,
+                                              'par-collapse-ncores': 1}))
 
-    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
-
-    # The values we put it don't matter, we won't run an Operator
-    points = [(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)]
-    gridpoints = [(5, 90), (1, 80), (7, 84)]
-    interpolation_coeffs = np.ndarray(shape=(3, 2, 2))
-    sf = PrecomputedSparseTimeFunction(
-        name='s', grid=grid, r=2, npoint=len(points), nt=5,
-        gridpoints=gridpoints, interpolation_coeffs=interpolation_coeffs
-    )
-
-    eqns = sf.inject(field=u.forward, expr=sf * dt**2)
-
-    op = Operator(eqns, opt=('advanced', {'blockrelax': 'device-aware',
-                                          'openmp': True,
-                                          'par-collapse-ncores': 1}))
-
-    assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
-                     't,p_s0_blk0,p_s,rsx,rsy')
+        assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
+                         't,p_s0_blk0,p_s,rsx,rsy')
 
 
-class TestBlockingParTile(object):
+class TestBlockingParTile:
 
     @pytest.mark.parametrize('par_tile,expected', [
         ((16, 16, 16), ((16, 16, 16), (16, 16, 16))),
@@ -603,7 +600,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     assert np.allclose(u.data, u2.data, rtol=1e-07)
 
 
-class TestNodeParallelism(object):
+class TestNodeParallelism:
 
     def test_nthreads_generation(self):
         grid = Grid(shape=(10, 10))
@@ -1166,7 +1163,7 @@ class TestNodeParallelism(object):
         assert 'omp for collapse' in iterations[1].pragmas[0].value
 
 
-class TestNestedParallelism(object):
+class TestNestedParallelism:
 
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
