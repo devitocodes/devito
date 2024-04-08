@@ -65,7 +65,24 @@ except ImportError as e:
             return None
 
 
-__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology']
+__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology',
+           'devito_mpi_init']
+
+
+def devito_mpi_init():
+    """
+    Initialize MPI, if not already initialized.
+    """
+    if not MPI.Is_initialized():
+        try:
+            thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
+        except KeyError:
+            assert False
+
+        MPI.Init_thread(thread_level)
+
+        global init_by_devito
+        init_by_devito = True
 
 
 class AbstractDistributor(ABC):
@@ -196,16 +213,7 @@ class Distributor(AbstractDistributor):
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
-            if not MPI.Is_initialized():
-                try:
-                    thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
-                except KeyError:
-                    assert False
-
-                MPI.Init_thread(thread_level)
-
-                global init_by_devito
-                init_by_devito = True
+            devito_mpi_init()
 
             # Note: the cloned communicator doesn't need to be explicitly freed;
             # mpi4py takes care of that when the object gets out of scope
