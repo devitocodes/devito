@@ -37,9 +37,7 @@ try:
     # will be called only at the very end and only if necessary, after all cloned
     # communicators will have been freed
     def cleanup():
-        global init_by_devito
-        if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
-            MPI.Finalize()
+        devito_mpi_finalize()
     atexit.register(cleanup)
 except ImportError as e:
     # Dummy fallback in case mpi4py/MPI aren't available
@@ -66,7 +64,7 @@ except ImportError as e:
 
 
 __all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology',
-           'devito_mpi_init']
+           'devito_mpi_init', 'devito_mpi_finalize']
 
 
 def devito_mpi_init():
@@ -83,6 +81,18 @@ def devito_mpi_init():
 
         global init_by_devito
         init_by_devito = True
+
+        return True
+    return False
+
+
+def devito_mpi_finalize():
+    """
+    Finalize MPI, if initialized by Devito.
+    """
+    global init_by_devito
+    if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
+        MPI.Finalize()
 
 
 class AbstractDistributor(ABC):
