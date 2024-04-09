@@ -856,6 +856,22 @@ class SD1(SubDomain):
         return {x: ('middle', 2, 1), y: ('right', 6)}
 
 
+class SD2(SubDomain):
+    name = 'sd2'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('left', 4), y: y}
+
+
+class SD3(SubDomain):
+    name = 'sd3'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 2, 1), y: ('right', 4)}
+
+
 class TestSubDomainInterpolation:
     """
     Tests for interpolation onto and off of Functions defined on
@@ -956,3 +972,52 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
+
+    @pytest.mark.parallel(mode=4)
+    def test_interpolate_subdomain_mpi(self):
+        """
+        Test interpolation off of a Function defined on a SubDomain with MPI.
+        """
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd2 = SD2(grid=grid)
+        sd3 = SD3(grid=grid)
+
+        f0 = Function(name='f0', grid=sd2)
+        f1 = Function(name='f1', grid=sd3)
+        f2 = Function(name='f2', grid=grid)
+
+        xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+        msh = xmsh*ymsh
+        f0.data[:] = msh[:6, :]
+        f1.data[:] = msh[2:-1, -6:]
+        f2.data[:] = msh
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
+        sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+        sr2.coordinates.data[:] = coords
+
+        rec0 = sr0.interpolate(f0)
+        rec1 = sr1.interpolate(f1)
+        rec2 = sr2.interpolate(f1 + f2)
+
+        op = Operator([rec0, rec1, rec2])
+
+        op.apply()
+
+        if grid.distributor.myrank == 0:
+            print(sr0.data)
+            print()
+            print(sr1.data)
+            print()
+            print(sr2.data)
+
+        assert False
