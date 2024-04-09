@@ -2136,7 +2136,7 @@ class TestOperatorAdvanced:
             assert np.all(u.data_ro_domain[1] == 3)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'overlap'), (4, 'full')])
-    def test_coupled_eqs_mixed_dims(self):
+    def test_coupled_eqs_mixed_dims(self, mode):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
         of Dimensions (e.g., one Eq over [x, y, z], the other Eq over [x, yi, zi]).
@@ -2751,7 +2751,7 @@ class TestIsotropicAcoustic:
     @pytest.mark.parametrize('nd', [1, 2, 3])
     @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'full')])
-    def test_adjoint_F(self, nd):
+    def test_adjoint_F(self, nd, mode):
         self.run_adjoint_F(nd)
 
     @pytest.mark.parallel(mode=[(8, 'diag2'), (8, 'full')])
