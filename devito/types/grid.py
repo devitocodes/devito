@@ -163,6 +163,7 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Create a Distributor, used internally to implement domain decomposition
         # by all Functions defined on this Grid
+        self._topology = topology
         self._distributor = Distributor(shape, dimensions, comm, topology)
 
         # The physical extent
@@ -299,8 +300,13 @@ class Grid(CartesianDiscretization, ArgProvider):
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     @property
+    def topology(self):
+        """The topology used for decomposing the CartesianDiscretization."""
+        return self._topology
+
+    @property
     def distributor(self):
-        """The Distributor used for MPI-decomposing the CartesianDiscretization."""
+        """The Distributor used for decomposing the CartesianDiscretization."""
         return self._distributor
 
     @property
