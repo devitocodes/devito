@@ -721,6 +721,10 @@ class Cpu64(Platform):
             warning("NUMA domain count autodetection failed")
             return 1
 
+    @property
+    def cores_physical_per_numa_domain(self):
+        return self.cores_physical // self.numa_domains
+
     @cached_property
     def memtotal(self):
         return psutil.virtual_memory().total
