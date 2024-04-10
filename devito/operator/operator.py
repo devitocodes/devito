@@ -1153,7 +1153,7 @@ def parse_kwargs(**kwargs):
     elif isinstance(opt, tuple):
         if len(opt) == 0:
             mode, options = 'noop', {}
-        elif isinstance(opt[-1], dict):
+        elif isinstance(opt[-1], (dict, frozendict)):
             if len(opt) == 2:
                 mode, options = opt
             else:
