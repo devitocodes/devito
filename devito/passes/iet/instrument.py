@@ -1,7 +1,7 @@
 from itertools import groupby
 
-from devito.ir.iet import (BusyWait, FindNodes, FindSymbols, MapNodes, Iteration,
-                           Section, TimedList, Transformer)
+from devito.ir.iet import (BusyWait, Iteration, Section, TimedList,
+                           FindNodes, FindSymbols, MapNodes, Transformer)
 from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
                                  HaloUpdateList, HaloWaitList, RemainderCall,
                                  ComputeCall)
@@ -12,12 +12,13 @@ __all__ = ['instrument']
 
 
 def instrument(graph, **kwargs):
-    track_subsections(graph, **kwargs)
-
-    # Construct a fresh Timer object
     profiler = kwargs['profiler']
     if profiler is None:
         return
+
+    track_subsections(graph, **kwargs)
+
+    # Construct a fresh Timer object
     timer = Timer(profiler.name, list(profiler.all_sections))
 
     instrument_sections(graph, timer=timer, **kwargs)
@@ -47,14 +48,19 @@ def track_subsections(iet, **kwargs):
         BusyWait: 'busywait'
     }
 
+    verbosity_mapper = {
+        0: (),
+        1: (MPIList, RemainderCall, BusyWait),
+        2: (MPICall, ComputeCall, BusyWait),
+    }
+
     mapper = {}
 
-    # MPI Calls, busy-waiting
-    for NodeType in [MPIList, MPICall, BusyWait, ComputeCall]:
+    # Enable/disable profiling of sub-Sections
+    for NodeType in verbosity_mapper[profiler._verbosity]:
         for k, v in MapNodes(Section, NodeType).visit(iet).items():
             for i in v:
-                if i in mapper or not any(issubclass(i.__class__, n)
-                                          for n in profiler.trackable_subsections):
+                if i in mapper:
                     continue
                 name = sregistry.make_name(prefix=name_mapper[i.__class__])
                 mapper[i] = Section(name, body=i, is_subsection=True)

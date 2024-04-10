@@ -114,8 +114,9 @@ def stree_build(clusters, profiler=None, **kwargs):
             if i.is_Halo:
                 candidate = i
             elif i.is_Sync:
-                attach_section(i)
-                section = None
+                if profiler._verbosity > 0 or not i.is_async:
+                    attach_section(i)
+                    section = None
                 break
             elif i.is_Iteration:
                 if (i.dim.is_Time and SEQUENTIAL in i.properties):
