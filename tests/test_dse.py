@@ -1686,7 +1686,7 @@ class TestAliases:
         op1 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0}))
 
         # Check code generation
-        bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
+        bns, _ = assert_blocking(op1, {'x0_blk0'})
         xs, ys, zs = get_params(op1, 'x_size', 'y_size', 'z_size')
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
