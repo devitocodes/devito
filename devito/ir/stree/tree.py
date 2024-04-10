@@ -1,5 +1,7 @@
 from anytree import NodeMixin, PostOrderIter, RenderTree, ContStyle
 
+from devito.ir.support import WithLock, PrefetchUpdate
+
 __all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional",
            "NodeSync", "NodeExprs", "NodeHalo"]
 
@@ -97,6 +99,10 @@ class NodeSync(ScheduleTree):
     @property
     def __repr_render__(self):
         return "Sync[%s]" % ",".join(i.__class__.__name__ for i in self.sync_ops)
+
+    @property
+    def is_async(self):
+        return any(isinstance(i, (WithLock, PrefetchUpdate)) for i in self.sync_ops)
 
 
 class NodeExprs(ScheduleTree):
