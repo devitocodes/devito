@@ -1,6 +1,7 @@
 from functools import reduce
 from operator import mul
 
+import sympy
 import numpy as np
 import pytest
 
@@ -14,7 +15,7 @@ from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
                            retrieve_iteration_tree, Expression)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
-from devito.types import Scalar, Symbol
+from devito.types import Barrier, Scalar, Symbol
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
@@ -253,8 +254,7 @@ class TestBlockingOptRelax:
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
 
-        bns, _ = assert_blocking(op, {'x0_blk0', 'xl0_blk0', 'xr0_blk0',
-                                      'x1_blk0', 'x2_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'xl0_blk0', 'xr0_blk0'})
         assert all(IsPerfectIteration().visit(i) for i in bns.values())
         assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 
@@ -385,8 +385,8 @@ class TestBlockingParTile:
 
         # Check generated code. By having specified "1" as rule, we expect the
         # given par-tile to be applied to the kernel with id 1
-        bns, _ = assert_blocking(op, {'z0_blk0', 'x1_blk0', 'z2_blk0'})
-        root = bns['x1_blk0']
+        bns, _ = assert_blocking(op, {'z0_blk0', 'x0_blk0', 'z2_blk0'})
+        root = bns['x0_blk0']
         iters = FindNodes(Iteration).visit(root)
         iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
         assert len(iters) == 3
@@ -598,6 +598,37 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
 
     assert np.allclose(u.data, u1.data, rtol=1e-07)
     assert np.allclose(u.data, u2.data, rtol=1e-07)
+
+
+def test_cache_blocking_reuse_blk_dims():
+    grid = Grid(shape=(16, 16, 16))
+    time = grid.time_dim
+
+    u = TimeFunction(name='u', grid=grid, space_order=4)
+    v = TimeFunction(name='v', grid=grid, space_order=4)
+    w = TimeFunction(name='w', grid=grid, space_order=4)
+    r = TimeFunction(name='r', grid=grid, space_order=4)
+
+    # Use barriers to prevent fusion of otherwise fusible expressions; I could
+    # have created data dependencies to achieve the same effect, but that would
+    # have made the test more complex
+    class DummyBarrier(sympy.Function, Barrier):
+        pass
+
+    eqns = [Eq(u.forward, u.dx + v.dy),
+            Eq(Symbol('dummy0'), DummyBarrier(time)),
+            Eq(v.forward, v.dx),
+            Eq(Symbol('dummy1'), DummyBarrier(time)),
+            Eq(w.forward, w.dx),
+            Eq(Symbol('dummy2'), DummyBarrier(time)),
+            Eq(r.forward, r.dy + 1)]
+
+    op = Operator(eqns, openmp=False)
+
+    unique = 't,x0_blk0,y0_blk0,x,y,z'
+    reused = 't,x1_blk0,y1_blk0,x,y,z'
+    assert_structure(op, [unique, 't', reused, reused, reused],
+                     unique+reused[1:]+reused[1:]+reused[1:])
 
 
 class TestNodeParallelism:
