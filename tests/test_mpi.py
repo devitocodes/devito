@@ -235,7 +235,7 @@ class TestSubDistributor:
     @pytest.mark.parametrize('sd_x', sd_specs)
     @pytest.mark.parametrize('sd_y', sd_specs)
     @pytest.mark.parallel(mode=[2])
-    def test_intervals(self, sd_x, sd_y):
+    def test_intervals(self, sd_x, sd_y, mode):
         """
         Check the interval of indices spanned by the SubDomain is correctly calculated
         within SubDistributor. Also check that the interval of indices spanned by the
@@ -288,7 +288,7 @@ class TestSubDistributor:
 
     @pytest.mark.parametrize('sd', sd_specs)
     @pytest.mark.parallel(mode=[3])
-    def test_crosses(self, sd):
+    def test_crosses(self, sd, mode):
         """
         Check that the edges of the rank crossed by the subdomain are correctly
         identified.
@@ -321,7 +321,7 @@ class TestSubDistributor:
 
     @pytest.mark.parametrize('sd', sd_specs)
     @pytest.mark.parallel(mode=[3])
-    def test_decomposition(self, sd):
+    def test_decomposition(self, sd, mode):
         """
         Check that the subdomain is correctly decomposed.
         """
