@@ -952,19 +952,27 @@ class Operator(Callable):
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
         def lower_perfentry(v):
+            values = []
+            if v.oi:
+                values.append("OI=%.2f" % fround(v.oi))
             if v.gflopss:
-                oi = "OI=%.2f" % fround(v.oi)
-                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-                gpointss = "%.2f GPts/s" % fround(v.gpointss)
-                return "[%s]" % ", ".join([oi, gflopss, gpointss])
-            elif v.gpointss:
-                gpointss = "%.2f GPts/s" % fround(v.gpointss)
-                return "[%s]" % gpointss
+                values.append("%.2f GFlops/s" % fround(v.gflopss))
+            if v.gpointss:
+                values.append("%.2f GPts/s" % fround(v.gpointss))
+
+            if values:
+                return "[%s]" % ", ".join(values)
             else:
                 return ""
 
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
+
+            if v.time <= 0.01:
+                # Trim down the output for very fast sections
+                name = "%s%s<>" % (k.name, rank)
+                perf("%s* %s ran in %.2f s" % (indent, name, fround(v.time)))
+                continue
 
             metrics = lower_perfentry(v)
 
