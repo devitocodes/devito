@@ -76,8 +76,9 @@ def stree_build(clusters, profiler=None, **kwargs):
         # Add in Node{Iteration,Conditional,Sync}
         for it in c.itintervals[index:]:
             d = it.dim
-            tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d, ()))
-            mapper[it].top = tip
+            ispace = c.ispace.project([d])
+            properties = c.properties.get(d, ())
+            mapper[it].top = tip = NodeIteration(ispace, tip, properties)
             tip = augment_whole_subtree(c, tip, mapper, it)
 
         # Attach NodeHalo if necessary

@@ -32,8 +32,8 @@ class Lift(Queue):
         if not prefix:
             # No iteration space to be lifted from
             return clusters
-
         dim = prefix[-1].dim
+
         hope_invariant = dim._defines
         outer = set().union(*[i.dim._defines for i in prefix[:-1]])
 

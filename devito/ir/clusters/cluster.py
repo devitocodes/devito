@@ -341,9 +341,9 @@ class Cluster:
                 if len(ret) != 1:
                     continue
                 if ret.pop().direction is Forward:
-                    intervals = intervals.translate(d, v1=-1)
+                    intervals = intervals.translate(d._defines, v1=-1)
                 else:
-                    intervals = intervals.translate(d, 1)
+                    intervals = intervals.translate(d._defines, 1)
             for d in self.properties:
                 if self.properties.is_inbound(d):
                     intervals = intervals.zero(d._defines)

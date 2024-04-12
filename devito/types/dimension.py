@@ -15,8 +15,9 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
+           'CustomDimension', 'SteppingDimension', 'SubDimension',
+           'ConditionalDimension', 'ModuloDimension', 'IncrDimension',
+           'BlockDimension', 'StencilDimension', 'VirtualDimension',
            'Spacing', 'dimensions']
 
 
@@ -108,6 +109,7 @@ class Dimension(ArgProvider):
     is_Modulo = False
     is_Incr = False
     is_Block = False
+    is_Virtual = False
 
     # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
     _op_priority = sympy.Expr._op_priority + 1.
@@ -1491,6 +1493,44 @@ class StencilDimension(BasicDimension):
 
     def _arg_values(self, *args, **kwargs):
         return {}
+
+
+class VirtualDimension(CustomDimension):
+
+    """
+    Dimension symbol representing a mock iteration space, which as such
+    is eventually ditched by the compiler.
+
+    Mock iteration spaces are used for compilation purposes only, typically
+    to bind objects such as Guards and Syncs to a specific point in the
+    program flow.
+
+    Examples
+    --------
+    To generate nested conditionals within the same loop nest, one may use
+    VirtualDimensions to represent the different branches of the conditionals.
+
+        .. code-block:: C
+
+        for (int i = i_m; i <= i_M; i += 1)
+          if (i < 10)
+            if (i < 5)
+              do A(i);
+            if (i >= 5)
+              do B(i);
+
+    The above code can be obtained by using one VirtualDimension for the
+    `i < 5` conditional and another VirtualDimension for the `i >= 5` conditional.
+    """
+
+    is_Virtual = True
+
+    __rkwargs__ = ('parent',)
+
+    def __init_finalize__(self, name, parent=None):
+        super().__init_finalize__(name, parent=parent,
+                                  symbolic_min=sympy.S.Zero,
+                                  symbolic_max=sympy.S.One)
 
 
 # ***
