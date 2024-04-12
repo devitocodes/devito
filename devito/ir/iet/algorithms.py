@@ -32,8 +32,12 @@ def iet_build(stree):
             body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
-            body = Iteration(queues.pop(i), i.dim, i.limits, direction=i.direction,
-                             properties=i.properties, uindices=i.sub_iterators)
+            if i.dim.is_Virtual:
+                body = List(body=queues.pop(i))
+            else:
+                body = Iteration(queues.pop(i), i.dim, i.limits,
+                                 direction=i.direction, properties=i.properties,
+                                 uindices=i.sub_iterators)
 
         elif i.is_Section:
             body = Section('section%d' % nsections, body=queues.pop(i))
