@@ -12,7 +12,7 @@ from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
 from devito.arch.compiler import AOMPCompiler
-from devito.symbolics.inspection import has_integer_args
+from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
 
 __all__ = ['ccode']
@@ -88,6 +88,25 @@ class CodePrinter(C99CodePrinter):
             return '%d.0/%d.0' % (p, q)
         else:
             return '%d.0F/%d.0F' % (p, q)
+
+    def _print_math_func(self, expr, nest=False, known=None):
+        cls = type(expr)
+        name = cls.__name__
+        if name not in self._prec_funcs:
+            return super()._print_math_func(expr, nest=nest, known=known)
+
+        try:
+            cname = self.known_functions[name]
+        except KeyError:
+            return super()._print_math_func(expr, nest=nest, known=known)
+
+        dtype = sympy_dtype(expr)
+        if dtype is np.float32:
+            cname += 'f'
+
+        args = ', '.join((self._print(arg) for arg in expr.args))
+
+        return '%s(%s)' % (cname, args)
 
     def _print_Pow(self, expr):
         # Need to override because of issue #1627
@@ -253,6 +272,11 @@ class CodePrinter(C99CodePrinter):
     _print_IndexSum = _print_Fallback
     _print_ReservedWord = _print_Fallback
     _print_Basic = _print_Fallback
+
+
+# Lifted from SymPy so that we go through our own `_print_math_func`
+for k in ('exp log sin cos tan ceiling floor').split():
+    setattr(CodePrinter, '_print_%s' % k, CodePrinter._print_math_func)
 
 
 # Always parenthesize IntDiv and InlineIf within expressions

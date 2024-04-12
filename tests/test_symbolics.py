@@ -6,7 +6,8 @@ import numpy as np
 
 from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos, Min, Max)
+                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
+                    Min, Max)
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
@@ -257,6 +258,18 @@ def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
     assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1F)"
+
+
+def test_cos_vs_cosf():
+    a = dSymbol('a', dtype=np.float32)
+    assert ccode(cos(a)) == "cosf(a)"
+
+    b = dSymbol('b', dtype=np.float64)
+    assert ccode(cos(b)) == "cos(b)"
+
+    # Doesn't make much sense, but it's legal
+    c = dSymbol('c', dtype=np.int32)
+    assert ccode(cos(c)) == "cos(c)"
 
 
 def test_intdiv():

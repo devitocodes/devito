@@ -845,7 +845,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
         # that would creat a temporary `int r = b` leading to erronous
         # numerical results
-        dtype = sympy_dtype(pivot, meta.dtype)
+        dtype = sympy_dtype(pivot, base=meta.dtype)
 
         if writeto:
             # The Dimensions defining the shape of Array

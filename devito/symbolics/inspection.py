@@ -3,7 +3,6 @@ from functools import singledispatch
 import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
-from sympy.core.operations import AssocOp
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -291,21 +290,14 @@ def has_integer_args(*args):
     return res
 
 
-def sympy_dtype(expr, default):
+def sympy_dtype(expr, base=None):
     """
-    Infer the dtype of the expression
-    or default if could not be determined.
+    Infer the dtype of the expression.
     """
-    # Symbol/... without argument, check its dtype
-    if len(expr.args) == 0:
+    dtypes = {base} - {None}
+    for i in expr.free_symbols:
         try:
-            return expr.dtype
+            dtypes.add(i.dtype)
         except AttributeError:
-            return default
-    else:
-        if not (isinstance(expr.func, AssocOp) or expr.is_Pow):
-            return default
-        else:
-            # Infer expression dtype from its arguments
-            dtype = infer_dtype([sympy_dtype(a, default) for a in expr.args])
-            return dtype or default
+            pass
+    return infer_dtype(dtypes)
