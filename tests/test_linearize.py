@@ -152,7 +152,7 @@ def test_interpolation_msf():
     assert op1.cfunction
 
 
-@pytest.mark.parallel(mode=[(1, 'diag2')])
+@pytest.mark.parallel(mode=[(2, 'diag2')])
 def test_codegen_quality0(mode):
     grid = Grid(shape=(4, 4))
     u = TimeFunction(name='u', grid=grid, space_order=2)
@@ -170,7 +170,6 @@ def test_codegen_quality0(mode):
     # for the efunc args
     # (the other three obviously are _POSIX_C_SOURCE, START, STOP)
     assert len(op._headers) == 6
-    return "bonjour"
 
 
 def test_codegen_quality1():
