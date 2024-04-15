@@ -319,7 +319,7 @@ class WeightedInterpolator(GenericInterpolator):
         rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
-        summands.extend([Inc(rhs, (_expr * self._weights).xreplace(idx_subs),
+        summands.extend([Inc(rhs, (self._weights * _expr).xreplace(idx_subs),
                              implicit_dims=implicit_dims)])
 
         # Write/Incr `self`
@@ -377,7 +377,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
-                    (_expr * self._weights).xreplace(idx_subs),
+                    (self._weights * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs)]
 
@@ -432,11 +432,12 @@ class PrecomputedInterpolator(WeightedInterpolator):
     _name = 'precomp'
 
     def _positions(self, implicit_dims):
-        if self.sfunction.gridpoints is None:
+        if self.sfunction.gridpoints_data is None:
             return super()._positions(implicit_dims)
-        # No position temp as we have directly the gridpoints
-        return [Eq(p, floor(k), implicit_dims=implicit_dims)
-                for (k, p) in self.sfunction._position_map.items()]
+        else:
+            # No position temp as we have directly the gridpoints
+            return[Eq(p, k, implicit_dims=implicit_dims)
+                   for (k, p) in self.sfunction._position_map.items()]
 
     @property
     def interpolation_coeffs(self):

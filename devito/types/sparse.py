@@ -1154,7 +1154,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         the position. We mitigate this problem by computing the positions
         individually (hence the need for a position map).
         """
-        if self.gridpoints is not None:
+        if self.gridpoints_data is not None:
             ddim = self.gridpoints.dimensions[-1]
             return OrderedDict((self.gridpoints._subs(ddim, di), p)
                                for (di, p) in zip(range(self.grid.dim),
