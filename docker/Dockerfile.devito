@@ -26,8 +26,8 @@ RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/pip install --no-cache-dir wheel && \
-    eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir mpi4py" && \
-    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,mpi,tests] && \
+    eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir -r /app/devito/requirements-mpi.txt" && \
+    /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests] && \
     rm -rf ~/.cache/pip
 
 # Usefull utilities

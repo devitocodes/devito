@@ -59,6 +59,8 @@ RUN apt-get update -y && apt-get dist-upgrade -y && \
             # Development packages
             libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
 
+ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh intel64 && '
+
 ##############################################################
 # ICC image
 # This is a legacy setup that is not built anymore but kept for reference
@@ -70,12 +72,13 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-
     rm -rf /var/lib/apt/lists/*
 
 # Devito config
+ENV I_MPI_CC="icc"
+ENV I_MPI_CXX="icpc"
 ENV DEVITO_ARCH="icc"
 ENV DEVITO_LANGUAGE="openmp"
 ENV DEVITO_PLATFORM="intel64"
 # MPICC compiler for mpi4py
 ENV MPICC=mpiicc
-ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icc"'
 
 ##############################################################
 # ICX OpenMP image
@@ -87,11 +90,12 @@ RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp inte
     rm -rf /var/lib/apt/lists/*
 
 # Devito config
+ENV I_MPI_CC="icx"
+ENV I_MPI_CXX="icpx"
 ENV DEVITO_ARCH="icx"
 ENV DEVITO_LANGUAGE="openmp"
 # MPICC compiler for mpi4py
 ENV MPICC=mpiicc
-ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh && CFLAGS="-cc=icx"'
 
 ##############################################################
 # ICX SYCL CPU image
@@ -102,6 +106,7 @@ FROM icx as cpu-sycl
 ENV DEVITO_ARCH="sycl"
 ENV DEVITO_LANGUAGE="sycl"
 ENV DEVITO_PLATFORM="intel64"
+ENV MPICC=sycl
 
 ##############################################################
 # ICX SYCL GPU image
@@ -112,3 +117,4 @@ FROM icx as gpu-sycl
 ENV DEVITO_ARCH="sycl"
 ENV DEVITO_LANGUAGE="sycl"
 ENV DEVITO_PLATFORM="intelgpuX"
+ENV MPICC=sycl
