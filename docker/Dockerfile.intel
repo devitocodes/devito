@@ -106,7 +106,6 @@ FROM icx as cpu-sycl
 ENV DEVITO_ARCH="sycl"
 ENV DEVITO_LANGUAGE="sycl"
 ENV DEVITO_PLATFORM="intel64"
-ENV MPICC=sycl
 
 ##############################################################
 # ICX SYCL GPU image
@@ -117,4 +116,3 @@ FROM icx as gpu-sycl
 ENV DEVITO_ARCH="sycl"
 ENV DEVITO_LANGUAGE="sycl"
 ENV DEVITO_PLATFORM="intelgpuX"
-ENV MPICC=sycl
