@@ -100,6 +100,11 @@ class LowerMultiSubDimensions(Queue):
                 processed.append(c)
                 continue
 
+            #TODO: use c.ispace.split(dd) and run test suite... not doing it
+            # now because the state of the current branches is a bit fragile
+            #ALSO note that .split would require the dimension after `dd` so
+            #we'll have to change idx to idx+1, or simply take `dim`!!
+            #This will simplify this code a lot!!
             n = c.ispace.index(dd)
             ispace0 = c.ispace[:n]
             ispace1 = c.ispace[n:]
@@ -116,6 +121,12 @@ class LowerMultiSubDimensions(Queue):
 
             # The IterationSpace induced by the MultiSubDomain
             if dims:
+                #TODO: use the new c.ispace.insert !!!
+                #TODO: in fact, scratch the first TODO above... just call insert directly
+                #here, I won't even have to call split as it will be done automatically
+                #by insert... but then I will have to 
+                #TODO: actually there's an issue with this new insert as I'll be like
+                #constructing ispace0,ispaceN,ispace1 while below I only have ispace0,ispaceN?
                 intervals = [Interval(i) for i in dims]
                 ispaceN = IterationSpace(IntervalGroup(intervals), sub_iterators)
 
