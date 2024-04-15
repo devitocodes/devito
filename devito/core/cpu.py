@@ -240,9 +240,9 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
         # Callback used by `buffering`; it mimics `is_on_device`, which is used
         # on device backends
-        def callback(f):
+        def callback(f, *args):
             if f.is_TimeFunction and f.save is not None:
-                return f.time_dim
+                return f.space_dimensions
             else:
                 return None
 
