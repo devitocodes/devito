@@ -530,20 +530,62 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
+        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+
+        # DiscreteFunctions may be created from CartesianDiscretizations, which in
+        # turn could be Grids or SubDomains. Both may provide arguments
+        discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
+        discretizations.update({getattr(p, 'grid', None) for p in defaults})
+        discretizations.discard(None)
+
+        # Remove subgrids if multiple Grids
+        if len(discretizations) > 1:
+            discretizations = {g for g in discretizations
+                               if not any(d.is_Derived for d in g.dimensions)
+                               or g.is_SubDomain}
+
+        # There can only be one Grid from which DiscreteFunctions were created
+        grids = {i for i in discretizations if i.is_Grid}
+        # Some Functions may be defined on SubDomains.
+        # These SubDomains must be on this Grid.
+        subdomains = {i for i in discretizations if i.is_SubDomain}
+        parent_grids = {i.grid for i in subdomains}
+
+        if len(grids.union(parent_grids)) > 1:
+            # We loosely tolerate multiple Grids for backwards compatibility
+            # with spatial subsampling, which should be revisited however. And
+            # With MPI it would definitely break!
+            if configuration['mpi']:
+                raise ValueError("Multiple Grids found")
+
+        if grids:
+            grid = grids.pop()
+        elif parent_grids:
+            grid = parent_grids.pop()
+        else:
+            grid = None
+
+        # Dimensions in the discretisations
+        if grid:
+            nodes = set(grid.dimensions)
+        else:
+            nodes = set()
+        nodes.update({d for s in subdomains for d in s.dimensions})
+        nodes.update(set(self.dimensions))
+        # print("Nodes", nodes)
+        # print("Dataspaces", {d: self._dspace[d] for d in nodes})
+
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
-        nodes = self.dimensions
-        edges = [(i, i.parent) for i in self.dimensions
-                 if i.is_Derived and i.parent in set(nodes)]
+        edges = [(i, i.parent) for i in nodes
+                 if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
 
         futures = {}
         for d in reversed(toposort):
             if set(d._arg_names).intersection(kwargs):
                 futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
-
-        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
         args = kwargs['args'] = ReducerMap()
@@ -580,40 +622,8 @@ class Operator(Callable):
 
         args = kwargs['args'] = args.reduce_all()
 
-        # DiscreteFunctions may be created from CartesianDiscretizations, which in
-        # turn could be Grids or SubDomains. Both may provide arguments
-        discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
-        discretizations.update({getattr(p, 'grid', None) for p in defaults})
-        discretizations.discard(None)
-
-        # Remove subgrids if multiple Grids
-        if len(discretizations) > 1:
-            discretizations = {g for g in discretizations
-                               if not any(d.is_Derived for d in g.dimensions)
-                               or g.is_SubDomain}
-
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
-
-        # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if i.is_Grid}
-        # Some Functions may be defined on SubDomains.
-        # These SubDomains must be on this Grid.
-        parent_grids = {i.grid for i in discretizations if i.is_SubDomain}
-
-        if len(grids.union(parent_grids)) > 1:
-            # We loosely tolerate multiple Grids for backwards compatibility
-            # with spatial subsampling, which should be revisited however. And
-            # With MPI it would definitely break!
-            if configuration['mpi']:
-                raise ValueError("Multiple Grids found")
-
-        if grids:
-            grid = grids.pop()
-        elif parent_grids:
-            grid = parent_grids.pop()
-        else:
-            grid = None
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing

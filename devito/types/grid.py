@@ -633,26 +633,6 @@ class SubDomain(AbstractSubDomain):
         """
         raise NotImplementedError
 
-    def _arg_values(self, **kwargs):
-        # TODO: This should probably be a check for "if self.grid:"
-        try:
-            values = self.grid._arg_values(**kwargs)
-        except AttributeError:
-            raise AttributeError("%s is not attached to a Grid and has no _arg_values"
-                                 % self)
-
-        # SubDomain thicknesses
-        thicknesses = {}
-        for d in self.dimensions:
-            if d.is_Sub:
-                thicknesses.update({k.name: v for k, v in d._thickness_map.items()})
-
-        # Override thicknesses if necessary
-        thicknesses.update({i: kwargs[i] for i in self._arg_names if i in kwargs})
-        values.update(thicknesses)
-
-        return values
-
     @cached_property
     def _arg_names(self):
         try:
