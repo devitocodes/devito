@@ -455,9 +455,9 @@ class IntervalGroup(Ordering):
         intervals = [i.relaxed if i.dim in d else i for i in self]
         return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
-    def promote(self, cond):
+    def promote(self, cond, mode='unordered'):
         intervals = [i.promote(cond) for i in self]
-        intervals = IntervalGroup(intervals, relations=None, mode='unordered')
+        intervals = IntervalGroup(intervals, relations=None, mode=mode)
 
         # There could be duplicate Dimensions at this point, so we sum up the
         # Intervals defined over the same Dimension to produce a well-defined
@@ -466,13 +466,17 @@ class IntervalGroup(Ordering):
 
         return intervals
 
-    def drop(self, d, strict=False):
+    def drop(self, maybe_callable, strict=False):
+        if callable(maybe_callable):
+            dims = {i.dim for i in self if maybe_callable(i.dim)}
+        else:
+            dims = set(as_tuple(maybe_callable))
+
         # Dropping
         if strict:
-            dims = set(as_tuple(d))
             intervals = [i._rebuild() for i in self if i.dim not in dims]
         else:
-            dims = set().union(*[i._defines for i in as_tuple(d)])
+            dims = set().union(*[i._defines for i in dims])
             intervals = [i._rebuild() for i in self if not i.dim._defines & dims]
 
         # Clean up relations
@@ -593,7 +597,7 @@ class IterationInterval(Interval):
     An Interval associated with metadata.
     """
 
-    def __init__(self, interval, sub_iterators, direction):
+    def __init__(self, interval, sub_iterators=(), direction=Forward):
         super().__init__(interval.dim, *interval.offsets, stamp=interval.stamp)
         self.sub_iterators = sub_iterators
         self.direction = direction
@@ -693,8 +697,15 @@ class DataSpace(Space):
     def __init__(self, intervals, parts=None):
         super().__init__(intervals)
 
+        # Normalize parts
         parts = {k: v.expand() for k, v in (parts or {}).items()}
-        self._parts = frozendict(parts)
+        #TODO: POLISH THIS
+        a = {}
+        for k, v in parts.items():
+            dims = set().union(*[d._defines for d in k.dimensions])
+            v1 = v.drop(lambda d: d not in dims)
+            a[k] = v1
+        self._parts = frozendict(a)
 
     def __eq__(self, other):
         return (isinstance(other, DataSpace) and
@@ -868,12 +879,16 @@ class IterationSpace(Space):
 
         return IterationSpace(self.intervals, items, self.directions)
 
-    def switch(self, d0, d1):
+    def switch(self, d0, d1, direction=None):
         intervals = self.intervals.switch(d0, d1)
-        sub_iterators = {d1 if k is d0 else k: v
-                         for k, v in self.sub_iterators.items()}
-        directions = {d1 if k is d0 else k: v
-                      for k, v in self.directions.items()}
+
+        sub_iterators = dict(self.sub_iterators)
+        sub_iterators.pop(d0, None)
+        sub_iterators[d1] = ()
+
+        directions = dict(self.directions)
+        v = directions.pop(d0, None)
+        directions[d1] = direction or v
 
         return IterationSpace(intervals, sub_iterators, directions)
 
@@ -941,8 +956,8 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
-    def promote(self, cond):
-        intervals = self.intervals.promote(cond)
+    def promote(self, cond, mode='unordered'):
+        intervals = self.intervals.promote(cond, mode=mode)
         sub_iterators = {i.promote(cond).dim: self.sub_iterators[i.dim]
                          for i in self.intervals}
         directions = {i.promote(cond).dim: self.directions[i.dim]

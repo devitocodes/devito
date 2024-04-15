@@ -4,7 +4,7 @@ from functools import singledispatch
 import cgen as c
 from sympy import Or
 
-from devito.exceptions import CompilationError
+from devito.exceptions import InvalidOperator
 from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
                            Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
                            AsyncCallable, derive_parameters)
@@ -131,7 +131,7 @@ class Orchestrator:
 
                 layers = {infer_layer(s.function) for s in sync_ops}
                 if len(layers) != 1:
-                    raise CompilationError("Unsupported streaming case")
+                    raise InvalidOperator("Unsupported streaming case")
                 layer = layers.pop()
 
                 subs[n], v = callbacks[t](subs.get(n, n), sync_ops, layer)

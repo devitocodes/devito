@@ -13,8 +13,45 @@ from devito.types import CustomDimension, Lock
 __all__ = ['tasking', 'memcpy_prefetch']
 
 
+def async_trigger(c, dims):
+    """
+    Return the Dimension in `c`'s IterationSpace that triggers the
+    asynchronous execution of `c`.
+    """
+    if not dims:
+        return None
+    else:
+        key = lambda d: not d._defines.intersection(dims)
+        ispace = c.ispace.project(key)
+        return ispace.innermost.dim
+
+
+def keys(key0):
+    """
+    Callbacks for `tasking` and `memcpy_prefetch` given a user-defined `key`.
+    """
+
+    def task_key(c):
+        return async_trigger(c, key0(c.scope.writes))
+
+    def memcpy_key(c):
+        if task_key(c):
+            # Writes would take precedence over reads
+            return None
+        else:
+            return async_trigger(c, key0(c.scope.reads))
+
+    return task_key, memcpy_key
+
+
 @timed_pass(name='tasking')
-def tasking(clusters, key, sregistry):
+def tasking(clusters, key0, sregistry):
+    """
+    Turn a Cluster `c` into an asynchronous task if `c` writes to a Function `f`
+    such that `key0(f) = (d_i, ..., d_n)`, where `(d_i, ..., d_n)` are the
+    task Dimensions.
+    """
+    key, _ = keys(key0)
     candidates = as_mapper(clusters, key)
     candidates.pop(None, None)
 
@@ -125,7 +162,12 @@ def tasking(clusters, key, sregistry):
 
 
 @timed_pass(name='memcpy_prefetch')
-def memcpy_prefetch(clusters, key, sregistry):
+def memcpy_prefetch(clusters, key0, sregistry):
+    """
+    A special form of `tasking` for optimized, asynchronous memcpy-like operations.
+    Unlike `tasking`, `key0` is here applied to the reads of a given Cluster.
+    """
+    _, key = keys(key0)
     actions = defaultdict(Actions)
 
     for c in clusters:
@@ -133,14 +175,14 @@ def memcpy_prefetch(clusters, key, sregistry):
         if d is None:
             continue
 
-        if d.is_Custom and is_integer(c.ispace[d].size):
-            if wraps_memcpy(c):
-                _actions_from_init(c, d, actions)
-            else:
-                raise NotImplementedError
+        if not wraps_memcpy(c):
+            continue
 
-        elif wraps_memcpy(c):
+        if c.properties.is_prefetchable(d):
             _actions_from_update_memcpy(c, d, clusters, actions, sregistry)
+        elif d.is_Custom and is_integer(c.ispace[d].size):
+            _actions_from_init(c, d, actions)
+
 
     # Attach the computed Actions
     processed = []
@@ -162,22 +204,16 @@ def memcpy_prefetch(clusters, key, sregistry):
 
 
 def _actions_from_init(c, d, actions):
-    i = c.ispace.index(d)
-    if i > 0:
-        pd = c.ispace[i].dim
-    else:
-        pd = None
-
     e = c.exprs[0]
     function = e.rhs.function
     target = e.lhs.function
 
     findex = e.rhs.indices[d]
 
-    size = d.symbolic_size
+    size = target.shape[d]
     assert is_integer(size)
 
-    actions[c].syncs[pd].append(
+    actions[c].syncs[None].append(
         FetchUpdate(None, target, 0, function, findex, d, size)
     )
 

@@ -266,15 +266,14 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        stream_key = stream_key_wrap(options)
-        task_key = task_wrap(stream_key)
-        memcpy_key = memcpy_wrap(stream_key, task_key)
+        callback = lambda f: not is_on_device(f, options['gpu-fit'])
+        stream_key = stream_wrap(callback)
 
         return {
-            'buffering': lambda i: buffering(i, stream_key, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': lambda i: tasking(i, task_key, sregistry),
-            'streaming': lambda i: memcpy_prefetch(i, memcpy_key, sregistry),
+            'buffering': lambda i: buffering(i, stream_key, sregistry, options),
+            'tasking': lambda i: tasking(i, stream_key, sregistry),
+            'streaming': lambda i: memcpy_prefetch(i, stream_key, sregistry),
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
@@ -421,65 +420,19 @@ class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
 
 # *** Utils
 
-def stream_key_wrap(options):
-    def func(items):
+def stream_wrap(callback):
+    def stream_key(items, *args):
         """
-        Given one or more Functions `f(d_1, ...d_n)`, return the Dimension `d_i`
-        that is more likely to require data streaming, since the size of
-        `(*, d_{i+1}, ..., d_n)` is unlikely to fit into the device memory.
-
-        If more than one such Dimension is found, a set is returned.
+        Given one or more Functions `f(d_1, ...d_n)`, return the Dimensions
+        `(d_i, ..., d_n)` requiring data streaming.
         """
-        retval = set()
-        for f in as_tuple(items):
-            if not is_on_device(f, options['gpu-fit']):
-                retval.add(f.time_dim)
+        found = [f for f in as_tuple(items) if callback(f)]
+        retval = {f.space_dimensions for f in found}
         if len(retval) > 1:
-            # E.g., `t_sub0, t_sub1, ..., time`
-            return retval
-        try:
+            raise ValueError("Cannot determine homogenous stream Dimensions")
+        elif len(retval) == 1:
             return retval.pop()
-        except KeyError:
+        else:
             return None
-    return func
 
-
-def task_wrap(stream_key):
-    def func(c):
-        """
-        A Cluster `c` is turned into an "asynchronous task" if it writes to a
-        Function that cannot be stored in device memory.
-
-        This function returns a Dimension in `c`'s IterationSpace defining the
-        scope of the asynchronous task, or None if no task is required.
-        """
-        dims = {c.ispace[d].dim for d in as_tuple(stream_key(c.scope.writes))}
-        if len(dims) > 1:
-            raise ValueError("Cannot determine a unique task Dimension")
-        try:
-            return dims.pop()
-        except KeyError:
-            return None
-    return func
-
-
-def memcpy_wrap(stream_key, task_key):
-    def func(c):
-        """
-        A Cluster `c` is turned into a "memcpy task" if it reads from a Function
-        that cannot be stored in device memory.
-
-        This function returns the Dimension in `c`'s IterationSpace within which
-        the memcpy is to be performed, or None if no memcpy is required.
-        """
-        if task_key(c):
-            # Writes would take precedence over reads
-            return None
-        dims = {c.ispace[d].dim for d in as_tuple(stream_key(c.scope.reads))}
-        if len(dims) > 1:
-            raise ValueError("Cannot determine a unique memcpy Dimension")
-        try:
-            return dims.pop()
-        except KeyError:
-            return None
-    return func
+    return stream_key
