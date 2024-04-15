@@ -958,6 +958,36 @@ class IterationSpace(Space):
 
         return self[:self.index(i.dim) + 1]
 
+    def split(self, d):
+        """
+        Split the IterationSpace into two IterationSpaces, the first
+        containing all Intervals up to and including the one defined
+        over Dimension `d`, and the second containing all Intervals starting
+        from the one defined over Dimension `d`.
+        """
+        if isinstance(d, IterationInterval):
+            d = d.dim
+
+        try:
+            n = self.index(d) + 1
+            return self[:n], self[n:]
+        except ValueError:
+            return self, IterationSpace([])
+
+    def insert(self, d, dimensions, sub_iterators=None, directions=None):
+        """
+        Insert new Dimensions into the IterationSpace before Dimension `d`.
+        """
+        dimensions = as_tuple(dimensions)
+
+        intervals = IntervalGroup([Interval(i) for i in dimensions])
+        ispace = IterationSpace(intervals, sub_iterators, directions)
+
+        ispace0, ispace1 = self.split(d)
+        relations = (ispace0.itdims + dimensions, dimensions + ispace1.itdims)
+
+        return IterationSpace.union(ispace0, ispace, ispace1, relations=relations)
+
     def reorder(self, relations=None, mode=None):
         relations = relations or self.relations
         mode = mode or self.mode
