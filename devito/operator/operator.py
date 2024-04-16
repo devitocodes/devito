@@ -152,9 +152,10 @@ class Operator(Callable):
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
-        # Normalize input arguments for the selected Operator
+        # Preprocess input arguments
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
+        expressions = cls._sanitize_exprs(expressions, **kwargs)
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -173,6 +174,15 @@ class Operator(Callable):
     @classmethod
     def _check_kwargs(cls, **kwargs):
         return
+
+    @classmethod
+    def _sanitize_exprs(cls, expressions, **kwargs):
+        expressions = as_tuple(expressions)
+
+        if any(not isinstance(i, Evaluable) for i in expressions):
+            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
+
+        return expressions
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -243,10 +253,6 @@ class Operator(Callable):
         kwargs.setdefault('sregistry', SymbolRegistry())
 
         expressions = as_tuple(expressions)
-
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
 
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
