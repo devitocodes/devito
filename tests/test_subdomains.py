@@ -726,7 +726,7 @@ class TestSubDomain_w_condition(object):
                       subdomain=my_grid.subdomains['middle']))
         op.apply()
 
-        assert_structure(op, ['i1x'], 'i1x')
+        assert_structure(op, ['x'], 'x')
 
     def test_condition_w_subdomain_v1(self):
 
@@ -758,7 +758,7 @@ class TestSubDomain_w_condition(object):
 
         op.apply()
 
-        assert_structure(op, ['xi1y'], 'xi1y')
+        assert_structure(op, ['xy'], 'xy')
 
     def test_condition_w_subdomain_v2(self):
 
@@ -790,4 +790,4 @@ class TestSubDomain_w_condition(object):
 
         op.apply()
 
-        assert_structure(op, ['i1xi1y'], 'i1xi1y')
+        assert_structure(op, ['xy'], 'xy')
