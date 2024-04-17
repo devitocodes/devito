@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
+from devito.passes.clusters import (Lift, MemcpyAsync, Tasker, blocking, buffering,
                                     cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
@@ -266,15 +266,15 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Callbacks used by `buffering`, `Tasking` and `Streaming`
-        callback = lambda f: on_host(f, options)
-        runs_on_host, reads_if_on_host = make_callbacks(options)
+        stream_key = stream_key_wrap(options)
+        task_key = task_wrap(stream_key)
+        memcpy_key = memcpy_wrap(stream_key, task_key)
 
         return {
-            'buffering': lambda i: buffering(i, callback, sregistry, options),
+            'buffering': lambda i: buffering(i, stream_key, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': Tasker(runs_on_host, sregistry).process,
-            'streaming': Streaming(reads_if_on_host, sregistry).process,
+            'tasking': Tasker(task_key, sregistry).process,
+            'streaming': MemcpyAsync(memcpy_key, sregistry).process,
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
@@ -419,39 +419,60 @@ class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
     assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))
 
 
-# Utils
+# *** Utils
 
-def on_host(f, options):
-    # A Dimension in `f` defining an IterationSpace that definitely
-    # gets executed on the host, regardless of whether it's parallel
-    # or sequential
-    if not is_on_device(f, options['gpu-fit']):
-        return f.time_dim
-    else:
-        return None
+def stream_key_wrap(options):
+    def func(items):
+        """
+        Given one or more Functions `f(d_1, ...d_n)`, return the Dimension `d_i`
+        that is more likely to require data streaming, since the size of
+        `(*, d_{i+1}, ..., d_n)` is unlikely to fit into the device memory.
+
+        If more than one such Dimension is found, an exception is raised.
+        """
+        functions = as_tuple(items)
+        retval = {None if is_on_device(f, options['gpu-fit']) else f.time_dim
+                  for f in functions}
+        retval.discard(None)
+        if len(retval) > 1:
+            raise ValueError("Ambiguous stream key")
+        try:
+            return retval.pop()
+        except KeyError:
+            return None
+    return func
 
 
-def make_callbacks(options, key=None):
-    """
-    Options-dependent callbacks used by various compiler passes.
-    """
+def task_wrap(stream_key):
+    def func(c):
+        """
+        A Cluster `c` is turned into an "asynchronous task" if it writes to a
+        Function that cannot be stored in device memory.
 
-    if key is None:
-        key = lambda f: on_host(f, options)
-
-    def runs_on_host(c):
-        # The only situation in which a Cluster doesn't get offloaded to
-        # the device is when it writes to a host Function
-        retval = {key(f) for f in c.scope.writes} - {None}
-        retval = set().union(*[d._defines for d in retval])
-        return retval
-
-    def reads_if_on_host(c):
-        if not runs_on_host(c):
-            retval = {key(f) for f in c.scope.reads} - {None}
-            retval = set().union(*[d._defines for d in retval])
-            return retval
-        else:
+        This function returns the Dimension(s) that is more likely to require data
+        streaming, or the empty set if no such Dimension is found.
+        """
+        try:
+            return stream_key(c.scope.writes)._defines
+        except AttributeError:
             return set()
+    return func
 
-    return runs_on_host, reads_if_on_host
+
+def memcpy_wrap(stream_key, task_key):
+    def func(c):
+        """
+        A Cluster `c` is turned into a "memcpy task" if it reads from a Function
+        that cannot be stored in device memory.
+
+        This function returns the Dimension(s) requiring no memcpy as they are
+        not in device memory, or the empty set if no memcpy is required.
+        """
+        if task_key(c):
+            # Writes would take precedence over reads
+            return set()
+        try:
+            return stream_key(c.scope.reads)._defines
+        except AttributeError:
+            return set()
+    return func
