@@ -113,13 +113,12 @@ def buffering(clusters, callback, sregistry, options, **kwargs):
     else:
         init_onwrite = lambda f: v1
 
-    options = {
-        'buf-async-degree': options['buf-async-degree'],
-        'buf-fuse-tasks': options['fuse-tasks'],
+    options = dict(options)
+    options.update({
         'buf-init-onread': init_onread,
         'buf-init-onwrite': init_onwrite,
         'buf-callback': kwargs.get('opt_buffer'),
-    }
+    })
 
     # Escape hatch to selectively disable buffering
     if options['buf-async-degree'] == 0:
@@ -284,7 +283,7 @@ class Buffering(Queue):
                 )
 
         # Lift {write,read}-only buffers into separate IterationSpaces
-        if self.options['buf-fuse-tasks']:
+        if self.options['fuse-tasks']:
             return init + processed
         for b in buffers:
             if b.is_writeonly:

@@ -9,13 +9,21 @@ from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
-__all__ = ['Tasker', 'Streaming']
+__all__ = ['Tasker', 'MemcpyAsync']
 
 
 class Asynchronous(Queue):
 
+    """
+    Create asynchronous Clusters, or "tasks".
+
+    Notes
+    -----
+    From an implementation viewpoint, an asynchronous Cluster is a Cluster
+    with attached suitable SyncOps, such as WaitLock, WithLock, etc.
+    """
+
     def __init__(self, key, sregistry):
-        assert callable(key)
         self.key = key
         self.sregistry = sregistry
 
@@ -23,20 +31,6 @@ class Asynchronous(Queue):
 
 
 class Tasker(Asynchronous):
-
-    """
-    Create asynchronous Clusters, or "tasks".
-
-    Parameters
-    ----------
-    key : callable, optional
-        A Cluster `c` becomes an asynchronous task only if `key(c)` returns True
-
-    Notes
-    -----
-    From an implementation viewpoint, an asynchronous Cluster is a Cluster
-    with attached suitable SyncOps, such as WaitLock, WithLock, etc.
-    """
 
     @timed_pass(name='tasker')
     def process(self, clusters):
@@ -155,18 +149,9 @@ class Tasker(Asynchronous):
         return processed
 
 
-class Streaming(Asynchronous):
+class MemcpyAsync(Asynchronous):
 
-    """
-    Tag Clusters with SyncOps to stream Functions in and out the device memory.
-
-    Parameters
-    ----------
-    key : callable, optional
-        Return the Functions that need to be streamed in a given Cluster.
-    """
-
-    @timed_pass(name='streaming')
+    @timed_pass(name='async_memcpy')
     def process(self, clusters):
         return super().process(clusters)
 
