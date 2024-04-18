@@ -7,7 +7,7 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, MemcpyAsync, Tasker, blocking, buffering,
+from devito.passes.clusters import (Lift, MemcpyAsync, tasking, blocking, buffering,
                                     cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
@@ -273,7 +273,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         return {
             'buffering': lambda i: buffering(i, stream_key, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': Tasker(task_key, sregistry).process,
+            'tasking': lambda i: tasking(i, task_key, sregistry),
             'streaming': MemcpyAsync(memcpy_key, sregistry).process,
             'factorize': factorize,
             'fission': fission,
@@ -428,14 +428,15 @@ def stream_key_wrap(options):
         that is more likely to require data streaming, since the size of
         `(*, d_{i+1}, ..., d_n)` is unlikely to fit into the device memory.
 
-        If more than one such Dimension is found, an exception is raised.
+        If more than one such Dimension is found, a set is returned.
         """
-        functions = as_tuple(items)
-        retval = {None if is_on_device(f, options['gpu-fit']) else f.time_dim
-                  for f in functions}
-        retval.discard(None)
+        retval = set()
+        for f in as_tuple(items):
+            if not is_on_device(f, options['gpu-fit']):
+                retval.add(f.time_dim)
         if len(retval) > 1:
-            raise ValueError("Ambiguous stream key")
+            # E.g., `t_sub0, t_sub1, ..., time`
+            return retval
         try:
             return retval.pop()
         except KeyError:
@@ -449,13 +450,16 @@ def task_wrap(stream_key):
         A Cluster `c` is turned into an "asynchronous task" if it writes to a
         Function that cannot be stored in device memory.
 
-        This function returns the Dimension(s) that is more likely to require data
-        streaming, or the empty set if no such Dimension is found.
+        This function returns a Dimension in `c`'s IterationSpace defining the
+        scope of the asynchronous task, or None if no task is required.
         """
+        dims = {c.ispace[d].dim for d in as_tuple(stream_key(c.scope.writes))}
+        if len(dims) > 1:
+            raise ValueError("Cannot determine a unique task Dimension")
         try:
-            return stream_key(c.scope.writes)._defines
-        except AttributeError:
-            return set()
+            return dims.pop()
+        except KeyError:
+            return None
     return func
 
 
@@ -465,14 +469,17 @@ def memcpy_wrap(stream_key, task_key):
         A Cluster `c` is turned into a "memcpy task" if it reads from a Function
         that cannot be stored in device memory.
 
-        This function returns the Dimension(s) requiring no memcpy as they are
-        not in device memory, or the empty set if no memcpy is required.
+        This function returns the Dimension in `c`'s IterationSpace within which
+        the memcpy is to be performed, or None if no memcpy is required.
         """
         if task_key(c):
             # Writes would take precedence over reads
-            return set()
+            return None
+        dims = {c.ispace[d].dim for d in as_tuple(stream_key(c.scope.reads))}
+        if len(dims) > 1:
+            raise ValueError("Cannot determine a unique memcpy Dimension")
         try:
-            return stream_key(c.scope.reads)._defines
-        except AttributeError:
-            return set()
+            return dims.pop()
+        except KeyError:
+            return None
     return func

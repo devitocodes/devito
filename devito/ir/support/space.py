@@ -544,11 +544,15 @@ class IntervalGroup(Ordering):
             return NullInterval(key)
 
         for i in self:
+            # Obvious case
             if i.dim is key:
                 return i
+
+            # There are a few special cases for which we can support
+            # derived-Dimension-based indexing
             if key.is_NonlinearDerived and i.dim in key._defines:
-                # NonlinearDerived Dimensions cannot appear in iteration Intervals,
-                # but their parent can
+                return i
+            if i.dim.is_Custom and key in i.dim._defines:
                 return i
 
         return NullInterval(key)
