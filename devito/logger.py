@@ -4,7 +4,7 @@ import logging
 import sys
 from contextlib import contextmanager
 
-__all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for',
+__all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for', 'switch_log_level',
            'log', 'warning', 'error', 'perf', 'hint',
            'RED', 'GREEN', 'BLUE')
 
@@ -13,13 +13,13 @@ logger = logging.getLogger('Devito')
 stream_handler = logging.StreamHandler()
 logger.addHandler(stream_handler)
 
-# Add extra logging levels
-DEBUG = logging.DEBUG  # value=10
+# Add extra logging levels (note: INFO has value=20, WARNING has value=30)
+DEBUG = logging.DEBUG
 PERF = 19
-INFO = logging.INFO  # value=20
-WARNING = logging.WARNING  # value=30
-ERROR = logging.ERROR  # value=40
-CRITICAL = logging.CRITICAL  # value=50
+INFO = logging.INFO
+WARNING = logging.WARNING
+ERROR = logging.ERROR
+CRITICAL = logging.CRITICAL
 
 logging.addLevelName(PERF, "PERF")
 
@@ -77,13 +77,34 @@ def set_log_level(level, comm=None):
     """
     from devito import configuration
 
-    if comm is not None:
+    if comm is not None and configuration['mpi']:
         if comm.rank != 0:
             logger.removeHandler(stream_handler)
             logger.addHandler(logging.NullHandler())
+    else:
+        logger.addHandler(stream_handler)
 
     # Triggers a callback to `_set_log_level`
     configuration['log-level'] = level
+
+
+class switch_log_level(object):
+    """
+    A context manager to temporarily change MPI logging.
+    """
+
+    def __init__(self, comm):
+
+        from devito import configuration
+        self.level = configuration['log-level']
+        self.comm = comm
+
+    def __enter__(self):
+        # Limit logging to rank 0
+        set_log_level(self.level, self.comm)
+
+    def __exit__(self, *args):
+        set_log_level(self.level)
 
 
 def set_log_noperf():

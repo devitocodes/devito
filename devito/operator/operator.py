@@ -6,11 +6,10 @@ from math import ceil
 from cached_property import cached_property
 from sympy import sympify
 
-from devito import switchconfig
 from devito.arch import compiler_registry, platform_registry
 from devito.data import default_allocator
-from devito.exceptions import InvalidOperator
-from devito.logger import debug, info, perf, warning, is_log_enabled_for, set_log_level
+from devito.exceptions import InvalidOperator, ExecutionError
+from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
 from devito.ir.equations import LoweredEq, lower_exprs
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
@@ -873,13 +872,8 @@ class Operator(Callable):
         self._postprocess_arguments(args, **kwargs)
 
         # In case MPI is used restrict result logging to one rank only
-        if configuration['mpi']:
-            # Only temporarily change configuration
-            with switchconfig(mpi=True):
-                set_log_level('DEBUG', comm=args.comm)
-                return self._emit_apply_profiling(args)
-
-        return self._emit_apply_profiling(args)
+        with switch_log_level(comm=args.comm):
+            return self._emit_apply_profiling(args)
 
     # Performance profiling
 
@@ -916,7 +910,6 @@ class Operator(Callable):
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
-
         # Rounder to 2 decimal places
         fround = lambda i: ceil(i * 100) / 100
 
