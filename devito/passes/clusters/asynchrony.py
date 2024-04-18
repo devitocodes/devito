@@ -1,34 +1,16 @@
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
 from sympy import And
 
 from devito.exceptions import CompilationError
-from devito.ir import (Forward, GuardBoundNext, Queue, Vector, WaitLock, WithLock,
+from devito.ir import (Forward, GuardBoundNext, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.passes.clusters.utils import bind_critical_regions, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, as_mapper, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
-__all__ = ['tasking', 'MemcpyAsync']
-
-
-class Asynchronous(Queue):
-
-    """
-    Create asynchronous Clusters, or "tasks".
-
-    Notes
-    -----
-    From an implementation viewpoint, an asynchronous Cluster is a Cluster
-    with attached suitable SyncOps, such as WaitLock, WithLock, etc.
-    """
-
-    def __init__(self, key, sregistry):
-        self.key = key
-        self.sregistry = sregistry
-
-        super().__init__()
+__all__ = ['tasking', 'memcpy_prefetch']
 
 
 @timed_pass(name='tasking')
@@ -40,6 +22,7 @@ def tasking(clusters, key, sregistry):
         return clusters
     elif len(candidates) > 1:
         raise CompilationError("Cannot handle multiple tasking dimensions")
+
     d, candidates = candidates.popitem()
 
     locks = {}
@@ -141,160 +124,133 @@ def tasking(clusters, key, sregistry):
     return processed
 
 
-class MemcpyAsync(Asynchronous):
+@timed_pass(name='memcpy_prefetch')
+def memcpy_prefetch(clusters, key, sregistry):
+    actions = defaultdict(Actions)
 
-    @timed_pass(name='async_memcpy')
-    def process(self, clusters):
-        return super().process(clusters)
+    for c in clusters:
+        d = key(c)
+        if d is None:
+            continue
 
-    def callback(self, clusters, prefix):
-        if not prefix:
-            return clusters
-
-        it = prefix[-1]
-        d = it.dim
-
-        actions = defaultdict(Actions)
-
-        # Case 1
-        if d.is_Custom and is_integer(it.size):
-            for c in clusters:
-                dim = self.key(c)
-                if dim in d._defines:
-                    if wraps_memcpy(c):
-                        # Case 1A (special case, leading to more efficient streaming)
-                        self._actions_from_init(c, prefix, actions)
-                    else:
-                        # Case 1B (actually, we expect to never end up here)
-                        raise NotImplementedError
-
-        # Case 2
-        else:
-            mapper = OrderedDict([(c, wraps_memcpy(c)) for c in clusters
-                                  if self.key(c) in d._defines])
-
-            # Case 2A (special case, leading to more efficient streaming)
-            if all(mapper.values()):
-                for c in mapper:
-                    self._actions_from_update_memcpy(c, clusters, prefix, actions)
-
-            # Case 2B
-            elif mapper:
-                # There used to be a handler for this case, but it was dropped
-                # because it created inefficient code and in practice never used
+        if d.is_Custom and is_integer(c.ispace[d].size):
+            if wraps_memcpy(c):
+                _actions_from_init(c, d, actions)
+            else:
                 raise NotImplementedError
 
-        # Perform the necessary actions; this will ultimately attach SyncOps to Clusters
-        processed = []
-        for c in clusters:
-            v = actions[c]
+        elif wraps_memcpy(c):
+            _actions_from_update_memcpy(c, d, clusters, actions, sregistry)
 
-            if v.drop:
-                assert not v.syncs
-                continue
-            elif v.syncs:
-                processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, v.syncs)))
-            else:
-                processed.append(c)
+    # Attach the computed Actions
+    processed = []
+    for c in clusters:
+        v = actions[c]
 
-            if v.insert:
-                processed.extend(v.insert)
+        if v.drop:
+            assert not v.syncs
+            continue
+        elif v.syncs:
+            processed.append(c.rebuild(syncs=normalize_syncs(c.syncs, v.syncs)))
+        else:
+            processed.append(c)
 
-        return processed
+        if v.insert:
+            processed.extend(v.insert)
 
-    def _actions_from_init(self, cluster, prefix, actions):
-        it = prefix[-1]
-        d = it.dim
-        try:
-            pd = prefix[-2].dim
-        except IndexError:
-            pd = None
+    return processed
 
-        e = cluster.exprs[0]
-        function = e.rhs.function
-        target = e.lhs.function
 
-        findex = e.rhs.indices[d]
+def _actions_from_init(c, d, actions):
+    i = c.ispace.index(d)
+    if i > 0:
+        pd = c.ispace[i].dim
+    else:
+        pd = None
 
-        size = d.symbolic_size
-        assert is_integer(size)
+    e = c.exprs[0]
+    function = e.rhs.function
+    target = e.lhs.function
 
-        actions[cluster].syncs[pd].append(
-            FetchUpdate(None, target, 0, function, findex, d, size)
-        )
+    findex = e.rhs.indices[d]
 
-    def _actions_from_update_memcpy(self, cluster, clusters, prefix, actions):
-        it = prefix[-1]
-        d = it.dim
-        direction = it.direction
+    size = d.symbolic_size
+    assert is_integer(size)
 
-        # Prepare the data to instantiate a PrefetchUpdate SyncOp
-        e = cluster.exprs[0]
-        function = e.rhs.function
-        target = e.lhs.function
+    actions[c].syncs[pd].append(
+        FetchUpdate(None, target, 0, function, findex, d, size)
+    )
 
-        fetch = e.rhs.indices[d]
+
+def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
+    direction = c.ispace[d].direction
+
+    # Prepare the data to instantiate a PrefetchUpdate SyncOp
+    e = c.exprs[0]
+    function = e.rhs.function
+    target = e.lhs.function
+
+    fetch = e.rhs.indices[d]
+    if direction is Forward:
+        findex = fetch + 1
+    else:
+        findex = fetch - 1
+
+    # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
+    tindex0 = e.lhs.indices[d]
+    if is_integer(tindex0) or isinstance(tindex0, IntDiv):
+        tindex = tindex0
+    else:
+        assert tindex0.is_Modulo
+        subiters = [i for i in c.sub_iterators[d] if i.parent is tindex0.parent]
+        osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
+        n = osubiters.index(tindex0)
         if direction is Forward:
-            findex = fetch + 1
+            tindex = osubiters[(n + 1) % len(osubiters)]
         else:
-            findex = fetch - 1
+            tindex = osubiters[(n - 1) % len(osubiters)]
 
-        # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
-        tindex0 = e.lhs.indices[d]
-        if is_integer(tindex0) or isinstance(tindex0, IntDiv):
-            tindex = tindex0
-        else:
-            assert tindex0.is_Modulo
-            subiters = [i for i in cluster.sub_iterators[d] if i.parent is tindex0.parent]
-            osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
-            n = osubiters.index(tindex0)
-            if direction is Forward:
-                tindex = osubiters[(n + 1) % len(osubiters)]
-            else:
-                tindex = osubiters[(n - 1) % len(osubiters)]
+    # We need a lock to synchronize the copy-in
+    name = sregistry.make_name(prefix='lock')
+    ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
+    lock = Lock(name=name, dimensions=ld)
+    handle = lock[0]
 
-        # We need a lock to synchronize the copy-in
-        name = self.sregistry.make_name(prefix='lock')
-        ld = CustomDimension(name='ld', symbolic_size=1, parent=d)
-        lock = Lock(name=name, dimensions=ld)
-        handle = lock[0]
+    # Turn `c` into a prefetch Cluster `pc`
+    expr = uxreplace(e, {tindex0: tindex, fetch: findex})
 
-        # Turn `cluster` into a prefetch Cluster
-        expr = uxreplace(e, {tindex0: tindex, fetch: findex})
+    guards = {d: And(
+        c.guards.get(d, True),
+        GuardBoundNext(function.indices[d], direction),
+    )}
 
-        guards = {d: And(
-            cluster.guards.get(d, True),
-            GuardBoundNext(function.indices[d], direction),
-        )}
+    syncs = {d: [
+        ReleaseLock(handle, target),
+        PrefetchUpdate(handle, target, tindex, function, findex, d, 1, e.rhs)
+    ]}
 
-        syncs = {d: [ReleaseLock(handle, target),
-                     PrefetchUpdate(handle, target, tindex, function, findex, d, 1,
-                                    e.rhs)]}
+    pc = c.rebuild(exprs=expr, guards=guards, syncs=syncs)
 
-        pcluster = cluster.rebuild(exprs=expr, guards=guards, syncs=syncs)
+    # Since we're turning `e` into a prefetch, we need to:
+    # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
+    # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
+    # 3) drop the original Cluster performing a memcpy-like fetch
+    n = clusters.index(c)
+    first = None
+    last = None
+    for c1 in clusters[n+1:]:
+        if target in c1.scope.reads:
+            if first is None:
+                first = c1
+            last = c1
+    assert first is not None
+    assert last is not None
 
-        # Since we're turning `e` into a prefetch, we need to:
-        # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
-        # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
-        # 3) drop the original Cluster performing a memcpy-like fetch
-        n = clusters.index(cluster)
-        first = None
-        last = None
-        for c in clusters[n+1:]:
-            if target in c.scope.reads:
-                if first is None:
-                    first = c
-                last = c
-        assert first is not None
-        assert last is not None
-        actions[first].syncs[d].append(WaitLock(handle, target))
-        actions[last].insert.append(pcluster)
-        actions[cluster].drop = True
+    actions[first].syncs[d].append(WaitLock(handle, target))
+    actions[last].insert.append(pc)
+    actions[c].drop = True
 
-        return last, pcluster
-
-
-# Utilities
+    return last, pc
 
 
 class Actions:

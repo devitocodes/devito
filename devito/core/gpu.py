@@ -7,8 +7,8 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, MemcpyAsync, tasking, blocking, buffering,
-                                    cire, cse, factorize, fission, fuse,
+from devito.passes.clusters import (Lift, tasking, memcpy_prefetch, blocking,
+                                    buffering, cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
                                hoist_prodders, linearize, pthreadify,
@@ -274,7 +274,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
             'buffering': lambda i: buffering(i, stream_key, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
             'tasking': lambda i: tasking(i, task_key, sregistry),
-            'streaming': MemcpyAsync(memcpy_key, sregistry).process,
+            'streaming': lambda i: memcpy_prefetch(i, memcpy_key, sregistry),
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
