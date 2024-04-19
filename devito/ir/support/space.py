@@ -1032,6 +1032,10 @@ class IterationSpace(Space):
     def directions(self):
         return self._directions
 
+    @property
+    def innermost(self):
+        return self[-1]
+
     @cached_property
     def itintervals(self):
         return tuple(self[d] for d in self.itdims)
