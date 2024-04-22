@@ -32,11 +32,15 @@ jobs:
         name: [
            pytest-ubuntu-py311-gcc11-noomp,
            pytest-ubuntu-py38-gcc12-omp,
-           pytest-ubuntu-py37-gcc7-omp,
+           pytest-ubuntu-py38-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
+<<<<<<< HEAD
            pytest-osx-py312-clang-omp,
+=======
+           pytest-osx-py38-clang-omp,
+>>>>>>> 84f366ba7 (reqs: Drop Python 3.7 as end-of-life)
            pytest-docker-py39-gcc-omp,
            pytest-docker-py39-icx-omp
         ]
@@ -56,8 +60,8 @@ jobs:
           language: "openmp"
           sympy: "1.10"
 
-        - name: pytest-ubuntu-py37-gcc7-omp
-          python-version: '3.7'
+        - name: pytest-ubuntu-py38-gcc7-omp
+          python-version: '3.8'
           os: ubuntu-20.04
           arch: "gcc-7"
           language: "openmp"
@@ -84,8 +88,13 @@ jobs:
           language: "openmp"
           sympy: "1.9"
 
+<<<<<<< HEAD
         - name: pytest-osx-py312-clang-omp
           python-version: '3.12'
+=======
+        - name: pytest-osx-py38-clang-omp
+          python-version: '3.8'
+>>>>>>> 84f366ba7 (reqs: Drop Python 3.7 as end-of-life)
           os: macos-latest
           arch: "clang"
           language: "C"
