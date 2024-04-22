@@ -243,7 +243,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
-    
+
     @cached_property
     def _shape_with_outhalo(self):
         """
