@@ -4,7 +4,7 @@ import math
 import sympy
 from sympy.core.decorators import call_highest_priority
 import numpy as np
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument

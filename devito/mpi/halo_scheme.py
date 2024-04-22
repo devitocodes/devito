@@ -2,7 +2,7 @@ from collections import OrderedDict, namedtuple, defaultdict
 from itertools import product
 from operator import attrgetter
 
-from cached_property import cached_property
+from functools import cached_property
 from sympy import Max, Min
 import sympy
 

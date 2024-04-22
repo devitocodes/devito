@@ -3,7 +3,7 @@ from collections import OrderedDict
 from functools import reduce
 from operator import mul
 
-from cached_property import cached_property
+from functools import cached_property
 from sympy import Expr
 
 from devito.ir.support.utils import minimum, maximum

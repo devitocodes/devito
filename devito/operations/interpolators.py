@@ -3,7 +3,7 @@ from functools import wraps
 
 import sympy
 import numpy as np
-from cached_property import cached_property
+from functools import cached_property
 
 try:
     from scipy.special import i0

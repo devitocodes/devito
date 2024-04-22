@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from cached_property import cached_property
+from functools import cached_property
 
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,

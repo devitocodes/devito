@@ -3,7 +3,7 @@ import ctypes
 from operator import attrgetter
 from math import ceil
 
-from cached_property import cached_property
+from functools import cached_property
 from sympy import sympify
 
 from devito.arch import compiler_registry, platform_registry

@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 import numpy as np
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.data.meta import LEFT
 from devito.tools import is_integer, as_tuple

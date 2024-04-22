@@ -4,7 +4,7 @@ from math import floor
 
 import numpy as np
 from sympy import prod
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.data import LEFT, RIGHT
 from devito.logger import warning

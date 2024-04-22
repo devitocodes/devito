@@ -6,7 +6,7 @@ from operator import mul
 import numpy as np
 import sympy
 from psutil import virtual_memory
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,

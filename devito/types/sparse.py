@@ -8,7 +8,7 @@ from itertools import product
 
 import sympy
 import numpy as np
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
