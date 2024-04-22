@@ -30,6 +30,7 @@ __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
+Offset = namedtuple('Offset', 'left right')
 
 
 class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
@@ -242,8 +243,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
+    
+    @cached_property
+    def _shape_with_outhalo(self):
+        """
+        Shape of the domain+outhalo region. The outhalo is the region
+        surrounding the domain that may be read by an Operator.
 
-    _shape_with_outhalo = shape_with_halo
+        Notes
+        -----
+        In an MPI context, this is the *local* with_halo region shape.
+        Further, note that the outhalo of inner ranks is typically empty, while
+        the outhalo of boundary ranks contains a number of elements depending
+        on the rank position in the decomposed grid (corner, side, ...).
+        """
+        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
 
     @cached_property
     def _shape_with_inhalo(self):
@@ -310,8 +324,25 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         return reduce(mul, self.shape_global)
 
-    _offset_inhalo = AbstractFunction._offset_halo
-    _size_inhalo = AbstractFunction._size_halo
+    @cached_property
+    def _offset_inhalo(self):
+        """Number of points before the first and last halo elements."""
+        left = tuple(self._size_padding.left)
+        right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
+
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+
+        return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _size_inhalo(self):
+        """Number of points in the halo region."""
+        left = tuple(zip(*self._halo))[0]
+        right = tuple(zip(*self._halo))[1]
+
+        sizes = tuple(Size(i, j) for i, j in self._halo)
+
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
 
     @cached_property
     def _size_outhalo(self):
