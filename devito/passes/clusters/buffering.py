@@ -1,7 +1,7 @@
 from collections import OrderedDict, defaultdict, namedtuple
 from itertools import combinations
-
 from functools import cached_property
+
 import numpy as np
 
 from devito.ir import (Cluster, Forward, GuardBound, Interval, IntervalGroup,

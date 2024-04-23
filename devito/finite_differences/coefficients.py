@@ -1,5 +1,6 @@
-import numpy as np
 from functools import cached_property
+
+import numpy as np
 
 from devito.finite_differences import Weights, generate_indices
 from devito.finite_differences.tools import numeric_weights

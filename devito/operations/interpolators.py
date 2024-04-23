@@ -1,9 +1,8 @@
 from abc import ABC, abstractmethod
-from functools import wraps
+from functools import wraps, cached_property
 
 import sympy
 import numpy as np
-from functools import cached_property
 
 try:
     from scipy.special import i0
