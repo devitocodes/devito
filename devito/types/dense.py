@@ -231,33 +231,26 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @cached_property
     def shape_with_halo(self):
-        """
-        Shape of the domain+outhalo region. The outhalo is the region
-        surrounding the domain that may be read by an Operator.
-
-        Notes
-        -----
-        In an MPI context, this is the *local* with_halo region shape.
-        Further, note that the outhalo of inner ranks is typically empty, while
-        the outhalo of boundary ranks contains a number of elements depending
-        on the rank position in the decomposed grid (corner, side, ...).
-        """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
 
     @cached_property
     def _shape_with_outhalo(self):
-        """
-        Shape of the domain+outhalo region. The outhalo is the region
-        surrounding the domain that may be read by an Operator.
-
-        Notes
-        -----
-        In an MPI context, this is the *local* with_halo region shape.
-        Further, note that the outhalo of inner ranks is typically empty, while
-        the outhalo of boundary ranks contains a number of elements depending
-        on the rank position in the decomposed grid (corner, side, ...).
-        """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
+
+    _shape_with_halo_docstring = """\
+    Shape of the domain+outhalo region. The outhalo is the region
+    surrounding the domain that may be read by an Operator.
+
+    Notes
+    -----
+    In an MPI context, this is the *local* with_halo region shape.
+    Further, note that the outhalo of inner ranks is typically empty, while
+    the outhalo of boundary ranks contains a number of elements depending
+    on the rank position in the decomposed grid (corner, side, ...).
+    """
+
+    shape_with_halo.__doc__ = _shape_with_halo_docstring
+    _shape_with_outhalo.__doc__ = _shape_with_halo_docstring
 
     @cached_property
     def _shape_with_inhalo(self):
