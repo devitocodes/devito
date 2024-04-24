@@ -72,8 +72,9 @@ class Lift(Queue):
             #     r = f(a[x])        for y                       for y
             #                          r[x] = f(a[x, y])           r[x, y] = f(a[x, y])
             #
-            # In 1) and 2) lifting is infeasible; in 3) the statement can be lifted
-            # outside the `i` loop as `r`'s write-to region contains both `x` and `y`
+            # In 1) and 2) lifting is infeasible; in 3) the statement can
+            # be lifted outside the `i` loop as `r`'s write-to region contains
+            # both `x` and `y`
             xed = {d._defines for d in c.used_dimensions if d not in outer}
             if not all(i & set(w.dimensions) for i, w in product(xed, c.scope.writes)):
                 processed.append(c)
@@ -85,10 +86,13 @@ class Lift(Queue):
 
             # Optimization: if not lifting from the innermost Dimension, we can
             # safely reset the `ispace` to expose potential fusion opportunities
-            if c.ispace[-1].dim not in hope_invariant:
-                ispace = ispace.reset()
+            try:
+                if c.ispace.innermost.dim not in hope_invariant:
+                    ispace = ispace.reset()
+            except IndexError:
+                pass
 
-            properties = {d: v for d, v in c.properties.items() if key(d)}
+            properties = c.properties.filter(key)
 
             lifted.append(c.rebuild(ispace=ispace, properties=properties))
 
