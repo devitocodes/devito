@@ -5,7 +5,7 @@ from sympy import And, true
 from devito.exceptions import CompilationError
 from devito.ir import (Forward, GuardBoundNext, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
-from devito.passes.clusters.utils import bind_critical_regions, is_memcpy
+from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, as_mapper, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
@@ -52,20 +52,14 @@ def tasking(clusters, key0, sregistry):
     task Dimensions.
     """
     key, _ = keys(key0)
-    candidates = as_mapper(clusters, key)
-    candidates.pop(None, None)
-
-    if len(candidates) == 0:
-        return clusters
-    elif len(candidates) > 1:
-        raise CompilationError("Cannot handle multiple tasking dimensions")
-
-    d, candidates = candidates.popitem()
 
     locks = {}
-    waits = defaultdict(OrderedSet)
-    tasks = defaultdict(list)
-    for c0 in candidates:
+    syncs = defaultdict(lambda: defaultdict(OrderedSet))
+    for c0 in clusters:
+        d = key(c0)
+        if d is None:
+            continue
+
         # Prevent future writes to interfere with a task by waiting on a lock
         may_require_lock = {f for f in c0.scope.reads if f.is_AbstractFunction}
 
@@ -118,7 +112,10 @@ def tasking(clusters, key0, sregistry):
                     if logical_index in protected[target]:
                         continue
 
-                    waits[c1].add(WaitLock(lock[index], target))
+                    # Critical regions preempt WaitLocks
+                    c2 = in_critical_region(c1, clusters) or c1
+
+                    syncs[c2][d].add(WaitLock(lock[index], target))
                     protected[target].add(logical_index)
 
         # Taskify `c0`
@@ -142,21 +139,12 @@ def tasking(clusters, key0, sregistry):
                 findex = None
 
             for i in indices:
-                tasks[c0].append(ReleaseLock(lock[i], target))
-                tasks[c0].append(WithLock(lock[i], target, i, function, findex, d))
+                syncs[c0][d].update([
+                    ReleaseLock(lock[i], target),
+                    WithLock(lock[i], target, i, function, findex, d)
+                ])
 
-    # CriticalRegions preempt WaitLocks, by definition
-    mapper = bind_critical_regions(clusters)
-    for c in clusters:
-        for c1 in mapper.get(c, []):
-            waits[c].update(waits.pop(c1, []))
-
-    processed = []
-    for c in clusters:
-        if waits[c] or tasks[c]:
-            processed.append(c.rebuild(syncs={d: list(waits[c]) + tasks[c]}))
-        else:
-            processed.append(c)
+    processed = [c.rebuild(syncs=syncs.get(c)) for c in clusters]
 
     return processed
 
