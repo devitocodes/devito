@@ -82,10 +82,7 @@ class Orchestrator:
         efunc = Callable(name, body, 'void', parameters, 'static')
 
         # Perform initial fetch by the main thread
-        iet = List(
-            header=c.Comment("Initialize data stream"),
-            body=Call(name, parameters)
-        )
+        iet = Call(name, parameters)
 
         return iet, [efunc]
 
