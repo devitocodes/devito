@@ -57,7 +57,7 @@ jobs:
           base: "devitocodes/bases:nvidia-nvc"
           tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
-          flags: '--gpus all --rm --name testrun-nvc'
+          flags: '--gpus all --rm -t --name testrun-nvc'
 
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
@@ -66,7 +66,7 @@ jobs:
           test_drive_cmd: "rocm-smi"
           # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
           # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
-          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm --name testrun-amd"
+          flags: "--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm -t --name testrun-amd"
 
     steps:
     - name: Checkout devito

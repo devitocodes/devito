@@ -22,7 +22,6 @@ jobs:
     env:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
-      PYTHON_VERSION: "3.9"
 
     strategy:
       # Prevent all build to stop if a single one fails
@@ -30,7 +29,7 @@ jobs:
       matrix:
         name: [
           tutos-ubuntu-gcc-py39,
-          tutos-osx-clang-py39,
+          tutos-osx-clang-py311,
           tutos-docker-gcc-py39
           ]
 
@@ -39,26 +38,29 @@ jobs:
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
+            pyver: "3.9"
 
-          - name: tutos-osx-clang-py39
+          - name: tutos-osx-clang-py311
             os: macos-latest
             compiler: clang
             language: "C"
+            pyver: "3.11"
 
           - name: tutos-docker-gcc-py39
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
+            pyver: "3.9"
 
     steps:
     - name: Checkout devito
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.9
+    - name: Set up Python ${{ matrix.pyver }}
       if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v5
       with:
-        python-version: 3.9
+        python-version: ${{ matrix.pyver }}
 
     - uses: maxim-lobanov/setup-xcode@v1
       if: runner.os == 'macOS'
@@ -73,7 +75,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py39' ]; then
-              echo "RUN_CMD=docker run --rm --name testrun devito_img" >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -t --name testrun devito_img" >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi

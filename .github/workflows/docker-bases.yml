@@ -52,7 +52,7 @@ jobs:
         run: docker system prune -a -f
 
       - name: GCC image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.cpu'
@@ -60,6 +60,7 @@ jobs:
           target: 'gcc'
           build-args: 'arch=gcc'
           tags: 'devitocodes/bases:cpu-gcc'
+
 
 #######################################################
 ############## Intel OneApi CPU #######################
@@ -93,7 +94,7 @@ jobs:
         run: docker system prune -a -f
 
       - name: ICX image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.intel'
@@ -103,7 +104,7 @@ jobs:
           tags: 'devitocodes/bases:cpu-icx'
 
       - name: SYCL CPU image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.intel'
@@ -113,7 +114,7 @@ jobs:
           tags: 'devitocodes/bases:cpu-sycl'
 
       - name: SYCL GPU image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.intel'
@@ -154,7 +155,7 @@ jobs:
         run: docker system prune -a -f
 
       - name: NVC image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.nvidia'
@@ -164,7 +165,7 @@ jobs:
           tags: 'devitocodes/bases:nvidia-nvc'
 
       - name: NVCC image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.nvidia'
@@ -174,7 +175,7 @@ jobs:
           tags: 'devitocodes/bases:nvidia-nvcc'
 
       - name: NVC host image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.nvidia'
@@ -215,7 +216,7 @@ jobs:
         run: docker system prune -a -f
 
       - name: AMD image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.amd'
@@ -224,7 +225,7 @@ jobs:
           tags: devitocodes/bases:amd
 
       - name: AMD HIP image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: './docker/Dockerfile.amd'

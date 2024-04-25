@@ -106,4 +106,4 @@ jobs:
 
       - name: Run tests
         run: |
-         docker run ${{ matrix.flag }} --rm --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}
+         docker run ${{ matrix.flag }} --rm -t --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}

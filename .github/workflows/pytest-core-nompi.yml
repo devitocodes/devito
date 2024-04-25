@@ -36,7 +36,7 @@ jobs:
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
-           pytest-osx-py37-clang-omp,
+           pytest-osx-py312-clang-omp,
            pytest-docker-py39-gcc-omp,
            pytest-docker-py39-icx-omp
         ]
@@ -84,8 +84,8 @@ jobs:
           language: "openmp"
           sympy: "1.9"
 
-        - name: pytest-osx-py37-clang-omp
-          python-version: '3.7'
+        - name: pytest-osx-py312-clang-omp
+          python-version: '3.12'
           os: macos-latest
           arch: "clang"
           language: "C"
@@ -112,7 +112,7 @@ jobs:
           test-set: 'adjoint'
 
         exclude:
-        - name: pytest-osx-py37-clang-omp
+        - name: pytest-osx-py312-clang-omp
           set: adjoint
 
     steps:
@@ -133,7 +133,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --rm -t -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi
