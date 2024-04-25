@@ -5,7 +5,7 @@ Synchronization operations inside the IR.
 from collections import defaultdict
 
 from devito.data import FULL
-from devito.tools import Pickable, filter_ordered
+from devito.tools import Pickable, filter_ordered, frozendict
 from .utils import IMask
 
 __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
@@ -126,16 +126,14 @@ class PrefetchUpdate(SyncCopyIn):
 
 def normalize_syncs(*args):
     if not args:
-        return
-    if len(args) == 1:
-        return args[0]
+        return {}
 
     syncs = defaultdict(list)
     for _dict in args:
         for k, v in _dict.items():
             syncs[k].extend(v)
 
-    syncs = {k: filter_ordered(v) for k, v in syncs.items()}
+    syncs = {k: tuple(filter_ordered(v)) for k, v in syncs.items()}
 
     for v in syncs.values():
         waitlocks = [s for s in v if isinstance(s, WaitLock)]
@@ -145,4 +143,4 @@ def normalize_syncs(*args):
             # We do not allow mixing up WaitLock and WithLock ops
             raise ValueError("Incompatible SyncOps")
 
-    return syncs
+    return frozendict(syncs)
