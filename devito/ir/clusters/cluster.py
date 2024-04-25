@@ -13,7 +13,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, frozendict, infer_dtype
+from devito.tools import as_tuple, flatten, infer_dtype
 from devito.types import WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -49,9 +49,8 @@ class Cluster:
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
         self._guards = Guards(guards or {})
-        self._syncs = frozendict(syncs or {})
+        self._syncs = normalize_syncs(syncs or {})
 
-        # Normalize properties
         properties = Properties(properties or {})
         self._properties = tailor_properties(properties, ispace)
 
