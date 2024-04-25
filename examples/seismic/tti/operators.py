@@ -76,14 +76,14 @@ def Gzz_centered(model, field):
     costheta, sintheta, cosphi, sinphi = trig_func(model)
 
     order1 = field.space_order // 2
-    x, y ,z = field.grid.dimensions
+    x, y, z = field.grid.dimensions
     dx, dy, dz = x.spacing/2, y.spacing/2, z.spacing/2
 
     Gz = (sintheta * cosphi * field.dx(fd_order=order1, x0=x+dx) +
           sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
           costheta * field.dz(fd_order=order1, x0=z+dz))
 
-    Gzz = (b * Gz * costheta).dz(fd_order=order1,  x0=z-dz)
+    Gzz = (b * Gz * costheta).dz(fd_order=order1, x0=z-dz)
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
@@ -123,7 +123,7 @@ def Gzz_centered_2d(model, field):
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (b * Gz * sintheta).dx(fd_order=order1, xo=x-dx)
+        Gzz += (b * Gz * sintheta).dx(fd_order=order1, x0=x-dx)
     return Gzz
 
 
