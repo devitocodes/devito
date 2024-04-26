@@ -2826,7 +2826,7 @@ class TestTTI(object):
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,exp_ops,exp_arrays', [
-        (4, 122, 6), (8, 235, 7)
+        (4, 122, 6), (8, 225, 7)
     ])
     def test_opcounts_adjoint(self, space_order, exp_ops, exp_arrays):
         wavesolver = self.tti_operator(space_order=space_order,

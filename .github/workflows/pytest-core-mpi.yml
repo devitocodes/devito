@@ -51,8 +51,8 @@ jobs:
     - name: Test examples with MPI
       run: |
         python3 scripts/clear_devito_cache.py
-        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/acoustic
-        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml examples/seismic/tti
+        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest examples/seismic/acoustic
+        DEVITO_MPI=1 mpirun -n 2 python3 -m pytest examples/seismic/tti
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

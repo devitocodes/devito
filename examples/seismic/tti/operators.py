@@ -74,18 +74,22 @@ def Gzz_centered(model, field):
     """
     b = getattr(model, 'b', 1)
     costheta, sintheta, cosphi, sinphi = trig_func(model)
-    order1 = field.space_order // 2
-    Gz = -(sintheta * cosphi * field.dx(fd_order=order1) +
-           sintheta * sinphi * field.dy(fd_order=order1) +
-           costheta * field.dz(fd_order=order1))
 
-    Gzz = (b * Gz * costheta).dz(fd_order=order1).T
+    order1 = field.space_order // 2
+    x, y, z = field.grid.dimensions
+    dx, dy, dz = x.spacing/2, y.spacing/2, z.spacing/2
+
+    Gz = (sintheta * cosphi * field.dx(fd_order=order1, x0=x+dx) +
+          sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
+          costheta * field.dz(fd_order=order1, x0=z+dz))
+
+    Gzz = (b * Gz * costheta).dz(fd_order=order1, x0=z-dz)
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (b * Gz * sintheta * cosphi).dx(fd_order=order1).T
+        Gzz += (b * Gz * sintheta * cosphi).dx(fd_order=order1, x0=x-dx)
     if sinphi != 0:
-        Gzz += (b * Gz * sintheta * sinphi).dy(fd_order=order1).T
+        Gzz += (b * Gz * sintheta * sinphi).dy(fd_order=order1, x0=y-dy)
 
     return Gzz
 
@@ -105,17 +109,21 @@ def Gzz_centered_2d(model, field):
     -------
     Rotated second order derivative w.r.t. z.
     """
-    costheta, sintheta = trig_func(model)
-    order1 = field.space_order // 2
     b = getattr(model, 'b', 1)
-    Gz = -(sintheta * field.dx(fd_order=order1) +
-           costheta * field.dy(fd_order=order1))
-    Gzz = (b * Gz * costheta).dy(fd_order=order1).T
+    costheta, sintheta = trig_func(model)
+
+    order1 = field.space_order // 2
+    x, y = field.grid.dimensions
+    dx, dy = x.spacing/2, y.spacing/2
+
+    Gz = (sintheta * field.dx(fd_order=order1, x0=x+dx) +
+          costheta * field.dy(fd_order=order1, x0=y+dy))
+    Gzz = (b * Gz * costheta).dy(fd_order=order1, x0=y-dy)
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (b * Gz * sintheta).dx(fd_order=order1).T
+        Gzz += (b * Gz * sintheta).dx(fd_order=order1, x0=x-dx)
     return Gzz
 
 
