@@ -138,6 +138,9 @@ class Derivative(sympy.Derivative, Differentiable):
             variable_count = [sympy.Tuple(s, dims.count(s))
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
+        # Sanitise `dims`. ((x, 2), (y, 0)) is valid input, but (y, 0) should be dropped.
+        dims = tuple(d for d in dims if not (isinstance(d, Iterable) and d[1] == 0))
+
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
         if len(dims) == 0:
