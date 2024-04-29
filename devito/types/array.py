@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure, c_void_p, c_ulong
+from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
 from functools import cached_property
 
 import numpy as np
@@ -195,13 +195,15 @@ class ArrayMapped(Array):
 
     _C_structname = 'array'
     _C_field_data = 'data'
-    _C_field_nbytes = 'nbytes'
     _C_field_dmap = 'dmap'
+    _C_field_nbytes = 'nbytes'
+    _C_field_size = 'size'
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
                                           (_C_field_nbytes, c_ulong),
-                                          (_C_field_dmap, c_void_p)]}))
+                                          (_C_field_dmap, c_void_p),
+                                          (_C_field_size, c_uint64)]}))
 
 
 class ArrayObject(ArrayBasic):
