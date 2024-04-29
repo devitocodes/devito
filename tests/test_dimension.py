@@ -1266,6 +1266,38 @@ class TestConditionalDimension(object):
 
         assert np.all(f.data == F)
 
+    def test_implict_dims_multiple(self):
+        """Test supplying multiple ConditionalDimensions as implicit dimensions"""
+        shape = (50,)
+        start_value = 5
+        stop_value = 20
+
+        time = Dimension(name='time')
+        f = TimeFunction(name='f', shape=shape, dimensions=[time])
+        # The condition to start incrementing
+        cond0 = ConditionalDimension(name='cond0',
+                                     parent=time, condition=time > start_value)
+        # The condition to stop incrementing
+        cond1 = ConditionalDimension(name='cond1',
+                                     parent=time, condition=time < stop_value)
+        # Factor of 2
+        cond2 = ConditionalDimension(name='cond2', parent=time, factor=2)
+
+        eqs = [Eq(f.forward, f), Eq(f.forward, f.forward + 1,
+                                    implicit_dims=[cond0, cond1, cond2])]
+        op = Operator(eqs)
+        op.apply(time_M=shape[0] - 2)
+
+        # Make the same calculation in python to assert the result
+        F = np.zeros(shape[0])
+        val = 0
+        for i in range(shape[0]):
+            F[i] = val
+            if i > start_value and i < stop_value and i % 2 == 0:
+                val += 1
+
+        assert np.all(f.data == F)
+
     def test_grouping(self):
         """
         Test that Clusters over the same set of ConditionalDimensions fall within
