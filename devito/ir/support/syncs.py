@@ -76,7 +76,8 @@ class SyncCopyOut(SyncOp):
         return IMask(*ret,
                      getters=self.target.dimensions,
                      function=self.function,
-                     findex=self.findex)
+                     findex=self.findex,
+                     mode='out')
 
 
 class SyncCopyIn(SyncOp):
@@ -101,7 +102,8 @@ class SyncCopyIn(SyncOp):
         return IMask(*ret,
                      getters=self.target.dimensions,
                      function=self.function,
-                     findex=self.findex)
+                     findex=self.findex,
+                     mode='in')
 
 
 class WaitLock(SyncCopyOut):
