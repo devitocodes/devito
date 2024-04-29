@@ -407,7 +407,7 @@ if __name__ == "__main__":
                     "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`..."
                     % MPI.COMM_WORLD.size)
             configuration['mpi'] = 'basic'
-    except TypeError:
+    except (TypeError, ModuleNotFoundError):
         # MPI not available
         pass
 

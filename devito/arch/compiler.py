@@ -6,7 +6,6 @@ from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
                         check_call, run)
 import platform
 import warnings
-import sys
 import time
 
 import numpy.ctypeslib as npct
@@ -18,7 +17,7 @@ from devito.arch import (AMDGPUX, Cpu64, AppleArm, NVIDIAX, POWER8, POWER9, GRAV
                          IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
-from devito.logger import debug, warning, error
+from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.tools import (as_list, change_directory, filter_ordered,
                           memoized_func, make_tempdir)
@@ -42,12 +41,11 @@ def sniff_compiler_version(cc, allow_fail=False):
             return Version("0")
     except UnicodeDecodeError:
         return Version("0")
-    except FileNotFoundError:
+    except OSError:
         if allow_fail:
             return Version("0")
         else:
-            error("The `%s` compiler isn't available on this system" % cc)
-            sys.exit(1)
+            raise RuntimeError("The `%s` compiler isn't available on this system" % cc)
 
     if ver.startswith("gcc"):
         compiler = "gcc"
