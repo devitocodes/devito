@@ -632,6 +632,27 @@ class TestFD(object):
         assert f1 is not f2
         assert f1.subs(f2, -1) == -1
 
+    def test_zero_spec(self):
+        """
+        Test that derivatives specified as Derivative(f, (x, 2), (y, 0)) are
+        correctly handled.
+        """
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=4)
+        # Check that both specifications match
+        drv0 = Derivative(f, (x, 2))
+        drv1 = Derivative(f, (x, 2), (y, 0))
+        assert drv0.dims == drv1.dims
+        assert drv0.fd_order == drv1.fd_order
+        assert drv0.deriv_order == drv1.deriv_order
+
+        # Check that substitution can applied correctly
+        expr0 = drv0 + 1
+        expr1 = drv1 + 1
+        assert expr0.subs(drv0, drv1) == expr1
+        assert expr1.subs(drv1, drv0) == expr0
+
 
 class TestTwoStageEvaluation(object):
 
