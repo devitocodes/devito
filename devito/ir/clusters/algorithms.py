@@ -238,7 +238,7 @@ def guard(clusters):
                 if cd._factor is not None:
                     k = d
                 else:
-                    dims = pull_dims(cd.condition)
+                    dims = pull_dims(cd.condition, flag=False)
                     k = max(dims, default=d, key=lambda i: c.ispace.index(i))
 
                 # Pull `cd` from any expr
