@@ -973,7 +973,7 @@ class IterationSpace(Space):
         try:
             i = self.project(key)[-1]
         except IndexError:
-            return None
+            return null_ispace
 
         return self[:self.index(i.dim) + 1]
 
@@ -995,7 +995,7 @@ class IterationSpace(Space):
 
     def insert(self, d, dimensions, sub_iterators=None, directions=None):
         """
-        Insert new Dimensions into the IterationSpace before Dimension `d`.
+        Insert new Dimensions into the IterationSpace after Dimension `d`.
         """
         dimensions = as_tuple(dimensions)
 
@@ -1046,6 +1046,10 @@ class IterationSpace(Space):
     @property
     def directions(self):
         return self._directions
+
+    @property
+    def outermost(self):
+        return self[0]
 
     @property
     def innermost(self):
