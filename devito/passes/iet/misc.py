@@ -12,6 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.symbolics import ValueLimit, evalrel, has_integer_args, limits_mapper
 from devito.tools import as_mapper, filter_ordered, split
+from devito.types.dimension import AbstractSubDimension
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
            'generate_macros', 'minimize_symbols']
@@ -261,7 +262,7 @@ def _rename_subdims(target, dimensions):
     # the expression
     indexeds = FindSymbols('indexeds').visit(target)
     dims = pull_dims(indexeds, flag=False)
-    dims = [d for d in dims if any([dim.is_Sub for dim in d._defines])]
+    dims = [d for d in dims if any(dim.is_AbstractSub for dim in d._defines)]
     dims = [d for d in dims if not d.is_SubIterator]
     names = [d.root.name for d in dims]
 

@@ -101,6 +101,7 @@ class Dimension(ArgProvider):
     is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
+    is_AbstractSub = False
     is_Sub = False
     is_Conditional = False
     is_Stepping = False
@@ -534,7 +535,22 @@ class DerivedDimension(BasicDimension):
 # the user
 
 
-class SubDimension(DerivedDimension):
+class AbstractSubDimension(DerivedDimension):
+
+    """
+    Symbol defining a convex iteration sub-space derived from a ``parent``
+    Dimension.
+
+    Notes
+    -----
+    This is an abstract class. The actual implementations are SubDimension
+    and MultiSubDimension.
+    """
+
+    is_AbstractSub = True
+
+
+class SubDimension(AbstractSubDimension):
 
     """
     Symbol defining a convex iteration sub-space derived from a ``parent``
@@ -556,7 +572,7 @@ class SubDimension(DerivedDimension):
         The thickness of the left and right regions, respectively.
     local : bool
         True if, in case of domain decomposition, the SubDimension is
-        guaranteed not to span more than one domains, False otherwise.
+        guaranteed not to span more than one domain, False otherwise.
 
     Examples
     --------

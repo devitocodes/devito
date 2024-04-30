@@ -15,7 +15,8 @@ from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
-                                    Spacing, SteppingDimension, SubDimension)
+                                    Spacing, SteppingDimension, SubDimension,
+                                    AbstractSubDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -546,49 +547,47 @@ class SubDomain(AbstractSubDomain):
         raise NotImplementedError
 
 
-class MultiSubDimension(SubDimension):
+class MultiSubDimension(AbstractSubDimension):
 
     """
-    A special SubDimension for graceful lowering of MultiSubDomains.
+    A special Dimension to be used in MultiSubDomains.
     """
 
     __rargs__ = ('name', 'parent', 'msd')
-    __rkwargs__ = ('thickness',)
 
-    def __init_finalize__(self, name, parent, msd, thickness=None):
-        # NOTE: a MultiSubDimension stashes a reference to the originating MultiSubDomain.
-        # This creates a circular pattern as the `msd` itself carries references to
-        # its MultiSubDimensions. This is currently necessary because during compilation
-        # we drop the MultiSubDomain early, but when the MultiSubDimensions are processed
-        # we still need it to create the implicit equations. Untangling this is
-        # definitely possible, but not straightforward
+    def __init_finalize__(self, name, parent, msd):
+        # NOTE: a MultiSubDimension stashes a reference to the originating
+        # MultiSubDomain.  This creates a circular pattern as the `msd` itself
+        # carries references to its MultiSubDimensions. This is currently
+        # necessary because during compilation we drop the MultiSubDomain
+        # early, but when the MultiSubDimensions are processed we still need it
+        # to create the implicit equations. Untangling this is definitely
+        # possible, but not straightforward
         self.msd = msd
 
-        if not thickness:
-            lst, rst = self._symbolic_thickness(name)
-        else:  # Used for rebuilding. Reuse thickness symbols rather than making new ones
-            try:
-                ((lst, _), (rst, _)) = thickness
-            except ValueError:
-                raise ValueError("Invalid thickness specification: %s does not match"
-                                 "expected format ((left_symbol, left_thickness),"
-                                 " (right_symbol, right_thickness))" % thickness)
-        left = parent.symbolic_min + lst
-        right = parent.symbolic_max - rst
-
-        super().__init_finalize__(name, parent, left, right, ((lst, 0), (rst, 0)), False)
+        super().__init_finalize__(name, parent)
 
     def __hash__(self):
-        # There is no possibility for two MultiSubDimensions to ever hash the same, since
-        # a MultiSubDimension carries a reference to a MultiSubDomain, which is unique
+        # There is no possibility for two MultiSubDimensions to ever hash the
+        # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
+        # which is unique
         return id(self)
 
     @cached_property
     def bound_symbols(self):
-        # Unlike a SubDimension, a MultiSubDimension does *not* bind its thickness,
-        # which is rather bound by an Operation (which can alter its value
-        # dynamically so as to implement a MultiSubDomain)
         return self.parent.bound_symbols
+
+    @cached_property
+    def symbolic_min(self):
+        return self.parent.symbolic_min
+
+    @cached_property
+    def symbolic_max(self):
+        return self.parent.symbolic_max
+
+    @cached_property
+    def symbolic_size(self):
+        return self.parent.symbolic_size
 
 
 class MultiSubDomain(AbstractSubDomain):
