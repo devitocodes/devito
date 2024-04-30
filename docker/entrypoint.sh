@@ -2,7 +2,7 @@
 
 export PATH=/venv/bin:$PATH
 
-if [[ "$MPIVER" = "HPCX" ]]; then
+if [[ "$DEVITO_PLATFORM" = "nvidiaX" ]]; then
    echo "loading HPCX"
    source $HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh
    hpcx_load
