@@ -987,6 +987,9 @@ class IterationSpace(Space):
         if isinstance(d, IterationInterval):
             d = d.dim
 
+        if d is None:
+            return IterationSpace([]), self
+
         try:
             n = self.index(d) + 1
             return self[:n], self[n:]
