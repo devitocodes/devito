@@ -142,16 +142,6 @@ def parallel(item, m):
             raise ValueError("Can't run test: unexpected mode `%s`" % m)
 
     pyversion = sys.executable
-
-    # Keep all invocation arguments up to test path
-    params = item.config.invocation_params.args
-    pyarg = []
-    for p in params:
-        if p.startswith('tests'):
-            break
-        else:
-            pyarg.append(p)
-
     # Only spew tracebacks on rank 0.
     # Run xfailing tests to ensure that errors are reported to calling process
     if item.cls is not None:
@@ -159,7 +149,7 @@ def parallel(item, m):
     else:
         testname = "%s::%s" % (item.fspath, item.name)
 
-    args = ["-n", "1", pyversion, "-m", "pytest", "--no-summary", *pyarg,
+    args = ["-n", "1", pyversion, "-m", "pytest", "--no-summary", "-s",
             "--runxfail", "-qq", testname]
     if nprocs > 1:
         args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",

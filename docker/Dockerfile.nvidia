@@ -137,7 +137,7 @@ FROM sdk-base as nvc
 ADD docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
-ENV MPI4PY_FLAGS='$HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh && hpcx_load && CC=nvc CFLAGS="-noswitcherror -tp=px"'
+ENV MPI4PY_FLAGS='source $HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh && hpcx_load && CC=nvc CFLAGS="-noswitcherror -tp=px"'
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="nvidiaX"
