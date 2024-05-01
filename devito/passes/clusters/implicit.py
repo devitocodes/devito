@@ -104,51 +104,21 @@ class LowerExplicitMSD(LowerMSD):
 
             exprs, thickness = make_implicit_exprs(mapper, self.sregistry)
 
-            #TODO: DO I NEED THIS ONE???
-            # Make sure the "implicit expressions" aren't scheduled in
-            # an inner loop. E.g schedule both for `t, xi, yi` and `t, d, xi, yi`
-            edims = set(retrieve_dimensions(exprs, deep=True))
-            if dim not in edims and any(d.dim in edims for d in prefix):
-            #if not dim._defines & edims and any(i.dim in edims for i in prefix):
-                #TODO: TRY REMOVING SECOND CONDITION??
-                processed.append(c)
-                continue
+            ispace = c.ispace.insert(dim, dims)
 
-            #TODO: use c.ispace.split(dd) and run test suite... not doing it
-            # now because the state of the current branches is a bit fragile
-            #ALSO note that .split would require the dimension after `dd` so
-            #we'll have to change idx to idx+1, or simply take `dim`!!
-            #This will simplify this code a lot!!
-            n = c.ispace.index(dd)
-            ispace0 = c.ispace[:n]
-            ispace1 = c.ispace[n:]
+            # The Cluster computing the thicknesses
+            ispaceN = ispace.prefix(dims)
 
-            # The IterationSpace induced by the MultiSubDomain
-            #TODO: use the new c.ispace.insert !!!
-            #TODO: in fact, scratch the first TODO above... just call insert directly
-            #here, I won't even have to call split as it will be done automatically
-            #by insert... but then I will have to 
-            #TODO: actually there's an issue with this new insert as I'll be like
-            #constructing ispace0,ispaceN,ispace1 while below I only have ispace0,ispaceN?
-            intervals = [Interval(i) for i in dims]
-            ispaceN = IterationSpace(IntervalGroup(intervals))
-
-            relations = (ispace0.itdims + dims, dims + ispace1.itdims)
-            ispace = IterationSpace.union(ispace0, ispaceN, relations=relations)
-
-            properties = {i.dim: {SEQUENTIAL} for i in ispace}
-
-            nxt = ispaceN
-            #TODO: Use `seen` instead??
-            if tip is None or tip != nxt:
+            if tip is None or tip != ispaceN:
+                properties = {i.dim: {SEQUENTIAL} for i in ispace}
                 processed.append(
-                    c.rebuild(exprs=exprs, ispace=ispace, properties=properties)
+                    c.rebuild(exprs=exprs, ispace=ispaceN, properties=properties)
                 )
-                tip = nxt
+                tip = ispaceN
 
-            ispace = IterationSpace.union(c.ispace, ispaceN, relations=relations)
+            # The Cluster performing the actual computation, enriched with
+            # the thicknesses
             ispace = inject_thickness(ispace, thickness)
-
             processed.append(c.rebuild(ispace=ispace))
 
         return processed
