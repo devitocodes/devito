@@ -111,7 +111,7 @@ ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/incl
 
 # MPI
 RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-    ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi $HPCSDK_HOME/comm_libs/mpi  \
+    ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi $HPCSDK_HOME/comm_libs/mpi
 
 # Install python nvidia dependencies
 RUN python3 -m venv /venv && \
