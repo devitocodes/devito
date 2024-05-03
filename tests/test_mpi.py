@@ -2165,7 +2165,7 @@ class TestOperatorAdvanced(object):
             op.apply()
             f.data[:, :] = fo.data[:, :]
 
-        assert (np.isclose(norm(f), 17.24904, atol=1e-4, rtol=0))
+        assert (np.isclose(norm(f), 17.86754, atol=1e-4, rtol=0))
 
     @pytest.mark.parallel(mode=1)
     def test_haloupdate_issue_1613(self, mode):

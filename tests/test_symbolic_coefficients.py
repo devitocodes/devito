@@ -42,7 +42,7 @@ class TestSC(object):
     @pytest.mark.parametrize('expr, sorder, dorder, dim, weights, expected', [
         ('u.dx', 2, 1, 0, (-0.6, 0.1, 0.6),
          '0.1*u(x, y) - 0.6*u(x - h_x, y) + 0.6*u(x + h_x, y)'),
-        ('u.dy2', 3, 2, 1, (0.121, -0.223, 1.648, -2.904),
+        ('u.dy2', 4, 2, 1, (0.121, -0.223, 1.648, -2.904, 0),
          '1.648*u(x, y) + 0.121*u(x, y - 2*h_y) - 0.223*u(x, y - h_y) \
 - 2.904*u(x, y + h_y)')])
     def test_coefficients(self, expr, sorder, dorder, dim, weights, expected):

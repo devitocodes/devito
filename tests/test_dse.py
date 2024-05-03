@@ -269,7 +269,7 @@ def test_factorize(expr, expected):
     ('Eq(fb, fd.dx)', 10, False),
     ('Eq(fb, fd.dx)', 10, True),
     ('Eq(fb, fd.dx._evaluate(expand=False))', 10, False),
-    ('Eq(fb, fd.dx.dy + fa.dx)', 66, False),
+    ('Eq(fb, fd.dx.dy + fa.dx)', 65, False),
     # Ensure redundancies aren't counted
     ('Eq(t0, fd.dx.dy + fa*fd.dx.dy)', 62, True),
 ])
@@ -2162,6 +2162,7 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('collect-derivs', 'cire-sops', {'openmp': True}))
         op2 = Operator(eqn, opt=('cire-sops', {'openmp': True}))
         op3 = Operator(eqn, opt=('advanced', {'openmp': True}))
+        print(op3)
 
         # Check code generation
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]

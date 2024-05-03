@@ -276,18 +276,28 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
     An IndexSet, representing an ordered list of indices.
     """
     # Evaluation point
-    x0 = ((x0 or {}).get(dim) or expr.indices_ref[dim])
+    x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
+
+    # If provided a pure number, assume it's a valid index
+    if x0.is_Number:
+        d = make_stencil_dimension(expr, -order//2, order//2)
+        iexpr = x0 + d * dim.spacing
+        return IndexSet(dim, expr=iexpr), x0
 
     # Shift for side
     side = side or centered
 
     # Evaluation point relative to the expression's grid
     mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
+
     # Indices range
     o_min = int(np.ceil(mid - order/2)) + side.val
     o_max = int(np.floor(mid + order/2)) + side.val
     if o_max == o_min:
-        o_max += 1
+        if dim.is_Time or not expr.is_Staggered:
+            o_max += 1
+        else:
+            o_min -= 1
 
     # StencilDimension and expression
     d = make_stencil_dimension(expr, o_min, o_max)
