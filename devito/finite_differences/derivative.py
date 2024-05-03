@@ -139,9 +139,6 @@ class Derivative(sympy.Derivative, Differentiable):
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
 
-        # Sanitise `dims`. ((x, 2), (y, 0)) is valid input, but (y, 0) should be dropped.
-        dims = tuple(d for d in dims if not (isinstance(d, Iterable) and d[1] == 0))
-
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
         if len(dims) == 0:
@@ -160,7 +157,10 @@ class Derivative(sympy.Derivative, Differentiable):
                 orders = kwargs.get('deriv_order', 1)
                 if isinstance(orders, Iterable):
                     orders = orders[0]
-                new_dims = tuple([dims[0]]*orders)
+                if orders == 0:
+                    new_dims = (dims[0],)
+                else:
+                    new_dims = tuple([dims[0]]*orders)
         else:
             # Iterable of 2-tuple, e.g. ((x, 2), (y, 3))
             new_dims = []
@@ -168,7 +168,7 @@ class Derivative(sympy.Derivative, Differentiable):
             d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
             for d, o in zip(dims, d_ord):
                 if isinstance(d, Iterable):
-                    new_dims.extend([d[0] for _ in range(d[1])])
+                    new_dims.extend([d[0] for _ in range(max(1, d[1]))])
                     orders.append(d[1])
                 else:
                     new_dims.extend([d for _ in range(o)])
