@@ -151,7 +151,7 @@ class Derivative(sympy.Derivative, Differentiable):
                 orders = kwargs.get('deriv_order', dims[0][1])
                 if dims[0][1] != orders:
                     raise ValueError("Two different values of `deriv_order`")
-                new_dims = tuple([dims[0][0]]*dims[0][1])
+                new_dims = tuple([dims[0][0]]*max(1, dims[0][1]))
             else:
                 # Single Dimension
                 orders = kwargs.get('deriv_order', 1)

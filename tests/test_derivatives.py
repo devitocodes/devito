@@ -662,6 +662,20 @@ class TestFD(object):
         assert expr0.subs(drv0, drv1) == expr1
         assert expr1.subs(drv1, drv0) == expr0
 
+    def test_zero_fd_interp(self):
+        """
+        Test that zero-order derivatives are generating interpolation coefficients
+        """
+        grid = Grid((11,))
+        x, = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=4)
+
+        assert Derivative(f, x, deriv_order=0).evaluate == f
+        expected = (-f.subs(x, x - x.spacing) / 16 + f.subs(x, x) * 9 / 16 +
+                    f.subs(x, x + x.spacing) * 9 / 16 - f.subs(x, x + 2*x.spacing) / 16)
+        finterp = Derivative(f, (x, 0), x0={x: x+x.spacing/2}).evaluate
+        assert simplify(finterp - expected) == 0
+
 
 class TestTwoStageEvaluation(object):
 
