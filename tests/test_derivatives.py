@@ -676,6 +676,29 @@ class TestFD(object):
         finterp = Derivative(f, (x, 0), x0={x: x+x.spacing/2}).evaluate
         assert simplify(finterp - expected) == 0
 
+    def test_deriv_spec(self):
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=4)
+
+        assert f.dx(x0=x + x.spacing) == f.dx(x0={x: x + x.spacing})
+        assert Derivative(f, x, 1) == Derivative(f, (x, 1))
+
+        x0xy = {x: x+x.spacing/2, y: y+y.spacing/2}
+        dxy0 = Derivative(f, (x, 0), (y, 0), x0=x0xy)
+        dxy02 = Derivative(f, x, y, deriv_order=(0, 0), x0=x0xy)
+        assert dxy0 == dxy02
+        assert dxy0.dims == (x, y)
+        assert dxy0.deriv_order == (0, 0)
+        assert dxy0.fd_order == (4, 4)
+        assert dxy0.x0 == x0xy
+
+        dxy0 = Derivative(f, (x, 0), (y, 0), x0={y: y+y.spacing/2})
+        dxy02 = Derivative(f, x, y, deriv_order=(0, 0), x0={x: x+x.spacing/2})
+        assert dxy0 != dxy02
+        assert dxy0.x0 == {y: y+y.spacing/2}
+        assert dxy02.x0 == {x: x+x.spacing/2}
+
 
 class TestTwoStageEvaluation(object):
 
