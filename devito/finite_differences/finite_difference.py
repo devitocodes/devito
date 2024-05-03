@@ -208,6 +208,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
         fd_order = 1
 
+    # Zeroth order derivative is just the expression itself if not shifted
+    if deriv_order == 0 and not x0:
+        return expr
+
     # Enforce stable time coefficients
     if dim.is_Time and coefficients != 'symbolic':
         coefficients = 'taylor'
