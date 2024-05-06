@@ -8,7 +8,7 @@ from .finite_difference import generic_derivative, first_derivative, cross_deriv
 from .differentiable import Differentiable
 from .tools import direct, transpose
 from .rsfd import d45
-from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict
+from devito.tools import as_mapper, as_tuple, filter_ordered, frozendict, is_integer
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
@@ -121,7 +121,8 @@ class Derivative(sympy.Derivative, Differentiable):
                     processed.append(i)
         obj._ppsubs = tuple(processed)
 
-        obj._x0 = frozendict(kwargs.get('x0', {}))
+        obj._x0 = cls._process_x0(obj._dims, **kwargs)
+
         return obj
 
     @classmethod
@@ -134,13 +135,10 @@ class Derivative(sympy.Derivative, Differentiable):
             fd_orders = kwargs.get('fd_order')
             deriv_orders = kwargs.get('deriv_order')
             if len(dims) == 1:
-                dims = tuple([dims[0]]*deriv_orders)
+                dims = tuple([dims[0]]*max(1, deriv_orders))
             variable_count = [sympy.Tuple(s, dims.count(s))
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
-
-        # Sanitise `dims`. ((x, 2), (y, 0)) is valid input, but (y, 0) should be dropped.
-        dims = tuple(d for d in dims if not (isinstance(d, Iterable) and d[1] == 0))
 
         # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
         # an iterable of 2-tuple (Dimension, deriv_order)
@@ -154,13 +152,17 @@ class Derivative(sympy.Derivative, Differentiable):
                 orders = kwargs.get('deriv_order', dims[0][1])
                 if dims[0][1] != orders:
                     raise ValueError("Two different values of `deriv_order`")
-                new_dims = tuple([dims[0][0]]*dims[0][1])
+                new_dims = tuple([dims[0][0]]*max(1, dims[0][1]))
             else:
                 # Single Dimension
                 orders = kwargs.get('deriv_order', 1)
                 if isinstance(orders, Iterable):
                     orders = orders[0]
-                new_dims = tuple([dims[0]]*orders)
+                new_dims = tuple([dims[0]]*max(1, orders))
+        elif len(dims) == 2 and not isinstance(dims[1], Iterable) and is_integer(dims[1]):
+            # special case of single dimension and order
+            orders = dims[1]
+            new_dims = tuple([dims[0]]*max(1, orders))
         else:
             # Iterable of 2-tuple, e.g. ((x, 2), (y, 3))
             new_dims = []
@@ -168,48 +170,63 @@ class Derivative(sympy.Derivative, Differentiable):
             d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
             for d, o in zip(dims, d_ord):
                 if isinstance(d, Iterable):
-                    new_dims.extend([d[0] for _ in range(d[1])])
+                    new_dims.extend([d[0]]*max(1, d[1]))
                     orders.append(d[1])
                 else:
-                    new_dims.extend([d for _ in range(o)])
+                    new_dims.extend([d]*max(1, o))
                     orders.append(o)
             new_dims = as_tuple(new_dims)
             orders = as_tuple(orders)
 
         # Finite difference orders depending on input dimension (.dt or .dx)
+        odims = filter_ordered(new_dims)
         fd_orders = kwargs.get('fd_order', tuple([expr.time_order if
                                                   getattr(d, 'is_Time', False) else
-                                                  expr.space_order for d in dims]))
-        if len(dims) == 1 and isinstance(fd_orders, Iterable):
+                                                  expr.space_order for d in odims]))
+        if len(odims) == 1 and isinstance(fd_orders, Iterable):
             fd_orders = fd_orders[0]
 
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list
         # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
         # of the derivative
         variable_count = [sympy.Tuple(s, new_dims.count(s))
-                          for s in filter_ordered(new_dims)]
+                          for s in odims]
         return new_dims, orders, fd_orders, variable_count
 
+    @classmethod
+    def _process_x0(cls, dims, **kwargs):
+        try:
+            x0 = frozendict(kwargs.get('x0', {}))
+        except TypeError:
+            # Only given a value
+            _x0 = kwargs.get('x0')
+            assert len(dims) == 1 or _x0 is None
+            if _x0 is not None:
+                x0 = frozendict({dims[0]: _x0})
+            else:
+                x0 = frozendict({})
+
+        return x0
+
     def __call__(self, x0=None, fd_order=None, side=None, method=None):
+        x0 = self._process_x0(self.dims, x0=x0)
+        _x0 = frozendict({**self.x0, **x0})
         if self.ndims == 1:
             fd_order = fd_order or self._fd_order
             side = side or self._side
             method = method or self._method
-            x0 = {self.dims[0]: x0} if x0 is not None else self.x0
-            return self._new_from_self(fd_order=fd_order, side=side, x0=x0,
+            return self._new_from_self(fd_order=fd_order, side=side, x0=_x0,
                                        method=method)
 
         if side is not None:
             raise TypeError("Side only supported for first order single"
                             "Dimension derivative such as `.dxl` or .dx(side=left)")
         # Cross derivative
-        _x0 = dict(self._x0)
         _fd_order = dict(self.fd_order._getters)
         try:
             _fd_order.update(fd_order or {})
             _fd_order = tuple(_fd_order.values())
             _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
-            _x0.update(x0 or {})
         except AttributeError:
             raise TypeError("Multi-dimensional Derivative, input expected as a dict")
 
@@ -340,7 +357,7 @@ class Derivative(sympy.Derivative, Differentiable):
         has to be computed at x=x + h_x/2.
         """
         # If an x0 already exists do not overwrite it
-        x0 = self.x0 or dict(func.indices_ref._getters)
+        x0 = self.x0 or func.indices_ref._getters
         if self.expr.is_Add:
             # If `expr` has both staggered and non-staggered terms such as
             # `(u(x + h_x/2) + v(x)).dx` then we exploit linearity of FD to split
@@ -412,7 +429,8 @@ class Derivative(sympy.Derivative, Differentiable):
                                    matvec=self.transpose, x0=self.x0, expand=expand)
         else:
             assert self.method == 'FD'
-            res = generic_derivative(expr, *self.dims, self.fd_order, self.deriv_order,
+            res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
+                                     self.deriv_order,
                                      matvec=self.transpose, x0=self.x0, expand=expand)
 
         # Step 3: Apply substitutions

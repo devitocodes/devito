@@ -48,4 +48,4 @@ def test_shift():
     assert a.shift(x, x.spacing).shift(x, -x.spacing) == a
     assert a.shift(x, x.spacing).shift(x, x.spacing) == a.shift(x, 2*x.spacing)
     assert a.dx.evaluate.shift(x, x.spacing) == a.shift(x, x.spacing).dx.evaluate
-    assert not a.shift(x, .5 * x.spacing)._is_on_grid
+    assert a.shift(x, .5 * x.spacing)._grid_map == {x: x + .5 * x.spacing}

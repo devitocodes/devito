@@ -3,7 +3,7 @@ from functools import wraps
 from devito.types import NODE
 from devito.types.dimension import StencilDimension
 from .differentiable import Weights, DiffDerivative
-from .tools import generate_indices_staggered, fd_weights_registry
+from .tools import generate_indices, fd_weights_registry
 
 __all__ = ['drot', 'd45']
 
@@ -42,7 +42,7 @@ def drot(expr, dim, dir=1, x0=None):
     s = 2**(expr.grid.dim - 1)
 
     # Center point and indices
-    start, indices = generate_indices_staggered(expr, dim, expr.space_order, x0=x0)
+    indices, start = generate_indices(expr, dim, expr.space_order, x0=x0)
 
     # a-dimensional center for FD coefficients.
     adim_start = x0.get(dim, expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})

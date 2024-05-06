@@ -411,7 +411,7 @@ class TestFD(object):
         assert u.dxl(side=centered).evaluate == u.dx.evaluate
 
     @pytest.mark.parametrize('so, expected', [
-        (2, 'u(x)/h_x - u(x - 1.0*h_x)/h_x'),
+        (2, 'u(x)/h_x - u(x - h_x)/h_x'),
         (4, '1.125*u(x)/h_x + 0.0416666667*u(x - 2*h_x)/h_x - '
             '1.125*u(x - h_x)/h_x - 0.0416666667*u(x + h_x)/h_x'),
         (6, '1.171875*u(x)/h_x - 0.0046875*u(x - 3*h_x)/h_x + '
@@ -445,8 +445,8 @@ class TestFD(object):
         x = grid.dimensions[0]
         u = Function(name="u", grid=grid, space_order=2)
 
-        dplus = "-u(x)/h_x + u(x + 1.0*h_x)/h_x"
-        dminus = "u(x)/h_x - u(x - 1.0*h_x)/h_x"
+        dplus = "-u(x)/h_x + u(x + h_x)/h_x"
+        dminus = "u(x)/h_x - u(x - h_x)/h_x"
         assert str(u.dx(x0=x + .5 * x.spacing).evaluate) == dplus
         assert str(u.dx(x0=x - .5 * x.spacing).evaluate) == dminus
         assert str(u.dx(x0=x + .5 * x.spacing, fd_order=1).evaluate) == dplus
@@ -639,19 +639,65 @@ class TestFD(object):
         """
         grid = Grid((11, 11))
         x, y = grid.dimensions
-        f = Function(name="f", grid=grid, space_order=4)
+        f = Function(name="f", grid=grid, space_order=2)
         # Check that both specifications match
         drv0 = Derivative(f, (x, 2))
         drv1 = Derivative(f, (x, 2), (y, 0))
-        assert drv0.dims == drv1.dims
-        assert drv0.fd_order == drv1.fd_order
-        assert drv0.deriv_order == drv1.deriv_order
+        assert drv0.dims == (x,)
+        assert drv1.dims == (x, y)
+        assert drv0.fd_order == 2
+        assert drv1.fd_order == (2, 2)
+        assert drv0.deriv_order == 2
+        assert drv1.deriv_order == (2, 0)
+
+        assert drv0.evaluate == drv1.evaluate
+        fmean = .5 * (f + f._subs(y, y + y.spacing))
+        drv1x0 = drv1(x0={y: y+y.spacing/2}).evaluate
+
+        assert simplify(fmean.dx2.evaluate - drv1x0) == 0
 
         # Check that substitution can applied correctly
         expr0 = drv0 + 1
         expr1 = drv1 + 1
         assert expr0.subs(drv0, drv1) == expr1
         assert expr1.subs(drv1, drv0) == expr0
+
+    def test_zero_fd_interp(self):
+        """
+        Test that zero-order derivatives are generating interpolation coefficients
+        """
+        grid = Grid((11,))
+        x, = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=4)
+
+        assert Derivative(f, x, deriv_order=0).evaluate == f
+        expected = (-f.subs(x, x - x.spacing) / 16 + f.subs(x, x) * 9 / 16 +
+                    f.subs(x, x + x.spacing) * 9 / 16 - f.subs(x, x + 2*x.spacing) / 16)
+        finterp = Derivative(f, (x, 0), x0={x: x+x.spacing/2}).evaluate
+        assert simplify(finterp - expected) == 0
+
+    def test_deriv_spec(self):
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=4)
+
+        assert f.dx(x0=x + x.spacing) == f.dx(x0={x: x + x.spacing})
+        assert Derivative(f, x, 1) == Derivative(f, (x, 1))
+
+        x0xy = {x: x+x.spacing/2, y: y+y.spacing/2}
+        dxy0 = Derivative(f, (x, 0), (y, 0), x0=x0xy)
+        dxy02 = Derivative(f, x, y, deriv_order=(0, 0), x0=x0xy)
+        assert dxy0 == dxy02
+        assert dxy0.dims == (x, y)
+        assert dxy0.deriv_order == (0, 0)
+        assert dxy0.fd_order == (4, 4)
+        assert dxy0.x0 == x0xy
+
+        dxy0 = Derivative(f, (x, 0), (y, 0), x0={y: y+y.spacing/2})
+        dxy02 = Derivative(f, x, y, deriv_order=(0, 0), x0={x: x+x.spacing/2})
+        assert dxy0 != dxy02
+        assert dxy0.x0 == {y: y+y.spacing/2}
+        assert dxy02.x0 == {x: x+x.spacing/2}
 
 
 class TestTwoStageEvaluation(object):

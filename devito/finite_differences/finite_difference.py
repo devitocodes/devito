@@ -81,8 +81,14 @@ def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=
 
     Finally the x0 argument allows to choose the origin of the finite-difference
 
+    >>> first_derivative(f, dim=x, x0={x: x + x.spacing})
+    -f(x + h_x, y)/h_x + f(x + 2*h_x, y)/h_x
+
+    or specifying a specific location
+
     >>> first_derivative(f, dim=x, x0={x: 1})
-    -f(1, y)/h_x + f(h_x + 1, y)/h_x
+    f(1, y)/h_x - f(1 - h_x, y)/h_x
+
     """
     fd_order = fd_order or expr.space_order
     deriv_order = 1
@@ -155,9 +161,11 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
     Finally the x0 argument allows to choose the origin of the finite-difference
 
     >>> cross_derivative(f*g, dims=(x, y), fd_order=(2, 2), deriv_order=(1, 1), \
-    x0={x: 1, y: 2})
-    (-1/h_y)*(-f(1, 2)*g(1, 2)/h_x + f(h_x + 1, 2)*g(h_x + 1, 2)/h_x) + (-f(1, h_y + 2)*\
-g(1, h_y + 2)/h_x + f(h_x + 1, h_y + 2)*g(h_x + 1, h_y + 2)/h_x)/h_y
+    x0={x: x + x.spacing, y: y + y.spacing})
+    (-1/h_y)*(-f(x + h_x, y + h_y)*g(x + h_x, y + h_y)/h_x + \
+f(x + 2*h_x, y + h_y)*g(x + 2*h_x, y + h_y)/h_x) + \
+(-f(x + h_x, y + 2*h_y)*g(x + h_x, y + 2*h_y)/h_x + \
+f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     """
     x0 = x0 or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims):
@@ -207,6 +215,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     # first order fd that is a lot better
     if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
         fd_order = 1
+
+    # Zeroth order derivative is just the expression itself if not shifted
+    if deriv_order == 0 and not x0:
+        return expr
 
     # Enforce stable time coefficients
     if dim.is_Time and coefficients != 'symbolic':

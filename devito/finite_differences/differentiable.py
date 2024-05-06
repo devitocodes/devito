@@ -258,6 +258,7 @@ class Differentiable(sympy.Expr, Evaluable):
         if ret is NotImplemented or not ret:
             # Non comparable or not equal as sympy objects
             return False
+
         return all(getattr(self, i, None) == getattr(other, i, None)
                    for i in self.__rkwargs__)
 
@@ -875,6 +876,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         return obj
 
     func = DifferentiableOp._rebuild
+
+    # Since obj.base = base, then Differentiable.__eq__ leads to infinite recursion
+    # as it checks obj.base == other.base
+    __eq__ = sympy.Add.__eq__
+    __hash__ = sympy.Add.__hash__
 
     def _new_rawargs(self, *args, **kwargs):
         kwargs.pop('is_commutative', None)

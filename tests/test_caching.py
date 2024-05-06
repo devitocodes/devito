@@ -831,7 +831,7 @@ class TestMemoryLeaks(object):
         # created by the finite difference (u.dt, u.dx2). We would have had
         # three extra references to u(t + dt), u(x - h_x) and u(x + h_x).
         # But this is not the case anymore!
-        assert len(_SymbolCache) == 11
+        assert len(_SymbolCache) == 12
         clear_cache()
         assert len(_SymbolCache) == 8
         clear_cache()

@@ -269,7 +269,7 @@ def test_factorize(expr, expected):
     ('Eq(fb, fd.dx)', 10, False),
     ('Eq(fb, fd.dx)', 10, True),
     ('Eq(fb, fd.dx._evaluate(expand=False))', 10, False),
-    ('Eq(fb, fd.dx.dy + fa.dx)', 66, False),
+    ('Eq(fb, fd.dx.dy + fa.dx)', 65, False),
     # Ensure redundancies aren't counted
     ('Eq(t0, fd.dx.dy + fa*fd.dx.dy)', 62, True),
 ])

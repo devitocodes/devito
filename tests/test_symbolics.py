@@ -400,9 +400,9 @@ def test_is_on_grid():
     x0 = x + .5 * x.spacing
     u = Function(name="u", grid=grid, space_order=2)
 
-    assert u._is_on_grid
-    assert not u.subs({x: x0})._is_on_grid
-    assert all(uu._is_on_grid for uu in retrieve_functions(u.subs({x: x0}).evaluate))
+    assert u._grid_map == {}
+    assert u.subs({x: x0})._grid_map == {x: x0}
+    assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 
 @pytest.mark.parametrize('expr,expected', [
