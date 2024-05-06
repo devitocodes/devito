@@ -166,7 +166,7 @@ def memcpy_prefetch(clusters, key0, sregistry):
         if not wraps_memcpy(c):
             continue
 
-        if c.properties.is_prefetchable(d):
+        if c.properties.is_prefetchable(d._defines):
             _actions_from_update_memcpy(c, d, clusters, actions, sregistry)
         elif d.is_Custom and is_integer(c.ispace[d].size):
             _actions_from_init(c, d, actions)
@@ -206,7 +206,8 @@ def _actions_from_init(c, d, actions):
 
 
 def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
-    direction = c.ispace[d.root].direction
+    pd = d.root  # E.g., `vd -> time`
+    direction = c.ispace[pd].direction
 
     e = c.exprs[0]
     function = e.rhs.function
@@ -224,8 +225,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
         tindex = tindex0
     else:
         assert tindex0.is_Modulo
-        subiters = [i for i in c.sub_iterators[d.root]
-                    if i.parent is tindex0.parent]
+        subiters = [i for i in c.sub_iterators[pd] if i.parent is tindex0.parent]
         osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
         n = osubiters.index(tindex0)
         if direction is Forward:
@@ -244,7 +244,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
 
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
     guard1 = GuardBoundNext(function.indices[d], direction)
-    guards = c.guards.impose(d, And(guard0, guard1))
+    guards = c.guards.impose(d, guard0).xandg(pd, guard1)
 
     syncs = {d: [
         ReleaseLock(handle, target),
