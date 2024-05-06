@@ -245,7 +245,7 @@ class Guards(frozendict):
         try:
             m[d] = And(m[d], guard)
         except KeyError:
-            pass
+            m[d] = guard
 
         return Guards(m)
 
@@ -257,7 +257,7 @@ class Guards(frozendict):
 
         m[d] = guard
 
-        return m
+        return Guards(m)
 
     def popany(self, dims):
         m = dict(self)

@@ -232,8 +232,8 @@ class Properties(frozendict):
     def is_blockable_small(self, d):
         return TILABLE_SMALL in self.get(d, set())
 
-    def is_prefetchable(self, d):
-        return PREFETCHABLE in self.get(d, set())
+    def is_prefetchable(self, dims):
+        return any(PREFETCHABLE in self.get(d, set()) for d in as_tuple(dims))
 
     @property
     def nblockable(self):
