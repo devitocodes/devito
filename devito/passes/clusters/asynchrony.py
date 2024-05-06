@@ -144,7 +144,7 @@ def tasking(clusters, key0, sregistry):
                     WithLock(lock[i], target, i, function, findex, d)
                 ])
 
-    processed = [c.rebuild(syncs=syncs.get(c)) for c in clusters]
+    processed = [c.rebuild(syncs=syncs.get(c, c.syncs)) for c in clusters]
 
     return processed
 
