@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from sympy import simplify
 
 from devito import (Function, Grid, NODE, VectorTimeFunction,
                     TimeFunction, Eq, Operator, div)
@@ -53,7 +54,7 @@ def test_avg(ndim):
         avg = f
         for dd in d:
             avg = .5 * (avg + avg.subs({dd: dd - dd.spacing}))
-        assert shifted.evaluate == avg
+        assert simplify(shifted.evaluate - avg) == 0
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
@@ -75,7 +76,7 @@ def test_is_param(ndim):
         avg = f2
         for dd in d:
             avg = .5 * (avg + avg.subs({dd: dd - dd.spacing}))
-        assert f2._eval_at(var).evaluate == avg
+        assert simplify(f2._eval_at(var).evaluate - avg) == 0
 
 
 @pytest.mark.parametrize('expr, expected', [

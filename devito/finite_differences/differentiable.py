@@ -877,6 +877,8 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
 
     func = DifferentiableOp._rebuild
 
+    # Since obj.base = base, then Differentiable.__eq__ leads to infinite recursion
+    # as it checks obj.base == other.base
     __eq__ = sympy.Add.__eq__
     __hash__ = sympy.Add.__hash__
 

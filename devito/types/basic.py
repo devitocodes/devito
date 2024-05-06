@@ -1071,43 +1071,47 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return self
 
     @property
-    def _is_on_grid(self):
+    def _grid_map(self):
         """
-        Check whether the object is on the grid and requires averaging.
-        For example, if the original non-staggered function is f(x)
-        then f(x) is on the grid and f(x + h_x/2) is off the grid.
+        Mapper of off-grid interpolation points indices for each dimension.
         """
+        mapper = {}
         for i, j, d in zip(self.indices, self.indices_ref, self.dimensions):
             # Two indices are aligned if they differ by an Integer*spacing.
-            v = i - j
+            v = (i - j)/d.spacing
             try:
-                if int(v/d.spacing) != v/d.spacing:
-                    return False
-            except TypeError:
-                return False
-        return True
+                if not isinstance(v, sympy.Number) or int(v) == v:
+                    continue
+                # Skip if index is just a Symbol or integer
+                elif (i.is_Symbol and not i.has(d)) or i.is_Integer:
+                    continue
+                else:
+                    mapper.update({d: i})
+            except (AttributeError, TypeError):
+                mapper.update({d: i})
+        return mapper
 
     def _evaluate(self, **kwargs):
+        """
+        Evaluate off the grid with 2nd order interpolation.
+        Directly available through zeroth order derivative of the base object
+        i.e f(x + a) = f(x).diff(x, deriv_order=0, fd_order=2, x0={x: x + a})
+
+        This allow to evaluate off grid points as EvalDerivative that are better
+        for the compiler.
+        """
         # Average values if at a location not on the Function's grid
-        if self._is_on_grid:
+        if not self._grid_map:
             return self
 
-        weight = 1.0
-        avg_list = [self]
-        is_averaged = False
-        for i, ir, d in zip(self.indices, self.indices_ref, self.dimensions):
-            off = (i - ir)/d.spacing
-            if not isinstance(off, sympy.Number) or int(off) == off:
-                pass
-            else:
-                weight *= 1/2
-                is_averaged = True
-                avg_list = [(a.xreplace({i: i - d.spacing/2}) +
-                             a.xreplace({i: i + d.spacing/2})) for a in avg_list]
-
-        if not is_averaged:
-            return self
-        return weight * sum(avg_list)
+        # Base function
+        retval = self.function
+        # Apply interpolation from inner most dim
+        for d, i in self._grid_map.items():
+            retval = retval.diff(d, 0, fd_order=2, x0={d: i})
+        # Evaluate. Since we used `self.function` it will be on the grid when evaluate
+        # is called again within FD
+        return retval.evaluate
 
     @property
     def shape(self):

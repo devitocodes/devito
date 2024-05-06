@@ -2162,7 +2162,6 @@ class TestAliases(object):
         op1 = Operator(eqn, opt=('collect-derivs', 'cire-sops', {'openmp': True}))
         op2 = Operator(eqn, opt=('cire-sops', {'openmp': True}))
         op3 = Operator(eqn, opt=('advanced', {'openmp': True}))
-        print(op3)
 
         # Check code generation
         arrays = [i for i in FindSymbols().visit(op1) if i.is_Array]
