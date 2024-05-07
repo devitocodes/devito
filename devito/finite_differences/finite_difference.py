@@ -233,7 +233,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
-    expand = dim.is_Time or expand
+    expand = True if dim.is_Time else expand
 
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
