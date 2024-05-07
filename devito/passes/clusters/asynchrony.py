@@ -7,7 +7,7 @@ from devito.ir import (Forward, GuardBoundNext, Vector, WaitLock, WithLock,
                        FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
-from devito.tools import OrderedSet, as_mapper, is_integer, timed_pass
+from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
 __all__ = ['tasking', 'memcpy_prefetch']
@@ -226,12 +226,19 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     else:
         assert tindex0.is_Modulo
         subiters = [i for i in c.sub_iterators[pd] if i.parent is tindex0.parent]
-        osubiters = sorted(subiters, key=lambda i: Vector(i.offset))
-        n = osubiters.index(tindex0)
+        mapper = {i.offset: i for i in subiters}
         if direction is Forward:
-            tindex = osubiters[(n + 1) % len(osubiters)]
+            toffset = tindex0.offset + 1
         else:
-            tindex = osubiters[(n - 1) % len(osubiters)]
+            toffset = tindex0.offset - 1
+        try:
+            tindex = mapper[toffset]
+        except KeyError:
+            # This can happen if e.g. the underlying buffer has size K (because
+            # e.g. the user has sent `async_degree=K`), but the actual computation
+            # only uses K-N indices (e.g., indices={t-1,t} and K=5})
+            name = sregistry.make_name(prefix='sb')
+            tindex = tindex0._rebuild(name, offset=toffset)
 
     # We need a lock to synchronize the copy-in
     name = sregistry.make_name(prefix='lock')
@@ -242,6 +249,11 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     # Turn `c` into a prefetch Cluster `pc`
     expr = uxreplace(e, {tindex0: tindex, fetch: findex})
 
+    if tindex is not tindex0:
+        ispace = c.ispace.augment({pd: tindex})
+    else:
+        ispace = c.ispace
+
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
     guard1 = GuardBoundNext(function.indices[d], direction)
     guards = c.guards.impose(d, guard0).xandg(pd, guard1)
@@ -251,7 +263,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
         PrefetchUpdate(handle, target, tindex, function, findex, d, 1, e.rhs)
     ]}
 
-    pc = c.rebuild(exprs=expr, guards=guards, syncs=syncs)
+    pc = c.rebuild(exprs=expr, ispace=ispace, guards=guards, syncs=syncs)
 
     # Since we're turning `e` into a prefetch, we need to:
     # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
