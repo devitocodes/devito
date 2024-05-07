@@ -8,7 +8,7 @@ from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
 from devito.parameters import switchconfig, configuration
-from devito.types import Symbol
+from devito.types import Symbol, Dimension
 
 
 class TestLoopScheduling(object):
@@ -329,6 +329,29 @@ class Test1Pass(object):
         assert len(temps) == 2
 
         op.cfunction
+
+    def test_buffering_timestencil(self):
+        grid = Grid((11, 11))
+        so = 4
+        nt = 11
+
+        u = TimeFunction(name="u", grid=grid, space_order=so, time_order=2, save=nt)
+        v = TimeFunction(name="v", grid=grid, space_order=so, time_order=2)
+
+        g = Function(name="g", grid=grid, space_order=so)
+
+        # Make sure operator builds with buffering
+        op = Operator([Eq(g, g + u.dt*v.dx + u.dx2)],
+                      opt=('buffering', 'streaming', {'expand': False}))
+
+        exprs = FindNodes(Expression).visit(op)
+        dims = [d for i in FindSymbols().visit(exprs) for d in i.dimensions
+                if isinstance(d, Dimension)]
+
+        # Should only be two stencil dimension for .dx and .dx2
+        assert len([d for d in dims if d.is_Stencil]) == 2
+        # Should only be one buffer dimension
+        assert len([d for d in dims if d.is_Custom]) == 1
 
 
 class Test2Pass(object):

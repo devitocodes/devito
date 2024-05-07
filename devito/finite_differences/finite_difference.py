@@ -230,6 +230,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
                     expand):
+    # Always expand time derivatives to avoid issue with buffering and streaming.
+    # Time derivative are almost always short stencils and won't benefit from
+    # unexpansion in the rare case the derivative is not evaluated for time stepping.
+    expand = dim.is_Time or expand
+
     # The stencil indices
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0)
