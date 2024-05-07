@@ -46,7 +46,7 @@ class Lift(Queue):
                 continue
 
             # Synchronization prevents lifting
-            if c.syncs.get(dim) or \
+            if any(c.syncs.get(d) for d in dim._defines) or \
                in_critical_region(c, clusters):
                 processed.append(c)
                 continue
