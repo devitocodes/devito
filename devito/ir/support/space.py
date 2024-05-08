@@ -699,13 +699,10 @@ class DataSpace(Space):
 
         # Normalize parts
         parts = {k: v.expand() for k, v in (parts or {}).items()}
-        #TODO: POLISH THIS
-        a = {}
-        for k, v in parts.items():
+        for k, v in list(parts.items()):
             dims = set().union(*[d._defines for d in k.dimensions])
-            v1 = v.drop(lambda d: d not in dims)
-            a[k] = v1
-        self._parts = frozendict(a)
+            parts[k] = v.drop(lambda d: d not in dims)
+        self._parts = frozendict(parts)
 
     def __eq__(self, other):
         return (isinstance(other, DataSpace) and

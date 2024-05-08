@@ -1,8 +1,6 @@
-from collections import defaultdict
-
 from devito.ir import Cluster
 from devito.symbolics import uxreplace
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple
 from devito.types import CriticalRegion, Eq, Symbol, Wildcard
 
 __all__ = ['makeit_ssa', 'is_memcpy', 'make_critical_sequence',

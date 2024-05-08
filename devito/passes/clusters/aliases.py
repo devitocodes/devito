@@ -858,7 +858,6 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
             # from ugly generated code, the reason we do not rather shift the
             # indices is that it prevents future passes to transform the loop
             # bounds (e.g., MPI's comp/comm overlap does that)
-            #TODO: JUST d.root ??
             dimensions = [d.parent if d.is_AbstractSub else d
                           for d in writeto.itdims]
 

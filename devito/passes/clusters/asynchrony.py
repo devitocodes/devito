@@ -1,10 +1,9 @@
 from collections import defaultdict
 
-from sympy import And, true
+from sympy import true
 
-from devito.exceptions import CompilationError
-from devito.ir import (Forward, GuardBoundNext, Vector, WaitLock, WithLock,
-                       FetchUpdate, PrefetchUpdate, ReleaseLock, normalize_syncs)
+from devito.ir import (Forward, GuardBoundNext, WaitLock, WithLock, FetchUpdate,
+                       PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass

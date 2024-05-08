@@ -8,10 +8,9 @@ from math import floor
 
 import numpy as np
 
-from devito.ir import (Cluster, Interval, IntervalGroup, IterationSpace, Queue,
-                       FetchUpdate, PrefetchUpdate, SEQUENTIAL, Forward, vmax, vmin)
+from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
-from devito.tools import Bunch, as_tuple, frozendict, timed_pass
+from devito.tools import Bunch, frozendict, timed_pass
 from devito.types import Eq, Symbol
 from devito.types.grid import MultiSubDimension, SubDomainSet
 
