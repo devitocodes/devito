@@ -278,9 +278,7 @@ class Operator(Callable):
 
     @classmethod
     def _rcompile_wrapper(cls, **kwargs0):
-        def wrapper(expressions, **kwargs1):
-            return rcompile(expressions, {**kwargs0, **kwargs1})
-        return wrapper
+        raise NotImplementedError
 
     @classmethod
     def _initialize_state(cls, **kwargs):
