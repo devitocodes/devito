@@ -2,6 +2,7 @@ from functools import partial
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
+from devito.operator.operator import rcompile
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     factorize, fission, fuse, optimize_pows,
@@ -91,6 +92,22 @@ class Cpu64OperatorMixin:
         kwargs['options'].update(o)
 
         return kwargs
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs0):
+        options0 = kwargs0.pop('options')
+
+        def wrapper(expressions, **kwargs1):
+            options = {**options0, **kwargs1.pop('options', {})}
+            kwargs = {'options': options, **kwargs0, **kwargs1}
+
+            # User-provided openmp flag has precedence over defaults
+            if not options['openmp']:
+                kwargs['language'] = 'C'
+
+            return rcompile(expressions, kwargs)
+
+        return wrapper
 
 
 # Mode level

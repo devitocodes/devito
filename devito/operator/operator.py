@@ -277,10 +277,8 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, **options):
-            return rcompile(expressions, kwargs, options)
-        return wrapper
+    def _rcompile_wrapper(cls, **kwargs0):
+        raise NotImplementedError
 
     @classmethod
     def _initialize_state(cls, **kwargs):
