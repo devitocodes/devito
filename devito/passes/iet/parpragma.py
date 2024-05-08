@@ -373,7 +373,8 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
         return partree
 
-    def _make_parallel(self, iet):
+    @iet_pass
+    def _make_parallel(self, iet, sync_mapper=None):
         mapper = {}
         parrays = {}
         for tree in retrieve_iteration_tree(iet, mode='superset'):
@@ -385,6 +386,12 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             # Ignore if already a ParallelIteration (e.g., by-product of
             # recursive compilation)
             if any(isinstance(n, ParallelIteration) for n in candidates):
+                continue
+
+            # Ignore if already part of an asynchronous region of code
+            # (e.g., an Iteartion embedded within a SyncSpot defining an
+            # asynchronous operation)
+            if any(n in sync_mapper for n in candidates):
                 continue
 
             # Outer parallelism
@@ -413,9 +420,8 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
         return iet, {'includes': [self.lang['header']]}
 
-    @iet_pass
-    def make_parallel(self, iet):
-        return self._make_parallel(iet)
+    def make_parallel(self, graph):
+        return self._make_parallel(graph, sync_mapper=graph.sync_mapper)
 
 
 class PragmaTransfer(Pragma, Transfer):

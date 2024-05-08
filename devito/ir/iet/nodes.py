@@ -13,7 +13,7 @@ from devito.data import FULL
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, Property,
-                               Forward, detect_io)
+                               Forward, WithLock, PrefetchUpdate, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           ctypes_to_cstr)
@@ -1377,6 +1377,15 @@ class SyncSpot(List):
 
     def __repr__(self):
         return "<SyncSpot (%s)>" % ",".join(str(i) for i in self.sync_ops)
+
+    @property
+    def is_async_op(self):
+        """
+        True if the SyncSpot contains an asynchronous operation, False otherwise.
+        If False, the SyncSpot may for example represent a wait on a lock.
+        """
+        return any(isinstance(s, (WithLock, PrefetchUpdate))
+                   for s in self.sync_ops)
 
 
 class CBlankLine(List):

@@ -1,8 +1,9 @@
 from collections import OrderedDict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, ExprStmt, FindNodes, FindSymbols, MetaCall,
-                           Transformer, EntryFunction, ThreadCallable, Uxreplace,
+from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, FindNodes,
+                           FindSymbols, MapNodes, MetaCall, Transformer,
+                           EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -73,6 +74,37 @@ class Graph:
     @property
     def funcs(self):
         return tuple(MetaCall(v, True) for v in self.efuncs.values())[1:]
+
+    @property
+    def sync_mapper(self):
+        """
+        A mapper {Iteration -> SyncSpot} describing the Iterations, if any,
+        living an asynchronous region, across all Callables in the Graph.
+        """
+        dag = create_call_graph(self.root.name, self.efuncs)
+
+        mapper = MapNodes(SyncSpot, (Iteration, Call)).visit(self.root)
+
+        found = {}
+        for k, v in mapper.items():
+            if not k.is_async_op:
+                continue
+
+            while v:
+                i = v.pop(0)
+
+                if i.is_Iteration:
+                    found[i] = k
+                    continue
+
+                for j in dag.all_predecessors(i.name):
+                    try:
+                        v.extend(FindNodes(Iteration).visit(self.efuncs[j]))
+                    except KeyError:
+                        # `j` is a foreign Callable
+                        pass
+
+        return found
 
     def apply(self, func, **kwargs):
         """
