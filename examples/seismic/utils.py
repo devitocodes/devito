@@ -1,7 +1,8 @@
 import numpy as np
+from sympy import S
 from argparse import Action, ArgumentError, ArgumentParser
 
-from devito import error, configuration, warning
+from devito import error, configuration, warning, div, grad
 from devito.tools import Pickable
 from devito.types.sparse import _default_radius
 
@@ -256,3 +257,8 @@ def seismic_args(description):
     parser.add_argument("-interp", dest="interp", default="linear",
                         choices=['linear', 'sinc'])
     return parser
+
+
+def divgrad(field, b=S.One):
+    so = field.space_order // 2
+    return div(b * grad(field, order=so, shift=.5), shift=-.5, order=so)

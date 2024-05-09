@@ -4,6 +4,7 @@ import numpy as np
 from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
                     div, grad, solve)
 from examples.seismic import PointSource, Receiver
+from examples.seismic.utils import divgrad
 
 
 def src_rec(p, model, geometry, **kwargs):
@@ -169,12 +170,12 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
 
     if forward:
         # Attenuation Memory variable
-        pde_r = r.dt - (tt / t_s) * rho * div(b * grad(p, shift=.5), shift=-.5) + \
+        pde_r = r.dt - (tt / t_s) * rho * divgrad(p, b=b) + \
             (1. / t_s) * r
         u_r = Eq(r.forward, damp * solve(pde_r, r.forward))
 
         # Pressure
-        pde_p = m * p.dt2 - rho * (1. + tt) * div(b * grad(p, shift=.5), shift=-.5) + \
+        pde_p = m * p.dt2 - rho * (1. + tt) * divgrad(p, b=b) + \
             r.forward - q + (1 - damp) * p.dt
         u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
@@ -186,8 +187,8 @@ def sls_2nd_order(model, geometry, p, r=None, **kwargs):
         u_r = Eq(r.backward, damp * solve(pde_r, r.backward))
 
         # Pressure
-        pde_p = m * p.dt2 - div(b * grad((1. + tt) * rho * p, shift=.5), shift=-.5) - \
-            div(b * grad(rho * r.backward, shift=.5), shift=-.5) + \
+        pde_p = m * p.dt2 - divgrad((1. + tt) * rho * p, b=b) - \
+            divgrad(rho * r.backward, b=b) + \
             (1 - damp) * p.dt.T
         u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
@@ -233,7 +234,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
 
         # Pressure
         pde_p = m * p.dt + rho * div(v.forward) - \
-            tau * rho * div(b * grad(p, shift=.5), shift=-.5)
+            tau * rho * divgrad(p, b=b)
         u_p = Eq(p.forward, damp * solve(pde_p, p.forward))
 
         return [u_v, u_p]
@@ -245,7 +246,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
 
         # Pressure
-        pde_p = m * p.dt.T - div(b * grad(rho * tau * p, shift=.5), shift=-.5) - \
+        pde_p = m * p.dt.T - divgrad(rho * tau * p, b=b) - \
             div(b * v.backward)
         u_p = Eq(p.backward, damp * solve(pde_p, p.backward))
 
@@ -288,8 +289,8 @@ def kv_2nd_order(model, geometry, p, **kwargs):
 
     if forward:
         # Pressure
-        pde_p = m * p.dt2 - rho * div(b * grad(p, shift=.5), shift=-.5) - \
-            tau * rho * div(b * grad(p.dt(x0=t0), shift=.5), shift=-.5) + \
+        pde_p = m * p.dt2 - rho * divgrad(p, b=b) - \
+            tau * rho * divgrad(p.dt(x0=t0), b=b) + \
             (1 - damp) * p.dt
 
         u_p = Eq(p.forward, solve(pde_p, p.forward))
@@ -298,8 +299,8 @@ def kv_2nd_order(model, geometry, p, **kwargs):
 
     else:
         # Pressure
-        pde_p = m * p.dt2 - div(b * grad(rho * p, shift=.5), shift=-.5) - \
-            div(b * grad(rho * tau * p.dt(x0=t0).T, shift=.5), shift=-.5) + \
+        pde_p = m * p.dt2 - divgrad(rho * p, b=b) - \
+            divgrad(rho * tau * p.dt(x0=t0).T, b=b) + \
             (1 - damp) * p.dt.T
         u_p = Eq(p.backward, solve(pde_p, p.backward))
 
@@ -393,7 +394,7 @@ def maxwell_2nd_order(model, geometry, p, **kwargs):
 
     if forward:
         # Pressure
-        pde_p = m * p.dt2 - rho * div(b * grad(p, shift=.5), shift=-.5) + \
+        pde_p = m * p.dt2 - rho * divgrad(p, b=b) + \
             m * w0 / qp * p.dt(x0=t0) + (1 - damp) * p.dt
         u_p = Eq(p.forward, solve(pde_p, p.forward))
 
@@ -402,7 +403,7 @@ def maxwell_2nd_order(model, geometry, p, **kwargs):
     else:
         # Pressure
         pde_p = m * p.dt2 + m * w0 / qp * p.dt(x0=t0).T + (1 - damp) * p.dt.T - \
-            div(b * grad(rho * p, shift=.5), shift=-.5)
+            divgrad(rho * p, b=b)
         u_p = Eq(p.backward, solve(pde_p, p.backward))
 
         return [u_p]
