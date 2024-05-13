@@ -35,7 +35,7 @@ Devito is distributed under the MIT License, https://github.com/devitocodes/devi
 ### Reporting issues
 
 There are several options:
-* Talk to us. You can join our Slack team via this [link](https://join.slack.com/t/devitocodes/shared_invite/zt-gtd2yxj9-Y31YKk_7lr9AwfXeL2iMFg). Should you have installation issues, or should you bump into something that appears to be a Devito-related bug, do not hesitate to get in touch. We are always keen to help out.
+* Talk to us. You can join our Slack team via this [link](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA). Should you have installation issues, or should you bump into something that appears to be a Devito-related bug, do not hesitate to get in touch. We are always keen to help out.
 * File an issue on [our GitHub page](https://github.com/devitocodes/devito/issues).
 
 ### Making changes
