@@ -295,7 +295,4 @@ class Actions:
 
 
 def wraps_memcpy(cluster):
-    if len(cluster.exprs) != 1:
-        return False
-
-    return is_memcpy(cluster.exprs[0])
+    return len(cluster.exprs) == 1 and is_memcpy(cluster.exprs[0])
