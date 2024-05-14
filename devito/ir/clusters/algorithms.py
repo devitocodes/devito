@@ -37,7 +37,7 @@ def clusterize(exprs, **kwargs):
     clusters = Schedule().process(clusters)
 
     # Handle SteppingDimensions
-    clusters = Stepper().process(clusters)
+    clusters = Stepper(**kwargs).process(clusters)
 
     # Handle ConditionalDimensions
     clusters = guard(clusters)
@@ -273,6 +273,9 @@ class Stepper(Queue):
     sub-iterators induced by a SteppingDimension.
     """
 
+    def __init__(self, sregistry=None, **kwargs):
+        self.sregistry = sregistry
+
     def callback(self, clusters, prefix):
         if not prefix:
             return clusters
@@ -326,7 +329,7 @@ class Stepper(Queue):
                 siafs = sorted(iafs, key=key)
 
                 for iaf in siafs:
-                    name = '%s%d' % (si.name, len(mds))
+                    name = self.sregistry.make_name(prefix='t')
                     offset = uxreplace(iaf, {si: d.root})
                     mds.append(ModuloDimension(name, si, offset, size, origin=iaf))
 

@@ -198,7 +198,7 @@ def remove_redundant_moddims(iet):
     if not mds:
         return iet
 
-    mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
+    mapper = as_mapper(mds, key=lambda md: md.offset % md.modulo)
 
     subs = {}
     for k, v in mapper.items():

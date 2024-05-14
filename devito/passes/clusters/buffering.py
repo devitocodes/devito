@@ -155,11 +155,11 @@ class InjectBuffers(Queue):
         init = init_buffers(descriptors, self.options)
 
         # Create all the necessary ModuloDimensions to step through the buffer
-        mds = make_mds(descriptors, self.sregistry)
+        mds = make_mds(descriptors, prefix, self.sregistry)
         subiters = as_mapper(mds.values(), lambda i: i.root)
 
         # Substitution rules to replace buffered Functions with buffers
-        # E.g., `usave[time+1, x+1, y+1] -> ub0[sb1, x+1, y+1]`
+        # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
         subs = {}
         for b, v in descriptors.items():
             accesses = chain(*[c.scope[v.f] for c in v.clusters])
@@ -188,6 +188,7 @@ class InjectBuffers(Queue):
                 expr = lower_exprs(expr)
 
                 ispace = v.step_to
+                ispace = ispace.augment(subiters).augment(c.sub_iterators)
 
                 if v.xd in ispace.itdims:
                     guards = c.guards.xandg(v.xd, GuardBound(0, v.first_idx.f))
@@ -211,7 +212,7 @@ class InjectBuffers(Queue):
             )
 
             # Append the copy-back if `c` is the last-write of some buffers
-            # E.g., `usave[time+1, x] = ub[sb1, x]`
+            # E.g., `usave[time+1, x] = ub[t1, x]`
             for b, v in descriptors.items():
                 if v.is_readonly:
                     continue
@@ -228,6 +229,7 @@ class InjectBuffers(Queue):
                 expr = lower_exprs(uxreplace(expr, v.subdims_mapper))
 
                 ispace = v.written
+                ispace = ispace.augment(subiters).augment(c.sub_iterators)
 
                 if v.xd in ispace.itdims:
                     guards = c.guards.xandg(v.xd, GuardBound(0, v.first_idx.f))
@@ -557,7 +559,7 @@ class BufferDescriptor:
         return Map(v % self.xd.symbolic_size, v)
 
 
-def make_mds(descriptors, sregistry):
+def make_mds(descriptors, prefix, sregistry):
     """
     Create the ModuloDimensions to step through the buffers. This is done
     inspecting all buffers so that ModuloDimensions are reused when possible.
@@ -573,7 +575,7 @@ def make_mds(descriptors, sregistry):
 
         p, _ = offset_from_centre(v.dim, v.indices)
 
-        # NOTE: indices are sorted so that the semantic order (sb0, sb1, sb2)
+        # NOTE: indices are sorted so that the semantic order (t0, t1, t2)
         # follows SymPy's index ordering (time, time-1, time+1) after modulo
         # replacement, so that associativity errors are consistent. This very
         # same strategy is also applied in clusters/algorithms/Stepper
@@ -582,8 +584,17 @@ def make_mds(descriptors, sregistry):
 
         for i in indices:
             k = (v.xd, i)
-            if k not in mds:
-                name = sregistry.make_name(prefix='sb')
+            if k in mds:
+                continue
+
+            # Can I reuse an existing ModuloDimension or do I need to create
+            # a new one?
+            for si in prefix.sub_iterators.get(v.dim.root, []):
+                if si.offset == i and si.modulo == size:
+                    mds[k] = si
+                    break
+            else:
+                name = sregistry.make_name(prefix='t')
                 mds[k] = ModuloDimension(name, v.xd, i, size)
 
     return mds

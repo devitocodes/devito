@@ -1077,7 +1077,7 @@ class ModuloDimension(DerivedDimension):
         try:
             if self.modulo == other.modulo:
                 return self.origin + other.origin
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, sympy.SympifyError):
             pass
         return super().__add__(other)
 
@@ -1087,7 +1087,7 @@ class ModuloDimension(DerivedDimension):
         try:
             if self.modulo == other.modulo:
                 return self.origin - other.origin
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, sympy.SympifyError):
             pass
         return super().__sub__(other)
 
