@@ -7,7 +7,7 @@ import numpy as np
 
 from devito.ir import (Cluster, Backward, Forward, GuardBound, Interval,
                        IntervalGroup, IterationSpace, Properties, Queue, Vector,
-                       lower_exprs, vmax, vmin)
+                       InitArray, lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -640,7 +640,9 @@ def init_buffers(descriptors, options):
         properties = properties.affine(ispace.itdims)
         properties = properties.parallelize(ispace.itdims)
 
-        init.append(Cluster(expr, ispace, guards=guards, properties=properties))
+        syncs = {None: [InitArray(None, b, 0, f, v.first_idx.f, v.dim, v.size)]}
+
+        init.append(Cluster(expr, ispace, guards, properties, syncs))
 
     return init
 

@@ -5,15 +5,15 @@ import cgen as c
 from sympy import Or
 
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
-                           Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
-                           AsyncCallable, derive_parameters)
-from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
-                               PrefetchUpdate)
+from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes, Transformer,
+                           BlankLine, BusyWait, DummyExpr, AsyncCall, AsyncCallable,
+                           derive_parameters)
+from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
+                               SyncArray, PrefetchUpdate)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper
+from devito.tools import as_mapper, flatten
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
@@ -72,19 +72,31 @@ class Orchestrator:
 
         return iet, [efunc]
 
-    def _make_fetchupdate(self, iet, sync_ops, layer):
-        body, prefix = fetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
-
+    def _make_initarray(self, iet, sync_ops, layer):
         # Turn init IET into a Callable
-        name = self.sregistry.make_name(prefix=prefix)
-        body = List(body=body)
-        parameters = derive_parameters(body, ordering='canonical')
-        efunc = Callable(name, body, 'void', parameters, 'static')
+        name = self.sregistry.make_name(prefix='init_array')
+        parameters = derive_parameters(iet, ordering='canonical')
+        efunc = Callable(name, iet.body, 'void', parameters, 'static')
 
-        # Perform initial fetch by the main thread
         iet = Call(name, parameters)
 
         return iet, [efunc]
+
+    def _make_syncarray(self, iet, sync_ops, layer):
+        try:
+            qid = self.sregistry.queue0
+        except AttributeError:
+            qid = None
+
+        body = list(iet.body)
+        try:
+            body.extend([self.lang._map_update_device(s.target, s.imask, qid=qid)
+                         for s in sync_ops])
+        except NotImplementedError:
+            pass
+        iet = List(body=body)
+
+        return iet, []
 
     def _make_prefetchupdate(self, iet, sync_ops, layer):
         body, prefix = prefetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
@@ -107,15 +119,15 @@ class Orchestrator:
         if not sync_spots:
             return iet, {}
 
+        # The SyncOps are to be processed in a given order
         callbacks = OrderedDict([
             (WaitLock, self._make_waitlock),
             (WithLock, self._make_withlock),
-            (FetchUpdate, self._make_fetchupdate),
+            (SyncArray, self._make_syncarray),
+            (InitArray, self._make_initarray),
             (PrefetchUpdate, self._make_prefetchupdate),
             (ReleaseLock, self._make_releaselock),
         ])
-
-        # The SyncOps are to be processed in a given order
         key = lambda s: list(callbacks).index(s)
 
         efuncs = []
@@ -135,6 +147,7 @@ class Orchestrator:
                 efuncs.extend(v)
 
         iet = Transformer(subs).visit(iet)
+        efuncs = [Transformer(subs).visit(i) for i in efuncs]
 
         return iet, {'efuncs': efuncs}
 
@@ -181,29 +194,6 @@ def _(layer, iet, sync_ops, lang, sregistry):
 
     body.append(BlankLine)
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
-
-    return body, name
-
-
-@singledispatch
-def fetchupdate(layer, iet, sync_ops, lang, sregistry):
-    raise NotImplementedError
-
-
-@fetchupdate.register(HostLayer)
-def _(layer, iet, sync_ops, lang, sregistry):
-    try:
-        qid = sregistry.queue0
-    except AttributeError:
-        qid = None
-
-    body = list(iet.body)
-    try:
-        body.extend([lang._map_update_device(s.target, s.imask, qid=qid)
-                     for s in sync_ops])
-        name = 'init_from_%s' % layer.suffix
-    except NotImplementedError:
-        name = 'init_to_%s' % layer.suffix
 
     return body, name
 
