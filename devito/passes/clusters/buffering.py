@@ -6,8 +6,8 @@ from sympy import S
 import numpy as np
 
 from devito.ir import (Cluster, Backward, Forward, GuardBound, Interval,
-                       IntervalGroup, Properties, Queue, Vector, lower_exprs,
-                       vmax, vmin)
+                       IntervalGroup, IterationSpace, Properties, Queue, Vector,
+                       lower_exprs, vmax, vmin)
 from devito.exceptions import InvalidOperator
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -471,10 +471,11 @@ class BufferDescriptor:
 
         # Analogous to the above, we need to include the halo region as well
         ihalo = IntervalGroup([
-            Interval(d, -h.left, h.right)
-            for d, h in zip(self.b.dimensions, self.b._size_halo)
+            Interval(i.dim, -h.left, h.right, i.stamp)
+            for i, h in zip(ispace, self.b._size_halo)
         ])
-        ispace = ispace.add(ihalo)
+
+        ispace = IterationSpace.union(ispace, IterationSpace(ihalo))
 
         return ispace
 
@@ -566,6 +567,8 @@ def make_mds(descriptors, sregistry):
         size = v.xd.symbolic_size
 
         if size == 1:
+            continue
+        if v.is_double_buffering:
             continue
 
         p, _ = offset_from_centre(v.dim, v.indices)
