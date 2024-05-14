@@ -218,26 +218,25 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     else:
         findex = fetch - 1
 
-    # If fetching into e.g. `ub[sb1]` we'll need to prefetch into e.g. `ub[sb0]`
+    # If fetching into e.g. `ub[t1]` we might need to prefetch into e.g. `ub[t0]`
     tindex0 = e.lhs.indices[d]
     if is_integer(tindex0) or isinstance(tindex0, IntDiv):
         tindex = tindex0
     else:
         assert tindex0.is_Modulo
-        subiters = [i for i in c.sub_iterators[pd] if i.parent is tindex0.parent]
-        mapper = {i.offset: i for i in subiters}
+        mapper = {(i.offset % i.modulo): i for i in c.sub_iterators[pd]}
         if direction is Forward:
             toffset = tindex0.offset + 1
         else:
             toffset = tindex0.offset - 1
         try:
-            tindex = mapper[toffset]
+            tindex = mapper[toffset % tindex0.modulo]
         except KeyError:
             # This can happen if e.g. the underlying buffer has size K (because
             # e.g. the user has sent `async_degree=K`), but the actual computation
             # only uses K-N indices (e.g., indices={t-1,t} and K=5})
-            name = sregistry.make_name(prefix='sb')
-            tindex = tindex0._rebuild(name, offset=toffset)
+            name = sregistry.make_name(prefix='t')
+            tindex = tindex0._rebuild(name, offset=toffset, origin=None)
 
     # We need a lock to synchronize the copy-in
     name = sregistry.make_name(prefix='lock')
