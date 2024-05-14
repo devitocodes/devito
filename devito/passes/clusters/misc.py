@@ -3,8 +3,8 @@ from itertools import groupby, product
 
 from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
-                               WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
+                               WithLock, InitArray, SyncArray, PrefetchUpdate)
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
@@ -203,8 +203,9 @@ class Fusion(Queue):
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence
                         continue
-                    elif (isinstance(s, (FetchUpdate, WaitLock, ReleaseLock)) or
+                    elif (isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)) or
                           (self.fusetasks and isinstance(s, WithLock))):
+                        #TODO: turn into "not isinstance(s, PrefetchUpdate)...
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)

@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from sympy import true
 
-from devito.ir import (Forward, GuardBoundNext, WaitLock, WithLock, FetchUpdate,
+from devito.ir import (Forward, GuardBoundNext, WaitLock, WithLock, SyncArray,
                        PrefetchUpdate, ReleaseLock, normalize_syncs)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
@@ -199,8 +199,8 @@ def _actions_from_init(c, d, actions):
     size = target.shape[d]
     assert is_integer(size)
 
-    actions[c].syncs[None].append(
-        FetchUpdate(None, target, 0, function, findex, d, size)
+    actions[c].syncs[d].append(
+        SyncArray(None, target, 0, function, findex, d, size)
     )
 
 

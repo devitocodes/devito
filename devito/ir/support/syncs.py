@@ -8,8 +8,8 @@ from devito.data import FULL
 from devito.tools import Pickable, filter_ordered, frozendict
 from .utils import IMask
 
-__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'FetchUpdate', 'PrefetchUpdate',
-           'normalize_syncs']
+__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'InitArray', 'SyncArray',
+           'PrefetchUpdate', 'normalize_syncs']
 
 
 class SyncOp(Pickable):
@@ -118,7 +118,11 @@ class ReleaseLock(SyncCopyOut):
     pass
 
 
-class FetchUpdate(SyncCopyIn):
+class InitArray(SyncCopyIn):
+    pass
+
+
+class SyncArray(SyncCopyIn):
     pass
 
 
