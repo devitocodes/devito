@@ -3,7 +3,7 @@ from collections import defaultdict
 from sympy import true
 
 from devito.ir import (Forward, GuardBoundNext, WaitLock, WithLock, SyncArray,
-                       PrefetchUpdate, ReleaseLock, normalize_syncs)
+                       PrefetchUpdate, ReleaseLock, Queue, normalize_syncs)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
@@ -51,17 +51,42 @@ def tasking(clusters, key0, sregistry):
     task Dimensions.
     """
     key, _ = keys(key0)
+    return Tasking(key, sregistry).process(clusters)
 
-    locks = {}
-    syncs = defaultdict(lambda: defaultdict(OrderedSet))
-    for c0 in clusters:
-        d = key(c0)
-        if d is None:
-            continue
 
+class Tasking(Queue):
+
+    """
+    Carry out the bulk of `tasking`.
+    """
+
+    def __init__(self, key0, sregistry):
+        self.key0 = key0
+        self.sregistry = sregistry
+
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        dim = prefix[-1].dim
+
+        locks = {}
+        syncs = defaultdict(lambda: defaultdict(OrderedSet))
+        for c0 in clusters:
+            d = self.key0(c0)
+            if d is not dim:
+                continue
+
+            protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
+            self._schedule_withlocks(c0, d, protected, locks, syncs)
+
+        processed = [c.rebuild(syncs=syncs.get(c, c.syncs)) for c in clusters]
+
+        return processed
+
+    def _schedule_waitlocks(self, c0, d, clusters, locks, syncs):
         # Prevent future writes to interfere with a task by waiting on a lock
         may_require_lock = {f for f in c0.scope.reads if f.is_AbstractFunction}
-
         # Sort for deterministic code generation
         may_require_lock = sorted(may_require_lock, key=lambda i: i.name)
 
@@ -96,7 +121,7 @@ def tasking(clusters, key0, sregistry):
                 try:
                     lock = locks[target]
                 except KeyError:
-                    name = sregistry.make_name(prefix='lock')
+                    name = self.sregistry.make_name(prefix='lock')
                     lock = locks[target] = Lock(name=name, dimensions=ld)
 
                 for w in writes:
@@ -117,7 +142,9 @@ def tasking(clusters, key0, sregistry):
                     syncs[c2][d].add(WaitLock(lock[index], target))
                     protected[target].add(logical_index)
 
-        # Taskify `c0`
+        return protected
+
+    def _schedule_withlocks(self, c0, d, protected, locks, syncs):
         for target in protected:
             lock = locks[target]
 
@@ -142,10 +169,6 @@ def tasking(clusters, key0, sregistry):
                     ReleaseLock(lock[i], target),
                     WithLock(lock[i], target, i, function, findex, d)
                 ])
-
-    processed = [c.rebuild(syncs=syncs.get(c, c.syncs)) for c in clusters]
-
-    return processed
 
 
 @timed_pass(name='memcpy_prefetch')
