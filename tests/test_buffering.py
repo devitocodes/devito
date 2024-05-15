@@ -209,7 +209,7 @@ def test_two_homogeneous_buffers():
     op2 = Operator(eqns, opt=('buffering', 'fuse'))
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 5
     assert len(retrieve_iteration_tree(op2)) == 3
     buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
