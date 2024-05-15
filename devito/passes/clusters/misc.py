@@ -197,20 +197,27 @@ class Fusion(Queue):
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if isinstance(s, PrefetchUpdate) or \
-                       (not self.fusetasks and isinstance(s, WaitLock)):
+                    if isinstance(s, PrefetchUpdate):
+                        continue
+
+                    if isinstance(s, WaitLock) and not self.fusetasks:
                         # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence
                         continue
-                    elif (isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)) or
-                          (self.fusetasks and isinstance(s, WithLock))):
-                        #TODO: turn into "not isinstance(s, PrefetchUpdate)...
+
+                    if isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
+                        mapper[k].add(type(s))
+                    elif isinstance(s, WithLock) and self.fusetasks:
+                        # NOTE: Different WithLocks aren't fused unless the user
+                        # explicitly asks for it
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)
+
                 if k in mapper:
                     mapper[k] = frozenset(mapper[k])
+
             strict.append(frozendict(mapper))
 
         weak = []
