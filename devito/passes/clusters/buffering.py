@@ -640,7 +640,7 @@ def init_buffers(descriptors, options):
         properties = properties.affine(ispace.itdims)
         properties = properties.parallelize(ispace.itdims)
 
-        syncs = {None: [InitArray(None, b, 0, f, v.first_idx.f, v.dim, v.size)]}
+        syncs = {None: [InitArray(None, b)]}
 
         init.append(Cluster(expr, ispace, guards, properties, syncs))
 

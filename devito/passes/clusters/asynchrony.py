@@ -194,13 +194,14 @@ def _actions_from_init(c, d, actions):
     function = e.rhs.function
     target = e.lhs.function
 
+    tindex = e.lhs.indices[d]
     findex = e.rhs.indices[d]
 
     size = target.shape[d]
     assert is_integer(size)
 
     actions[c].syncs[d].append(
-        SyncArray(None, target, 0, function, findex, d, size)
+        SyncArray(None, target, tindex, function, findex, d, size)
     )
 
 

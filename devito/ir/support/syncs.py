@@ -93,7 +93,7 @@ class SyncCopyIn(SyncOp):
         for d in self.target.dimensions:
             if d.root is self.dim.root:
                 if self.target.is_regular:
-                    ret.append((self.tindex, self.size))
+                    ret.append((self.tindex, 1))
                 else:
                     ret.append((0, 1))
             else:
