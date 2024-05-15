@@ -32,6 +32,10 @@ def stree_build(clusters, profiler=None, **kwargs):
         if reuse_whole_subtree(c, prev):
             tip = mapper[base].bottom
             maybe_reusable = prev.itintervals
+        elif reuse_partial_subtree(c, prev):
+            tip = mapper[base].middle
+            tip = augment_partial_subtree(c, tip, mapper, base)
+            maybe_reusable = []
         else:
             # Add any guards/Syncs outside of the outermost Iteration
             tip = augment_whole_subtree(c, stree, mapper, base)
@@ -110,10 +114,17 @@ def stree_build(clusters, profiler=None, **kwargs):
            any(i.is_Section for i in reversed(tip.ancestors)):
             continue
 
-        candidate = None
-        for i in reversed(tip.ancestors + (tip,)):
+        candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
+
+        if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
+           not candidates[-1] is stree:
+            attach_section(candidates[-1])
+            continue
+
+        found = None
+        for i in candidates:
             if i.is_Halo:
-                candidate = i
+                found = i
             elif i.is_Sync:
                 if profiler._verbosity > 0 or not i.is_async:
                     attach_section(i)
@@ -121,12 +132,12 @@ def stree_build(clusters, profiler=None, **kwargs):
                 break
             elif i.is_Iteration:
                 if (i.dim.is_Time and SEQUENTIAL in i.properties):
-                    section = attach_section(candidate, section)
+                    section = attach_section(found, section)
                     break
                 else:
-                    candidate = i
+                    found = i
         else:
-            attach_section(candidate, section)
+            attach_section(found, section)
 
     return stree
 
@@ -229,7 +240,7 @@ def reuse_whole_subtree(c0, c1, d=None):
             c0.syncs.get(d) == c1.syncs.get(d))
 
 
-def augment_partial_subtree(cluster, tip, mapper, it=None):
+def augment_partial_subtree(cluster, tip, mapper, it):
     d = it.dim
 
     if d in cluster.syncs:
