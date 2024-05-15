@@ -419,8 +419,10 @@ class Communications(Queue):
 
             key = lambda i: i in prefix[:-1] or i in hs.loc_indices
             ispace = c.ispace.project(key)
+            # HaloTOuch are not parallel
+            properties = c.properties.sequentialize()
 
-            halo_touch = c.rebuild(exprs=expr, ispace=ispace)
+            halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
 
             processed.append(halo_touch)
             seen.update({halo_touch, c})
