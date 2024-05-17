@@ -6,8 +6,8 @@ import numpy as np
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Guards, Properties, Scope, WithLock,
-                               PrefetchUpdate, detect_accesses, detect_io,
+                               DataSpace, Guards, Properties, Scope, WaitLock,
+                               WithLock, PrefetchUpdate, detect_accesses, detect_io,
                                normalize_properties, normalize_syncs, minimum,
                                maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
@@ -276,6 +276,15 @@ class Cluster:
         True if an asynchronous Cluster, False otherwise.
         """
         return any(isinstance(s, (WithLock, PrefetchUpdate))
+                   for s in flatten(self.syncs.values()))
+
+    @property
+    def is_wait(self):
+        """
+        True if a Cluster waiting on a lock (that is a special synchronization
+        operation), False otherwise.
+        """
+        return any(isinstance(s, WaitLock)
                    for s in flatten(self.syncs.values()))
 
     @cached_property

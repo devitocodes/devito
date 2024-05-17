@@ -171,8 +171,9 @@ def preprocess(clusters, options=None, **kwargs):
         elif c.is_dist_reduce:
             processed.append(c)
 
-        elif c.is_critical_region and c.syncs:
-            processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
+        elif c.is_critical_region:
+            if c.is_wait:
+                processed.append(c.rebuild(exprs=[], syncs=c.syncs))
 
         elif c.is_wild:
             continue

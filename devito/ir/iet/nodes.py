@@ -1387,6 +1387,12 @@ class SyncSpot(List):
         return any(isinstance(s, (WithLock, PrefetchUpdate))
                    for s in self.sync_ops)
 
+    @property
+    def functions(self):
+        ret = [(s.lock, s.function, s.target) for s in self.sync_ops]
+        ret = tuple(filter_ordered(f for f in flatten(ret) if f is not None))
+        return ret
+
 
 class CBlankLine(List):
 

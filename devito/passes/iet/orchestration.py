@@ -1,19 +1,18 @@
 from collections import OrderedDict
 from functools import singledispatch
 
-import cgen as c
 from sympy import Or
 
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes, Transformer,
                            BlankLine, BusyWait, DummyExpr, AsyncCall, AsyncCallable,
-                           derive_parameters)
+                           make_callable, derive_parameters)
 from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
-                               SyncArray, PrefetchUpdate)
+                               SyncArray, PrefetchUpdate, SnapOut, SnapIn)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper
+from devito.tools import as_mapper, as_tuple
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
@@ -30,13 +29,11 @@ class Orchestrator:
     The language used to implement host-device data movements.
     """
 
-    def __init__(self, sregistry):
+    def __init__(self, sregistry=None, **kwargs):
         self.sregistry = sregistry
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
-            header=c.Comment("Wait for `%s` to be transferred" %
-                             ",".join(s.target.name for s in sync_ops)),
             body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
         )
 
@@ -72,15 +69,22 @@ class Orchestrator:
 
         return iet, [efunc]
 
-    def _make_initarray(self, iet, sync_ops, layer):
-        # Turn init IET into a Callable
-        name = self.sregistry.make_name(prefix='init_array')
-        parameters = derive_parameters(iet, ordering='canonical')
-        efunc = Callable(name, iet.body, 'void', parameters, 'static')
+    def _make_callable(self, name, iet, *args):
+        name = self.sregistry.make_name(prefix=name)
+        efunc = make_callable(name, iet.body)
 
-        iet = Call(name, parameters)
+        iet = Call(name, efunc.parameters)
 
         return iet, [efunc]
+
+    def _make_initarray(self, iet, *args):
+        return self._make_callable('init_array', iet, *args)
+
+    def _make_snapout(self, iet, *args):
+        return self._make_callable('write_snapshot', iet, *args)
+
+    def _make_snapin(self, iet, *args):
+        return self._make_callable('read_snapshot', iet, *args)
 
     def _make_syncarray(self, iet, sync_ops, layer):
         try:
@@ -125,6 +129,8 @@ class Orchestrator:
             (WithLock, self._make_withlock),
             (SyncArray, self._make_syncarray),
             (InitArray, self._make_initarray),
+            (SnapOut, self._make_snapout),
+            (SnapIn, self._make_snapin),
             (PrefetchUpdate, self._make_prefetchupdate),
             (ReleaseLock, self._make_releaselock),
         ])

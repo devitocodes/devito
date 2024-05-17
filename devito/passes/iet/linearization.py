@@ -239,10 +239,16 @@ def linearize_accesses(iet, key0, tracker=None):
     # 2) What `iet` *offers*
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
     defines = FindSymbols('defines-aliases').visit(iet)
-    offers = filter_ordered(f for f in defines if key0(f))
+    offers = filter_ordered(i for i in defines if key0(i.function))
     instances = {}
-    for f in offers:
-        for d in f.dimensions[1:]:
+    for i in offers:
+        f = i.function
+        try:
+            dimensions = i.dimensions
+        except AttributeError:
+            continue
+
+        for d in dimensions[1:]:
             try:
                 fsz = tracker.get_size(f, d)
             except KeyError:

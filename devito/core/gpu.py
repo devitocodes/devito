@@ -293,7 +293,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         sregistry = kwargs['sregistry']
 
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
-        orchestrator = cls._Target.Orchestrator(sregistry)
+        orchestrator = cls._Target.Orchestrator(**kwargs)
 
         return {
             'parallel': parizer.make_parallel,

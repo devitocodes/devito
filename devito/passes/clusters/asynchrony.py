@@ -80,7 +80,7 @@ class Tasking(Queue):
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)
 
-        processed = [c.rebuild(syncs=syncs.get(c, c.syncs)) for c in clusters]
+        processed = [c.rebuild(syncs={**c.syncs, **syncs[c]}) for c in clusters]
 
         return processed
 
@@ -278,12 +278,13 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
 
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
     guard1 = GuardBoundNext(function.indices[d], direction)
-    guards = c.guards.impose(d, guard0).xandg(pd, guard1)
+    guards = c.guards.impose(d, guard0 & guard1)
 
     syncs = {d: [
         ReleaseLock(handle, target),
         PrefetchUpdate(handle, target, tindex, function, findex, d, 1, e.rhs)
     ]}
+    syncs = {**c.syncs, **syncs}
 
     pc = c.rebuild(exprs=expr, ispace=ispace, guards=guards, syncs=syncs)
 
