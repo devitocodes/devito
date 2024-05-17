@@ -4,7 +4,7 @@ import numpy as np
 import sympy
 from sympy.core.core import ordering_of_classes
 
-from devito.types import Array, CompositeObject, Indexed, Symbol
+from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
 from devito.types.basic import IndexedData
 from devito.tools import Pickable, as_tuple
 
@@ -137,16 +137,17 @@ class Hyperplane(tuple):
         return frozenset().union(*[i._defines for i in self])
 
 
-class Pointer(Symbol):
+class Pointer(LocalObject):
 
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        return kwargs.get('dtype', c_void_p)
+    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype',)
+
+    def __init__(self, *args, dtype=c_void_p, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._dtype = dtype
 
     @property
-    def _C_ctype(self):
-        # `dtype` is a ctypes-derived type!
-        return self.dtype
+    def dtype(self):
+        return self._dtype
 
 
 class Indirection(Symbol):
