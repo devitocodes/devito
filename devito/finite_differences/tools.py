@@ -275,6 +275,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
     -------
     An IndexSet, representing an ordered list of indices.
     """
+    stagg_fd = expr.is_Staggered and x0
     # Evaluation point
     x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
 
@@ -284,11 +285,16 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
         iexpr = x0 + d * dim.spacing
         return IndexSet(dim, expr=iexpr), x0
 
-    # Shift for side
-    side = side or centered
-
     # Evaluation point relative to the expression's grid
     mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
+
+    # Centered scheme for staggered field create artifacts if not shifted
+    if stagg_fd and mid == 0 and not dim.is_Time and side is not centered:
+        mid = 0.5 if x0 is dim else -0.5
+        x0 = x0 + mid * dim.spacing
+
+    # Shift for side
+    side = side or centered
 
     # Indices range
     o_min = int(np.ceil(mid - order/2)) + side.val

@@ -72,7 +72,7 @@ jobs:
 
         - name: pytest-ubuntu-py312-gcc13-omp
           python-version: '3.12'
-          os: ubuntu-20.04
+          os: ubuntu-24.04
           arch: "gcc-13"
           language: "openmp"
           sympy: "1.11"
