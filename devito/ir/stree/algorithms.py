@@ -200,7 +200,7 @@ def preprocess(clusters, options=None, **kwargs):
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:
-                ispace = c.ispace.prefix(syncs)
+                ispace = c.ispace.prefix(lambda d: d._defines.intersection(syncs))
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             if all(c1.ispace.is_subset(c.ispace) for c1 in found):
