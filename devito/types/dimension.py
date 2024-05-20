@@ -779,8 +779,6 @@ class SubDimension(DerivedDimension):
             ltkn = r_ltkn or 0
             rtkn = r_rtkn or 0
 
-        # print("Arg values for dim %s on rank %s:" % (self.name, grid.distributor.myrank),
-        #       {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))})
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
 
