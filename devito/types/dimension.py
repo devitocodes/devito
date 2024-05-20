@@ -753,40 +753,25 @@ class SubDimension(DerivedDimension):
                 distributed = grid.is_distributed(self.root)
                 distributor = grid.distributor
             if distributed:
-                # If the SubDomain does not overlap this rank, then iteration bounds
-                # are overridden to close the iteration interval on this rank. However,
-                # in some cases, such as when interpolating/injecting off a Function on
-                # a SubDomain, additional modifiers are applied to this interval. To
-                # ensure that the interval is closed, thicknesses are set using the size
-                # of the root dimension for safety.
-                root_args = self.root._arg_values(interval, **kwargs)
-                root_size = self.root.symbolic_max - self.root.symbolic_min + 1
-                root_size = root_size.subs(root_args)
-
                 # Get local thickness
                 if self.local:
                     # dimension is of type ``left``/right`` - compute the 'offset'
                     # and then add 1 to get the appropriate thickness
                     if r_ltkn is not None:
                         ltkn = distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
-                        # ltkn = ltkn+1 if ltkn is not None else 0
-                        ltkn = ltkn+1 if ltkn is not None else -root_size
+                        ltkn = ltkn+1 if ltkn is not None else 0
                     else:
                         ltkn = 0
 
                     if r_rtkn is not None:
                         rtkn = distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
-                        # rtkn = rtkn+1 if rtkn is not None else 0
-                        rtkn = rtkn+1 if rtkn is not None else -root_size
+                        rtkn = rtkn+1 if rtkn is not None else 0
                     else:
                         rtkn = 0
                 else:
                     # dimension is of type ``middle``
                     ltkn = distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
                     rtkn = distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
-                    # FIXME: Maximum value should be overridden to 2*root_size here
-                    print("Thicknesses for dim %s on rank %s:" % (self.name, grid.distributor.myrank),
-                          {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))})
             else:
                 ltkn = r_ltkn or 0
                 rtkn = r_rtkn or 0

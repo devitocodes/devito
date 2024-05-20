@@ -14,7 +14,7 @@ except ImportError:
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
-from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
+from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT, CondEq
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension, SubFunction)
@@ -279,8 +279,15 @@ class WeightedInterpolator(GenericInterpolator):
             subs.update({d.symbolic_max: sd.symbolic_max
                          for d, sd in subdomain.dimension_map.items()})
 
+            # Insert a check to catch cases where interpolation/injection is
+            # into an empty rank
+            # FIXME: This is not obviously a switch in the generated code
+            # FIXME: Also means that generated code does not match across ranks
+            rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
+
             for d, cd in list(mapper.items()):
                 cond = cd.condition.subs(subs)
+                cond = sympy.And(cond, rank_populated)
                 # Rebuild the ConditionalDimension with an updated condition
                 # Note that rebuilding introduces a factor of 1 if factor is None
                 # This is not desired here.
