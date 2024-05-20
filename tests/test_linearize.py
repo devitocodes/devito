@@ -5,7 +5,7 @@ import scipy.sparse
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
                     Inc, MatrixSparseTimeFunction, sin)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
-from devito.passes import Graph, linearize
+from devito.passes import Graph, linearize, generate_macros
 from devito.types import Array, Bundle, DefaultDimension
 
 
@@ -512,8 +512,10 @@ def test_call_retval_indexed():
     # Emulate what the compiler would do
     graph = Graph(foo)
 
+    sregistry = SymbolRegistry()
     linearize(graph, callback=True, options={'index-mode': 'int64'},
-              sregistry=SymbolRegistry())
+              sregistry=sregistry)
+    generate_macros(graph, sregistry=sregistry)
 
     foo = graph.root
 

@@ -474,6 +474,7 @@ class Bundle(ArrayBasic):
     _C_field_data = ArrayMapped._C_field_data
     _C_field_nbytes = ArrayMapped._C_field_nbytes
     _C_field_dmap = ArrayMapped._C_field_dmap
+    _C_field_size = ArrayMapped._C_field_size
 
     @property
     def _C_ctype(self):

@@ -75,7 +75,11 @@ class CodePrinter(C99CodePrinter):
         U[t,x,y,z] -> U(t,x,y,z)
         """
         inds = ', '.join(self._print(x) for x in expr.indices)
-        return '%s(%s)' % (self._print(expr.base.label), inds)
+        try:
+            label = expr.accessor.label
+        except AttributeError:
+            label = expr.base.label
+        return '%s(%s)' % (self._print(label), inds)
 
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""

@@ -472,7 +472,7 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph)
+        generate_macros(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)

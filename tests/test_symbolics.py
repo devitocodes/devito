@@ -365,14 +365,28 @@ def test_cast():
 
 def test_findexed():
     grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
     f = Function(name='f', grid=grid)
 
-    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
-    new_fi = fi.func(strides=(3, 4))
+    strides_map = {x: 1, y: 2, z: 3}
+    fi = FIndexed(f.base, x+1, y, z-2, strides_map=strides_map)
+    assert ccode(fi) == 'f(x + 1, y, z - 2)'
+
+    # Binding
+    _, fi1 = fi.bind('fL')
+    assert fi1.base is f.base
+    assert ccode(fi1) == 'fL(x + 1, y, z - 2)'
+
+    # Reconstruction
+    strides_map = {x: 3, y: 2, z: 1}
+    new_fi = fi.func(strides_map=strides_map, accessor=fi1.accessor)
 
     assert new_fi.name == fi.name == 'f'
+    assert new_fi.accessor == fi1.accessor
+    assert new_fi.accessor.name == 'fL'
     assert new_fi.indices == fi.indices
-    assert new_fi.strides == (3, 4)
+    assert new_fi.strides_map == strides_map
 
 
 def test_symbolic_printing():
@@ -389,9 +403,9 @@ def test_symbolic_printing():
 
     grid = Grid((10,))
     f = Function(name="f", grid=grid)
-    fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+    fi = FIndexed(f.base, grid.dimensions[0])
     df = DefFunction('aaa', arguments=[fi])
-    assert ccode(df) == 'aaa(foo(x))'
+    assert ccode(df) == 'aaa(f(x))'
 
 
 def test_is_on_grid():
