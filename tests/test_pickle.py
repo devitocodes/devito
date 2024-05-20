@@ -334,16 +334,20 @@ class TestBasic:
 
     def test_findexed(self, pickle):
         grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
         f = Function(name='f', grid=grid)
 
-        fi = FIndexed.from_indexed(f.indexify(), "foo", strides=(1, 2))
+        strides_map = {x: 1, y: 2, z: 3}
+        fi = FIndexed(f.base, x+1, y, z-2, strides_map=strides_map, accessor='fL')
 
         pkl_fi = pickle.dumps(fi)
         new_fi = pickle.loads(pkl_fi)
 
         assert new_fi.name == fi.name
-        assert new_fi.pname == fi.pname
-        assert new_fi.strides == fi.strides
+        assert new_fi.accessor == 'fL'
+        assert new_fi.indices == (x+1, y, z-2)
+        assert new_fi.strides_map == fi.strides_map
 
     def test_symbolics(self, pickle):
         a = Symbol('a')

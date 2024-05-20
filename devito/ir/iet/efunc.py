@@ -128,7 +128,14 @@ class AsyncCallable(Callable):
 
 
 class AsyncCall(Call):
-    pass
+
+    @property
+    def functions(self):
+        return ()
+
+    @property
+    def expr_symbols(self):
+        return ()
 
 
 class ThreadCallable(Callable):
