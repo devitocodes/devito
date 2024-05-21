@@ -947,17 +947,15 @@ class TestSubDomainInterpolation:
         f1 = Function(name='f1', grid=sd1)
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
-        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
 
         coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
                            [0.5, 6.], [7.5, 4.], [5.5, 5.5],
                            [1.5, 4.5], [7.5, 8.5]])
 
         sr0.coordinates.data[:] = coords
-        sr1.coordinates.data[:] = coords
 
         src0 = sr0.inject(f0, Float(1.))
-        src1 = sr1.inject(f1, Float(1.))
+        src1 = sr0.inject(f1, Float(1.))
 
         op = Operator([src0, src1])
 
@@ -1047,3 +1045,34 @@ class TestSubDomainInterpolation:
             assert np.all(np.isclose(sr1.data, [0., 48.75]))
             assert np.all(np.isclose(sr2.data, [0., 112.5]))
             assert np.all(np.isclose(sr3.data, [0., 0.]))
+
+    @pytest.mark.parallel(mode=4)
+    def test_inject_subdomain_mpi(self, mode):
+        """
+        Test injection into a Function defined on a SubDomain with MPI.
+        """
+
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd2 = SD2(grid=grid)
+        sd3 = SD3(grid=grid)
+        sd4 = SD4(grid=grid)
+
+        f0 = Function(name='f0', grid=sd2)
+        f1 = Function(name='f1', grid=sd3)
+        f2 = Function(name='f2', grid=sd4)
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+
+        src0 = sr0.inject(f0, Float(1.))
+        src1 = sr0.inject(f1, Float(1.))
+        src2 = sr0.inject(f2, Float(1.))
+
+        op = Operator([src0, src1, src2])
+
+        op.apply()

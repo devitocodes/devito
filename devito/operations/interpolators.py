@@ -282,12 +282,20 @@ class WeightedInterpolator(GenericInterpolator):
             # Insert a check to catch cases where interpolation/injection is
             # into an empty rank
             # FIXME: This is not obviously a switch in the generated code
-            # FIXME: Also means that generated code does not match across ranks
-            rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
+            # FIXME: Also means that generated code differs across ranks
+            # FIXME: In this case, one could be more brutal and just return no equations
+            # FIXME: Also this is generating multiple contradictory conditions somehow
+            # FIXME: when used with injection
+            # FIXME: Looks like they persist between interpolation operations somehow?
+            # FIXME: I presume it's preferred to keep the exact same code on all ranks?
+            # FIXME: Maybe this conditional needs inserting elsewhere
+            # rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
 
             for d, cd in list(mapper.items()):
                 cond = cd.condition.subs(subs)
-                cond = sympy.And(cond, rank_populated)
+                # cond = sympy.And(cond, rank_populated)
+                # if self.sfunction.grid.distributor.myrank == 3:
+                #     print(cond)
                 # Rebuild the ConditionalDimension with an updated condition
                 # Note that rebuilding introduces a factor of 1 if factor is None
                 # This is not desired here.
