@@ -123,7 +123,10 @@ class InjectBuffers(Queue):
     def __init__(self, mapper, sregistry, options):
         super().__init__()
 
-        self.mapper = mapper
+        # Sort the mapper so that we always process the same Function in the
+        # same order, hence we get deterministic code generation
+        self.mapper = {i: mapper[i] for i in sorted(mapper, key=lambda i: i.name)}
+
         self.sregistry = sregistry
         self.options = options
 
