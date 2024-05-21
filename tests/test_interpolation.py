@@ -880,6 +880,14 @@ class SD4(SubDomain):
         return {x: ('middle', 7, 1), y: ('middle', 1, 6)}
 
 
+class SD5(SubDomain):
+    name = 'sd5'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 4, 3), y: ('middle', 4, 3)}
+
+
 class TestSubDomainInterpolation:
     """
     Tests for interpolation onto and off of Functions defined on
@@ -1056,10 +1064,12 @@ class TestSubDomainInterpolation:
         sd2 = SD2(grid=grid)
         sd3 = SD3(grid=grid)
         sd4 = SD4(grid=grid)
+        sd5 = SD5(grid=grid)
 
         f0 = Function(name='f0', grid=sd2)
         f1 = Function(name='f1', grid=sd3)
         f2 = Function(name='f2', grid=sd4)
+        f3 = Function(name='f3', grid=sd5)
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
 
@@ -1072,7 +1082,47 @@ class TestSubDomainInterpolation:
         src0 = sr0.inject(f0, Float(1.))
         src1 = sr0.inject(f1, Float(1.))
         src2 = sr0.inject(f2, Float(1.))
+        src3 = sr0.inject(f3, Float(1.))
 
-        op = Operator([src0, src1, src2])
+        op = Operator([src0, src1, src2, src3])
 
         op.apply()
+
+        check0 = np.array([[0., 0., 0., 0., 0., 0., 0.5, 0., 0., 0., 0.,],
+                           [0., 0., 0., 0., 0.25, 0.25, 0.5, 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0.25, 0.25, 0., 0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0., 0., 0., 0., 0., 0., 0., 0.]])
+        check1 = np.array([[0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0., 0., 0.]])
+        check2 = np.array([[0., 0., 0., 0.5],
+                           [0., 0., 0., 1.],
+                           [0., 0., 0., 0.5]])
+        check3 = np.array([[0., 0., 0., 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0., 0.25, 0.25, 0.],
+                           [0.5, 0., 0., 0.]])
+
+        # Can't gather inside the assert as it hangs due to the if condition
+        data0 = f0.data_gather()
+        data1 = f1.data_gather()
+        data2 = f2.data_gather()
+        data3 = f3.data_gather()
+
+        if grid.distributor.myrank == 0:
+            assert np.all(data0 == check0)
+            assert np.all(data1 == check1)
+            assert np.all(data2 == check2)
+            assert np.all(data3 == check3)
+        else:
+            # Size zero array of None, so can't check "is None"
+            # But check equal to None works, even though this is discouraged
+            assert data0 == None  # noqa
+            assert data1 == None  # noqa
+            assert data2 == None  # noqa
+            assert data3 == None  # noqa

@@ -264,7 +264,10 @@ class DenseDistributor(AbstractDistributor):
         """The global ranges of all MPI ranks."""
         ret = []
         for i in self.all_numb:
-            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) for j in i],
+            # In cases where ranks are empty, return a range(0, 0)
+            # FIXME: Not sure I like this, seems hacky
+            ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) if len(j) > 0
+                                       else range(0, 0) for j in i],
                                      getters=self.dimensions))
         return tuple(ret)
 
