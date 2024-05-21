@@ -572,8 +572,6 @@ class Operator(Callable):
             nodes = set()
         nodes.update({d for s in subdomains for d in s.dimensions})
         nodes.update(set(self.dimensions))
-        # print("Nodes", nodes)
-        # print("Dataspaces", {d: self._dspace[d] for d in nodes})
 
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
