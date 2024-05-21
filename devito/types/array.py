@@ -1,7 +1,7 @@
 from ctypes import POINTER, Structure, c_void_p, c_ulong
+from functools import cached_property
 
 import numpy as np
-from cached_property import cached_property
 from sympy import Expr
 
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,

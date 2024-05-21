@@ -1,7 +1,7 @@
 import abc
 from collections import namedtuple
 from ctypes import POINTER, _Pointer, c_char_p, c_char
-from functools import reduce
+from functools import reduce, cached_property
 from operator import mul
 
 import numpy as np
@@ -9,7 +9,6 @@ import sympy
 
 from sympy.core.assumptions import _assume_rules
 from sympy.core.decorators import call_highest_priority
-from cached_property import cached_property
 
 from devito.data import default_allocator
 from devito.parameters import configuration

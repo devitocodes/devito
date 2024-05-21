@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
+from functools import cached_property
+
 from math import ceil, pow
 from sympy import factorint
 
 import atexit
 
-from cached_property import cached_property
 import numpy as np
 from cgen import Struct, Value
 

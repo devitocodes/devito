@@ -8,8 +8,8 @@ identifying a device attached to a node).
 
 import os
 from ctypes import POINTER, c_void_p
+from functools import cached_property
 
-from cached_property import cached_property
 import numpy as np
 
 from devito.exceptions import InvalidArgument

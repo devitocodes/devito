@@ -1,8 +1,7 @@
 from collections import Counter, OrderedDict, defaultdict, namedtuple
-from functools import singledispatch
+from functools import singledispatch, cached_property
 from itertools import groupby
 
-from cached_property import cached_property
 import numpy as np
 import sympy
 

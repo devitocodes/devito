@@ -1,4 +1,5 @@
-from cached_property import cached_property
+from functools import cached_property
+
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs

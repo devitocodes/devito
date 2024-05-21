@@ -2,7 +2,7 @@
 
 import sympy
 
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.finite_differences import default_rules
 from devito.tools import as_tuple

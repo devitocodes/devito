@@ -1,5 +1,5 @@
+from functools import cached_property
 from scipy import interpolate
-from cached_property import cached_property
 import numpy as np
 try:
     import matplotlib.pyplot as plt

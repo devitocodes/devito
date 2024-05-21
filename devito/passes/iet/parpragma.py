@@ -1,8 +1,8 @@
 from collections import defaultdict
+from functools import cached_property
 
 import numpy as np
 import cgen as c
-from cached_property import cached_property
 from sympy import And, Max, true
 
 from devito.data import FULL

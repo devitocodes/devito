@@ -1,6 +1,6 @@
 from itertools import chain, product
+from functools import cached_property
 
-from cached_property import cached_property
 from sympy import S
 
 from devito.ir.support.space import Backward, null_ispace

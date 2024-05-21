@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from collections.abc import Iterable
+from functools import cached_property
 
-from cached_property import cached_property
 import sympy
 
 from .finite_difference import generic_derivative, first_derivative, cross_derivative

@@ -6,7 +6,7 @@ from operator import mul
 import numpy as np
 import sympy
 from psutil import virtual_memory
-from cached_property import cached_property
+from functools import cached_property
 
 from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
@@ -30,6 +30,7 @@ __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
+Offset = namedtuple('Offset', 'left right')
 
 
 class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
@@ -203,6 +204,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Form of the coefficients of the function."""
         return self._coefficients
 
+    @property
+    def _shape_with_outhalo(self):
+        return self.shape_with_halo
+
     @cached_property
     def shape(self):
         """
@@ -242,8 +247,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         on the rank position in the decomposed grid (corner, side, ...).
         """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
-
-    _shape_with_outhalo = shape_with_halo
 
     @cached_property
     def _shape_with_inhalo(self):
@@ -310,8 +313,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         return reduce(mul, self.shape_global)
 
-    _offset_inhalo = AbstractFunction._offset_halo
-    _size_inhalo = AbstractFunction._size_halo
+    @property
+    def _offset_inhalo(self):
+        return super()._offset_halo
+
+    @property
+    def _size_inhalo(self):
+        return super()._size_halo
 
     @cached_property
     def _size_outhalo(self):

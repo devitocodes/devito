@@ -1,6 +1,7 @@
+from functools import cached_property
+
 import numpy as np
 import pytest
-from cached_property import cached_property
 
 from sympy import Mul  # noqa
 from sympy.core.mul import _mulsort

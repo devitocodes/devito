@@ -1,9 +1,8 @@
 import abc
 from collections import OrderedDict
-from functools import reduce
+from functools import reduce, cached_property
 from operator import mul
 
-from cached_property import cached_property
 from sympy import Expr
 
 from devito.ir.support.utils import minimum, maximum

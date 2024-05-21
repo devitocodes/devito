@@ -2,7 +2,7 @@
 
 import abc
 import inspect
-from cached_property import cached_property
+from functools import cached_property
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 

@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from cached_property import cached_property
+from functools import cached_property
 
 import numpy as np
 from sympy.core.sympify import converter as sympify_converter
