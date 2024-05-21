@@ -204,6 +204,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Form of the coefficients of the function."""
         return self._coefficients
 
+    @property
+    def _shape_with_outhalo(self):
+        return self.shape_with_halo
+
     @cached_property
     def shape(self):
         """
@@ -231,26 +235,18 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @cached_property
     def shape_with_halo(self):
+        """
+        Shape of the domain+outhalo region. The outhalo is the region
+        surrounding the domain that may be read by an Operator.
+
+        Notes
+        -----
+        In an MPI context, this is the *local* with_halo region shape.
+        Further, note that the outhalo of inner ranks is typically empty, while
+        the outhalo of boundary ranks contains a number of elements depending
+        on the rank position in the decomposed grid (corner, side, ...).
+        """
         return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
-
-    @cached_property
-    def _shape_with_outhalo(self):
-        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
-
-    _shape_with_halo_docstring = """\
-    Shape of the domain+outhalo region. The outhalo is the region
-    surrounding the domain that may be read by an Operator.
-
-    Notes
-    -----
-    In an MPI context, this is the *local* with_halo region shape.
-    Further, note that the outhalo of inner ranks is typically empty, while
-    the outhalo of boundary ranks contains a number of elements depending
-    on the rank position in the decomposed grid (corner, side, ...).
-    """
-
-    shape_with_halo.__doc__ = _shape_with_halo_docstring
-    _shape_with_outhalo.__doc__ = _shape_with_halo_docstring
 
     @cached_property
     def _shape_with_inhalo(self):
@@ -317,25 +313,13 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         return reduce(mul, self.shape_global)
 
-    @cached_property
+    @property
     def _offset_inhalo(self):
-        """Number of points before the first and last halo elements."""
-        left = tuple(self._size_padding.left)
-        right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
+        return super()._offset_halo
 
-        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
-
-        return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
-
-    @cached_property
+    @property
     def _size_inhalo(self):
-        """Number of points in the halo region."""
-        left = tuple(zip(*self._halo))[0]
-        right = tuple(zip(*self._halo))[1]
-
-        sizes = tuple(Size(i, j) for i, j in self._halo)
-
-        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return super()._size_halo
 
     @cached_property
     def _size_outhalo(self):
