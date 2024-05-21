@@ -213,7 +213,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     side = None
     # First order derivative with 2nd order FD is strongly discouraged so taking
     # first order fd that is a lot better
-    if deriv_order == 1 and fd_order == 2 and coefficients != 'symbolic':
+    if deriv_order == 1 and fd_order == 2:
         fd_order = 1
 
     # Zeroth order derivative is just the expression itself if not shifted
