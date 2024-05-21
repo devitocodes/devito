@@ -299,10 +299,10 @@ def kernel_staggered_2d(model, u, v, **kwargs):
     else:
         # Stencils
         phdx = ((costheta*epsilon*u).dx - (sintheta*epsilon*u).dyc +
-                (costheta*delta*v).dxc - (sintheta*delta*v).dy)
+                (costheta*delta*v).dx - (sintheta*delta*v).dyc)
         u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
 
-        pvdz = ((sintheta*delta*u).dx + (costheta*delta*u).dyc +
+        pvdz = ((sintheta*delta*u).dxc + (costheta*delta*u).dy +
                 (sintheta*v).dxc + (costheta*v).dy)
         u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
 

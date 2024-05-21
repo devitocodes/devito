@@ -440,6 +440,20 @@ class TestFD(object):
         v = Function(name="v", grid=grid, space_order=2)
         assert u.dx(x0=x - x.spacing/2)._eval_at(v).x0 == {x: x - x.spacing/2}
 
+    @pytest.mark.parametrize('stagg', [True, False])
+    def test_eval_at_centered(self, stagg):
+        grid = Grid((10,))
+        x = grid.dimensions[0]
+        stagg = NODE if stagg else x
+        x0 = x if stagg else x + .5 * x.spacing
+
+        u = Function(name="u", grid=grid, space_order=2, staggered=stagg)
+        v = Function(name="v", grid=grid, space_order=2, staggered=stagg)
+
+        assert u.dx._eval_at(v).evaluate == u.dx(x0=x0).evaluate
+        assert v.dx._eval_at(u).evaluate == v.dx(x0=x0).evaluate
+        assert u.dx._eval_at(u).evaluate == u.dx.evaluate
+
     def test_fd_new_lo(self):
         grid = Grid((10,))
         x = grid.dimensions[0]

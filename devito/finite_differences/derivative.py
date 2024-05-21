@@ -356,8 +356,12 @@ class Derivative(sympy.Derivative, Differentiable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
-        # If an x0 already exists do not overwrite it
-        x0 = self.x0 or func.indices_ref._getters
+        # If an x0 already exists or evaluating at the same function (i.e u = u.dx)
+        # do not overwrite it
+        if self.x0 or self.side is not None or func.function is self.expr.function:
+            return self
+
+        x0 = func.indices_ref._getters
         if self.expr.is_Add:
             # If `expr` has both staggered and non-staggered terms such as
             # `(u(x + h_x/2) + v(x)).dx` then we exploit linearity of FD to split

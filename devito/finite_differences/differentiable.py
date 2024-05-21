@@ -122,6 +122,13 @@ class Differentiable(sympy.Expr, Evaluable):
         return frozenset([i for i in self._functions if i.coefficients == 'symbolic'])
 
     @cached_property
+    def function(self):
+        if len(self._functions) == 1:
+            return self._functions.pop()
+        else:
+            return None
+
+    @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)
 
