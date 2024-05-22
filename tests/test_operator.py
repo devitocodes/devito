@@ -648,7 +648,7 @@ class TestArithmetic:
 
         eq = Eq(u, x + 1j*y + exp(1j + x.spacing))
         # Currently wrong alias type
-        op = Operator(eq, opt='noop')
+        op = Operator(eq)
         op()
 
         # Check against numpy
