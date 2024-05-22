@@ -245,6 +245,9 @@ class CodePrinter(C99CodePrinter):
 
         return rv
 
+    def _print_ImaginaryUnit(self, expr):
+        return '_Complex_I'
+
     def _print_Differentiable(self, expr):
         return "(%s)" % self._print(expr._expr)
 

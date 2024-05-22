@@ -655,6 +655,7 @@ class TestArithmetic:
         dx = grid.spacing_map[x.spacing]
         xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
         npres = xx + 1j*yy + np.exp(1j + dx)
+        print(op)
 
         assert np.allclose(u.data, npres.T, rtol=1e-7, atol=0)
 
