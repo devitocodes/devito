@@ -127,6 +127,21 @@ class AbstractSparseFunction(DiscreteFunction):
         if key is not None and not isinstance(key, SubFunction):
             key = np.array(key)
 
+        # Check if already a SubFunction
+        d = self._sparse_dim
+        if isinstance(key, SubFunction):
+            if d in key.dimensions:
+                # Can use as is, dimension already matches
+                return key
+            else:
+                # Need to rebuild so the dimensions match the parent
+                # SparseFunction, for example we end up here via `.subs(d, new_d)`
+                print("rebuilding")
+                indices = (d, *key.indices[1:])
+                return key._rebuild(*indices, name=name, shape=shape,
+                                    alias=self.alias, halo=None)
+
+        # Given an array or nothing, create dimension and SubFunction
         if key is not None:
             dimensions = (self._sparse_dim, Dimension(name='d'))
             if key.ndim > 2:
@@ -138,19 +153,6 @@ class AbstractSparseFunction(DiscreteFunction):
         else:
             dimensions = (self._sparse_dim, Dimension(name='d'))
             shape = (self.npoint, self.grid.dim)
-
-        # Check if already a SubFunction
-        d = self.indices[self._sparse_position]
-        if isinstance(key, SubFunction):
-            if d in key.dimensions and not self.alias:
-                # From a reconstruction which leaves `dimensions` intact
-                return key
-            else:
-                # Need to rebuild so the dimensions match the parent
-                # SparseFunction, for example we end up here via `.subs(d, new_d)`
-                indices = (d, *key.indices[1:])
-                return key._rebuild(*indices, name=name, shape=shape,
-                                    alias=self.alias, halo=None)
 
         if key is None:
             # Fallback to default behaviour
