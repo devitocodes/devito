@@ -1125,6 +1125,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return self._grid
 
     @property
+    def _is_on_subdomain(self):
+        """True if defined on a SubDomain"""
+        return self.grid and self.grid.is_SubDomain
+
+    @property
     def dtype(self):
         return self._dtype
 
@@ -1339,26 +1344,25 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def _offset_subdomain(self):
         """Offset of subdomain incides versus the global index."""
         # If defined on a SubDomain, then need to offset indices accordingly
-        if self.grid and self.grid.is_SubDomain:
-            # Symbolic offsets to avoid potential issues with user overrides
-            offsets = []
-            for d in self.dimensions:
-                if d.is_Sub:
-                    ((l_sym, l_val), (r_sym, r_val)) = d.thickness
-                    if l_val is None:
-                        # Right subdimension
-                        offsets.append(-r_sym + d.symbolic_max + 1)
-                    elif r_val is None:
-                        # Left subdimension
-                        offsets.append(0)
-                    else:
-                        # Middle subdimension
-                        offsets.append(l_sym)
-                else:
-                    offsets.append(0)
-            return tuple(offsets)
-        else:
+        if not self._is_on_subdomain:
             return (0,)*len(self.dimensions)
+        # Symbolic offsets to avoid potential issues with user overrides
+        offsets = []
+        for d in self.dimensions:
+            if d.is_Sub:
+                ((l_sym, l_val), (r_sym, r_val)) = d.thickness
+                if l_val is None:
+                    # Right subdimension
+                    offsets.append(-r_sym + d.symbolic_max + 1)
+                elif r_val is None:
+                    # Left subdimension
+                    offsets.append(0)
+                else:
+                    # Middle subdimension
+                    offsets.append(l_sym)
+            else:
+                offsets.append(0)
+        return tuple(offsets)
 
     @property
     def _data_alignment(self):

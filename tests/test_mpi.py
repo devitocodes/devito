@@ -274,8 +274,8 @@ class TestSubDistributor:
         md = MyDomain(grid=grid)
         d = md.distributor
 
-        check_interval(d._sd_interval[0], sd_x, grid.shape[0])
-        check_interval(d._sd_interval[1], sd_y, grid.shape[1])
+        check_interval(d.subdomain_interval[0], sd_x, grid.shape[0])
+        check_interval(d.subdomain_interval[1], sd_y, grid.shape[1])
 
         if not d.intervals[0].is_empty:
             check_interval(d.intervals[0], sd_x, grid.shape[0],
@@ -338,7 +338,7 @@ class TestSubDistributor:
         d = md.distributor
 
         for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
-                                      d._sd_interval, grid.shape):
+                                      d.subdomain_interval, grid.shape):
             # Get the global min and max
             lower_bounds = [np.amin(i) for i in dec if i.size != 0]
             upper_bounds = [np.amax(i) for i in dec if i.size != 0]

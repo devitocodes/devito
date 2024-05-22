@@ -204,7 +204,7 @@ class Decomposition(tuple):
         >>> d.index_glb_to_loc((1, 6), rel=False)
         (5, 6)
         """
-        # Need to offset the loc_abs_min, loc_abs_min, glb_min, and glb_max
+        # Need to offset the loc_abs_min, loc_abs_max, glb_min, and glb_max
         # Distributed indices may not go from 0-i_M, but array indices will
         # Subtract glb_min from all of these
         if not self.loc_empty:
@@ -213,6 +213,7 @@ class Decomposition(tuple):
         else:
             loc_abs_min = self.loc_abs_min
             loc_abs_max = self.loc_abs_max
+
         glb_max = self.glb_max - self.glb_min
 
         base = loc_abs_min if rel is True else 0

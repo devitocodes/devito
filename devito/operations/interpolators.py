@@ -35,6 +35,28 @@ def check_radius(func):
     return wrapper
 
 
+def extract_subdomain(variables):
+    """
+    Check if any of the variables provided are defined on a SubDomain
+    and extract it if this is the case.
+    """
+    sdms = set()
+    for v in variables:
+        try:
+            if v.grid.is_SubDomain:
+                sdms.add(v.grid)
+        except AttributeError:
+            # Variable not on a grid (Indexed for example)
+            pass
+
+    if len(sdms) > 1:
+        raise NotImplementedError("Sparse operation on multiple Functions defined on"
+                                  " different SubDomains currently unsupported")
+    elif len(sdms) == 1:
+        return sdms.pop()
+    return None
+
+
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
 
     """
@@ -237,23 +259,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
-        # Check if any Functions are defined on SubDomains
-        sdms = set()
-        for v in variables:
-            try:
-                if v.grid.is_SubDomain:
-                    sdms.add(v.grid)
-            except AttributeError:
-                # Variable not on a grid (Indexed for example)
-                pass
-
-        if len(sdms) > 1:
-            raise NotImplementedError("Sparse operation on multiple Functions defined on"
-                                      " different SubDomains currently unsupported")
-        elif len(sdms) == 1:
-            subdomain = sdms.pop()
-        else:
-            subdomain = None
+        subdomain = extract_subdomain(variables)
 
         mapper = {}
         pos = self.sfunction._position_map.values()

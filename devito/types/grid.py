@@ -1,13 +1,10 @@
-# TODO: Fix inheritance before PR goes in. Currently a bit of a mess.
-
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
-from itertools import product
 from math import floor
 
 import numpy as np
-from sympy import prod, Interval
+from sympy import prod
 
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
@@ -556,12 +553,12 @@ class SubDomain(AbstractSubDomain):
     """
 
     def __subdomain_finalize__(self, grid=None, **kwargs):
+        # FIXME: Could this first bit be a decorator?
         if grid:
             if self.grid:
                 raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
                                  % self)
-            else:
-                self._grid = grid
+            self._grid = grid
 
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
@@ -607,7 +604,7 @@ class SubDomain(AbstractSubDomain):
         self._distributor = SubDistributor(self)
 
         # Intervals of form Interval(n, n) automatically become FiniteSet
-        # +1 as intervals are in terms of indices (inclusive of endpoints)
+        # Add one to end as intervals are in terms of indices (inclusive of endpoints)
         # Empty interval corresponds to a size of zero
         self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval
                                   else 1 for i in self.distributor.intervals)
@@ -847,8 +844,8 @@ class SubDomainSet(MultiSubDomain):
             if self.grid:
                 raise ValueError("`SubDomain` %s has already been attached to a `Grid`"
                                  % self)
-            else:
-                self._grid = grid
+            self._grid = grid
+
         self._distributor = self.grid.distributor
         self._dtype = self.grid.dtype
 

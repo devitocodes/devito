@@ -503,7 +503,7 @@ class SubDistributor(DenseDistributor):
                 return interval.args[0], interval.args[0]
 
         decompositions = []
-        for dec, i in zip(self.parent._decomposition, self._sd_interval):
+        for dec, i in zip(self.parent._decomposition, self.subdomain_interval):
             if i is None:
                 decompositions.append(dec)
             else:
@@ -542,13 +542,13 @@ class SubDistributor(DenseDistributor):
         return self._dimension_map
 
     @cached_property
-    def _d_interval(self):
+    def domain_interval(self):
         """The interval spanned by this MPI rank."""
         return tuple(Interval(self.par_slices[d].start, self.par_slices[d].stop-1)
                      for d in self.par_dimensions)
 
     @cached_property
-    def _sd_interval(self):
+    def subdomain_interval(self):
         """The interval spanned by the SubDomain."""
         # Assumes no override of x_m and x_M supplied to operator
         bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
@@ -571,7 +571,7 @@ class SubDistributor(DenseDistributor):
     def intervals(self):
         """The interval spanned by the SubDomain in each dimension on this rank."""
         return tuple(d if s is None else d.intersect(s)
-                     for d, s in zip(self._d_interval, self._sd_interval))
+                     for d, s in zip(self.domain_interval, self.subdomain_interval))
 
     @cached_property
     def crosses(self):
@@ -596,10 +596,11 @@ class SubDistributor(DenseDistributor):
         """
         crosses = {}
 
-        for d, d_i, s_i in zip(self.dimensions, self._d_interval, self._sd_interval):
+        for d, di, si in zip(self.dimensions, self.domain_interval,
+                             self.subdomain_interval):
             if d.is_Sub:
-                in_rank = d_i.issuperset(s_i)
-                off_rank = d_i.isdisjoint(s_i)
+                in_rank = di.issuperset(si)
+                off_rank = di.isdisjoint(si)
                 # SubDomain is either fully contained or not present on this rank
                 if in_rank or off_rank:
                     crosses[d] = {LEFT: False, RIGHT: False}
@@ -607,8 +608,8 @@ class SubDistributor(DenseDistributor):
                     raise ValueError("SubDimension %s is local and cannot be"
                                      " decomposed across MPI ranks" % d)
                 else:
-                    crosses[d] = {LEFT: s_i.left < d_i.left,
-                                  RIGHT: s_i.right > d_i.right}
+                    crosses[d] = {LEFT: si.left < di.left,
+                                  RIGHT: si.right > di.right}
             else:
                 crosses[d] = {LEFT: True, RIGHT: True}
 

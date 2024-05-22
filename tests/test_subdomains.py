@@ -1067,7 +1067,7 @@ class TestSubDomainFunctionsParallel:
         assert np.count_nonzero(g.data) == f.data.size
 
         shape = []
-        for i, s in zip(f._distributor._sd_interval, slices):
+        for i, s in zip(f._distributor.subdomain_interval, slices):
             if i is None:
                 shape.append(s.stop - s.start)
             else:
