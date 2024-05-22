@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 from sympy import Add, Mul, S, collect
-from sympy.core import NumberKind
 
 from devito.ir import cluster_pass
 from devito.symbolics import BasicWrapperMixin, estimate_cost, retrieve_symbols
@@ -174,7 +173,7 @@ def _collect_nested(expr):
     Recursion helper for `collect_nested`.
     """
     # Return semantic (rebuilt expression, factorization candidates)
-    if expr.kind is NumberKind:
+    if expr.is_Number:
         return expr, {'coeffs': expr}
     elif expr.is_Function:
         return expr, {'funcs': expr}

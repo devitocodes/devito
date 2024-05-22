@@ -136,6 +136,14 @@ def dtype_to_ctype(dtype):
     if isinstance(dtype, CustomDtype):
         return dtype
 
+    # Complex data
+    if np.issubdtype(dtype, np.complexfloating):
+        rtype = dtype(0).real.__class__
+        ctname = '%s _Complex' % dtype_to_cstr(rtype)
+        ctype = dtype_to_ctype(rtype)
+        r = type(ctname, (ctype,), {})
+        return r
+
     try:
         return ctypes_vector_mapper[dtype]
     except KeyError:
