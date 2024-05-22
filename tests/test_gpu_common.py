@@ -76,6 +76,24 @@ class TestCodeGeneration:
         assert trees[0][0] is trees[1][0]
         assert trees[0][1] is not trees[1][1]
 
+    def test_complex(self):
+        grid = Grid((5, 5))
+        x, y = grid.dimensions
+        # Float32 complex is called complex64 in numpy
+        u = Function(name="u", grid=grid, dtype=np.complex64)
+
+        eq = Eq(u, x + 1j*y + exp(1j + x.spacing))
+        # Currently wrong alias type
+        op = Operator(eq)
+        op()
+
+        # Check against numpy
+        dx = grid.spacing_map[x.spacing]
+        xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
+        npres = xx + 1j*yy + np.exp(1j + dx)
+
+        assert np.allclose(u.data, npres.T, rtol=1e-7, atol=0)
+
 
 class TestPassesOptional:
 
