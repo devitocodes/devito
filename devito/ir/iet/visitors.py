@@ -1295,6 +1295,12 @@ class Uxreplace(Transformer):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         return o._rebuild(function=function, arguments=arguments)
 
+    def visit_ParallelTree(self, o):
+        prefix = self._visit(o.prefix)
+        body = self._visit(o.body)
+        nthreads = self.mapper.get(o.nthreads, o.nthreads)
+        return o._rebuild(prefix=prefix, body=body, nthreads=nthreads)
+
     def visit_HaloSpot(self, o):
         hs = o.halo_scheme
         fmapper = {self.mapper.get(k, k): v for k, v in hs.fmapper.items()}
