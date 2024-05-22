@@ -22,8 +22,6 @@ __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
 
-_subdomain_count = {}  # Track attachment of grids to SubDomains for dimension labelling
-
 
 class CartesianDiscretization(ABC):
 
@@ -398,6 +396,9 @@ class AbstractSubDomain(CartesianDiscretization):
     name = None
     """A unique name for the SubDomain."""
 
+    # Track instances of SubDomains for dimension labelling
+    _subdomain_registry = {}
+
     def __init__(self, *args, **kwargs):
         if self.name is None:
             self.name = self.__class__.__name__
@@ -453,20 +454,17 @@ class AbstractSubDomain(CartesianDiscretization):
         """
         raise NotImplementedError
 
-    @property
+    @cached_property
     def _counter(self):
         """The counter for a SubDomain"""
-        if self.grid:
-            try:
-                _subdomain_count[self.grid].add(id(self))
-            except KeyError:
-                _subdomain_count[self.grid] = {id(self)}
-
-            count = len(_subdomain_count[self.grid]) - 1
-        else:
+        if not self.grid:
             raise ValueError("SubDomain %s is not attached to a Grid and has no counter"
                              % self)
-        return count
+        try:
+            self._subdomain_registry[self.grid].add(id(self))
+        except KeyError:
+            self._subdomain_registry[self.grid] = {id(self)}
+        return len(self._subdomain_registry[self.grid]) - 1
 
     @property
     def dimension_map(self):
