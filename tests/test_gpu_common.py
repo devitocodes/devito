@@ -7,7 +7,7 @@ import scipy.sparse
 from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
-                    SubDimension, SubDomain, SubDomainSet, TimeFunction,
+                    SubDimension, SubDomain, SubDomainSet, TimeFunction, exp,
                     Operator, configuration, switchconfig, TensorTimeFunction)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
