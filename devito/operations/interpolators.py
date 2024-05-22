@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 from functools import wraps, cached_property
 
 import sympy
