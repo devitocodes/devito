@@ -594,24 +594,22 @@ class SubDistributor(DenseDistributor):
               `d0`, `s1` the DataSide along `d1`, and so on. This can be
               determine whether the SubDomain crosses the edge of the rank on this side.
         """
-        crosses = {}
+        def get_crosses(d, di, si):
+            if not d.is_Sub:
+                return {LEFT: True, RIGHT: True}
 
-        for d, di, si in zip(self.dimensions, self.domain_interval,
-                             self.subdomain_interval):
-            if d.is_Sub:
-                in_rank = di.issuperset(si)
-                off_rank = di.isdisjoint(si)
-                # SubDomain is either fully contained or not present on this rank
-                if in_rank or off_rank:
-                    crosses[d] = {LEFT: False, RIGHT: False}
-                elif d.local:
-                    raise ValueError("SubDimension %s is local and cannot be"
-                                     " decomposed across MPI ranks" % d)
-                else:
-                    crosses[d] = {LEFT: si.left < di.left,
-                                  RIGHT: si.right > di.right}
-            else:
-                crosses[d] = {LEFT: True, RIGHT: True}
+            # SubDomain is either fully contained by or not present on this rank
+            if di.issuperset(si) or di.isdisjoint(si):
+                return {LEFT: False, RIGHT: False}
+            elif d.local:
+                raise ValueError("SubDimension %s is local and cannot be"
+                                 " decomposed across MPI ranks" % d)
+            return {LEFT: si.left < di.left,
+                    RIGHT: si.right > di.right}
+
+        crosses = {d: get_crosses(d, di, si) for d, di, si
+                   in zip(self.dimensions, self.domain_interval,
+                          self.subdomain_interval)}
 
         for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
             crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)

@@ -57,6 +57,41 @@ def extract_subdomain(variables):
     return None
 
 
+def adjust_interp_indices(subdomain, mapper, smapper, cdmapper):
+    """
+    Modify the substitutions between dimensions and interpolation indices
+    to use SubDimensions in the condition and add switches. Update the
+    corresponding mappers.
+    """
+    # Rebuild the ConditionalDimensions to use the SubDomain
+    # minima and maxima in the condition
+    subs = {d.symbolic_min: sd.symbolic_min
+            for d, sd in subdomain.dimension_map.items()}
+    subs.update({d.symbolic_max: sd.symbolic_max
+                 for d, sd in subdomain.dimension_map.items()})
+
+    # Insert a check to catch cases where interpolation/injection is
+    # into an empty rank. This depends on the injection field or interpolated
+    # expression, and so must be inserted here.
+    # FIXME: The resultant switch isn't super obvious in generated code and
+    # results in different code between ranks.
+    # FIXME: This could be checked for the rank before looping over sparse
+    # footprint
+    rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
+
+    for d, cd in list(mapper.items()):
+        cond = cd.condition.subs(subs)
+        cond = sympy.And(cond, rank_populated)
+        # Rebuild the ConditionalDimension with an updated condition
+        # Note that rebuilding introduces a factor of 1 if factor is None
+        # This is not desired here.
+        sd = subdomain.dimension_map[d]
+        rebuilt_cd = cd._rebuild(condition=cond, factor=cd._factor)
+        mapper[d] = rebuilt_cd
+        smapper[sd] = rebuilt_cd
+        cdmapper[cd] = rebuilt_cd
+
+
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
 
     """
@@ -273,38 +308,13 @@ class WeightedInterpolator(GenericInterpolator):
         # Substitution mapper for variables
         mapper = self._rdim._getters.copy()
 
+        # Subsitution from SubDimensions to ConditionalDimensions
+        smapper = {}
+        # Substitution from ConditionalDimensions to rebuilt dimensions
         cdmapper = {}
         # Need to adjust bounds if Function defined on a SubDomain
         if subdomain:
-            # Corresponding mapper just for the SubDomain
-            smapper = OrderedDict()
-            # Rebuild the ConditionalDimensions to use the SubDomain
-            # minima and maxima in the condition
-            subs = {d.symbolic_min: sd.symbolic_min
-                    for d, sd in subdomain.dimension_map.items()}
-            subs.update({d.symbolic_max: sd.symbolic_max
-                         for d, sd in subdomain.dimension_map.items()})
-
-            # Insert a check to catch cases where interpolation/injection is
-            # into an empty rank. This depends on the injection field or interpolated
-            # expression, and so must be inserted here.
-            # FIXME: The resultant switch isn't super obvious in generated code and
-            # results in different code between ranks.
-            # FIXME: This could be checked for the rank before looping over sparse
-            # footprint
-            rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
-
-            for d, cd in list(mapper.items()):
-                cond = cd.condition.subs(subs)
-                cond = sympy.And(cond, rank_populated)
-                # Rebuild the ConditionalDimension with an updated condition
-                # Note that rebuilding introduces a factor of 1 if factor is None
-                # This is not desired here.
-                sd = subdomain.dimension_map[d]
-                rebuilt_cd = cd._rebuild(condition=cond, factor=cd._factor)
-                mapper[d] = rebuilt_cd
-                smapper[sd] = rebuilt_cd
-                cdmapper[cd] = rebuilt_cd
+            adjust_interp_indices(subdomain, mapper, smapper, cdmapper)
 
         # Index substitution to make in variables
         i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
