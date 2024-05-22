@@ -449,7 +449,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
             return self.dtype
         elif np.issubdtype(self.dtype, np.complexfloating):
             rtype = self.dtype(0).real.__class__
-            ctname = '%s _Complex' % dtype_to_cstr(rtype)
+            ctname = '%s complex' % dtype_to_cstr(rtype)
             ctype = dtype_to_ctype(rtype)
             r = type(ctname, (ctype,), {})
             return r

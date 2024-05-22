@@ -305,4 +305,10 @@ def sympy_dtype(expr, base=None):
             dtypes.add(i.dtype)
         except AttributeError:
             pass
-    return infer_dtype(dtypes)
+    dtype = infer_dtype(dtypes)
+
+    # Promote if complex
+    if expr.has(ImaginaryUnit):
+        dtype = np.promote_types(dtype, np.complex64).type
+
+    return dtype
