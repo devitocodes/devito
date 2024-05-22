@@ -3,7 +3,6 @@ from functools import singledispatch
 import cgen
 import numpy as np
 import sympy
-import numpy as np
 
 from devito import configuration
 from devito.finite_differences import Max, Min
