@@ -43,6 +43,10 @@ class CodePrinter(C99CodePrinter):
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
         return dtype in [np.float32, np.float16]
 
+    def complex_prec(self, expr=None):
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return np.issubdtype(dtype, np.complexfloating)
+
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
             return "(%s)" % self._print(item)
@@ -110,6 +114,8 @@ class CodePrinter(C99CodePrinter):
 
         if self.single_prec(expr):
             cname = '%sf' % cname
+        if self.complex_prec(expr):
+            cname = 'c%s' % cname
 
         args = ', '.join((self._print(arg) for arg in expr.args))
 
@@ -255,8 +261,12 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
+
         if self.single_prec():
             func_name = '%sf' % func_name
+        if self.complex_prec():
+            func_name = 'c%s' % func_name
+
         return '%s(%s)' % (func_name, self._print(*expr.args))
 
     def _print_DefFunction(self, expr):
