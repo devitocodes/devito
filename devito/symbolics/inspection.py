@@ -3,7 +3,6 @@ from functools import singledispatch
 import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
-from sympy.core.operations import AssocOp
 from sympy.core.numbers import ImaginaryUnit
 
 from devito.finite_differences import Derivative
