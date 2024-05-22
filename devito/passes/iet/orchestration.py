@@ -12,7 +12,7 @@ from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper, as_tuple
+from devito.tools import as_mapper
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']

@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from functools import singledispatch
 from ctypes import c_int
 
@@ -7,8 +7,8 @@ import cgen as c
 from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
                        Conditional, DummyEq, DummyExpr, While, Increment, Iteration,
                        List, PointerCast, Return, FindNodes, FindSymbols,
-                       ThreadCallable, EntryFunction, Transformer, Uxreplace,
-                       make_callable, maybe_alias)
+                       ThreadCallable, EntryFunction, Transformer, make_callable,
+                       maybe_alias)
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
@@ -280,11 +280,3 @@ def sanitize_ncfields(ncfields):
             sanitized.append(i)
 
     return sanitized
-
-
-def retrieve_sdata(call):
-    #TODO: DROP?
-    for a in call.arguments:
-        if isinstance(a, SharedData):
-            return a
-    return None

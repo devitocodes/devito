@@ -234,9 +234,6 @@ class Fusion(Queue):
             any(f._mem_shared for f in c.scope.reads)
         ])
 
-        #weak.append(any(f.is_TimeFunction and f.save is not None
-        #                for f in c.scope.writes))
-
         # Promoting adjacency of IndexDerivatives will maximize their reuse
         weak.append(any(e.find(IndexDerivative) for e in c.exprs))
 
