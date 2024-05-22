@@ -4,7 +4,6 @@ import cgen
 import numpy as np
 import sympy
 
-from devito import configuration
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
 from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
@@ -254,25 +253,28 @@ def minimize_symbols(iet):
     return iet, {}
 
 
+_complex_lib = {'cuda': 'cuComplex.h', 'hip': 'hip/hip_complex.h'}
+
+
 @iet_pass
-def complex_include(iet):
+def complex_include(iet, language, compiler):
     """
     Add headers for complex arithmetic
     """
-    if configuration['language'] == 'cuda':
-        lib = 'cuComplex.h'
-    elif configuration['language'] == 'hip':
-        lib = 'hip/hip_complex.h'
-    else:
-        lib = 'complex.h'
+    lib = _complex_lib.get(language, 'complex.h')
 
-    functions = FindSymbols().visit(iet)
-    for f in functions:
+    headers = {}
+    # For openacc (cpp) need to define constant _Complex_I that isn't found otherwise
+    if compiler._cpp:
+        headers = {('_Complex_I', ('1.0fi'))}
+
+    for f in FindSymbols().visit(iet):
         try:
             if np.issubdtype(f.dtype, np.complexfloating):
-                return iet, {'includes': (lib,)}
+                return iet, {'includes': (lib,), 'headers': headers}
         except TypeError:
             pass
+
     return iet, {}
 
 
