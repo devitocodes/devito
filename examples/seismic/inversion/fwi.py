@@ -2,7 +2,7 @@ import numpy as np
 
 from devito import configuration, Function, norm, mmax, mmin
 
-from examples.seismic import demo_model, AcquisitionGeometry, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 
 from inversion_utils import compute_residual, update_with_box
@@ -57,10 +57,11 @@ source_locations[:, 1] = np.linspace(0., 1000, num=nshots)
 
 # Create placeholders for the data residual and data
 residual = geometry.new_rec(name='residual')
-d_obs = geometry.new_rec(name='d_obs')
-d_syn = geometry.new_rec(name='d_syn')
+d_obs = geometry.new_rec(name='d_obs', coordinates=residual.coordinates)
+d_syn = geometry.new_rec(name='d_syn', coordinates=residual.coordinates)
 
 src = solver.geometry.src
+
 
 def fwi_gradient(vp_in):
     # Create symbols to hold the gradient
@@ -74,7 +75,7 @@ def fwi_gradient(vp_in):
         solver.forward(vp=model.vp, rec=d_obs, src=src)
 
         # Compute smooth data and full forward wavefield u0
-        _, u0, _ = solver.forward(vp=vp_in, save=True, rec=d_syn)
+        _, u0, _ = solver.forward(vp=vp_in, save=True, rec=d_syn, src=src)
 
         # Compute gradient from data residual and update objective function
         compute_residual(residual, d_obs, d_syn)

@@ -160,28 +160,15 @@ class AcquisitionGeometry(Pickable):
         return self._interpolation
 
     @property
-    def src_coords(self):
-        return self._src_coordinates
-
-    @property
-    def rec_coords(self):
-        return self._rec_coordinates
-
-    @property
     def rec(self):
         return self.new_rec()
-        self._rec_coordinates = rec.coordinates
-        return rec
 
-    def new_rec(self, name='rec'):
-        coords = self.rec_coords or self.rec_positions
+    def new_rec(self, name='rec', coordinates=None):
+        coords = coordinates or self.rec_positions
         rec = Receiver(name=name, grid=self.grid,
                        time_range=self.time_axis, npoint=self.nrec,
                        interpolation=self.interpolation, r=self._r,
                        coordinates=coords)
-
-        if self.rec_coords is None:
-            self._rec_coordinates = rec.coordinates
 
         return rec
 
@@ -189,7 +176,7 @@ class AcquisitionGeometry(Pickable):
     def adj_src(self):
         if self.src_type is None:
             return self.new_rec()
-        coords = self.rec_coords or self.rec_positions
+        coords = self.rec_positions
         adj_src = sources[self.src_type](name='rec', grid=self.grid, f0=self.f0,
                                          time_range=self.time_axis, npoint=self.nrec,
                                          interpolation=self.interpolation, r=self._r,
@@ -203,8 +190,8 @@ class AcquisitionGeometry(Pickable):
     def src(self):
         return self.new_src()
 
-    def new_src(self, name='src', src_type='self'):
-        coords = self.src_coords or self.src_positions
+    def new_src(self, name='src', src_type='self', coordinates=None):
+        coords = coordinates or self.src_positions
         if self.src_type is None or src_type is None:
             warning("No source type defined, returning uninitiallized (zero) source")
             src = PointSource(name=name, grid=self.grid,
@@ -217,9 +204,6 @@ class AcquisitionGeometry(Pickable):
                                          coordinates=coords,
                                          t0=self._t0w, a=self._a,
                                          interpolation=self.interpolation, r=self._r)
-
-        if self.src_coords is None:
-            self._src_coordinates = src.coordinates
 
         return src
 

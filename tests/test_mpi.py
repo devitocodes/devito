@@ -526,9 +526,13 @@ class TestSparseFunction(object):
         loc_data = loc_data*2
 
         # Gather
-        sf._dist_gather(loc_data, loc_coords)
+        sf._dist_data_gather(loc_data)
         assert len(sf.data) == 1
         assert np.all(sf.data == data[sf.local_indices]*2)
+
+        sf._dist_subfunc_gather(loc_coords, sf.coordinates)
+        assert sf.coordinates.data.shape == (1, 2)
+        assert np.all(sf.coordinates.data == coords[sf.local_indices[0], :])
 
     @pytest.mark.parallel(mode=4)
     @switchconfig(condition=isinstance(configuration['compiler'],

@@ -29,6 +29,14 @@ _interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
 _default_radius = {'linear': 1, 'sinc': 4}
 
 
+class SparseSubFunction(SubFunction):
+
+    def _arg_apply(self, dataobj, **kwargs):
+        if self.parent is not None:
+            return self.parent._dist_subfunc_gather(dataobj, self)
+        return super()._arg_apply(dataobj, **kwargs)
+
+
 class AbstractSparseFunction(DiscreteFunction):
 
     """
@@ -57,21 +65,22 @@ class AbstractSparseFunction(DiscreteFunction):
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
-        dimensions = as_tuple(kwargs.get('dimensions'))
+        # Need this not to break MatrixSparseFunction
+        try:
+            _sub_funcs = tuple(cls._sub_functions)
+        except TypeError:
+            _sub_funcs = ()
         # If a subfunction provided use the sparse dimension
-        for f in cls._sub_functions:
-            if f in kwargs:
-                try:
-                    sparse_dim = kwargs[f].indices[0]
-                    break
-                except AttributeError:
-                    continue
+        for f in _sub_funcs:
+            try:
+                sparse_dim = kwargs[f].indices[0]
+                break
+            except (KeyError, AttributeError):
+                continue
         else:
             sparse_dim = Dimension(name='p_%s' % kwargs["name"])
 
-        if not dimensions:
-            dimensions = (sparse_dim,)
-
+        dimensions = as_tuple(kwargs.get('dimensions', sparse_dim))
         if args:
             return tuple(dimensions), tuple(args)
         else:
@@ -128,18 +137,19 @@ class AbstractSparseFunction(DiscreteFunction):
             key = np.array(key)
 
         # Check if already a SubFunction
-        d = self._sparse_dim
         if isinstance(key, SubFunction):
-            if d in key.dimensions:
+            d = self.indices[self._sparse_position]
+            if d in key.indices:
                 # Can use as is, dimension already matches
-                return key
+                if self.alias:
+                    return key._rebuild(alias=self.alias, name=name)
+                else:
+                    return key
             else:
                 # Need to rebuild so the dimensions match the parent
                 # SparseFunction, for example we end up here via `.subs(d, new_d)`
-                print("rebuilding")
                 indices = (d, *key.indices[1:])
-                return key._rebuild(*indices, name=name, shape=shape,
-                                    alias=self.alias, halo=None)
+                return key._rebuild(*indices, name=name, alias=self.alias)
 
         # Given an array or nothing, create dimension and SubFunction
         if key is not None:
@@ -170,7 +180,7 @@ class AbstractSparseFunction(DiscreteFunction):
             else:
                 dtype = dtype or self.dtype
 
-        sf = SubFunction(
+        sf = SparseSubFunction(
             name=name, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
             distributor=self._distributor, parent=self
@@ -597,12 +607,6 @@ class AbstractSparseFunction(DiscreteFunction):
                 mapper.update(self._dist_subfunc_scatter(getattr(self, i)))
         return mapper
 
-    def _dist_gather(self, data, *subfunc):
-        self._dist_data_gather(data)
-        for (sg, s) in zip(subfunc, self._sub_functions):
-            if getattr(self, s) is not None:
-                self._dist_subfunc_gather(sg, getattr(self, s))
-
     def _eval_at(self, func):
         return self
 
@@ -650,11 +654,11 @@ class AbstractSparseFunction(DiscreteFunction):
 
         return values
 
-    def _arg_apply(self, dataobj, *subfuncs, alias=None):
+    def _arg_apply(self, dataobj, alias=None):
         key = alias if alias is not None else self
         if isinstance(key, AbstractSparseFunction):
             # Gather into `self.data`
-            key._dist_gather(dataobj, *subfuncs)
+            key._dist_data_gather(dataobj)
         elif self._distributor.nprocs > 1:
             raise NotImplementedError("Don't know how to gather data from an "
                                       "object of type `%s`" % type(key))

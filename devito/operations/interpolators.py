@@ -486,8 +486,7 @@ of the SincInterpolator that uses i0 (Bessel function).
             sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
-                             distributor=self.sfunction._distributor,
-                             parent=self.sfunction)
+                             parent=None)
             coeffs[r] = sf
         return coeffs
 
