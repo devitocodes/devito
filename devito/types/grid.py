@@ -195,11 +195,6 @@ class Grid(CartesianDiscretization, ArgProvider):
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
         # Initialize SubDomains for legacy interface
-        # if subdomains:
-        #     warning("Passing `SubDomain`s to a `Grid` and the `Grid.subdomains` property"
-        #             " are deprecated. The updated API requires a `Grid` to be passed to"
-        #             " the `SubDomain` on instantiation in the form `mydomain ="
-        #             " MyDomain(grid=grid)`.")
         self._subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for i in self._subdomains:
             i.__subdomain_finalize_legacy__(self)
@@ -555,45 +550,7 @@ class SubDomain(AbstractSubDomain):
     def __subdomain_finalize__(self):
         # FIXME: Will want some identifier for SubDomains which can have a Function
         # FIXME: defined on them
-        # Create the SubDomain's SubDimensions
-        sub_dimensions = []
-        sdshape = []
-
-        for k, v, s in zip(self.define(self.grid.dimensions),
-                           self.define(self.grid.dimensions).values(), self.grid.shape):
-            if isinstance(v, Dimension):
-                sub_dimensions.append(v)
-                sdshape.append(s)
-            else:
-                name = 'i%d%s' % (self._counter, k.name)
-                try:
-                    # Case ('middle', int, int)
-                    side, ltkn, rtkn = v
-                    if side != 'middle':
-                        raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle(name, k, ltkn, rtkn))
-                    thickness = s-ltkn-rtkn
-                    sdshape.append(thickness)
-                except ValueError:
-                    side, thickness = v
-                    if side == 'left':
-                        if s-thickness < 0:
-                            raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left(name, k, thickness))
-                        sdshape.append(thickness)
-                    elif side == 'right':
-                        if s-thickness < 0:
-                            raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right(name, k, thickness))
-                        sdshape.append(thickness)
-                    else:
-                        raise ValueError("Expected sides 'left|right', not `%s`" % side)
-
-        self._shape = tuple(sdshape)
-        self._dimensions = tuple(sub_dimensions)
-        self._dtype = self.grid.dtype
+        self.__subdomain_finalize_legacy__(self.grid)
         self._distributor = SubDistributor(self)
 
         # Intervals of form Interval(n, n) automatically become FiniteSet
@@ -872,77 +829,8 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self):
-        self._distributor = self.grid.distributor
-        self._dtype = self.grid.dtype
-
-        # Create the SubDomainSet SubDimensions
-        self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, self._counter), d, self)
-            for d in self.grid.dimensions
-        )
-
-        # Compute the SubDomainSet shapes
-        global_bounds = []
-        for i in self._global_bounds:
-            if isinstance(i, int):
-                global_bounds.append(np.full(self._n_domains, i, dtype=np.int32))
-            else:
-                global_bounds.append(i)
-        d_m = global_bounds[0::2]
-        d_M = global_bounds[1::2]
-        shapes = []
-        for i in range(self._n_domains):
-            dshape = []
-            for s, m, M in zip(self.grid.shape, d_m, d_M):
-                assert(m.size == M.size)
-                dshape.append(s-m[i]-M[i])
-            shapes.append(as_tuple(dshape))
-        self._shape = as_tuple(shapes)
-
-        if self.distributor and self.distributor.is_parallel:
-            # Now create local bounds based on distributor
-            processed = []
-            for dec, m, M in zip(self.distributor.decomposition, d_m, d_M):
-                processed.extend(self._bounds_glb_to_loc(dec, m, M))
-            self._local_bounds = as_tuple(processed)
-        else:
-            # Not distributed and hence local and global bounds are
-            # equivalent.
-            self._local_bounds = self._global_bounds
-
-        # Sanity check
-        if len(self._local_bounds) != 2*len(self.dimensions):
-            raise ValueError("Left and right bounds must be supplied for each dimension")
-
-        # Associate the `_local_bounds` to suitable symbolic objects that the
-        # compiler can use to generate code
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % self._counter)
-        functions = []
-        for j in range(len(self._local_bounds)):
-            index = floor(j/2)
-            d = self.dimensions[index]
-            if j % 2 == 0:
-                fname = "%s_%s" % (self.name, d.min_name)
-            else:
-                fname = "%s_%s" % (self.name, d.max_name)
-            f = Function(name=fname, grid=self.grid, shape=(self._n_domains,),
-                         dimensions=(i_dim,), dtype=np.int32)
-
-            # Check if shorthand notation has been provided:
-            if isinstance(self._local_bounds[j], int):
-                f.data[:] = np.full((self._n_domains,), self._local_bounds[j],
-                                    dtype=np.int32)
-            else:
-                f.data[:] = self._local_bounds[j]
-
-            functions.append(f)
-        self._functions = as_tuple(functions)
-
-    def __subdomain_finalize_legacy__(self, grid):
-        self._grid = grid
+    def __subdomain_finalize_core__(self, grid):
         self._dtype = grid.dtype
-
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
             MultiSubDimension('%si%d' % (d.name, self._counter), d, self)
@@ -1005,6 +893,13 @@ class SubDomainSet(MultiSubDomain):
 
             functions.append(f)
         self._functions = as_tuple(functions)
+
+    def __subdomain_finalize__(self):
+        self.__subdomain_finalize_core__(self.grid)
+
+    def __subdomain_finalize_legacy__(self, grid):
+        self._grid = grid
+        self.__subdomain_finalize_core__(self.grid)
 
     @property
     def n_domains(self):
