@@ -2,7 +2,7 @@ import numpy as np
 
 from devito import configuration, Function, norm, mmax, mmin
 
-from examples.seismic import demo_model, AcquisitionGeometry, Receiver
+from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.acoustic import AcousticWaveSolver
 
 from inversion_utils import compute_residual, update_with_box
@@ -55,33 +55,30 @@ source_locations = np.empty((nshots, 2), dtype=np.float32)
 source_locations[:, 0] = 20.
 source_locations[:, 1] = np.linspace(0., 1000, num=nshots)
 
+# Create placeholders for the data residual and data
+residual = geometry.new_rec(name='residual')
+d_obs = geometry.new_rec(name='d_obs', coordinates=residual.coordinates)
+d_syn = geometry.new_rec(name='d_syn', coordinates=residual.coordinates)
+
+src = solver.geometry.src
+
 
 def fwi_gradient(vp_in):
     # Create symbols to hold the gradient
     grad = Function(name="grad", grid=model.grid)
     objective = 0.
     for i in range(nshots):
-        # Create placeholders for the data residual and data
-        residual = Receiver(name='residual', grid=model.grid,
-                            time_range=geometry.time_axis,
-                            coordinates=geometry.rec_positions)
-        d_obs = Receiver(name='d_obs', grid=model.grid,
-                         time_range=geometry.time_axis,
-                         coordinates=geometry.rec_positions)
-        d_syn = Receiver(name='d_syn', grid=model.grid,
-                         time_range=geometry.time_axis,
-                         coordinates=geometry.rec_positions)
         # Update source location
-        solver.geometry.src_positions[0, :] = source_locations[i, :]
+        src.coordinates.data[0, :] = source_locations[i, :]
 
         # Generate synthetic data from true model
-        solver.forward(vp=model.vp, rec=d_obs)
+        solver.forward(vp=model.vp, rec=d_obs, src=src)
 
         # Compute smooth data and full forward wavefield u0
-        _, u0, _ = solver.forward(vp=vp_in, save=True, rec=d_syn)
+        _, u0, _ = solver.forward(vp=vp_in, save=True, rec=d_syn, src=src)
 
         # Compute gradient from data residual and update objective function
-        residual = compute_residual(residual, d_obs, d_syn)
+        compute_residual(residual, d_obs, d_syn)
 
         objective += .5*norm(residual)**2
         solver.jacobian_adjoint(rec=residual, u=u0, vp=vp_in, grad=grad)

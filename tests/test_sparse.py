@@ -423,8 +423,7 @@ class TestSparseFunction(object):
         # Check new subfunction
         for subf in sp2._sub_functions:
             if getattr(sp2, subf) is not None:
-                assert getattr(sp2, subf).name.startswith("sr_")
-                assert np.all(getattr(sp2, subf).data == 0)
+                assert getattr(sp2, subf) == getattr(sp, subf)
 
         # Rebuild with different name as an alias
         sp2 = sp._rebuild(name="sr2", alias=True)

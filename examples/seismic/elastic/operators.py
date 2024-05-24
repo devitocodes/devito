@@ -1,6 +1,5 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import div, grad, diag, solve
-from examples.seismic import PointSource, Receiver
 
 
 def src_rec(v, tau, model, geometry):
@@ -9,12 +8,9 @@ def src_rec(v, tau, model, geometry):
     """
     s = model.grid.time_dim.spacing
     # Source symbol with input wavelet
-    src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
-    rec1 = Receiver(name='rec1', grid=model.grid, time_range=geometry.time_axis,
-                    npoint=geometry.nrec)
-    rec2 = Receiver(name='rec2', grid=model.grid, time_range=geometry.time_axis,
-                    npoint=geometry.nrec)
+    src = geometry.src
+    rec1 = geometry.new_rec(name="rec1")
+    rec2 = geometry.new_rec(name="rec2")
 
     # The source injection term
     src_expr = src.inject(tau.forward.diagonal(), expr=src * s)

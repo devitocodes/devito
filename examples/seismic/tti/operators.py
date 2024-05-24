@@ -1,6 +1,5 @@
 from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
                     cos, sin, sqrt, div, grad)
-from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import freesurface
 
 
@@ -444,10 +443,8 @@ def ForwardOperator(model, geometry, space_order=4,
     v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
                      save=geometry.nt if save else None,
                      time_order=time_order, space_order=space_order)
-    src = PointSource(name='src', grid=model.grid, time_range=geometry.time_axis,
-                      npoint=geometry.nsrc)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    src = geometry.src
+    rec = geometry.rec
 
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
@@ -493,10 +490,8 @@ def AdjointOperator(model, geometry, space_order=4,
                      time_order=time_order, space_order=space_order)
     r = TimeFunction(name='r', grid=model.grid, staggered=stagg_r,
                      time_order=time_order, space_order=space_order)
-    srca = PointSource(name='srca', grid=model.grid, time_range=geometry.time_axis,
-                       npoint=geometry.nsrc)
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    srca = geometry.new_src(name='srca', src_type=None)
+    rec = geometry.rec
 
     # FD kernels of the PDE
     FD_kernel = kernels[(kernel, len(model.shape))]
@@ -535,11 +530,8 @@ def JacobianOperator(model, geometry, space_order=4,
     time_order = 2
 
     # Create source and receiver symbols
-    src = Receiver(name='src', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nsrc)
-
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    src = geometry.src
+    rec = geometry.rec
 
     # Create wavefields and a dm field
     u0 = TimeFunction(name='u0', grid=model.grid, save=None, time_order=time_order,
@@ -607,8 +599,7 @@ def JacobianAdjOperator(model, geometry, space_order=4,
 
     dm = Function(name="dm", grid=model.grid)
 
-    rec = Receiver(name='rec', grid=model.grid, time_range=geometry.time_axis,
-                   npoint=geometry.nrec)
+    rec = geometry.rec
 
     # FD kernels of the PDE
     FD_kernel = kernels[('centered', len(model.shape))]

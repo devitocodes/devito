@@ -13,11 +13,8 @@ def compute_residual(res, dobs, dsyn):
     assert np.allclose(dobs.coordinates.data[:], dsyn.coordinates.data)
     assert np.allclose(res.coordinates.data[:], dsyn.coordinates.data)
     # Create a difference operator
-    diff_eq = Eq(res, dsyn.subs({dsyn.dimensions[-1]: res.dimensions[-1]}) -
-                 dobs.subs({dobs.dimensions[-1]: res.dimensions[-1]}))
+    diff_eq = Eq(res, dsyn - dobs)
     Operator(diff_eq)()
-
-    return res
 
 
 def update_with_box(vp, alpha, dm, vmin=2.0, vmax=3.5):

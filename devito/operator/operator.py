@@ -27,7 +27,7 @@ from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
                           timed_region, contains_val)
-from devito.types import Grid, Evaluable, SubFunction
+from devito.types import Grid, Evaluable
 
 __all__ = ['Operator']
 
@@ -660,12 +660,7 @@ class Operator(Callable):
     def _postprocess_arguments(self, args, **kwargs):
         """Process runtime arguments upon returning from ``.apply()``."""
         for p in self.parameters:
-            try:
-                subfuncs = (args[getattr(p, s).name] for s in p._sub_functions)
-                p._arg_apply(args[p.name], *subfuncs, alias=kwargs.get(p.name))
-            except AttributeError:
-                if not (isinstance(p, SubFunction) and p.parent in self.parameters):
-                    p._arg_apply(args[p.name], alias=kwargs.get(p.name))
+            p._arg_apply(args[p.name], alias=kwargs.get(p.name))
 
     @cached_property
     def _known_arguments(self):
