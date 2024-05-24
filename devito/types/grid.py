@@ -9,7 +9,7 @@ from sympy import prod
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDistributor
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -387,7 +387,7 @@ class AbstractSubDomain(CartesianDiscretization):
     """A unique name for the SubDomain."""
 
     # Track instances of SubDomains for dimension labelling
-    _subdomain_registry = set()
+    _subdomain_registry = {}
 
     def __init__(self, *args, **kwargs):
         if self.name is None:
@@ -456,12 +456,15 @@ class AbstractSubDomain(CartesianDiscretization):
         """
         raise NotImplementedError
 
-    @cached_property
-    def _counter(self):
+    @memoized_meth
+    def _counter(self, grid):
         """The counter for a SubDomain"""
-        # FIXME: This is per-runtime which needs fixing
-        self._subdomain_registry.add(id(self))
-        return len(self._subdomain_registry) - 1
+        try:
+            self._subdomain_registry[grid].add(id(self))
+        except KeyError:
+            self._subdomain_registry[grid] = {id(self)}
+
+        return len(self._subdomain_registry[grid]) - 1
 
     @property
     def dimension_map(self):
@@ -569,7 +572,7 @@ class SubDomain(AbstractSubDomain):
                 sub_dimensions.append(v)
                 sdshape.append(s)
             else:
-                name = 'i%d%s' % (self._counter, k.name)
+                name = 'i%d%s' % (self._counter(grid), k.name)
                 try:
                     # Case ('middle', int, int)
                     side, ltkn, rtkn = v
@@ -833,7 +836,7 @@ class SubDomainSet(MultiSubDomain):
         self._dtype = grid.dtype
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, self._counter), d, self)
+            MultiSubDimension('%si%d' % (d.name, self._counter(grid)), d, self)
             for d in grid.dimensions
         )
 
@@ -872,7 +875,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % self._counter)
+        self._implicit_dimension = i_dim = Dimension(name='n%d' % self._counter(grid))
         functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
