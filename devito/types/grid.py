@@ -8,8 +8,8 @@ from sympy import prod
 
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
-from devito.mpi import Distributor, MPI
-from devito.tools import ReducerMap, as_tuple
+from devito.mpi import Distributor, MPI, SubDistributor
+from devito.tools import ReducerMap, as_tuple, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -29,6 +29,10 @@ class CartesianDiscretization(ABC):
     Abstract base class for objects representing discretizations of n-dimensional
     physical domains by congruent parallelotopes (e.g., "tiles" or "bricks").
     """
+
+    is_Grid = False
+    is_SubDomain = False
+    is_MultiSubDomain = False
 
     def __init__(self, shape=None, dimensions=None, dtype=None):
         self._shape = as_tuple(shape)
@@ -133,6 +137,8 @@ class Grid(CartesianDiscretization, ArgProvider):
              v
     """
 
+    is_Grid = True
+
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
@@ -168,12 +174,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         # The physical extent
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
 
-        # Initialize SubDomains
-        subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self, counter=counter)
-        self._subdomains = subdomains
-
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
         self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
                                             is_const=True)
@@ -193,6 +193,11 @@ class Grid(CartesianDiscretization, ArgProvider):
                                                    parent=self.time_dim)
         else:
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
+
+        # Initialize SubDomains for legacy interface
+        self._subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
+        for i in self._subdomains:
+            i.__subdomain_finalize_legacy__(self)
 
     def __repr__(self):
         return "Grid[extent=%s, shape=%s, dimensions=%s]" % (
@@ -293,7 +298,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         return self._distributor.shape
 
     @property
-    def dimension_map(self):
+    def size_map(self):
         """Map between SpaceDimensions and their global/local size."""
         return {d: GlobalLocal(g, l)
                 for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
@@ -333,7 +338,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         args = ReducerMap()
 
         # Dimensions size
-        for k, v in self.dimension_map.items():
+        for k, v in self.size_map.items():
             args.update(k._arg_defaults(_min=0, size=v.loc))
 
         # Dimensions spacing
@@ -376,8 +381,13 @@ class AbstractSubDomain(CartesianDiscretization):
     Abstract base class for subdomains.
     """
 
+    is_SubDomain = True
+
     name = None
     """A unique name for the SubDomain."""
+
+    # Track instances of SubDomains for dimension labelling
+    _subdomain_registry = {}
 
     def __init__(self, *args, **kwargs):
         if self.name is None:
@@ -386,9 +396,25 @@ class AbstractSubDomain(CartesianDiscretization):
         # All other attributes get initialized upon `__subdomain_finalize__`
         super().__init__()
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+        self._grid = kwargs.get('grid')
+        if self.grid:
+            self.__subdomain_finalize__()
+
+    def __subdomain_finalize__(self):
         """
         Finalize the subdomain initialization.
+
+        Notes
+        -----
+        Must be overridden by subclasses.
+        """
+        raise NotImplementedError
+
+    def __subdomain_finalize_legacy__(self, grid):
+        """
+        Finalize the subdomain initialization.
+
+        (Backward-compatible version for legacy SubDomain API)
 
         Notes
         -----
@@ -430,9 +456,52 @@ class AbstractSubDomain(CartesianDiscretization):
         """
         raise NotImplementedError
 
+    @memoized_meth
+    def _counter(self, grid):
+        """The counter for a SubDomain"""
+        try:
+            self._subdomain_registry[grid].add(id(self))
+        except KeyError:
+            self._subdomain_registry[grid] = {id(self)}
+
+        return len(self._subdomain_registry[grid]) - 1
+
     @property
     def dimension_map(self):
         return {d.root: d for d in self.dimensions}
+
+    @property
+    def grid(self):
+        return self._grid
+
+    @property
+    def distributor(self):
+        """The Distributor used for MPI-decomposing the CartesianDiscretization."""
+        return self._distributor
+
+    def is_distributed(self, dim):
+        """
+        True if `dim` is a distributed Dimension for this CartesianDiscretization,
+        False otherwise.
+        """
+        if self.grid:
+            return any(dim is d for d in self.distributor.dimensions)
+        return False
+
+    @property
+    def comm(self):
+        """The MPI communicator inherited from the distributor."""
+        if self.grid:
+            return self.grid.comm
+        raise ValueError("`SubDomain` %s has no `Grid` attached and thus no `comm`"
+                         % self.name)
+
+    def _arg_values(self, **kwargs):
+        try:
+            return self.grid._arg_values(**kwargs)
+        except AttributeError:
+            raise AttributeError("%s is not attached to a Grid and has no _arg_values"
+                                 % self)
 
 
 class SubDomain(AbstractSubDomain):
@@ -481,27 +550,36 @@ class SubDomain(AbstractSubDomain):
     Interior : An example of preset Subdomain.
     """
 
-    def __subdomain_finalize__(self, grid, **kwargs):
+    def __subdomain_finalize__(self):
+        # FIXME: Will want some identifier for SubDomains which can have a Function
+        # FIXME: defined on them
+        self.__subdomain_finalize_legacy__(self.grid)
+        self._distributor = SubDistributor(self)
+
+        # Intervals of form Interval(n, n) automatically become FiniteSet
+        # Add one to end as intervals are in terms of indices (inclusive of endpoints)
+        # Empty interval corresponds to a size of zero
+        self._shape_local = tuple(0 if i.is_empty else i.end-i.start + 1 if i.is_Interval
+                                  else 1 for i in self.distributor.intervals)
+
+    def __subdomain_finalize_legacy__(self, grid):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        counter = kwargs.get('counter', 0) - 1
         for k, v, s in zip(self.define(grid.dimensions).keys(),
                            self.define(grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
             else:
+                name = 'i%d%s' % (self._counter(grid), k.name)
                 try:
                     # Case ('middle', int, int)
-                    side, thickness_left, thickness_right = v
+                    side, ltkn, rtkn = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('i%d%s' %
-                                                              (counter, k.name),
-                                                              k, thickness_left,
-                                                              thickness_right))
-                    thickness = s-thickness_left-thickness_right
+                    sub_dimensions.append(SubDimension.middle(name, k, ltkn, rtkn))
+                    thickness = s-ltkn-rtkn
                     sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
@@ -509,17 +587,13 @@ class SubDomain(AbstractSubDomain):
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%d%s' %
-                                                                (counter, k.name),
-                                                                k, thickness))
+                        sub_dimensions.append(SubDimension.left(name, k, thickness))
                         sdshape.append(thickness)
                     elif side == 'right':
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%d%s' %
-                                                                 (counter, k.name),
-                                                                 k, thickness))
+                        sub_dimensions.append(SubDimension.right(name, k, thickness))
                         sdshape.append(thickness)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
@@ -527,6 +601,16 @@ class SubDomain(AbstractSubDomain):
         self._shape = tuple(sdshape)
         self._dimensions = tuple(sub_dimensions)
         self._dtype = grid.dtype
+
+    @property
+    def shape_local(self):
+        return self._shape_local
+
+    @property
+    def size_map(self):
+        """Map between SpaceDimensions and their global/local size."""
+        return {d: GlobalLocal(g, l)
+                for d, g, l in zip(self.dimensions, self.shape, self.shape_local)}
 
     def define(self, dimensions):
         """
@@ -538,6 +622,39 @@ class SubDomain(AbstractSubDomain):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
+
+    @cached_property
+    def _arg_names(self):
+        try:
+            ret = self.grid._arg_names
+        except AttributeError:
+            raise AttributeError("%s is not attached to a Grid and has no _arg_names"
+                                 % self)
+
+        # Names for SubDomain thicknesses
+        thickness_names = []
+        for d in self.dimensions:
+            if d.is_Sub:
+                thickness_names += [k.name for k in d._thickness_map]
+
+        ret += tuple(thickness_names)
+
+        return ret
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A SubDistributor wraps an MPI communicator, which can't and shouldn't be pickled
+        try:
+            state.pop('_distributor')
+        except KeyError:
+            pass
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        if self.grid:
+            self._distributor = SubDistributor(self)
 
 
 class MultiSubDimension(SubDimension):
@@ -590,6 +707,8 @@ class MultiSubDomain(AbstractSubDomain):
     """
     Abstract base class for types representing groups of SubDomains.
     """
+
+    is_MultiSubDomain = True
 
     def __hash__(self):
         # There is no possibility for two MultiSubDomains to ever hash the same since
@@ -717,10 +836,9 @@ class SubDomainSet(MultiSubDomain):
     """
 
     def __init__(self, **kwargs):
-        super().__init__()
-
         self._n_domains = kwargs.get('N', 1)
         self._global_bounds = kwargs.get('bounds', None)
+        super().__init__(**kwargs)
 
         try:
             self.implicit_dimension
@@ -729,13 +847,11 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
-        self._grid = grid
+    def __subdomain_finalize_core__(self, grid):
         self._dtype = grid.dtype
-
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, counter), d, self)
+            MultiSubDimension('%si%d' % (d.name, self._counter(grid)), d, self)
             for d in grid.dimensions
         )
 
@@ -774,9 +890,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
-        n = counter - npresets
-        assert n >= 0
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+        self._implicit_dimension = i_dim = Dimension(name='n%d' % self._counter(grid))
         functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
@@ -797,6 +911,13 @@ class SubDomainSet(MultiSubDomain):
 
             functions.append(f)
         self._functions = as_tuple(functions)
+
+    def __subdomain_finalize__(self):
+        self.__subdomain_finalize_core__(self.grid)
+
+    def __subdomain_finalize_legacy__(self, grid):
+        self._grid = grid
+        self.__subdomain_finalize_core__(self.grid)
 
     @property
     def n_domains(self):
