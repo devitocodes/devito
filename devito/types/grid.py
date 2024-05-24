@@ -641,6 +641,21 @@ class SubDomain(AbstractSubDomain):
 
         return ret
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # A SubDistributor wraps an MPI communicator, which can't and shouldn't be pickled
+        try:
+            state.pop('_distributor')
+        except KeyError:
+            pass
+        return state
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+        if self.grid:
+            self._distributor = SubDistributor(self)
+
 
 class MultiSubDimension(SubDimension):
 
