@@ -465,7 +465,7 @@ class TestBuiltinsResult:
         assert np.isclose(term1/term2 - 1, 0.0, rtol=0.0, atol=1e-5)
 
     @pytest.mark.parallel(mode=4)
-    def test_min_max_mpi(self):
+    def test_min_max_mpi(self, mode):
         grid = Grid(shape=(100, 100))
 
         f = Function(name='f', grid=grid)

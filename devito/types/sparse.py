@@ -80,7 +80,10 @@ class AbstractSparseFunction(DiscreteFunction):
         else:
             sparse_dim = Dimension(name='p_%s' % kwargs["name"])
 
-        dimensions = as_tuple(kwargs.get('dimensions', sparse_dim))
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if not dimensions:
+            dimensions = (sparse_dim,)
+
         if args:
             return tuple(dimensions), tuple(args)
         else:

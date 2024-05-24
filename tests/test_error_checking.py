@@ -29,7 +29,7 @@ def test_stability(expr):
 
 @switchconfig(safe_math=True)
 @pytest.mark.parallel(mode=2)
-def test_stability_mpi():
+def test_stability_mpi(mode):
     grid = Grid(shape=(10, 10))
 
     f = Function(name='f', grid=grid, space_order=2)  # noqa

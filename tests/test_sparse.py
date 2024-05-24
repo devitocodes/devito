@@ -426,6 +426,8 @@ class TestSparseFunction:
 
         # Rebuild with different name as an alias
         sp2 = sp._rebuild(name="sr2", alias=True)
+        assert sp2.name == "sr2"
+        assert sp2.dimensions == sp.dimensions
         for subf in sp2._sub_functions:
             if getattr(sp2, subf) is not None:
                 assert getattr(sp2, subf).name.startswith("sr2_")
@@ -434,10 +436,11 @@ class TestSparseFunction:
         # Rebuild with different name and dimensions. This is expected to recreate
         # the SubFunctions as well
         sp2 = sp._rebuild(name="sr3", dimensions=None)
+        assert sp2.name == "sr3"
+        assert sp2.dimensions == sp.dimensions
         for subf in sp2._sub_functions:
             if getattr(sp2, subf) is not None:
-                assert getattr(sp2, subf).name.startswith("sr3_")
-                assert np.all(getattr(sp2, subf).data == 0)
+                assert getattr(sp2, subf) == getattr(sp, subf)
 
     @pytest.mark.parametrize('sptype', _sptypes)
     def test_subs(self, sptype):
