@@ -8,7 +8,7 @@ from sympy import Symbol
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction)
+                    PrecomputedSparseTimeFunction, SubDomain)
 from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
 from devito.mpi.halo_scheme import Halo
@@ -77,6 +77,31 @@ class TestBasic(object):
         assert f.space_order == new_f.space_order
         assert f.dtype == new_f.dtype
         assert f.shape == new_f.shape
+
+    # def test_function_on_subdomain(self, pickle):
+    #     # FIXME: Currently failing
+    #     class SD(SubDomain):
+    #         name = 'sd'
+
+    #         def define(self, dimensions):
+    #             x, y, z = dimensions
+    #             return {x: x, y: ('middle', 1, 1), z: ('right', 2)}
+
+    #     grid = Grid(shape=(3, 3, 3))
+    #     sd = SD(grid=grid)
+    #     f = Function(name='f', grid=sd)
+    #     f.data[0] = 1.
+
+    #     pkl_f = pickle.dumps(f)
+    #     new_f = pickle.loads(pkl_f)
+
+    #     # .data is initialized, so it should have been pickled too
+    #     assert np.all(f.data[0] == 1.)
+    #     assert np.all(new_f.data[0] == 1.)
+
+    #     assert f.space_order == new_f.space_order
+    #     assert f.dtype == new_f.dtype
+    #     assert f.shape == new_f.shape
 
     @pytest.mark.parametrize('interp', ['linear', 'sinc'])
     def test_sparse_function(self, pickle, interp):
