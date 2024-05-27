@@ -166,6 +166,8 @@ def filter_ordered(elements, key=None):
     key : callable, optional
         Conversion key used during equality comparison.
     """
+    # This method exploits the fact that dictionary keys are unique and ordered
+    # (since Python 3.7). It's concise and often faster for larger lists
     if isinstance(elements, types.GeneratorType):
         elements = list(elements)
 
