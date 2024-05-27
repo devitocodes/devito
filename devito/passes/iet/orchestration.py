@@ -12,7 +12,7 @@ from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper
+from devito.tools import DAG, as_mapper, as_tuple
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
@@ -136,11 +136,21 @@ class Orchestrator:
         ])
         key = lambda s: list(callbacks).index(s)
 
+        # The SyncSpots may be nested, so we compute a topological ordering
+        # so that they are processed in a bottom-up fashion. This is necessary
+        # because e.g. an inner SyncSpot may generate new objects (e.g., a new
+        # Queue), which in turn must be visible to the outer SyncSpot to
+        # generate the correct parameters list
         efuncs = []
-        subs = {}
-        for n in sync_spots:
-            mapper = as_mapper(n.sync_ops, lambda i: type(i))
+        while True:
+            sync_spots = FindNodes(SyncSpot).visit(iet)
+            if not sync_spots:
+                break
 
+            n0 = ordered(sync_spots).pop(0)
+            mapper = as_mapper(n0.sync_ops, lambda i: type(i))
+
+            subs = {}
             for t in sorted(mapper, key=key):
                 sync_ops = mapper[t]
 
@@ -149,13 +159,23 @@ class Orchestrator:
                     raise InvalidOperator("Unsupported streaming case")
                 layer = layers.pop()
 
-                subs[n], v = callbacks[t](subs.get(n, n), sync_ops, layer)
+                n1, v = callbacks[t](subs.get(n0, n0), sync_ops, layer)
+
+                subs[n0] = n1
                 efuncs.extend(v)
 
-        iet = Transformer(subs).visit(iet)
-        efuncs = [Transformer(subs).visit(i) for i in efuncs]
+            iet = Transformer(subs).visit(iet)
 
         return iet, {'efuncs': efuncs}
+
+
+def ordered(sync_spots):
+    dag = DAG(nodes=sync_spots)
+    for n0 in sync_spots:
+        for n1 in as_tuple(FindNodes(SyncSpot).visit(n0.body)):
+            dag.add_edge(n1, n0)
+
+    return dag.topological_sort()
 
 
 # Task handlers
