@@ -12,7 +12,7 @@ from devito.symbolics import FieldFromComposite, FieldFromPointer
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
                           Indirection, Pointer, SharedData, ThreadArray, Temp,
-                          NPThreads, NThreadsBase)
+                          NPThreads, NThreadsBase, Wildcard)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -531,6 +531,7 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Temp)
+@abstract_object.register(Wildcard)
 def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='r'))
 
