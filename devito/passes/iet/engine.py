@@ -597,7 +597,7 @@ def update_args(root, efuncs, dag):
     # linearization)
     symbols = FindSymbols('basics').visit(root.body)
     drop_params.extend(a for a in root.parameters
-                       if a.is_Symbol and a not in symbols)
+                       if (a.is_Symbol or a.is_LocalObject) and a not in symbols)
 
     # Must record the index, not the param itself, since a param may be
     # bound to whatever arg, possibly a generic SymPy expr
