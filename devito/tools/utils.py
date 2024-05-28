@@ -169,21 +169,10 @@ def filter_ordered(elements, key=None):
     if isinstance(elements, types.GeneratorType):
         elements = list(elements)
 
-    seen = set()
     if key is None:
-        try:
-            unordered, inds = np.unique(elements, return_index=True)
-            return unordered[np.argsort(inds)].tolist()
-        except:
-            return sorted(list(set(elements)), key=elements.index)
+        return list(dict.fromkeys(elements))
     else:
-        ret = []
-        for e in elements:
-            k = key(e)
-            if k not in seen:
-                ret.append(e)
-                seen.add(k)
-        return ret
+        return list(dict(zip([key(i) for i in elements], elements)).values())
 
 
 def filter_sorted(elements, key=None):
