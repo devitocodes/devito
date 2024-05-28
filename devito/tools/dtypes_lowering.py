@@ -139,10 +139,7 @@ def dtype_to_ctype(dtype):
     # Complex data
     if np.issubdtype(dtype, np.complexfloating):
         rtype = dtype(0).real.__class__
-        ctname = '%s _Complex' % dtype_to_cstr(rtype)
-        ctype = dtype_to_ctype(rtype)
-        r = type(ctname, (ctype,), {})
-        return r
+        return dtype_to_ctype(rtype)
 
     try:
         return ctypes_vector_mapper[dtype]
@@ -219,7 +216,7 @@ for base_name, base_dtype in mapper.items():
 # *** ctypes lowering
 
 
-def ctypes_to_cstr(ctype, toarray=None):
+def ctypes_to_cstr(ctype, toarray=None, cpp=False):
     """Translate ctypes types into C strings."""
     if ctype in ctypes_vector_mapper.values():
         retval = ctype.__name__
