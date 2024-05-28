@@ -475,6 +475,18 @@ class AbstractSubDomain(CartesianDiscretization):
         return self._grid
 
     @property
+    def time_dim(self):
+        if self.grid:
+            return self.grid.time_dim
+        raise AttributeError("SubDomain has no Grid, and thus no time dimension")
+
+    @property
+    def stepping_dim(self):
+        if self.grid:
+            return self.grid.stepping_dim
+        raise AttributeError("SubDomain has no Grid, and thus no stepping dimension")
+
+    @property
     def distributor(self):
         """The Distributor used for MPI-decomposing the CartesianDiscretization."""
         return self._distributor

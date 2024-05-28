@@ -1033,6 +1033,50 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
+    def test_diffusion(self):
+        """
+        Test that a diffusion operator using Functions on SubDomains produces
+        the same result as one on a Grid
+        """
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 2, 2)}
+
+        grid0 = Grid(shape=(14, 14), extent=(13., 13.))
+        grid1 = Grid(shape=(10, 10), extent=(9., 9.))
+        mid = Middle(grid=grid0)
+
+        # Both functions are of the same size
+        f = TimeFunction(name='f', grid=mid, space_order=4)
+        g = TimeFunction(name='g', grid=grid1, space_order=4)
+
+        f.data[:, 4:-4, 4:-4] = 1
+        g.data[:, 4:-4, 4:-4] = 1
+
+        assert f.shape == g.shape
+
+        dt = 0.1
+
+        # FIXME: Laplace not working?
+        # pdef = f.dt - (f.dx2 + f.dy2)
+        # pdeg = g.dt - (g.dx2 + g.dy2)
+        print(f.dimensions)
+        pdef = f.dt - f.laplace
+        pdeg = g.dt - g.laplace
+
+        eqf = Eq(f.forward, solve(pdef, f.forward), subdomain=mid)
+        eqg = Eq(g.forward, solve(pdeg, g.forward))
+
+        Operator(eqf)(t_M=10, dt=dt)
+        Operator(eqg)(t_M=10, dt=dt)
+
+        assert np.all(np.isclose(f.data, g.data))
+        assert np.isclose(np.linalg.norm(f.data), 1.0238341)
+
 
 class TestSubDomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""
