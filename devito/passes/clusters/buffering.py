@@ -201,6 +201,8 @@ class InjectBuffers(Queue):
                 properties = c.properties.sequentialize(d)
                 if not isinstance(d, BufferDimension):
                     properties = properties.prefetchable(d)
+                # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
+                properties = properties.parallelize(v.bdims).affine(v.bdims)
 
                 syncs = c.syncs
 
