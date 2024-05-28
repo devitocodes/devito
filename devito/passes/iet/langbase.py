@@ -32,7 +32,7 @@ class LangMeta(type):
         return self.mapper[k]
 
 
-class LangBB(object, metaclass=LangMeta):
+class LangBB(metaclass=LangMeta):
 
     """
     Abstract base class for Language Building Blocks.
