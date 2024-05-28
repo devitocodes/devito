@@ -6,7 +6,7 @@ from examples.seismic.viscoacoustic.operators import (
 )
 
 
-class ViscoacousticWaveSolver(object):
+class ViscoacousticWaveSolver:
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

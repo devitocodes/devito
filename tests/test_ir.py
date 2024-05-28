@@ -19,7 +19,7 @@ from devito.tools import prod
 from devito.types import Array, CriticalRegion, Jump, Scalar, Symbol
 
 
-class TestVectorHierarchy(object):
+class TestVectorHierarchy:
 
     @pytest.fixture
     def grid(self):
@@ -339,7 +339,7 @@ class TestVectorHierarchy(object):
         assert tcyx_irr0 == tcyx_irr0
 
 
-class TestSpace(object):
+class TestSpace:
 
     @pytest.fixture
     def grid(self):
@@ -508,7 +508,7 @@ class TestSpace(object):
         assert ix.switch(y).switch(x) == ix
 
 
-class TestDependenceAnalysis(object):
+class TestDependenceAnalysis:
 
     @pytest.fixture
     def grid(self):
@@ -887,7 +887,7 @@ class TestDependenceAnalysis(object):
         assert len(scope.d_all) == 9
 
 
-class TestParallelismAnalysis(object):
+class TestParallelismAnalysis:
 
     @pytest.mark.parametrize('exprs,atomic,parallel', [
         (['Inc(u[gp[p, 0]+rx, gp[p, 1]+ry], cx*cy*src)'],
@@ -1011,7 +1011,7 @@ class TestParallelismAnalysis(object):
         assert all([not i.is_Parallel for i in iters if i.dim.name not in parallel])
 
 
-class TestEquationAlgorithms(object):
+class TestEquationAlgorithms:
 
     @pytest.mark.parametrize('expr,expected', [
         ('Eq(a[time, p], b[time, c[p, 0]+r, c[p, 1]] * f[p, r])', '[time, p, r, d]')
@@ -1038,7 +1038,7 @@ class TestEquationAlgorithms(object):
         assert list(dimension_sort(expr)) == eval(expected)
 
 
-class TestGuards(object):
+class TestGuards:
 
     def test_guard_overflow(self):
         """

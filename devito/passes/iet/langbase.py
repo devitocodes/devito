@@ -380,7 +380,7 @@ class ShmTransformer(LangTransformer):
         return root, list(collapsable)
 
 
-class DeviceAwareMixin(object):
+class DeviceAwareMixin:
 
     @property
     def deviceid(self):

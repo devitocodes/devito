@@ -18,7 +18,7 @@ presets = {
 }
 
 
-class TestAdjoint(object):
+class TestAdjoint:
     @pytest.mark.parametrize('mkey, shape, kernel, space_order, time_order, setup_func', [
         # 1 tests with varying time and space orders
         ('layers', (60, ), 'OT2', 12, 2, acoustic_setup),

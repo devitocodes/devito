@@ -3,7 +3,7 @@ import numpy as np
 from devito import Grid, Constant, Function, TimeFunction, Eq, solve, Operator
 
 
-class TestConst(object):
+class TestConst:
     """
     Class for testing Constant
     """

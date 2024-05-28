@@ -18,7 +18,7 @@ from devito.types import WeakFence, CriticalRegion
 __all__ = ["Cluster", "ClusterGroup"]
 
 
-class Cluster(object):
+class Cluster:
 
     """
     A Cluster is an ordered sequence of expressions in an IterationSpace.

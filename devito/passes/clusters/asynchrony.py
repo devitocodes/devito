@@ -320,7 +320,7 @@ class Streaming(Asynchronous):
 # Utilities
 
 
-class Actions(object):
+class Actions:
 
     def __init__(self, drop=False, syncs=None, insert=None):
         self.drop = drop

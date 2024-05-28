@@ -5,7 +5,7 @@ from examples.seismic.acoustic.operators import (
 )
 
 
-class AcousticWaveSolver(object):
+class AcousticWaveSolver:
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

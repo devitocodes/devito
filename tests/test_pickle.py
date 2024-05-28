@@ -27,7 +27,7 @@ from examples.seismic import (demo_model, AcquisitionGeometry,
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
-class TestBasic(object):
+class TestBasic:
 
     def test_constant(self, pickle):
         c = Constant(name='c')
@@ -477,7 +477,7 @@ class TestBasic(object):
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
-class TestOperator(object):
+class TestOperator:
 
     def test_geometry(self, pickle):
 

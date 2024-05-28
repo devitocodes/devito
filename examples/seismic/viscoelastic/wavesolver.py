@@ -3,7 +3,7 @@ from devito.tools import memoized_meth
 from examples.seismic.viscoelastic.operators import ForwardOperator
 
 
-class ViscoelasticWaveSolver(object):
+class ViscoelasticWaveSolver:
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

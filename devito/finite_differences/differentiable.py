@@ -893,7 +893,7 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         return self.func(*args, **kwargs)
 
 
-class diffify(object):
+class diffify:
 
     """
     Helper class based on single dispatch to reconstruct all nodes in a sympy

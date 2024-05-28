@@ -12,7 +12,7 @@ from examples.seismic import TimeAxis, RickerSource, Receiver
 pytestmark = skipif(['nodevice'], whole_module=True)
 
 
-class TestCodeGeneration(object):
+class TestCodeGeneration:
 
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
@@ -172,7 +172,7 @@ class TestCodeGeneration(object):
             assert all(i.step == j for i, j in zip(iters, v))
 
 
-class TestOperator(object):
+class TestOperator:
 
     def test_op_apply(self):
         grid = Grid(shape=(3, 3, 3))
@@ -245,7 +245,7 @@ class TestOperator(object):
         TestOperator().iso_acoustic(opt)
 
 
-class TestMPI(object):
+class TestMPI:
 
     @pytest.mark.parallel(mode=2)
     def test_basic(self, mode):

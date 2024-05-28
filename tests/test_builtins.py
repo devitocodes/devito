@@ -11,7 +11,7 @@ from devito.tools import as_tuple
 from devito.types import SubDomain, SparseTimeFunction
 
 
-class TestAssign(object):
+class TestAssign:
 
     """
     Class for testing the assign builtin.
@@ -122,7 +122,7 @@ class TestAssign(object):
         assert np.all(f.data_with_halo == 4)
 
 
-class TestGaussianSmooth(object):
+class TestGaussianSmooth:
 
     """
     Class for testing the Gaussian smooth builtin.
@@ -196,7 +196,7 @@ class TestGaussianSmooth(object):
         assert np.all(sp_smoothed[slices] - np.array(dv_smoothed.data[:]) == 0)
 
 
-class TestInitializeFunction(object):
+class TestInitializeFunction:
 
     """
     Class for testing the initialize function builtin.
@@ -340,7 +340,7 @@ class TestInitializeFunction(object):
             assert np.all(a[::-1, :] - np.array(i.data[8:12, 4:8]) == 0)
 
 
-class TestBuiltinsResult(object):
+class TestBuiltinsResult:
 
     """
     Test the builtins

@@ -4,7 +4,7 @@ from devito import VectorTimeFunction, TensorTimeFunction
 from examples.seismic.elastic.operators import ForwardOperator
 
 
-class ElasticWaveSolver(object):
+class ElasticWaveSolver:
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

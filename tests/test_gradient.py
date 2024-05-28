@@ -12,7 +12,7 @@ from examples.seismic.tti import tti_setup
 from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 
 
-class TestGradient(object):
+class TestGradient:
 
     @skipif(['chkpnt', 'cpu64-icc'])
     @switchconfig(safe_math=True)

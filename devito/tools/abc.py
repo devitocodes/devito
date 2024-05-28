@@ -49,7 +49,7 @@ class Tag(abc.ABC):
     __repr__ = __str__
 
 
-class Signer(object):
+class Signer:
 
     """
     A base class for types that can emit a unique, deterministic
@@ -90,7 +90,7 @@ class Signer(object):
         return Signer._sign(self._signature_items())
 
 
-class Reconstructable(object):
+class Reconstructable:
 
     __rargs__ = ()
     """
@@ -112,7 +112,7 @@ class Reconstructable(object):
         --------
         Given
 
-            class Foo(object):
+            class Foo:
                 __rargs__ = ('a', 'b')
                 __rkwargs__ = ('c',)
                 def __init__(self, a, b, c=4):
@@ -263,7 +263,7 @@ class Singleton(type):
         return cls._instances[cls]
 
 
-class Stamp(object):
+class Stamp:
 
     """
     Uniquely identify objects.

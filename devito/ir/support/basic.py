@@ -505,7 +505,7 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
-class Relation(object):
+class Relation:
 
     """
     A relation between two TimedAccess objects.
@@ -813,7 +813,7 @@ class DependenceGroup(set):
         return DependenceGroup(i for i in self if i.function is function)
 
 
-class Scope(object):
+class Scope:
 
     def __init__(self, exprs, rules=None):
         """
@@ -1196,7 +1196,7 @@ class Scope(object):
         return list(self.r_gen())
 
 
-class ExprGeometry(object):
+class ExprGeometry:
 
     """
     Geometric representation of an expression by abstracting Indexeds as

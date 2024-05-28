@@ -98,7 +98,7 @@ dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
 # *** Custom types escaping both the numpy and ctypes namespaces
 
 
-class CustomDtype(object):
+class CustomDtype:
 
     def __init__(self, name, template=None, modifier=None):
         self.name = name

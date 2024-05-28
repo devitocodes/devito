@@ -317,7 +317,7 @@ class Buffering(Queue):
         return init + processed
 
 
-class Buffer(object):
+class Buffer:
 
     """
     A buffer with metadata attached.
@@ -660,7 +660,7 @@ class Buffer(object):
         return Map(v % self.xd.symbolic_size, v)
 
 
-class AccessValue(object):
+class AccessValue:
 
     """
     A simple data structure tracking the accesses performed by a given Function

@@ -6,7 +6,7 @@ from time import time
 __all__ = ['timed_pass', 'timed_region']
 
 
-class timed_pass(object):
+class timed_pass:
 
     """
     A decorator to record the timing of functions or methods.
@@ -96,7 +96,7 @@ class timed_pass(object):
         return partial(self.__call__, obj)
 
 
-class timed_region(object):
+class timed_region:
 
     """
     A context manager for code regions in which the `timed_pass` decorator is used.

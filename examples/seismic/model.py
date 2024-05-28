@@ -85,7 +85,7 @@ class FSDomain(SubDomain):
                 for d in dimensions}
 
 
-class GenericModel(object):
+class GenericModel:
     """
     General model class with common properties
     """

@@ -5,7 +5,7 @@ import sympy
 __all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne']
 
 
-class AbstractRel(object):
+class AbstractRel:
     """
     Abstract mixin class for objects subclassing sympy.Relational.
     """

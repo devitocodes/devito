@@ -1380,7 +1380,7 @@ class CustomDimension(BasicDimension):
         return
 
 
-class DynamicDimensionMixin(object):
+class DynamicDimensionMixin:
 
     """
     A mixin to create Dimensions producing non-const Symbols.

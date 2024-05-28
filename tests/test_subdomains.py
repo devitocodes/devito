@@ -11,7 +11,7 @@ from devito.ir import FindNodes, Expression, Iteration
 from devito.tools import timed_region
 
 
-class TestSubdomains(object):
+class TestSubdomains:
     """
     Class for testing SubDomains
     """
@@ -204,7 +204,7 @@ class TestSubdomains(object):
         assert np.all(check[grid.distributor.glb_slices[x]] == f.data)
 
 
-class TestMultiSubDomain(object):
+class TestMultiSubDomain:
 
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_iterate_NDomains(self, opt):
@@ -695,7 +695,7 @@ class TestMultiSubDimension:
         assert [d.thickness for d in remixed] == tkns[::-1]
 
 
-class TestSubDomain_w_condition(object):
+class TestSubDomain_w_condition:
 
     def test_condition_w_subdomain_v0(self):
 

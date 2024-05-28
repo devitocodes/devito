@@ -4,7 +4,7 @@ from examples.seismic.self_adjoint.operators import IsoFwdOperator, IsoAdjOperat
     IsoJacobianFwdOperator, IsoJacobianAdjOperator
 
 
-class SaIsoAcousticWaveSolver(object):
+class SaIsoAcousticWaveSolver:
     """
     Solver object for a scalar isotropic variable density visco- acoustic
     self adjoint wave equation that provides operators for seismic inversion problems

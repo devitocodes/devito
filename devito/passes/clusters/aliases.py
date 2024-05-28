@@ -99,7 +99,7 @@ def cire(clusters, mode, sregistry, options, platform):
     return clusters
 
 
-class CireTransformer(object):
+class CireTransformer:
 
     """
     Abstract base class for transformers implementing a CIRE variant.
@@ -1192,7 +1192,7 @@ AliasKey = namedtuple('AliasKey', 'ispace intervals dtype guards properties')
 Variant = namedtuple('Variant', 'schedule exprs')
 
 
-class Alias(object):
+class Alias:
 
     def __init__(self, pivot, aliaseds, intervals, distances, score):
         self.pivot = pivot
@@ -1233,7 +1233,7 @@ class Alias(object):
         return all(len([e for e in i if e != 0]) <= 1 for i in self.distances)
 
 
-class AliasList(object):
+class AliasList:
 
     def __init__(self, aliases=None):
         if aliases is None:

@@ -30,7 +30,7 @@ PerfInput = namedtuple('PerfInput', 'time ops points traffic sops itershapes')
 PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
 
 
-class Profiler(object):
+class Profiler:
 
     _default_includes = []
     _default_libs = []

@@ -202,7 +202,7 @@ class TempArray(Array):
         return super().__padding_setup__(padding=padding, **kwargs)
 
 
-class Fence(object):
+class Fence:
 
     """
     Mixin class for generic "fence" objects.

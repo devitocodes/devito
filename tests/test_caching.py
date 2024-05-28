@@ -38,7 +38,7 @@ def operate_on_empty_cache():
     _SymbolCache.update(old_cache)
 
 
-class TestHashing(object):
+class TestHashing:
 
     """
     Test hashing of symbolic objects.
@@ -223,7 +223,7 @@ class TestHashing(object):
         assert hash(foo3) != hash(foo1)
 
 
-class TestCaching(object):
+class TestCaching:
 
     """
     Test the symbol cache infrastructure.
@@ -753,7 +753,7 @@ class TestCaching(object):
         assert np.all(np.allclose(s.data, 6.) for s in u0)
 
 
-class TestMemoryLeaks(object):
+class TestMemoryLeaks:
 
     """
     Tests ensuring there are no memory leaks.

@@ -88,7 +88,7 @@ def set_log_level(level, comm=None):
     configuration['log-level'] = level
 
 
-class switch_log_level(object):
+class switch_log_level:
     """
     A context manager to temporarily change MPI logging.
     """

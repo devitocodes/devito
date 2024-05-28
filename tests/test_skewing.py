@@ -6,7 +6,7 @@ from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm, 
 from devito.ir import Expression, Iteration, FindNodes
 
 
-class TestCodeGenSkewing(object):
+class TestCodeGenSkewing:
 
     '''
     Test code generation with blocking+skewing, tests adapted from test_operator.py

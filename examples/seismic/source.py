@@ -12,7 +12,7 @@ __all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
            'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
 
 
-class TimeAxis(object):
+class TimeAxis:
     """
     Data object to store the TimeAxis. Exactly three of the four key arguments
     must be prescribed. Because of remainder values, it is not possible to create

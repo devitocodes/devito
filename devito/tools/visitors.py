@@ -3,7 +3,7 @@ import inspect
 __all__ = ['GenericVisitor']
 
 
-class GenericVisitor(object):
+class GenericVisitor:
 
     """
     A generic visitor.

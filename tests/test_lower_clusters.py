@@ -2,7 +2,7 @@ from devito import Grid, SparseTimeFunction, TimeFunction, Operator
 from devito.ir.iet import FindSymbols
 
 
-class TestLowerReductions(object):
+class TestLowerReductions:
 
     def test_no_temp_upon_reduce_expansion(self):
         grid = Grid(shape=(10, 10, 10))

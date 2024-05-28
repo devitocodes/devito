@@ -5,7 +5,7 @@ from tempfile import gettempdir
 __all__ = ['change_directory', 'make_tempdir']
 
 
-class change_directory(object):
+class change_directory:
     """
     Context manager for changing the current working directory.
 

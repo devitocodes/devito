@@ -36,7 +36,7 @@ class IgnoreDimSort(tuple):
     pass
 
 
-class CtypesFactory(object):
+class CtypesFactory:
 
     cache = {}
 
@@ -50,7 +50,7 @@ class CtypesFactory(object):
             return cls.cache.setdefault(key, dtype)
 
 
-class HierarchyLayer(object):
+class HierarchyLayer:
 
     """
     Represent a generic layer of the node storage hierarchy (e.g., disk, host).

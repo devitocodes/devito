@@ -3,7 +3,7 @@ import abc
 __all__ = ['ArgProvider']
 
 
-class ArgProvider(object):
+class ArgProvider:
 
     """
     A mixin class for types that can provide runtime values for dynamically

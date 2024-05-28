@@ -4,7 +4,7 @@ from devito import Grid, Function
 from examples.seismic.self_adjoint import setup_w_over_q
 
 
-class TestUtils(object):
+class TestUtils:
 
     def make_grid(self, shape, dtype):
         origin = tuple([0.0 for s in shape])
