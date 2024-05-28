@@ -10,6 +10,7 @@ from itertools import chain, groupby
 import ctypes
 
 import cgen as c
+import numpy as np
 from sympy import IndexedBase
 from sympy.core.function import Application
 
@@ -188,6 +189,21 @@ class CGen(Visitor):
     }
     _restrict_keyword = 'restrict'
 
+    def _complex_type(self, ctypestr, dtype):
+        # Not complex
+        try:
+            if not np.issubdtype(dtype, np.complexfloating):
+                return ctypestr
+        except TypeError:
+            return ctypestr
+        # Complex only supported for float and double
+        if ctypestr not in ('float', 'double'):
+            return ctypestr
+        if self._compiler._cpp:
+            return 'std::complex<%s>' % ctypestr
+        else:
+            return '%s _Complex' % ctypestr
+
     def _gen_struct_decl(self, obj, masked=()):
         """
         Convert ctypes.Struct -> cgen.Structure.
@@ -243,10 +259,10 @@ class CGen(Visitor):
                       if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
-            strtype = obj._C_typedata
+            strtype = self._complex_type(obj._C_typedata, obj.dtype)
             strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
         else:
-            strtype = ctypes_to_cstr(obj._C_ctype)
+            strtype = self._complex_type(ctypes_to_cstr(obj._C_ctype), obj.dtype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
                 if not obj._mem_stack:
@@ -376,10 +392,11 @@ class CGen(Visitor):
     def visit_PointerCast(self, o):
         f = o.function
         i = f.indexed
+        cstr = self._complex_type(i._C_typedata, i.dtype)
 
         if f.is_PointerArray:
             # lvalue
-            lvalue = c.Value(i._C_typedata, '**%s' % f.name)
+            lvalue = c.Value(cstr, '**%s' % f.name)
 
             # rvalue
             if isinstance(o.obj, ArrayObject):
@@ -388,7 +405,7 @@ class CGen(Visitor):
                 v = f._C_name
             else:
                 assert False
-            rvalue = '(%s**) %s' % (i._C_typedata, v)
+            rvalue = '(%s**) %s' % (cstr, v)
 
         else:
             # lvalue
@@ -399,10 +416,10 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(i._C_typedata, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(cstr, '(*restrict %s)%s' % (v, shape))
             else:
                 rshape = '*'
-                lvalue = c.Value(i._C_typedata, '*%s' % v)
+                lvalue = c.Value(cstr, '*%s' % v)
             if o.alignment and f._data_alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
@@ -415,14 +432,14 @@ class CGen(Visitor):
                 else:
                     assert False
 
-                rvalue = '(%s %s) %s->%s' % (i._C_typedata, rshape, f._C_name, v)
+                rvalue = '(%s %s) %s->%s' % (cstr, rshape, f._C_name, v)
             else:
                 if isinstance(o.obj, Pointer):
                     v = o.obj.name
                 else:
                     v = f._C_name
 
-                rvalue = '(%s %s) %s' % (i._C_typedata, rshape, v)
+                rvalue = '(%s %s) %s' % (cstr, rshape, v)
 
         return c.Initializer(lvalue, rvalue)
 
@@ -430,15 +447,15 @@ class CGen(Visitor):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
             i = a1.indexed
+            cstr = self._complex_type(i._C_typedata, i.dtype)
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-                rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
+                rvalue = '(%s (*)%s) %s[%s]' % (cstr, shape, a1.name,
                                                 a1.dim.name)
-                lvalue = c.Value(i._C_typedata,
-                                 '(*restrict %s)%s' % (a0.name, shape))
+                lvalue = c.Value(cstr, '(*restrict %s)%s' % (a0.name, shape))
             else:
-                rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
-                lvalue = c.Value(i._C_typedata, '*restrict %s' % a0.name)
+                rvalue = '(%s *) %s[%s]' % (cstr, a1.name, a1.dim.name)
+                lvalue = c.Value(cstr, '*restrict %s' % a0.name)
             if a0._data_alignment:
                 lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:

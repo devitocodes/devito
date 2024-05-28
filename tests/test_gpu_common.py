@@ -2,6 +2,7 @@ import cloudpickle as pickle
 
 import pytest
 import numpy as np
+import sympy
 import scipy.sparse
 
 from conftest import assert_structure
@@ -72,7 +73,7 @@ class TestCodeGeneration:
         # Float32 complex is called complex64 in numpy
         u = Function(name="u", grid=grid, dtype=np.complex64)
 
-        eq = Eq(u, x + 1j*y + exp(1j + x.spacing))
+        eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing))
         # Currently wrong alias type
         op = Operator(eq)
         op()

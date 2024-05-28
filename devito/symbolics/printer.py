@@ -264,8 +264,16 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
+<<<<<<< HEAD
 
         if self.single_prec():
+=======
+        dtype = self.dtype
+        if np.issubdtype(dtype, np.complexfloating):
+            func_name = 'c%s' % func_name
+            dtype = self.dtype(0).real.dtype.type
+        if dtype == np.float32:
+>>>>>>> 75d50a431 (compiler: generate std:complex for cpp compilers)
             func_name = '%sf' % func_name
         if self.complex_prec():
             func_name = 'c%s' % func_name
