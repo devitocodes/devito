@@ -261,12 +261,12 @@ def complex_include(iet, language, compiler):
     """
     Add headers for complex arithmetic
     """
-    lib = _complex_lib.get(language, 'complex.h')
+    lib = _complex_lib.get(language, 'complex' if compiler._cpp else 'complex.h')
 
     headers = {}
     # For openacc (cpp) need to define constant _Complex_I that isn't found otherwise
     if compiler._cpp:
-        headers = {('_Complex_I', ('1.0fi'))}
+        headers = {('_Complex_I', ('std::complex<float>(0.0f, 1.0f)'))}
 
     for f in FindSymbols().visit(iet):
         try:
