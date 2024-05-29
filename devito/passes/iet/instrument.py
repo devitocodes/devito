@@ -126,7 +126,7 @@ def sync_sections(iet, lang=None, profiler=None, **kwargs):
     Wrap sections within global barriers if deemed necessary by the profiler.
     """
     try:
-        sync = lang['device-wait']
+        sync = lang['map-wait']
     except (KeyError, NotImplementedError):
         return iet, {}
 
@@ -137,10 +137,11 @@ def sync_sections(iet, lang=None, profiler=None, **kwargs):
     for tl in FindNodes(TimedList).visit(iet):
         symbols = FindSymbols().visit(tl)
 
-        runs_async = any(isinstance(i, lang.AsyncQueue) for i in symbols)
+        queues = [i for i in symbols if isinstance(i, lang.AsyncQueue)]
         unnecessary = any(FindNodes(BusyWait).visit(tl))
-        if runs_async and not unnecessary:
-            mapper[tl] = tl._rebuild(body=tl.body + (sync,))
+        if queues and not unnecessary:
+            waits = tuple(sync(i) for i in queues)
+            mapper[tl] = tl._rebuild(body=tl.body + waits)
 
     iet = Transformer(mapper, nested=True).visit(iet)
 
