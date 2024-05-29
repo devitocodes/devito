@@ -21,7 +21,7 @@ __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
            'DeviceFsgAccOperator', 'DeviceCustomAccOperator']
 
 
-class DeviceOperatorMixin(object):
+class DeviceOperatorMixin:
 
     BLOCK_LEVELS = 0
     MPI_MODES = (True, 'basic',)
@@ -324,7 +324,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
 # OpenMP
 
-class DeviceOmpOperatorMixin(object):
+class DeviceOmpOperatorMixin:
 
     _Target = DeviceOmpTarget
 
@@ -379,7 +379,7 @@ class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
 
 # OpenACC
 
-class DeviceAccOperatorMixin(object):
+class DeviceAccOperatorMixin:
 
     _Target = DeviceAccTarget
 

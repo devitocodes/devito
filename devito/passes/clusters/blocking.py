@@ -434,7 +434,7 @@ def decompose(ispace, d, block_dims):
     return IterationSpace(intervals, sub_iterators, directions)
 
 
-class BlockSizeGenerator(object):
+class BlockSizeGenerator:
 
     """
     A wrapper for several UnboundedMultiTuples.

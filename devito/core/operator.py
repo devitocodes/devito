@@ -345,7 +345,7 @@ class CustomOperator(BasicOperator):
 # Wrappers for optimization options
 
 
-class OptOption(object):
+class OptOption:
     pass
 
 

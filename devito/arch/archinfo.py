@@ -595,7 +595,7 @@ def get_platform():
     return CPU64
 
 
-class Platform(object):
+class Platform:
 
     registry = {}
     """

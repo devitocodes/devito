@@ -5,7 +5,7 @@ except ImportError:
     pass
 
 
-class Noop(object):
+class Noop:
     """ Dummy replacement in case pyrevolve isn't available. """
 
     def __init__(self, *args, **kwargs):

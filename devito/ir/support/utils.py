@@ -13,7 +13,7 @@ __all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
            'extrema', 'erange']
 
 
-class AccessMode(object):
+class AccessMode:
 
     """
     A descriptor for access modes (read, write, ...).

@@ -16,7 +16,7 @@ __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64CustomOperator']
 
 
-class Cpu64OperatorMixin(object):
+class Cpu64OperatorMixin:
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):

@@ -21,7 +21,7 @@ from conftest import skipif
 pytestmark = skipif(['nodevice'], whole_module=True)
 
 
-class TestGPUInfo(object):
+class TestGPUInfo:
 
     def test_get_gpu_info(self):
         info = get_gpu_info()
@@ -47,7 +47,7 @@ class TestGPUInfo(object):
             assert np.all(u.data[1] == 11)
 
 
-class TestCodeGeneration(object):
+class TestCodeGeneration:
 
     def test_maxpar_option(self):
         """
@@ -67,7 +67,7 @@ class TestCodeGeneration(object):
         assert trees[0][1] is not trees[1][1]
 
 
-class TestPassesOptional(object):
+class TestPassesOptional:
 
     def test_linearize(self):
         grid = Grid(shape=(4, 4))
@@ -86,7 +86,7 @@ class TestPassesOptional(object):
         assert np.all(u.data[1] == 11)
 
 
-class TestPassesEdgeCases(object):
+class TestPassesEdgeCases:
 
     def test_fission(self):
         nt = 20
@@ -160,7 +160,7 @@ class Bundle(SubDomain):
         return {x: ('middle', 0, 0), y: ('middle', 0, 0), z: ('middle', 0, 0)}
 
 
-class TestStreaming(object):
+class TestStreaming:
 
     @pytest.mark.parametrize('opt', [
         ('tasking', 'orchestrate'),
@@ -1357,7 +1357,7 @@ class TestStreaming(object):
         assert len(retrieve_iteration_tree(nodes[1])) == 2
 
 
-class TestAPI(object):
+class TestAPI:
 
     def get_param(self, op, param):
         for i in op.parameters:
@@ -1445,7 +1445,7 @@ class TestAPI(object):
         assert set(op._options['gpu-fit']) - vals == set()
 
 
-class TestMisc(object):
+class TestMisc:
 
     def test_pickling(self):
         grid = Grid(shape=(10, 10))
@@ -1464,7 +1464,7 @@ class TestMisc(object):
         assert str(op) == str(new_op)
 
 
-class TestEdgeCases(object):
+class TestEdgeCases:
 
     def test_empty_arrays(self):
         """

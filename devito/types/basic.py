@@ -26,7 +26,7 @@ Size = namedtuple('Size', 'left right')
 Offset = namedtuple('Offset', 'left right')
 
 
-class CodeSymbol(object):
+class CodeSymbol:
 
     """
     Abstract base class for objects representing symbols in the generated code.

@@ -18,7 +18,7 @@ __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'default_allocator']
 
 
-class MemoryAllocator(object):
+class MemoryAllocator:
 
     """Abstract class defining the interface to memory allocators."""
 

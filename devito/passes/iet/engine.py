@@ -19,7 +19,7 @@ from devito.types.dimension import AbstractIncrDimension, BlockDimension
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
 
-class Graph(object):
+class Graph:
 
     """
     DAG representation of a call graph.

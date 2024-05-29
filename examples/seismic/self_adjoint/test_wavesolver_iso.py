@@ -12,7 +12,7 @@ dtypes = [np.float64, ]
 space_orders = [8, ]
 
 
-class TestWavesolver(object):
+class TestWavesolver:
 
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)

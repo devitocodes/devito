@@ -175,7 +175,7 @@ def autotune(operator, args, level, mode):
 
 
 @total_ordering
-class Record(object):
+class Record:
 
     def __init__(self):
         self.args = []

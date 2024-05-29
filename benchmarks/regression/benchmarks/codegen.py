@@ -4,7 +4,7 @@ from examples.seismic.tti.tti_example import tti_setup
 repeat = 3
 
 
-class TTI(object):
+class TTI:
 
     # ASV config
     repeat = 1

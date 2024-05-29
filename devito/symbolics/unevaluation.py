@@ -3,7 +3,7 @@ import sympy
 __all__ = ['Add', 'Mul', 'Pow']
 
 
-class UnevaluableMixin(object):
+class UnevaluableMixin:
 
     def __new__(cls, *args, evaluate=None, **kwargs):
         return cls.__base__.__new__(cls, *args, evaluate=False, **kwargs)

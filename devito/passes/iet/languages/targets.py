@@ -9,7 +9,7 @@ from devito.passes.iet.instrument import instrument
 __all__ = ['CTarget', 'OmpTarget', 'DeviceOmpTarget', 'DeviceAccTarget']
 
 
-class Target(object):
+class Target:
     Parizer = None
     DataManager = None
     Orchestrator = None

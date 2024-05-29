@@ -10,7 +10,7 @@ from devito.types import Scalar
 from devito.data.allocators import ExternalAllocator
 
 
-class TestDataBasic(object):
+class TestDataBasic:
 
     def test_simple_indexing(self):
         """Test data packing/unpacking via basic indexing."""
@@ -208,7 +208,7 @@ class TestDataBasic(object):
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
 
-class TestLocDataIDX(object):
+class TestLocDataIDX:
     """
     Test the support function loc_data_idx.
     """
@@ -229,7 +229,7 @@ class TestLocDataIDX(object):
         assert result == expected
 
 
-class TestMetaData(object):
+class TestMetaData:
 
     """
     Test correctness of metadata describing size and offset of the various
@@ -333,7 +333,7 @@ class TestMetaData(object):
         assert u.shape_allocated == (2, 11, 6)
 
 
-class TestDecomposition(object):
+class TestDecomposition:
 
     """
     Notes
@@ -485,7 +485,7 @@ class TestDecomposition(object):
         assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
-class TestDataDistributed(object):
+class TestDataDistributed:
 
     """
     Test Data indexing and manipulation when distributed over a set of MPI processes.
@@ -1383,7 +1383,7 @@ class TestDataDistributed(object):
             assert np.all(result[3] == [[3, 2, 1, 0]])
 
 
-class TestDataGather(object):
+class TestDataGather:
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('rank', [0, 1, 2, 3])

@@ -7,7 +7,7 @@ from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
 
 
-class AnisotropicWaveSolver(object):
+class AnisotropicWaveSolver:
     """
     Solver object that provides operators for seismic inversion problems
     and encapsulates the time and space discretization for a given problem

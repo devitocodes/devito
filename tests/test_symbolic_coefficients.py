@@ -11,7 +11,7 @@ from devito.passes.equations.linearity import factorize_derivatives, aggregate_c
 _PRECISION = 9
 
 
-class TestSC(object):
+class TestSC:
     """
     Class for testing symbolic coefficients functionality
     """

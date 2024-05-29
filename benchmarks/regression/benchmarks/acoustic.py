@@ -1,7 +1,7 @@
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 
-class IsotropicAcoustic(object):
+class IsotropicAcoustic:
 
     # ASV parametrization
     params = ([(492, 492, 492)], [12])

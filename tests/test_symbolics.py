@@ -507,7 +507,7 @@ def test_minmax():
     assert np.all(f.data == 4)
 
 
-class TestRelationsWithAssumptions(object):
+class TestRelationsWithAssumptions:
 
     def test_multibounds_op(self):
         """

@@ -21,7 +21,7 @@ class AugmentedWeakRef(weakref.ref):
         return obj
 
 
-class Uncached(object):
+class Uncached:
 
     """
     Mixin class for unique, and therefore uncached, symbolic objects
@@ -32,7 +32,7 @@ class Uncached(object):
         return id(self)
 
 
-class Cached(object):
+class Cached:
 
     """
     Mixin class for cached symbolic objects.
@@ -138,7 +138,7 @@ class Cached(object):
         return {}
 
 
-class CacheManager(object):
+class CacheManager:
 
     """
     Drop unreferenced objects from the SymPy and Devito caches. The associated

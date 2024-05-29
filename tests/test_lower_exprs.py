@@ -10,7 +10,7 @@ from devito.passes.equations.linearity import collect_derivatives
 from devito.tools import timed_region
 
 
-class TestCollectDerivatives(object):
+class TestCollectDerivatives:
 
     """
     Test collect_derivatives and all mechanisms used by collect_derivatives
@@ -206,7 +206,7 @@ class TestCollectDerivatives(object):
         assert eq == leq
 
 
-class TestLowering(object):
+class TestLowering:
 
     """
     Test that expression lowering works as expected.
@@ -230,7 +230,7 @@ class TestLowering(object):
         assert leq[0] == lowered
 
 
-class TestUnexpanded(object):
+class TestUnexpanded:
 
     @pytest.mark.parametrize('expr', [
         'u.dx',

@@ -22,7 +22,7 @@ from devito.types import Array, CustomDimension, DeviceMap, DeviceRM, Eq, Symbol
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
 
-class MetaSite(object):
+class MetaSite:
 
     _items = ('standalones', 'allocs', 'stacks', 'objs', 'frees', 'pallocs',
               'pfrees', 'maps', 'unmaps', 'efuncs')
@@ -66,7 +66,7 @@ class Storage(OrderedDict):
         self.defined.add((site[-1], key))
 
 
-class DataManager(object):
+class DataManager:
 
     lang = LangBB
     """

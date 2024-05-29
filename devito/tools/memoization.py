@@ -5,7 +5,7 @@ from itertools import tee
 __all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
 
 
-class memoized_func(object):
+class memoized_func:
     """
     Decorator. Caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned
@@ -44,7 +44,7 @@ class memoized_func(object):
         return partial(self.__call__, obj)
 
 
-class memoized_meth(object):
+class memoized_meth:
     """
     Decorator. Cache the return value of a class method.
 
@@ -55,7 +55,7 @@ class memoized_meth(object):
     If a memoized method is invoked directly on its class the result will not
     be cached. Instead the method will be invoked like a static method: ::
 
-        class Obj(object):
+        class Obj:
             @memoize
             def add_to(self, arg):
                 return self + arg
@@ -93,7 +93,7 @@ class memoized_meth(object):
         return res
 
 
-class memoized_generator(object):
+class memoized_generator:
 
     """
     Decorator. Cache the return value of an instance generator method.

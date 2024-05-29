@@ -49,7 +49,7 @@ except ImportError as e:
         def __getattr__(self, name):
             return None
 
-    class MPI(object, metaclass=NoneMetaclass):
+    class MPI(metaclass=NoneMetaclass):
         init_error = e
 
         @classmethod

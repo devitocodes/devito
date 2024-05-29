@@ -20,7 +20,7 @@ from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
 
 
-class TestDistributor(object):
+class TestDistributor:
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_partitioning(self, mode):
@@ -228,7 +228,7 @@ class TestDistributor(object):
         assert custom_topology == dist_topology
 
 
-class TestFunction(object):
+class TestFunction:
 
     @pytest.mark.parallel(mode=2)
     def test_halo_exchange_bilateral(self, mode):
@@ -435,7 +435,7 @@ class TestFunction(object):
             MPI.Finalize()
 
 
-class TestSparseFunction(object):
+class TestSparseFunction:
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('shape, coords, points', [
@@ -703,7 +703,7 @@ class TestSparseFunction(object):
         assert np.all(s.data == 1)
 
 
-class TestOperatorSimple(object):
+class TestOperatorSimple:
 
     @pytest.mark.parallel(mode=[2, 4, 8])
     def test_trivial_eq_1d(self, mode):
@@ -895,7 +895,7 @@ class TestOperatorSimple(object):
         assert np.all(f2.data == 1.)
 
 
-class TestCodeGeneration(object):
+class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_as_nostencil_basic(self, mode):
@@ -1608,7 +1608,7 @@ class TestCodeGeneration(object):
         assert len(calls) == 2   # One for `v` and one for `usave`
 
 
-class TestOperatorAdvanced(object):
+class TestOperatorAdvanced:
 
     @pytest.mark.parallel(mode=4)
     def test_injection_wodup(self, mode):
@@ -2586,7 +2586,7 @@ def gen_serial_norms(shape, so):
         np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
-class TestIsotropicAcoustic(object):
+class TestIsotropicAcoustic:
 
     """
     Test the isotropic acoustic wave equation with MPI.

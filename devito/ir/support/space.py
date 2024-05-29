@@ -20,7 +20,7 @@ __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
 S0 = Stamp()
 
 
-class AbstractInterval(object):
+class AbstractInterval:
 
     """
     An abstract representation of an iterated closed interval on Z.
@@ -554,7 +554,7 @@ class IntervalGroup(Ordering):
         return NullInterval(key)
 
 
-class IterationDirection(object):
+class IterationDirection:
 
     """
     A representation of the direction in which an iteration space is traversed.
@@ -610,7 +610,7 @@ class IterationInterval(Interval):
         return (self, self.sub_iterators, self.direction)
 
 
-class Space(object):
+class Space:
 
     """
     A compact N-dimensional space defined by N Intervals.

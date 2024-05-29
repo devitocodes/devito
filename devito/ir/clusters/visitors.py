@@ -9,7 +9,7 @@ from devito.tools import as_tuple, flatten, timed_pass
 __all__ = ['Queue', 'QueueStateful', 'cluster_pass']
 
 
-class Queue(object):
+class Queue:
 
     """
     A special queue to process Clusters based on a divide-and-conquer algorithm.
@@ -120,7 +120,7 @@ class QueueStateful(Queue):
     expensive re-computations of information.
     """
 
-    class State(object):
+    class State:
 
         def __init__(self):
             self.properties = {}
@@ -176,7 +176,7 @@ class Prefix(IterationSpace):
                      self.guards, self.properties, self.syncs))
 
 
-class cluster_pass(object):
+class cluster_pass:
 
     def __new__(cls, *args, mode='dense'):
         if args:

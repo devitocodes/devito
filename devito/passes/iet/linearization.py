@@ -124,7 +124,7 @@ class Dist(Symbol):
     pass
 
 
-class Tracker(object):
+class Tracker:
 
     def __init__(self, mode, dtype, sregistry):
         self.mode = mode

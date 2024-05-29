@@ -24,7 +24,7 @@ from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
 __all__ = ['HaloExchangeBuilder', 'mpi_registry']
 
 
-class HaloExchangeBuilder(object):
+class HaloExchangeBuilder:
 
     """
     Build IET-based routines to implement MPI halo exchange.

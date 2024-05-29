@@ -11,7 +11,7 @@ from devito.parameters import switchconfig, configuration
 from devito.types import Symbol, Dimension
 
 
-class TestLoopScheduling(object):
+class TestLoopScheduling:
 
     def test_backward_dt2(self):
         grid = Grid(shape=(4, 4))
@@ -27,7 +27,7 @@ class TestLoopScheduling(object):
         assert_structure(op, ['t,x,y'], 't,x,y')
 
 
-class TestSymbolicCoeffs(object):
+class TestSymbolicCoeffs:
 
     def test_fallback_to_default(self):
         grid = Grid(shape=(8, 8, 8))
@@ -97,7 +97,7 @@ class TestSymbolicCoeffs(object):
         assert len(weights) == expected
 
 
-class Test1Pass(object):
+class Test1Pass:
 
     def test_v0(self):
         grid = Grid(shape=(10, 10, 10))
@@ -354,7 +354,7 @@ class Test1Pass(object):
         assert len([d for d in dims if d.is_Custom]) == 1
 
 
-class Test2Pass(object):
+class Test2Pass:
 
     @switchconfig(safe_math=True)
     def test_v0(self):

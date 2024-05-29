@@ -222,7 +222,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
     configuration.initialize()
 
 
-class switchconfig(object):
+class switchconfig:
 
     """
     Decorator or context manager to temporarily change `configuration` parameters.

@@ -35,7 +35,7 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
-class HaloScheme(object):
+class HaloScheme:
 
     """
     A HaloScheme describes a set of halo exchanges through a mapper:

@@ -15,7 +15,7 @@ __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
            'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
 
 
-class Guard(object):
+class Guard:
 
     @property
     def _args_rebuild(self):

@@ -9,7 +9,7 @@ from devito.tools import as_tuple
 __all__ = ['MPIReduction', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
 
 
-class MPIReduction(object):
+class MPIReduction:
     """
     A context manager to build MPI-aware reduction Operators.
     """

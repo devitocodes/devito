@@ -14,7 +14,7 @@ __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
            'UnboundTuple', 'UnboundedMultiTuple']
 
 
-class Bunch(object):
+class Bunch:
 
     """
     Bind together an arbitrary number of generic items. This is a mutable
@@ -354,7 +354,7 @@ class Ordering(tuple):
         return self._mode
 
 
-class DAG(object):
+class DAG:
 
     """
     An implementation of a directed acyclic graph (DAG).

@@ -6,7 +6,7 @@ repeat = 10
 timeout = 600.0
 
 
-class Processing(object):
+class Processing:
 
     def setup(self):
         grid = Grid(shape=(5, 5, 5))

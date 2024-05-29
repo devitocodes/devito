@@ -5,7 +5,7 @@ from devito.types import (DeviceID, NThreads, NThreadsNested, NThreadsNonaffine,
 __init__ = ['SymbolRegistry']
 
 
-class SymbolRegistry(object):
+class SymbolRegistry:
 
     """A registry for all the symbols used by an Operator."""
 

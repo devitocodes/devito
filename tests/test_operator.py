@@ -38,7 +38,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
-class TestOperatorSetup(object):
+class TestOperatorSetup:
 
     def test_platform_compiler_language(self):
         """
@@ -134,7 +134,7 @@ class TestOperatorSetup(object):
         assert op1._compiler is not op2._compiler
 
 
-class TestCodeGen(object):
+class TestCodeGen:
 
     def test_parameters(self):
         """Tests code generation for Operator parameters."""
@@ -349,7 +349,7 @@ class TestCodeGen(object):
         assert np.all(u0.data[2, :] == 8)
 
 
-class TestArithmetic(object):
+class TestArithmetic:
 
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a, a + b + 5.)', 10.),
@@ -641,7 +641,7 @@ class TestArithmetic(object):
         assert str(op1.ccode) == str(op2.ccode)
 
 
-class TestAllocation(object):
+class TestAllocation:
 
     @pytest.mark.parametrize('shape', [(20, 20),
                                        (20, 20, 20),
@@ -696,7 +696,7 @@ class TestAllocation(object):
             assert f.data[index] == 2.
 
 
-class TestApplyArguments(object):
+class TestApplyArguments:
 
     def verify_arguments(self, arguments, expected):
         """
@@ -1270,7 +1270,7 @@ class TestApplyArguments(object):
 
 
 @skipif('device')
-class TestDeclarator(object):
+class TestDeclarator:
 
     def test_conditional_declarations(self):
         x = Dimension(name="x")
@@ -1306,7 +1306,7 @@ class TestDeclarator(object):
         assert 'float' not in str(exprs[1])
 
 
-class TestLoopScheduling(object):
+class TestLoopScheduling:
 
     def test_permutations_without_deps(self):
         """
@@ -1988,7 +1988,7 @@ class TestLoopScheduling(object):
         assert(np.all(u.data[:] == expected[:]))
 
 
-class TestInternals(object):
+class TestInternals:
 
     def test_indirection(self):
         nt = 10

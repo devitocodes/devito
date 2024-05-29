@@ -9,7 +9,7 @@ __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers
            'retrieve_derivatives', 'search']
 
 
-class Search(object):
+class Search:
 
     class Set(set):
 

@@ -19,7 +19,7 @@ from devito.types import HostLayer
 __init__ = ['Orchestrator']
 
 
-class Orchestrator(object):
+class Orchestrator:
 
     """
     Lower the SyncSpot in IET for efficient host-device asynchronous computation.

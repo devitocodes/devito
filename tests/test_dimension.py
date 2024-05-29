@@ -17,7 +17,7 @@ from devito.types import Array, StencilDimension, Symbol
 from devito.types.dimension import AffineIndexAccessFunction
 
 
-class TestIndexAccessFunction(object):
+class TestIndexAccessFunction:
 
     def test_basic(self):
         d = Dimension(name='x')
@@ -142,7 +142,7 @@ class TestIndexAccessFunction(object):
         assert expr.sds == (sd,)
 
 
-class TestBufferedDimension(object):
+class TestBufferedDimension:
 
     def test_multi_buffer(self):
         grid = Grid((3, 3))
@@ -211,7 +211,7 @@ class TestBufferedDimension(object):
         assert np.all(f.data[4] == 4)
 
 
-class TestSubDimension(object):
+class TestSubDimension:
 
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_interior(self, opt):
@@ -738,7 +738,7 @@ class TestSubDimension(object):
         assert np.all(u.data[:, :, -2:] == 0.)
 
 
-class TestConditionalDimension(object):
+class TestConditionalDimension:
 
     """
     A collection of tests to check the correct functioning of ConditionalDimensions.
@@ -1774,7 +1774,7 @@ class TestConditionalDimension(object):
         assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
 
 
-class TestCustomDimension(object):
+class TestCustomDimension:
 
     def test_shifted_minmax(self):
         grid = Grid(shape=(4, 4))
@@ -1801,7 +1801,7 @@ class TestCustomDimension(object):
         assert np.all(v.data_with_halo[:] == 1)
 
 
-class TestMashup(object):
+class TestMashup:
 
     """
     Check the correct functioning of the compiler in presence of many Dimension types.

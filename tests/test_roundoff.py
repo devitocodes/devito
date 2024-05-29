@@ -4,7 +4,7 @@ import numpy as np
 from devito import Grid, Constant, TimeFunction, Eq, Operator, switchconfig
 
 
-class TestRoundoff(object):
+class TestRoundoff:
     """
     Class for checking round-off errors are not unexpectedly creeping in to certain
     stencil types.
