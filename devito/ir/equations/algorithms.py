@@ -99,6 +99,8 @@ def lower_exprs(expressions, subs=None, **kwargs):
     --------
     f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
     """
+    # FIXME: Not sure why you can get this, but not accress with index
+    print(kwargs.get('sregistry'))
     return _lower_exprs(expressions, subs or {})
 
 
@@ -107,6 +109,7 @@ def _lower_exprs(expressions, subs):
     for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
+            print("Dimension map", dimension_map)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
