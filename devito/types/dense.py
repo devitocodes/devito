@@ -24,7 +24,7 @@ from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, DimensionTuple, NODE, CELL
+from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
@@ -1441,6 +1441,13 @@ class TimeFunction(Function):
         _t = self.dimensions[self._time_position]
 
         return self._subs(_t, _t - i * _t.spacing)
+
+    @property
+    def layer(self):
+        """
+        The memory hierarchy layer in which the TimeFunction is stored.
+        """
+        return host_layer
 
     @property
     def _time_size(self):
