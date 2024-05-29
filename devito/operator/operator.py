@@ -979,21 +979,12 @@ class Operator(Callable):
 
             if v.time <= 0.01:
                 # Trim down the output for very fast sections
-                name = "%s%s<>" % (k.name, rank)
+                name = "%s%s" % (k.name, rank)
                 perf("%s* %s ran in %.2f s" % (indent, name, fround(v.time)))
                 continue
 
+            name = "%s%s" % (k.name, rank)
             metrics = lower_perfentry(v)
-
-            itershapes = [",".join(str(i) for i in its) for its in v.itershapes]
-            if len(itershapes) > 1:
-                itershapes = ",".join("<%s>" % i for i in itershapes)
-            elif len(itershapes) == 1:
-                itershapes = itershapes[0]
-            else:
-                itershapes = ""
-            name = "%s%s<%s>" % (k.name, rank, itershapes)
-
             perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
             for n, v1 in summary.subsections.get(k.name, {}).items():
                 metrics = lower_perfentry(v1)
