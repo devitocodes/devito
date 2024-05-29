@@ -481,6 +481,20 @@ class SparseDistributor(AbstractDistributor):
             raise TypeError('Need `npoint` int or tuple argument')
         return tuple(glb_npoint)
 
+    @cached_property
+    def all_ranges(self):
+        """The global ranges of all MPI ranks."""
+        ret = []
+        for i in self.decomposition[0]:
+            # i might be empty if there is less receivers than rank such as for a
+            # point source
+            try:
+                ret.append(EnrichedTuple(range(min(i), max(i) + 1),
+                                         getters=self.dimensions))
+            except ValueError:
+                ret.append(EnrichedTuple(range(0, 0), getters=self.dimensions))
+        return tuple(ret)
+
     @property
     def distributor(self):
         return self._distributor

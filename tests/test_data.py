@@ -3,7 +3,8 @@ import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
                     Eq, Operator, ALLOC_GUARD, ALLOC_ALIGNED, configuration,
-                    switchconfig)
+                    switchconfig, SparseFunction, PrecomputedSparseFunction,
+                    PrecomputedSparseTimeFunction)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -1484,6 +1485,32 @@ class TestDataGather:
             assert np.all(ans == tdata)
         else:
             assert ans == np.array(None)
+
+    @pytest.mark.parallel(mode=[4, 6])
+    @pytest.mark.parametrize('sfunc', [SparseFunction,
+                                       SparseTimeFunction,
+                                       PrecomputedSparseFunction,
+                                       PrecomputedSparseTimeFunction])
+    @pytest.mark.parametrize('target_rank', [0, 2])
+    def test_gather_sparse(self, mode, sfunc, target_rank):
+        grid = Grid((11, 11))
+        myrank = grid._distributor.comm.Get_rank()
+        nt = 10
+        coords = [[0, 0], [0, .25], [0, .75], [0, 1]]
+        s = sfunc(name='s', grid=grid, npoint=4, r=4, nt=nt, coordinates=coords)
+
+        np.random.seed(1234)
+        try:
+            a = np.random.rand(s.nt, s.npoint_global)
+        except AttributeError:
+            a = np.random.rand(s.npoint_global,)
+
+        s.data[:] = a
+        out = s.data_gather(rank=target_rank)
+        if myrank == target_rank:
+            assert np.allclose(out, a)
+        else:
+            assert not out
 
 
 def test_scalar_arg_substitution():
