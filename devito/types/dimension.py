@@ -780,6 +780,7 @@ class SubDimension(AbstractSubDimension):
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
 
 
+# FIXME: Might not be necessary
 class Thickness(Scalar):
     pass
 

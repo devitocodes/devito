@@ -4,6 +4,7 @@ from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
+from devito.types.dimension import SubDimensionThickness
 
 __all__ = ['dimension_sort', 'lower_exprs']
 
@@ -99,17 +100,21 @@ def lower_exprs(expressions, subs=None, **kwargs):
     --------
     f(x - 2*h_x, y) -> f[xi + 2, yi + 4]  (assuming halo_size=4)
     """
-    # FIXME: Not sure why you can get this, but not accress with index
-    print(kwargs.get('sregistry'))
-    return _lower_exprs(expressions, subs or {})
+    return _lower_exprs(expressions, subs or {}, **kwargs)
 
 
-def _lower_exprs(expressions, subs):
+def _lower_exprs(expressions, subs, **kwargs):
+    # FIXME: Not sure why you can get this, but not access with index
+    sregistry = kwargs.get('sregistry')
+
     processed = []
     for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
-            print("Dimension map", dimension_map)
+            if sregistry:
+                # TODO: Rebuild the subdomain with new thickness names here
+                # FIXME: Can one access the ImplicitFunction from here?
+                rename_thicknesses(dimension_map, sregistry)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
@@ -149,3 +154,25 @@ def _lower_exprs(expressions, subs):
     else:
         assert len(processed) == 1
         return processed.pop()
+
+
+def rename_thicknesses(mapper, sregistry):
+    """
+    Rebuild SubDimensions in a mapper
+    """
+    for k, v in mapper.items():
+        if v.is_Sub:
+            ((lst, lst_v), (rst, rst_v)) = v.thickness
+            # TODO: could stick this in a tiny loop
+            lst_name = sregistry.make_name(prefix=lst.name)
+            rst_name = sregistry.make_name(prefix=rst.name)
+            lst_new = lst._rebuild(name=lst_name)
+            rst_new = rst._rebuild(name=rst_name)
+            interval = v._interval.subs({lst: lst_new, rst: rst_new})
+            left = interval.left
+            right = interval.right
+            new_thickness = SubDimensionThickness((lst_new, lst_v),
+                                                  (rst_new, rst_v))
+
+            mapper[k] = v._rebuild(symbolic_min=left, symbolic_max=right,
+                                   thickness=new_thickness)
