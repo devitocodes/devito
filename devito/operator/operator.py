@@ -1,12 +1,14 @@
 from collections import OrderedDict, namedtuple
 from functools import cached_property
 import ctypes
+import shutil
 from operator import attrgetter
 from math import ceil
+from tempfile import gettempdir
 
 from sympy import sympify
 
-from devito.arch import compiler_registry, platform_registry
+from devito.arch import CPU64, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator, ExecutionError
 from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
@@ -22,12 +24,13 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
-                           error_mapper)
-from devito.symbolics import estimate_cost
-from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
-                          filter_sorted, frozendict, is_integer, split, timed_pass,
-                          timed_region, contains_val)
-from devito.types import Grid, Evaluable
+                           error_mapper, is_on_device)
+from devito.symbolics import estimate_cost, subs_op_args
+from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
+                          flatten, filter_sorted, frozendict, is_integer,
+                          split, timed_pass, timed_region, contains_val)
+from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
+                          disk_layer)
 
 __all__ = ['Operator']
 
@@ -1108,12 +1111,7 @@ class ArgumentsMap(dict):
         super().__init__(args)
 
         self.grid = grid
-
-        self.allocator = op._allocator
-        self.platform = op._platform
-        self.language = op._language
-        self.compiler = op._compiler
-        self.options = op._options
+        self.op = op
 
     @property
     def comm(self):
@@ -1128,6 +1126,110 @@ class ArgumentsMap(dict):
         return {'platform': self.platform.name,
                 'compiler': compiler,
                 'language': self.language}
+
+    @property
+    def allocator(self):
+        return self.op._allocator
+
+    @property
+    def platform(self):
+        return self.op._platform
+
+    @property
+    def language(self):
+        return self.op._language
+
+    @property
+    def compiler(self):
+        return self.op._compiler
+
+    @property
+    def options(self):
+        return self.op._options
+
+    @property
+    def saved_mapper(self):
+        """
+        The number of saved TimeFunctions in the Operator, grouped by
+        memory hierarchy layer.
+        """
+        key0 = lambda f: (f.is_TimeFunction and
+                         f.save is not None and
+                         not isinstance(f.save, Buffer))
+        functions = [f for f in self.op.input if key0(f)]
+
+        key1 = lambda f: f.layer
+        mapper = as_mapper(functions, key1)
+
+        return mapper
+
+    @cached_property
+    def nbytes_avail_mapper(self):
+        """
+        The amount of memory available after accounting for the memory
+        consumed by the Operator, in bytes, grouped by memory hierarchy layer.
+        """
+        mapper = {}
+
+        # The amount of space available on the disk
+        usage = shutil.disk_usage(gettempdir())
+        mapper[disk_layer] = usage.free
+
+        # The amount of space available on the device
+        if isinstance(self.platform, Device):
+            deviceid = max(self.get('deviceid', 0), 0)
+            mapper[device_layer] = self.platform.memavail(deviceid=deviceid)
+
+        # The amount of space available on the host
+        try:
+            nproc = self.grid.distributor.nprocs_local
+        except AttributeError:
+            nproc = 1
+        mapper[host_layer] = int(CPU64.memavail() / nproc)
+
+        # Temporaries such as Arrays are allocated and deallocated on-the-fly
+        # while in C land, so they need to be accounted for as well
+        for i in FindSymbols().visit(self.op):
+            if not i.is_Array or not i._mem_heap or i.alias:
+                continue
+
+            if i.is_regular:
+                nbytes = i.nbytes
+            else:
+                nbytes = i.nbytes_max
+            v = subs_op_args(nbytes, self)
+            if not is_integer(v):
+                # E.g. the Arrays used to store the MPI halo exchanges
+                continue
+
+            if i._mem_host:
+                mapper[host_layer] -= v
+            elif i._mem_local:
+                if isinstance(self.platform, Device):
+                    mapper[device_layer] -= v
+                else:
+                    mapper[host_layer] -= v
+            elif i._mem_mapped:
+                if isinstance(self.platform, Device):
+                    mapper[device_layer] -= v
+                mapper[host_layer] -= v
+
+        # All input Functions are yet to be memcpy-ed to the device
+        # TODO: this may not be true depending on `devicerm`, which is however
+        # virtually never used
+        if isinstance(self.platform, Device):
+            for i in self.op.input:
+                if not is_on_device(i, self.options['gpu-fit']):
+                    continue
+                try:
+                    if i._mem_mapped:
+                        mapper[device_layer] -= i.nbytes
+                except AttributeError:
+                    pass
+
+        mapper = {k: int(v) for k, v in mapper.items()}
+
+        return mapper
 
 
 def parse_kwargs(**kwargs):
