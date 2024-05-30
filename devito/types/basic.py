@@ -19,7 +19,8 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
+           'IrregularFunctionInterface']
 
 
 Size = namedtuple('Size', 'left right')
@@ -1609,3 +1610,16 @@ class Indexed(sympy.Indexed):
         except AttributeError:
             pass
         return super()._subs(old, new, **hints)
+
+
+class IrregularFunctionInterface:
+
+    """
+    A common interface for all irregular AbstractFunctions.
+    """
+
+    is_regular = False
+
+    @property
+    def nbytes_max(self):
+        raise NotImplementedError
