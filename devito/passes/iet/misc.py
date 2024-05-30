@@ -14,7 +14,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper,
                               ccode)
-from devito.tools import Bunch, as_mapper, filter_ordered, split
+from devito.tools import Bunch, as_mapper, filter_ordered, split, dtype_to_cstr
 from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
@@ -253,7 +253,7 @@ def minimize_symbols(iet):
     return iet, {}
 
 
-_complex_lib = {'cuda': 'cuComplex.h', 'hip': 'hip/hip_complex.h'}
+_complex_lib = {'cuda': 'thrust/complex.h'}
 
 
 @iet_pass
@@ -261,14 +261,20 @@ def complex_include(iet, language, compiler):
     """
     Add headers for complex arithmetic
     """
+    # Check if there is complex numbers that always take dtype precedence
+    max_dtype = np.result_type(*[f.dtype for f in FindSymbols().visit(iet)])
+    if not np.issubdtype(max_dtype, np.complexfloating):
+        return iet, {}
+
     lib = (_complex_lib.get(language, 'complex' if compiler._cpp else 'complex.h'),)
 
     headers = {}
 
     # For openacc (cpp) need to define constant _Complex_I that isn't found otherwise
     if compiler._cpp:
+        c_str = dtype_to_cstr(max_dtype.type(0).real.dtype.type)
         # Constant I
-        headers = {('_Complex_I', ('std::complex<float>(0.0f, 1.0f)'))}
+        headers = {('_Complex_I', ('std::complex<%s>(0.0, 1.0)' % c_str))}
         # Mix arithmetic definitions
         dest = compiler.get_jit_dir()
         hfile = dest.joinpath('stdcomplex_arith.h')
@@ -277,14 +283,7 @@ def complex_include(iet, language, compiler):
                 ff.write(str(_stdcomplex_defs))
         lib += (str(hfile),)
 
-    for f in FindSymbols().visit(iet):
-        try:
-            if np.issubdtype(f.dtype, np.complexfloating):
-                return iet, {'includes': lib, 'headers': headers}
-        except TypeError:
-            pass
-
-    return iet, {}
+    return iet, {'includes': lib, 'headers': headers}
 
 
 def remove_redundant_moddims(iet):
@@ -395,12 +394,28 @@ std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){
 }
 
 template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){
+  return std::complex<_Tp>(b.real() * a, b.imag() * a);
+}
+
+template<typename _Tp, typename _Ti>
 std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){
+  _Tp denom = b.real() * b.real () + b.imag() * b.imag()
+  return std::complex<_Tp>(b.real() * a / denom, - b.imag() * a / denom);
+}
+
+template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){
   return std::complex<_Tp>(b.real() / a, b.imag() / a);
 }
 
 template<typename _Tp, typename _Ti>
 std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){
+  return std::complex<_Tp>(b.real() + a, b.imag());
+}
+
+template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
   return std::complex<_Tp>(b.real() + a, b.imag());
 }
 """

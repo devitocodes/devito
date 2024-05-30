@@ -77,15 +77,16 @@ class TestCodeGeneration:
         assert trees[0][0] is trees[1][0]
         assert trees[0][1] is not trees[1][1]
 
-    def test_complex(self):
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_complex(self, dtype):
         grid = Grid((5, 5))
         x, y = grid.dimensions
-        # Float32 complex is called complex64 in numpy
-        u = Function(name="u", grid=grid, dtype=np.complex64)
+        u = Function(name="u", grid=grid, dtype=dtype)
 
         eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing))
         # Currently wrong alias type
         op = Operator(eq)
+        print(op)
         op()
 
         # Check against numpy
