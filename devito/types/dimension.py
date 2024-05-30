@@ -21,7 +21,7 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'Spacing', 'ImplicitDimension', 'dimensions']
 
 
-SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
+Thickness = namedtuple('SubDimensionThickness', 'left right')
 SubDimensionOffset = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
 
@@ -612,15 +612,15 @@ class SubDimension(AbstractSubDimension):
     def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
-        self._thickness = SubDimensionThickness(*thickness)
+        self._thickness = Thickness(*thickness)
         self._local = local
 
     @classmethod
     def _symbolic_thickness(cls, name):
-        return (Thickness(name="%s_ltkn" % name, dtype=np.int32,
-                          is_const=True, nonnegative=True),
-                Thickness(name="%s_rtkn" % name, dtype=np.int32,
-                          is_const=True, nonnegative=True))
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
@@ -778,11 +778,6 @@ class SubDimension(AbstractSubDimension):
             rtkn = r_rtkn or 0
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
-
-
-# FIXME: Might not be necessary
-class Thickness(Scalar):
-    pass
 
 
 class ConditionalDimension(DerivedDimension):

@@ -4,7 +4,7 @@ from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import SubDimensionThickness
+from devito.types.dimension import Thickness
 
 __all__ = ['dimension_sort', 'lower_exprs']
 
@@ -108,13 +108,16 @@ def _lower_exprs(expressions, subs, **kwargs):
     sregistry = kwargs.get('sregistry')
 
     processed = []
+    rebuilt_subdims = {}
     for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
             if sregistry:
-                # TODO: Rebuild the subdomain with new thickness names here
-                # FIXME: Can one access the ImplicitFunction from here?
-                rename_thicknesses(dimension_map, sregistry)
+                # Give generic SubDimension thicknesses unique names
+                # FIXME: If the same subdomain is used in multiple equations, its
+                # subdimensions won't be reused currently, which is bad
+                # FIXME: Maybe this should return/modify a dict of replacements
+                rename_thicknesses(dimension_map, sregistry, rebuilt_subdims)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
@@ -156,23 +159,31 @@ def _lower_exprs(expressions, subs, **kwargs):
         return processed.pop()
 
 
-def rename_thicknesses(mapper, sregistry):
+def rename_thicknesses(mapper, sregistry, rebuilt_subdims):
     """
-    Rebuild SubDimensions in a mapper
+    Rebuild SubDimensions in a mapper so that their thicknesses
+    have unique names.
     """
     for k, v in mapper.items():
         if v.is_Sub:
-            ((lst, lst_v), (rst, rst_v)) = v.thickness
-            # TODO: could stick this in a tiny loop
-            lst_name = sregistry.make_name(prefix=lst.name)
-            rst_name = sregistry.make_name(prefix=rst.name)
-            lst_new = lst._rebuild(name=lst_name)
-            rst_new = rst._rebuild(name=rst_name)
-            interval = v._interval.subs({lst: lst_new, rst: rst_new})
-            left = interval.left
-            right = interval.right
-            new_thickness = SubDimensionThickness((lst_new, lst_v),
-                                                  (rst_new, rst_v))
+            try:
+                mapper[k] = rebuilt_subdims[v]
+            except KeyError:
+                ((lst, lst_v), (rst, rst_v)) = v.thickness
+                # TODO: could stick this in a tiny loop
+                lst_name = sregistry.make_name(prefix=lst.name)
+                rst_name = sregistry.make_name(prefix=rst.name)
+                lst_new = lst._rebuild(name=lst_name)
+                rst_new = rst._rebuild(name=rst_name)
+                new_thickness = Thickness((lst_new, lst_v),
+                                          (rst_new, rst_v))
 
-            mapper[k] = v._rebuild(symbolic_min=left, symbolic_max=right,
-                                   thickness=new_thickness)
+                if v.is_MultiSub:
+                    rebuilt = v._rebuild(thickness=new_thickness)
+                else:
+                    interval = v._interval.subs({lst: lst_new, rst: rst_new})
+                    left = interval.left
+                    right = interval.right
+                    rebuilt = v._rebuild(symbolic_min=left, symbolic_max=right,
+                                         thickness=new_thickness)
+                mapper[k] = rebuilt_subdims[v] = rebuilt
