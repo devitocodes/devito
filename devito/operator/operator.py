@@ -484,8 +484,8 @@ class Operator(Callable):
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
 
-        # Complex header if needed. Needs to be done specialization
-        # as some specific cases requires complex to be loaded first
+        # Complex header if needed. Needs to be done before specialization
+        # as some specific cases require complex to be loaded first
         complex_include(graph, language=kwargs['language'], compiler=kwargs['compiler'])
 
         # Specialize
@@ -1408,7 +1408,8 @@ def parse_kwargs(**kwargs):
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
-                                                         mpi=configuration['mpi'])
+                                                         mpi=configuration['mpi'],
+                                                         name=compiler)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
