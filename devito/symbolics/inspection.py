@@ -304,10 +304,12 @@ def sympy_dtype(expr, base=None):
             dtypes.add(i.dtype)
         except AttributeError:
             pass
+
     dtype = infer_dtype(dtypes)
 
-    # Promote if complex
-    if expr.has(ImaginaryUnit):
+    # Promote if we missed complex number, i.e f + I
+    is_im = np.issubdtype(dtype, np.complexfloating)
+    if expr.has(ImaginaryUnit) and not is_im:
         dtype = np.promote_types(dtype, np.complex64).type
 
     return dtype
