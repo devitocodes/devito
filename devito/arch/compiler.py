@@ -180,6 +180,8 @@ class Compiler(GCCToolchain):
     _cpp = False
 
     def __init__(self, **kwargs):
+        self._name = kwargs.pop('name', self.__class__.__name__)
+
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
@@ -223,13 +225,13 @@ class Compiler(GCCToolchain):
         Create a new Compiler from an existing one, inherenting from it
         the flags that are not specified via ``kwargs``.
         """
-        return self.__class__(suffix=kwargs.pop('suffix', self.suffix),
+        return self.__class__(name=self.name, suffix=kwargs.pop('suffix', self.suffix),
                               mpi=kwargs.pop('mpi', configuration['mpi']),
                               **kwargs)
 
     @property
     def name(self):
-        return self.__class__.__name__
+        return self._name
 
     @property
     def version(self):
@@ -244,6 +246,20 @@ class Compiler(GCCToolchain):
             version = sniff_compiler_version(self.CC, allow_fail=allow_fail)
 
         return version
+
+    @property
+    def _complex_ctype(self):
+        """
+        Type definition for complex numbers. THese two cases cover 99% of the cases since
+        - Hip is now using std::complex
+https://rocm.docs.amd.com/en/docs-5.1.3/CHANGELOG.html#hip-api-deprecations-and-warnings
+        - Sycl supports std::complex
+        - C's _Complex is part of C99
+        """
+        if self._cpp:
+            return lambda dtype: 'std::complex<%s>' % str(dtype)
+        else:
+            return lambda dtype: '%s _Complex' % str(dtype)
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -698,6 +714,10 @@ class CudaCompiler(Compiler):
         self.CXX = 'nvcc'
         self.MPICC = 'nvcc'
         self.MPICXX = 'nvcc'
+
+    @property
+    def _complex_ctype(self):
+        return lambda dtype: 'thrust::complex<%s>' % str(dtype)
 
 
 class HipCompiler(Compiler):

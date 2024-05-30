@@ -56,7 +56,8 @@ def reinit_compiler(val):
     """
     Re-initialize the Compiler.
     """
-    configuration['compiler'].__init__(suffix=configuration['compiler'].suffix,
+    configuration['compiler'].__init__(name=configuration['compiler'].name,
+                                       suffix=configuration['compiler'].suffix,
                                        mpi=configuration['mpi'])
     return val
 
@@ -65,7 +66,7 @@ def reinit_compiler(val):
 configuration.add('platform', 'cpu64', list(platform_registry),
                   callback=lambda i: platform_registry[i]())
 configuration.add('compiler', 'custom', list(compiler_registry),
-                  callback=lambda i: compiler_registry[i]())
+                  callback=lambda i: compiler_registry[i](name=i))
 
 # Setup language for shared-memory parallelism
 preprocessor = lambda i: {0: 'C', 1: 'openmp'}.get(i, i)  # Handles DEVITO_OPENMP deprec
