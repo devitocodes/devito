@@ -248,17 +248,26 @@ def complex_include(iet, language, compiler):
     """
     Add headers for complex arithmetic
     """
-    lib = _complex_lib.get(language, 'complex' if compiler._cpp else 'complex.h')
+    lib = (_complex_lib.get(language, 'complex' if compiler._cpp else 'complex.h'),)
 
     headers = {}
+
     # For openacc (cpp) need to define constant _Complex_I that isn't found otherwise
     if compiler._cpp:
+        # Constant I
         headers = {('_Complex_I', ('std::complex<float>(0.0f, 1.0f)'))}
+        # Mix arithmetic definitions
+        dest = compiler.get_jit_dir()
+        hfile = dest.joinpath('stdcomplex_arith.h')
+        if not hfile.is_file():
+            with open(str(hfile), 'w') as ff:
+                ff.write(str(_stdcomplex_defs))
+        lib += (str(hfile),)
 
     for f in FindSymbols().visit(iet):
         try:
             if np.issubdtype(f.dtype, np.complexfloating):
-                return iet, {'includes': (lib,), 'headers': headers}
+                return iet, {'includes': lib, 'headers': headers}
         except TypeError:
             pass
 
@@ -343,3 +352,23 @@ def _rename_subdims(target, dimensions):
     return {d: d._rebuild(d.root.name) for d in dims
             if d.root not in dimensions
             and names.count(d.root.name) < 2}
+
+
+_stdcomplex_defs = """
+#include <complex>
+
+template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){
+  return std::complex<_Tp>(b.real() * a, b.imag() * a);
+}
+
+template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){
+  return std::complex<_Tp>(b.real() / a, b.imag() / a);
+}
+
+template<typename _Tp, typename _Ti>
+std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){
+  return std::complex<_Tp>(b.real() + a, b.imag());
+}
+"""
