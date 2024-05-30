@@ -1264,7 +1264,6 @@ class TestSubDomainFunctionsParallel:
 
     @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
                                                  (False, 1.0238341)])
-    # @pytest.mark.parametrize('injection, norm', [(False, 1.0238341)])
     @pytest.mark.parallel(mode=[1])
     def test_diffusion(self, injection, norm, mode):
         """
@@ -1282,8 +1281,6 @@ class TestSubDomainFunctionsParallel:
 
         dt = 0.1
 
-        # Multiple grids at once causes MPI to fail, so need a restricted scope
-        # for the MPI communicator
         def solver(injection, subdomain):
             # Functions are of the same size in both cases
             if subdomain:
