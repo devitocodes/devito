@@ -139,7 +139,12 @@ def dtype_to_ctype(dtype):
     # Complex data
     if np.issubdtype(dtype, np.complexfloating):
         rtype = dtype(0).real.__class__
-        return dtype_to_ctype(rtype)
+        from devito import configuration
+        make = configuration['compiler']._complex_ctype
+        ctname = make(dtype_to_cstr(rtype))
+        ctype = dtype_to_ctype(rtype)
+        r = type(ctname, (ctype,), {})
+        return r
 
     try:
         return ctypes_vector_mapper[dtype]
@@ -216,7 +221,7 @@ for base_name, base_dtype in mapper.items():
 # *** ctypes lowering
 
 
-def ctypes_to_cstr(ctype, toarray=None, cpp=False):
+def ctypes_to_cstr(ctype, toarray=None):
     """Translate ctypes types into C strings."""
     if ctype in ctypes_vector_mapper.values():
         retval = ctype.__name__
@@ -310,7 +315,8 @@ def infer_dtype(dtypes):
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
+               np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:
