@@ -1033,63 +1033,6 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
-    @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
-                                                 (False, 1.0238341)])
-    def test_diffusion(self, injection, norm):
-        """
-        Test that a diffusion operator using Functions on SubDomains produces
-        the same result as one on a Grid.
-        """
-        class Middle(SubDomain):
-
-            name = 'middle'
-
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('middle', 2, 2)}
-
-        grid0 = Grid(shape=(14, 14), extent=(13., 13.))
-        grid1 = Grid(shape=(10, 10), extent=(9., 9.))
-        mid = Middle(grid=grid0)
-
-        # Both functions are of the same size
-        f = TimeFunction(name='f', grid=mid, space_order=4)
-        g = TimeFunction(name='g', grid=grid1, space_order=4)
-
-        assert f.shape == g.shape
-
-        dt = 0.1
-
-        pdef = f.dt - f.laplace
-        pdeg = g.dt - g.laplace
-
-        eqf = Eq(f.forward, solve(pdef, f.forward), subdomain=mid)
-        eqg = Eq(g.forward, solve(pdeg, g.forward))
-
-        if injection:
-            srcf = SparseTimeFunction(name='src', grid=grid0, npoint=1, nt=10)
-            srcg = SparseTimeFunction(name='src', grid=grid1, npoint=1, nt=10)
-
-            srcf.coordinates.data[:] = 6.5
-            srcg.coordinates.data[:] = 4.5
-
-            srcf.data[:, 0] = np.arange(10, dtype=float)
-            srcg.data[:, 0] = np.arange(10, dtype=float)
-
-            sf = srcf.inject(field=f.forward, expr=srcf)
-            sg = srcg.inject(field=g.forward, expr=srcg)
-
-            Operator([eqf] + sf)(dt=dt)
-            Operator([eqg] + sg)(dt=dt)
-        else:
-            f.data[:, 4:-4, 4:-4] = 1
-            g.data[:, 4:-4, 4:-4] = 1
-            Operator(eqf)(t_M=10, dt=dt)
-            Operator(eqg)(t_M=10, dt=dt)
-
-        assert np.all(np.isclose(f.data, g.data))
-        assert np.isclose(np.linalg.norm(f.data), norm)
-
 
 class TestSubDomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""
@@ -1318,3 +1261,59 @@ class TestSubDomainFunctionsParallel:
 
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
+
+    @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
+                                                 (False, 1.0238341)])
+    # @pytest.mark.parametrize('injection, norm', [(False, 1.0238341)])
+    @pytest.mark.parallel(mode=[1])
+    def test_diffusion(self, injection, norm, mode):
+        """
+        Test that a diffusion operator using Functions on SubDomains produces
+        the same result as one on a Grid.
+        """
+        # FIXME: MPI fails on more than one rank
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 2, 2)}
+
+        dt = 0.1
+
+        # Multiple grids at once causes MPI to fail, so need a restricted scope
+        # for the MPI communicator
+        def solver(injection, subdomain):
+            # Functions are of the same size in both cases
+            if subdomain:
+                grid = Grid(shape=(14, 14), extent=(13., 13.))
+                mid = Middle(grid=grid)
+                f = TimeFunction(name='f', grid=mid, space_order=4)
+            else:
+                grid = Grid(shape=(10, 10), extent=(9., 9.))
+                f = TimeFunction(name='f', grid=grid, space_order=4)
+
+            pde = f.dt - f.laplace
+
+            sd = mid if subdomain else None
+            eq = Eq(f.forward, solve(pde, f.forward), subdomain=sd)
+
+            if injection:
+                src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=10)
+                coord = 6.5 if subdomain else 4.5
+                src.coordinates.data[:] = coord
+                src.data[:, 0] = np.arange(10)
+                s = src.inject(field=f.forward, expr=src)
+                Operator([eq] + s)(dt=dt)
+            else:
+                f.data[:, 4:-4, 4:-4] = 1
+                Operator(eq)(t_M=10, dt=dt)
+
+            return np.array(f.data[:])
+
+        data0, data1 = [solver(injection, i) for i in (True, False)]
+
+        assert data0.shape == data1.shape
+        assert np.all(np.isclose(data0, data1))
+        assert np.isclose(np.linalg.norm(data0), norm)
