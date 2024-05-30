@@ -6,7 +6,7 @@ from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt)
+                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseTimeFunction)
 from devito.ir import FindNodes, Expression, Iteration
 from devito.tools import timed_region
 
@@ -1033,10 +1033,12 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
-    def test_diffusion(self):
+    @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
+                                                 (False, 1.0238341)])
+    def test_diffusion(self, injection, norm):
         """
         Test that a diffusion operator using Functions on SubDomains produces
-        the same result as one on a Grid
+        the same result as one on a Grid.
         """
         class Middle(SubDomain):
 
@@ -1054,28 +1056,39 @@ class TestSubDomainFunctions:
         f = TimeFunction(name='f', grid=mid, space_order=4)
         g = TimeFunction(name='g', grid=grid1, space_order=4)
 
-        f.data[:, 4:-4, 4:-4] = 1
-        g.data[:, 4:-4, 4:-4] = 1
-
         assert f.shape == g.shape
 
         dt = 0.1
 
-        # FIXME: Laplace not working?
-        # pdef = f.dt - (f.dx2 + f.dy2)
-        # pdeg = g.dt - (g.dx2 + g.dy2)
-        print(f.dimensions)
         pdef = f.dt - f.laplace
         pdeg = g.dt - g.laplace
 
         eqf = Eq(f.forward, solve(pdef, f.forward), subdomain=mid)
         eqg = Eq(g.forward, solve(pdeg, g.forward))
 
-        Operator(eqf)(t_M=10, dt=dt)
-        Operator(eqg)(t_M=10, dt=dt)
+        if injection:
+            srcf = SparseTimeFunction(name='src', grid=grid0, npoint=1, nt=10)
+            srcg = SparseTimeFunction(name='src', grid=grid1, npoint=1, nt=10)
+
+            srcf.coordinates.data[:] = 6.5
+            srcg.coordinates.data[:] = 4.5
+
+            srcf.data[:, 0] = np.arange(10, dtype=float)
+            srcg.data[:, 0] = np.arange(10, dtype=float)
+
+            sf = srcf.inject(field=f.forward, expr=srcf)
+            sg = srcg.inject(field=g.forward, expr=srcg)
+
+            Operator([eqf] + sf)(dt=dt)
+            Operator([eqg] + sg)(dt=dt)
+        else:
+            f.data[:, 4:-4, 4:-4] = 1
+            g.data[:, 4:-4, 4:-4] = 1
+            Operator(eqf)(t_M=10, dt=dt)
+            Operator(eqg)(t_M=10, dt=dt)
 
         assert np.all(np.isclose(f.data, g.data))
-        assert np.isclose(np.linalg.norm(f.data), 1.0238341)
+        assert np.isclose(np.linalg.norm(f.data), norm)
 
 
 class TestSubDomainFunctionsParallel:
