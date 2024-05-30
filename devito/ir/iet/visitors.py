@@ -14,6 +14,7 @@ import numpy as np
 from sympy import IndexedBase
 from sympy.core.function import Application
 
+from devito.parameters import configuration
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
@@ -177,7 +178,7 @@ class CGen(Visitor):
 
     def __init__(self, *args, compiler=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._compiler = compiler
+        self._compiler = compiler or configuration['compiler']
 
     # The following mappers may be customized by subclasses (that is,
     # backend-specific CGen-erators)
