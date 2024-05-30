@@ -41,7 +41,7 @@ class CodePrinter(C99CodePrinter):
 
     def single_prec(self, expr=None):
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return dtype in [np.float32, np.float16]
+        return dtype in [np.float32, np.float16, np.complex64]
 
     def complex_prec(self, expr=None):
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
@@ -264,16 +264,8 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
-<<<<<<< HEAD
 
         if self.single_prec():
-=======
-        dtype = self.dtype
-        if np.issubdtype(dtype, np.complexfloating):
-            func_name = 'c%s' % func_name
-            dtype = self.dtype(0).real.dtype.type
-        if dtype == np.float32:
->>>>>>> 75d50a431 (compiler: generate std:complex for cpp compilers)
             func_name = '%sf' % func_name
         if self.complex_prec():
             func_name = 'c%s' % func_name
