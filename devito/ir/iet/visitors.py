@@ -10,11 +10,10 @@ from itertools import chain, groupby
 import ctypes
 
 import cgen as c
-import numpy as np
 from sympy import IndexedBase
 from sympy.core.function import Application
 
-from devito.parameters import configuration
+from devito.parameters import configuration, switchconfig
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
@@ -190,20 +189,15 @@ class CGen(Visitor):
     }
     _restrict_keyword = 'restrict'
 
-    def _complex_type(self, ctypestr, dtype):
-        # Not complex
-        try:
-            if not np.issubdtype(dtype, np.complexfloating):
-                return ctypestr
-        except TypeError:
-            return ctypestr
-        # Complex only supported for float and double
-        if ctypestr not in ('float', 'double'):
-            return ctypestr
-        if self._compiler._cpp:
-            return 'std::complex<%s>' % ctypestr
-        else:
-            return '%s _Complex' % ctypestr
+    @property
+    def compiler(self):
+        return self._compiler
+
+    def visit(self, o, *args, **kwargs):
+        # Make sure the visitor always is within the generating compiler
+        # in case the configuration is accessed
+        with switchconfig(compiler=self.compiler.name):
+            return super().visit(o, *args, **kwargs)
 
     def _gen_struct_decl(self, obj, masked=()):
         """
@@ -260,10 +254,10 @@ class CGen(Visitor):
                       if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
-            strtype = self._complex_type(obj._C_typedata, obj.dtype)
+            strtype = obj._C_typedata
             strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
         else:
-            strtype = self._complex_type(ctypes_to_cstr(obj._C_ctype), obj.dtype)
+            strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
                 if not obj._mem_stack:
@@ -393,7 +387,7 @@ class CGen(Visitor):
     def visit_PointerCast(self, o):
         f = o.function
         i = f.indexed
-        cstr = self._complex_type(i._C_typedata, i.dtype)
+        cstr = i._C_typedata
 
         if f.is_PointerArray:
             # lvalue
@@ -448,7 +442,7 @@ class CGen(Visitor):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
             i = a1.indexed
-            cstr = self._complex_type(i._C_typedata, i.dtype)
+            cstr = i._C_typedata
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
                 rvalue = '(%s (*)%s) %s[%s]' % (cstr, shape, a1.name,
