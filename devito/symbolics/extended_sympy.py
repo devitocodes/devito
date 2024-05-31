@@ -7,6 +7,7 @@ import sympy
 from sympy import Expr, Function, Number, Tuple, sympify
 from sympy.core.decorators import call_highest_priority
 
+from devito import configuration
 from devito.finite_differences.elementary import Min, Max
 from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
                           float3, float4, double2, double3, double4, int2, int3,
@@ -811,6 +812,20 @@ class VOID(Cast):
     _base_typ = 'void'
 
 
+class CFLOAT(Cast):
+
+    @property
+    def _base_typ(self):
+        return configuration['compiler']._complex_ctype('float')
+
+
+class CDOUBLE(Cast):
+
+    @property
+    def _base_typ(self):
+        return configuration['compiler']._complex_ctype('double')
+
+
 class CHARP(CastStar):
     base = CHAR
 
@@ -827,6 +842,14 @@ class USHORTP(CastStar):
     base = USHORT
 
 
+class CFLOATP(CastStar):
+    base = CFLOAT
+
+
+class CDOUBLEP(CastStar):
+    base = CDOUBLE
+
+
 cast_mapper = {
     np.int8: CHAR,
     np.uint8: UCHAR,
@@ -839,6 +862,8 @@ cast_mapper = {
     np.float32: FLOAT,  # noqa
     float: DOUBLE,  # noqa
     np.float64: DOUBLE,  # noqa
+    np.complex64: CFLOAT,  # noqa
+    np.complex128: CDOUBLE,  # noqa
 
     (np.int8, '*'): CHARP,
     (np.uint8, '*'): UCHARP,
@@ -849,7 +874,9 @@ cast_mapper = {
     (np.int64, '*'): INTP,  # noqa
     (np.float32, '*'): FLOATP,  # noqa
     (float, '*'): DOUBLEP,  # noqa
-    (np.float64, '*'): DOUBLEP  # noqa
+    (np.float64, '*'): DOUBLEP,  # noqa
+    (np.complex64, '*'): CFLOATP,  # noqa
+    (np.complex128, '*'): CDOUBLEP,  # noqa
 }
 
 for base_name in ['int', 'float', 'double']:

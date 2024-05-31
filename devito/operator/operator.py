@@ -22,7 +22,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
-                           error_mapper, complex_include)
+                           error_mapper, include_complex)
 from devito.symbolics import estimate_cost
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_tuple, flatten,
                           filter_sorted, frozendict, is_integer, split, timed_pass,
@@ -468,7 +468,7 @@ class Operator(Callable):
 
         # Complex header if needed. Needs to be done before specialization
         # as some specific cases require complex to be loaded first
-        complex_include(graph, language=kwargs['language'], compiler=kwargs['compiler'])
+        include_complex(graph, language=kwargs['language'], compiler=kwargs['compiler'])
 
         # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
