@@ -1264,7 +1264,7 @@ class TestSubDomainFunctionsParallel:
 
     @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
                                                  (False, 1.0238341)])
-    @pytest.mark.parallel(mode=[1])
+    @pytest.mark.parallel(mode=[2])
     def test_diffusion(self, injection, norm, mode):
         """
         Test that a diffusion operator using Functions on SubDomains produces
@@ -1282,35 +1282,69 @@ class TestSubDomainFunctionsParallel:
         dt = 0.1
 
         def solver(injection, subdomain):
-            # Functions are of the same size in both cases
-            if subdomain:
-                grid = Grid(shape=(14, 14), extent=(13., 13.))
-                mid = Middle(grid=grid)
-                f = TimeFunction(name='f', grid=mid, space_order=4)
-            else:
-                grid = Grid(shape=(10, 10), extent=(9., 9.))
-                f = TimeFunction(name='f', grid=grid, space_order=4)
+            grid = Grid(shape=(14, 14), extent=(13., 13.))
+            mid = Middle(grid=grid)
+
+            grid0 = mid if subdomain else grid
+            f = TimeFunction(name='f', grid=grid0, space_order=4)
 
             pde = f.dt - f.laplace
 
-            sd = mid if subdomain else None
-            eq = Eq(f.forward, solve(pde, f.forward), subdomain=sd)
+            eq = Eq(f.forward, solve(pde, f.forward), subdomain=mid)
 
             if injection:
                 src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=10)
-                coord = 6.5 if subdomain else 4.5
-                src.coordinates.data[:] = coord
+                src.coordinates.data[:] = 6.5
                 src.data[:, 0] = np.arange(10)
                 s = src.inject(field=f.forward, expr=src)
                 Operator([eq] + s)(dt=dt)
             else:
-                f.data[:, 4:-4, 4:-4] = 1
+                tkn = 4 if subdomain else 6
+                f.data[:, tkn:-tkn, tkn:-tkn] = 1
                 Operator(eq)(t_M=10, dt=dt)
 
             return np.array(f.data[:])
 
-        data0, data1 = [solver(injection, i) for i in (True, False)]
+        # data0, data1 = [solver(injection, i) for i in (True, False)]
 
-        assert data0.shape == data1.shape
-        assert np.all(np.isclose(data0, data1))
-        assert np.isclose(np.linalg.norm(data0), norm)
+        # assert np.all(np.isclose(data0, data1[:, 2:-2, 2:-2]))
+        # assert np.isclose(np.linalg.norm(data0), norm)
+
+        grid = Grid(shape=(14, 14), extent=(13., 13.))
+        mid = Middle(grid=grid)
+
+        f = TimeFunction(name='f', grid=mid, space_order=4)
+        g = TimeFunction(name='g', grid=grid, space_order=4)
+
+        pdef = f.dt - f.laplace
+        pdeg = g.dt - g.laplace
+
+        eqf = Eq(f.forward, solve(pdef, f.forward), subdomain=mid)
+        eqg = Eq(g.forward, solve(pdeg, g.forward), subdomain=mid)
+
+        if injection:
+            srcf = SparseTimeFunction(name='srcf', grid=grid, npoint=1, nt=10)
+            srcg = SparseTimeFunction(name='srcg', grid=grid, npoint=1, nt=10)
+
+            srcf.coordinates.data[:] = 6.5
+            srcg.coordinates.data[:] = 6.5
+
+            srcf.data[:, 0] = np.arange(10)
+            srcg.data[:, 0] = np.arange(10)
+
+            sf = srcf.inject(field=f.forward, expr=srcf)
+            sg = srcg.inject(field=g.forward, expr=srcg)
+
+            Operator([eqf] + sf)(dt=dt)
+            Operator([eqg] + sg)(dt=dt)
+        else:
+            f.data[:, 4:-4, 4:-4] = 1
+            g.data[:, 6:-6, 6:-6] = 1
+
+            Operator(eqf)(t_M=10, dt=dt)
+            Operator(eqg)(t_M=10, dt=dt)
+
+        print("First assert")
+        assert np.all(np.isclose(f.data[:], g.data[:, 2:-2, 2:-2]))
+        print("Second assert")
+        assert np.isclose(np.linalg.norm(f.data[:]), norm)
