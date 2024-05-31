@@ -253,7 +253,7 @@ class Compiler(GCCToolchain):
     @property
     def _complex_ctype(self):
         """
-        Type definition for complex numbers. THese two cases cover 99% of the cases since
+        Type definition for complex numbers. These two cases cover 99% of the cases since
         - Hip is now using std::complex
 https://rocm.docs.amd.com/en/docs-5.1.3/CHANGELOG.html#hip-api-deprecations-and-warnings
         - Sycl supports std::complex
@@ -1033,6 +1033,7 @@ _compiler_registry = {
     'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
+    'nvcc': CudaCompiler,
     'osx': ClangCompiler,
     'intel': OneapiCompiler,
     'icx': OneapiCompiler,
