@@ -11,6 +11,7 @@ from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                normalize_properties, normalize_syncs, minimum,
                                maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
+from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, flatten, frozendict, infer_dtype
 from devito.types import WeakFence, CriticalRegion
@@ -167,6 +168,19 @@ class Cluster:
         return {i for i in self.free_symbols if i.is_Dimension} | idims
 
     @cached_property
+    def dist_dimensions(self):
+        """
+        The Cluster's distributed Dimensions.
+        """
+        ret = set()
+        for f in self.functions:
+            try:
+                ret.update(f._dist_dimensions)
+            except AttributeError:
+                pass
+        return frozenset(ret)
+
+    @cached_property
     def scope(self):
         return Scope(self.exprs)
 
@@ -180,8 +194,11 @@ class Cluster:
 
     @cached_property
     def grid(self):
-        grids = set(f.grid for f in self.functions if f.is_DiscreteFunction) - {None}
-        if len(grids) == 1:
+        grids = set(f.grid for f in self.functions if f.is_AbstractFunction)
+        grids.discard(None)
+        if len(grids) == 0:
+            return None
+        elif len(grids) == 1:
             return grids.pop()
         else:
             raise ValueError("Cluster has no unique Grid")
@@ -210,7 +227,7 @@ class Cluster:
             dims = {d for d in self.properties if d._defines & target}
             if any(pset & self.properties[d] for d in dims):
                 return True
-        except ValueError:
+        except (AttributeError, ValueError):
             pass
 
         # Fallback to legacy is_dense checks
@@ -232,11 +249,15 @@ class Cluster:
         """
         True if encoding a non-mathematical operation, False otherwise.
         """
-        return self.is_halo_touch or self.is_fence
+        return self.is_halo_touch or self.is_dist_reduce or self.is_fence
 
     @property
     def is_halo_touch(self):
         return self.exprs and all(isinstance(e.rhs, HaloTouch) for e in self.exprs)
+
+    @property
+    def is_dist_reduce(self):
+        return self.exprs and all(isinstance(e.rhs, DistReduce) for e in self.exprs)
 
     @property
     def is_fence(self):

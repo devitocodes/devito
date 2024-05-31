@@ -7,7 +7,8 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi.halo_scheme import HaloScheme
-from devito.mpi.routines import HaloExchangeBuilder
+from devito.mpi.reduction_scheme import DistReduce
+from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
 from devito.tools import generator
 
@@ -296,10 +297,9 @@ def _mark_overlappable(iet):
 
 
 @iet_pass
-def make_mpi(iet, mpimode=None, **kwargs):
+def make_halo_exchanges(iet, mpimode=None, **kwargs):
     """
-    Inject MPI Callables and Calls implementing halo exchanges for
-    distributed-memory parallelism.
+    Lower HaloSpots into halo exchanges for distributed-memory parallelism.
     """
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
@@ -331,17 +331,30 @@ def make_mpi(iet, mpimode=None, **kwargs):
     return iet, {'includes': ['mpi.h'], 'efuncs': efuncs}
 
 
+@iet_pass
+def make_reductions(iet, mpimode=None, **kwargs):
+    rb = ReductionBuilder()
+
+    mapper = {}
+    for e in FindNodes(Expression).visit(iet):
+        if not isinstance(e.expr.rhs, DistReduce):
+            continue
+        elif mpimode:
+            mapper[e] = rb.make(e.expr.rhs)
+        else:
+            mapper[e] = None
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet, {}
+
+
 def mpiize(graph, **kwargs):
     """
-    Perform two IET passes:
+    Perform three IET passes:
 
-        * Optimization of communications
-        * Injection of MPI code
-
-    The former is implemented by manipulating HaloSpots.
-
-    The latter resorts to creating MPI Callables and replacing HaloSpots with Calls
-    to MPI Callables.
+        * Optimization of halo exchanges
+        * Injection of code for halo exchanges
+        * Injection of code for reductions
     """
     options = kwargs['options']
 
@@ -350,4 +363,6 @@ def mpiize(graph, **kwargs):
 
     mpimode = options['mpi']
     if mpimode:
-        make_mpi(graph, mpimode=mpimode, **kwargs)
+        make_halo_exchanges(graph, mpimode=mpimode, **kwargs)
+
+    make_reductions(graph, mpimode=mpimode, **kwargs)

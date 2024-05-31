@@ -271,9 +271,9 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs0):
-        def wrapper(expressions, **kwargs1):
-            return rcompile(expressions, {**kwargs0, **kwargs1})
+    def _rcompile_wrapper(cls, **kwargs):
+        def wrapper(expressions, **options):
+            return rcompile(expressions, kwargs, options)
         return wrapper
 
     @classmethod
@@ -1049,26 +1049,25 @@ class Operator(Callable):
 # if applied in cascade (e.g., `linearization` on top of `linearization`)
 rcompile_registry = {
     'avoid_denormals': False,
-    'mpi': False,
     'linearize': False,
     'place-transfers': False
 }
 
 
-def rcompile(expressions, kwargs=None):
+def rcompile(expressions, kwargs, options, target=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
     """
-    if not kwargs or 'options' not in kwargs:
-        kwargs = parse_kwargs(**kwargs)
+    options = {**kwargs['options'], **rcompile_registry, **options}
+
+    if target is None:
+        cls = operator_selector(**kwargs)
+    else:
+        kwargs = parse_kwargs(**target)
         cls = operator_selector(**kwargs)
         kwargs = cls._normalize_kwargs(**kwargs)
-    else:
-        cls = operator_selector(**kwargs)
 
-    # Tweak the compilation kwargs
-    options = dict(kwargs['options'])
-    options.update(rcompile_registry)
+    # Use the customized opt options
     kwargs['options'] = options
 
     # Recursive profiling not supported -- would be a complete mess

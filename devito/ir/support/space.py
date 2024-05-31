@@ -954,7 +954,7 @@ class IterationSpace(Space):
         try:
             i = self.project(key)[-1]
         except IndexError:
-            return None
+            return null_ispace
 
         return self[:self.index(i.dim) + 1]
 

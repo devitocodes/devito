@@ -8,16 +8,17 @@ import sympy
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
-                               pull_dims)
+                               pull_dims, null_ispace)
 from devito.ir.equations import OpMin, OpMax
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
+from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
                               xreplace_indices)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, timed_pass, toposort)
+                          is_integer, split, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -48,7 +49,7 @@ def clusterize(exprs, **kwargs):
     clusters = normalize(clusters, **kwargs)
 
     # Derive the necessary communications for distributed-memory parallelism
-    clusters = Communications().process(clusters)
+    clusters = communications(clusters)
 
     return ClusterGroup(clusters)
 
@@ -365,11 +366,22 @@ class Stepper(Queue):
         return processed
 
 
-class Communications(Queue):
-
+@timed_pass(name='communications')
+def communications(clusters):
     """
     Enrich a sequence of Clusters by adding special Clusters representing data
-    communications, or "halo exchanges", for distributed parallelism.
+    communications for distributed parallelism.
+    """
+    clusters = HaloComms().process(clusters)
+    clusters = reduction_comms(clusters)
+
+    return clusters
+
+
+class HaloComms(Queue):
+
+    """
+    Inject Clusters representing halo exchanges for distributed-memory parallelism.
     """
 
     _q_guards_in_key = True
@@ -377,7 +389,6 @@ class Communications(Queue):
 
     B = Symbol(name='⊥')
 
-    @timed_pass(name='communications')
     def process(self, clusters):
         return self._process_fatd(clusters, 1, seen=set())
 
@@ -430,6 +441,57 @@ class Communications(Queue):
         processed.extend(clusters)
 
         return processed
+
+
+def reduction_comms(clusters):
+    processed = []
+    fifo = []
+    for c in clusters:
+        # Schedule the global distributed reductions encountered before `c`,
+        # if `c`'s IterationSpace is such that the reduction can be carried out
+        found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
+        if found:
+            exprs = [Eq(dr.var, dr) for dr in found]
+            processed.append(c.rebuild(exprs=exprs))
+
+        # Detect the global distributed reductions in `c`
+        for e in c.exprs:
+            op = e.operation
+            if op is None or c.is_sparse:
+                continue
+
+            var = e.lhs
+            grid = c.grid
+            if grid is None:
+                continue
+
+            # Is Inc/Max/Min/... actually used for a reduction?
+            ispace = c.ispace.project(lambda d: d in var.free_symbols)
+            if ispace.itdims == c.ispace.itdims:
+                continue
+
+            # The reduced Dimensions
+            rdims = set(c.ispace.itdims) - set(ispace.itdims)
+
+            # The reduced Dimensions inducing a global distributed reduction
+            grdims = {d for d in rdims if d._defines & c.dist_dimensions}
+            if not grdims:
+                continue
+
+            # The IterationSpace within which the global distributed reduction
+            # must be carried out
+            ispace = c.ispace.prefix(lambda d: d in var.free_symbols)
+
+            fifo.append(DistReduce(var, op=op, grid=grid, ispace=ispace))
+
+        processed.append(c)
+
+    # Leftover reductions are placed at the very end
+    if fifo:
+        exprs = [Eq(dr.var, dr) for dr in fifo]
+        processed.append(Cluster(exprs=exprs, ispace=null_ispace))
+
+    return processed
 
 
 def normalize(clusters, **kwargs):
@@ -562,7 +624,12 @@ def _normalize_reductions_dense(cluster, sregistry, mapper):
                 # because the Function might be padded, and reduction operations
                 # require, in general, the data values to be contiguous
                 name = sregistry.make_name()
-                a = mapper[rhs] = Array(name=name, dtype=e.dtype, dimensions=dims)
+                try:
+                    grid = cluster.grid
+                except ValueError:
+                    grid = None
+                a = mapper[rhs] = Array(name=name, dtype=e.dtype, dimensions=dims,
+                                        grid=grid)
 
                 processed.extend([Eq(a.indexify(), rhs),
                                   e.func(lhs, a.indexify())])

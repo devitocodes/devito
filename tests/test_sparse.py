@@ -417,20 +417,30 @@ class TestSparseFunction:
                 assert getattr(sp, subf).name.startswith("s_")
 
         # Rebuild with different name, this should drop the function
-        # and create new data
+        # and create new data, while the coordinates and more generally all
+        # SubFunctions remain the same
         sp2 = sp._rebuild(name="sr")
-
-        # Check new subfunction
         for subf in sp2._sub_functions:
             if getattr(sp2, subf) is not None:
                 assert getattr(sp2, subf) == getattr(sp, subf)
 
         # Rebuild with different name as an alias
         sp2 = sp._rebuild(name="sr2", alias=True)
+        assert sp2.name == "sr2"
+        assert sp2.dimensions == sp.dimensions
         for subf in sp2._sub_functions:
             if getattr(sp2, subf) is not None:
                 assert getattr(sp2, subf).name.startswith("sr2_")
                 assert getattr(sp2, subf).data is None
+
+        # Rebuild with different name and dimensions. This is expected to recreate
+        # the SubFunctions as well
+        sp2 = sp._rebuild(name="sr3", dimensions=None)
+        assert sp2.name == "sr3"
+        assert sp2.dimensions == sp.dimensions
+        for subf in sp2._sub_functions:
+            if getattr(sp2, subf) is not None:
+                assert getattr(sp2, subf) == getattr(sp, subf)
 
     @pytest.mark.parametrize('sptype', _sptypes)
     def test_subs(self, sptype):
