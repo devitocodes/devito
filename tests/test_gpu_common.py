@@ -74,9 +74,7 @@ class TestCodeGeneration:
         u = Function(name="u", grid=grid, dtype=dtype)
 
         eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing))
-        # Currently wrong alias type
         op = Operator(eq)
-        print(op)
         op()
 
         # Check against numpy

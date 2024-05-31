@@ -472,7 +472,7 @@ class Operator(Callable):
 
         # Complex header if needed. Needs to be done before specialization
         # as some specific cases require complex to be loaded first
-        complex_include(graph, language=kwargs['language'], compiler=kwargs['compiler'])
+        include_complex(graph, language=kwargs['language'], compiler=kwargs['compiler'])
 
         # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
