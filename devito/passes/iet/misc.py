@@ -18,7 +18,7 @@ from devito.tools import Bunch, as_mapper, filter_ordered, split, dtype_to_cstr
 from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
-           'generate_macros', 'minimize_symbols', 'complex_include']
+           'generate_macros', 'minimize_symbols']
 
 
 @iet_pass
@@ -253,39 +253,6 @@ def minimize_symbols(iet):
     return iet, {}
 
 
-_complex_lib = {'cuda': 'thrust/complex.h'}
-
-
-@iet_pass
-def complex_include(iet, language, compiler):
-    """
-    Add headers for complex arithmetic
-    """
-    # Check if there is complex numbers that always take dtype precedence
-    max_dtype = np.result_type(*[f.dtype for f in FindSymbols().visit(iet)])
-    if not np.issubdtype(max_dtype, np.complexfloating):
-        return iet, {}
-
-    lib = (_complex_lib.get(language, 'complex' if compiler._cpp else 'complex.h'),)
-
-    headers = {}
-
-    # For openacc (cpp) need to define constant _Complex_I that isn't found otherwise
-    if compiler._cpp:
-        c_str = dtype_to_cstr(max_dtype.type(0).real.dtype.type)
-        # Constant I
-        headers = {('_Complex_I', ('std::complex<%s>(0.0, 1.0)' % c_str))}
-        # Mix arithmetic definitions
-        dest = compiler.get_jit_dir()
-        hfile = dest.joinpath('stdcomplex_arith.h')
-        if not hfile.is_file():
-            with open(str(hfile), 'w') as ff:
-                ff.write(str(_stdcomplex_defs))
-        lib += (str(hfile),)
-
-    return iet, {'includes': lib, 'headers': headers}
-
-
 def remove_redundant_moddims(iet):
     key = lambda d: d.is_Modulo and d.origin is not None
     mds = [d for d in FindSymbols('dimensions').visit(iet) if key(d)]
@@ -383,39 +350,3 @@ def _rename_subdims(target, dimensions):
     return {d: d._rebuild(d.root.name) for d in dims
             if d.root not in dimensions
             and names.count(d.root.name) < 2}
-
-
-_stdcomplex_defs = """
-#include <complex>
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){
-  return std::complex<_Tp>(b.real() * a, b.imag() * a);
-}
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){
-  return std::complex<_Tp>(b.real() * a, b.imag() * a);
-}
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){
-  _Tp denom = b.real() * b.real () + b.imag() * b.imag()
-  return std::complex<_Tp>(b.real() * a / denom, - b.imag() * a / denom);
-}
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){
-  return std::complex<_Tp>(b.real() / a, b.imag() / a);
-}
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){
-  return std::complex<_Tp>(b.real() + a, b.imag());
-}
-
-template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
-  return std::complex<_Tp>(b.real() + a, b.imag());
-}
-"""
