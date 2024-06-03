@@ -46,10 +46,13 @@ def buffering(clusters, key, sregistry, options, **kwargs):
           implemented by other passes).
     **kwargs
         Additional compilation options.
-        Accepted: ['opt_init_onwrite', 'opt_buffer'].
+        Accepted: ['opt_init_onwrite', 'opt_reuse', 'opt_buffer'].
         * 'opt_init_onwrite': By default, a written buffer does not trigger the
         generation of an initializing Cluster. With `opt_init_onwrite=True`,
         instead, the buffer gets initialized to zero.
+        * 'opt_reuse': A callback that takes a Function as input and returns
+        True if buffered Functions with the same signature can share the same
+        buffer, False otherwise. By default, buffers are not shared.
         * 'opt_buffer': A callback that takes a buffering candidate as input
         and returns a buffer, which would otherwise default to an Array.
 
@@ -88,16 +91,23 @@ def buffering(clusters, key, sregistry, options, **kwargs):
                 return None
     assert callable(key)
 
-    v1 = kwargs.get('opt_init_onwrite', False)
-    if callable(v1):
-        init_onwrite = v1
+    v0 = kwargs.get('opt_init_onwrite', False)
+    if callable(v0):
+        init_onwrite = v0
     else:
-        init_onwrite = lambda f: v1
+        init_onwrite = lambda f: v0
+
+    v1 = kwargs.get('opt_reuse', False)
+    if callable(v1):
+        reuse_key = v1
+    else:
+        reuse_key = lambda f: False
 
     options = dict(options)
     options.update({
         'buf-init-onwrite': init_onwrite,
         'buf-callback': kwargs.get('opt_buffer'),
+        'buf-reuse': reuse_key,
     })
 
     # Escape hatch to selectively disable buffering
@@ -107,9 +117,12 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     # First we generate all the necessary buffers
     mapper = generate_buffers(clusters, key, sregistry, options)
 
-    # Then we inject them into the Clusters. This involves creating the
+    # We then inject them into the Clusters. This involves creating the
     # initializing Clusters, and replacing the buffered Functions with the buffers
     clusters = InjectBuffers(mapper, sregistry, options).process(clusters)
+
+    # Finally, we perform some optimizations
+    clusters = drop_redundant_buffers(clusters, mapper, sregistry, options)
 
     return clusters
 
@@ -351,10 +364,48 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         # Finally create the actual buffer
         cls = callback or Array
         name = sregistry.make_name(prefix='%sb' % f.name)
+
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
                         grid=f.grid, halo=f.halo, space='mapped', mapped=f, f=f)
 
     return mapper
+
+
+def drop_redundant_buffers(clusters, mapper, sregistry, options):
+    """
+
+    """
+    reuse_key = options['buf-reuse']
+
+    cache = defaultdict(list)
+    for f, b in mapper.items():
+        if reuse_key(f): 
+            cache[f._signature].append(f)
+
+    if not cache or len(cache) == len(mapper):
+        return clusters
+
+    # We have at least one buffer that can be shared among multiple
+    # Functions
+    assert len(cache) < len(mapper)
+
+    # Create the shared buffers
+    subs = {}
+    for v in cache.values():
+        if len(v) >= 1:
+            name = sregistry.make_name(prefix='shb')
+            b = mapper[v[0]]._rebuild(name=name)
+            subs.update({mapper[f]: b for f in v})
+    subs.update({f.base: b.base for f, b in subs.items()})
+
+    # Replace the original buffers with the shared ones
+    processed = []
+    for c in clusters:
+        exprs = [uxreplace(e, subs) for e in c.exprs]
+        syncs = c.syncs.replace(subs)
+        processed.append(c.rebuild(exprs=exprs, syncs=syncs))
+
+    return processed
 
 
 def map_buffered_functions(clusters, key):
