@@ -635,6 +635,13 @@ class Platform:
         return 'unknown'
 
     @property
+    def numa_domains(self):
+        """
+        Number of NUMA domains, or None if unknown.
+        """
+        return 1
+
+    @property
     def threads_per_core(self):
         return self.cores_logical // self.cores_physical
 
@@ -705,6 +712,18 @@ class Cpu64(Platform):
         """
         assert self.simd_reg_nbytes % np.dtype(dtype).itemsize == 0
         return int(self.simd_reg_nbytes / np.dtype(dtype).itemsize)
+
+    @cached_property
+    def numa_domains(self):
+        try:
+            return int(lscpu()['NUMA node(s)'])
+        except KeyError:
+            warning("NUMA domain count autodetection failed")
+            return 1
+
+    @property
+    def cores_physical_per_numa_domain(self):
+        return self.cores_physical // self.numa_domains
 
     @cached_property
     def memtotal(self):
@@ -784,6 +803,10 @@ class Device(Platform):
     @property
     def march(self):
         return None
+
+    @property
+    def numa_domains(self):
+        raise NotImplementedError
 
     @cached_property
     def memtotal(self):

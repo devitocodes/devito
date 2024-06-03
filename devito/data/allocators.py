@@ -18,36 +18,18 @@ __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'default_allocator']
 
 
-class MemoryAllocator:
+class AbstractMemoryAllocator:
 
-    """Abstract class defining the interface to memory allocators."""
+    """
+    The MemoryAllocator interface.
+    """
 
     __metaclass__ = abc.ABCMeta
-
-    _attempted_init = False
-    lib = None
 
     guaranteed_alignment = 64
     """Guaranteed data alignment."""
 
-    @classmethod
-    def available(cls):
-        if cls._attempted_init is False:
-            cls.initialize()
-            cls._attempted_init = True
-        return cls.lib is not None
-
-    @classmethod
-    def initialize(cls):
-        """
-        Initialize the MemoryAllocator.
-
-        Notes
-        -----
-        This method must be implemented by all subclasses of MemoryAllocator.
-        """
-        return
-
+    @abc.abstractmethod
     def alloc(self, shape, dtype, padding=0):
         """
         Allocate memory.
@@ -64,11 +46,52 @@ class MemoryAllocator:
 
         Returns
         -------
-        pointer, memfree_args
-            The first element of the tuple is the reference that can be used to
-            access the data as a ctypes object. The second element is an opaque
+        ndarray, memfree_args
+            The first element of the tuple is a numpy array that uses the
+            allocated memory underneath. The second element is an opaque
             object that is needed only for the "memfree" call.
         """
+        return
+
+    @abc.abstractmethod
+    def free(self, *args):
+        """
+        Free memory previously allocated with `self.alloc`.
+
+        Arguments are provided exactly as returned in the second element of the
+        tuple returned by `alloc`.
+        """
+        return
+
+
+class MemoryAllocator(AbstractMemoryAllocator):
+
+    """
+    A memory allocator implementing the alloc method by resorting to a C-level
+    memory allocation function, to be specified by subclasses.
+
+    This is still an abstract class, and subclasses are expected to implement the
+    `_alloc_C_libcall` and `free` methods.
+    """
+
+    _attempted_init = False
+    lib = None
+
+    @classmethod
+    def available(cls):
+        if cls._attempted_init is False:
+            cls.initialize()
+            cls._attempted_init = True
+        return cls.lib is not None
+
+    @classmethod
+    def initialize(cls):
+        """
+        Initialize the MemoryAllocator.
+        """
+        return
+
+    def alloc(self, shape, dtype, padding=0):
         datasize = int(reduce(mul, shape))
         ctype = dtype_to_ctype(dtype)
 
@@ -110,20 +133,6 @@ class MemoryAllocator:
         Perform the actual memory allocation by calling a C function.  Should
         return a 2-tuple (c_pointer, memfree_args), where the free args are
         what is handed back to free() later to deallocate.
-
-        Notes
-        -----
-        This method must be implemented by all subclasses of MemoryAllocator.
-        """
-        return
-
-    @abc.abstractmethod
-    def free(self, *args):
-        """
-        Free memory previously allocated with ``self.alloc``.
-
-        Arguments are provided exactly as returned in the second element of the
-        tuple returned by _alloc_C_libcall
 
         Notes
         -----
@@ -385,7 +394,9 @@ ALLOC_KNL_MCDRAM = NumaAllocator(1)
 ALLOC_NUMA_ANY = NumaAllocator('any')
 ALLOC_NUMA_LOCAL = NumaAllocator('local')
 
-custom_allocators = {}
+custom_allocators = {
+    'fallback': ALLOC_ALIGNED,
+}
 """User-defined allocators."""
 
 
@@ -397,7 +408,7 @@ def register_allocator(name, allocator):
         raise TypeError("name must be a str, not `%s`" % type(name))
     if name in custom_allocators:
         raise ValueError("A MemoryAllocator for `%s` already exists" % name)
-    if not isinstance(allocator, MemoryAllocator):
+    if not isinstance(allocator, AbstractMemoryAllocator):
         raise TypeError("Expected a MemoryAllocator, not `%s`" % type(allocator))
 
     custom_allocators[name] = allocator
@@ -440,4 +451,4 @@ def default_allocator(name=None):
           infer_knl_mode() == 'flat'):
         return ALLOC_KNL_MCDRAM
     else:
-        return custom_allocators.get('default', ALLOC_ALIGNED)
+        return custom_allocators.get('default', custom_allocators['fallback'])

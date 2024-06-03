@@ -328,16 +328,6 @@ class AbstractSparseFunction(DiscreteFunction):
                                                   self.grid.origin_symbols)])
 
     @cached_property
-    def _dist_reorder_mask(self):
-        """
-        An ordering mask that puts ``self._sparse_position`` at the front.
-        """
-        ret = (self._sparse_position,)
-        ret += tuple(i for i, d in enumerate(self.dimensions)
-                     if d is not self._sparse_dim)
-        return ret
-
-    @cached_property
     def dist_origin(self):
         return self._dist_origin
 
@@ -393,6 +383,16 @@ class AbstractSparseFunction(DiscreteFunction):
             out = indexify(expr).subs({f._sparse_dim: cd for f in functions})
 
         return out, temps
+
+    @cached_property
+    def _dist_reorder_mask(self):
+        """
+        An ordering mask that puts ``self._sparse_position`` at the front.
+        """
+        ret = (self._sparse_position,)
+        ret += tuple(i for i, d in enumerate(self.dimensions)
+                     if d is not self._sparse_dim)
+        return ret
 
     def _dist_scatter_mask(self, dmap=None):
         """

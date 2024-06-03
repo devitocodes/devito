@@ -1,5 +1,7 @@
 from functools import wraps
 
+import numpy as np
+
 import devito as dv
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
@@ -7,20 +9,43 @@ from devito.tools import as_tuple
 __all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
 
 
-def make_retval(grid, dtype):
+accumulator_mapper = {
+    # Integer accumulates on Float64
+    np.int8: np.float64, np.uint8: np.float64,
+    np.int16: np.float64, np.uint16: np.float64,
+    np.int32: np.float64, np.uint32: np.float64,
+    np.int64: np.float64, np.uint64: np.float64,
+    # FloatX accumulates on Float2X
+    np.float16: np.float32,
+    np.float32: np.float64,
+    # NOTE: np.float128 isn't really a thing, see for example
+    # https://github.com/numpy/numpy/issues/10288
+    # https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html#1070
+    np.float64: np.float64
+}
+
+
+def make_retval(f):
     """
     Devito does not support passing values by reference. This function
     creates a dummy Function of size 1 to store the return value of a builtin
     applied to `f`.
     """
-    if grid is None:
-        raise ValueError("Expected Grid, got None")
+    if f.grid is None:
+        raise ValueError("No Grid available")
+
+    cls = make_retval.cls or dv.Function
+
+    dtype = accumulator_mapper[f.dtype]
 
     i = dv.Dimension(name='mri',)
-    n = dv.Function(name='n', shape=(1,), dimensions=(i,), grid=grid,
-                    dtype=dtype, space='host')
+    n = cls(name='n', shape=(1,), dimensions=(i,), grid=f.grid,
+            dtype=dtype, space='host')
+
     n.data[:] = 0
+
     return n
+make_retval.cls = None  # noqa
 
 
 def nbl_to_padsize(nbl, ndim):

@@ -91,7 +91,7 @@ class Data(np.ndarray):
 
     def __reduce__(self):
         warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
-        return np.array(self).__reduce__()
+        return self.view(np.ndarray).__reduce__()
 
     def __array_finalize__(self, obj):
         # `self` is the newly created object

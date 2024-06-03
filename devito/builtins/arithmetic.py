@@ -3,23 +3,7 @@ import numpy as np
 import devito as dv
 from devito.builtins.utils import make_retval
 
-
 __all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
-
-accumulator_mapper = {
-    # Integer accumulates on Float64
-    np.int8: np.float64, np.uint8: np.float64,
-    np.int16: np.float64, np.uint16: np.float64,
-    np.int32: np.float64, np.uint32: np.float64,
-    np.int64: np.float64, np.uint64: np.float64,
-    # FloatX accumulates on Float2X
-    np.float16: np.float32,
-    np.float32: np.float64,
-    # NOTE: np.float128 isn't really a thing, see for example
-    # https://github.com/numpy/numpy/issues/10288
-    # https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html#1070
-    np.float64: np.float64
-}
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -43,9 +27,8 @@ def norm(f, order=2):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    dtype = accumulator_mapper[f.dtype]
-    n = make_retval(f.grid, dtype)
-    s = dv.types.Symbol(name='sum', dtype=dtype)
+    n = make_retval(f)
+    s = dv.types.Symbol(name='sum', dtype=n.dtype)
 
     op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                      [dv.Inc(s, dv.Abs(Pow(p, order))), dv.Eq(n[0], s)],
@@ -128,9 +111,8 @@ def sumall(f):
     # otherwise we would eventually be summing more than expected
     p, eqns = f.guard() if f.is_SparseFunction else (f, [])
 
-    dtype = accumulator_mapper[f.dtype]
-    n = make_retval(f.grid, dtype)
-    s = dv.types.Symbol(name='sum', dtype=dtype)
+    n = make_retval(f)
+    s = dv.types.Symbol(name='sum', dtype=n.dtype)
 
     op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                      [dv.Inc(s, p), dv.Eq(n[0], s)],
@@ -183,9 +165,8 @@ def inner(f, g):
     # otherwise we would eventually be summing more than expected
     rhs, eqns = f.guard(f*g) if f.is_SparseFunction else (f*g, [])
 
-    dtype = accumulator_mapper[f.dtype]
-    n = make_retval(f.grid or g.grid, dtype)
-    s = dv.types.Symbol(name='sum', dtype=dtype)
+    n = make_retval(f)
+    s = dv.types.Symbol(name='sum', dtype=n.dtype)
 
     op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                      [dv.Inc(s, rhs), dv.Eq(n[0], s)],

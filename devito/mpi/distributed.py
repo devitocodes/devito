@@ -18,8 +18,6 @@ from devito.types import CompositeObject, Object
 from devito.types.utils import DimensionTuple
 
 
-__all__ = ['CustomTopology']
-
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
 # that has *already* initialized MPI
@@ -39,9 +37,7 @@ try:
     # will be called only at the very end and only if necessary, after all cloned
     # communicators will have been freed
     def cleanup():
-        global init_by_devito
-        if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
-            MPI.Finalize()
+        devito_mpi_finalize()
     atexit.register(cleanup)
 except ImportError as e:
     # Dummy fallback in case mpi4py/MPI aren't available
@@ -67,7 +63,36 @@ except ImportError as e:
             return None
 
 
-__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology']
+__all__ = ['Distributor', 'SparseDistributor', 'MPI', 'CustomTopology',
+           'devito_mpi_init', 'devito_mpi_finalize']
+
+
+def devito_mpi_init():
+    """
+    Initialize MPI, if not already initialized.
+    """
+    if not MPI.Is_initialized():
+        try:
+            thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
+        except KeyError:
+            assert False
+
+        MPI.Init_thread(thread_level)
+
+        global init_by_devito
+        init_by_devito = True
+
+        return True
+    return False
+
+
+def devito_mpi_finalize():
+    """
+    Finalize MPI, if initialized by Devito.
+    """
+    global init_by_devito
+    if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
+        MPI.Finalize()
 
 
 class AbstractDistributor(ABC):
@@ -198,23 +223,22 @@ class Distributor(AbstractDistributor):
 
         if configuration['mpi']:
             # First time we enter here, we make sure MPI is initialized
-            if not MPI.Is_initialized():
-                MPI.Init()
-                global init_by_devito
-                init_by_devito = True
+            devito_mpi_init()
 
             # Note: the cloned communicator doesn't need to be explicitly freed;
             # mpi4py takes care of that when the object gets out of scope
             self._input_comm = (input_comm or MPI.COMM_WORLD).Clone()
 
             if topology is None:
-                # `MPI.Compute_dims` sets the dimension sizes to be as close to each other
-                # as possible, using an appropriate divisibility algorithm. Thus, in 3D:
+                # `MPI.Compute_dims` sets the dimension sizes to be as close to
+                # each other as possible, using an appropriate divisibility
+                # algorithm. Thus, in 3D:
                 # * topology[0] >= topology[1] >= topology[2]
                 # * topology[0] * topology[1] * topology[2] == self._input_comm.size
-                # However, `MPI.Compute_dims` is distro-dependent, so we have to enforce
-                # some properties through our own wrapper (e.g., OpenMPI v3 does not
-                # guarantee that 9 ranks are arranged into a 3x3 grid when shape=(9, 9))
+                # However, `MPI.Compute_dims` is distro-dependent, so we have
+                # to enforce some properties through our own wrapper (e.g.,
+                # OpenMPI v3 does not guarantee that 9 ranks are arranged into
+                # a 3x3 grid when shape=(9, 9))
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
                 # A custom topology may contain integers or the wildcard '*'
@@ -706,3 +730,12 @@ def compute_dims(nprocs, ndim):
     else:
         v = int(v)
     return tuple(v for _ in range(ndim))
+
+
+# Yes, AFAICT, nothing like this is available in mpi4py
+mpi4py_thread_levels = {
+    'single': MPI.THREAD_SINGLE,
+    'funneled': MPI.THREAD_FUNNELED,
+    'serialized': MPI.THREAD_SERIALIZED,
+    'multiple': MPI.THREAD_MULTIPLE
+}
