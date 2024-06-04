@@ -201,7 +201,9 @@ def decoupler(item, m):
         env_vars['DEVITO_DECOUPLER_WORKERS'] = str(m)
 
     testname = get_testname(item)
-    call = ["pytest", "--no-summary", "-s", "--runxfail", testname]
+
+    pyversion = sys.executable
+    call = [pyversion, "-m", "pytest", "--no-summary", "-s", "--runxfail", testname]
 
     return set_run_reset(env_vars, call)
 
