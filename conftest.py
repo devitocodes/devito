@@ -142,7 +142,11 @@ def set_run_reset(env_vars, call):
         return False
     finally:
         os.environ['DEVITO_PYTEST_FLAG'] = '0'
-        os.environ.update({k: v for k, v in old_env_vars.items() if v is not None})
+        for k, v in old_env_vars.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def parallel(item, m):
