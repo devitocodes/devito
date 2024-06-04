@@ -585,7 +585,7 @@ class Scalar(Symbol, ArgProvider):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
-            return self._arg_defaults()
+            return self._arg_defaults(**kwargs)
 
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):

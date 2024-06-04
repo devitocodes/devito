@@ -1,14 +1,16 @@
 from collections.abc import Iterable
+from functools import cached_property
 
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.ir import FindSymbols
 from devito.logger import warning
 from devito.mpi.routines import mpi_registry
 from devito.parameters import configuration
 from devito.operator import Operator
 from devito.tools import (as_tuple, is_integer, timed_pass,
                           UnboundTuple, UnboundedMultiTuple)
-from devito.types import NThreads
+from devito.types import NThreads, PThreadArray
 
 __all__ = ['CoreOperator', 'CustomOperator',
            # Optimization options
@@ -190,7 +192,7 @@ class BasicOperator(Operator):
 
         return args
 
-    @property
+    @cached_property
     def nthreads(self):
         nthreads = [i for i in self.input if isinstance(i, NThreads)]
         if len(nthreads) == 0:
@@ -198,6 +200,12 @@ class BasicOperator(Operator):
         else:
             assert len(nthreads) == 1
             return nthreads.pop()
+
+    @cached_property
+    def npthreads(self):
+        symbols = FindSymbols().visit(self.body)
+        ptas = [i for i in symbols if isinstance(i, PThreadArray)]
+        return sum(i.size for i in ptas)
 
 
 class CoreOperator(BasicOperator):

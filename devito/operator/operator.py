@@ -227,10 +227,11 @@ class Operator(Callable):
         op._func_table = OrderedDict()
         op._func_table.update(OrderedDict([(i, MetaCall(None, False))
                                            for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i) for i in byproduct.funcs]))
+        op._func_table.update(OrderedDict([(i.root.name, i)
+                                           for i in byproduct.funcs]))
 
-        # Internal mutable state to store information about previous runs, autotuning
-        # reports, etc
+        # Internal mutable state to store information about previous runs,
+        # autotuning reports, etc
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
@@ -517,6 +518,10 @@ class Operator(Callable):
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
+    @cached_property
+    def threads_info(self):
+        return frozendict({'nthreads': self.nthreads, 'npthreads': self.npthreads})
+
     # Arguments processing
 
     @cached_property
@@ -551,10 +556,13 @@ class Operator(Callable):
             if set(d._arg_names).intersection(kwargs):
                 futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
 
+        # Prepare to process data-carriers
+        args = kwargs['args'] = ReducerMap()
+        kwargs['metadata'] = self.threads_info
+
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # Process data-carrier overrides
-        args = kwargs['args'] = ReducerMap()
         for p in overrides:
             args.update(p._arg_values(**kwargs))
             try:
@@ -576,9 +584,9 @@ class Operator(Callable):
                     pass
                 elif k in kwargs:
                     # User is in control
-                    # E.g., given a ConditionalDimension `t_sub` with factor `fact` and
-                    # a TimeFunction `usave(t_sub, x, y)`, an override for `fact` is
-                    # supplied w/o overriding `usave`; that's legal
+                    # E.g., given a ConditionalDimension `t_sub` with factor `fact`
+                    # and a TimeFunction `usave(t_sub, x, y)`, an override for
+                    # `fact` is supplied w/o overriding `usave`; that's legal
                     pass
                 elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise ValueError("Default `%s` is incompatible with other args as "
@@ -626,10 +634,13 @@ class Operator(Callable):
         for o in self.objects:
             args.update(o._arg_values(grid=grid, **kwargs))
 
+        # Purge `kwargs`
+        kwargs.pop('args')
+        kwargs.pop('metadata')
+
         # In some "lower-level" Operators implementing a random piece of C, such as
         # one or more calls to third-party library functions, there could still be
         # at this point unprocessed arguments (e.g., scalars)
-        kwargs.pop('args')
         args.update({k: v for k, v in kwargs.items() if k not in args})
 
         # Sanity check
@@ -1009,6 +1020,9 @@ class Operator(Callable):
                     if a in args:
                         perf_args[a] = args[a]
                         break
+        if is_integer(self.npthreads):
+            perf_args['pthreads'] = self.npthreads
+        perf_args = {k: perf_args[k] for k in sorted(perf_args)}
         perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
 
         return summary
@@ -1154,8 +1168,8 @@ class ArgumentsMap(dict):
         memory hierarchy layer.
         """
         key0 = lambda f: (f.is_TimeFunction and
-                         f.save is not None and
-                         not isinstance(f.save, Buffer))
+                          f.save is not None and
+                          not isinstance(f.save, Buffer))
         functions = [f for f in self.op.input if key0(f)]
 
         key1 = lambda f: f.layer
