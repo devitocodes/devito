@@ -1082,7 +1082,7 @@ def rcompile(expressions, kwargs, options, target=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
     """
-    options = {**kwargs['options'], **rcompile_registry, **options}
+    options = {**options, **rcompile_registry}
 
     if target is None:
         cls = operator_selector(**kwargs)

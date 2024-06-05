@@ -371,7 +371,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                 eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
 
         # Compile `eqns` into an IET via recursive compilation
-        irs, _ = self.rcompile(eqns, mpi=False)
+        irs, _ = self.rcompile(eqns, options={'mpi': False})
 
         parameters = [buf] + bshape + list(f.handles) + ofs
 

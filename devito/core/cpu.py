@@ -97,15 +97,15 @@ class Cpu64OperatorMixin:
     def _rcompile_wrapper(cls, **kwargs0):
         options0 = kwargs0.pop('options')
 
-        def wrapper(expressions, **kwargs1):
-            options = {**options0, **kwargs1.pop('options', {})}
-            kwargs = {'options': options, **kwargs0, **kwargs1}
+        def wrapper(expressions, options=None, **kwargs1):
+            options = {**options0, **(options or {})}
+            kwargs = {**kwargs0, **kwargs1}
 
             # User-provided openmp flag has precedence over defaults
             if not options['openmp']:
                 kwargs['language'] = 'C'
 
-            return rcompile(expressions, kwargs)
+            return rcompile(expressions, kwargs, options)
 
         return wrapper
 

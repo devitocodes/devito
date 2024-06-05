@@ -116,11 +116,15 @@ class DeviceOperatorMixin:
                 return as_tuple(cls.GPU_FIT)
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, mode='default', **options):
+    def _rcompile_wrapper(cls, **kwargs0):
+        options0 = kwargs0.pop('options')
+
+        def wrapper(expressions, mode='default', options=None, **kwargs1):
+            options = {**options0, **(options or {})}
+            kwargs = {**kwargs0, **kwargs1}
 
             if mode == 'host':
-                par_disabled = kwargs['options']['par-disabled']
+                par_disabled = options['par-disabled']
                 target = {
                     'platform': 'cpu64',
                     'language': 'C' if par_disabled else 'openmp',
