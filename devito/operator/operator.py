@@ -179,8 +179,9 @@ class Operator(Callable):
     def _sanitize_exprs(cls, expressions, **kwargs):
         expressions = as_tuple(expressions)
 
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
+        for i in expressions:
+            if not isinstance(i, Evaluable):
+                raise InvalidOperator("`%s` is not an `Evaluable` object" % str(i))
 
         return expressions
 

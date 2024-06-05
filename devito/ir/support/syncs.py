@@ -12,11 +12,7 @@ __all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'InitArray', 'SyncArray',
            'PrefetchUpdate', 'SnapOut', 'SnapIn', 'Ops', 'normalize_syncs']
 
 
-class Operation(Pickable):
-    pass
-
-
-class SyncOp(Operation):
+class SyncOp(Pickable):
 
     __rargs__ = ('handle', 'target')
     __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size', 'origin')

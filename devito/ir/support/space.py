@@ -7,8 +7,9 @@ from sympy import Expr
 
 from devito.ir.support.utils import minimum, maximum
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (Ordering, Stamp, as_list, as_tuple, filter_ordered,
-                          flatten, frozendict, is_integer, toposort)
+from devito.tools import (Ordering, Stamp, as_list, as_set, as_tuple,
+                          filter_ordered, flatten, frozendict, is_integer,
+                          toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
@@ -389,7 +390,7 @@ class IntervalGroup(Ordering):
                 interval = getattr(interval, op)(i)
             intervals.append(interval)
 
-        relations = set(as_tuple(relations))
+        relations = as_set(relations)
         relations.update(set().union(*[ig.relations for ig in interval_groups]))
 
         modes = set(ig.mode for ig in interval_groups)
@@ -470,7 +471,7 @@ class IntervalGroup(Ordering):
         if callable(maybe_callable):
             dims = {i.dim for i in self if maybe_callable(i.dim)}
         else:
-            dims = set(as_tuple(maybe_callable))
+            dims = as_set(maybe_callable)
 
         # Dropping
         if strict:

@@ -1295,6 +1295,7 @@ class Uxreplace(Transformer):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         if o.imask is None:
             return o._rebuild(function=function, arguments=arguments)
+
         # An `imask` may be None, a list of symbols/numbers, or a list of
         # 2-tuples representing ranges
         imask = []

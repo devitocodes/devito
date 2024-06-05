@@ -173,7 +173,7 @@ def preprocess(clusters, options=None, **kwargs):
 
         elif c.is_critical_region:
             if c.is_wait:
-                processed.append(c.rebuild(exprs=[], syncs=c.syncs))
+                processed.append(c.rebuild(exprs=[]))
 
         elif c.is_wild:
             continue

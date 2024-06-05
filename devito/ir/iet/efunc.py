@@ -217,7 +217,7 @@ class KernelLaunch(DeviceCall):
 
     @cached_property
     def expr_symbols(self):
-        launch_symbols = (self.grid, self.block,)
+        launch_symbols = (self.grid, self.block)
         if self.stream is not None:
             launch_symbols += (self.stream,)
         return super().expr_symbols + launch_symbols
