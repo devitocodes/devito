@@ -1546,7 +1546,7 @@ class VirtualDimension(CustomDimension):
     def __init_finalize__(self, name, parent=None):
         super().__init_finalize__(name, parent=parent,
                                   symbolic_min=sympy.S.Zero,
-                                  symbolic_max=sympy.S.One)
+                                  symbolic_max=sympy.S.Zero)
 
 
 # ***

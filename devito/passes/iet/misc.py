@@ -150,8 +150,7 @@ def _generate_macros(iet, tracker=None, **kwargs):
     headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    for i in FindApplications().visit(iet):
-        headers.extend(_generate_macros_math(i))
+    headers.extend(_generate_macros_math(iet))
 
     # Remove redundancies while preserving the order
     headers = filter_ordered(headers)
@@ -170,12 +169,12 @@ def _generate_macros(iet, tracker=None, **kwargs):
 
 def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     indexeds = FindSymbols('indexeds').visit(iet)
-    indexeds = [i for i in indexeds if isinstance(i, FIndexed)]
-    if not indexeds:
+    findexeds = [i for i in indexeds if isinstance(i, FIndexed)]
+    if not findexeds:
         return iet
 
     subs = {}
-    for i in indexeds:
+    for i in findexeds:
         try:
             v = tracker[i.base].v
             subs[i] = v.func(v.base, *i.indices)
@@ -194,13 +193,21 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
+def _generate_macros_math(iet):
+    headers = []
+    for i in FindApplications().visit(iet):
+        headers.extend(_lower_macro_math(i))
+
+    return headers
+
+
 @singledispatch
-def _generate_macros_math(expr):
+def _lower_macro_math(expr):
     return ()
 
 
-@_generate_macros_math.register(Min)
-@_generate_macros_math.register(sympy.Min)
+@_lower_macro_math.register(Min)
+@_lower_macro_math.register(sympy.Min)
 def _(expr):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),)
@@ -208,8 +215,8 @@ def _(expr):
         return ()
 
 
-@_generate_macros_math.register(Max)
-@_generate_macros_math.register(sympy.Max)
+@_lower_macro_math.register(Max)
+@_lower_macro_math.register(sympy.Max)
 def _(expr):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),)
