@@ -16,7 +16,7 @@ ARG GROUP_ID=1000
 ADD . /app/devito
 
 # Update if outdated
-RUN apt-get update && apt-get upgrade -y
+RUN apt-get update
 
 # Remove git files
 RUN rm -rf /app/devito/.git
