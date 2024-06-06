@@ -5,7 +5,7 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
-from devito.passes import is_on_device
+from devito.passes import is_on_device, stream_dimensions
 from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, tasking, memcpy_prefetch, blocking,
                                     buffering, cire, cse, factorize, fission, fuse,
@@ -431,7 +431,7 @@ def stream_wrap(callback):
         `(d_i, ..., d_n)` requiring data streaming.
         """
         found = [f for f in as_tuple(items) if callback(f)]
-        retval = {f.space_dimensions for f in found}
+        retval = {stream_dimensions(f) for f in found}
         if len(retval) > 1:
             raise ValueError("Cannot determine homogenous stream Dimensions")
         elif len(retval) == 1:
