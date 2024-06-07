@@ -476,6 +476,29 @@ class TestBasic:
         assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
 
 
+class TestAdvanced:
+
+    def test_foreign(self):
+        MySparseFunction = type('MySparseFunction', (SparseFunction,), {'attr': 42})
+
+        grid = Grid(shape=(3,))
+
+        msf = MySparseFunction(name='msf', grid=grid, npoint=3, space_order=2,
+                               coordinates=[(0.,), (1.,), (2.,)])
+
+        # Plain `pickle` doesn't support pickling of dynamic classes
+        with pytest.raises(Exception):
+            pickle0.dumps(msf)
+
+        # But `cloudpickle` does
+        pkl_msf = pickle1.dumps(msf)
+        new_msf = pickle1.loads(pkl_msf)
+
+        assert new_msf.attr == 42
+        assert new_msf.name == 'msf'
+        assert new_msf.npoint == 3
+
+
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
 class TestOperator:
 
