@@ -174,8 +174,7 @@ def parallel(item, m):
     testname = get_testname(item)
     # Only spew tracebacks on rank 0.
     # Run xfailing tests to ensure that errors are reported to calling process
-    args = ["-n", "1", pyversion, "-m", "pytest", "--no-summary", "-s",
-            "--runxfail", "-qq", testname]
+    args = ["-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-qq", testname]
     if nprocs > 1:
         args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
                      "-s", "--runxfail", "--tb=no", "-qq", "--no-summary", testname])
@@ -203,7 +202,8 @@ def decoupler(item, m):
     testname = get_testname(item)
 
     pyversion = sys.executable
-    call = [pyversion, "-m", "pytest", "--no-summary", "-s", "--runxfail", testname]
+    args = ["-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", testname]
+    call = [mpi_exec] + args
 
     return set_run_reset(env_vars, call)
 
