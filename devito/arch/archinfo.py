@@ -804,9 +804,13 @@ class Device(Platform):
     def march(self):
         return None
 
-    @property
+    @cached_property
     def numa_domains(self):
-        raise NotImplementedError
+        info = get_gpu_info()
+        try:
+            return info['ncards']
+        except KeyError:
+            return None
 
     @cached_property
     def memtotal(self):
