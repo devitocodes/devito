@@ -1264,13 +1264,12 @@ class TestSubDomainFunctionsParallel:
 
     @pytest.mark.parametrize('injection, norm', [(True, 15.834376),
                                                  (False, 1.0238341)])
-    @pytest.mark.parallel(mode=[2])
+    @pytest.mark.parallel(mode=[1, 2, 4])
     def test_diffusion(self, injection, norm, mode):
         """
         Test that a diffusion operator using Functions on SubDomains produces
         the same result as one on a Grid.
         """
-        # FIXME: MPI fails on more than one rank
         class Middle(SubDomain):
 
             name = 'middle'
@@ -1280,35 +1279,6 @@ class TestSubDomainFunctionsParallel:
                 return {x: ('middle', 2, 2), y: ('middle', 2, 2)}
 
         dt = 0.1
-
-        def solver(injection, subdomain):
-            grid = Grid(shape=(14, 14), extent=(13., 13.))
-            mid = Middle(grid=grid)
-
-            grid0 = mid if subdomain else grid
-            f = TimeFunction(name='f', grid=grid0, space_order=4)
-
-            pde = f.dt - f.laplace
-
-            eq = Eq(f.forward, solve(pde, f.forward), subdomain=mid)
-
-            if injection:
-                src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=10)
-                src.coordinates.data[:] = 6.5
-                src.data[:, 0] = np.arange(10)
-                s = src.inject(field=f.forward, expr=src)
-                Operator([eq] + s)(dt=dt)
-            else:
-                tkn = 4 if subdomain else 6
-                f.data[:, tkn:-tkn, tkn:-tkn] = 1
-                Operator(eq)(t_M=10, dt=dt)
-
-            return np.array(f.data[:])
-
-        # data0, data1 = [solver(injection, i) for i in (True, False)]
-
-        # assert np.all(np.isclose(data0, data1[:, 2:-2, 2:-2]))
-        # assert np.isclose(np.linalg.norm(data0), norm)
 
         grid = Grid(shape=(14, 14), extent=(13., 13.))
         mid = Middle(grid=grid)
@@ -1344,7 +1314,9 @@ class TestSubDomainFunctionsParallel:
             Operator(eqf)(t_M=10, dt=dt)
             Operator(eqg)(t_M=10, dt=dt)
 
-        print("First assert")
-        assert np.all(np.isclose(f.data[:], g.data[:, 2:-2, 2:-2]))
-        print("Second assert")
-        assert np.isclose(np.linalg.norm(f.data[:]), norm)
+        fdata = f.data_gather()
+        gdata = g.data_gather()
+
+        if grid.distributor.myrank == 0:
+            assert np.all(np.isclose(fdata[:], gdata[:, 2:-2, 2:-2]))
+            assert np.isclose(np.linalg.norm(fdata[:]), norm)

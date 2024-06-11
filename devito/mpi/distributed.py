@@ -271,6 +271,19 @@ class DenseDistributor(AbstractDistributor):
                                      getters=self.dimensions))
         return tuple(ret)
 
+    @cached_property
+    def _obj_comm(self):
+        """An Object representing the MPI communicator."""
+        return MPICommObject(self.comm)
+
+    @cached_property
+    def _obj_neighborhood(self):
+        """
+        A CompositeObject describing the calling MPI rank's neighborhood
+        in the decomposed grid.
+        """
+        return MPINeighborhood(self.neighborhood)
+
 
 class Distributor(DenseDistributor):
 
@@ -431,19 +444,6 @@ class Distributor(DenseDistributor):
                 ret[i] = self.comm.Get_cart_rank(neighbor)
 
         return ret
-
-    @cached_property
-    def _obj_comm(self):
-        """An Object representing the MPI communicator."""
-        return MPICommObject(self.comm)
-
-    @cached_property
-    def _obj_neighborhood(self):
-        """
-        A CompositeObject describing the calling MPI rank's neighborhood
-        in the decomposed grid.
-        """
-        return MPINeighborhood(self.neighborhood)
 
     def _rebuild(self, shape=None, dimensions=None, comm=None):
         return Distributor(shape or self.shape, dimensions or self.dimensions,
