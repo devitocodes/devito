@@ -186,8 +186,8 @@ class Data(np.ndarray):
                     if isinstance(i, slice) and i.step is not None and i.step < 0:
                         comm_type = index_by_index
                         break
-                    else:
-                        comm_type = serial
+                else:
+                    comm_type = serial
             else:
                 comm_type = serial
             kwargs['comm_type'] = comm_type

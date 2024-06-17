@@ -79,14 +79,14 @@ class TestAdjoint:
         ('layers-viscoacoustic', (20, 25), 'maxwell', 4, 2, viscoacoustic_setup),
         ('layers-viscoacoustic', (20, 25), 'maxwell', 2, 2, viscoacoustic_setup),
         # 3D Deng Mcmechan Viscoacoustic tests with varying space and equation orders
-        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 4, 1, \
-            viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 2, 1, \
-            viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 4, 2, \
-            viscoacoustic_setup),
-        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 2, 2, \
-            viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 4, 1,
+         viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 2, 1,
+         viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 4, 2,
+         viscoacoustic_setup),
+        ('layers-viscoacoustic', (20, 25, 20), 'maxwell', 2, 2,
+         viscoacoustic_setup),
     ])
     def test_adjoint_F(self, mkey, shape, kernel, space_order, time_order, setup_func):
         """
