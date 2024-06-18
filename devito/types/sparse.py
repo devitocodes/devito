@@ -1019,6 +1019,14 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
 
         return super().inject(field, expr, implicit_dims=implicit_dims)
 
+    @property
+    def forward(self):
+        """Symbol for the time-forward state of the TimeFunction."""
+        i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.dimensions[self._time_position]
+
+        return self._subs(_t, _t + i * _t.spacing)
+
 
 class PrecomputedSparseFunction(AbstractSparseFunction):
     """

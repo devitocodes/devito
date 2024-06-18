@@ -60,6 +60,7 @@ RUN apt-get update -y && apt-get dist-upgrade -y && \
             libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
 
 ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh intel64 && '
+ENV MPI4PY_RC_RECV_MPROBE=0
 
 ##############################################################
 # ICC image

@@ -39,6 +39,10 @@ class CodePrinter(C99CodePrinter):
     def compiler(self):
         return self._settings['compiler']
 
+    def single_prec(self, expr=None):
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return dtype in [np.float32, np.float16]
+
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
             return "(%s)" % self._print(item)
@@ -104,9 +108,8 @@ class CodePrinter(C99CodePrinter):
         except KeyError:
             return super()._print_math_func(expr, nest=nest, known=known)
 
-        dtype = sympy_dtype(expr)
-        if dtype is np.float32:
-            cname += 'f'
+        if self.single_prec(expr):
+            cname = '%sf' % cname
 
         args = ', '.join((self._print(arg) for arg in expr.args))
 
@@ -116,7 +119,7 @@ class CodePrinter(C99CodePrinter):
         # Need to override because of issue #1627
         # E.g., (Pow(h_x, -1) AND h_x.dtype == np.float32) => 1.0F/h_x
         try:
-            if expr.exp == -1 and self.dtype == np.float32:
+            if expr.exp == -1 and self.single_prec():
                 PREC = precedence(expr)
                 return '1.0F/%s' % self.parenthesize(expr.base, PREC)
         except AttributeError:
@@ -196,8 +199,8 @@ class CodePrinter(C99CodePrinter):
         elif rv.startswith('.0'):
             rv = '0.' + rv[2:]
 
-        if self.dtype == np.float32:
-            rv = rv + 'F'
+        if self.single_prec():
+            rv = '%sF' % rv
 
         return rv
 
@@ -252,8 +255,8 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
-        if self.dtype == np.float32:
-            func_name += 'f'
+        if self.single_prec():
+            func_name = '%sf' % func_name
         return '%s(%s)' % (func_name, self._print(*expr.args))
 
     def _print_DefFunction(self, expr):
