@@ -40,7 +40,7 @@ class CodePrinter(C99CodePrinter):
         return self._settings['compiler']
 
     def single_prec(self, expr=None):
-        dtype = sympy_dtype(expr or self)
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
         return dtype in [np.float32, np.float16]
 
     def parenthesize(self, item, level, strict=False):
