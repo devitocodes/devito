@@ -420,7 +420,7 @@ class PerformanceSummary(OrderedDict):
 
         k = PerfKey(name, rank)
 
-        if not ops or any(np.isnan(i) for i in [ops, points, traffic]):
+        if not ops or any(not np.isfinite(i) for i in [ops, points, traffic]):
             self[k] = PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
         else:
             gflops = float(ops)/10**9
