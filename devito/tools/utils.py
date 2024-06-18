@@ -12,7 +12,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority']
+           'humanbytes', 'contains_val', 'sorted_priority', 'as_set']
 
 
 def prod(iterable, initial=1):
@@ -24,6 +24,13 @@ def as_list(item, type=None, length=None):
     Force item to a list.
     """
     return list(as_tuple(item, type=type, length=length))
+
+
+def as_set(iterable, type=None, length=None):
+    """
+    Force item to a set.
+    """
+    return set(as_tuple(iterable, type=type, length=length))
 
 
 def as_tuple(item, type=None, length=None):
@@ -166,6 +173,8 @@ def filter_ordered(elements, key=None):
     key : callable, optional
         Conversion key used during equality comparison.
     """
+    # This method exploits the fact that dictionary keys are unique and ordered
+    # (since Python 3.7). It's concise and often faster for larger lists
     if isinstance(elements, types.GeneratorType):
         elements = list(elements)
 

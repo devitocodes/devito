@@ -185,9 +185,8 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 3
+        assert len(sections) == 2
         assert str(sections[0].body[0].body[0].body[0].body[0]) == 'while(lock0[0] == 0);'
-        body = sections[2].body[0].body[0]
         body = op._func_table['release_lock0'].root.body
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
         assert str(body.body[1]) == 'lock0[0] = 0;'
@@ -224,13 +223,13 @@ class TestStreaming:
         assert len(op._func_table) == 5
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 17 if configuration['language'] == 'openacc' else 16  # No `qid` w/ OMP
-        assert str(exprs[b]) == 'const int deviceid = sdata->deviceid;'
-        assert str(exprs[b+1]) == 'volatile int time = sdata->time;'
+        assert str(exprs[b]) == 'const int deviceid = sdata0->deviceid;'
+        assert str(exprs[b+1]) == 'volatile int time = sdata0->time;'
         assert str(exprs[b+2]) == 'lock0[0] = 1;'
         assert exprs[b+3].write is u
         assert exprs[b+4].write is v
         assert str(exprs[b+5]) == 'lock0[0] = 2;'
-        assert str(exprs[b+6]) == 'sdata->flag = 1;'
+        assert str(exprs[b+6]) == 'sdata0->flag = 1;'
 
         op.apply(time_M=nt-2)
 
@@ -257,13 +256,14 @@ class TestStreaming:
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op)) == 3
-        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 4
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 3
+        assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 5
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 4
+        assert len(sections) == 2
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
-        body = sections[2].body[0].body[0]
+        body = trees[-1].root.nodes[-2]
         assert str(body.body[0]) == 'release_lock0(lock0);'
         assert str(body.body[1]) == 'activate0(time,sdata0);'
         assert len(op._func_table) == 5
@@ -300,7 +300,7 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 3
+        assert len(sections) == 2
         assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = op._func_table['release_lock0'].root.body
@@ -366,10 +366,10 @@ class TestStreaming:
         op1 = Operator(eqns, opt=('tasking', 'orchestrate', {'linearize': False}))
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 3
+        assert len(retrieve_iteration_tree(op1)) == 2
         assert len([i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op1)
-        assert len(sections) == 2
+        assert len(sections) == 1
         assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t2] == 0);'
         body = op1._func_table['release_lock0'].root.body
@@ -404,10 +404,10 @@ class TestStreaming:
         op = Operator(eqns, opt=('tasking', 'orchestrate'))
 
         # Check generated code -- the wait-lock is expected in section1
-        assert len(retrieve_iteration_tree(op)) == 4
+        assert len(retrieve_iteration_tree(op)) == 3
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
-        assert len(sections) == 3
+        assert len(sections) == 2
         assert sections[0].body[0].body[0].body[0].is_Iteration
         assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t1] == 0);'
@@ -443,7 +443,7 @@ class TestStreaming:
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 11),
+        (('buffering', 'streaming', 'orchestrate'), 13),
         (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 7),
     ])
     def test_streaming_two_buffers(self, opt, ntmps):
@@ -763,12 +763,12 @@ class TestStreaming:
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
-        assert len(retrieve_iteration_tree(op1)) == 6
-        assert len(retrieve_iteration_tree(op2)) == 4
+        assert len(retrieve_iteration_tree(op1)) == 4
+        assert len(retrieve_iteration_tree(op2)) == 3
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 4
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 5
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
-        assert len(threads) == 3
+        assert len(threads) == 2
         assert threads[0].size.size == async_degree
         assert threads[1].size.size == async_degree
         symbols = FindSymbols().visit(op2)
@@ -823,9 +823,9 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op0)) == 1
         assert len(retrieve_iteration_tree(op1)) == 3
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 4
+        assert len([i for i in symbols if isinstance(i, Lock)]) == 3
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
-        assert len(threads) == 3
+        assert len(threads) == 2
         assert all(i.size == 1 for i in threads)
 
         op0.apply(time_M=nt-1)
@@ -858,7 +858,7 @@ class TestStreaming:
         op1 = Operator(eqns, opt=opt)
 
         # Check generated code
-        assert len(retrieve_iteration_tree(op1)) == 5
+        assert len(retrieve_iteration_tree(op1)) == 3
         assert len([i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]) == 2
 
         op0.apply(time_M=nt-2)
@@ -886,10 +886,10 @@ class TestStreaming:
 
         # Check generated code
         for op in [op1, op2]:
-            assert len(retrieve_iteration_tree(op)) == 4
+            assert len(retrieve_iteration_tree(op)) == 3
             assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
             sections = FindNodes(Section).visit(op)
-            assert len(sections) == 4
+            assert len(sections) == 3
             assert 'while(lock0[t1] == 0)' in str(sections[2].body[0].body[0].body[0])
 
         op0.apply(time_M=nt-1)

@@ -1481,7 +1481,7 @@ class TestConditionalDimension:
 
         eqns = [Eq(f.forward, f + 1),
                 Eq(h, f + 1),
-                Eq(g, f.dx + 1, implicit_dims=[ctime])]
+                Eq(g, f.dx + h + 1, implicit_dims=[ctime])]
 
         op = Operator(eqns)
 
@@ -1511,10 +1511,10 @@ class TestConditionalDimension:
 
         eqns = [Eq(f.forward, f + 1),
                 Eq(h, f + 1),
-                Eq(g, f + 1, implicit_dims=[ctime]),
-                Eq(f.forward, f + 1, implicit_dims=[ctime]),
-                Eq(f.forward, f + 1),
-                Eq(g, f + 1)]
+                Eq(g, f + h + 1, implicit_dims=[ctime]),
+                Eq(f.forward, f + h + 1, implicit_dims=[ctime]),
+                Eq(f.forward, f.dx + h + 1),
+                Eq(g, f.dx + h + 1)]
 
         op = Operator(eqns)
 

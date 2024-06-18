@@ -1,12 +1,14 @@
-from collections import OrderedDict
+from collections import namedtuple
+from functools import singledispatch
 from ctypes import c_int
 
 import cgen as c
 
 from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
-                       Conditional, DummyExpr, FindNodes, FindSymbols,
-                       Iteration, List, PointerCast, Return, ThreadCallable,
-                       Transformer, While, make_callable, maybe_alias)
+                       Conditional, DummyEq, DummyExpr, While, Increment, Iteration,
+                       List, PointerCast, Return, FindNodes, FindSymbols,
+                       ThreadCallable, EntryFunction, Transformer, make_callable,
+                       maybe_alias)
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
@@ -19,20 +21,87 @@ __all__ = ['pthreadify']
 
 
 def pthreadify(graph, **kwargs):
-    lower_async_callables(graph, root=graph.root, **kwargs)
+    if not any(isinstance(i, AsyncCallable) for i in graph.efuncs.values()):
+        return
 
-    track = {i.name: i.sdata for i in graph.efuncs.values()
-             if isinstance(i, ThreadCallable)}
-    lower_async_calls(graph, track=track, **kwargs)
+    # A key function to help identify all non-constant Symbols in the IET
+    defines = FindSymbols('defines').visit(graph.root.body)
+    key = lambda i: i in defines and i.is_Symbol
 
+    lower_async_objs(graph, key=key, tracker={}, **kwargs)
+
+    # We need this one here to initialize the newly introduced objects, such as
+    # SharedData and PThreadArray, as well as the packed/unpacked symbols
     DataManager(**kwargs).place_definitions(graph)
 
 
-@iet_pass
-def lower_async_callables(iet, root=None, sregistry=None):
-    if not isinstance(iet, AsyncCallable):
-        return iet, {}
+AsyncMeta = namedtuple('AsyncMeta', 'sdata threads init shutdown')
 
+
+@iet_pass
+def lower_async_objs(iet, **kwargs):
+    # Different actions depending on the Callable type
+    iet, efuncs = _lower_async_objs(iet, **kwargs)
+
+    metadata = {'includes': ['pthread.h'],
+                'efuncs': efuncs}
+
+    if not isinstance(iet, EntryFunction):
+        return iet, metadata
+
+    iet, efuncs = inject_async_tear_updown(iet, **kwargs)
+    metadata['efuncs'].extend(efuncs)
+
+    return iet, metadata
+
+
+@singledispatch
+def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
+    # All Callables, except for AsyncCallables, may containg one or more
+    # AsyncCalls, which we have to lower into thread-activation code
+    efuncs = []
+    subs = {}
+    for n in FindNodes(AsyncCall).visit(iet):
+        # The efuncs in a Graph are processed bottom-up, so we can safely assume
+        # that the `AsyncCallable` corresponding to `n` has already been processed
+        assert n.name in tracker
+        sdata = tracker[n.name].sdata
+
+        if sdata.size == 1:
+            d = sdata.index
+            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
+            activation = [While(condition)]
+        else:
+            d = Temp(name=sregistry.make_name(prefix=sdata.index.name))
+            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
+            activation = [DummyExpr(d, 0),
+                          While(condition, DummyExpr(d, (d + 1) % sdata.size))]
+        arguments = []
+        for i in sdata.ncfields:
+            for a in n.arguments:
+                if maybe_alias(a, i):
+                    arguments.append(a)
+                    break
+            else:
+                arguments.append(i)
+        activation.extend([DummyExpr(FieldFromComposite(i.base, sdata[d]), i)
+                           for i in arguments])
+        activation.append(
+            DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)
+        )
+        name = sregistry.make_name(prefix='activate')
+        efunc = make_callable(name, activation)
+
+        efuncs.append(efunc)
+        subs[n] = Call(name, efunc.parameters)
+
+    iet = Transformer(subs).visit(iet)
+
+    return iet, efuncs
+
+
+@_lower_async_objs.register(AsyncCallable)
+def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     # Determine the max number of threads that can run this `iet` in parallel
     locks = [i for i in iet.parameters if isinstance(i, Lock)]
     npthreads = min([i.size for i in locks], default=1)
@@ -44,9 +113,7 @@ def lower_async_callables(iet, root=None, sregistry=None):
     # `ncfields` are instead the non-constant fields, that is the fields whose
     # value may or may not change across different calls to `iet`. Clearly objects
     # passed by pointer don't really matter
-    fields = iet.parameters
-    defines = FindSymbols('defines').visit(root.body)
-    ncfields, cfields = split(fields, lambda i: i in defines and i.is_Symbol)
+    ncfields, cfields = split(iet.parameters, key)
 
     # Postprocess `ncfields`
     ncfields = sanitize_ncfields(ncfields)
@@ -54,13 +121,21 @@ def lower_async_callables(iet, root=None, sregistry=None):
     # SharedData -- that is the data structure that will be used by the
     # main thread to pass information down to the child thread(s)
     sdata = SharedData(
-        name='sdata',
+        name=sregistry.make_name(prefix='sdata'),
         npthreads=npthreads,
         cfields=cfields,
         ncfields=ncfields,
         pname=sregistry.make_name(prefix='tsdata')
     )
     sbase = sdata.indexed
+
+    # PThreadArray -- that is he pthreads that will execute the AsyncCallable
+    # asynchronously
+    threads = PThreadArray(
+        name=sregistry.make_name(prefix='threads'),
+        npthreads=npthreads
+    )
+    tbase = threads.indexed
 
     # Prepend the SharedData fields available upon thread activation
     preactions = [DummyExpr(i, FieldFromPointer(i.base, sbase)) for i in ncfields]
@@ -76,7 +151,10 @@ def lower_async_callables(iet, root=None, sregistry=None):
 
     # The thread has work to do when it receives the signal that all locks have
     # been set to 0 by the main thread
-    wrap = Conditional(CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2), wrap)
+    wrap = Conditional(
+        CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2),
+        wrap
+    )
 
     # The thread keeps spinning until the alive flag is set to 0 by the main thread
     wrap = While(CondNe(FieldFromPointer(sdata.symbolic_flag, sbase), 0), wrap)
@@ -97,140 +175,94 @@ def lower_async_callables(iet, root=None, sregistry=None):
     body = iet.body._rebuild(body=[wrap, Return(Null)], unpacks=unpacks)
     iet = ThreadCallable(iet.name, body, tparameter)
 
-    return iet, {'includes': ['pthread.h']}
-
-
-@iet_pass
-def lower_async_calls(iet, track=None, sregistry=None):
-    # Definitely there won't be AsyncCalls within ThreadCallables
-    if isinstance(iet, ThreadCallable):
-        return iet, {}
-
-    # Create efuncs to initialize the SharedData objects
-    efuncs = OrderedDict()
-    for n in FindNodes(AsyncCall).visit(iet):
-        if n.name in efuncs:
-            continue
-
-        assert n.name in track
-        sdata = track[n.name]
-        sbase = sdata.indexed
-        name = sregistry.make_name(prefix='init_%s' % sdata.name)
-        body = []
-        for i in sdata.cfields:
-            if i.is_AbstractFunction:
-                body.append(
-                    DummyExpr(FieldFromPointer(i._C_symbol, sbase), i._C_symbol)
-                )
-            else:
-                body.append(DummyExpr(FieldFromPointer(i.base, sbase), i.base))
-        body.extend([
-            BlankLine,
-            DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 1)
-        ])
-        parameters = sdata.cfields + (sdata,)
-        efuncs[n.name] = Callable(name, body, 'void', parameters, 'static')
-
-    # Transform AsyncCalls
-    nqueues = 1  # Number of allocated asynchronous queues so far
-    initialization = []
-    finalization = []
-    mapper = {}
-    for n in FindNodes(AsyncCall).visit(iet):
-        # Bind the abstract `sdata` to `n`
-        name = sregistry.make_name(prefix='sdata')
-        sdata = track[n.name]._rebuild(name=name)
-
-        # The pthreads that will execute the AsyncCallable asynchronously
-        name = sregistry.make_name(prefix='threads')
-        threads = PThreadArray(name=name, npthreads=sdata.npthreads)
-
-        # Call to `sdata` initialization Callable
-        sbase = sdata.indexed
-        d = threads.index
-        arguments = []
-        for a in n.arguments:
-            if any(maybe_alias(a, i) for i in sdata.ncfields):
-                continue
-            elif isinstance(a, QueueID):
-                # Different pthreads use different queues
-                arguments.append(nqueues + d)
-            else:
-                arguments.append(a)
-        # Each pthread has its own SharedData copy
-        arguments.append(sbase + d)
-        assert len(efuncs[n.name].parameters) == len(arguments)
-        call0 = Call(efuncs[n.name].name, arguments)
-
-        # Create pthreads
-        tbase = threads.indexed
-        call1 = Call('pthread_create', (
-            tbase + d, Null, Call(n.name, [], is_indirect=True), sbase + d
-        ))
-        nqueues += threads.size
-
-        # Glue together the initialization pieces
-        if threads.size == 1:
-            callback = lambda body: body
-        else:
-            callback = lambda body: Iteration(body, d, threads.size - 1)
-        initialization.append(List(
-            body=callback([call0, call1])
-        ))
-
-        # Finalization
-        name = sregistry.make_name(prefix='shutdown')
-        body = List(body=callback([
-            While(CondEq(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)),
-            DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 0),
-            Call('pthread_join', (threads[d], Null))
-        ]))
-        efunc = efuncs[name] = make_callable(name, body)
-        finalization.append(Call(name, efunc.parameters))
-
-        # Activation
-        if threads.size == 1:
-            d = threads.index
-            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
-            activation = [While(condition)]
-        else:
-            d = Temp(name=sregistry.make_name(prefix=threads.index.name))
-            condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
-            activation = [DummyExpr(d, 0),
-                          While(condition, DummyExpr(d, (d + 1) % threads.size))]
-        activation.extend([DummyExpr(FieldFromComposite(i.base, sdata[d]), i)
-                           for i in sdata.ncfields])
-        activation.append(
-            DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)
-        )
-        name = sregistry.make_name(prefix='activate')
-        efunc = efuncs[name] = make_callable(name, activation)
-        mapper[n] = Call(name, efunc.parameters)
-
-    if mapper:
-        # Inject activation
-        iet = Transformer(mapper).visit(iet)
-
-        # Inject initialization and finalization
-        initialization = List(
-            header=c.Comment("Fire up and initialize pthreads"),
-            body=initialization + [BlankLine]
-        )
-
-        finalization = List(
-            header=c.Comment("Wait for completion of pthreads"),
-            body=finalization
-        )
-
-        body = iet.body._rebuild(
-            body=[initialization] + list(iet.body.body) + [BlankLine, finalization]
-        )
-        iet = iet._rebuild(body=body)
+    d = sdata.index
+    if sdata.size == 1:
+        callback = lambda body: body
     else:
-        assert not initialization
-        assert not finalization
+        footer = [BlankLine,
+                  Increment(DummyEq(sbase, 1))]
+        callback = lambda body: Iteration(list(body) + footer, d, threads.size - 1)
 
-    return iet, {'efuncs': tuple(efuncs.values())}
+    # Create an efunc to initialize `sdata` and tear up the pthreads
+    name = 'init_%s' % sdata.name
+    body = []
+    for i in sdata.cfields:
+        if i.is_AbstractFunction:
+            body.append(
+                DummyExpr(FieldFromPointer(i._C_symbol, sbase), i._C_symbol)
+            )
+        elif isinstance(i, QueueID):
+            body.append(DummyExpr(FieldFromPointer(i, sbase), i + d))
+        else:
+            body.append(DummyExpr(FieldFromPointer(i.base, sbase), i.base))
+    body.extend([
+        BlankLine,
+        DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 1)
+    ])
+    body.extend([
+        BlankLine,
+        Call('pthread_create', (
+            tbase + d, Null, Call(iet.name, [], is_indirect=True), sbase
+        ))
+    ])
+    body = callback(body)
+    parameters = sdata.cfields + (sdata, threads)
+    init = Callable(name, body, 'void', parameters, 'static')
+
+    # Create an efunc to shutdown the pthreads
+    name = sregistry.make_name(prefix='shutdown')
+    body = List(body=callback([
+        While(CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2)),
+        DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 0),
+        Call('pthread_join', (threads[d], Null))
+    ]))
+    shutdown = make_callable(name, body)
+
+    # Track all the newly created objects
+    tracker[iet.name] = AsyncMeta(sdata, threads, init, shutdown)
+
+    return iet, []
+
+
+def inject_async_tear_updown(iet, tracker=None, **kwargs):
+    # Number of allocated asynchronous queues so far
+    nqueues = 1
+
+    tearup = []
+    teardown = []
+    for sdata, threads, init, shutdown in tracker.values():
+        # Tear-up
+        arguments = list(init.parameters)
+        for n, a in enumerate(list(arguments)):
+            if isinstance(a, QueueID):
+                # Different pthreads use different queues
+                arguments[n] = nqueues
+        tearup.append(Call(init.name, arguments))
+        nqueues += threads.size  # Update the next available queue ID
+
+        # Tear-down
+        arguments = list(shutdown.parameters)
+        teardown.append(Call(shutdown.name, arguments))
+
+    # Inject tearup and teardown
+    tearup = List(
+        header=c.Comment("Fire up and initialize pthreads"),
+        body=tearup + [BlankLine]
+    )
+    teardown = List(
+        header=c.Comment("Wait for completion of pthreads"),
+        body=teardown
+    )
+    body = iet.body._rebuild(
+        body=[tearup] + list(iet.body.body) + [BlankLine, teardown]
+    )
+    iet = iet._rebuild(body=body)
+
+    efuncs = []
+    efuncs.extend(i.init for i in tracker.values())
+    efuncs.extend(i.shutdown for i in tracker.values())
+
+    return iet, efuncs
 
 
 # *** Utils

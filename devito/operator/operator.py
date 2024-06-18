@@ -152,9 +152,10 @@ class Operator(Callable):
         # The Operator type for the given target
         cls = operator_selector(**kwargs)
 
-        # Normalize input arguments for the selected Operator
+        # Preprocess input arguments
         kwargs = cls._normalize_kwargs(**kwargs)
         cls._check_kwargs(**kwargs)
+        expressions = cls._sanitize_exprs(expressions, **kwargs)
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
@@ -173,6 +174,16 @@ class Operator(Callable):
     @classmethod
     def _check_kwargs(cls, **kwargs):
         return
+
+    @classmethod
+    def _sanitize_exprs(cls, expressions, **kwargs):
+        expressions = as_tuple(expressions)
+
+        for i in expressions:
+            if not isinstance(i, Evaluable):
+                raise InvalidOperator("`%s` is not an `Evaluable` object" % str(i))
+
+        return expressions
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -244,10 +255,6 @@ class Operator(Callable):
 
         expressions = as_tuple(expressions)
 
-        # Input check
-        if any(not isinstance(i, Evaluable) for i in expressions):
-            raise InvalidOperator("Only `devito.Evaluable` are allowed.")
-
         # Enable recursive lowering
         # This may be used by a compilation pass that constructs a new
         # expression for which a partial or complete lowering is desired
@@ -271,10 +278,8 @@ class Operator(Callable):
         return IRs(expressions, clusters, stree, uiet, iet), byproduct
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, **options):
-            return rcompile(expressions, kwargs, options)
-        return wrapper
+    def _rcompile_wrapper(cls, **kwargs0):
+        raise NotImplementedError
 
     @classmethod
     def _initialize_state(cls, **kwargs):
@@ -468,7 +473,7 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph)
+        generate_macros(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
@@ -952,19 +957,27 @@ class Operator(Callable):
         # Emit local, i.e. "per-rank" performance. Without MPI, this is the only
         # thing that will be emitted
         def lower_perfentry(v):
+            values = []
+            if v.oi:
+                values.append("OI=%.2f" % fround(v.oi))
             if v.gflopss:
-                oi = "OI=%.2f" % fround(v.oi)
-                gflopss = "%.2f GFlops/s" % fround(v.gflopss)
-                gpointss = "%.2f GPts/s" % fround(v.gpointss)
-                return "[%s]" % ", ".join([oi, gflopss, gpointss])
-            elif v.gpointss:
-                gpointss = "%.2f GPts/s" % fround(v.gpointss)
-                return "[%s]" % gpointss
+                values.append("%.2f GFlops/s" % fround(v.gflopss))
+            if v.gpointss:
+                values.append("%.2f GPts/s" % fround(v.gpointss))
+
+            if values:
+                return "[%s]" % ", ".join(values)
             else:
                 return ""
 
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
+
+            if v.time <= 0.01:
+                # Trim down the output for very fast sections
+                name = "%s%s<>" % (k.name, rank)
+                perf("%s* %s ran in %.2f s" % (indent, name, fround(v.time)))
+                continue
 
             metrics = lower_perfentry(v)
 
@@ -1070,7 +1083,7 @@ def rcompile(expressions, kwargs, options, target=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
     """
-    options = {**kwargs['options'], **rcompile_registry, **options}
+    options = {**options, **rcompile_registry}
 
     if target is None:
         cls = operator_selector(**kwargs)
@@ -1153,7 +1166,7 @@ def parse_kwargs(**kwargs):
     elif isinstance(opt, tuple):
         if len(opt) == 0:
             mode, options = 'noop', {}
-        elif isinstance(opt[-1], dict):
+        elif isinstance(opt[-1], (dict, frozendict)):
             if len(opt) == 2:
                 mode, options = opt
             else:

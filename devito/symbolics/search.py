@@ -145,8 +145,13 @@ def retrieve_indexed(exprs, mode='all', deep=False):
 
 
 def retrieve_functions(exprs, mode='all'):
-    """Shorthand to retrieve the DiscreteFunctions in ``exprs``."""
-    return search(exprs, q_function, mode, 'dfs')
+    """Shorthand to retrieve the DiscreteFunctions in `exprs`."""
+    indexeds = search(exprs, q_indexed, mode, 'dfs')
+
+    functions = search(exprs, q_function, mode, 'dfs')
+    functions.update({i.function for i in indexeds})
+
+    return functions
 
 
 def retrieve_symbols(exprs, mode='all'):

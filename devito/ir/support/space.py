@@ -7,8 +7,9 @@ from sympy import Expr
 
 from devito.ir.support.utils import minimum, maximum
 from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (Ordering, Stamp, as_list, as_tuple, filter_ordered,
-                          flatten, frozendict, is_integer, toposort)
+from devito.tools import (Ordering, Stamp, as_list, as_set, as_tuple,
+                          filter_ordered, flatten, frozendict, is_integer,
+                          toposort)
 from devito.types import Dimension, ModuloDimension
 
 __all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
@@ -389,7 +390,7 @@ class IntervalGroup(Ordering):
                 interval = getattr(interval, op)(i)
             intervals.append(interval)
 
-        relations = set(as_tuple(relations))
+        relations = as_set(relations)
         relations.update(set().union(*[ig.relations for ig in interval_groups]))
 
         modes = set(ig.mode for ig in interval_groups)
@@ -455,9 +456,9 @@ class IntervalGroup(Ordering):
         intervals = [i.relaxed if i.dim in d else i for i in self]
         return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
 
-    def promote(self, cond):
+    def promote(self, cond, mode='unordered'):
         intervals = [i.promote(cond) for i in self]
-        intervals = IntervalGroup(intervals, relations=None, mode='unordered')
+        intervals = IntervalGroup(intervals, relations=None, mode=mode)
 
         # There could be duplicate Dimensions at this point, so we sum up the
         # Intervals defined over the same Dimension to produce a well-defined
@@ -466,13 +467,17 @@ class IntervalGroup(Ordering):
 
         return intervals
 
-    def drop(self, d, strict=False):
+    def drop(self, maybe_callable, strict=False):
+        if callable(maybe_callable):
+            dims = {i.dim for i in self if maybe_callable(i.dim)}
+        else:
+            dims = as_set(maybe_callable)
+
         # Dropping
         if strict:
-            dims = set(as_tuple(d))
             intervals = [i._rebuild() for i in self if i.dim not in dims]
         else:
-            dims = set().union(*[i._defines for i in as_tuple(d)])
+            dims = set().union(*[i._defines for i in dims])
             intervals = [i._rebuild() for i in self if not i.dim._defines & dims]
 
         # Clean up relations
@@ -544,11 +549,15 @@ class IntervalGroup(Ordering):
             return NullInterval(key)
 
         for i in self:
+            # Obvious case
             if i.dim is key:
                 return i
+
+            # There are a few special cases for which we can support
+            # derived-Dimension-based indexing
             if key.is_NonlinearDerived and i.dim in key._defines:
-                # NonlinearDerived Dimensions cannot appear in iteration Intervals,
-                # but their parent can
+                return i
+            if i.dim.is_Custom and key in i.dim._defines:
                 return i
 
         return NullInterval(key)
@@ -589,7 +598,7 @@ class IterationInterval(Interval):
     An Interval associated with metadata.
     """
 
-    def __init__(self, interval, sub_iterators, direction):
+    def __init__(self, interval, sub_iterators=(), direction=Forward):
         super().__init__(interval.dim, *interval.offsets, stamp=interval.stamp)
         self.sub_iterators = sub_iterators
         self.direction = direction
@@ -689,7 +698,11 @@ class DataSpace(Space):
     def __init__(self, intervals, parts=None):
         super().__init__(intervals)
 
+        # Normalize parts
         parts = {k: v.expand() for k, v in (parts or {}).items()}
+        for k, v in list(parts.items()):
+            dims = set().union(*[d._defines for d in k.dimensions])
+            parts[k] = v.drop(lambda d: d not in dims)
         self._parts = frozendict(parts)
 
     def __eq__(self, other):
@@ -864,12 +877,16 @@ class IterationSpace(Space):
 
         return IterationSpace(self.intervals, items, self.directions)
 
-    def switch(self, d0, d1):
+    def switch(self, d0, d1, direction=None):
         intervals = self.intervals.switch(d0, d1)
-        sub_iterators = {d1 if k is d0 else k: v
-                         for k, v in self.sub_iterators.items()}
-        directions = {d1 if k is d0 else k: v
-                      for k, v in self.directions.items()}
+
+        sub_iterators = dict(self.sub_iterators)
+        sub_iterators.pop(d0, None)
+        sub_iterators[d1] = ()
+
+        directions = dict(self.directions)
+        v = directions.pop(d0, None)
+        directions[d1] = direction or v
 
         return IterationSpace(intervals, sub_iterators, directions)
 
@@ -937,8 +954,8 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
-    def promote(self, cond):
-        intervals = self.intervals.promote(cond)
+    def promote(self, cond, mode='unordered'):
+        intervals = self.intervals.promote(cond, mode=mode)
         sub_iterators = {i.promote(cond).dim: self.sub_iterators[i.dim]
                          for i in self.intervals}
         directions = {i.promote(cond).dim: self.directions[i.dim]
@@ -957,6 +974,39 @@ class IterationSpace(Space):
             return null_ispace
 
         return self[:self.index(i.dim) + 1]
+
+    def split(self, d):
+        """
+        Split the IterationSpace into two IterationSpaces, the first
+        containing all Intervals up to and including the one defined
+        over Dimension `d`, and the second containing all Intervals starting
+        from the one defined over Dimension `d`.
+        """
+        if isinstance(d, IterationInterval):
+            d = d.dim
+
+        if d is None:
+            return IterationSpace([]), self
+
+        try:
+            n = self.index(d) + 1
+            return self[:n], self[n:]
+        except ValueError:
+            return self, IterationSpace([])
+
+    def insert(self, d, dimensions, sub_iterators=None, directions=None):
+        """
+        Insert new Dimensions into the IterationSpace after Dimension `d`.
+        """
+        dimensions = as_tuple(dimensions)
+
+        intervals = IntervalGroup([Interval(i) for i in dimensions])
+        ispace = IterationSpace(intervals, sub_iterators, directions)
+
+        ispace0, ispace1 = self.split(d)
+        relations = (ispace0.itdims + dimensions, dimensions + ispace1.itdims)
+
+        return IterationSpace.union(ispace0, ispace, ispace1, relations=relations)
 
     def reorder(self, relations=None, mode=None):
         relations = relations or self.relations
@@ -997,6 +1047,14 @@ class IterationSpace(Space):
     @property
     def directions(self):
         return self._directions
+
+    @property
+    def outermost(self):
+        return self[0]
+
+    @property
+    def innermost(self):
+        return self[-1]
 
     @cached_property
     def itintervals(self):

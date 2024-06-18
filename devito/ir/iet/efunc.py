@@ -215,6 +215,13 @@ class KernelLaunch(DeviceCall):
             launch_args += (self.stream.function,)
         return super().functions + launch_args
 
+    @cached_property
+    def expr_symbols(self):
+        launch_symbols = (self.grid, self.block)
+        if self.stream is not None:
+            launch_symbols += (self.stream,)
+        return super().expr_symbols + launch_symbols
+
 
 # Other relevant Callable subclasses
 

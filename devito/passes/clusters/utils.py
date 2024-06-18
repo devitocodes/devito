@@ -1,12 +1,10 @@
-from collections import defaultdict
-
 from devito.ir import Cluster
 from devito.symbolics import uxreplace
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple
 from devito.types import CriticalRegion, Eq, Symbol, Wildcard
 
 __all__ = ['makeit_ssa', 'is_memcpy', 'make_critical_sequence',
-           'bind_critical_regions', 'in_critical_region']
+           'in_critical_region']
 
 
 def makeit_ssa(exprs):
@@ -74,23 +72,17 @@ def make_critical_sequence(ispace, sequence, **kwargs):
     return processed
 
 
-def bind_critical_regions(clusters):
-    """
-    A mapper from CriticalRegions to the critical sequences they open.
-    """
-    critical_region = False
-    mapper = defaultdict(list)
-    for c in clusters:
-        if c.is_critical_region:
-            critical_region = not critical_region and c
-        elif critical_region:
-            mapper[critical_region].append(c)
-    return mapper
-
-
 def in_critical_region(cluster, clusters):
     """
-    True if `cluster` is part of a critical sequence, False otherwise.
+    Return the opening Cluster of the critical sequence containing `cluster`,
+    or None if `cluster` is not part of a critical sequence.
     """
-    mapper = bind_critical_regions(clusters)
-    return cluster in flatten(mapper.values())
+    maybe_found = None
+    for c in clusters:
+        if c is cluster:
+            return maybe_found
+        elif c.is_critical_region and maybe_found:
+            maybe_found = None
+        elif c.is_critical_region:
+            maybe_found = c
+    return None

@@ -15,8 +15,9 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension', 'ConditionalDimension',
-           'ModuloDimension', 'IncrDimension', 'BlockDimension', 'StencilDimension',
+           'CustomDimension', 'SteppingDimension', 'SubDimension',
+           'ConditionalDimension', 'ModuloDimension', 'IncrDimension',
+           'BlockDimension', 'StencilDimension', 'VirtualDimension',
            'Spacing', 'dimensions']
 
 
@@ -100,6 +101,7 @@ class Dimension(ArgProvider):
     is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
+    is_AbstractSub = False
     is_Sub = False
     is_Conditional = False
     is_Stepping = False
@@ -108,6 +110,7 @@ class Dimension(ArgProvider):
     is_Modulo = False
     is_Incr = False
     is_Block = False
+    is_Virtual = False
 
     # Prioritize self's __add__ and __sub__ to construct AffineIndexAccessFunction
     _op_priority = sympy.Expr._op_priority + 1.
@@ -532,7 +535,22 @@ class DerivedDimension(BasicDimension):
 # the user
 
 
-class SubDimension(DerivedDimension):
+class AbstractSubDimension(DerivedDimension):
+
+    """
+    Symbol defining a convex iteration sub-space derived from a ``parent``
+    Dimension.
+
+    Notes
+    -----
+    This is an abstract class. The actual implementations are SubDimension
+    and MultiSubDimension.
+    """
+
+    is_AbstractSub = True
+
+
+class SubDimension(AbstractSubDimension):
 
     """
     Symbol defining a convex iteration sub-space derived from a ``parent``
@@ -554,7 +572,7 @@ class SubDimension(DerivedDimension):
         The thickness of the left and right regions, respectively.
     local : bool
         True if, in case of domain decomposition, the SubDimension is
-        guaranteed not to span more than one domains, False otherwise.
+        guaranteed not to span more than one domain, False otherwise.
 
     Examples
     --------
@@ -1059,7 +1077,7 @@ class ModuloDimension(DerivedDimension):
         try:
             if self.modulo == other.modulo:
                 return self.origin + other.origin
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, sympy.SympifyError):
             pass
         return super().__add__(other)
 
@@ -1069,7 +1087,7 @@ class ModuloDimension(DerivedDimension):
         try:
             if self.modulo == other.modulo:
                 return self.origin - other.origin
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError, sympy.SympifyError):
             pass
         return super().__sub__(other)
 
@@ -1491,6 +1509,44 @@ class StencilDimension(BasicDimension):
 
     def _arg_values(self, *args, **kwargs):
         return {}
+
+
+class VirtualDimension(CustomDimension):
+
+    """
+    Dimension symbol representing a mock iteration space, which as such
+    is eventually ditched by the compiler.
+
+    Mock iteration spaces are used for compilation purposes only, typically
+    to bind objects such as Guards and Syncs to a specific point in the
+    program flow.
+
+    Examples
+    --------
+    To generate nested conditionals within the same loop nest, one may use
+    VirtualDimensions to represent the different branches of the conditionals.
+
+        .. code-block:: C
+
+        for (int i = i_m; i <= i_M; i += 1)
+          if (i < 10)
+            if (i < 5)
+              do A(i);
+            if (i >= 5)
+              do B(i);
+
+    The above code can be obtained by using one VirtualDimension for the
+    `i < 5` conditional and another VirtualDimension for the `i >= 5` conditional.
+    """
+
+    is_Virtual = True
+
+    __rkwargs__ = ('parent',)
+
+    def __init_finalize__(self, name, parent=None):
+        super().__init_finalize__(name, parent=parent,
+                                  symbolic_min=sympy.S.Zero,
+                                  symbolic_max=sympy.S.Zero)
 
 
 # ***

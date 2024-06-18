@@ -179,14 +179,16 @@ class DataManager:
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
-        ffp1 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
-        memptr = VOID(Byref(ffp1), '**')
+        ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
+        memptr = VOID(Byref(ffp0), '**')
         allocs.append(self.lang['host-alloc-pin'](memptr, alignment, nbytes_param))
 
-        ffp0 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
-        init = DummyExpr(ffp0, nbytes_param)
+        ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+        init0 = DummyExpr(ffp1, nbytes_param)
+        ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
+        init1 = DummyExpr(ffp2, 0)
 
-        frees = [self.lang['host-free-pin'](ffp1),
+        frees = [self.lang['host-free-pin'](ffp0),
                  self.lang['host-free'](obj._C_symbol)]
 
         # Not all backends require explicit allocation/deallocation of the
@@ -200,7 +202,7 @@ class DataManager:
         ret = Return(obj._C_symbol)
 
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, *allocs, init, ret)
+        body = (decl, *allocs, init0, init1, ret)
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
         args[args.index(nbytes_param)] = nbytes_arg

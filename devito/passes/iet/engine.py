@@ -1,17 +1,18 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, ExprStmt, FindNodes, FindSymbols, MetaCall,
-                           Transformer, EntryFunction, ThreadCallable, Uxreplace,
+from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, AsyncCallable,
+                           FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
+                           EntryFunction, ThreadCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer
-from devito.tools import (DAG, as_mapper, as_tuple, filter_ordered,
-                          sorted_priority, timed_pass)
+from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
-                          Indirection, SharedData, ThreadArray, Temp)
+                          Indirection, Pointer, SharedData, ThreadArray, Temp,
+                          NPThreads, NThreadsBase, Wildcard)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -73,6 +74,37 @@ class Graph:
     @property
     def funcs(self):
         return tuple(MetaCall(v, True) for v in self.efuncs.values())[1:]
+
+    @property
+    def sync_mapper(self):
+        """
+        A mapper {Iteration -> SyncSpot} describing the Iterations, if any,
+        living an asynchronous region, across all Callables in the Graph.
+        """
+        dag = create_call_graph(self.root.name, self.efuncs)
+
+        mapper = MapNodes(SyncSpot, (Iteration, Call)).visit(self.root)
+
+        found = {}
+        for k, v in mapper.items():
+            if not k.is_async_op:
+                continue
+
+            while v:
+                i = v.pop(0)
+
+                if i.is_Iteration:
+                    found[i] = k
+                    continue
+
+                for j in dag.all_predecessors(i.name):
+                    try:
+                        v.extend(FindNodes(Iteration).visit(self.efuncs[j]))
+                    except KeyError:
+                        # `j` is a foreign Callable
+                        pass
+
+        return found
 
     def apply(self, func, **kwargs):
         """
@@ -220,23 +252,26 @@ def reuse_compounds(efuncs, sregistry=None):
     in this case the transformed `foo` is also syntactically identical to the
     input `foo`, but this isn't necessarily the case.
     """
-    mapper = {}
+    # Build {key -> [objs]} where [objs] can be, or are already, mapped to the
+    # same abstract compound type
+    candidates = defaultdict(list)
     for efunc in efuncs.values():
-        local_sregistry = SymbolRegistry()
         for i in FindSymbols().visit(efunc):
-            abstract_compound(i, mapper, local_sregistry)
+            a = abstract_compound(i)
+            if a is not None:
+                candidates[a._C_ctype].append(i)
 
-    key = lambda i: mapper[i]._C_ctype
     subs = {}
-    for v in as_mapper(mapper, key).values():
-        if len(v) == 1:
+    for v in candidates.values():
+        # Do they actually need to be remapped to a common type or do they
+        # already share the same type?
+        ctypes = {i._C_ctype for i in v}
+        if len(ctypes) == 1:
             continue
 
-        # Recreate now using a globally unique type name
-        abstract_compound(v[0], subs, sregistry)
-        base = subs[v[0]]
+        base = abstract_compound(v[0], sregistry)
 
-        subs.update({i: base._rebuild(name=mapper[i].name) for i in v})
+        subs.update({i: base._rebuild(name=i.name) for i in v})
 
     # Replace all occurrences in the form of FieldFrom{Composite,Pointer}
     mapper = {}
@@ -259,7 +294,7 @@ def reuse_compounds(efuncs, sregistry=None):
 
 
 @singledispatch
-def abstract_compound(i, mapper, sregistry):
+def abstract_compound(i, sregistry=None):
     """
     Singledispatch-based implementation of type abstraction.
     """
@@ -267,15 +302,17 @@ def abstract_compound(i, mapper, sregistry):
 
 
 @abstract_compound.register(SharedData)
-def _(i, mapper, sregistry):
-    pname = sregistry.make_name(prefix="tsd")
+def _(i, sregistry=None):
+    try:
+        pname = sregistry.make_name(prefix='tsd')
+    except AttributeError:
+        pname = 'tsd'
 
     m = abstract_objects(i.fields)
-    cfields = [m.get(i, i) for i in i.cfields]
-    ncfields = [m.get(i, i) for i in i.ncfields]
+    cfields = tuple(m.get(i, i) for i in i.cfields)
+    ncfields = tuple(m.get(i, i) for i in i.ncfields)
 
-    mapper[i] = i._rebuild(cfields=cfields, ncfields=ncfields, pname=pname,
-                           function=None)
+    return i._rebuild(pname=pname, cfields=cfields, ncfields=ncfields, function=None)
 
 
 def reuse_efuncs(root, efuncs, sregistry=None):
@@ -307,8 +344,14 @@ def reuse_efuncs(root, efuncs, sregistry=None):
             continue
 
         efunc = efuncs[i]
-        afunc = abstract_efunc(efunc)
 
+        # Avoid premature lowering of AsyncCalls -- it would obscenely
+        # complicate the logic of the `pthredify` pass
+        if isinstance(efunc, AsyncCallable):
+            mapper[len(mapper)] = (efunc, [efunc])
+            continue
+
+        afunc = abstract_efunc(efunc)
         key = afunc._signature()
 
         try:
@@ -345,7 +388,7 @@ def abstract_efunc(efunc):
             - Arrays are renamed as "a0", "a1", ...
             - Objects are renamed as "o0", "o1", ...
     """
-    functions = FindSymbols('symbolics|dimensions').visit(efunc)
+    functions = FindSymbols('basics|symbolics|dimensions').visit(efunc)
 
     mapper = abstract_objects(functions)
 
@@ -431,9 +474,9 @@ def _(i, mapper, sregistry):
 @abstract_object.register(ThreadArray)
 def _(i, mapper, sregistry):
     if isinstance(i, SharedData):
-        name = sregistry.make_name(prefix='sd')
+        name = sregistry.make_name(prefix='sdata')
     else:
-        name = sregistry.make_name(prefix='pta')
+        name = sregistry.make_name(prefix='threads')
 
     v = i._rebuild(name=name)
 
@@ -483,16 +526,29 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Indirection)
-@abstract_object.register(Temp)
 def _(i, mapper, sregistry):
-    if isinstance(i, Indirection):
-        name = sregistry.make_name(prefix='ind')
-    else:
-        name = sregistry.make_name(prefix='r')
+    mapper[i] = i._rebuild(name=sregistry.make_name(prefix='ind'))
 
-    v = i._rebuild(name=name)
 
-    mapper[i] = v
+@abstract_object.register(Temp)
+@abstract_object.register(Wildcard)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild(name=sregistry.make_name(prefix='r'))
+
+
+@abstract_object.register(Pointer)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild(name=sregistry.make_name(prefix='ptr'))
+
+
+@abstract_object.register(NPThreads)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild(name=sregistry.make_name(prefix='npthreads'))
+
+
+@abstract_object.register(NThreadsBase)
+def _(i, mapper, sregistry):
+    mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
 def update_args(root, efuncs, dag):
@@ -542,7 +598,7 @@ def update_args(root, efuncs, dag):
     # linearization)
     symbols = FindSymbols('basics').visit(root.body)
     drop_params.extend(a for a in root.parameters
-                       if a.is_Symbol and a not in symbols)
+                       if (a.is_Symbol or a.is_LocalObject) and a not in symbols)
 
     # Must record the index, not the param itself, since a param may be
     # bound to whatever arg, possibly a generic SymPy expr

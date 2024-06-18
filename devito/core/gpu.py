@@ -5,10 +5,10 @@ import numpy as np
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
-from devito.passes import is_on_device
+from devito.passes import is_on_device, stream_dimensions
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, Streaming, Tasker, blocking, buffering,
-                                    cire, cse, factorize, fission, fuse,
+from devito.passes.clusters import (Lift, tasking, memcpy_prefetch, blocking,
+                                    buffering, cire, cse, factorize, fission, fuse,
                                     optimize_pows)
 from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
                                hoist_prodders, linearize, pthreadify,
@@ -116,11 +116,15 @@ class DeviceOperatorMixin:
                 return as_tuple(cls.GPU_FIT)
 
     @classmethod
-    def _rcompile_wrapper(cls, **kwargs):
-        def wrapper(expressions, mode='default', **options):
+    def _rcompile_wrapper(cls, **kwargs0):
+        options0 = kwargs0.pop('options')
+
+        def wrapper(expressions, mode='default', options=None, **kwargs1):
+            options = {**options0, **(options or {})}
+            kwargs = {**kwargs0, **kwargs1}
 
             if mode == 'host':
-                par_disabled = kwargs['options']['par-disabled']
+                par_disabled = options['par-disabled']
                 target = {
                     'platform': 'cpu64',
                     'language': 'C' if par_disabled else 'openmp',
@@ -266,15 +270,14 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         platform = kwargs['platform']
         sregistry = kwargs['sregistry']
 
-        # Callbacks used by `buffering`, `Tasking` and `Streaming`
-        callback = lambda f: on_host(f, options)
-        runs_on_host, reads_if_on_host = make_callbacks(options)
+        callback = lambda f: not is_on_device(f, options['gpu-fit'])
+        stream_key = stream_wrap(callback)
 
         return {
-            'buffering': lambda i: buffering(i, callback, sregistry, options),
             'blocking': lambda i: blocking(i, sregistry, options),
-            'tasking': Tasker(runs_on_host, sregistry).process,
-            'streaming': Streaming(reads_if_on_host, sregistry).process,
+            'buffering': lambda i: buffering(i, stream_key, sregistry, options),
+            'tasking': lambda i: tasking(i, stream_key, sregistry),
+            'streaming': lambda i: memcpy_prefetch(i, stream_key, sregistry),
             'factorize': factorize,
             'fission': fission,
             'fuse': lambda i: fuse(i, options=options),
@@ -294,7 +297,7 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
         sregistry = kwargs['sregistry']
 
         parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
-        orchestrator = cls._Target.Orchestrator(sregistry)
+        orchestrator = cls._Target.Orchestrator(**kwargs)
 
         return {
             'parallel': parizer.make_parallel,
@@ -419,39 +422,21 @@ class DeviceCustomAccOperator(DeviceAccOperatorMixin, DeviceCustomOperator):
     assert not (set(_known_passes) & set(DeviceCustomOperator._known_passes_disabled))
 
 
-# Utils
+# *** Utils
 
-def on_host(f, options):
-    # A Dimension in `f` defining an IterationSpace that definitely
-    # gets executed on the host, regardless of whether it's parallel
-    # or sequential
-    if not is_on_device(f, options['gpu-fit']):
-        return f.time_dim
-    else:
-        return None
-
-
-def make_callbacks(options, key=None):
-    """
-    Options-dependent callbacks used by various compiler passes.
-    """
-
-    if key is None:
-        key = lambda f: on_host(f, options)
-
-    def runs_on_host(c):
-        # The only situation in which a Cluster doesn't get offloaded to
-        # the device is when it writes to a host Function
-        retval = {key(f) for f in c.scope.writes} - {None}
-        retval = set().union(*[d._defines for d in retval])
-        return retval
-
-    def reads_if_on_host(c):
-        if not runs_on_host(c):
-            retval = {key(f) for f in c.scope.reads} - {None}
-            retval = set().union(*[d._defines for d in retval])
-            return retval
+def stream_wrap(callback):
+    def stream_key(items, *args):
+        """
+        Given one or more Functions `f(d_1, ...d_n)`, return the Dimensions
+        `(d_i, ..., d_n)` requiring data streaming.
+        """
+        found = [f for f in as_tuple(items) if callback(f)]
+        retval = {stream_dimensions(f) for f in found}
+        if len(retval) > 1:
+            raise ValueError("Cannot determine homogenous stream Dimensions")
+        elif len(retval) == 1:
+            return retval.pop()
         else:
-            return set()
+            return None
 
-    return runs_on_host, reads_if_on_host
+    return stream_key

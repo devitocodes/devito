@@ -4,9 +4,9 @@ import numpy as np
 import sympy
 from sympy.core.core import ordering_of_classes
 
-from devito.types import Array, CompositeObject, Indexed, Symbol
+from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
 from devito.types.basic import IndexedData
-from devito.tools import Pickable, as_tuple
+from devito.tools import Pickable, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
@@ -60,30 +60,30 @@ class Wildcard(Symbol):
 class FIndexed(Indexed, Pickable):
 
     """
-    A flatten Indexed with functional (primary) and indexed (secondary) representations.
+    An FIndexed is a symbolic object used to represent a multidimensional
+    array in symbolic equations. It is a subclass of Indexed, and as such
+    it has a base (the symbol representing the array) and a number of indices.
 
-    Examples
-    --------
-    Consider the Indexed `u[x, y]`. The corresponding FIndexed's functional representation
-    is `u(x, y)`. This is a multidimensional representation, just like any other Indexed.
-    The corresponding indexed (secondary) represenation is instead flatten, that is
-    `uX[x*ny + y]`, where `X` is a string provided by the caller.
+    However, unlike Indexed, the representation of an FIndexed is functional,
+    e.g., `u(x, y)`, rather than explicit, e.g., `u[x, y]`.
+
+    An FIndexed also carries the necessary information to generate a 1-dimensional
+    representation of the array, which is necessary when dealing with actual
+    memory accesses. For example, an FIndexed carries the strides of the array,
+    which ultimately allow to compute the actual memory address of an element.
+    For example, the FIndexed `u(x, y)` corresponds to the indexed representation
+    `u[x*ny + y]`, where `ny` is the stride of the array `u` along the y-axis.
     """
 
     __rargs__ = ('base', '*indices')
-    __rkwargs__ = ('strides',)
+    __rkwargs__ = ('strides_map', 'accessor')
 
-    def __new__(cls, base, *args, strides=None):
+    def __new__(cls, base, *args, strides_map=None, accessor=None):
         obj = super().__new__(cls, base, *args)
-        obj.strides = as_tuple(strides)
+        obj.strides_map = frozendict(strides_map or {})
+        obj.accessor = accessor
 
         return obj
-
-    @classmethod
-    def from_indexed(cls, indexed, pname, strides=None):
-        label = Symbol(name=pname, dtype=indexed.dtype)
-        base = IndexedData(label, None, function=indexed.function)
-        return FIndexed(base, *indexed.indices, strides=strides)
 
     def __repr__(self):
         return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
@@ -91,17 +91,18 @@ class FIndexed(Indexed, Pickable):
     __str__ = __repr__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.strides,)
+        accessor = self.accessor or 0  # Avoids TypeError inside sympy.Basic.compare
+        return super()._hashable_content() + (self.strides, accessor)
 
     func = Pickable._rebuild
 
     @property
     def name(self):
-        return self.function.name
+        return self.base.name
 
     @property
-    def pname(self):
-        return self.base.name
+    def strides(self):
+        return tuple(self.strides_map.values())
 
     @property
     def free_symbols(self):
@@ -110,6 +111,39 @@ class FIndexed(Indexed, Pickable):
         # the address calculation just like all other free_symbols
         return (super().free_symbols |
                 set().union(*[i.free_symbols for i in self.strides]))
+
+    def bind(self, pname):
+        """
+        Generate a 2-tuple:
+
+            * A macro which expands to the 1-dimensional representation of the
+              FIndexed, e.g. `aL0(t,x,y) -> a[(t)*x_stride0 + (x)*y_stride0 + (y)]`
+            * A new FIndexed, with the same indices as `self`, but with a new
+              base symbol named after `pname`, e.g. `aL0(t, x+1, y-2)`, where
+              `aL0` is given by the `pname`.
+        """
+        b = self.base
+        f = self.function
+        strides_map = self.strides_map
+
+        # TODO: resolve circular import. This is a tough one though, as it
+        # requires a complete rethinking of `symbolics` vs `types` folders
+        from devito.symbolics import DefFunction, MacroArgument
+
+        macroargnames = [d.name for d in f.dimensions]
+        macroargs = [MacroArgument(i) for i in macroargnames]
+
+        items = [m*strides_map[d] for m, d in zip(macroargs, f.dimensions[1:])]
+        items.append(MacroArgument(f.dimensions[-1].name))
+
+        define = DefFunction(pname, macroargnames)
+        expr = Indexed(b, sympy.Add(*items, evaluate=False))
+
+        label = Symbol(name=pname, dtype=self.dtype)
+        accessor = IndexedData(label, None, function=f)
+        findexed = self.func(accessor=accessor)
+
+        return ((define, expr), findexed)
 
     func = Pickable._rebuild
 
@@ -137,16 +171,17 @@ class Hyperplane(tuple):
         return frozenset().union(*[i._defines for i in self])
 
 
-class Pointer(Symbol):
+class Pointer(LocalObject):
 
-    @classmethod
-    def __dtype_setup__(cls, **kwargs):
-        return kwargs.get('dtype', c_void_p)
+    __rkwargs__ = LocalObject.__rkwargs__ + ('dtype',)
+
+    def __init__(self, *args, dtype=c_void_p, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._dtype = dtype
 
     @property
-    def _C_ctype(self):
-        # `dtype` is a ctypes-derived type!
-        return self.dtype
+    def dtype(self):
+        return self._dtype
 
 
 class Indirection(Symbol):

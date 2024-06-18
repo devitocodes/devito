@@ -177,7 +177,9 @@ class CacheManager:
         cache_copied = safe_dict_copy(_SymbolCache)
 
         # Maybe trigger garbage collection
-        if force is False:
+        if force:
+            gc.collect()
+        else:
             if cls.ncalls_w_force_false + 1 == cls.force_ths:
                 # Case 1: too long since we called gc.collect, let's do it now
                 gc.collect()
@@ -189,8 +191,6 @@ class CacheManager:
             else:
                 # We won't call gc.collect() this time
                 cls.ncalls_w_force_false += 1
-        else:
-            gc.collect()
 
         for key in cache_copied:
             obj = _SymbolCache.get(key)
@@ -198,6 +198,10 @@ class CacheManager:
                 # deleted by another thread since we took the copy
                 continue
             if obj() is None:
-                # pop(x, None) does not error if already gone
                 # (key could be removed in another thread since get() above)
                 _SymbolCache.pop(key, None)
+
+        # Maybe trigger garbage collection
+        if force:
+            del cache_copied
+            gc.collect()

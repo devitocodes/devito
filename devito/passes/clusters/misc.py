@@ -3,8 +3,8 @@ from itertools import groupby, product
 
 from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock,
-                               WaitLock, WithLock, FetchUpdate, PrefetchUpdate)
+from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
+                               WithLock, InitArray, SyncArray, PrefetchUpdate)
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
@@ -32,8 +32,8 @@ class Lift(Queue):
         if not prefix:
             # No iteration space to be lifted from
             return clusters
-
         dim = prefix[-1].dim
+
         hope_invariant = dim._defines
         outer = set().union(*[i.dim._defines for i in prefix[:-1]])
 
@@ -46,7 +46,7 @@ class Lift(Queue):
                 continue
 
             # Synchronization prevents lifting
-            if c.syncs.get(dim) or \
+            if any(c.syncs.get(d) for d in dim._defines) or \
                in_critical_region(c, clusters):
                 processed.append(c)
                 continue
@@ -72,8 +72,9 @@ class Lift(Queue):
             #     r = f(a[x])        for y                       for y
             #                          r[x] = f(a[x, y])           r[x, y] = f(a[x, y])
             #
-            # In 1) and 2) lifting is infeasible; in 3) the statement can be lifted
-            # outside the `i` loop as `r`'s write-to region contains both `x` and `y`
+            # In 1) and 2) lifting is infeasible; in 3) the statement can
+            # be lifted outside the `i` loop as `r`'s write-to region contains
+            # both `x` and `y`
             xed = {d._defines for d in c.used_dimensions if d not in outer}
             if not all(i & set(w.dimensions) for i, w in product(xed, c.scope.writes)):
                 processed.append(c)
@@ -85,10 +86,13 @@ class Lift(Queue):
 
             # Optimization: if not lifting from the innermost Dimension, we can
             # safely reset the `ispace` to expose potential fusion opportunities
-            if c.ispace[-1].dim not in hope_invariant:
-                ispace = ispace.reset()
+            try:
+                if c.ispace.innermost.dim not in hope_invariant:
+                    ispace = ispace.reset()
+            except IndexError:
+                pass
 
-            properties = {d: v for d, v in c.properties.items() if key(d)}
+            properties = c.properties.filter(key)
 
             lifted.append(c.rebuild(ispace=ispace, properties=properties))
 
@@ -193,19 +197,27 @@ class Fusion(Queue):
             mapper = defaultdict(set)
             for k, v in i.items():
                 for s in v:
-                    if isinstance(s, PrefetchUpdate) or \
-                       (not self.fusetasks and isinstance(s, WaitLock)):
+                    if isinstance(s, PrefetchUpdate):
+                        continue
+
+                    if isinstance(s, WaitLock) and not self.fusetasks:
                         # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence
                         continue
-                    elif (isinstance(s, (FetchUpdate, WaitLock, ReleaseLock)) or
-                          (self.fusetasks and isinstance(s, WithLock))):
+
+                    if isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
+                        mapper[k].add(type(s))
+                    elif isinstance(s, WithLock) and self.fusetasks:
+                        # NOTE: Different WithLocks aren't fused unless the user
+                        # explicitly asks for it
                         mapper[k].add(type(s))
                     else:
                         mapper[k].add(s)
+
                 if k in mapper:
                     mapper[k] = frozenset(mapper[k])
+
             strict.append(frozendict(mapper))
 
         weak = []

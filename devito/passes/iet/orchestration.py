@@ -1,19 +1,18 @@
 from collections import OrderedDict
 from functools import singledispatch
 
-import cgen as c
 from sympy import Or
 
-from devito.exceptions import CompilationError
-from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes,
-                           Transformer, BlankLine, BusyWait, DummyExpr, AsyncCall,
-                           AsyncCallable, derive_parameters)
-from devito.ir.support import (WaitLock, WithLock, ReleaseLock, FetchUpdate,
-                               PrefetchUpdate)
+from devito.exceptions import InvalidOperator
+from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes, Transformer,
+                           BlankLine, BusyWait, DummyExpr, AsyncCall, AsyncCallable,
+                           make_callable, derive_parameters)
+from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
+                               SyncArray, PrefetchUpdate, SnapOut, SnapIn)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import as_mapper
+from devito.tools import DAG, as_mapper, as_tuple
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
@@ -30,13 +29,11 @@ class Orchestrator:
     The language used to implement host-device data movements.
     """
 
-    def __init__(self, sregistry):
+    def __init__(self, sregistry=None, **kwargs):
         self.sregistry = sregistry
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
-            header=c.Comment("Wait for `%s` to be transferred" %
-                             ",".join(s.target.name for s in sync_ops)),
             body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
         )
 
@@ -72,22 +69,38 @@ class Orchestrator:
 
         return iet, [efunc]
 
-    def _make_fetchupdate(self, iet, sync_ops, layer):
-        body, prefix = fetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
+    def _make_callable(self, name, iet, *args):
+        name = self.sregistry.make_name(prefix=name)
+        efunc = make_callable(name, iet.body)
 
-        # Turn init IET into a Callable
-        name = self.sregistry.make_name(prefix=prefix)
-        body = List(body=body)
-        parameters = derive_parameters(body, ordering='canonical')
-        efunc = Callable(name, body, 'void', parameters, 'static')
-
-        # Perform initial fetch by the main thread
-        iet = List(
-            header=c.Comment("Initialize data stream"),
-            body=Call(name, parameters)
-        )
+        iet = Call(name, efunc.parameters)
 
         return iet, [efunc]
+
+    def _make_initarray(self, iet, *args):
+        return self._make_callable('init_array', iet, *args)
+
+    def _make_snapout(self, iet, *args):
+        return self._make_callable('write_snapshot', iet, *args)
+
+    def _make_snapin(self, iet, *args):
+        return self._make_callable('read_snapshot', iet, *args)
+
+    def _make_syncarray(self, iet, sync_ops, layer):
+        try:
+            qid = self.sregistry.queue0
+        except AttributeError:
+            qid = None
+
+        body = list(iet.body)
+        try:
+            body.extend([self.lang._map_update_device(s.target, s.imask, qid=qid)
+                         for s in sync_ops])
+        except NotImplementedError:
+            pass
+        iet = List(body=body)
+
+        return iet, []
 
     def _make_prefetchupdate(self, iet, sync_ops, layer):
         body, prefix = prefetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
@@ -110,36 +123,59 @@ class Orchestrator:
         if not sync_spots:
             return iet, {}
 
+        # The SyncOps are to be processed in a given order
         callbacks = OrderedDict([
             (WaitLock, self._make_waitlock),
             (WithLock, self._make_withlock),
-            (FetchUpdate, self._make_fetchupdate),
+            (SyncArray, self._make_syncarray),
+            (InitArray, self._make_initarray),
+            (SnapOut, self._make_snapout),
+            (SnapIn, self._make_snapin),
             (PrefetchUpdate, self._make_prefetchupdate),
             (ReleaseLock, self._make_releaselock),
         ])
-
-        # The SyncOps are to be processed in a given order
         key = lambda s: list(callbacks).index(s)
 
+        # The SyncSpots may be nested, so we compute a topological ordering
+        # so that they are processed in a bottom-up fashion. This is necessary
+        # because e.g. an inner SyncSpot may generate new objects (e.g., a new
+        # Queue), which in turn must be visible to the outer SyncSpot to
+        # generate the correct parameters list
         efuncs = []
-        subs = {}
-        for n in sync_spots:
-            mapper = as_mapper(n.sync_ops, lambda i: type(i))
+        while True:
+            sync_spots = FindNodes(SyncSpot).visit(iet)
+            if not sync_spots:
+                break
 
+            n0 = ordered(sync_spots).pop(0)
+            mapper = as_mapper(n0.sync_ops, lambda i: type(i))
+
+            subs = {}
             for t in sorted(mapper, key=key):
                 sync_ops = mapper[t]
 
                 layers = {infer_layer(s.function) for s in sync_ops}
                 if len(layers) != 1:
-                    raise CompilationError("Unsupported streaming case")
+                    raise InvalidOperator("Unsupported streaming case")
                 layer = layers.pop()
 
-                subs[n], v = callbacks[t](subs.get(n, n), sync_ops, layer)
+                n1, v = callbacks[t](subs.get(n0, n0), sync_ops, layer)
+
+                subs[n0] = n1
                 efuncs.extend(v)
 
-        iet = Transformer(subs).visit(iet)
+            iet = Transformer(subs).visit(iet)
 
         return iet, {'efuncs': efuncs}
+
+
+def ordered(sync_spots):
+    dag = DAG(nodes=sync_spots)
+    for n0 in sync_spots:
+        for n1 in as_tuple(FindNodes(SyncSpot).visit(n0.body)):
+            dag.add_edge(n1, n0)
+
+    return dag.topological_sort()
 
 
 # Task handlers
@@ -184,29 +220,6 @@ def _(layer, iet, sync_ops, lang, sregistry):
 
     body.append(BlankLine)
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
-
-    return body, name
-
-
-@singledispatch
-def fetchupdate(layer, iet, sync_ops, lang, sregistry):
-    raise NotImplementedError
-
-
-@fetchupdate.register(HostLayer)
-def _(layer, iet, sync_ops, lang, sregistry):
-    try:
-        qid = sregistry.queue0
-    except AttributeError:
-        qid = None
-
-    body = list(iet.body)
-    try:
-        body.extend([lang._map_update_device(s.target, s.imask, qid=qid)
-                     for s in sync_ops])
-        name = 'init_from_%s' % layer.suffix
-    except NotImplementedError:
-        name = 'init_to_%s' % layer.suffix
 
     return body, name
 

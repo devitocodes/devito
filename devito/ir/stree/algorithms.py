@@ -32,6 +32,10 @@ def stree_build(clusters, profiler=None, **kwargs):
         if reuse_whole_subtree(c, prev):
             tip = mapper[base].bottom
             maybe_reusable = prev.itintervals
+        elif reuse_partial_subtree(c, prev):
+            tip = mapper[base].middle
+            tip = augment_partial_subtree(c, tip, mapper, base)
+            maybe_reusable = []
         else:
             # Add any guards/Syncs outside of the outermost Iteration
             tip = augment_whole_subtree(c, stree, mapper, base)
@@ -76,8 +80,9 @@ def stree_build(clusters, profiler=None, **kwargs):
         # Add in Node{Iteration,Conditional,Sync}
         for it in c.itintervals[index:]:
             d = it.dim
-            tip = NodeIteration(c.ispace.project([d]), tip, c.properties.get(d, ()))
-            mapper[it].top = tip
+            ispace = c.ispace.project([d])
+            properties = c.properties.get(d, ())
+            mapper[it].top = tip = NodeIteration(ispace, tip, properties)
             tip = augment_whole_subtree(c, tip, mapper, it)
 
         # Attach NodeHalo if necessary
@@ -109,22 +114,30 @@ def stree_build(clusters, profiler=None, **kwargs):
            any(i.is_Section for i in reversed(tip.ancestors)):
             continue
 
-        candidate = None
-        for i in reversed(tip.ancestors + (tip,)):
+        candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
+
+        if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
+           not candidates[-1] is stree:
+            attach_section(candidates[-1])
+            continue
+
+        found = None
+        for i in candidates:
             if i.is_Halo:
-                candidate = i
+                found = i
             elif i.is_Sync:
-                attach_section(i)
-                section = None
+                if profiler._verbosity > 0 or not i.is_async:
+                    attach_section(i)
+                    section = None
                 break
             elif i.is_Iteration:
                 if (i.dim.is_Time and SEQUENTIAL in i.properties):
-                    section = attach_section(candidate, section)
+                    section = attach_section(found, section)
                     break
                 else:
-                    candidate = i
+                    found = i
         else:
-            attach_section(candidate, section)
+            attach_section(found, section)
 
     return stree
 
@@ -158,8 +171,9 @@ def preprocess(clusters, options=None, **kwargs):
         elif c.is_dist_reduce:
             processed.append(c)
 
-        elif c.is_critical_region and c.syncs:
-            processed.append(c.rebuild(exprs=None, guards=c.guards, syncs=c.syncs))
+        elif c.is_critical_region:
+            if c.is_wait:
+                processed.append(c.rebuild(exprs=[]))
 
         elif c.is_wild:
             continue
@@ -187,7 +201,7 @@ def preprocess(clusters, options=None, **kwargs):
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:
-                ispace = c.ispace.project(syncs)
+                ispace = c.ispace.prefix(lambda d: d._defines.intersection(syncs))
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             if all(c1.ispace.is_subset(c.ispace) for c1 in found):
@@ -227,7 +241,7 @@ def reuse_whole_subtree(c0, c1, d=None):
             c0.syncs.get(d) == c1.syncs.get(d))
 
 
-def augment_partial_subtree(cluster, tip, mapper, it=None):
+def augment_partial_subtree(cluster, tip, mapper, it):
     d = it.dim
 
     if d in cluster.syncs:

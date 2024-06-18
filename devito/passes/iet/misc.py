@@ -10,8 +10,10 @@ from devito.ir import (Any, Forward, Iteration, List, Prodder, FindApplications,
                        filter_iterations, retrieve_iteration_tree, pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import ValueLimit, evalrel, has_integer_args, limits_mapper
-from devito.tools import as_mapper, filter_ordered, split
+from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper,
+                              ccode)
+from devito.tools import Bunch, as_mapper, filter_ordered, split
+from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
            'generate_macros', 'minimize_symbols']
@@ -135,11 +137,23 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
     return iet, {}
 
 
+def generate_macros(graph, **kwargs):
+    _generate_macros(graph, tracker={}, **kwargs)
+
+
 @iet_pass
-def generate_macros(iet):
+def _generate_macros(iet, tracker=None, **kwargs):
+    # Derive the Macros necessary for the FIndexeds
+    iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
+
+    headers = [i.header for i in tracker.values()]
+    headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
+
     # Generate Macros from higher-level SymPy objects
-    applications = FindApplications().visit(iet)
-    headers = set().union(*[_generate_macros(i) for i in applications])
+    headers.extend(_generate_macros_math(iet))
+
+    # Remove redundancies while preserving the order
+    headers = filter_ordered(headers)
 
     # Some special Symbols may represent Macros defined in standard libraries,
     # so we need to include the respective includes
@@ -153,27 +167,61 @@ def generate_macros(iet):
     return iet, {'headers': headers, 'includes': includes}
 
 
+def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
+    indexeds = FindSymbols('indexeds').visit(iet)
+    findexeds = [i for i in indexeds if isinstance(i, FIndexed)]
+    if not findexeds:
+        return iet
+
+    subs = {}
+    for i in findexeds:
+        try:
+            v = tracker[i.base].v
+            subs[i] = v.func(v.base, *i.indices)
+            continue
+        except KeyError:
+            pass
+
+        pname = sregistry.make_name(prefix='%sL' % i.name)
+        header, v = i.bind(pname)
+
+        subs[i] = v
+        tracker[i.base] = Bunch(header=header, v=v)
+
+    iet = Uxreplace(subs).visit(iet)
+
+    return iet
+
+
+def _generate_macros_math(iet):
+    headers = []
+    for i in FindApplications().visit(iet):
+        headers.extend(_lower_macro_math(i))
+
+    return headers
+
+
 @singledispatch
-def _generate_macros(expr):
-    return set()
+def _lower_macro_math(expr):
+    return ()
 
 
-@_generate_macros.register(Min)
-@_generate_macros.register(sympy.Min)
+@_lower_macro_math.register(Min)
+@_lower_macro_math.register(sympy.Min)
 def _(expr):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return {('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))'))}
+        return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),)
     else:
-        return set()
+        return ()
 
 
-@_generate_macros.register(Max)
-@_generate_macros.register(sympy.Max)
+@_lower_macro_math.register(Max)
+@_lower_macro_math.register(sympy.Max)
 def _(expr):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return {('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))'))}
+        return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),)
     else:
-        return set()
+        return ()
 
 
 @iet_pass
@@ -198,7 +246,7 @@ def remove_redundant_moddims(iet):
     if not mds:
         return iet
 
-    mapper = as_mapper(mds, key=lambda md: md.origin % md.modulo)
+    mapper = as_mapper(mds, key=lambda md: md.offset % md.modulo)
 
     subs = {}
     for k, v in mapper.items():
@@ -261,7 +309,7 @@ def _rename_subdims(target, dimensions):
     # the expression
     indexeds = FindSymbols('indexeds').visit(target)
     dims = pull_dims(indexeds, flag=False)
-    dims = [d for d in dims if any([dim.is_Sub for dim in d._defines])]
+    dims = [d for d in dims if any(dim.is_AbstractSub for dim in d._defines)]
     dims = [d for d in dims if not d.is_SubIterator]
     names = [d.root.name for d in dims]
 

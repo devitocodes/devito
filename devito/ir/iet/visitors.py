@@ -1293,7 +1293,26 @@ class Uxreplace(Transformer):
     def visit_PragmaTransfer(self, o):
         function = uxreplace(o.function, self.mapper)
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
-        return o._rebuild(function=function, arguments=arguments)
+        if o.imask is None:
+            return o._rebuild(function=function, arguments=arguments)
+
+        # An `imask` may be None, a list of symbols/numbers, or a list of
+        # 2-tuples representing ranges
+        imask = []
+        for v in o.imask:
+            try:
+                i, j = v
+                imask.append((uxreplace(i, self.mapper),
+                              uxreplace(j, self.mapper)))
+            except TypeError:
+                imask.append(uxreplace(v, self.mapper))
+        return o._rebuild(function=function, imask=imask, arguments=arguments)
+
+    def visit_ParallelTree(self, o):
+        prefix = self._visit(o.prefix)
+        body = self._visit(o.body)
+        nthreads = self.mapper.get(o.nthreads, o.nthreads)
+        return o._rebuild(prefix=prefix, body=body, nthreads=nthreads)
 
     def visit_HaloSpot(self, o):
         hs = o.halo_scheme

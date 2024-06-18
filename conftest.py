@@ -244,6 +244,7 @@ def pytest_runtest_call(item):
 
     elif item.get_closest_marker("parallel"):
         # Spawn parallel processes to run test
+
         outcome = parallel(item, item.funcargs['mode'])
         if outcome:
             pytest.skip(f"{item} success in parallel")

@@ -85,6 +85,8 @@ array accesses, typically through the use of custom conditionals in the body. Th
 is used for iteration spaces that are larger than the data space.
 """
 
+PREFETCHABLE = Property('prefetchable')
+
 
 # Bundles
 PARALLELS = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
@@ -181,6 +183,12 @@ class Properties(frozendict):
             m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
         return Properties(m)
 
+    def prefetchable(self, dims):
+        m = dict(self)
+        for d in as_tuple(dims):
+            m[d] = self.get(d, set()) | {PREFETCHABLE}
+        return Properties(m)
+
     def block(self, dims, kind='default'):
         if kind == 'default':
             p = TILABLE
@@ -223,6 +231,9 @@ class Properties(frozendict):
 
     def is_blockable_small(self, d):
         return TILABLE_SMALL in self.get(d, set())
+
+    def is_prefetchable(self, dims):
+        return any(PREFETCHABLE in self.get(d, set()) for d in as_tuple(dims))
 
     @property
     def nblockable(self):

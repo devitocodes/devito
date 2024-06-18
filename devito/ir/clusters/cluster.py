@@ -6,14 +6,14 @@ import numpy as np
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
                                Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Guards, Properties, Scope, WithLock,
-                               PrefetchUpdate, detect_accesses, detect_io,
+                               DataSpace, Guards, Properties, Scope, WaitLock,
+                               WithLock, PrefetchUpdate, detect_accesses, detect_io,
                                normalize_properties, normalize_syncs, minimum,
                                maximum, null_ispace)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, frozendict, infer_dtype
+from devito.tools import as_tuple, flatten, infer_dtype
 from devito.types import WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -49,9 +49,8 @@ class Cluster:
         self._exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
         self._guards = Guards(guards or {})
-        self._syncs = frozendict(syncs or {})
+        self._syncs = normalize_syncs(syncs or {})
 
-        # Normalize properties
         properties = Properties(properties or {})
         self._properties = tailor_properties(properties, ispace)
 
@@ -279,6 +278,15 @@ class Cluster:
         return any(isinstance(s, (WithLock, PrefetchUpdate))
                    for s in flatten(self.syncs.values()))
 
+    @property
+    def is_wait(self):
+        """
+        True if a Cluster waiting on a lock (that is a special synchronization
+        operation), False otherwise.
+        """
+        return any(isinstance(s, WaitLock)
+                   for s in flatten(self.syncs.values()))
+
     @cached_property
     def dtype(self):
         """
@@ -341,9 +349,9 @@ class Cluster:
                 if len(ret) != 1:
                     continue
                 if ret.pop().direction is Forward:
-                    intervals = intervals.translate(d, v1=-1)
+                    intervals = intervals.translate(d._defines, v1=-1)
                 else:
-                    intervals = intervals.translate(d, 1)
+                    intervals = intervals.translate(d._defines, 1)
             for d in self.properties:
                 if self.properties.is_inbound(d):
                     intervals = intervals.zero(d._defines)

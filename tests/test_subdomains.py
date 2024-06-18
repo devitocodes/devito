@@ -672,29 +672,6 @@ class TestMultiSubDomain:
         assert z.is_Parallel
 
 
-class TestMultiSubDimension:
-
-    def test_rebuild(self):
-        class Dummy(SubDomainSet):
-            name = 'dummy'
-
-        dummy = Dummy(N=0, bounds=[(), (), (), ()])
-        grid = Grid(shape=(10, 10), subdomains=(dummy,))
-        sdims = grid.subdomains['dummy'].dimensions
-
-        # Check normal rebuilding
-        tkns = [d.thickness for d in sdims]
-        rebuilt = [d._rebuild() for d in sdims]
-        assert list(sdims) != rebuilt
-        # Should build new thickness symbols with same names and values
-        assert all([d.thickness is not t for d, t in zip(rebuilt, tkns)])
-        assert all([d.thickness == t for d, t in zip(rebuilt, tkns)])
-
-        # Switch the thickness symbols between MultiSubDimensions with the rebuild
-        remixed = [d._rebuild(thickness=t) for d, t in zip(sdims, tkns[::-1])]
-        assert [d.thickness for d in remixed] == tkns[::-1]
-
-
 class TestSubDomain_w_condition:
 
     def test_condition_w_subdomain_v0(self):

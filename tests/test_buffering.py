@@ -2,8 +2,8 @@ import pytest
 import numpy as np
 
 from conftest import skipif
-from devito import (Constant, Grid, TimeFunction, SparseTimeFunction, Operator,
-                    Eq, ConditionalDimension, SubDimension, SubDomain, configuration)
+from devito import (Constant, Grid, TimeFunction, Operator, Eq, SubDimension,
+                    SubDomain, ConditionalDimension)
 from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.exceptions import InvalidOperator
 
@@ -209,7 +209,7 @@ def test_two_homogeneous_buffers():
     op2 = Operator(eqns, opt=('buffering', 'fuse'))
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 5
     assert len(retrieve_iteration_tree(op2)) == 3
     buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
     assert len(buffers) == 2
@@ -250,36 +250,6 @@ def test_two_heterogeneous_buffers():
 
     assert np.all(u.data == u1.data)
     assert np.all(v.data == v1.data)
-
-
-def test_over_injection():
-    nt = 10
-    grid = Grid(shape=(4, 4))
-
-    src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt)
-    rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt)
-    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2, save=nt)
-    u1 = TimeFunction(name="u", grid=grid, time_order=2, space_order=2, save=nt)
-
-    src.data[:] = 1.
-
-    eqns = ([Eq(u.forward, u + 1)] +
-            src.inject(field=u.forward, expr=src) +
-            rec.interpolate(expr=u.forward))
-
-    op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt=('buffering', {'par-collapse-work': 0}))
-
-    # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == \
-        7 + int(configuration['language'] != 'C')
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
-    assert len(buffers) == 1
-
-    op0.apply(time_M=nt-2)
-    op1.apply(time_M=nt-2, u=u1)
-
-    assert np.all(u.data == u1.data)
 
 
 def test_over_one_subdomain():
@@ -706,18 +676,21 @@ def test_stencil_issue_1915(subdomain):
     nt = 5
     grid = Grid(shape=(6, 6))
 
-    u = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
-    u1 = TimeFunction(name='u', grid=grid, space_order=4, save=nt)
+    u = TimeFunction(name='u', grid=grid, space_order=4)
+    u1 = TimeFunction(name='u', grid=grid, space_order=4)
+    usave = TimeFunction(name='usave', grid=grid, space_order=4, save=nt)
+    usave1 = TimeFunction(name='usave', grid=grid, space_order=4, save=nt)
 
     subdomain = grid.subdomains[subdomain]
 
-    eqn = Eq(u.forward, u.dx + 1, subdomain=subdomain)
+    eqns = [Eq(u.forward, u.dx + 1, subdomain=subdomain),
+            Eq(usave, u.forward, subdomain=subdomain)]
 
-    op0 = Operator(eqn, opt='noop')
-    op1 = Operator(eqn, opt='buffering')
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt='buffering')
 
     op0.apply(time_M=nt-2)
-    op1.apply(time_M=nt-2, u=u1)
+    op1.apply(time_M=nt-2, u=u1, usave=usave1)
 
     assert np.all(u.data == u1.data)
 

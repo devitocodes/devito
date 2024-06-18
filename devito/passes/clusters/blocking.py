@@ -7,7 +7,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_tuple,
+from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
                           filter_ordered, flatten, is_integer, prod)
 from devito.types import BlockDimension
 
@@ -299,6 +299,11 @@ class SynthesizeBlocking(Queue):
         self.levels = options['blocklevels']
         self.par_tile = options['par-tile']
 
+        # Track the BlockDimensions created so far so that we can reuse them
+        # in case of Clusters that are different but share the same number of
+        # stencil points
+        self.mapper = {}
+
         super().__init__()
 
     def process(self, clusters):
@@ -310,28 +315,24 @@ class SynthesizeBlocking(Queue):
 
         return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
 
-    def callback(self, clusters, prefix, blk_size_gen=None):
-        if not prefix:
-            return clusters
-
-        d = prefix[-1].dim
-
-        if not any(c.properties.is_blockable(d) for c in clusters):
-            return clusters
-
-        # Create the block Dimensions (in total `self.levels` Dimensions)
-        base = self.sregistry.make_name(prefix=d.name)
-
+    def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
         if blk_size_gen is not None:
             # By passing a suitable key to `next` we ensure that we pull the
             # next par-tile entry iff we're now blocking an unseen TILABLE nest
-            try:
-                step = sympify(blk_size_gen.next(prefix, d, clusters))
-            except StopIteration:
-                return clusters
+            step = sympify(blk_size_gen.next(prefix, d, clusters))
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
             step = None
+
+        # Can I reuse existing BlockDimensions to avoid a proliferation of steps?
+        k = stencil_footprint(clusters, d)
+        if step is None:
+            try:
+                return self.mapper[k]
+            except KeyError:
+                pass
+
+        base = self.sregistry.make_name(prefix=d.name)
 
         name = self.sregistry.make_name(prefix="%s_blk" % base)
         bd = BlockDimension(name, d, d.symbolic_min, d.symbolic_max, step)
@@ -345,6 +346,26 @@ class SynthesizeBlocking(Queue):
 
         bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=step)
         block_dims.append(bd)
+
+        retval = self.mapper[k] = tuple(block_dims), bd
+
+        return retval
+
+    def callback(self, clusters, prefix, blk_size_gen=None):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
+        if not any(c.properties.is_blockable(d) for c in clusters):
+            return clusters
+
+        try:
+            block_dims, bd = self._derive_block_dims(
+                clusters, prefix, d, blk_size_gen
+            )
+        except StopIteration:
+            return clusters
 
         processed = []
         for c in clusters:
@@ -368,6 +389,23 @@ class SynthesizeBlocking(Queue):
         return processed
 
 
+def stencil_footprint(clusters, d):
+    """
+    Compute the number of stencil points in the given Dimension `d` across the
+    provided Clusters.
+    """
+    # The following would be an approximation in the case of irregular Clusters,
+    # but if we're here it means the Clusters are likely regular, so it's fine
+    indexeds = set().union(*[c.scope.indexeds for c in clusters])
+    indexeds = [i for i in indexeds if d._defines & set(i.dimensions)]
+
+    # Distinguish between footprints pertaining to different Functions
+    mapper = as_mapper(indexeds, lambda i: i.function)
+    n = tuple(sorted(len(v) for v in mapper.values()))
+
+    return (d, n)
+
+
 def decompose(ispace, d, block_dims):
     """
     Create a new IterationSpace in which the `d` Interval is decomposed
@@ -384,7 +422,7 @@ def decompose(ispace, d, block_dims):
 
     # Create the intervals relations
     # 1: `bbd > bd`
-    relations = [tuple(block_dims)]
+    relations = [block_dims]
 
     # 2: Suitably replace `d` with all `bd`'s
     for r in ispace.relations:

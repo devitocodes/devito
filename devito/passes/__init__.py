@@ -36,6 +36,16 @@ def is_on_device(obj, gpu_fit):
     return all(f in gpu_fit for f in fsave)
 
 
+def stream_dimensions(f):
+    """
+    Return the Function's dimensions that are candidates for data streaming.
+    """
+    if f.is_TimeFunction:
+        return tuple(d for d in f.dimensions if not d.is_Time)
+    else:
+        return ()
+
+
 def needs_transfer(f, gpu_fit):
     """
     True if the given object triggers a transfer from/to device memory,
