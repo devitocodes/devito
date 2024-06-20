@@ -9,7 +9,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
-from devito.passes.iet.languages.C import CBB
+from devito.passes.iet.languages.CXX import CXXBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
 from devito.tools import filter_ordered, UnboundTuple
@@ -122,7 +122,8 @@ class AccBB(PragmaLangBB):
         'device-free': lambda i, *a:
             Call('acc_free', (i,))
     }
-    mapper.update(CBB.mapper)
+
+    mapper.update(CXXBB.mapper)
 
     Region = OmpRegion
     HostIteration = OmpIteration  # Host parallelism still goes via OpenMP

@@ -11,6 +11,7 @@ from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
+from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
@@ -37,13 +38,17 @@ class CodePrinter(C99CodePrinter):
 
     @property
     def compiler(self):
-        return self._settings['compiler']
+        return self._settings['compiler'] or configuration['compiler']
 
     def single_prec(self, expr=None):
+        if self.compiler._cpp and expr is not None:
+            return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
         return dtype in [np.float32, np.float16, np.complex64]
 
     def complex_prec(self, expr=None):
+        if self.compiler._cpp:
+            return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
         return np.issubdtype(dtype, np.complexfloating)
 
@@ -211,7 +216,10 @@ class CodePrinter(C99CodePrinter):
         return rv
 
     def _print_ImaginaryUnit(self, expr):
-        return '_Complex_I'
+        if self.compiler._cpp:
+            return '1i'
+        else:
+            return '_Complex_I'
 
     def _print_Differentiable(self, expr):
         return "(%s)" % self._print(expr._expr)
