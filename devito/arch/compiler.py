@@ -249,20 +249,6 @@ class Compiler(GCCToolchain):
 
         return version
 
-    @property
-    def _complex_ctype(self):
-        """
-        Type definition for complex numbers. These two cases cover 99% of the cases since
-        - Hip is now using std::complex
-https://rocm.docs.amd.com/en/docs-5.1.3/CHANGELOG.html#hip-api-deprecations-and-warnings
-        - Sycl supports std::complex
-        - C's _Complex is part of C99
-        """
-        if self._cpp:
-            return lambda dtype: 'std::complex<%s>' % str(dtype)
-        else:
-            return lambda dtype: '%s _Complex' % str(dtype)
-
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
         if result != 0:
@@ -614,7 +600,7 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags.append('-std=c++11')
+        self.cflags.append('-std=c++14')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -729,10 +715,6 @@ class CudaCompiler(Compiler):
         self.CXX = 'nvcc'
         self.MPICC = 'nvcc'
         self.MPICXX = 'nvcc'
-
-    @property
-    def _complex_ctype(self):
-        return lambda dtype: 'thrust::complex<%s>' % str(dtype)
 
 
 class HipCompiler(Compiler):
