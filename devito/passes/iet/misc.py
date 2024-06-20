@@ -12,7 +12,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper,
                               ccode)
-from devito.tools import Bunch, as_mapper, filter_ordered, split, dtype_to_cstr
+from devito.tools import Bunch, as_mapper, filter_ordered, split
 from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
