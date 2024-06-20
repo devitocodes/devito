@@ -433,7 +433,7 @@ def abstract_object(i, mapper, sregistry):
 def _(i, mapper, sregistry):
     name = sregistry.make_name(prefix='f')
 
-    v = i._rebuild(name=name, initializer=None, alias=i)
+    v = i._rebuild(name=name, initializer=None, alias=True)
 
     mapper.update({
         i: v,
