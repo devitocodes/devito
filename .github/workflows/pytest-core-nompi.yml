@@ -163,8 +163,8 @@ jobs:
       if: "!contains(matrix.name, 'docker')"
       run: |
         pip install ${{ env.PIPFLAGS }} --upgrade pip
-        pip install ${{ env.PIPFLAGS }} -e .[tests]
         pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
+        pip install ${{ env.PIPFLAGS }} -e .[tests]
 
     - name: Check configuration
       run: |
