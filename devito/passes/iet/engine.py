@@ -398,18 +398,21 @@ def abstract_efunc(efunc):
     return efunc
 
 
-def abstract_objects(objects, sregistry=None):
+def abstract_objects(objects0, sregistry=None):
     """
     Proxy for `abstract_object`.
     """
+    # Expose hidden objects for complete reconstruction
+    objects = []
+    for i in objects0:
+        if i.is_Bundle:
+            objects.extend(i.components)
+        objects.append(i)
+
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    priority = {
-        Array: 1,
-        DiscreteFunction: 2,
-        AbstractIncrDimension: 3,
-        BlockDimension: 4,
-    }
+    keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
     # Build abstraction mappings
@@ -444,7 +447,6 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Array)
-@abstract_object.register(Bundle)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
@@ -452,6 +454,22 @@ def _(i, mapper, sregistry):
         name = sregistry.make_name(prefix='a')
 
     v = i._rebuild(name=name, alias=True)
+
+    mapper.update({
+        i: v,
+        i.indexed: v.indexed,
+        i._C_symbol: v._C_symbol,
+    })
+    if i.dmap is not None:
+        mapper[i.dmap] = v.dmap
+
+
+@abstract_object.register(Bundle)
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix='a')
+    components = [mapper[f] for f in i.components]
+
+    v = i._rebuild(name=name, components=components, alias=True)
 
     mapper.update({
         i: v,
