@@ -31,6 +31,9 @@ class LangMeta(type):
             raise NotImplementedError("Missing required mapping for `%s`" % k)
         return self.mapper[k]
 
+    def get(self, k):
+        return self.mapper.get(k)
+
 
 class LangBB(metaclass=LangMeta):
 
@@ -197,6 +200,14 @@ class LangTransformer(ABC):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
+        """
+        return iet, {}
+
+    @iet_pass
+    def make_langtypes(self, iet):
+        """
+        An `iet_pass` which transforms an IET such that the target language
+        types are introduced.
         """
         return iet, {}
 

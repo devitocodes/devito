@@ -613,7 +613,7 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_UsingNamespace(self, o):
-        return c.Statement('using namespace %s' % ccode(o.namespace))
+        return c.Statement('using namespace %s' % str(o.namespace))
 
     def visit_Lambda(self, o):
         body = []

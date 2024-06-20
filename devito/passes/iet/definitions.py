@@ -13,6 +13,7 @@ from devito.ir import (Block, Call, Definition, DummyExpr, Return, EntryFunction
                        FindNodes, FindSymbols, MapExprStmts, Transformer,
                        make_callable)
 from devito.passes import is_gpu_create
+from devito.passes.iet.dtypes import lower_complex
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
@@ -75,10 +76,12 @@ class DataManager:
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, rcompile=None, sregistry=None, platform=None, **kwargs):
+    def __init__(self, rcompile=None, sregistry=None, platform=None,
+                 compiler=None, **kwargs):
         self.rcompile = rcompile
         self.sregistry = sregistry
         self.platform = platform
+        self.compiler = compiler
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -462,12 +465,18 @@ class DataManager:
 
         return iet, {}
 
+    @iet_pass
+    def make_langtypes(self, iet):
+        iet, metadata = lower_complex(iet, self.lang, self.compiler)
+        return iet, metadata
+
     def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
+        self.make_langtypes(graph)
 
 
 class DeviceAwareDataManager(DataManager):
@@ -609,6 +618,7 @@ class DeviceAwareDataManager(DataManager):
         self.place_devptr(graph)
         self.place_bundling(graph, writes_input=graph.writes_input)
         self.place_casts(graph)
+        self.make_langtypes(graph)
 
 
 def make_zero_init(obj, rcompile, sregistry):

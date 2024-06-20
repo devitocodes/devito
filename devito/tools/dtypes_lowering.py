@@ -13,7 +13,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'CustomDtype']
+           'is_external_ctype', 'infer_dtype', 'CustomDtype', 'CustomNpType']
 
 
 # *** Custom np.dtypes
@@ -123,6 +123,18 @@ class CustomDtype:
     __str__ = __repr__
 
 
+class CustomNpType(CustomDtype):
+    """
+    Custom dtype for underlying numpy type.
+    """
+
+    def __init__(self, name, nptype, template=None, modifier=None):
+        self.nptype = nptype
+        super().__init__(name, template, modifier)
+
+    def __call__(self, val):
+        return self.nptype(val)
+
 # *** np.dtypes lowering
 
 
@@ -135,16 +147,6 @@ def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
     if isinstance(dtype, CustomDtype):
         return dtype
-
-    # Complex data
-    if np.issubdtype(dtype, np.complexfloating):
-        rtype = dtype(0).real.__class__
-        from devito import configuration
-        make = configuration['compiler']._complex_ctype
-        ctname = make(dtype_to_cstr(rtype))
-        ctype = dtype_to_ctype(rtype)
-        r = type(ctname, (ctype,), {})
-        return r
 
     try:
         return ctypes_vector_mapper[dtype]
