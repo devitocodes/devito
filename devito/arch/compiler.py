@@ -81,6 +81,8 @@ def sniff_compiler_version(cc, allow_fail=False):
                 ver = '.'.join(ver.strip().split('.')[:3])
                 if not ver:
                     return Version("0")
+            # Sanitize bad icx formatting
+            ver = ver.replace("+git", "").replace("git", "")
             ver = Version(ver)
         except UnicodeDecodeError:
             pass
