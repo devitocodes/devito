@@ -1217,21 +1217,25 @@ class UsingNamespace(Node):
 class Pragma(Node):
 
     """
-    One or more pragmas floating in the IET constructed through a callback.
+    One or more pragmas floating in the IET.
     """
 
-    def __init__(self, callback, arguments=None):
+    def __init__(self, pragma, arguments=None):
         super().__init__()
 
-        self.callback = callback
+        if not isinstance(pragma, str):
+            raise TypeError("Pragma name must be a string, not %s" % type(pragma))
+
+        self.pragma = pragma
         self.arguments = as_tuple(arguments)
 
     def __repr__(self):
-        return '<Pragmas>'
+        return '<Pragma>'
 
     @cached_property
-    def pragmas(self):
-        return as_tuple(self.callback(*self.arguments))
+    def _generate(self):
+        # Subclasses may override this property to customize the pragma generation
+        return self.pragma % self.arguments
 
 
 class Transfer:

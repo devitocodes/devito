@@ -102,7 +102,7 @@ def test_cache_blocking_structure(blockinner, openmp, expected):
     if openmp:
         trees = retrieve_iteration_tree(op)
         assert len(trees[0][1].pragmas) == 1
-        assert 'omp for' in trees[0][1].pragmas[0].value
+        assert 'omp for' in trees[0][1].pragmas[0].ccode.value
 
 
 def test_cache_blocking_structure_subdims():
@@ -709,10 +709,10 @@ class TestNodeParallelism:
             if j is True:
                 assert len(pragmas) == 1
                 pragma = pragmas[0]
-                assert 'omp for' in pragma.value
+                assert 'omp for' in pragma.ccode.value
             else:
                 for k in pragmas:
-                    assert 'omp for' not in k.value
+                    assert 'omp for' not in k.ccode.value
 
     def test_dynamic_nthreads(self):
         grid = Grid(shape=(16, 16, 16))
@@ -774,10 +774,10 @@ class TestNodeParallelism:
             if j > 0:
                 assert len(i.pragmas) == 1
                 pragma = i.pragmas[0]
-                assert 'omp for collapse(%d)' % j in pragma.value
+                assert 'omp for collapse(%d)' % j in pragma.ccode.value
             else:
                 for k in i.pragmas:
-                    assert 'omp for collapse' not in k.value
+                    assert 'omp for collapse' not in k.ccode.value
 
     def test_collapsing_v2(self):
         """
@@ -830,9 +830,9 @@ class TestNodeParallelism:
 
         assert len(iterations) == 6
         assert iterations[1].is_Affine
-        assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].value
+        assert 'schedule(dynamic,1)' in iterations[1].pragmas[0].ccode.value
         assert not iterations[3].is_Affine
-        assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].value
+        assert 'schedule(dynamic,chunk_size)' in iterations[3].pragmas[0].ccode.value
 
     @skipif('cpu64-icc')
     @pytest.mark.parametrize('so', [0, 1, 2])
@@ -856,10 +856,11 @@ class TestNodeParallelism:
             # With the `f[z] += u[t0][x + 1][y + 1][z + 1] + 1` expr, the innermost
             # `z` Iteration gets parallelized, nothing is collapsed, hence no
             # reduction is required
-            assert "reduction" not in parallelized.pragmas[0].value
+            assert "reduction" not in parallelized.pragmas[0].ccode.value
         elif Ompizer._support_array_reduction(configuration['compiler']):
-            if "collapse" in parallelized.pragmas[0].value:
-                assert "reduction(+:f[0:f_vec->size[0]])" in parallelized.pragmas[0].value
+            if "collapse" in parallelized.pragmas[0].ccode.value:
+                assert ("reduction(+:f[0:f_vec->size[0]])"
+                        in parallelized.pragmas[0].ccode.value)
         else:
             # E.g. old GCC's
             assert "atomic update" in str(iterations[-1])
@@ -891,7 +892,7 @@ class TestNodeParallelism:
         if configuration['language'] == 'C':
             pass
         elif Ompizer._support_array_reduction(configuration['compiler']):
-            assert "reduction(+:n[0])" in iterations[0].pragmas[0].value
+            assert "reduction(+:n[0])" in iterations[0].pragmas[0].ccode.value
         else:
             # E.g. old GCC's
             assert "atomic update" in str(iterations[-1])
@@ -942,7 +943,7 @@ class TestNodeParallelism:
             op = Operator(eqn, opt=('advanced', {'openmp': True}))
 
             iterations = FindNodes(Iteration).visit(op)
-            assert "reduction(max:n[0])" in iterations[0].pragmas[0].value
+            assert "reduction(max:n[0])" in iterations[0].pragmas[0].ccode.value
 
             op()
             assert n.data[0] == 26
@@ -979,7 +980,7 @@ class TestNodeParallelism:
         if configuration['language'] == 'openmp':
             iterations = FindNodes(Iteration).visit(op)
             expected = "reduction(max:r0) reduction(min:r1)"
-            assert expected in iterations[0].pragmas[0].value
+            assert expected in iterations[0].pragmas[0].ccode.value
 
         op()
         assert n.data[0] == 26
@@ -1012,7 +1013,8 @@ class TestNodeParallelism:
 
         # Now only `x` is parallelized
         op1 = Operator([Eq(v[t, x, 0, 0], v[t, x, 0, 0] + 1), Inc(uf, 1)],
-                       opt=('advanced', {'openmp': True, 'par-collapse-ncores': 1}))
+                       opt=('advanced', {'openmp': True,
+                                         'par-collapse-ncores': 1}))
 
         assert 'omp for' in str(op1)
         assert 'collapse' not in str(op1)
@@ -1055,7 +1057,8 @@ class TestNodeParallelism:
         assert len(iters) == 5
         assert iters[0].is_Sequential
         assert all(i.is_ParallelAtomic for i in iters[1:])
-        assert iters[1].pragmas[0].value == 'omp for schedule(dynamic,chunk_size)'
+        assert iters[1].pragmas[0].ccode.value ==\
+            'omp for schedule(dynamic,chunk_size)'
         assert all(not i.pragmas for i in iters[2:])
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
@@ -1124,16 +1127,16 @@ class TestNodeParallelism:
         iterations = FindNodes(Iteration).visit(op)
         parallel = [i for i in iterations if i.is_Parallel]
         try:
-            assert 'omp for' in iterations[0].pragmas[0].value
+            assert 'omp for' in iterations[0].pragmas[0].ccode.value
             if len(parallel) > 1 and simd_level is not None and simd_level > 1:
-                assert 'collapse' in iterations[0].pragmas[0].value
+                assert 'collapse' in iterations[0].pragmas[0].ccode.value
             if simd_level:
-                assert 'omp simd' in iterations[simd_level].pragmas[0].value
+                assert 'omp simd' in iterations[simd_level].pragmas[0].ccode.value
         except:
             # E.g. gcc-5 doesn't support array reductions, so the compiler will
             # generate different legal code
             assert not Ompizer._support_array_reduction(configuration['compiler'])
-            assert any('omp for' in i.pragmas[0].value
+            assert any('omp for' in i.pragmas[0].ccode.value
                        for i in iterations if i.pragmas)
 
         op.apply()
@@ -1153,9 +1156,9 @@ class TestNodeParallelism:
         op = Operator(eq, opt=('advanced', {'openmp': True}))
         iterations = FindNodes(Iteration).visit(op)
 
-        assert 'omp for schedule(static,1)' in iterations[0].pragmas[0].value
-        assert 'omp simd' in iterations[1].pragmas[0].value
-        assert 'omp simd' in iterations[3].pragmas[0].value
+        assert 'omp for schedule(static,1)' in iterations[0].pragmas[0].ccode.value
+        assert 'omp simd' in iterations[1].pragmas[0].ccode.value
+        assert 'omp simd' in iterations[3].pragmas[0].ccode.value
 
         op.apply()
         assert np.isclose(np.linalg.norm(f.data), 37.1458, rtol=1e-5)
@@ -1182,8 +1185,8 @@ class TestNodeParallelism:
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
-        assert 'omp for' in iterations[1].pragmas[0].value
-        assert 'collapse' not in iterations[1].pragmas[0].value
+        assert 'omp for' in iterations[1].pragmas[0].ccode.value
+        assert 'collapse' not in iterations[1].pragmas[0].ccode.value
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1,
@@ -1191,7 +1194,7 @@ class TestNodeParallelism:
         iterations = FindNodes(Iteration).visit(op0)
 
         assert not iterations[0].pragmas
-        assert 'omp for collapse' in iterations[1].pragmas[0].value
+        assert 'omp for collapse' in iterations[1].pragmas[0].ccode.value
 
 
 class TestNestedParallelism:
@@ -1223,10 +1226,9 @@ class TestNestedParallelism:
         bns, _ = assert_blocking(op, {'x0_blk0'})
 
         iterations = FindNodes(Iteration).visit(bns['x0_blk0'])
-        assert iterations[0].pragmas[0].value == 'omp for schedule(dynamic,1)'
-        assert iterations[2].pragmas[0].value == ('omp parallel for '
-                                                  'schedule(dynamic,1) '
-                                                  'num_threads(nthreads_nested)')
+        assert iterations[0].pragmas[0].ccode.value == 'omp for schedule(dynamic,1)'
+        assert iterations[2].pragmas[0].ccode.value ==\
+            'omp parallel for schedule(dynamic,1) num_threads(nthreads_nested)'
 
     def test_collapsing(self):
         grid = Grid(shape=(3, 3, 3))
@@ -1251,10 +1253,11 @@ class TestNestedParallelism:
         bns, _ = assert_blocking(op, {'x0_blk0'})
 
         iterations = FindNodes(Iteration).visit(bns['x0_blk0'])
-        assert iterations[0].pragmas[0].value == 'omp for collapse(2) schedule(dynamic,1)'
-        assert iterations[2].pragmas[0].value == ('omp parallel for collapse(2) '
-                                                  'schedule(dynamic,1) '
-                                                  'num_threads(nthreads_nested)')
+        assert iterations[0].pragmas[0].ccode.value ==\
+            'omp for collapse(2) schedule(dynamic,1)'
+        assert iterations[2].pragmas[0].ccode.value ==\
+            ('omp parallel for collapse(2) schedule(dynamic,1) '
+             'num_threads(nthreads_nested)')
 
     def test_multiple_subnests_v0(self):
         grid = Grid(shape=(3, 3, 3))
@@ -1279,14 +1282,14 @@ class TestNestedParallelism:
         assert len(trees) == 2
 
         assert trees[0][0] is trees[1][0]
-        assert trees[0][0].pragmas[0].value ==\
+        assert trees[0][0].pragmas[0].ccode.value ==\
             'omp for collapse(2) schedule(dynamic,1)'
-        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
-                                                'schedule(dynamic,1) '
-                                                'num_threads(nthreads_nested)')
-        assert trees[1][2].pragmas[0].value == ('omp parallel for collapse(2) '
-                                                'schedule(dynamic,1) '
-                                                'num_threads(nthreads_nested)')
+        assert trees[0][2].pragmas[0].ccode.value ==\
+            ('omp parallel for collapse(2) schedule(dynamic,1) '
+             'num_threads(nthreads_nested)')
+        assert trees[1][2].pragmas[0].ccode.value ==\
+            ('omp parallel for collapse(2) schedule(dynamic,1) '
+             'num_threads(nthreads_nested)')
 
     def test_multiple_subnests_v1(self):
         """
@@ -1316,17 +1319,15 @@ class TestNestedParallelism:
         assert len(trees) == 2
 
         assert trees[0][0] is trees[1][0]
-        assert trees[0][0].pragmas[0].value ==\
+        assert trees[0][0].pragmas[0].ccode.value ==\
             'omp for collapse(2) schedule(dynamic,1)'
         assert not trees[0][2].pragmas
         assert not trees[0][3].pragmas
-        assert trees[0][4].pragmas[0].value == ('omp parallel for '
-                                                'schedule(dynamic,1) '
-                                                'num_threads(nthreads_nested)')
+        assert trees[0][4].pragmas[0].ccode.value ==\
+            'omp parallel for schedule(dynamic,1) num_threads(nthreads_nested)'
         assert not trees[1][2].pragmas
-        assert trees[1][3].pragmas[0].value == ('omp parallel for '
-                                                'schedule(dynamic,1) '
-                                                'num_threads(nthreads_nested)')
+        assert trees[1][3].pragmas[0].ccode.value ==\
+            'omp parallel for schedule(dynamic,1) num_threads(nthreads_nested)'
 
     @pytest.mark.parametrize('blocklevels', [1, 2])
     def test_nested_cache_blocking_structure_subdims(self, blocklevels):
@@ -1381,11 +1382,11 @@ class TestNestedParallelism:
                 tree[6].dim.symbolic_min is zi.symbolic_min and\
                 tree[6].dim.symbolic_max is zi.symbolic_max and tree[6].dim.parent is z
 
-        assert trees[0][0].pragmas[0].value ==\
+        assert trees[0][0].pragmas[0].ccode.value ==\
             'omp for collapse(2) schedule(dynamic,1)'
-        assert trees[0][2].pragmas[0].value == ('omp parallel for collapse(2) '
-                                                'schedule(dynamic,1) '
-                                                'num_threads(nthreads_nested)')
+        assert trees[0][2].pragmas[0].ccode.value ==\
+            ('omp parallel for collapse(2) schedule(dynamic,1) '
+             'num_threads(nthreads_nested)')
 
     @pytest.mark.parametrize('exprs,collapsed,scheduling', [
         (['Eq(u.forward, u.dx)'], '2', 'static'),
@@ -1416,5 +1417,5 @@ class TestNestedParallelism:
         ompfor_string = "".join(['omp for collapse(', collapsed, ')'])
         scheduling_string = "".join([' schedule(', scheduling, ',1)'])
 
-        assert iterations[1].pragmas[0].value == "".join([ompfor_string,
-                                                          scheduling_string])
+        assert iterations[1].pragmas[0].ccode.value ==\
+            "".join([ompfor_string, scheduling_string])

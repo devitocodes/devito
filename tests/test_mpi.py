@@ -1481,7 +1481,7 @@ class TestCodeGeneration:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling
-            assert 'dynamic,1' in tree.root.pragmas[0].value
+            assert 'dynamic,1' in tree.root.pragmas[0].ccode.value
         else:
             # W/o OpenMP, it's a different story
             assert call._single_thread
@@ -1505,7 +1505,7 @@ class TestCodeGeneration:
             # W/ OpenMP, we prod until all comms have completed
             assert call.then_body[0].body[0].is_While
             # W/ OpenMP, we expect dynamic thread scheduling
-            assert 'dynamic,1' in tree.root.pragmas[0].value
+            assert 'dynamic,1' in tree.root.pragmas[0].ccode.value
         else:
             # W/o OpenMP, it's a different story
             assert call._single_thread
