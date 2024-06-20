@@ -1,7 +1,7 @@
 pip>=9.0.1
 numpy>1.16,<2.0
 sympy>=1.9,<1.13
-psutil>=5.1.0,<6.0
+psutil>=5.1.0,<7.0
 py-cpuinfo<10
 cgen>=2020.1
 codepy>=2019.1
