@@ -8,7 +8,8 @@ from sympy.core.numbers import ImaginaryUnit
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
-from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
+from devito.symbolics.extended_dtypes import INT
+from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
