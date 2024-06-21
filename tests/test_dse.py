@@ -210,6 +210,9 @@ def test_cse_w_conditionals():
     ('Mul(SizeOf("char"), '
      '-IndexedPointer(FieldFromPointer("size", fa._C_symbol), x), evaluate=False)',
      'sizeof(char)*(-fa_vec->size[x])'),
+    ('sqrt(fa[x]**4)', 'sqrt(fa[x]*fa[x]*fa[x]*fa[x])'),
+    ('sqrt(fa[x])**2', 'fa[x]'),
+    ('fa[x]**-2', '1/(fa[x]*fa[x])'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))
