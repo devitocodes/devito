@@ -2,8 +2,8 @@ from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
-                               SEQUENTIAL, SKEWABLE, TILABLES, Interval,
+from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
+                               PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
@@ -247,7 +247,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
                 return clusters
 
             # Heuristic: TILABLE not worth it if not within a SEQUENTIAL Dimension
-            if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
+            if not any(c.properties.is_sequential(i.dim) for i in prefix[:-1]):
                 return clusters
 
             processed.append(c.rebuild(properties=c.properties.block(d)))
@@ -569,7 +569,8 @@ class BlockSizeGenerator:
 class SynthesizeSkewing(Queue):
 
     """
-    Construct a new sequence of clusters with skewed expressions and iteration spaces.
+    Construct a new sequence of clusters with skewed expressions and
+    iteration spaces.
 
     Notes
     -----
@@ -615,12 +616,14 @@ class SynthesizeSkewing(Queue):
             if SKEWABLE not in c.properties[d]:
                 return clusters
 
-            skew_dims = {i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]}
+            skew_dims = {i.dim for i in c.ispace
+                         if c.properties.is_sequential(i.dim)}
             if len(skew_dims) > 1:
                 return clusters
             skew_dim = skew_dims.pop()
 
-            # Since we are here, prefix is skewable and nested under a SEQUENTIAL loop
+            # Since we are here, prefix is skewable and nested under a
+            # SEQUENTIAL loop
             intervals = []
             for i in c.ispace:
                 if i.dim is d and (not d.is_Block or d._depth == 1):
