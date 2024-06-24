@@ -8,7 +8,7 @@ from tempfile import gettempdir
 
 from sympy import sympify
 
-from devito.arch import CPU64, Device, compiler_registry, platform_registry
+from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator, ExecutionError
 from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
@@ -1199,7 +1199,7 @@ class ArgumentsMap(dict):
             nproc = self.grid.distributor.nprocs_local
         except AttributeError:
             nproc = 1
-        mapper[host_layer] = int(CPU64.memavail() / nproc)
+        mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
