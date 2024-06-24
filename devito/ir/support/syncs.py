@@ -163,12 +163,6 @@ class Ops(frozendict):
             m[d] = set(self.get(d, [])) | set(v)
         return Ops(m)
 
-    def replace(self, subs):
-        m = dict(self)
-        for d, v in self.items():
-            m[d] = set(s._rreplace(subs) for s in v)
-        return Ops(m)
-
 
 def normalize_syncs(*args):
     if not args:

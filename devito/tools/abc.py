@@ -151,22 +151,6 @@ class Reconstructable:
 
         return cls(*args, **kwargs)
 
-    def _rreplace(self, subs):
-        """
-        Construct a new object from `self` by replacing the attributes in `subs`.
-        """
-        args = []
-        for i in self.__rargs__:
-            attr = getattr(self, i)
-            args.append(subs.get(attr, attr))
-
-        kwargs = {}
-        for i in self.__rkwargs__:
-            attr = getattr(self, i)
-            kwargs[i] = subs.get(attr, attr)
-
-        return self._rebuild(*args, **kwargs)
-
 
 class Pickable(Reconstructable):
 
