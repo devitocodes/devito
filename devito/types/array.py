@@ -367,6 +367,8 @@ class Bundle(ArrayBasic):
             raise ValueError("Components must be of same type")
         if not issubclass(klss.pop(), AbstractFunction):
             raise ValueError("Component type must be subclass of AbstractFunction")
+        if len({i.__padding_dtype__ for i in components}) != 1:
+            raise ValueError("Components must have the same padding dtype")
 
         return args, kwargs
 
@@ -438,14 +440,14 @@ class Bundle(ArrayBasic):
     def initvalue(self):
         return None
 
-    # CodeSymbol overrides defaulting to self.c0's behaviour
+    # Overrides defaulting to self.c0's behaviour
 
     for i in ['_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
-              '_mem_shared', '_size_domain', '_size_halo', '_size_owned',
-              '_size_padding', '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions', '_C_get_field',
-              'grid', 'symbolic_shape']:
+              '_mem_shared', '__padding_dtype__', '_size_domain', '_size_halo',
+              '_size_owned', '_size_padding', '_size_nopad', '_size_nodomain',
+              '_offset_domain', '_offset_halo', '_offset_owned', '_dist_dimensions',
+              '_C_get_field', 'grid', 'symbolic_shape']:
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property

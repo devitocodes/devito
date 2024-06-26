@@ -999,29 +999,40 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
         return DimensionTuple(*padding, getters=self.dimensions)
 
+    @cached_property
+    def __padding_dtype__(self):
+        v = configuration['autopadding']
+        if not self.is_autopaddable or not v:
+            return None
+        try:
+            if issubclass(v, np.number):
+                return v
+        except TypeError:
+            return np.float32
+
     def __padding_setup_smart__(self, **kwargs):
         nopadding = ((0, 0),)*self.ndim
 
-        if kwargs.get('autopadding', configuration['autopadding']):
-            # The padded Dimension
-            candidates = self.space_dimensions
-            if not candidates:
-                return nopadding
-            d = candidates[-1]
-
-            mmts = configuration['platform'].max_mem_trans_size(self.dtype)
-            remainder = self._size_nopad[d] % mmts
-            if remainder == 0:
-                # Already a multiple of `mmts`, no need to pad
-                return nopadding
-
-            dpadding = (0, (mmts - remainder))
-            padding = [(0, 0)]*self.ndim
-            padding[self.dimensions.index(d)] = dpadding
-
-            return tuple(padding)
-        else:
+        if not self.__padding_dtype__:
             return nopadding
+
+        # The padded Dimension
+        candidates = self.space_dimensions
+        if not candidates:
+            return nopadding
+        d = candidates[-1]
+
+        mmts = configuration['platform'].max_mem_trans_size(self.__padding_dtype__)
+        remainder = self._size_nopad[d] % mmts
+        if remainder == 0:
+            # Already a multiple of `mmts`, no need to pad
+            return nopadding
+
+        dpadding = (0, (mmts - remainder))
+        padding = [(0, 0)]*self.ndim
+        padding[self.dimensions.index(d)] = dpadding
+
+        return tuple(padding)
 
     def __ghost_setup__(self, **kwargs):
         return (0, 0)

@@ -611,4 +611,4 @@ def test_different_dtype():
 
     # Check generated code has different strides for different dtypes
     assert "bL0(x,y) b[(x)*y_stride0 + (y)]" in str(op1)
-    assert "L0(x,y) f[(x)*y_stride1 + (y)]" in str(op1)
+    assert "L0(x,y) f[(x)*y_stride0 + (y)]" in str(op1)
