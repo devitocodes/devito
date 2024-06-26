@@ -1,10 +1,37 @@
 import versioneer
 
 import os
+import sys
+import pkg_resources
 from setuptools import setup, find_packages
+
+
+def numpy_compat(required):
+    new_reqs = [r for r in required if "numpy" not in r and "sympy" not in r]
+    if sys.version_info < (3, 9):
+        # Numpy 2.0 requires python > 3.8
+        new_reqs.extend(["sympy>=1.9,<1.13", "numpy>1.16,<2.0"])
+        return new_reqs
+
+    # Due to api changes in numpy 2.0, it requires sympy 1.12.1 at the minimum
+    # Check if sympy is installed and enforce numpy version accordingly.
+    # If sympy isn't installed, endforce sympy>=1.12.1 and numpy>=2.0
+    try:
+        sympy_version = pkg_resources.get_distribution("sympy").version
+        min_ver2 = pkg_resources.parse_version("1.12.1")
+        if pkg_resources.parse_version(sympy_version) < min_ver2:
+            new_reqs.append("numpy>1.16,<2.0")
+        else:
+            new_reqs.append("numpy>=2.0")
+    except pkg_resources.DistributionNotFound:
+        new_reqs.extend(["sympy>=1.12.1", "numpy>=2.0"])
+
+    return new_reqs
+
 
 with open('requirements.txt') as f:
     required = f.read().splitlines()
+    required = numpy_compat(required)
 
 with open('requirements-optional.txt') as f:
     optionals = f.read().splitlines()

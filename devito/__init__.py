@@ -1,6 +1,9 @@
 import atexit
 from itertools import product
+import os
 from . import _version
+
+import numpy as np
 
 # Import the global `configuration` dict
 from devito.parameters import *  # noqa
@@ -158,6 +161,13 @@ def mode_performance():
     # With the autotuner in `aggressive` mode, a more aggressive blocking strategy
     # which also tiles the innermost loop) is beneficial
     configuration['opt-options']['blockinner'] = True
+
+
+if "PYTEST_VERSION" in os.environ and np.version.full_version.startswith('2'):
+    # Avoid change in repr break docstring tests
+    # Only sets it here for testing
+    # https://numpy.org/devdocs/release/2.0.0-notes.html#representation-of-numpy-scalars-changed  # noqa
+    np.set_printoptions(legacy="1.25")
 
 
 # Ensure the SymPy caches are purged at exit
