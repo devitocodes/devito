@@ -210,6 +210,21 @@ class TestBufferedDimension:
         assert np.all(f.data[3] == 2)
         assert np.all(f.data[4] == 4)
 
+    def test_degenerate_to_zero(self):
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, save=Buffer(1))
+
+        eq = Eq(u.forward, u + 1)
+
+        op = Operator(eq)
+
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
+
+        op.apply(time_M=9)
+
+        assert np.all(u.data == 10)
+
 
 class TestSubDimension:
 
