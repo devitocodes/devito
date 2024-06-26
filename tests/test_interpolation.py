@@ -1,6 +1,5 @@
-from math import sin, floor
-
 import numpy as np
+from numpy import sin, floor
 import pytest
 from sympy import Float
 
@@ -93,8 +92,8 @@ def precompute_linear_interpolation(points, grid, origin, r=2):
 
     Allow larger radius with zero weights for testing.
     """
-    gridpoints = [tuple(floor((point[i]-origin[i])/grid.spacing[i])
-                        for i in range(len(point))) for point in points]
+    gridpoints = np.array([tuple(floor((point[i]-origin[i])/grid.spacing[i])
+                           for i in range(len(point))) for point in points])
 
     interpolation_coeffs = np.zeros((len(points), grid.dim, r))
     rs = r // 2 - 1
@@ -114,13 +113,14 @@ def test_precomputed_interpolation(r):
         precomputed values for interpolation coefficients
     """
     shape = (101, 101)
-    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
+    points = np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
     origin = (0, 0)
 
     grid = Grid(shape=shape, origin=origin)
 
     def init(data):
         # This is data with halo so need to shift to match the m.data expectations
+        print(grid.spacing)
         for i in range(data.shape[0]):
             for j in range(data.shape[1]):
                 data[i, j] = sin(grid.spacing[0]*(i-r)) + sin(grid.spacing[1]*(j-r))
@@ -638,7 +638,7 @@ def test_msf_interpolate():
         with a TimeFunction
     """
     shape = (101, 101)
-    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
+    points = np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
     origin = (0, 0)
 
     grid = Grid(shape=shape, origin=origin)

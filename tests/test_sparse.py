@@ -21,12 +21,12 @@ class TestMatrixSparseTimeFunction:
             precomputes gridpoints and coefficients according to a linear
             scheme to be used in PrecomputedSparseFunction.
         """
-        gridpoints = [
+        gridpoints = np.array([
             tuple(
                 floor((point[i] - origin[i]) / grid.spacing[i]) for i in range(len(point))
             )
             for point in points
-        ]
+        ])
 
         coefficients = np.zeros((len(points), 2, 2))
         for i, point in enumerate(points):
@@ -41,7 +41,7 @@ class TestMatrixSparseTimeFunction:
 
     def test_precomputed_interpolation(self):
         shape = (101, 101)
-        points = [(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)]
+        points = np.array([(0.05, 0.9), (0.01, 0.8), (0.07, 0.84)])
         origin = (0, 0)
 
         grid = Grid(shape=shape, origin=origin)
