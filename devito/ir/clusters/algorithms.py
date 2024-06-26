@@ -433,7 +433,7 @@ class HaloComms(Queue):
 
             key = lambda i: i in prefix[:-1] or i in hs.loc_indices
             ispace = c.ispace.project(key)
-            # HaloTouch's are not parallel
+            # HaloTouches are not parallel
             properties = c.properties.sequentialize()
 
             halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)

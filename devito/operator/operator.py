@@ -990,14 +990,13 @@ class Operator(Callable):
 
         for k, v in summary.items():
             rank = "[rank%d]" % k.rank if k.rank is not None else ""
+            name = "%s%s" % (k.name, rank)
 
             if v.time <= 0.01:
                 # Trim down the output for very fast sections
-                name = "%s%s" % (k.name, rank)
                 perf("%s* %s ran in %.2f s" % (indent, name, fround(v.time)))
                 continue
 
-            name = "%s%s" % (k.name, rank)
             metrics = lower_perfentry(v)
             perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
             for n, v1 in summary.subsections.get(k.name, {}).items():
