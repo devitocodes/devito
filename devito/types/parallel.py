@@ -59,7 +59,7 @@ class NThreadsBase(NThreadsAbstract):
         if isinstance(npthreads, NPThreads):
             npthreads = kwargs.get(npthreads.name, npthreads.size)
 
-        return {self.name: base_nthreads - npthreads}
+        return {self.name: max(base_nthreads - npthreads, 1)}
 
 
 class NThreads(NThreadsBase):
