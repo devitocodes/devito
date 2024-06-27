@@ -18,7 +18,7 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'CustomType', 'Deref', 'Namespace',
+           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
            'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit']
 
 
@@ -505,10 +505,6 @@ class ReservedWord(sympy.Atom, Pickable):
 
 
 class Keyword(ReservedWord):
-    pass
-
-
-class CustomType(ReservedWord):
     pass
 
 
