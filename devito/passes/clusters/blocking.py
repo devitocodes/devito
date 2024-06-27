@@ -487,13 +487,7 @@ class BlockSizeGenerator:
 
         # Special case 1: a smaller par-tile to avoid under-utilizing
         # computational resources when the iteration spaces are too small
-        if (len(par_tile) == 1 and
-            (len(par_tile[0]) < len(par_tile.default) or
-             prod(par_tile[0]) < prod(par_tile.default))):
-            # Ignore if, e.g., user supplies a lower dimensional block shape
-            self.umt_small = self.umt
-        else:
-            self.umt_small = UnboundedMultiTuple(par_tile.default)
+        self.umt_small = UnboundedMultiTuple(par_tile.default)
 
         # Special case 2: par-tiles for iteration spaces that must be fully
         # blocked for correctness
