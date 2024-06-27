@@ -4,7 +4,7 @@ from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueL
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4)
 
-__all__ = ['cast_mapper', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID']  # noqa
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID']  # noqa
 
 
 limits_mapper = {
