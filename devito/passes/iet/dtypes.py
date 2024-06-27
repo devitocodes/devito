@@ -33,7 +33,7 @@ def lower_complex(iet, lang, compiler):
 
     iet = _complex_dtypes(iet, lang)
     metadata['includes'] = lib
-    print(metadata)
+
     return iet, metadata
 
 

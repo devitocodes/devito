@@ -38,14 +38,18 @@ class CodePrinter(C99CodePrinter):
 
     @property
     def dtype(self):
-        return self._settings['dtype']
+        try:
+            return self._settings['dtype'].nptype
+        except AttributeError:
+            return self._settings['dtype']
 
     @property
     def compiler(self):
         return self._settings['compiler'] or configuration['compiler']
 
-    def single_prec(self, expr=None):
-        if self.compiler._cpp and expr is not None:
+    def single_prec(self, expr=None, with_f=False):
+        no_f = self.compiler._cpp and not with_f
+        if no_f and expr is not None:
             return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
         return dtype in [np.float32, np.float16, np.complex64]
@@ -252,7 +256,10 @@ class CodePrinter(C99CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         if self.compiler._cpp:
-            return '1i'
+            if self.single_prec(with_f=True):
+                return '1if'
+            else:
+                return '1i'
         else:
             return '_Complex_I'
 
