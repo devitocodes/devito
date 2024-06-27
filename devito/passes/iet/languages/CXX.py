@@ -63,7 +63,7 @@ class CXXBB(LangBB):
             Call('memcpy', (i, j, k)),
         # Complex
         'header-complex': 'complex',
-        'complex-namespace': [UsingNamespace('std:complex_literals')],
+        'complex-namespace': [UsingNamespace('std::complex_literals')],
         'def-complex': std_arith,
         'types': {np.complex128: CXXCDouble, np.complex64: CXXCFloat},
     }
