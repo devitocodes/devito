@@ -118,6 +118,7 @@ def _lower_exprs(expressions, subs, **kwargs):
                 # subdimensions won't be reused currently, which is bad
                 # FIXME: Maybe this should return/modify a dict of replacements
                 rename_thicknesses(dimension_map, sregistry, rebuilt_subdims)
+                print("Dimension map", dimension_map)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
@@ -163,12 +164,19 @@ def rename_thicknesses(mapper, sregistry, rebuilt_subdims):
     """
     Rebuild SubDimensions in a mapper so that their thicknesses
     have unique names.
+
+    Also rebuilds MultiSubDimensions such that
     """
     for k, v in mapper.items():
-        if v.is_Sub:
+        if v.is_AbstractSub:
             try:
+                # Use an existing renaming if one exists
                 mapper[k] = rebuilt_subdims[v]
             except KeyError:
+                if v.is_MultiSub:  # Handle MultiSubDimensions
+                    print(v, "is MultiSubDimension")
+                    continue
+
                 ((lst, lst_v), (rst, rst_v)) = v.thickness
                 # TODO: could stick this in a tiny loop
                 lst_name = sregistry.make_name(prefix=lst.name)
@@ -178,12 +186,10 @@ def rename_thicknesses(mapper, sregistry, rebuilt_subdims):
                 new_thickness = Thickness((lst_new, lst_v),
                                           (rst_new, rst_v))
 
-                if v.is_MultiSub:
-                    rebuilt = v._rebuild(thickness=new_thickness)
-                else:
-                    interval = v._interval.subs({lst: lst_new, rst: rst_new})
-                    left = interval.left
-                    right = interval.right
-                    rebuilt = v._rebuild(symbolic_min=left, symbolic_max=right,
-                                         thickness=new_thickness)
+                interval = v._interval.subs({lst: lst_new, rst: rst_new})
+                left = interval.left
+                right = interval.right
+                rebuilt = v._rebuild(symbolic_min=left,
+                                     symbolic_max=right,
+                                     thickness=new_thickness)
                 mapper[k] = rebuilt_subdims[v] = rebuilt

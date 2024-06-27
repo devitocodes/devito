@@ -241,19 +241,12 @@ class TestMultiSubDomain:
                      subdomain=grid.subdomains['inner'])
 
         op = Operator(stencil, opt=opt)
-        print(op.ccode)
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]
 
         expected = np.zeros((10, 10), dtype=np.int32)
         for j in range(0, n_domains):
             expected[j, bounds_ym[j]:n_domains-bounds_yM[j]] = 10
-
-        print(np.array(result))
-        print()
-        print(expected)
-        if opt == 'advanced':
-            assert False
 
         assert((np.array(result) == expected).all())
 
@@ -353,6 +346,7 @@ class TestMultiSubDomain:
         eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
 
         op = Operator([eq1, eq2])
+        print(op.ccode)
         op.apply()
 
         expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
