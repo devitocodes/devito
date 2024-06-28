@@ -433,7 +433,7 @@ class HaloComms(Queue):
 
             key = lambda i: i in prefix[:-1] or i in hs.loc_indices
             ispace = c.ispace.project(key)
-            # HaloTOuch are not parallel
+            # HaloTouches are not parallel
             properties = c.properties.sequentialize()
 
             halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
@@ -614,6 +614,11 @@ def _normalize_reductions_dense(cluster, sregistry, mapper):
             # of the target backend
             lhs, rhs = e.args
 
+            try:
+                f = rhs.function
+            except AttributeError:
+                f = None
+
             if lhs.function.is_Array:
                 # Probably a compiler-generated reduction, e.g. via
                 # recursive compilation; it's an Array already, so nothing to do
@@ -621,11 +626,13 @@ def _normalize_reductions_dense(cluster, sregistry, mapper):
             elif rhs in mapper:
                 # Seen this RHS already, so reuse the Array that was created for it
                 processed.append(e.func(lhs, mapper[rhs].indexify()))
+            elif f and f.is_Array and sum(flatten(f._size_nodomain)) == 0:
+                # Special case: the RHS is an Array with no halo/padding, meaning
+                # that the written data values are contiguous in memory, hence
+                # we can simply reuse the Array itself as we're already in the
+                # desired memory layout
+                processed.append(e)
             else:
-                # Here the LHS could be a Symbol or a user-level Function
-                # In the latter case we copy the data into a temporary Array
-                # because the Function might be padded, and reduction operations
-                # require, in general, the data values to be contiguous
                 name = sregistry.make_name()
                 try:
                     grid = cluster.grid

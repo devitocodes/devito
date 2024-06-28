@@ -19,7 +19,8 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap']
+__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
+           'IrregularFunctionInterface']
 
 
 Size = namedtuple('Size', 'left right')
@@ -584,7 +585,7 @@ class Scalar(Symbol, ArgProvider):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
         else:
-            return self._arg_defaults()
+            return self._arg_defaults(**kwargs)
 
 
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
@@ -1247,6 +1248,19 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def _mem_host(self):
         return self._space == 'host'
 
+    @cached_property
+    def _signature(self):
+        """
+        The signature of an AbstractFunction is the set of fields that
+        makes it "compatible" with another AbstractFunction. The fact that
+        two AbstractFunctions are compatible may be exploited by the compiler
+        to generate smarter code
+        """
+        ret = [type(self), self.indices]
+        attrs = set(self.__rkwargs__) - {'name', 'function'}
+        ret.extend(getattr(self, i) for i in attrs)
+        return frozenset(ret)
+
     def _make_pointer(self):
         """Generate a symbolic pointer to self."""
         raise NotImplementedError
@@ -1609,3 +1623,16 @@ class Indexed(sympy.Indexed):
         except AttributeError:
             pass
         return super()._subs(old, new, **hints)
+
+
+class IrregularFunctionInterface:
+
+    """
+    A common interface for all irregular AbstractFunctions.
+    """
+
+    is_regular = False
+
+    @property
+    def nbytes_max(self):
+        raise NotImplementedError

@@ -622,7 +622,14 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                         # They indeed do change
                         d1 = g.indices[d0]
                         loc_indices[d1] = v.indices[d0]
-                        loc_dirs[d1] = hse0.loc_dirs[d0]
+
+                        try:
+                            loc_dirs[d1] = hse0.loc_dirs[d0]
+                        except KeyError:
+                            # E.g., `usave(cd, x, y)` and `usave.dx` in an
+                            # adjoint Operator
+                            assert d0.is_Conditional
+                            loc_dirs[d1] = hse0.loc_dirs[d0.root]
 
                 if len(loc_indices) != len(hse0.loc_indices):
                     # Nope, let's try with the next Indexed, if any

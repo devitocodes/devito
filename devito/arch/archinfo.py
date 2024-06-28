@@ -19,6 +19,8 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
            'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
            'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+           # Brand-agnostic
+           'ANYCPU', 'ANYGPU',
            # Intel CPUs
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
            'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
@@ -592,7 +594,7 @@ def get_platform():
         pass
 
     # Unable to detect platform. Stick to default...
-    return CPU64
+    return ANYCPU
 
 
 class Platform:
@@ -893,7 +895,7 @@ class AmdDevice(Device):
 
 
 # CPUs
-CPU64 = Cpu64('cpu64')
+ANYCPU = Cpu64('cpu64')
 CPU64_DUMMY = Intel64('cpu64-dummy', cores_logical=2, cores_physical=1, isa='sse')
 
 INTEL64 = Intel64('intel64')
@@ -921,6 +923,8 @@ POWER8 = Power('power8')
 POWER9 = Power('power9')
 
 # Devices
+ANYGPU = Cpu64('gpu')
+
 NVIDIAX = NvidiaDevice('nvidiaX')
 
 AMDGPUX = AmdDevice('amdgpuX')

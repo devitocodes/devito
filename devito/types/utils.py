@@ -4,7 +4,8 @@ from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
 
 __all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort',
-           'HierarchyLayer', 'HostLayer']
+           'HierarchyLayer', 'HostLayer', 'DeviceLayer', 'DiskLayer',
+           'host_layer', 'device_layer', 'disk_layer']
 
 
 class Buffer(Tag):
@@ -72,3 +73,16 @@ class HierarchyLayer:
 
 class HostLayer(HierarchyLayer):
     pass
+
+
+class DeviceLayer(HierarchyLayer):
+    pass
+
+
+class DiskLayer(HierarchyLayer):
+    pass
+
+
+host_layer = HostLayer('host')
+device_layer = DeviceLayer('device')
+disk_layer = DiskLayer('disk')

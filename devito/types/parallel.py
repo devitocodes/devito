@@ -25,7 +25,7 @@ __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'SharedData', 'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
 
 
-class NThreadsBase(Scalar):
+class NThreadsAbstract(Scalar):
 
     is_Input = True
     is_PerfKnob = True
@@ -39,10 +39,27 @@ class NThreadsBase(Scalar):
     def __dtype_setup__(cls, **kwargs):
         return np.int32
 
+
+class NThreadsBase(NThreadsAbstract):
+
     @cached_property
     def default_value(self):
         return int(os.environ.get('OMP_NUM_THREADS',
                                   configuration['platform'].cores_physical))
+
+    def _arg_defaults(self, **kwargs):
+        base_nthreads = self.default_value
+
+        try:
+            npthreads = kwargs['metadata']['npthreads']
+        except KeyError:
+            raise InvalidArgument("Cannot determine `npthreads`")
+
+        # If a symbolic object, it must be resolved
+        if isinstance(npthreads, NPThreads):
+            npthreads = kwargs.get(npthreads.name, npthreads.size)
+
+        return {self.name: max(base_nthreads - npthreads, 1)}
 
 
 class NThreads(NThreadsBase):
@@ -64,7 +81,7 @@ class NThreadsNested(NThreadsBase):
         return configuration['platform'].threads_per_core
 
 
-class NPThreads(NThreadsBase):
+class NPThreads(NThreadsAbstract):
 
     name = 'npthreads'
 

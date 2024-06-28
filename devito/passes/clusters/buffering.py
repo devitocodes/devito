@@ -201,6 +201,8 @@ class InjectBuffers(Queue):
                 properties = c.properties.sequentialize(d)
                 if not isinstance(d, BufferDimension):
                     properties = properties.prefetchable(d)
+                # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
+                properties = properties.parallelize(v.bdims).affine(v.bdims)
 
                 syncs = c.syncs
 
@@ -440,7 +442,10 @@ class BufferDescriptor:
 
     @property
     def is_read(self):
-        return self.firstread is not None
+        # Wild Clusters, and in particular HaloTouch Clusters, may contain mock
+        # read accesses to self's buffered Function (`self.f`), which we must
+        # ignore since here we're determining whether `self.f` is actually read
+        return any(not c.is_wild for c in self.clusters if c.scope.reads.get(self.f))
 
     @property
     def is_write(self):
@@ -448,11 +453,11 @@ class BufferDescriptor:
 
     @property
     def is_readonly(self):
-        return self.firstread is not None and self.lastwrite is None
+        return self.is_read and not self.is_write
 
     @property
     def is_writeonly(self):
-        return self.lastwrite is not None and self.firstread is None
+        return self.is_write and not self.is_read
 
     @property
     def is_forward_buffering(self):

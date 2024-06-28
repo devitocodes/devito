@@ -646,7 +646,7 @@ class TestNodeParallelism:
         assert op0.nthreads in op0.parameters
 
         # `nthreads` is bindable to a runtime value
-        assert op0.nthreads._arg_values()
+        assert op0.nthreads._arg_values(nthreads=3)['nthreads'] == 3
 
     @pytest.mark.parametrize('exprs,expected', [
         # trivial 1D
