@@ -1,7 +1,6 @@
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
-from math import floor
 
 import numpy as np
 from sympy import prod
@@ -553,19 +552,9 @@ class MultiSubDimension(AbstractSubDimension):
     A special Dimension to be used in MultiSubDomains.
     """
 
-    __rargs__ = ('name', 'parent', 'msd')
+    is_MultiSub = True
 
-    def __init_finalize__(self, name, parent, msd):
-        # NOTE: a MultiSubDimension stashes a reference to the originating
-        # MultiSubDomain.  This creates a circular pattern as the `msd` itself
-        # carries references to its MultiSubDimensions. This is currently
-        # necessary because during compilation we drop the MultiSubDomain
-        # early, but when the MultiSubDimensions are processed we still need it
-        # to create the implicit equations. Untangling this is definitely
-        # possible, but not straightforward
-        self.msd = msd
-
-        super().__init_finalize__(name, parent)
+    __rargs__ = ('name', 'parent')
 
     def __hash__(self):
         # There is no possibility for two MultiSubDimensions to ever hash the
@@ -590,9 +579,9 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.symbolic_size
 
     @property
-    def implicit_dim(self):
+    def implicit_dimension(self):
         try:
-            return self._implicit_dim
+            return self._implicit_dimension
         except AttributeError:
             return None
 
@@ -754,7 +743,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Create the SubDomainSet SubDimensions
         self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, counter), d, self)
+            MultiSubDimension('%si%d' % (d.name, counter), d)
             for d in grid.dimensions
         )
 
@@ -797,32 +786,25 @@ class SubDomainSet(MultiSubDomain):
         assert n >= 0
 
         i_dim = Dimension(name='n%d' % n)
-        functions = []
-        for j in range(len(self._local_bounds)):
-            index = floor(j/2)
-            d = self.dimensions[index]
-            if j % 2 == 0:
-                fname = "%s_%s" % (self.name, d.min_name)
-            else:
-                fname = "%s_%s" % (self.name, d.max_name)
-            f = Function(name=fname, grid=self._grid, shape=(self._n_domains,),
-                         dimensions=(i_dim,), dtype=np.int32)
+
+        for i, d in enumerate(self.dimensions):
+            fnames = ["%s_%s" % (self.name, minmax)
+                      for minmax in (d.min_name, d.max_name)]
+            f = tuple(Function(name=fname, grid=self._grid, shape=(self._n_domains,),
+                               dimensions=(i_dim,), dtype=np.int32)
+                      for fname in fnames)
 
             # Check if shorthand notation has been provided:
-            if isinstance(self._local_bounds[j], int):
-                f.data[:] = np.full((self._n_domains,), self._local_bounds[j],
-                                    dtype=np.int32)
-            else:
-                f.data[:] = self._local_bounds[j]
+            for j in range(2):
+                idx = 2*i + j
+                if isinstance(self._local_bounds[idx], int):
+                    f[j].data[:] = np.full((self._n_domains,), self._local_bounds[idx],
+                                           dtype=np.int32)
+                else:
+                    f[j].data[:] = self._local_bounds[idx]
 
-            functions.append(f)
-
-        # FIXME: Might require a better data structure here
-        functions = as_tuple(functions)
-
-        for d in self.dimensions:
             d._implicit_dimension = i_dim
-            d._functions = functions
+            d._functions = f
 
     @property
     def n_domains(self):
