@@ -589,6 +589,20 @@ class MultiSubDimension(AbstractSubDimension):
     def symbolic_size(self):
         return self.parent.symbolic_size
 
+    @property
+    def implicit_dim(self):
+        try:
+            return self._implicit_dim
+        except AttributeError:
+            return None
+
+    @property
+    def functions(self):
+        try:
+            return self._functions
+        except AttributeError:
+            return None
+
 
 class MultiSubDomain(AbstractSubDomain):
 
@@ -781,7 +795,8 @@ class SubDomainSet(MultiSubDomain):
         # compiler can use to generate code
         n = counter - npresets
         assert n >= 0
-        self._implicit_dimension = i_dim = Dimension(name='n%d' % n)
+
+        i_dim = Dimension(name='n%d' % n)
         functions = []
         for j in range(len(self._local_bounds)):
             index = floor(j/2)
@@ -801,7 +816,13 @@ class SubDomainSet(MultiSubDomain):
                 f.data[:] = self._local_bounds[j]
 
             functions.append(f)
-        self._functions = as_tuple(functions)
+
+        # FIXME: Might require a better data structure here
+        functions = as_tuple(functions)
+
+        for d in self.dimensions:
+            d._implicit_dimension = i_dim
+            d._functions = functions
 
     @property
     def n_domains(self):
