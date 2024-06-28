@@ -555,6 +555,34 @@ class TestSubDimension:
         assert np.all(u.data[1, 0:thickness, thickness:-thickness] == 1)
         assert np.all(u.data[1, thickness+1:, :] == 0)
 
+    @pytest.mark.parametrize('thickness,flag', [
+        (4, True),
+        (8, False)
+    ])
+    def test_subdim_local_parallel(self, thickness, flag):
+        """
+        A variation of `test_subdimleft_parallel` where the thickness, whose
+        value is statically known, explicitly appears in the equations.
+        """
+        grid = Grid(shape=(30, 30, 30))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+
+        zl = SubDimension.left(name='zl', parent=z, thickness=thickness)
+
+        eqns = [Eq(u[t, x, y, zl], u[t, x, y, 8 - zl]),
+                Eq(v[t, x, y, zl], v[t, x, y, 8 - zl])]
+
+        op = Operator(eqns)
+
+        if flag:
+            assert_structure(op, ['t,x,y,z'], 't,x,y,z')
+        else:
+            assert_structure(op, ['t,x,y,z', 't,x,y,z'], 't,x,y,z,z')
+
     def test_subdimmiddle_notparallel(self):
         """
         Tests application of an Operator consisting of a subdimension

@@ -2,6 +2,7 @@ from itertools import chain, product
 from functools import cached_property
 
 from sympy import S
+import sympy
 
 from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
@@ -351,6 +352,35 @@ class TimedAccess(IterationInstance, AccessMode):
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
 
+            # In some cases, the distance degenerates because `self` and
+            # `other` never intersect, which essentially means there's no
+            # dependence between them. In this case, we set the distance to a
+            # dummy value (the imaginary unit). Hence, we call these "imaginary
+            # dependences". This occurs in just a small set of special cases,
+            # which we attempt to handle here
+            if any(d and d._defines & sit.dim._defines for d in (sai, oai)):
+                # Case 1: `sit` is an IterationInterval with statically known
+                # trip count. E.g. it ranges from 0 to 3; `other` performs a
+                # constant access at 4
+                for v in (self[n], other[n]):
+                    try:
+                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
+                            return Vector(S.ImaginaryUnit)
+                    except TypeError:
+                        pass
+
+                # Case 2: `sit` is an IterationInterval over a local SubDimension
+                # and `other` performs a constant access
+                for d0, d1 in ((sai, oai), (oai, sai)):
+                    if d0 is None and d1.is_Sub and d1.local:
+                        return Vector(S.ImaginaryUnit)
+
+                # Case 3: `self` and `other` have some special form such that
+                # it's provable that they never intersect
+                if sai and sit == oit:
+                    if disjoint_test(self[n], other[n], sai, sit):
+                        return Vector(S.ImaginaryUnit)
+
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
                 # objects fallbacks to zero, as any other value would be nonsensical
@@ -374,33 +404,6 @@ class TimedAccess(IterationInstance, AccessMode):
                 # E.g., `self=R<f,[x, y]>`, `sai=time`,
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
-
-            elif any(d and d._defines & sit.dim._defines for d in (sai, oai)):
-                # In some cases, the distance degenerates because `self` and
-                # `other` never intersect, which essentially means there's no
-                # dependence between them. In this case, we set the distance to
-                # a dummy value (the imaginary unit). Hence, we call these
-                # "imaginary dependences". This occurs in just a small set of
-                # special cases, which we handle here
-
-                # Case 1: `sit` is an IterationInterval with statically known
-                # trip count. E.g. it ranges from 0 to 3; `other` performs a
-                # constant access at 4
-                for v in (self[n], other[n]):
-                    try:
-                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
-                            return Vector(S.ImaginaryUnit)
-                    except TypeError:
-                        pass
-
-                # Case 2: `sit` is an IterationInterval over a local SubDimension
-                # and `other` performs a constant access
-                for d0, d1 in ((sai, oai), (oai, sai)):
-                    if d0 is None and d1.is_Sub and d1.local:
-                        return Vector(S.ImaginaryUnit)
-
-                # Fallback
-                return vinf(ret)
 
             else:
                 # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`, `n=1`
@@ -1342,3 +1345,54 @@ def retrieve_accesses(exprs, **kwargs):
     exprs1 = uxreplace(exprs, subs)
 
     return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
+
+
+def disjoint_test(e0, e1, d, it):
+    """
+    A rudimentary test to check if two accesses `e0` and `e1` along `d` within
+    the IterationInterval `it` are independent.
+
+    This is inspired by the Banerjee test, but it's way more simplistic.
+
+    The test is conservative, meaning that if it returns False, then the accesses
+    might be independent, but it's not guaranteed. If it returns True, then the
+    accesses are definitely independent.
+
+    Our implementation focuses on tiny yet relevant cases, such as when the
+    iteration space's bounds are numeric constants, while the index accesses
+    functions reduce to numbers once the iteration variable is substituted with
+    one of the possible values in the iteration space.
+
+    Examples
+    --------
+      * e0 = 12 - zl, e1 = zl + 4, d = zl, it = zl[0,0]
+        where zl is a left SubDimension with thickness, say, 4
+        The test will return True, as the two index access functions never
+        overlap.
+    """
+    if e0 == e1:
+        return False
+
+    if d.is_Custom:
+        subs = {}
+    elif d.is_Sub and d.is_left:
+        subs = {d.root.symbolic_min: 0, **dict([d.thickness.left])}
+    else:
+        return False
+
+    m = it.symbolic_min.subs(subs)
+    M = it.symbolic_max.subs(subs)
+
+    p00 = e0._subs(d, m)
+    p01 = e0._subs(d, M)
+
+    p10 = e1._subs(d, m)
+    p11 = e1._subs(d, M)
+
+    if any(not i.is_Number for i in [p00, p01, p10, p11]):
+        return False
+
+    i0 = sympy.Interval(min(p00, p01), max(p00, p01))
+    i1 = sympy.Interval(min(p10, p11), max(p10, p11))
+
+    return not bool(i0.intersect(i1))

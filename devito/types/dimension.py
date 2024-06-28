@@ -732,12 +732,6 @@ class SubDimension(AbstractSubDimension):
                 symbolic_thickness
             )
 
-    def overlap(self, other):
-        return (isinstance(other, SubDimension) and
-                self.root is other.root and
-                self._offset_left.extreme is other._offset_left.extreme and
-                self._offset_right.extreme is other._offset_right.extreme)
-
     @property
     def _arg_names(self):
         return tuple(k.name for k, _ in self.thickness) + self.parent._arg_names
