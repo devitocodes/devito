@@ -98,24 +98,26 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
         # Create temporaries
         hit = max(targets.values())
-        temps = [Eq(make(), k) for k, v in targets.items() if v == hit]
+        chosen = [(k, make()) for k, v in targets.items() if v == hit]
 
         # Apply replacements
         # The extracted temporaries are inserted before the first expression
         # that contains it
+        scheduled = []
         updated = []
         for e in processed:
             pe = e
-            for t in temps:
-                pe, changed = _uxreplace(pe, {t.rhs: t.lhs})
-                if changed and t not in updated:
-                    updated.append(t)
+            for k, v in chosen:
+                pe, changed = _uxreplace(pe, {k: v})
+                if changed and v not in scheduled:
+                    updated.append(pe.func(v, k, operation=None))
+                    scheduled.append(v)
             updated.append(pe)
         processed = updated
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
-        exclude.update({t.lhs for t in temps})
+        exclude.update(scheduled)
 
     # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
     processed = _compact_temporaries(processed, exclude)
