@@ -169,7 +169,7 @@ class LowerImplicitMSD(LowerMSD):
                 continue
 
             # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd({i.dim for i in ispace} - {None})
+            mapper, dims = lower_msd({i.dim for i in ispace})
             if dims:
                 # An Explicit MSD
                 continue
