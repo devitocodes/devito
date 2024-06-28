@@ -91,11 +91,9 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            msdims = [msdim(i.dim) for i in c.ispace[idx:]]
-            msdims = [d for d in msdims if d is not None]
-
-            # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd(msdims)
+            # Get all MultiSubDimensions in the cluster and get the dynamic thickness
+            # mapper for the associated MultiSubDomain
+            mapper, dims = lower_msd([msdim(i.dim) for i in c.ispace[idx:]])
 
             if not dims:
                 # An Implicit MSD
@@ -170,11 +168,8 @@ class LowerImplicitMSD(LowerMSD):
             except IndexError:
                 continue
 
-            msdims = [i.dim for i in ispace]
-            msdims = [d for d in msdims if d is not None]
-
             # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd(msdims)
+            mapper, dims = lower_msd([i.dim for i in ispace])
             # mapper, dims = lower_msd(d.msd, c)
             if dims:
                 # An Explicit MSD
@@ -228,17 +223,16 @@ def msdim(d):
 
 
 def lower_msd(msdims):
-    # FIXME: Variable names are horrible here. Suggestions encouraged
+    msdims = [d for d in msdims if d is not None]
     mapper = {}
     dims = set()
     for d in msdims:
         # Pull out the parent MultiSubDimension if blocked etc
-        msds = [d for d in d._defines if d.is_MultiSub]
-        assert len(msds) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
-        msd = msds.pop()
+        msd = [d for d in d._defines if d.is_MultiSub]
+        assert len(msd) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
+        msd = msd.pop()
 
-        mapper.update({(d.root, i): f.indexify()
-                       for i, f in enumerate(msd.functions)})
+        mapper.update({(d.root, i): f.indexify() for i, f in enumerate(msd.functions)})
         dims.add(msd.implicit_dimension)
     return mapper, tuple(dims)
 
