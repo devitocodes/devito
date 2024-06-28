@@ -93,7 +93,7 @@ class LowerExplicitMSD(LowerMSD):
 
             # Get all MultiSubDimensions in the cluster and get the dynamic thickness
             # mapper for the associated MultiSubDomain
-            mapper, dims = lower_msd([msdim(i.dim) for i in c.ispace[idx:]])
+            mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None})
 
             if not dims:
                 # An Implicit MSD
@@ -169,8 +169,7 @@ class LowerImplicitMSD(LowerMSD):
                 continue
 
             # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd([i.dim for i in ispace])
-            # mapper, dims = lower_msd(d.msd, c)
+            mapper, dims = lower_msd({i.dim for i in ispace} - {None})
             if dims:
                 # An Explicit MSD
                 continue
@@ -223,7 +222,6 @@ def msdim(d):
 
 
 def lower_msd(msdims):
-    msdims = [d for d in msdims if d is not None]
     mapper = {}
     dims = set()
     for d in msdims:

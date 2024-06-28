@@ -555,6 +555,12 @@ class MultiSubDimension(AbstractSubDimension):
     is_MultiSub = True
 
     __rargs__ = ('name', 'parent')
+    __rkwargs__ = ('functions', 'implicit_dimension')
+
+    def __init_finalize__(self, name, parent, functions=None, implicit_dimension=None):
+        super().__init_finalize__(name, parent)
+        self.functions = functions
+        self.implicit_dimension = implicit_dimension
 
     def __hash__(self):
         # There is no possibility for two MultiSubDimensions to ever hash the
@@ -577,20 +583,6 @@ class MultiSubDimension(AbstractSubDimension):
     @cached_property
     def symbolic_size(self):
         return self.parent.symbolic_size
-
-    @property
-    def implicit_dimension(self):
-        try:
-            return self._implicit_dimension
-        except AttributeError:
-            return None
-
-    @property
-    def functions(self):
-        try:
-            return self._functions
-        except AttributeError:
-            return None
 
 
 class MultiSubDomain(AbstractSubDomain):
@@ -741,12 +733,6 @@ class SubDomainSet(MultiSubDomain):
         self._grid = grid
         self._dtype = grid.dtype
 
-        # Create the SubDomainSet SubDimensions
-        self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, counter), d)
-            for d in grid.dimensions
-        )
-
         # Compute the SubDomainSet shapes
         global_bounds = []
         for i in self._global_bounds:
@@ -777,7 +763,7 @@ class SubDomainSet(MultiSubDomain):
             self._local_bounds = self._global_bounds
 
         # Sanity check
-        if len(self._local_bounds) != 2*len(self.dimensions):
+        if len(self._local_bounds) != 2*len(grid.dimensions):
             raise ValueError("Left and right bounds must be supplied for each dimension")
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
@@ -787,9 +773,11 @@ class SubDomainSet(MultiSubDomain):
 
         i_dim = Dimension(name='n%d' % n)
 
-        for i, d in enumerate(self.dimensions):
-            fnames = ["%s_%s" % (self.name, minmax)
-                      for minmax in (d.min_name, d.max_name)]
+        dimensions = []
+        for i, d in enumerate(grid.dimensions):
+            dname = '%si%d' % (d.name, counter)
+            fnames = ["%s_%s_%s" % (self.name, dname, mM)
+                      for mM in ('m', 'M')]
             f = tuple(Function(name=fname, grid=self._grid, shape=(self._n_domains,),
                                dimensions=(i_dim,), dtype=np.int32) for fname in fnames)
 
@@ -803,8 +791,10 @@ class SubDomainSet(MultiSubDomain):
                 else:
                     f[j].data[:] = self._local_bounds[idx]
 
-            d._implicit_dimension = i_dim
-            d._functions = f
+            dimensions.append(MultiSubDimension(dname, d, functions=f,
+                                                implicit_dimension=i_dim))
+
+        self._dimensions = tuple(dimensions)
 
     @property
     def n_domains(self):
