@@ -70,6 +70,7 @@ class LowerExplicitMSD(LowerMSD):
     _q_syncs_in_key = True
 
     def callback(self, clusters, prefix):
+        print("prefix", prefix)
         try:
             dim = prefix[-1].dim
         except IndexError:
@@ -85,6 +86,7 @@ class LowerExplicitMSD(LowerMSD):
         tip = None
         processed = []
         for c in clusters:
+            # FIXME: This needs to be reworked to be dimension-centric
             try:
                 dd = c.ispace[idx].dim
                 d = msdim(dd)
@@ -95,6 +97,7 @@ class LowerExplicitMSD(LowerMSD):
                 continue
 
             # Get the dynamic thickness mapper for the given MultiSubDomain
+            # FIXME: What is inside this, and could it simply point to the dimension?
             mapper, dims = lower_msd(d.msd, c)
             if not dims:
                 # An Implicit MSD
