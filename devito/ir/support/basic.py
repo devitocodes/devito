@@ -345,21 +345,19 @@ class TimedAccess(IterationInstance, AccessMode):
                 if not (sit == oit and sai.root is oai.root):
                     # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
                     # E.g., `self=R<f,[x]>`, `other=W<f,[x + 1]>`,
-                    #       `self.itintervals=(x<0>,)` and `other.itintervals=(x<1>,)`
-                    ret.append(S.Infinity)
-                    break
+                    #       `self.itintervals=(x<0>,)`, `other.itintervals=(x<1>,)`
+                    return vinf(ret)
             except AttributeError:
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
 
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
-                # objects fallbacks to zero, as any other value would be nonsensical.
+                # objects fallbacks to zero, as any other value would be nonsensical
                 ret.append(S.Zero)
 
             elif sai and oai and sai._defines & sit.dim._defines:
-                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`
-                # and `ai=t`
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`, `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
                 else:
@@ -373,8 +371,8 @@ class TimedAccess(IterationInstance, AccessMode):
                     break
 
             elif sai in self.ispace and oai in other.ispace:
-                # E.g., `self=R<f,[x, y]>`, `sai=time`, self.itintervals=(time, x, y)
-                # with `n=0`
+                # E.g., `self=R<f,[x, y]>`, `sai=time`,
+                #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
 
             elif any(d and d._defines & sit.dim._defines for d in (sai, oai)):
@@ -402,16 +400,11 @@ class TimedAccess(IterationInstance, AccessMode):
                         return Vector(S.ImaginaryUnit)
 
                 # Fallback
-                ret.append(S.Infinity)
-                break
+                return vinf(ret)
 
-            elif self.findices[n] in sit.dim._defines:
-                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>` and `fi=p_src` (`n=1`)
-                ret.append(S.Infinity)
-                break
-
-        if S.Infinity in ret:
-            return Vector(*ret)
+            else:
+                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`, `n=1`
+                return vinf(ret)
 
         n = len(ret)
 
@@ -1329,6 +1322,10 @@ class ExprGeometry:
 
 
 # *** Utils
+
+def vinf(entries):
+    return Vector(*(entries + [S.Infinity]))
+
 
 def retrieve_accesses(exprs, **kwargs):
     """
