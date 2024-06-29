@@ -180,6 +180,8 @@ class Compiler(GCCToolchain):
     _cpp = False
 
     def __init__(self, **kwargs):
+        self._name = kwargs.pop('name', self.__class__.__name__)
+
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
@@ -223,13 +225,13 @@ class Compiler(GCCToolchain):
         Create a new Compiler from an existing one, inherenting from it
         the flags that are not specified via ``kwargs``.
         """
-        return self.__class__(suffix=kwargs.pop('suffix', self.suffix),
+        return self.__class__(name=self.name, suffix=kwargs.pop('suffix', self.suffix),
                               mpi=kwargs.pop('mpi', configuration['mpi']),
                               **kwargs)
 
     @property
     def name(self):
-        return self.__class__.__name__
+        return self._name
 
     @property
     def version(self):
@@ -593,7 +595,7 @@ class PGICompiler(Compiler):
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags.append('-std=c++11')
+        self.cflags.append('-std=c++14')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -978,6 +980,7 @@ compiler_registry = {
     'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
+    'nvcc': CudaCompiler,
     'osx': ClangCompiler,
     'intel': OneapiCompiler,
     'icx': OneapiCompiler,

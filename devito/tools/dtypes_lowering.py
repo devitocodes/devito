@@ -13,7 +13,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'CustomDtype']
+           'is_external_ctype', 'infer_dtype', 'CustomDtype', 'CustomNpType']
 
 
 # *** Custom np.dtypes
@@ -123,6 +123,18 @@ class CustomDtype:
     __str__ = __repr__
 
 
+class CustomNpType(CustomDtype):
+    """
+    Custom dtype for underlying numpy type.
+    """
+
+    def __init__(self, name, nptype, template=None, modifier=None):
+        self.nptype = nptype
+        super().__init__(name, template, modifier)
+
+    def __call__(self, val):
+        return self.nptype(val)
+
 # *** np.dtypes lowering
 
 
@@ -133,6 +145,9 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
+    if isinstance(dtype, CustomDtype):
+        return dtype
+
     try:
         return ctypes_vector_mapper[dtype]
     except KeyError:
@@ -230,7 +245,6 @@ def ctypes_to_cstr(ctype, toarray=None):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
-
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
@@ -301,7 +315,8 @@ def infer_dtype(dtypes):
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
+               np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:

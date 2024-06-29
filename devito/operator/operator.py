@@ -469,6 +469,8 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+
+        # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -1348,7 +1350,8 @@ def parse_kwargs(**kwargs):
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
-                                                         mpi=configuration['mpi'])
+                                                         mpi=configuration['mpi'],
+                                                         name=compiler)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],

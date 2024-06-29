@@ -2,12 +2,13 @@ import cloudpickle as pickle
 
 import pytest
 import numpy as np
+import sympy
 import scipy.sparse
 
 from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
-                    SubDimension, SubDomain, SubDomainSet, TimeFunction,
+                    SubDimension, SubDomain, SubDomainSet, TimeFunction, exp,
                     Operator, configuration, switchconfig, TensorTimeFunction)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
@@ -65,6 +66,23 @@ class TestCodeGeneration:
         assert len(trees) == 2
         assert trees[0][0] is trees[1][0]
         assert trees[0][1] is not trees[1][1]
+
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_complex(self, dtype):
+        grid = Grid((5, 5))
+        x, y = grid.dimensions
+        u = Function(name="u", grid=grid, dtype=dtype)
+
+        eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing))
+        op = Operator(eq)
+        op()
+
+        # Check against numpy
+        dx = grid.spacing_map[x.spacing]
+        xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
+        npres = xx + 1j*yy + np.exp(1j + dx)
+
+        assert np.allclose(u.data, npres.T, rtol=1e-6, atol=0)
 
 
 class TestPassesOptional:

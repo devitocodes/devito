@@ -79,7 +79,7 @@ class FIndexed(Indexed, Pickable):
     __rkwargs__ = ('strides_map', 'accessor')
 
     def __new__(cls, base, *args, strides_map=None, accessor=None):
-        obj = super().__new__(cls, base, *args)
+        obj = super().__new__(cls, base, args)
         obj.strides_map = frozendict(strides_map or {})
         obj.accessor = accessor
 
