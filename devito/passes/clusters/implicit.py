@@ -95,7 +95,7 @@ class LowerExplicitMSD(LowerMSD):
 
             # Get all MultiSubDimensions in the cluster and get the dynamic thickness
             # mapper for the associated MultiSubDomain
-            mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None})
+            mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None}, c)
 
             if not dims:
                 # An Implicit MSD
@@ -171,7 +171,7 @@ class LowerImplicitMSD(LowerMSD):
                 continue
 
             # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd({i.dim for i in ispace})
+            mapper, dims = lower_msd({i.dim for i in ispace}, c)
             if dims:
                 # An Explicit MSD
                 continue
@@ -224,30 +224,32 @@ def msdim(d):
 
 
 @singledispatch
-def _lower_msd(dim):
+def _lower_msd(dim, cluster):
     # Retval: (dynamic thickness mapper, iteration dimensions)
-    return (), ()
+    return {}, None
 
 
 @_lower_msd.register(MultiSubDimension)
-def _(dim):
+def _(dim, cluster):
     # Pull out the parent MultiSubDimension if blocked etc
     msd = [d for d in dim._defines if d.is_MultiSub]
     assert len(msd) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
     msd = msd.pop()
 
-    mapper = {(dim.root, i): f.indexify() for i, f in enumerate(msd.functions)}
-    return mapper, msd.implicit_dimension
+    i_dim = msd.implicit_dimension
+    mapper = {(dim.root, i): msd.functions[i_dim, mM]
+              for i, mM in enumerate(msd.bounds_indices)}
+    return mapper, i_dim
 
 
-def lower_msd(msdims):
+def lower_msd(msdims, cluster):
     mapper = {}
     dims = set()
     for d in msdims:
-        dmapper, ddim = _lower_msd(d)
+        dmapper, ddim = _lower_msd(d, cluster)
         mapper.update(dmapper)
         dims.add(ddim)
-    return mapper, tuple(dims - {None})
+    return frozendict(mapper), tuple(dims - {None})
 
 
 def make_implicit_exprs(mapper, sregistry):

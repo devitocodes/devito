@@ -305,7 +305,7 @@ class TestMultiSubDomain:
         # unique -- see issue #1474
         exprs = FindNodes(Expression).visit(op)
         reads = set().union(*[e.reads for e in exprs])
-        assert len(reads) == 7  # f, g, h, xi_n_m, xi_n_M, yi_n_m, yi_n_M
+        assert len(reads) == 4  # f, g, h, mydomains
 
     def test_multi_sets(self):
         """

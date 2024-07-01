@@ -15,7 +15,7 @@ from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension,
-                                    AbstractSubDimension)
+                                    AbstractSubDimension, DefaultDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -554,11 +554,13 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rkwargs__ = ('functions', 'implicit_dimension')
+    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    def __init_finalize__(self, name, parent, functions=None, implicit_dimension=None):
+    def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
+                          implicit_dimension=None):
         super().__init_finalize__(name, parent)
         self.functions = functions
+        self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
 
     def __hash__(self):
@@ -771,26 +773,27 @@ class SubDomainSet(MultiSubDomain):
         assert n >= 0
 
         i_dim = Dimension(name='n%d' % n)
+        d_dim = DefaultDimension(name='d%d' % n, default_value=2*grid.dim)
+        sd_func = Function(name=self.name, grid=self._grid,
+                           shape=(self._n_domains, 2*grid.dim),
+                           dimensions=(i_dim, d_dim), dtype=np.int32)
 
         dimensions = []
         for i, d in enumerate(grid.dimensions):
-            dname = '%si%d' % (d.name, counter)
-            fnames = ["%s_%s_%s" % (self.name, dname, mM)
-                      for mM in ('m', 'M')]
-            f = tuple(Function(name=fname, grid=self._grid, shape=(self._n_domains,),
-                               dimensions=(i_dim,), dtype=np.int32) for fname in fnames)
-
             # Check if shorthand notation has been provided:
             for j in range(2):
                 idx = 2*i + j
                 if isinstance(self._local_bounds[idx], int):
-                    f[j].data[:] = np.full((self._n_domains,),
-                                           self._local_bounds[idx],
-                                           dtype=np.int32)
+                    sd_func.data[:, idx] = np.full((self._n_domains,),
+                                                   self._local_bounds[idx],
+                                                   dtype=np.int32)
                 else:
-                    f[j].data[:] = self._local_bounds[idx]
+                    sd_func.data[:, idx] = self._local_bounds[idx]
 
-            dimensions.append(MultiSubDimension(dname, d, functions=f,
+            dname = '%si%d' % (d.name, counter)
+            dimensions.append(MultiSubDimension(dname, d,
+                                                functions=sd_func,
+                                                bounds_indices=(2*i, 2*i+1),
                                                 implicit_dimension=i_dim))
 
         self._dimensions = tuple(dimensions)
