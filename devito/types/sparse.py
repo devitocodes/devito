@@ -716,8 +716,9 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         dimensions = as_tuple(kwargs.get('dimensions'))
+        time_dim = kwargs.get('time_dim', kwargs['grid'].time_dim)
         if not dimensions:
-            dimensions = (kwargs['grid'].time_dim,
+            dimensions = (time_dim,
                           *super().__indices_setup__(*args, **kwargs)[0])
 
         if args:

@@ -482,7 +482,9 @@ class SparseDistributor(AbstractDistributor):
     def decompose(cls, npoint, distributor):
         """Distribute `npoint` points over `nprocs` MPI ranks."""
         nprocs = distributor.nprocs
-        if isinstance(npoint, int):
+        if nprocs == 1:
+            return (npoint,)
+        elif isinstance(npoint, int):
             # `npoint` is a global count. The `npoint` are evenly distributed
             # across the various MPI ranks. Note that there is nothing smart
             # in the following -- it's entirely possible that the MPI rank 0,

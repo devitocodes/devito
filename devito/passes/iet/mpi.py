@@ -6,6 +6,7 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            MapNodes, MapHaloSpots, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
+from devito.ir.support.guards import GuardFactorEq
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
@@ -160,7 +161,8 @@ def _merge_halospots(iet):
 
     # Analysis
     cond_mapper = MapHaloSpots().visit(iet)
-    cond_mapper = {hs: {i for i in v if i.is_Conditional}
+    cond_mapper = {hs: {i for i in v if i.is_Conditional and
+                        not isinstance(i.condition, GuardFactorEq)}
                    for hs, v in cond_mapper.items()}
 
     iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
