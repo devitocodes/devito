@@ -8,7 +8,7 @@ from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
 from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
-                          filter_ordered, flatten, is_integer, prod)
+                          filter_ordered, flatten, is_integer)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -160,10 +160,14 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
 
-    def _has_other_blockable_dim(self, cluster, d):
-        return any(cluster.properties.is_parallel_relaxed(i) and
-                   not self._has_short_trip_count(i)
+    def _has_atomic_blockable_dim(self, cluster, d):
+        return any(cluster.properties.is_parallel_atomic(i)
                    for i in set(cluster.ispace.itdims) - {d})
+
+    def _has_enough_large_blockable_dims(self, cluster, d):
+        return len([i for i in set(cluster.ispace.itdims) - {d}
+                    if (cluster.properties.is_parallel_relaxed(i) and
+                        not self._has_short_trip_count(i))]) >= 3
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -178,16 +182,25 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
 
             if is_on_device(c.functions, self.gpu_fit):
                 if self._has_short_trip_count(d):
-                    if self._has_other_blockable_dim(c, d):
+                    if self._has_atomic_blockable_dim(c, d):
+                        # Optimization: minimize number of parallel reductions
+                        # if we think there's already enough parallelism around
                         return clusters
-                    else:
-                        properties = c.properties.block(d, 'small')
+                    elif self._has_enough_large_blockable_dims(c, d):
+                        # Optimization: pointless, from a performance standpoint,
+                        # to have more than three large blockable Dimensions
+                        return clusters
+
+                if any(self._has_short_trip_count(i) for i in c.ispace.itdims):
+                    properties = c.properties.block(d, 'small')
                 elif self._has_data_reuse(c):
                     properties = c.properties.block(d)
                 else:
                     properties = c.properties.block(d, 'small')
+
             elif self._has_data_reuse(c):
                 properties = c.properties.block(d)
+
             else:
                 return clusters
 
@@ -317,8 +330,6 @@ class SynthesizeBlocking(Queue):
 
     def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
         if blk_size_gen is not None:
-            # By passing a suitable key to `next` we ensure that we pull the
-            # next par-tile entry iff we're now blocking an unseen TILABLE nest
             step = sympify(blk_size_gen.next(prefix, d, clusters))
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
