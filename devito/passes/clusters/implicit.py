@@ -3,6 +3,7 @@ Passes to gather and form implicit equations from DSL abstractions.
 """
 
 from collections import defaultdict
+from functools import singledispatch
 
 import numpy as np
 
@@ -10,6 +11,7 @@ from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
 from devito.tools import Bunch, frozendict, timed_pass
 from devito.types import Eq, Symbol
+from devito.types.grid import MultiSubDimension
 
 __all__ = ['generate_implicit']
 
@@ -221,18 +223,31 @@ def msdim(d):
     return None
 
 
+@singledispatch
+def _lower_msd(dim):
+    # Retval: (dynamic thickness mapper, iteration dimensions)
+    return (), ()
+
+
+@_lower_msd.register(MultiSubDimension)
+def _(dim):
+    # Pull out the parent MultiSubDimension if blocked etc
+    msd = [d for d in dim._defines if d.is_MultiSub]
+    assert len(msd) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
+    msd = msd.pop()
+
+    mapper = {(dim.root, i): f.indexify() for i, f in enumerate(msd.functions)}
+    return mapper, msd.implicit_dimension
+
+
 def lower_msd(msdims):
     mapper = {}
     dims = set()
     for d in msdims:
-        # Pull out the parent MultiSubDimension if blocked etc
-        msd = [d for d in d._defines if d.is_MultiSub]
-        assert len(msd) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
-        msd = msd.pop()
-
-        mapper.update({(d.root, i): f.indexify() for i, f in enumerate(msd.functions)})
-        dims.add(msd.implicit_dimension)
-    return mapper, tuple(dims)
+        dmapper, ddim = _lower_msd(d)
+        mapper.update(dmapper)
+        dims.add(ddim)
+    return mapper, tuple(dims - {None})
 
 
 def make_implicit_exprs(mapper, sregistry):
