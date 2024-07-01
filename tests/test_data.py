@@ -208,6 +208,17 @@ class TestDataBasic:
         sf.data[1:-1, 0] = np.arange(8)
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
+    @pytest.mark.parallel(mode=1)
+    def test_indexing_into_sparse_subfunc_singlempi(self, mode):
+        grid = Grid(shape=(4, 4))
+        s = SparseFunction(name='sf', grid=grid, npoint=1)
+        coords = np.random.rand(*s.coordinates.data.shape)
+        s.coordinates.data[:] = coords
+
+        s.coordinates.data[-1, :] = s.coordinates.data[-1, :] / 2
+
+        assert np.allclose(s.coordinates.data[-1, :], coords[-1, :] / 2)
+
 
 class TestLocDataIDX:
     """

@@ -130,10 +130,12 @@ class Data(np.ndarray):
                     decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
             self._allocator = obj._allocator
-            self._is_distributed = any(i is not None for i in self._decomposition)
+            decomp = any(i is not None for i in self._decomposition)
+            self._is_distributed = decomp and obj._is_distributed
         else:
             self._distributor = obj._distributor
             self._allocator = obj._allocator
+            self._is_distributed = obj._is_distributed
             if self.ndim == obj.ndim:
                 # E.g., from a ufunc, such as `np.add`
                 self._modulo = obj._modulo
@@ -142,7 +144,6 @@ class Data(np.ndarray):
                 # E.g., from a reduction operation such as `np.mean` or `np.all`
                 self._modulo = tuple(False for i in range(self.ndim))
                 self._decomposition = (None,)*self.ndim
-            self._is_distributed = any(i is not None for i in self._decomposition)
 
     @property
     def _local(self):
