@@ -554,7 +554,6 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rargs__ = ('name', 'parent')
     __rkwargs__ = ('functions', 'implicit_dimension')
 
     def __init_finalize__(self, name, parent, functions=None, implicit_dimension=None):
