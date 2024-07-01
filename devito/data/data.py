@@ -116,7 +116,6 @@ class Data(np.ndarray):
             self._allocator = ALLOC_ALIGNED
         elif obj._index_stash is not None:
             # From `__getitem__`
-            self._is_distributed = obj._is_distributed
             self._distributor = obj._distributor
             glb_idx = obj._normalize_index(obj._index_stash)
             self._modulo = tuple(m for i, m in zip(glb_idx, obj._modulo)
@@ -131,8 +130,8 @@ class Data(np.ndarray):
                     decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
             self._allocator = obj._allocator
+            self._is_distributed = any(i is not None for i in self._decomposition)
         else:
-            self._is_distributed = obj._is_distributed
             self._distributor = obj._distributor
             self._allocator = obj._allocator
             if self.ndim == obj.ndim:
@@ -143,6 +142,7 @@ class Data(np.ndarray):
                 # E.g., from a reduction operation such as `np.mean` or `np.all`
                 self._modulo = tuple(False for i in range(self.ndim))
                 self._decomposition = (None,)*self.ndim
+            self._is_distributed = any(i is not None for i in self._decomposition)
 
     @property
     def _local(self):
