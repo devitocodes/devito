@@ -951,6 +951,27 @@ class TestCodeGeneration:
         assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
+    def test_avoid_redundant_haloupdate_cond(self, mode):
+        grid = Grid(shape=(12,))
+        x = grid.dimensions[0]
+        t = grid.stepping_dim
+
+        i = Dimension(name='i')
+        j = Dimension(name='j')
+
+        f = TimeFunction(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        t_sub = ConditionalDimension(name='t_sub', parent=t, factor=2)
+
+        op = Operator([Eq(f.forward, f[t, x-1] + f[t, x+1] + 1.),
+                       Inc(f[t+1, i], 1.),  # no halo update as it's an Inc
+                       # access `f` at `t`, not `t+1` through factor subdim!
+                       Eq(g, f[t, j] + 1, implicit_dim=t_sub)])
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_if_distr_but_sequential(self, mode):
         grid = Grid(shape=(12,))
         x = grid.dimensions[0]
