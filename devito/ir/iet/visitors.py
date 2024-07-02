@@ -480,7 +480,7 @@ class CGen(Visitor):
             code = c.Assign(lhs, rhs)
 
         if o.pragmas:
-            code = c.Module(list(o.pragmas) + [code])
+            code = c.Module(self._visit(o.pragmas) + (code,))
 
         return code
 
@@ -489,7 +489,7 @@ class CGen(Visitor):
         c_rhs = ccode(o.expr.rhs, dtype=o.dtype, compiler=self._compiler)
         code = c.Statement("%s %s= %s" % (c_lhs, o.op, c_rhs))
         if o.pragmas:
-            code = c.Module(list(o.pragmas) + [code])
+            code = c.Module(self._visit(o.pragmas) + (code,))
         return code
 
     def visit_Call(self, o, nested_call=False):
@@ -555,15 +555,13 @@ class CGen(Visitor):
 
         # Attach pragmas, if any
         if o.pragmas:
-            handle = c.Module(o.pragmas + (handle,))
+            pragmas = tuple(self._visit(i) for i in o.pragmas)
+            handle = c.Module(pragmas + (handle,))
 
         return handle
 
     def visit_Pragma(self, o):
-        if len(o.pragmas) == 1:
-            return o.pragmas[0]
-        else:
-            return c.Collection(o.pragmas)
+        return c.Pragma(o._generate)
 
     def visit_While(self, o):
         condition = ccode(o.condition)
@@ -1230,9 +1228,10 @@ class Uxreplace(Transformer):
         nodes = self._visit(o.nodes)
         dimension = uxreplace(o.dim, self.mapper)
         limits = [uxreplace(i, self.mapper) for i in o.limits]
+        pragmas = self._visit(o.pragmas)
         uindices = [uxreplace(i, self.mapper) for i in o.uindices]
         return o._rebuild(nodes=nodes, dimension=dimension, limits=limits,
-                          uindices=uindices)
+                          pragmas=pragmas, uindices=uindices)
 
     def visit_Definition(self, o):
         try:

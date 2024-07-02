@@ -1098,13 +1098,12 @@ def rcompile(expressions, kwargs, options, target=None):
 
     if target is None:
         cls = operator_selector(**kwargs)
+        kwargs['options'] = options
     else:
         kwargs = parse_kwargs(**target)
         cls = operator_selector(**kwargs)
         kwargs = cls._normalize_kwargs(**kwargs)
-
-    # Use the customized opt options
-    kwargs['options'] = options
+        kwargs['options'].update(options)
 
     # Recursive profiling not supported -- would be a complete mess
     kwargs.pop('profiler', None)

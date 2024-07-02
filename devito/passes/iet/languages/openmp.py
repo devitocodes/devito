@@ -1,3 +1,4 @@
+from functools import cached_property
 from packaging.version import Version
 
 import cgen as c
@@ -5,7 +6,7 @@ from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
 from devito.arch.compiler import GNUCompiler
-from devito.ir import (Call, Conditional, DeviceCall, List, Prodder,
+from devito.ir import (Call, Conditional, DeviceCall, List, Pragma, Prodder,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
@@ -13,6 +14,7 @@ from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
+from devito.passes.iet.languages.utils import joins
 from devito.passes.iet.languages.C import CBB
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
@@ -99,6 +101,16 @@ class ThreadedProdder(Conditional, Prodder):
         Prodder.__init__(self, prodder.name, arguments, periodic=prodder.periodic)
 
 
+class SimdForAligned(Pragma):
+
+    @cached_property
+    def _generate(self):
+        assert len(self.arguments) > 1
+        n = self.arguments[0]
+        items = self.arguments[1:]
+        return self.pragma % (joins(*items), n)
+
+
 class OmpBB(LangBB):
 
     mapper = {
@@ -115,9 +127,12 @@ class OmpBB(LangBB):
         'thread-num': lambda retobj=None:
             Call('omp_get_thread_num', retobj=retobj),
         # Pragmas
-        'simd-for': c.Pragma('omp simd'),
-        'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j)),
-        'atomic': c.Pragma('omp atomic update')
+        'simd-for':
+            Pragma('omp simd'),
+        'simd-for-aligned': lambda n, *a:
+            SimdForAligned('omp simd aligned(%s:%d)', arguments=(n, *a)),
+        'atomic':
+            Pragma('omp atomic update')
     }
     mapper.update(CBB.mapper)
 
@@ -139,24 +154,29 @@ class DeviceOmpBB(OmpBB, PragmaLangBB):
         'set-device': lambda args:
             Call('omp_set_default_device', args),
         # Pragmas
-        'map-enter-to': lambda i, j:
-            c.Pragma('omp target enter data map(to: %s%s)' % (i, j)),
-        'map-enter-alloc': lambda i, j:
-            c.Pragma('omp target enter data map(alloc: %s%s)' % (i, j)),
-        'map-update': lambda i, j:
-            c.Pragma('omp target update from(%s%s)' % (i, j)),
-        'map-update-host': lambda i, j:
-            c.Pragma('omp target update from(%s%s)' % (i, j)),
-        'map-update-device': lambda i, j:
-            c.Pragma('omp target update to(%s%s)' % (i, j)),
-        'map-release': lambda i, j:
-            c.Pragma('omp target exit data map(release: %s%s)' % (i, j)),
-        'map-release-if': lambda i, j, k:
-            c.Pragma('omp target exit data map(release: %s%s) if(%s)' % (i, j, k)),
-        'map-exit-delete': lambda i, j:
-            c.Pragma('omp target exit data map(delete: %s%s)' % (i, j)),
-        'map-exit-delete-if': lambda i, j, k:
-            c.Pragma('omp target exit data map(delete: %s%s) if(%s)' % (i, j, k)),
+        'map-enter-to': lambda f, imask:
+            PragmaTransfer('omp target enter data map(to: %s%s)', f, imask=imask),
+        'map-enter-alloc': lambda f, imask:
+            PragmaTransfer('omp target enter data map(alloc: %s%s)',
+                           f, imask=imask),
+        'map-update': lambda f, imask:
+            PragmaTransfer('omp target update from(%s%s)', f, imask=imask),
+        'map-update-host': lambda f, imask:
+            PragmaTransfer('omp target update from(%s%s)', f, imask=imask),
+        'map-update-device': lambda f, imask:
+            PragmaTransfer('omp target update to(%s%s)', f, imask=imask),
+        'map-release': lambda f, imask:
+            PragmaTransfer('omp target exit data map(release: %s%s)',
+                           f, imask=imask),
+        'map-release-if': lambda f, imask, a:
+            PragmaTransfer('omp target exit data map(release: %s%s) if(%s)',
+                           f, imask=imask, arguments=a),
+        'map-exit-delete': lambda f, imask:
+            PragmaTransfer('omp target exit data map(delete: %s%s)',
+                           f, imask=imask),
+        'map-exit-delete-if': lambda f, imask, a:
+            PragmaTransfer('omp target exit data map(delete: %s%s) if(%s)',
+                           f, imask=imask, arguments=a),
         'memcpy-to-device': lambda i, j, k:
             Call('omp_target_memcpy', [i, j, k, 0, 0,
                                        DefFunction('omp_get_device_num'),
@@ -186,7 +206,7 @@ class DeviceOmpBB(OmpBB, PragmaLangBB):
         if devicerm is not None:
             items.append(devicerm)
         argument = And(*items)
-        return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask, argument)
+        return cls.mapper['map-exit-delete-if'](f, imask, argument)
 
 
 class SimdOmpizer(PragmaSimdTransformer):

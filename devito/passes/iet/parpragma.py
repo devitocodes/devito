@@ -48,10 +48,10 @@ class PragmaSimdTransformer(PragmaTransformer):
 
     def _make_simd_pragma(self, iet):
         indexeds = FindSymbols('indexeds').visit(iet)
-        aligned = {i.name for i in indexeds if i.function.is_DiscreteFunction}
+        aligned = {i.base for i in indexeds if i.function.is_DiscreteFunction}
         if aligned:
             simd = self.lang['simd-for-aligned']
-            simd = as_tuple(simd(','.join(sorted(aligned)), self.simd_reg_nbytes))
+            simd = as_tuple(simd(self.simd_reg_nbytes, *aligned))
         else:
             simd = as_tuple(self.lang['simd-for'])
 
@@ -146,8 +146,7 @@ class PragmaIteration(ParallelIteration):
             reduction=reduction, schedule=schedule, tile=tile, gpu_fit=gpu_fit,
             **kwargs
         )
-        pragma = c.Pragma(' '.join([construct] + clauses))
-        kwargs['pragmas'] = pragma
+        kwargs['pragmas'] = Pragma(' '.join([construct] + clauses))
 
         super().__init__(*args, **kwargs)
 
@@ -427,11 +426,12 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 class PragmaTransfer(Pragma, Transfer):
 
     """
-    A data transfer between host and device expressed by means of one or more pragmas.
+    A data transfer between host and device expressed by means of one or
+    more pragmas.
     """
 
-    def __init__(self, callback, function, imask=None, arguments=None):
-        super().__init__(callback, arguments)
+    def __init__(self, pragma, function, imask=None, arguments=None):
+        super().__init__(pragma, arguments)
 
         self._function = function
         self._imask = imask
@@ -450,13 +450,6 @@ class PragmaTransfer(Pragma, Transfer):
     def sections(self):
         return make_sections_from_imask(self.function, self.imask)
 
-    @cached_property
-    def pragmas(self):
-        # Stringify sections
-        sections = ''.join(['[%s:%s]' % (ccode(i), ccode(j)) for i, j in self.sections])
-        arguments = [ccode(i) for i in self.arguments]
-        return as_tuple(self.callback(self.function.name, sections, *arguments))
-
     @property
     def functions(self):
         return (self.function,)
@@ -470,6 +463,14 @@ class PragmaTransfer(Pragma, Transfer):
             except AttributeError:
                 pass
         return tuple(retval)
+
+    @cached_property
+    def _generate(self):
+        # Stringify sections
+        sections = ''.join(['[%s:%s]' % (ccode(i), ccode(j))
+                            for i, j in self.sections])
+        arguments = [ccode(i) for i in self.arguments]
+        return self.pragma % (self.function.name, sections, *arguments)
 
 
 class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
@@ -588,13 +589,13 @@ class PragmaLangBB(LangBB):
 
     @classmethod
     def _map_to(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-enter-to'], f, imask)
+        return cls.mapper['map-enter-to'](f, imask)
 
     _map_to_wait = _map_to
 
     @classmethod
     def _map_alloc(cls, f, imask=None):
-        return PragmaTransfer(cls.mapper['map-enter-alloc'], f, imask)
+        return cls.mapper['map-enter-alloc'](f, imask)
 
     @classmethod
     def _map_present(cls, f, imask=None):
@@ -605,26 +606,26 @@ class PragmaLangBB(LangBB):
 
     @classmethod
     def _map_update(cls, f, imask=None):
-        return PragmaTransfer(cls.mapper['map-update'], f, imask)
+        return cls.mapper['map-update'](f, imask)
 
     @classmethod
     def _map_update_host(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-update-host'], f, imask)
+        return cls.mapper['map-update-host'](f, imask)
 
     _map_update_host_async = _map_update_host
 
     @classmethod
     def _map_update_device(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-update-device'], f, imask)
+        return cls.mapper['map-update-device'](f, imask)
 
     _map_update_device_async = _map_update_device
 
     @classmethod
     def _map_release(cls, f, imask=None, devicerm=None):
         if devicerm:
-            return PragmaTransfer(cls.mapper['map-release-if'], f, imask, devicerm)
+            return cls.mapper['map-release-if'](f, imask, devicerm)
         else:
-            return PragmaTransfer(cls.mapper['map-release'], f, imask)
+            return cls.mapper['map-release'](f, imask)
 
 
 # Utils

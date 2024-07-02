@@ -71,12 +71,8 @@ def key1(f, d):
     """
     if f.is_regular:
         # For paddable objects the following holds:
-        # `same dim + same halo + same dtype => same (auto-)padding`
-        # Bundle need the actual function dtype
-        if f.is_Bundle:
-            return (d, f._size_halo[d], f.is_autopaddable, f.c0.dtype)
-        else:
-            return (d, f._size_halo[d], f.is_autopaddable, f.dtype)
+        # `same dim + same halo + same padding_dtype => same (auto-)padding`
+        return (d, f._size_halo[d], f.__padding_dtype__)
     else:
         return False
 

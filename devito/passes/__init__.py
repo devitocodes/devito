@@ -82,15 +82,7 @@ def is_gpu_create(obj, gpu_create):
     except AttributeError:
         functions = as_tuple(obj)
 
-    for i in functions:
-        try:
-            f = i.alias or i
-        except AttributeError:
-            f = i
-        if f not in gpu_create:
-            return False
-
-    return True
+    return all(f in gpu_create for f in functions)
 
 
 # Import all compiler passes

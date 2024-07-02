@@ -732,12 +732,6 @@ class SubDimension(AbstractSubDimension):
                 symbolic_thickness
             )
 
-    def overlap(self, other):
-        return (isinstance(other, SubDimension) and
-                self.root is other.root and
-                self._offset_left.extreme is other._offset_left.extreme and
-                self._offset_right.extreme is other._offset_right.extreme)
-
     @property
     def _arg_names(self):
         return tuple(k.name for k, _ in self.thickness) + self.parent._arg_names
@@ -1354,7 +1348,7 @@ class CustomDimension(BasicDimension):
             ret |= self.parent._defines
         return ret
 
-    @property
+    @cached_property
     def symbolic_min(self):
         try:
             return sympy.Number(self._symbolic_min)
@@ -1365,7 +1359,7 @@ class CustomDimension(BasicDimension):
         else:
             return self._symbolic_min
 
-    @property
+    @cached_property
     def symbolic_max(self):
         try:
             return sympy.Number(self._symbolic_max)
@@ -1376,14 +1370,18 @@ class CustomDimension(BasicDimension):
         else:
             return self._symbolic_max
 
-    @property
+    @cached_property
     def symbolic_size(self):
         try:
             return sympy.Number(self._symbolic_size)
         except (TypeError, ValueError):
             pass
         if self._symbolic_size is None:
-            return super().symbolic_size
+            v = self.symbolic_max - self.symbolic_min + 1
+            if v.is_Number:
+                return v
+            else:
+                return super().symbolic_size
         else:
             return self._symbolic_size
 

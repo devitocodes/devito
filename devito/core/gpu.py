@@ -120,17 +120,17 @@ class DeviceOperatorMixin:
         options0 = kwargs0.pop('options')
 
         def wrapper(expressions, mode='default', options=None, **kwargs1):
-            options = {**options0, **(options or {})}
             kwargs = {**kwargs0, **kwargs1}
 
             if mode == 'host':
-                par_disabled = options['par-disabled']
+                options = options or {}
                 target = {
                     'platform': 'cpu64',
-                    'language': 'C' if par_disabled else 'openmp',
+                    'language': 'C' if options0['par-disabled'] else 'openmp',
                     'compiler': 'custom'
                 }
             else:
+                options = {**options0, **(options or {})}
                 target = None
 
             return rcompile(expressions, kwargs, options, target=target)
