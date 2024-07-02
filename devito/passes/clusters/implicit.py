@@ -182,8 +182,9 @@ class LowerImplicitMSD(LowerMSD):
             if dim not in edims or not edims.issubset(prefix.dimensions):
                 continue
 
-            found[d.msd].clusters.append(c)
-            found[d.msd].mapper = reduce(found[d.msd].mapper, mapper, edims, prefix)
+            found[d.functions].clusters.append(c)
+            found[d.functions].mapper = reduce(found[d.functions].mapper,
+                                               mapper, edims, prefix)
 
         # Turn the reduced mapper into a list of equations
         mapper = {}

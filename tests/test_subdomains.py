@@ -642,6 +642,15 @@ class TestMultiSubDomain:
         assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
                          't,n0,xi20_blk0,yi20_blk0,x,y,z')
 
+        xi, _, _ = dummy.dimensions
+        # Check that the correct number of thickness expressions are generated
+        sdsexprs = [i.expr for i in FindNodes(Expression).visit(op)
+                    if i.expr.rhs.is_Indexed
+                    and i.expr.rhs.function is xi.functions]
+        # The thickness expressions Eq(x_ltkn0, dummy[n0][0]), ...
+        # should be scheduled once per dimension
+        assert len(sdsexprs) == 6
+
     def test_sequential_implicit(self):
         """
         Make sure the implicit dimensions of the MultiSubDomain define a sequential

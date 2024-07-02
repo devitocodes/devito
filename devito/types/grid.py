@@ -783,12 +783,7 @@ class SubDomainSet(MultiSubDomain):
             # Check if shorthand notation has been provided:
             for j in range(2):
                 idx = 2*i + j
-                if isinstance(self._local_bounds[idx], int):
-                    sd_func.data[:, idx] = np.full((self._n_domains,),
-                                                   self._local_bounds[idx],
-                                                   dtype=np.int32)
-                else:
-                    sd_func.data[:, idx] = self._local_bounds[idx]
+                sd_func.data[:, idx] = self._local_bounds[idx]
 
             dname = '%si%d' % (d.name, counter)
             dimensions.append(MultiSubDimension(dname, d,
