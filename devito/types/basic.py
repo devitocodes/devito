@@ -1085,6 +1085,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return self.indexed
 
     @property
+    def c0(self):
+        """
+        `self`'s first component if `self` is a tensor, otherwise just `self`.
+        """
+        return self
+
+    @property
     def _eval_deriv(self):
         return self
 
