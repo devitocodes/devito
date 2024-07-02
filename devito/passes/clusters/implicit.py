@@ -4,7 +4,6 @@ Passes to gather and form implicit equations from DSL abstractions.
 
 from collections import defaultdict
 from functools import singledispatch
-from math import floor
 
 import numpy as np
 
@@ -12,7 +11,8 @@ from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
 from devito.tools import Bunch, frozendict, timed_pass
 from devito.types import Eq, Symbol
-from devito.types.grid import MultiSubDimension, SubDomainSet
+from devito.types.dimension import BlockDimension
+from devito.types.grid import MultiSubDimension
 
 __all__ = ['generate_implicit']
 
@@ -94,8 +94,10 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd(d.msd, c)
+            # Get all MultiSubDimensions in the cluster and get the dynamic thickness
+            # mapper for the associated MultiSubDomain
+            mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None}, c)
+
             if not dims:
                 # An Implicit MSD
                 processed.append(c)
@@ -170,7 +172,7 @@ class LowerImplicitMSD(LowerMSD):
                 continue
 
             # Get the dynamic thickness mapper for the given MultiSubDomain
-            mapper, dims = lower_msd(d.msd, c)
+            mapper, dims = lower_msd(ispace.itdims, c)
             if dims:
                 # An Explicit MSD
                 continue
@@ -181,8 +183,9 @@ class LowerImplicitMSD(LowerMSD):
             if dim not in edims or not edims.issubset(prefix.dimensions):
                 continue
 
-            found[d.msd].clusters.append(c)
-            found[d.msd].mapper = reduce(found[d.msd].mapper, mapper, edims, prefix)
+            found[d.functions].clusters.append(c)
+            found[d.functions].mapper = reduce(found[d.functions].mapper,
+                                               mapper, edims, prefix)
 
         # Turn the reduced mapper into a list of equations
         mapper = {}
@@ -215,7 +218,7 @@ class LowerImplicitMSD(LowerMSD):
 def msdim(d):
     try:
         for i in d._defines:
-            if isinstance(i, MultiSubDimension):
+            if i.is_MultiSub:
                 return i
     except AttributeError:
         pass
@@ -223,23 +226,36 @@ def msdim(d):
 
 
 @singledispatch
-def lower_msd(msd, cluster):
-    # Retval: (dynamic thickness mapper, iteration dimensions)
-    return (), ()
+def _lower_msd(dim, cluster):
+    # Retval: (dynamic thickness mapper, iteration dimension)
+    return {}, None
 
 
-@lower_msd.register(SubDomainSet)
-def _(msd, *args):
-    ret = {}
-    for j in range(len(msd._local_bounds)):
-        index = floor(j/2)
-        side = j % 2
-        d = msd.dimensions[index]
-        f = msd._functions[j]
+@_lower_msd.register(MultiSubDimension)
+def _(dim, cluster):
+    i_dim = dim.implicit_dimension
+    mapper = {(dim.root, i): dim.functions[i_dim, mM]
+              for i, mM in enumerate(dim.bounds_indices)}
+    return mapper, i_dim
 
-        ret[(d.root, side)] = f.indexify()
 
-    return frozendict(ret), (msd._implicit_dimension,)
+@_lower_msd.register(BlockDimension)
+def _(dim, cluster):
+    # Pull out the parent MultiSubDimension
+    msd = [d for d in dim._defines if d.is_MultiSub]
+    assert len(msd) == 1  # Sanity check. MultiSubDimensions shouldn't be nested.
+    msd = msd.pop()
+    return _lower_msd(msd, cluster)
+
+
+def lower_msd(msdims, cluster):
+    mapper = {}
+    dims = set()
+    for d in msdims:
+        dmapper, ddim = _lower_msd(d, cluster)
+        mapper.update(dmapper)
+        dims.add(ddim)
+    return frozendict(mapper), tuple(dims - {None})
 
 
 def make_implicit_exprs(mapper, sregistry):
