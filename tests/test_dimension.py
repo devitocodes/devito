@@ -211,6 +211,10 @@ class TestBufferedDimension:
         assert np.all(f.data[4] == 4)
 
     def test_degenerate_to_zero(self):
+        """
+        Check that if `save=Buffer(1)` is used, then the TimeFunction doesn't
+        need any ModuloDimension for indexing.
+        """
         grid = Grid(shape=(10, 10))
 
         u = TimeFunction(name='u', grid=grid, save=Buffer(1))

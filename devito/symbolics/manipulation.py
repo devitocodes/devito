@@ -287,7 +287,7 @@ def pow_to_mul(expr):
             # E.g., a Symbol, or possibly a generic expression
             return expr
         if exp > 10 or exp < -10 or exp == 0:
-            # Large and non-integer powers remain untouched
+            # Large powers remain untouched
             return expr
         elif exp == -1 or int(exp) != exp:
             # Reciprocals and fractional powers also remain untouched,

@@ -1017,10 +1017,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return nopadding
 
         # The padded Dimension
-        candidates = self.space_dimensions
-        if not candidates:
+        if not self.space_dimensions:
             return nopadding
-        d = candidates[-1]
+        d = self.space_dimensions[-1]
 
         mmts = configuration['platform'].max_mem_trans_size(self.__padding_dtype__)
         remainder = self._size_nopad[d] % mmts
