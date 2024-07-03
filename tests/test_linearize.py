@@ -126,6 +126,27 @@ def test_interpolation():
     assert np.all(u.data == u1.data)
 
 
+def test_interpolation_enforcing_int64_indexing():
+    grid = Grid(shape=(4, 4))
+
+    src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=10)
+    rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=10)
+    u = TimeFunction(name="u", grid=grid, time_order=2)
+
+    eqns = ([Eq(u.forward, u + 1)] +
+            src.inject(field=u.forward, expr=src) +
+            rec.interpolate(expr=u.forward))
+
+    op = Operator(eqns, opt=('advanced', {'linearize': True,
+                                          'index-mode': 'int32'}))
+
+    # Check generated code
+    assert 'uL0' in str(op)
+    assert 'int x_stride0' in str(op)  # for `u`
+    assert 'long p_rec_stride0' in str(op)  # for `rec`
+    assert 'long p_src_stride0' in str(op)  # for `src`
+
+
 def test_interpolation_msf():
     grid = Grid(shape=(4, 4))
 
