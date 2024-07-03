@@ -3,7 +3,7 @@ import numpy as np
 import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    Inc, MatrixSparseTimeFunction, sin)
+                    Inc, MatrixSparseTimeFunction, sin, switchconfig)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, linearize, generate_macros
 from devito.types import Array, Bundle, DefaultDimension
@@ -594,21 +594,27 @@ def test_inc_w_default_dims():
     assert np.all(g.data[4:] == 0)
 
 
-def test_different_dtype():
-    space_order = 4
+@pytest.mark.parametrize('autopadding', [False, True, np.float64])
+def test_different_dtype(autopadding):
 
-    grid = Grid(shape=(4, 4))
+    @switchconfig(autopadding=autopadding)
+    def _test_different_dtype():
+        space_order = 4
 
-    f = Function(name='f', grid=grid, space_order=space_order)
-    b = Function(name='b', grid=grid, space_order=space_order, dtype=np.float64)
+        grid = Grid(shape=(4, 4))
 
-    f.data[:] = 2.1
-    b.data[:] = 1.3
+        f = Function(name='f', grid=grid, space_order=space_order)
+        b = Function(name='b', grid=grid, space_order=space_order, dtype=np.float64)
 
-    eq = Eq(f, b.dx + f.dy)
+        f.data[:] = 2.1
+        b.data[:] = 1.3
 
-    op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+        eq = Eq(f, b.dx + f.dy)
 
-    # Check generated code has different strides for different dtypes
-    assert "bL0(x,y) b[(x)*y_stride0 + (y)]" in str(op1)
-    assert "L0(x,y) f[(x)*y_stride0 + (y)]" in str(op1)
+        op1 = Operator(eq, opt=('advanced', {'linearize': True}))
+
+        # Check generated code has different strides for different dtypes
+        assert "bL0(x,y) b[(x)*y_stride0 + (y)]" in str(op1)
+        assert "L0(x,y) f[(x)*y_stride0 + (y)]" in str(op1)
+
+    _test_different_dtype()

@@ -102,7 +102,7 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
 # Enable/disable automatic padding for allocated data
-configuration.add('autopadding', False, [False, True])
+configuration.add('autopadding', False, [False, True, np.float32, np.float64])
 
 # Select target device
 configuration.add('deviceid', -1, preprocessor=int, impacts_jit=False)
