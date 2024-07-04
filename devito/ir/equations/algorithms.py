@@ -1,10 +1,12 @@
 from collections.abc import Iterable
+from functools import singledispatch
 
 from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import Dimension, IgnoreDimSort
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import Thickness
+from devito.types.dimension import Thickness, SubDimension
+from devito.types.grid import MultiSubDimension
 
 __all__ = ['dimension_sort', 'lower_exprs']
 
@@ -108,20 +110,18 @@ def _lower_exprs(expressions, subs, **kwargs):
     sregistry = kwargs.get('sregistry')
 
     processed = []
-    rebuilt_subdims = {}
+    rebuilt = {}
     for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
-            if sregistry:
-                # Give generic SubDimension thicknesses unique names
-                # FIXME: If the same subdomain is used in multiple equations, its
-                # subdimensions won't be reused currently, which is bad
-                # FIXME: Maybe this should return/modify a dict of replacements
-                rename_thicknesses(dimension_map, sregistry, rebuilt_subdims)
-                print("Dimension map", dimension_map)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
+
+        if sregistry and dimension_map:
+            # Give SubDimension thicknesses, SubDimensionSet functions and
+            # SubDomainSet implicit dimensions unique names
+            rename_thicknesses(dimension_map, sregistry, rebuilt)
 
         # Handle Functions (typical case)
         mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
@@ -160,36 +160,66 @@ def _lower_exprs(expressions, subs, **kwargs):
         return processed.pop()
 
 
-def rename_thicknesses(mapper, sregistry, rebuilt_subdims):
+@singledispatch
+def _rename_thicknesses(dim, sregistry, rebuilt):
+    # FIXME: Could return dim here, and remove the if statement
+    pass
+
+
+@_rename_thicknesses.register(SubDimension)
+def _(dim, sregistry, rebuilt):
+    ((lst, lst_v), (rst, rst_v)) = dim.thickness
+    lst_name = sregistry.make_name(prefix=lst.name)
+    rst_name = sregistry.make_name(prefix=rst.name)
+    lst_new = lst._rebuild(name=lst_name)
+    rst_new = rst._rebuild(name=rst_name)
+    new_thickness = Thickness((lst_new, lst_v),
+                              (rst_new, rst_v))
+
+    interval = dim._interval.subs({lst: lst_new, rst: rst_new})
+    return dim._rebuild(symbolic_min=interval.left,
+                        symbolic_max=interval.right,
+                        thickness=new_thickness)
+
+
+@_rename_thicknesses.register(MultiSubDimension)
+def _(dim, sregistry, rebuilt):
+    try:
+        # Get pre-existing rebuilt implicit dimension from mapper
+        # Implicit dimension substitution means there is a function
+        # substitution
+        idim = rebuilt[dim.implicit_dimension]
+        func = rebuilt[dim.functions]
+
+    except KeyError:
+        idim_name = sregistry.make_name(prefix=dim.implicit_dimension.name)
+        idim = dim.implicit_dimension._rebuild(name=idim_name)
+        rebuilt[dim.implicit_dimension] = idim
+
+        dimensions = list(dim.functions.dimensions)
+        dimensions[0] = idim
+
+        f_name = sregistry.make_name(prefix=dim.functions.name)
+        func = dim.functions._rebuild(name=f_name, dimensions=tuple(dimensions),
+                                      halo=None, padding=None)
+        print("Func data", func.data)
+        rebuilt[dim.functions] = func
+
+    return dim._rebuild(functions=func, implicit_dimension=idim)
+
+
+def rename_thicknesses(mapper, sregistry, rebuilt):
     """
     Rebuild SubDimensions in a mapper so that their thicknesses
     have unique names.
 
-    Also rebuilds MultiSubDimensions such that
+    Also rebuilds MultiSubDimensions such that their thicknesses
+    and implicit dimension names are unique.
     """
     for k, v in mapper.items():
         if v.is_AbstractSub:
             try:
                 # Use an existing renaming if one exists
-                mapper[k] = rebuilt_subdims[v]
+                mapper[k] = rebuilt[v]
             except KeyError:
-                if v.is_MultiSub:  # Handle MultiSubDimensions
-                    print(v, "is MultiSubDimension")
-                    continue
-
-                ((lst, lst_v), (rst, rst_v)) = v.thickness
-                # TODO: could stick this in a tiny loop
-                lst_name = sregistry.make_name(prefix=lst.name)
-                rst_name = sregistry.make_name(prefix=rst.name)
-                lst_new = lst._rebuild(name=lst_name)
-                rst_new = rst._rebuild(name=rst_name)
-                new_thickness = Thickness((lst_new, lst_v),
-                                          (rst_new, rst_v))
-
-                interval = v._interval.subs({lst: lst_new, rst: rst_new})
-                left = interval.left
-                right = interval.right
-                rebuilt = v._rebuild(symbolic_min=left,
-                                     symbolic_max=right,
-                                     thickness=new_thickness)
-                mapper[k] = rebuilt_subdims[v] = rebuilt
+                mapper[k] = rebuilt[v] = _rename_thicknesses(v, sregistry, rebuilt)
