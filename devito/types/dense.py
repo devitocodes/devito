@@ -866,10 +866,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
            data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument("`%s`, with its %d elements, may be too big for "
-                                  "int32 pointer arithmetic, which might cause an "
-                                  "overflow. Use the 'index-mode=int64' option"
-                                  % (self, data.size))
+            raise InvalidArgument("`%s`, with its %d elements, is too big for "
+                                  "int32 pointer arithmetic. Consider using the "
+                                  "'index-mode=int64' option, the save=Buffer(..) "
+                                  "API (TimeFunction only), or domain "
+                                  "decomposition via MPI" % (self.name, data.size))
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self

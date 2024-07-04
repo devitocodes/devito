@@ -115,10 +115,10 @@ class BasicOperator(Operator):
     stencil-like data accesses.
     """
 
-    INDEX_MODE = "int64"
+    INDEX_MODE = "int32"
     """
-    The type of the expression used to compute array indices. Either `int64`
-    (default) or `int32`.
+    The type of the expression used to compute array indices. Either `int32`
+    (default) or `int64`.
     """
 
     ERRCTL = None

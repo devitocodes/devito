@@ -185,7 +185,7 @@ def test_codegen_quality0(mode):
 
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 6
-    assert all('const long' in str(i) for i in exprs[:-2])
+    assert all('const int' in str(i) for i in exprs[:-2])
 
     # Only four access macros necessary, namely `uL0`, `bufL0`, `bufL1`
     # for the efunc args
@@ -207,8 +207,8 @@ def test_codegen_quality1():
     # 11 expressions in total are expected, 8 of which are for the linearized accesses
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 11
-    assert all('const long' in str(i) for i in exprs[:-3])
-    assert all('const long' not in str(i) for i in exprs[-3:])
+    assert all('const int' in str(i) for i in exprs[:-3])
+    assert all('const int' not in str(i) for i in exprs[-3:])
 
     # Only two access macros necessary, namely `uL0` and `r1L0` (the other five
     # obviously are _POSIX_C_SOURCE, MIN, MAX, START, STOP)
