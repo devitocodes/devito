@@ -765,6 +765,7 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
+        # NOTE: implicit dimensions of same size should get merged during compilation
         i_dim = Dimension(name='n')
         d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,

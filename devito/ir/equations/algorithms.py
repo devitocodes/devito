@@ -122,6 +122,9 @@ def _lower_exprs(expressions, subs, **kwargs):
             # Give SubDimension thicknesses, SubDimensionSet functions and
             # SubDomainSet implicit dimensions unique names
             rename_thicknesses(dimension_map, sregistry, rebuilt)
+            # Rebuild ConditionalDimensions using rebuilt subdimensions
+            # The expression is then rebuilt with this ConditionalDimension
+            expr = rebuild_cdims(expr, rebuilt)
 
         # Handle Functions (typical case)
         mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
@@ -224,3 +227,23 @@ def rename_thicknesses(mapper, sregistry, rebuilt):
                 mapper[k] = rebuilt[v]
             except KeyError:
                 mapper[k] = rebuilt[v] = _rename_thicknesses(v, sregistry, rebuilt)
+
+
+def rebuild_cdims(expr, rebuilt):
+    """
+    Rebuild expression using ConditionalDimensions where their parent
+    dimension is a MultiSubDimension which has been rebuilt to have a unique
+    name.
+    """
+    i_dims = expr.implicit_dims
+    rebuilt_dims = []
+    for d in i_dims:
+        try:
+            parent = rebuilt[d.parent]
+            # FIXME: Condition substitution should maybe be moved
+            cond = d.condition.subs(rebuilt)
+            rebuilt_dims.append(d._rebuild(parent=parent, condition=cond,
+                                           factor=None))
+        except KeyError:
+            rebuilt_dims.append(d)
+    return expr._rebuild(implicit_dims=tuple(rebuilt_dims))
