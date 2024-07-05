@@ -202,7 +202,8 @@ def _(dim, sregistry, rebuilt):
         f_name = sregistry.make_name(prefix=dim.functions.name)
         func = dim.functions._rebuild(name=f_name, dimensions=tuple(dimensions),
                                       halo=None, padding=None)
-        print("Func data", func.data)
+        # TODO: _rebuild nukes the Function data. It should not do this.
+        func.data[:] = dim.functions.data[:]
         rebuilt[dim.functions] = func
 
     return dim._rebuild(functions=func, implicit_dimension=idim)

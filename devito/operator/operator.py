@@ -704,8 +704,6 @@ class Operator(Callable):
         """Arguments to run the Operator."""
         args = self._prepare_arguments(**kwargs)
         # Check all arguments are present
-        print(self.parameters)
-        print(self.dimensions)
         for p in self.parameters:
             if args.get(p.name) is None:
                 raise ValueError("No value found for parameter %s" % p.name)

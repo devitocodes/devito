@@ -7,7 +7,7 @@ from sympy import sin, tan
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Lt)
-from devito.ir import FindNodes, Expression, Iteration
+from devito.ir import FindNodes, FindSymbols, Expression, Iteration
 from devito.tools import timed_region
 
 
@@ -241,17 +241,12 @@ class TestMultiSubDomain:
                      subdomain=grid.subdomains['inner'])
 
         op = Operator(stencil, opt=opt)
-        print(op.ccode)
         op(time_m=0, time_M=9, dt=1)
         result = f.data[0]
 
         expected = np.zeros((10, 10), dtype=np.int32)
         for j in range(0, n_domains):
             expected[j, bounds_ym[j]:n_domains-bounds_yM[j]] = 10
-
-        print(expected)
-        print()
-        print(np.array(result))
 
         assert((np.array(result) == expected).all())
 
@@ -645,10 +640,14 @@ class TestMultiSubDomain:
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
-                         't,n0,xi20_blk0,yi20_blk0,x,y,z')
+        assert_structure(op, ['t,n0', 't,n0,xi0_blk0,yi0_blk0,x,y,z'],
+                         't,n0,xi0_blk0,yi0_blk0,x,y,z')
 
-        xi, _, _ = dummy.dimensions
+        # Drag a rebuilt MultiSubDimension out of the operator kicking and screaming
+        dims = {d.name: d for d in FindSymbols('dimensions').visit(op)}
+        xi = [d for d in dims['x']._defines if d.is_MultiSub]
+        assert len(xi) == 1  # Sanity check
+        xi = xi.pop()
         # Check that the correct number of thickness expressions are generated
         sdsexprs = [i.expr for i in FindNodes(Expression).visit(op)
                     if i.expr.rhs.is_Indexed
