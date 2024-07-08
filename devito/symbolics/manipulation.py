@@ -289,7 +289,7 @@ def pow_to_mul(expr):
         if exp > 10 or exp < -10 or exp == 0:
             # Large powers remain untouched
             return expr
-        elif exp == -1 or int(exp) != exp:
+        elif exp == -1 or (int(exp) - exp != 0):
             # Reciprocals and fractional powers also remain untouched,
             # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)

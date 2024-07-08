@@ -15,7 +15,7 @@ def numpy_compat(required):
 
     # Due to api changes in numpy 2.0, it requires sympy 1.12.1 at the minimum
     # Check if sympy is installed and enforce numpy version accordingly.
-    # If sympy isn't installed, endforce sympy>=1.12.1 and numpy>=2.0
+    # If sympy isn't installed, enforce sympy>=1.12.1 and numpy>=2.0
     try:
         sympy_version = pkg_resources.get_distribution("sympy").version
         min_ver2 = pkg_resources.parse_version("1.12.1")
