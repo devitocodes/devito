@@ -1,16 +1,29 @@
+import ctypes as ct
 import numpy as np
 
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.tools import CustomNpType
+from devito.tools.dtypes_lowering import ctypes_vector_mapper
+
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
 
-CCFloat = CustomNpType('_Complex float', np.complex64)
-CCDouble = CustomNpType('_Complex double', np.complex128)
+class CCFloat(np.complex64):
+    pass
+
+
+class CCDouble(np.complex128):
+    pass
+
+
+c_complex = type('_Complex float', (ct.c_double,), {})
+c_double_complex = type('_Complex double', (ct.c_longdouble,), {})
+
+ctypes_vector_mapper[CCFloat] = c_complex
+ctypes_vector_mapper[CCDouble] = c_double_complex
 
 
 class CBB(LangBB):
