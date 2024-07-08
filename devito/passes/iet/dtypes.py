@@ -43,11 +43,7 @@ def _complex_dtypes(iet, lang):
     """
     mapper = {}
 
-    for s in FindSymbols('indexeds').visit(iet):
-        if s.dtype in lang['types']:
-            mapper[s] = s._rebuild(dtype=lang['types'][s.dtype])
-
-    for s in FindSymbols().visit(iet):
+    for s in FindSymbols('indexeds|basics|symbolics').visit(iet):
         if s.dtype in lang['types']:
             mapper[s] = s._rebuild(dtype=lang['types'][s.dtype])
 
