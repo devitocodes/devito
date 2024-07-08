@@ -13,7 +13,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
            'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'CustomDtype', 'CustomNpType']
+           'is_external_ctype', 'infer_dtype', 'CustomDtype']
 
 
 # *** Custom np.dtypes
@@ -122,18 +122,6 @@ class CustomDtype:
 
     __str__ = __repr__
 
-
-class CustomNpType(CustomDtype):
-    """
-    Custom dtype for underlying numpy type.
-    """
-
-    def __init__(self, name, nptype, template=None, modifier=None):
-        self.nptype = nptype
-        super().__init__(name, template, modifier)
-
-    def __call__(self, val):
-        return self.nptype(val)
 
 # *** np.dtypes lowering
 
