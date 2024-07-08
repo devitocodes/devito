@@ -686,6 +686,68 @@ class TestMultiSubDomain:
         assert z.is_Parallel
 
 
+class TestRenaming:
+    """
+    Class for testing renaming of SubDimensions and MultiSubDimensions
+    during compilation.
+    """
+
+    def test_subdimension_name_determinism(self):
+        """
+        Ensure that names allocated during compilation are deterministic in their
+        ordering.
+        """
+        # How to actually test this?
+        # Create two subdomains, two multisubdomains
+        # Interleave them across 4 equations with data dependencies
+
+        class SD0(SubDomain):
+            name = 'sd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('right', 2)}
+
+        class SD1(SubDomain):
+            name = 'sd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 2, 2), y: ('left', 2)}
+
+        class MSD0(SubDomainSet):
+            name = 'msd0'
+
+        class MSD1(SubDomainSet):
+            name = 'msd1'
+
+        sd0 = SD0()
+        sd1 = SD1()
+        msd0 = MSD0(N=1, bounds=(1, 1, 1, 1))
+        msd1 = MSD1(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(11, 11), subdomains=(sd0, sd1, msd0, msd1))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        # FIXME: Tweak these so the compiler will give them a shuffle
+        eq0 = Eq(f, 1, subdomain=sd0)
+        eq1 = Eq(g, f+1, subdomain=msd0)
+        eq2 = Eq(h, f+g, subdomain=sd0)
+        eq3 = Eq(g, h, subdomain=sd1)
+        eq4 = Eq(f, f+1, subdomain=sd1)
+        eq5 = Eq(f, h+1, subdomain=msd1)
+        eq6 = Eq(f, g+1, subdomain=sd0)
+        eq7 = Eq(g, 1, subdomain=msd1)
+
+        op = Operator([eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7])
+        print(op.ccode)
+        assert False
+        # TODO: Assert the structure
+
+
 class TestSubDomain_w_condition:
 
     def test_condition_w_subdomain_v0(self):

@@ -202,6 +202,8 @@ def _(dim, sregistry, rebuilt):
         dimensions = list(dim.functions.dimensions)
         dimensions[0] = idim
 
+        # TODO: Requires a name change for some reason not to break things. Why?
+        # TODO: Dig into workings of ._rebuild() and .function
         f_name = sregistry.make_name(prefix=dim.functions.name)
         func = dim.functions._rebuild(name=f_name, dimensions=tuple(dimensions),
                                       halo=None, padding=None)
