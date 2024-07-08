@@ -71,12 +71,8 @@ def key1(f, d):
     """
     if f.is_regular:
         # For paddable objects the following holds:
-        # `same dim + same halo + same dtype => same (auto-)padding`
-        # Bundle need the actual function dtype
-        if f.is_Bundle:
-            return (d, f._size_halo[d], f.is_autopaddable, f.c0.dtype)
-        else:
-            return (d, f._size_halo[d], f.is_autopaddable, f.dtype)
+        # `same dim + same halo + same padding_dtype => same (auto-)padding`
+        return (d, f._size_halo[d], f.__padding_dtype__)
     else:
         return False
 
@@ -129,14 +125,25 @@ class Tracker:
         self.strides_dynamic = {}  # Strides varying regularly across iterations
         self.dists = {}
 
+    def _select_indexing_dtype(self, f):
+        # Some objects may contain an extremely large number of elements, so we
+        # conservatively use int64 to avoid potential overflows regardless of
+        # what the user requested via `index-mode`
+        if f.is_SparseTimeFunction:
+            return np.int64
+        else:
+            return self.dtype
+
     def add(self, f):
+        dtype = self._select_indexing_dtype(f)
+
         # Update unique sizes table
         for d in f.dimensions[1:]:
             k = key1(f, d)
             if not k or k in self.sizes:
                 continue
             name = self.sregistry.make_name(prefix='%s_fsz' % d.name)
-            self.sizes[k] = Size(name=name, dtype=self.dtype, is_const=True)
+            self.sizes[k] = Size(name=name, dtype=dtype, is_const=True)
 
         # Update unique strides table
         for n, d in enumerate(f.dimensions[1:], 1):
@@ -147,7 +154,7 @@ class Tracker:
             if k in self.strides:
                 continue
             name = self.sregistry.make_name(prefix='%s_stride' % d.name)
-            self.strides[k] = Stride(name=name, dtype=self.dtype, is_const=True)
+            self.strides[k] = Stride(name=name, dtype=dtype, is_const=True)
 
     def update(self, functions):
         for f in functions:

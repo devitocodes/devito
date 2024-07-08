@@ -210,6 +210,25 @@ class TestBufferedDimension:
         assert np.all(f.data[3] == 2)
         assert np.all(f.data[4] == 4)
 
+    def test_degenerate_to_zero(self):
+        """
+        Check that if `save=Buffer(1)` is used, then the TimeFunction doesn't
+        need any ModuloDimension for indexing.
+        """
+        grid = Grid(shape=(10, 10))
+
+        u = TimeFunction(name='u', grid=grid, save=Buffer(1))
+
+        eq = Eq(u.forward, u + 1)
+
+        op = Operator(eq)
+
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
+
+        op.apply(time_M=9)
+
+        assert np.all(u.data == 10)
+
 
 class TestSubDimension:
 
@@ -539,6 +558,34 @@ class TestSubDimension:
         assert np.all(u.data[1, 0:thickness, -thickness:] == 0)
         assert np.all(u.data[1, 0:thickness, thickness:-thickness] == 1)
         assert np.all(u.data[1, thickness+1:, :] == 0)
+
+    @pytest.mark.parametrize('thickness,flag', [
+        (4, True),
+        (8, False)
+    ])
+    def test_subdim_local_parallel(self, thickness, flag):
+        """
+        A variation of `test_subdimleft_parallel` where the thickness, whose
+        value is statically known, explicitly appears in the equations.
+        """
+        grid = Grid(shape=(30, 30, 30))
+        x, y, z = grid.dimensions
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        v = TimeFunction(name='v', grid=grid, space_order=4)
+
+        zl = SubDimension.left(name='zl', parent=z, thickness=thickness)
+
+        eqns = [Eq(u[t, x, y, zl], u[t, x, y, 8 - zl]),
+                Eq(v[t, x, y, zl], v[t, x, y, 8 - zl])]
+
+        op = Operator(eqns)
+
+        if flag:
+            assert_structure(op, ['t,x,y,z'], 't,x,y,z')
+        else:
+            assert_structure(op, ['t,x,y,z', 't,x,y,z'], 't,x,y,z,z')
 
     def test_subdimmiddle_notparallel(self):
         """

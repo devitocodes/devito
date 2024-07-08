@@ -343,6 +343,11 @@ class Stepper(Queue):
         # Reconstruct the Clusters
         processed = []
         for c in clusters:
+            exprs = c.exprs
+
+            sub_iterators = dict(c.ispace.sub_iterators)
+            sub_iterators[d] = [i for i in sub_iterators[d] if i not in subiters]
+
             # Apply substitutions to expressions
             # Note: In an expression, there could be `u[t+1, ...]` and `v[t+1,
             # ...]`, where `u` and `v` are TimeFunction with circular time
@@ -350,17 +355,19 @@ class Stepper(Queue):
             # indices above are therefore conceptually different, so they will
             # be replaced with the proper ModuloDimension through two different
             # calls to `xreplace_indices`
-            exprs = c.exprs
             groups = as_mapper(mds, lambda d: d.modulo)
             for size, v in groups.items():
-                subs = {md.origin: md for md in v}
-                func = partial(xreplace_indices, mapper=subs, key=partial(rule, size))
+                key = partial(rule, size)
+                if size == 1:
+                    # Optimization -- avoid useless "% 1" ModuloDimensions
+                    subs = {md.origin: 0 for md in v}
+                else:
+                    subs = {md.origin: md for md in v}
+                    sub_iterators[d].extend(v)
+
+                func = partial(xreplace_indices, mapper=subs, key=key)
                 exprs = [e.apply(func) for e in exprs]
 
-            # Augment IterationSpace
-            sub_iterators = dict(c.ispace.sub_iterators)
-            sub_iterators[d] = tuple(i for i in sub_iterators[d] + tuple(mds)
-                                     if i not in subiters)
             ispace = IterationSpace(c.ispace.intervals, sub_iterators,
                                     c.ispace.directions)
 

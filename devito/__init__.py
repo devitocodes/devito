@@ -101,8 +101,21 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 # optimisations.
 configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
+
 # Enable/disable automatic padding for allocated data
-configuration.add('autopadding', False, [False, True])
+def _preprocess_autopadding(v):
+    return {
+        '0': False,
+        '1': np.float32,
+        True: np.float32,
+        'fp16': np.float16,
+        'fp32': np.float32,
+        'fp64': np.float64
+    }.get(v, v)
+
+configuration.add('autopadding', False,  # noqa: E305
+                  [False, True, 0, 1, np.float16, np.float32, np.float64],
+                  preprocessor=_preprocess_autopadding)
 
 # Select target device
 configuration.add('deviceid', -1, preprocessor=int, impacts_jit=False)

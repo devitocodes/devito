@@ -188,10 +188,6 @@ class Cluster:
         return self.scope.functions
 
     @cached_property
-    def has_increments(self):
-        return any(e.is_Increment for e in self.exprs)
-
-    @cached_property
     def grid(self):
         grids = set(f.grid for f in self.functions if f.is_AbstractFunction)
         grids.discard(None)

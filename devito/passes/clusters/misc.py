@@ -40,8 +40,9 @@ class Lift(Queue):
         lifted = []
         processed = []
         for n, c in enumerate(clusters):
-            # Increments prevent lifting
-            if c.has_increments:
+            # Storage-related dependences, such as those induced by reduction
+            # increments, prevent lifting
+            if any(dep.is_storage_related(dim) for dep in c.scope.d_all_gen()):
                 processed.append(c)
                 continue
 

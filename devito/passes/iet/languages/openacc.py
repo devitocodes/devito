@@ -1,4 +1,3 @@
-import cgen as c
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
@@ -74,38 +73,43 @@ class AccBB(PragmaLangBB):
         'set-device': lambda args:
             Call('acc_set_device_num', args),
         # Pragmas
-        'atomic': c.Pragma('acc atomic update'),
-        'map-enter-to': lambda i, j:
-            c.Pragma('acc enter data copyin(%s%s)' % (i, j)),
-        'map-enter-to-wait': lambda i, j, k:
-            (c.Pragma('acc enter data copyin(%s%s) async(%s)' % (i, j, k)),
-             c.Pragma('acc wait(%s)' % k)),
-        'map-enter-alloc': lambda i, j:
-            c.Pragma('acc enter data create(%s%s)' % (i, j)),
-        'map-present': lambda i, j:
-            c.Pragma('acc data present(%s%s)' % (i, j)),
+        'atomic':
+            Pragma('acc atomic update'),
+        'map-enter-to': lambda f, imask:
+            PragmaTransfer('acc enter data copyin(%s%s)', f, imask=imask),
+        'map-enter-to-async': lambda f, imask, a:
+            PragmaTransfer('acc enter data copyin(%s%s) async(%s)',
+                           f, imask=imask, arguments=a),
+        'map-enter-alloc': lambda f, imask:
+            PragmaTransfer('acc enter data create(%s%s)', f, imask=imask),
+        'map-present': lambda f, imask:
+            PragmaTransfer('acc data present(%s%s)', f, imask=imask),
         'map-serial-present': lambda i, j:
-            c.Pragma('acc serial present(%s) copyout(%s)' % (i, j)),
+            Pragma('acc serial present(%s) copyout(%s)', arguments=(i, j)),
         'map-wait': lambda i:
-            c.Pragma('acc wait(%s)' % i),
-        'map-update': lambda i, j:
-            c.Pragma('acc exit data copyout(%s%s)' % (i, j)),
-        'map-update-host': lambda i, j:
-            c.Pragma('acc update self(%s%s)' % (i, j)),
-        'map-update-host-async': lambda i, j, k:
-            c.Pragma('acc update self(%s%s) async(%s)' % (i, j, k)),
-        'map-update-device': lambda i, j:
-            c.Pragma('acc update device(%s%s)' % (i, j)),
-        'map-update-device-async': lambda i, j, k:
-            c.Pragma('acc update device(%s%s) async(%s)' % (i, j, k)),
-        'map-release': lambda i, j:
-            c.Pragma('acc exit data delete(%s%s)' % (i, j)),
-        'map-release-if': lambda i, j, k:
-            c.Pragma('acc exit data delete(%s%s) if(%s)' % (i, j, k)),
-        'map-exit-delete': lambda i, j:
-            c.Pragma('acc exit data delete(%s%s)' % (i, j)),
-        'map-exit-delete-if': lambda i, j, k:
-            c.Pragma('acc exit data delete(%s%s) if(%s)' % (i, j, k)),
+            Pragma('acc wait(%s)', arguments=i),
+        'map-update': lambda f, imask:
+            PragmaTransfer('acc exit data copyout(%s%s)', f, imask=imask),
+        'map-update-host': lambda f, imask:
+            PragmaTransfer('acc update self(%s%s)', f, imask=imask),
+        'map-update-host-async': lambda f, imask, a:
+            PragmaTransfer('acc update self(%s%s) async(%s)',
+                           f, imask=imask, arguments=a),
+        'map-update-device': lambda f, imask:
+            PragmaTransfer('acc update device(%s%s)', f, imask=imask),
+        'map-update-device-async': lambda f, imask, a:
+            PragmaTransfer('acc update device(%s%s) async(%s)',
+                           f, imask=imask, arguments=a),
+        'map-release': lambda f, imask:
+            PragmaTransfer('acc exit data delete(%s%s)', f, imask=imask),
+        'map-release-if': lambda f, imask, a:
+            PragmaTransfer('acc exit data delete(%s%s) if(%s)',
+                           f, imask=imask, arguments=a),
+        'map-exit-delete': lambda f, imask:
+            PragmaTransfer('acc exit data delete(%s%s)', f, imask=imask),
+        'map-exit-delete-if': lambda f, imask, a:
+            PragmaTransfer('acc exit data delete(%s%s) if(%s)',
+                           f, imask=imask, arguments=a),
         'memcpy-to-device': lambda i, j, k:
             Call('acc_memcpy_to_device', [i, j, k]),
         'memcpy-to-device-wait': lambda i, j, k, l:
@@ -126,30 +130,33 @@ class AccBB(PragmaLangBB):
 
     @classmethod
     def _map_to_wait(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-enter-to-wait'], f, imask, qid)
+        return List(body=[
+            cls.mapper['map-enter-to-async'](f, imask, qid),
+            cls.mapper['map-wait'](qid)
+        ])
 
     @classmethod
     def _map_present(cls, f, imask=None):
-        return PragmaTransfer(cls.mapper['map-present'], f, imask)
+        return cls.mapper['map-present'](f, imask)
 
     @classmethod
     def _map_wait(cls, qid=None):
-        return Pragma(cls.mapper['map-wait'], qid)
+        return cls.mapper['map-wait'](qid)
 
     @classmethod
     def _map_delete(cls, f, imask=None, devicerm=None):
         if devicerm:
-            return PragmaTransfer(cls.mapper['map-exit-delete-if'], f, imask, devicerm)
+            return cls.mapper['map-exit-delete-if'](f, imask, devicerm)
         else:
-            return PragmaTransfer(cls.mapper['map-exit-delete'], f, imask)
+            return cls.mapper['map-exit-delete'](f, imask)
 
     @classmethod
     def _map_update_host_async(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-update-host-async'], f, imask, qid)
+        return cls.mapper['map-update-host-async'](f, imask, qid)
 
     @classmethod
     def _map_update_device_async(cls, f, imask=None, qid=None):
-        return PragmaTransfer(cls.mapper['map-update-device-async'], f, imask, qid)
+        return cls.mapper['map-update-device-async'](f, imask, qid)
 
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):
@@ -227,7 +234,7 @@ class DeviceAccDataManager(DeviceAwareDataManager):
             init = DummyExpr(tdp, 0, init=True)
 
             dpf = List(body=[
-                Pragma(self.lang.mapper['map-serial-present'], (hp, tdp)),
+                self.lang.mapper['map-serial-present'](hp, tdp),
                 Block(body=DummyExpr(tdp, cast_mapper[tdp.dtype](hp)))
             ])
 

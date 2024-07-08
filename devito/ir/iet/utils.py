@@ -106,7 +106,8 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
     basics = FindSymbols('basics').visit(iet)
     candidates.extend(i.function for i in basics)
 
-    # Filter off duplicates (e.g., `x_size` is extracted by both calls to FindSymbols)
+    # Filter off duplicates (e.g., `x_size` is extracted by both calls to
+    # FindSymbols)
     candidates = filter_ordered(candidates)
 
     # Filter off symbols which are defined somewhere within `iet`

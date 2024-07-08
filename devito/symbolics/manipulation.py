@@ -286,12 +286,12 @@ def pow_to_mul(expr):
         except TypeError:
             # E.g., a Symbol, or possibly a generic expression
             return expr
-        if exp > 10 or exp < -10 or int(exp) != exp or exp == 0:
-            # Large and non-integer powers remain untouched
+        if exp > 10 or exp < -10 or exp == 0:
+            # Large powers remain untouched
             return expr
-        elif exp == -1:
-            # Reciprocals also remain untouched, but we traverse the base
-            # looking for other Pows
+        elif exp == -1 or int(exp) != exp:
+            # Reciprocals and fractional powers also remain untouched,
+            # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
             return Mul(*[base]*int(exp), evaluate=False)

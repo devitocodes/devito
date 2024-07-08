@@ -2,13 +2,13 @@ from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT,
-                               SEQUENTIAL, SKEWABLE, TILABLES, Interval,
+from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
+                               PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
                                IntervalGroup, IterationSpace, Scope)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
 from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
-                          filter_ordered, flatten, is_integer, prod)
+                          filter_ordered, flatten, is_integer)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -160,10 +160,14 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
 
-    def _has_other_blockable_dim(self, cluster, d):
-        return any(cluster.properties.is_parallel_relaxed(i) and
-                   not self._has_short_trip_count(i)
+    def _has_atomic_blockable_dim(self, cluster, d):
+        return any(cluster.properties.is_parallel_atomic(i)
                    for i in set(cluster.ispace.itdims) - {d})
+
+    def _has_enough_large_blockable_dims(self, cluster, d):
+        return len([i for i in set(cluster.ispace.itdims) - {d}
+                    if (cluster.properties.is_parallel_relaxed(i) and
+                        not self._has_short_trip_count(i))]) >= 3
 
     def callback(self, clusters, prefix):
         if not prefix:
@@ -178,16 +182,25 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
 
             if is_on_device(c.functions, self.gpu_fit):
                 if self._has_short_trip_count(d):
-                    if self._has_other_blockable_dim(c, d):
+                    if self._has_atomic_blockable_dim(c, d):
+                        # Optimization: minimize number of parallel reductions
+                        # if we think there's already enough parallelism around
                         return clusters
-                    else:
-                        properties = c.properties.block(d, 'small')
+                    elif self._has_enough_large_blockable_dims(c, d):
+                        # Optimization: pointless, from a performance standpoint,
+                        # to have more than three large blockable Dimensions
+                        return clusters
+
+                if any(self._has_short_trip_count(i) for i in c.ispace.itdims):
+                    properties = c.properties.block(d, 'small')
                 elif self._has_data_reuse(c):
                     properties = c.properties.block(d)
                 else:
                     properties = c.properties.block(d, 'small')
+
             elif self._has_data_reuse(c):
                 properties = c.properties.block(d)
+
             else:
                 return clusters
 
@@ -247,7 +260,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
                 return clusters
 
             # Heuristic: TILABLE not worth it if not within a SEQUENTIAL Dimension
-            if not any(SEQUENTIAL in c.properties[i.dim] for i in prefix[:-1]):
+            if not any(c.properties.is_sequential(i.dim) for i in prefix[:-1]):
                 return clusters
 
             processed.append(c.rebuild(properties=c.properties.block(d)))
@@ -317,8 +330,6 @@ class SynthesizeBlocking(Queue):
 
     def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
         if blk_size_gen is not None:
-            # By passing a suitable key to `next` we ensure that we pull the
-            # next par-tile entry iff we're now blocking an unseen TILABLE nest
             step = sympify(blk_size_gen.next(prefix, d, clusters))
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
@@ -487,13 +498,7 @@ class BlockSizeGenerator:
 
         # Special case 1: a smaller par-tile to avoid under-utilizing
         # computational resources when the iteration spaces are too small
-        if (len(par_tile) == 1 and
-            (len(par_tile[0]) < len(par_tile.default) or
-             prod(par_tile[0]) < prod(par_tile.default))):
-            # Ignore if, e.g., user supplies a lower dimensional block shape
-            self.umt_small = self.umt
-        else:
-            self.umt_small = UnboundedMultiTuple(par_tile.default)
+        self.umt_small = UnboundedMultiTuple(par_tile.default)
 
         # Special case 2: par-tiles for iteration spaces that must be fully
         # blocked for correctness
@@ -569,7 +574,8 @@ class BlockSizeGenerator:
 class SynthesizeSkewing(Queue):
 
     """
-    Construct a new sequence of clusters with skewed expressions and iteration spaces.
+    Construct a new sequence of clusters with skewed expressions and
+    iteration spaces.
 
     Notes
     -----
@@ -615,12 +621,14 @@ class SynthesizeSkewing(Queue):
             if SKEWABLE not in c.properties[d]:
                 return clusters
 
-            skew_dims = {i.dim for i in c.ispace if SEQUENTIAL in c.properties[i.dim]}
+            skew_dims = {i.dim for i in c.ispace
+                         if c.properties.is_sequential(i.dim)}
             if len(skew_dims) > 1:
                 return clusters
             skew_dim = skew_dims.pop()
 
-            # Since we are here, prefix is skewable and nested under a SEQUENTIAL loop
+            # Since we are here, prefix is skewable and nested under a
+            # SEQUENTIAL loop
             intervals = []
             for i in c.ispace:
                 if i.dim is d and (not d.is_Block or d._depth == 1):
