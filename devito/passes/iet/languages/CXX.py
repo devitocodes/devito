@@ -1,8 +1,9 @@
+import ctypes as ct
 import numpy as np
 
 from devito.ir import Call, UsingNamespace
 from devito.passes.iet.langbase import LangBB
-from devito.tools import CustomNpType
+from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 __all__ = ['CXXBB']
 
@@ -43,8 +44,21 @@ std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
 
 """
 
-CXXCFloat = CustomNpType('std::complex', np.complex64, template='float')
-CXXCDouble = CustomNpType('std::complex', np.complex128, template='double')
+
+class CXXCFloat(np.complex64):
+    pass
+
+
+class CXXCDouble(np.complex128):
+    pass
+
+
+cxx_complex = type('std::complex<float>', (ct.c_double,), {})
+cxx_double_complex = type('std::complex<double>', (ct.c_longdouble,), {})
+
+
+ctypes_vector_mapper[CXXCFloat] = cxx_complex
+ctypes_vector_mapper[CXXCDouble] = cxx_double_complex
 
 
 class CXXBB(LangBB):

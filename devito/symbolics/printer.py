@@ -48,7 +48,7 @@ class CodePrinter(C99CodePrinter):
         if no_f and expr is not None:
             return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return dtype in [np.float32, np.float16, np.complex64]
+        return any(issubclass(dtype, d) for d in [np.float32, np.float16, np.complex64])
 
     def complex_prec(self, expr=None):
         if self.compiler._cpp:
