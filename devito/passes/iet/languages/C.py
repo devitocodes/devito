@@ -1,10 +1,10 @@
-import ctypes as ct
 import numpy as np
 
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 
@@ -19,11 +19,11 @@ class CCDouble(np.complex128):
     pass
 
 
-c_complex = type('_Complex float', (ct.c_double,), {})
-c_double_complex = type('_Complex double', (ct.c_longdouble,), {})
+c99_complex = type('_Complex float', (c_complex,), {})
+c99_double_complex = type('_Complex double', (c_double_complex,), {})
 
-ctypes_vector_mapper[CCFloat] = c_complex
-ctypes_vector_mapper[CCDouble] = c_double_complex
+ctypes_vector_mapper[CCFloat] = c99_complex
+ctypes_vector_mapper[CCDouble] = c99_double_complex
 
 
 class CBB(LangBB):
