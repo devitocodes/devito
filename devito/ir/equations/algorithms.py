@@ -204,6 +204,9 @@ def _(dim, sregistry, rebuilt):
 
         # TODO: Requires a name change for some reason not to break things. Why?
         # TODO: Dig into workings of ._rebuild() and .function
+        # NOTE: Rebuild is necessary here to break the link created by .function
+        # otherwise the old implicit dimension gets pulled by derive_parameters
+        # rather than the new one.
         f_name = sregistry.make_name(prefix=dim.functions.name)
         func = dim.functions._rebuild(name=f_name, dimensions=tuple(dimensions),
                                       halo=None, padding=None)
@@ -234,15 +237,14 @@ def rename_thicknesses(mapper, sregistry, rebuilt):
 def rebuild_cdims(expr, rebuilt):
     """
     Rebuild expression using ConditionalDimensions where their parent
-    dimension is a MultiSubDimension which has been rebuilt to have a unique
-    name.
+    dimension is a SubDimension which has been rebuilt to have a unique
+    name or unique thicknesses.
     """
     i_dims = expr.implicit_dims
     rebuilt_dims = []
     for d in i_dims:
         try:
             parent = rebuilt[d.parent]
-            # FIXME: Condition substitution should maybe be moved
             cond = d.condition.subs(rebuilt)
             rebuilt_dims.append(d._rebuild(parent=parent, condition=cond,
                                            factor=None))
