@@ -20,6 +20,7 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import (FieldFromComposite, FieldFromPointer,
                               ListInitializer, ccode, uxreplace)
+from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
@@ -208,7 +209,7 @@ class CGen(Visitor):
             while issubclass(ctype, ctypes._Pointer):
                 ctype = ctype._type_
 
-            if not issubclass(ctype, ctypes.Structure):
+            if not issubclass(ctype, ctypes.Structure) or issubclass(ctype, NoDeclStruct):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`

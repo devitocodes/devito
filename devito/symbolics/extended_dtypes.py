@@ -1,10 +1,11 @@
+import ctypes as ct
 import numpy as np
 
 from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4)
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID']  # noqa
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'c_complex', 'c_double_complex']  # noqa
 
 
 limits_mapper = {
@@ -14,6 +15,29 @@ limits_mapper = {
     np.float64: Bunch(min=-ValueLimit('DBL_MAX'), max=ValueLimit('DBL_MAX')),
 }
 
+
+class NoDeclStruct(ct.Structure):
+    # ctypes.Structure that does not generate a struct definition
+    pass
+
+
+class c_complex(NoDeclStruct):
+    # Structure for passing complex float to C/C++
+    _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
+
+    @classmethod
+    def from_param(cls, val):
+        return cls(val.real, val.imag)
+    
+
+class c_double_complex(NoDeclStruct):
+    # Structure for passing complex double to C/C++
+    _fields_ = [('real', ct.c_double), ('imag', ct.c_double)]
+
+    @classmethod
+    def from_param(cls, val):
+        return cls(val.real, val.imag)
+    
 
 class CustomType(ReservedWord):
     pass
