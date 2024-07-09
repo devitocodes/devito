@@ -127,7 +127,7 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def function(self):
         if len(self._functions) == 1:
-            return self._functions.pop()
+            return set(self._functions).pop()
         else:
             return None
 

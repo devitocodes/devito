@@ -387,3 +387,15 @@ def test_shifted_lap_of_tensor(shift, ndim):
                       type(shift) is tuple else d + shift * d.spacing)
                 ref += getattr(v[j, i], 'd%s2' % d.name)(x0=x0, fd_order=order)
             assert df[j] == ref
+
+
+def test_basic_arithmetic():
+    grid = Grid(tuple([5]*3))
+    tau = TensorFunction(name="tau", grid=grid)
+
+    # Scalar operations
+    t1 = tau + 1
+    assert all(t1i == ti + 1 for (t1i, ti) in zip(t1, tau))
+
+    t1 = tau * 2
+    assert all(t1i == ti * 2 for (t1i, ti) in zip(t1, tau))

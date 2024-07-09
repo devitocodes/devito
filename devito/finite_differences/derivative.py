@@ -245,7 +245,7 @@ class Derivative(sympy.Derivative, Differentiable):
 
     def _subs(self, old, new, **hints):
         # Basic case
-        if old == self:
+        if self == old:
             return new
         # Is it in expr?
         if self.expr.has(old):

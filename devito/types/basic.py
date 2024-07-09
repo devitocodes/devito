@@ -735,10 +735,17 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def __add__(self, other):
         try:
             # Most case support sympy add
-            return super().__add__(other)
+            tsum = super().__add__(other)
         except TypeError:
             # Sympy doesn't support add with scalars
+            tsum = self.applyfunc(lambda x: x + other)
+
+        # As of sympy 1.13, super does not throw an exception but
+        # only returns NotImplemented for some internal dispatch.
+        if tsum is NotImplemented:
             return self.applyfunc(lambda x: x + other)
+
+        return tsum
 
     def _eval_matrix_mul(self, other):
         """
@@ -913,7 +920,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def __eq__(self, other):
         try:
             return (self.function is other.function and
-                    self.indices == other.indices)
+                    self.indices == other.indices and
+                    other.is_AbstractFunction)
         except AttributeError:
             # `other` not even an AbstractFunction
             return False
