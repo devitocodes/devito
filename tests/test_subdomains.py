@@ -772,9 +772,9 @@ class TestRenaming:
         eq7 = Eq(g, 1, subdomain=msd1)
 
         op = Operator([eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7])
-        # print(op.ccode)
-        # assert False
-        # TODO: Assert the structure
+        assert_structure(op, ['xy', 'n0', 'n0xy', 'xy', 'xy',
+                              'n1', 'n1xy', 'xy', 'n1', 'n1xy'],
+                         'xyn0xyxyxyn1xyxyn1xy')
 
 
 class TestSubDomain_w_condition:
