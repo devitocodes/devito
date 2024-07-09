@@ -6,9 +6,13 @@ import numpy as np
 import sympy
 from sympy.core.add import _addsort
 from sympy.core.mul import _keep_coeff, _mulsort
-from sympy.core.core import ordering_of_classes
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
+try:
+    from sympy.core.core import ordering_of_classes
+except ImportError:
+    # Moved in 1.13
+    from sympy.core.basic import ordering_of_classes
 
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
@@ -123,7 +127,7 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def function(self):
         if len(self._functions) == 1:
-            return self._functions.pop()
+            return set(self._functions).pop()
         else:
             return None
 

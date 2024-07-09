@@ -195,9 +195,13 @@ class CodePrinter(C99CodePrinter):
         rv = to_str(expr._mpf_, dps, strip_zeros=strip, max_fixed=-2, min_fixed=2)
 
         if rv.startswith('-.0'):
-            rv = '-0.' + rv[3:]
+            rv = "-0." + rv[3:]
         elif rv.startswith('.0'):
-            rv = '0.' + rv[2:]
+            rv = "0." + rv[2:]
+
+        # Remove trailing zero except first one to avoid 1. instead of 1.0
+        if 'e' not in rv:
+            rv = rv.rstrip('0') + "0"
 
         if self.single_prec():
             rv = '%sF' % rv

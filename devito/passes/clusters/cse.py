@@ -2,7 +2,11 @@ from collections import Counter, OrderedDict
 from functools import singledispatch
 
 from sympy import Add, Function, Indexed, Mul, Pow
-from sympy.core.core import ordering_of_classes
+try:
+    from sympy.core.core import ordering_of_classes
+except ImportError:
+    # Moved in 1.13
+    from sympy.core.basic import ordering_of_classes
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
