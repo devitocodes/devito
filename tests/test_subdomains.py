@@ -706,14 +706,14 @@ class TestRenaming:
 
             def define(self, dimensions):
                 x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('right', 2)}
+                return {x: ('middle', 2, 1), y: ('right', 2)}
 
         class SD1(SubDomain):
             name = 'sd1'
 
             def define(self, dimensions):
                 x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('left', 2)}
+                return {x: ('middle', 1, 2), y: ('left', 2)}
 
         class MSD0(SubDomainSet):
             name = 'msd0'
@@ -732,7 +732,6 @@ class TestRenaming:
         g = Function(name='g', grid=grid)
         h = Function(name='h', grid=grid)
 
-        # FIXME: Tweak these so the compiler will give them a shuffle
         eq0 = Eq(f, 1, subdomain=sd0)
         eq1 = Eq(g, f+1, subdomain=msd0)
         eq2 = Eq(h, f+g, subdomain=sd0)
