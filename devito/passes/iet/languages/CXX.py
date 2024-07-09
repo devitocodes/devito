@@ -3,6 +3,7 @@ import numpy as np
 
 from devito.ir import Call, UsingNamespace
 from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 __all__ = ['CXXBB']
@@ -53,9 +54,9 @@ class CXXCDouble(np.complex128):
     pass
 
 
-cxx_complex = type('std::complex<float>', (ct.c_double,), {})
-cxx_double_complex = type('std::complex<double>', (ct.c_longdouble,), {})
 
+cxx_complex = type('std::complex<float>', (c_complex,), {})
+cxx_double_complex = type('std::complex<double>', (c_double_complex,), {})
 
 ctypes_vector_mapper[CXXCFloat] = cxx_complex
 ctypes_vector_mapper[CXXCDouble] = cxx_double_complex
