@@ -83,6 +83,7 @@ class LowerExplicitMSD(LowerMSD):
         idx = len(prefix)
 
         tip = None
+        thicknesses = {}
         processed = []
         for c in clusters:
             try:
@@ -92,6 +93,8 @@ class LowerExplicitMSD(LowerMSD):
                 d = None
             if d is None:
                 processed.append(c)
+                # If no MultiSubDomain present in this cluster, then tip should be reset
+                tip = None
                 continue
 
             # Get all MultiSubDimensions in the cluster and get the dynamic thickness
@@ -103,7 +106,13 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            exprs, thickness = make_implicit_exprs(mapper, self.sregistry)
+            try:
+                # If thickness expressions have already been generated for this
+                # SubDomainSet, then reuse them rather than generating more.
+                exprs, thickness = thicknesses[dims]
+            except KeyError:
+                exprs, thickness = make_implicit_exprs(mapper, self.sregistry)
+                thicknesses[dims] = (exprs, thickness)
 
             ispace = c.ispace.insert(dim, dims)
 
