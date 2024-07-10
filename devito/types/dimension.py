@@ -103,6 +103,7 @@ class Dimension(ArgProvider):
     is_NonlinearDerived = False
     is_AbstractSub = False
     is_Sub = False
+    is_MultiSub = False
     is_Conditional = False
     is_Stepping = False
     is_Stencil = False
