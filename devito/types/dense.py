@@ -865,6 +865,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
+           self.is_regular and \
            data.size - 1 >= np.iinfo(np.int32).max:
             raise InvalidArgument("`%s`, with its %d elements, is too big for "
                                   "int32 pointer arithmetic. Consider using the "
