@@ -5,11 +5,11 @@ from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics.extended_dtypes import (c_complex, c_double_complex,
-                                              c_float16, c_float16_p)
+                                              c_half, c_half_p)
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 
-__all__ = ['CBB', 'CDataManager', 'COrchestrator']
+__all__ = ['CBB', 'CDataManager', 'COrchestrator', 'c_float16', 'c_float16_p']
 
 
 class CCFloat(np.complex64):
@@ -30,6 +30,9 @@ class CHalfP(np.float16):
 
 c99_complex = type('_Complex float', (c_complex,), {})
 c99_double_complex = type('_Complex double', (c_double_complex,), {})
+
+c_float16 = type('_Float16', (c_half,), {})
+c_float16_p = type('_Float16 *', (c_half_p,), {'_type_': c_float16})
 
 ctypes_vector_mapper[CCFloat] = c99_complex
 ctypes_vector_mapper[CCDouble] = c99_double_complex

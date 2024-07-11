@@ -233,10 +233,8 @@ class CodePrinter(C99CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         if self.compiler._cpp:
-            if self.single_prec(with_f=True):
+            if self.single_prec(with_f=True) or self.half_prec(with_f=True):
                 return '1if'
-            elif self.half_prec(with_f=True):
-                return '1if16'
             else:
                 return '1i'
         else:

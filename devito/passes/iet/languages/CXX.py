@@ -2,8 +2,8 @@ import numpy as np
 
 from devito.ir import Call, UsingNamespace
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import (c_complex, c_double_complex,
-                                              c_float16, c_float16_p)
+from devito.passes.iet.languages.C import c_float16, c_float16_p
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 __all__ = ['CXXBB']

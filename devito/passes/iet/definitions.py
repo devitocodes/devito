@@ -12,7 +12,7 @@ import numpy as np
 from devito.ir import (Block, Call, Definition, DummyExpr, Return, EntryFunction,
                        FindSymbols, MapExprStmts, Transformer, make_callable)
 from devito.passes import is_gpu_create
-from devito.passes.iet.dtypes import lower_complex, lower_scalar_half
+from devito.passes.iet.dtypes import lower_dtypes
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
@@ -414,8 +414,7 @@ class DataManager:
 
     @iet_pass
     def make_langtypes(self, iet):
-        iet, _ = lower_scalar_half(iet, self.lang, self.sregistry)
-        iet, metadata = lower_complex(iet, self.lang, self.compiler)
+        iet, metadata = lower_dtypes(iet, self.lang, self.compiler, self.sregistry)
         return iet, metadata
 
     def process(self, graph):
