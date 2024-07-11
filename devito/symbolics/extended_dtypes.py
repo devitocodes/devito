@@ -5,7 +5,9 @@ from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueL
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4)
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID', 'c_complex', 'c_double_complex']  # noqa
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',
+           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
+           'c_float16', 'c_float16_p']
 
 
 limits_mapper = {
@@ -28,7 +30,7 @@ class c_complex(NoDeclStruct):
     @classmethod
     def from_param(cls, val):
         return cls(val.real, val.imag)
-    
+
 
 class c_double_complex(NoDeclStruct):
     # Structure for passing complex double to C/C++
@@ -37,7 +39,30 @@ class c_double_complex(NoDeclStruct):
     @classmethod
     def from_param(cls, val):
         return cls(val.real, val.imag)
-    
+
+
+class _c_half(ct.c_uint16):
+    # Ctype for non-scalar half floats
+    @classmethod
+    def from_param(cls, val):
+        return cls(np.float16(val).view(np.uint16))
+
+
+c_float16 = type('_Float16', (_c_half,), {})
+
+
+class _c_half_p(ct.POINTER(c_float16)):
+    # Ctype for half scalars; we can't directly pass _Float16 values so
+    # we use a pointer and dereference (see `passes.iet.dtypes`)
+    @classmethod
+    def from_param(cls, val):
+        arr = np.array(val, dtype=np.float16)
+        return arr.ctypes.data_as(cls)
+
+
+# ctypes directly parses class dict; can't inherit the _type_ attribute
+c_float16_p = type('_Float16 *', (_c_half_p,), {'_type_': c_float16})
+
 
 class CustomType(ReservedWord):
     pass
