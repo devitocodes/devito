@@ -1,6 +1,7 @@
 """The Iteration/Expression Tree (IET) hierarchy."""
 
 import abc
+import ctypes
 import inspect
 from functools import cached_property
 from collections import OrderedDict, namedtuple
@@ -1030,6 +1031,9 @@ class Dereference(ExprStmt, Node):
         * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
         * `pointer` is an ArrayObject representing a pointer to a C struct, and
           `pointee` is a field in `pointer`.
+        * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
+          `pointee` is a Symbol representing the dereferenced value.
+          
     """
 
     is_Dereference = True
@@ -1048,13 +1052,20 @@ class Dereference(ExprStmt, Node):
 
     @property
     def expr_symbols(self):
-        ret = [self.pointer.indexed]
-        if self.pointer.is_PointerArray or self.pointer.is_TempFunction:
-            ret.append(self.pointee.indexed)
-            ret.extend(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:]))
-            ret.extend(self.pointer.free_symbols)
-        else:
+        ret = []
+        if self.pointer.is_Symbol:
+            assert (issubclass(self.pointer._C_ctype, ctypes._Pointer),
+                    "Scalar dereference must have a pointer ctype")
+            ret.append(self.pointer._C_symbol)
             ret.append(self.pointee._C_symbol)
+        else:
+            ret.append(self.pointer.indexed)
+            if self.pointer.is_PointerArray or self.pointer.is_TempFunction:
+                ret.append(self.pointee.indexed)
+                ret.extend(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:]))
+                ret.extend(self.pointer.free_symbols)
+            else:
+                ret.append(self.pointee._C_symbol)
         return tuple(filter_ordered(ret))
 
     @property
