@@ -1033,7 +1033,6 @@ class Dereference(ExprStmt, Node):
           `pointee` is a field in `pointer`.
         * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
           `pointee` is a Symbol representing the dereferenced value.
-          
     """
 
     is_Dereference = True
@@ -1054,15 +1053,16 @@ class Dereference(ExprStmt, Node):
     def expr_symbols(self):
         ret = []
         if self.pointer.is_Symbol:
-            assert (issubclass(self.pointer._C_ctype, ctypes._Pointer),
-                    "Scalar dereference must have a pointer ctype")
+            assert issubclass(self.pointer._C_ctype, ctypes._Pointer), \
+                   "Scalar dereference must have a pointer ctype"
             ret.append(self.pointer._C_symbol)
             ret.append(self.pointee._C_symbol)
         else:
             ret.append(self.pointer.indexed)
             if self.pointer.is_PointerArray or self.pointer.is_TempFunction:
                 ret.append(self.pointee.indexed)
-                ret.extend(flatten(i.free_symbols for i in self.pointee.symbolic_shape[1:]))
+                ret.extend(flatten(i.free_symbols
+                                   for i in self.pointee.symbolic_shape[1:]))
                 ret.extend(self.pointer.free_symbols)
             else:
                 ret.append(self.pointee._C_symbol)
