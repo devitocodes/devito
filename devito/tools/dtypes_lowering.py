@@ -147,6 +147,9 @@ def dtype_to_ctype(dtype):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
         return dtype
+    elif dtype == np.float16:
+        # Allocator wants a ctype before float16 gets mapped
+        return ctypes.c_uint16
     else:
         return np.ctypeslib.as_ctypes_type(dtype)
 

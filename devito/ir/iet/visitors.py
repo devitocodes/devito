@@ -24,7 +24,7 @@ from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
-from devito.types.basic import AbstractFunction, Basic
+from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
@@ -972,6 +972,7 @@ class FindSymbols(Visitor):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
+        - `scalars`: Collect all AbstractSymbol objects
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
@@ -992,6 +993,7 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
+        'scalars': lambda n: [i for i in n.expr_symbols if isinstance(i, AbstractSymbol)],
         'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
