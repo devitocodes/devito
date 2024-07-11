@@ -47,23 +47,6 @@ model_type = {
 }
 
 
-class NTuple(click.Tuple):
-    """
-    A floating subtype of click's Tuple that allows inputs with fewer elements.
-    Instead of accepting only tuples of exact length, this accepts tuples
-    of length up to the definition size.
-    For example, NTuple([int, int, int]) accepts (1,), (1, 2) and (1, 2, 3) as inputs.
-    """
-    def convert(self, value, param, ctx):
-        n_value = len(value)
-        n_type = len(self.types)
-        if n_value <= n_type:
-            warning(f"Processing {n_value} out of expected up to {n_type}")
-        else:
-            super().convert(value, param, ctx)
-        return tuple(self.types[i](value[i], param, ctx) for i in range(n_value))
-
-
 def run_op(solver, operator, **options):
     """
     Initialize any necessary input and run the operator associated with the solver.
