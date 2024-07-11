@@ -31,9 +31,9 @@ def numpy_compat(required):
         sympy_version = pkg_resources.get_distribution("sympy").version
         min_ver2 = pkg_resources.parse_version("1.12.1")
         if pkg_resources.parse_version(sympy_version) < min_ver2:
-            new_reqs.append(f"numpy>{numpy_lb},<2.0")
+            new_reqs.extend([f"numpy>{numpy_lb},<2.0", f"sympy=={sympy_version}"])
         else:
-            new_reqs.append(f"numpy>=2.0,<{numpy_ub}")
+            new_reqs.extend([f"numpy>=2.0,<{numpy_ub}", f"sympy=={sympy_version}"])
     except pkg_resources.DistributionNotFound:
         new_reqs.extend([f"sympy>=1.12.1,<{sympy_ub}", f"numpy>=2.0,<{numpy_ub}"])
 
