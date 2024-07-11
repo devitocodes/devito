@@ -773,7 +773,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 new_mat[i] = sum(vec)
 
         # Get new class and return product
-        newcls = self.classof_prod(other, new_mat)
+        newcls = self.classof_prod(other, other.cols)
         return newcls._new(self.rows, other.cols, new_mat, copy=False)
 
 

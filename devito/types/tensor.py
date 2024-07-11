@@ -257,11 +257,8 @@ class TensorFunction(AbstractTensor):
         func = tens_func(self)
         return func._new(self.rows, self.cols, mat)
 
-    def classof_prod(self, other, mat):
-        try:
-            is_mat = len(mat[0]) > 1
-        except TypeError:
-            is_mat = False
+    def classof_prod(self, other, cols):
+        is_mat = cols > 1
         is_time = (getattr(self, '_is_TimeDependent', False) or
                    getattr(other, '_is_TimeDependent', False))
         return mat_time_dict[(is_time, is_mat)]
