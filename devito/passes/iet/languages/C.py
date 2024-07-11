@@ -1,11 +1,11 @@
-from ctypes import c_float
 import numpy as np
 
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex, c_float16, c_float16_p
+from devito.symbolics.extended_dtypes import (c_complex, c_double_complex,
+                                              c_float16, c_float16_p)
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 
