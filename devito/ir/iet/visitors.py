@@ -465,6 +465,9 @@ class CGen(Visitor):
                 lvalue = c.Value(cstr, '*restrict %s' % a0.name)
             if a0._data_alignment:
                 lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
+        elif a1.is_Symbol:
+            rvalue = '*%s' % a1.name
+            lvalue = self._gen_value(a0, 0)
         else:
             rvalue = '%s->%s' % (a1.name, a0._C_name)
             lvalue = self._gen_value(a0, 0)
