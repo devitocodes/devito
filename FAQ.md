@@ -266,7 +266,13 @@ Mostly useful for developers when chasing [segfaults](https://github.com/devitoc
 Choose the performance optimization level. By default set to the maximum level, `advanced`.
 
 #### DEVITO_MPI
-Controls MPI in Devito. Use `1` to enable MPI. The most powerful MPI mode is called "full", and is activated setting `DEVITO_MPI=full`. The "full" mode implements a number of optimizations including computation/communication overlap.
+Choose the MPI scheme to use in Devito. Use `1` to enable MPI and use the default `basic` mode.
+Other available modes are: 0, 1, True, 'basic', 'diag', 'diag2', 'overlap', 'overlap2', 'full', 'dual'
+
+Modes can perform better or worse in different scenarios, depending a lot on the computational character of the experiment and the underlying hardware.
+A recent study with more details is available [in this paper](https://arxiv.org/pdf/2312.13094)
+or shortly in [in this poster](https://www.devitoproject.org/presentations/devito-mpi-poster-rice24.pdf)
+
 
 #### DEVITO_AUTOTUNING
 Search across a set of block shapes to maximize the effectiveness of loop tiling (aka cache blocking). You can choose between `off` (default), `basic`, `aggressive`, `max`. A more aggressive autotuning should eventually result in better runtime performance, though the search phase will take longer. 
