@@ -1,10 +1,11 @@
+from ctypes import c_float
 import numpy as np
 
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex, c_float16, c_float16_p
 from devito.tools.dtypes_lowering import ctypes_vector_mapper
 
 
@@ -19,11 +20,21 @@ class CCDouble(np.complex128):
     pass
 
 
+class CHalf(np.float16):
+    pass
+
+
+class CHalfP(np.float16):
+    pass
+
+
 c99_complex = type('_Complex float', (c_complex,), {})
 c99_double_complex = type('_Complex double', (c_double_complex,), {})
 
 ctypes_vector_mapper[CCFloat] = c99_complex
 ctypes_vector_mapper[CCDouble] = c99_double_complex
+ctypes_vector_mapper[CHalf] = c_float16
+ctypes_vector_mapper[CHalfP] = c_float16_p
 
 
 class CBB(LangBB):
@@ -40,9 +51,10 @@ class CBB(LangBB):
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
-        # Complex
+        # Complex and float16
         'header-complex': 'complex.h',
-        'types': {np.complex128: CCDouble, np.complex64: CCFloat},
+        'types': {np.complex128: CCDouble, np.complex64: CCFloat, np.float16: CHalf},
+        'half_types': (CHalf, CHalfP),
     }
 
 
