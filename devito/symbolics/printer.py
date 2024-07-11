@@ -48,7 +48,14 @@ class CodePrinter(C99CodePrinter):
         if no_f and expr is not None:
             return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return any(issubclass(dtype, d) for d in [np.float32, np.float16, np.complex64])
+        return any(issubclass(dtype, d) for d in [np.float32, np.complex64])
+
+    def half_prec(self, expr=None, with_f=False):
+        no_f = self.compiler._cpp and not with_f
+        if no_f and expr is not None:
+            return False
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return issubclass(dtype, np.float16)
 
     def complex_prec(self, expr=None):
         if self.compiler._cpp:
@@ -121,7 +128,7 @@ class CodePrinter(C99CodePrinter):
         except KeyError:
             return super()._print_math_func(expr, nest=nest, known=known)
 
-        if self.single_prec(expr):
+        if self.single_prec(expr) or self.half_prec(expr):
             cname = '%sf' % cname
         if self.complex_prec(expr):
             cname = 'c%s' % cname
@@ -137,6 +144,9 @@ class CodePrinter(C99CodePrinter):
             if expr.exp == -1 and self.single_prec():
                 PREC = precedence(expr)
                 return '1.0F/%s' % self.parenthesize(expr.base, PREC)
+            if expr.exp == -1 and self.half_prec():
+                PREC = precedence(expr)
+                return '1.0F16/%s' % self.parenthesize(expr.base, PREC)
         except AttributeError:
             pass
         return super()._print_Pow(expr)
@@ -216,6 +226,8 @@ class CodePrinter(C99CodePrinter):
 
         if self.single_prec():
             rv = '%sF' % rv
+        elif self.half_prec():
+            rv = '%sF16' % rv
 
         return rv
 
@@ -223,6 +235,8 @@ class CodePrinter(C99CodePrinter):
         if self.compiler._cpp:
             if self.single_prec(with_f=True):
                 return '1if'
+            elif self.half_prec(with_f=True):
+                return '1if16'
             else:
                 return '1i'
         else:
@@ -280,7 +294,7 @@ class CodePrinter(C99CodePrinter):
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
 
-        if self.single_prec():
+        if self.single_prec() or self.half_prec():
             func_name = '%sf' % func_name
         if self.complex_prec():
             func_name = 'c%s' % func_name
