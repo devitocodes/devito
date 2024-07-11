@@ -11,8 +11,8 @@ from .utils import as_tuple
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
-           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
-           'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
+           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_alloc_ctype', 'dtype_to_mpitype',
+           'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype', 'CustomDtype']
 
 
@@ -147,11 +147,34 @@ def dtype_to_ctype(dtype):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
         return dtype
-    elif dtype == np.float16:
-        # Allocator wants a ctype before float16 gets mapped
-        return ctypes.c_uint16
     else:
         return np.ctypeslib.as_ctypes_type(dtype)
+
+
+def dtype_alloc_ctype(dtype):
+    """
+    Translate numpy.dtype to (ctype, int): type and scale for correct C allocation size.
+    """
+    if isinstance(dtype, CustomDtype):
+        return dtype, 1
+
+    try:
+        return ctypes_vector_mapper[dtype], 1
+    except KeyError:
+        pass
+
+    if issubclass(dtype, ctypes._SimpleCData):
+        return dtype, 1
+
+    if dtype == np.float16:
+        # Allocate half float as unsigned short
+        return ctypes.c_uint16, 1
+
+    if np.issubdtype(dtype, np.complexfloating):
+        # For complex float, allocate twice the size of real/imaginary part
+        return np.ctypeslib.as_ctypes_type(dtype(0).real.__class__), 2
+
+    return np.ctypeslib.as_ctypes_type(dtype), 1
 
 
 def dtype_to_mpitype(dtype):
