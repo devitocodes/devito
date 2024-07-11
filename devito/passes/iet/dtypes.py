@@ -16,7 +16,7 @@ def lower_scalar_half(iet, lang, sregistry):
     """
     if lang.get('half_types') is None:
         return iet, {}
-    
+
     # dtype mappings for float16
     half, half_p = lang['half_types']
 
