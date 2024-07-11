@@ -11,7 +11,8 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import dtype_to_ctype, is_integer
+from devito.tools import is_integer
+from devito.tools.dtypes_lowering import dtype_alloc_ctype
 
 __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -92,12 +93,8 @@ class MemoryAllocator(AbstractMemoryAllocator):
         return
 
     def alloc(self, shape, dtype, padding=0):
-        # For complex number, allocate double the size of its real/imaginary part
-        alloc_dtype = dtype(0).real.__class__
-        c_scale = 2 if np.issubdtype(dtype, np.complexfloating) else 1
-
+        ctype, c_scale = dtype_alloc_ctype(dtype)
         datasize = int(reduce(mul, shape) * c_scale)
-        ctype = dtype_to_ctype(alloc_dtype)
 
         # Add padding, if any
         try:
