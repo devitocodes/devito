@@ -7,7 +7,7 @@ from devito.tools import (Bunch, float2, float3, float4, double2, double3, doubl
 
 __all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
-           'c_float16', 'c_float16_p']
+           'c_half', 'c_half_p']
 
 
 limits_mapper = {
@@ -41,27 +41,20 @@ class c_double_complex(NoDeclStruct):
         return cls(val.real, val.imag)
 
 
-class _c_half(ct.c_uint16):
+class c_half(ct.c_uint16):
     # Ctype for non-scalar half floats
     @classmethod
     def from_param(cls, val):
         return cls(np.float16(val).view(np.uint16))
 
 
-c_float16 = type('_Float16', (_c_half,), {})
-
-
-class _c_half_p(ct.POINTER(c_float16)):
+class c_half_p(ct.POINTER(c_half)):
     # Ctype for half scalars; we can't directly pass _Float16 values so
     # we use a pointer and dereference (see `passes.iet.dtypes`)
     @classmethod
     def from_param(cls, val):
         arr = np.array(val, dtype=np.float16)
         return arr.ctypes.data_as(cls)
-
-
-# ctypes directly parses class dict; can't inherit the _type_ attribute
-c_float16_p = type('_Float16 *', (_c_half_p,), {'_type_': c_float16})
 
 
 class CustomType(ReservedWord):
