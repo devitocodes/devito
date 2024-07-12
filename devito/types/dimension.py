@@ -18,10 +18,10 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension',
            'ConditionalDimension', 'ModuloDimension', 'IncrDimension',
            'BlockDimension', 'StencilDimension', 'VirtualDimension',
-           'Spacing', 'ImplicitDimension', 'dimensions']
+           'Spacing', 'dimensions']
 
 
-Thickness = namedtuple('SubDimensionThickness', 'left right')
+Thickness = namedtuple('Thickness', 'left right')
 SubDimensionOffset = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
 
@@ -363,10 +363,6 @@ class Dimension(ArgProvider):
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
     __getnewargs_ex__ = Pickable.__getnewargs_ex__
-
-
-class ImplicitDimension(Dimension):
-    pass
 
 
 class Spacing(Scalar):

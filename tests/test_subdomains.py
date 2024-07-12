@@ -376,7 +376,6 @@ class TestMultiSubDomain:
         eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
 
         op = Operator([eq1, eq2])
-        print(op.ccode)
         op.apply()
 
         expected = np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -727,9 +726,8 @@ class TestRenaming:
         Ensure that names allocated during compilation are deterministic in their
         ordering.
         """
-        # How to actually test this?
-        # Create two subdomains, two multisubdomains
-        # Interleave them across 4 equations with data dependencies
+        # Create two subdomains, two multisubdomains, then interleave them
+        # across multiple equations
 
         class SD0(SubDomain):
             name = 'sd0'
