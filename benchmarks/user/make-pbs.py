@@ -75,6 +75,9 @@ if __name__ == "__main__":
     # Define subparsers for different commands
     subparsers = parser.add_subparsers(dest='command')
 
+    # Add a 'cleanup' parser
+    clean_parser = subparsers.add_parser('cleanup', help='Clean something.')
+
     # Add a 'generate' command
     pbs_parser = subparsers.add_parser(name='generate', help='Generate something.')
 
@@ -108,9 +111,6 @@ if __name__ == "__main__":
                             help='Number of timesteps')
     pbs_parser.add_argument('--home', default=pathlib.Path(__file__).parent.resolve(),
                             type=pathlib.Path, help='Home directory')
-
-    # Add a 'generate' command
-    clean_parser = subparsers.add_parser('cleanup', help='Clean something.')
 
     # Parse the arguments
     args = parser.parse_args()
