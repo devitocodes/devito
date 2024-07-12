@@ -100,10 +100,10 @@ def test_tensor_matmul(func1, func2, out_type):
 
 
 @pytest.mark.parametrize('func1, func2, out_type', [
-    (VectorFunction, TensorFunction, VectorFunction),
-    (VectorTimeFunction, TensorFunction, VectorTimeFunction),
-    (VectorFunction, TensorTimeFunction, VectorTimeFunction),
-    (VectorTimeFunction, TensorTimeFunction, VectorTimeFunction)])
+    (VectorFunction, TensorFunction, TensorFunction),
+    (VectorTimeFunction, TensorFunction, TensorTimeFunction),
+    (VectorFunction, TensorTimeFunction, TensorTimeFunction),
+    (VectorTimeFunction, TensorTimeFunction, TensorTimeFunction)])
 def test_tensor_matmul_T(func1, func2, out_type):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid)
