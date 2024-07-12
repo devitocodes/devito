@@ -1,4 +1,4 @@
-import click
+import argparse
 
 from devito import Inc, Operator, Function, dimensions, info
 from devito.tools import as_tuple
@@ -7,7 +7,6 @@ __all__ = ['mat_vec', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
            'chain_contractions']
 
 
-@click.group(chain=True)
 def linalg():
     """
     A set of kernels performing basic (BLAS-like) linear algebra operations.
@@ -18,30 +17,6 @@ def linalg():
     pass
 
 
-def option_basic(f):
-    def callback_shape(ctx, param, value):
-        return as_tuple(value)
-
-    def callback_opts(ctx, param, value):
-        if value is True:
-            return ('advanced', {'blockinner': True, 'blockrelax': True})
-        else:
-            return 'noop'
-
-    options = [
-        click.option('-ms', '--mat-shape', default=(4, 4), nargs=2, help='Matrix shape'),
-        click.option('-vs', '--vec-shape', default=4, help='Vector shape',
-                     callback=callback_shape),
-        click.option('-o', '--optimize', default=False, is_flag=True,
-                     help='Generate optimized code', callback=callback_opts)
-    ]
-    for option in reversed(options):
-        f = option(f)
-    return f
-
-
-@linalg.command(name='mat-vec')
-@option_basic
 def cli_mat_vec(mat_shape, vec_shape, optimize, **kwargs):
     """``Ax = b``."""
     i, j = dimensions('i j')
@@ -51,8 +26,6 @@ def cli_mat_vec(mat_shape, vec_shape, optimize, **kwargs):
     mat_vec(A, x, b, optimize)
 
 
-@linalg.command(name='transpose-mat-vec')
-@option_basic
 def cli_transpose_mat_vec(mat_shape, vec_shape, optimize, **kwargs):
     """``A -> A^T, A^Tx = b``."""
     i, j = dimensions('i j')
@@ -62,8 +35,6 @@ def cli_transpose_mat_vec(mat_shape, vec_shape, optimize, **kwargs):
     transpose_mat_vec(A, x, b, optimize)
 
 
-@linalg.command(name='mat-mat')
-@option_basic
 def cli_mat_mat(mat_shape, optimize, **kwargs):
     """``AB = C``."""
     i, j, k = dimensions('i j k')
@@ -73,8 +44,6 @@ def cli_mat_mat(mat_shape, optimize, **kwargs):
     mat_mat(A, B, C, optimize)
 
 
-@linalg.command(name='mat-mat-sum')
-@option_basic
 def cli_mat_mat_sum(mat_shape, optimize, **kwargs):
     """``AB + AC = D``."""
     i, j, k = dimensions('i j k')
@@ -85,8 +54,6 @@ def cli_mat_mat_sum(mat_shape, optimize, **kwargs):
     mat_mat_sum(A, B, C, D, optimize)
 
 
-@linalg.command(name='chain-contractions')
-@option_basic
 def cli_chain_contractions(mat_shape, optimize, **kwargs):
     """``AB + AC = D, DE = F``."""
     i, j, k, l = dimensions('i j k l')
@@ -136,4 +103,50 @@ def chain_contractions(A, B, C, D, E, F, optimize):
 
 
 if __name__ == "__main__":
-    linalg()
+    parser = argparse.ArgumentParser(description="The parent parser")
+
+    parser.add_argument('-ms', '--mat-shape', default=(4, 4), type=int, nargs="+",
+                        help='Matrix shape')
+    parser.add_argument('-vs', '--vec-shape', default=4, type=int, help='Vector shape')
+    parser.add_argument('-o', '--optimize', default=False, help='Generate optimized code',
+                        action="store_true")
+
+    action_parser = argparse.ArgumentParser(parents=[parser], add_help=False)
+
+    subparsers = action_parser.add_subparsers(help='Desired problem to run',
+                                              title="actions", dest='command')
+
+    subparsers.add_parser("mat-vec", parents=[parser], add_help=False,
+                          help='Ax = b')
+    subparsers.add_parser('transpose-mat-vec', parents=[parser], add_help=False,
+                          help='A -> A^T, A^Tx = b')
+    subparsers.add_parser("mat-mat", parents=[parser], add_help=False,
+                          help='AB = C')
+    subparsers.add_parser('mat-mat-sum', parents=[parser], add_help=False,
+                          help='AB + AC = D')
+    subparsers.add_parser('chain-contractions', parents=[parser], add_help=False,
+                          help='AB + AC = D')
+
+    # Parse the arguments
+    args = action_parser.parse_args()
+
+    # Process shapes
+    mat_shape = as_tuple(args.mat_shape)
+    vec_shape = as_tuple(args.vec_shape)
+
+    if not args.optimize:
+        optimize = 'noop'
+    else:
+        optimize = ('advanced', {'blockinner': True, 'blockrelax': True})
+
+    # Execute the corresponding function
+    if args.command == 'mat-mat':
+        cli_mat_mat(mat_shape=mat_shape, optimize=optimize)
+    elif args.command == 'mat-vec':
+        cli_mat_vec(mat_shape=mat_shape, vec_shape=vec_shape, optimize=optimize)
+    elif args.command == 'transpose-mat-vec':
+        cli_transpose_mat_vec(mat_shape=mat_shape, vec_shape=vec_shape, optimize=optimize)
+    elif args.command == 'mat-mat-sum':
+        cli_mat_mat_sum(mat_shape=mat_shape, optimize=optimize)
+    elif args.command == 'chain-contractions':
+        cli_chain_contractions(mat_shape=mat_shape, optimize=optimize)

@@ -104,10 +104,10 @@ def option_simulation(f):
         click.option('-P', '--problem', help='Problem name',
                      type=click.Choice(['acoustic', 'tti',
                                         'elastic', 'acoustic_sa', 'viscoelastic'])),
-        click.option('-d', '--shape', default=(50, 50, 50), type=NTuple([int, int, int]),
+        click.option('-d', '--shape', default=(50, 50, 50), type=tuple([int, int, int]),
                      help='Number of grid points along each axis'),
         click.option('-s', '--spacing', default=(20., 20., 20.),
-                     type=NTuple([float, float, float]),
+                     type=tuple([float, float, float]),
                      help='Spacing between grid sizes in meters'),
         click.option('-n', '--nbl', default=10,
                      help='Number of boundary layers'),
@@ -120,6 +120,7 @@ def option_simulation(f):
         click.option('-op', '--operator', default='forward', help='Operator to run',
                      type=click.Choice(['forward', 'adjoint',
                                         'jacobian', 'jacobian_adjoint']))]
+
     for option in reversed(options):
         f = option(f)
     return f

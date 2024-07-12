@@ -74,8 +74,17 @@ jobs:
 
     - name: Linear algebra example
       run: |
-        python examples/misc/linalg.py mat-vec mat-mat mat-mat-sum transpose-mat-vec
-        python examples/misc/linalg.py mat-vec -o mat-mat -o mat-mat-sum -o transpose-mat-vec -o
+        python examples/misc/linalg.py mat-vec
+        python examples/misc/linalg.py mat-mat
+        python examples/misc/linalg.py mat-mat-sum
+        python examples/misc/linalg.py transpose-mat-vec
+        python examples/misc/linalg.py chain-contractions
+
+        python examples/misc/linalg.py mat-vec -o
+        python examples/misc/linalg.py mat-mat -o
+        python examples/misc/linalg.py mat-mat-sum -o
+        python examples/misc/linalg.py transpose-mat-vec -o
+        python examples/misc/linalg.py chain-contractions -o
 
     - name: CFD examples
       run: |
