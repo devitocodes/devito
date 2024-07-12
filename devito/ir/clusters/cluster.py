@@ -393,7 +393,8 @@ class Cluster:
                 # interval reconstruction
                 if i.dim in oobs and i.dim in f.dimensions:
                     ii = intervals[i.dim].intersection(v[i.dim])
-                    intervals = intervals.set_upper(i.dim, ii.upper)
+                    if not ii.is_Null:
+                        intervals = intervals.set_upper(i.dim, ii.upper)
 
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
