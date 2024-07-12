@@ -751,8 +751,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     def _halo_exchange(self):
         """Perform the halo exchange with the neighboring processes."""
-        if not MPI.Is_initialized() or MPI.COMM_WORLD.size == 1 or \
-                not configuration['mpi']:
+        if not MPI.Is_initialized() or \
+                MPI.COMM_WORLD.size == 1 or \
+                not configuration['mpi'] or \
+                self.grid is None:
             # Nothing to do
             return
         if MPI.COMM_WORLD.size > 1 and self._distributor is None:
