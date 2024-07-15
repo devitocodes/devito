@@ -11,8 +11,7 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import is_integer
-from devito.tools.dtypes_lowering import dtype_alloc_ctype
+from devito.tools import is_integer, dtype_alloc_ctype
 
 __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',

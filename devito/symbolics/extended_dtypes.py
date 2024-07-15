@@ -1,4 +1,4 @@
-import ctypes as ct
+import ctypes
 import numpy as np
 
 from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueLimit
@@ -18,14 +18,16 @@ limits_mapper = {
 }
 
 
-class NoDeclStruct(ct.Structure):
-    # ctypes.Structure that does not generate a struct definition
+class NoDeclStruct(ctypes.Structure):
+    """A ctypes.Structure that does not generate a struct definition"""
+
     pass
 
 
 class c_complex(NoDeclStruct):
-    # Structure for passing complex float to C/C++
-    _fields_ = [('real', ct.c_float), ('imag', ct.c_float)]
+    """Structure for passing complex float to C/C++"""
+
+    _fields_ = [('real', ctypes.c_float), ('imag', ctypes.c_float)]
 
     @classmethod
     def from_param(cls, val):
@@ -33,24 +35,29 @@ class c_complex(NoDeclStruct):
 
 
 class c_double_complex(NoDeclStruct):
-    # Structure for passing complex double to C/C++
-    _fields_ = [('real', ct.c_double), ('imag', ct.c_double)]
+    """Structure for passing complex double to C/C++"""
+
+    _fields_ = [('real', ctypes.c_double), ('imag', ctypes.c_double)]
 
     @classmethod
     def from_param(cls, val):
         return cls(val.real, val.imag)
 
 
-class c_half(ct.c_uint16):
-    # Ctype for non-scalar half floats
+class c_half(ctypes.c_uint16):
+    """Ctype for non-scalar half floats"""
+
     @classmethod
     def from_param(cls, val):
         return cls(np.float16(val).view(np.uint16))
 
 
-class c_half_p(ct.POINTER(c_half)):
-    # Ctype for half scalars; we can't directly pass _Float16 values so
-    # we use a pointer and dereference (see `passes.iet.dtypes`)
+class c_half_p(ctypes.POINTER(c_half)):
+    """
+    Ctype for half scalars; we can't directly pass _Float16 values so
+    we use a pointer and dereference (see `passes.iet.dtypes`)
+    """
+
     @classmethod
     def from_param(cls, val):
         arr = np.array(val, dtype=np.float16)
