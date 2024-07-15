@@ -1068,8 +1068,7 @@ class Dereference(ExprStmt, Node):
         if self.pointer.is_Symbol:
             assert issubclass(self.pointer._C_ctype, ctypes._Pointer), \
                    "Scalar dereference must have a pointer ctype"
-            ret.append(self.pointer._C_symbol)
-            ret.append(self.pointee._C_symbol)
+            ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
         else:
             ret.append(self.pointer.indexed)
             if self.pointer.is_PointerArray or self.pointer.is_TempFunction:
