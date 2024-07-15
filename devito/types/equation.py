@@ -137,6 +137,10 @@ class Eq(sympy.Eq, Evaluable):
     def implicit_dims(self):
         return self._implicit_dims
 
+    @property
+    def conditionals(self):
+        return None
+
     @cached_property
     def _uses_symbolic_coefficients(self):
         return bool(self._symbolic_functions)

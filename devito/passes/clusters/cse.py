@@ -9,7 +9,7 @@ except ImportError:
     from sympy.core.basic import ordering_of_classes
 
 from devito.finite_differences.differentiable import IndexDerivative
-from devito.ir import Cluster, Scope, cluster_pass
+from devito.ir import Cluster, Scope, cluster_pass, ClusterizedEq
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
@@ -90,12 +90,13 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
     while True:
         # Detect redundancies
-        counted = count(processed).items()
-        targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
+        counted = count(processed, None).items()
+        targets = OrderedDict([(k, estimate_cost(k[0], True))
+                               for k, v in counted if v > 1])
 
         # Rule out Dimension-independent data dependencies
         targets = OrderedDict([(k, v) for k, v in targets.items()
-                               if not k.free_symbols & exclude])
+                               if not k[0].free_symbols & exclude])
 
         if not targets or max(targets.values()) < min_cost:
             break
@@ -111,7 +112,10 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         updated = []
         for e in processed:
             pe = e
-            for k, v in chosen:
+            pe_c = e.conditionals
+            for (k, c), v in chosen:
+                if not c == pe_c:
+                    continue
                 pe, changed = _uxreplace(pe, {k: v})
                 if changed and v not in scheduled:
                     updated.append(pe.func(v, k, operation=None))
@@ -156,28 +160,34 @@ def _compact_temporaries(exprs, exclude):
 
 
 @singledispatch
-def count(expr):
+def count(expr, conds):
     """
     Construct a mapper `expr -> #occurrences` for each sub-expression in `expr`.
     """
     mapper = Counter()
     for a in expr.args:
-        mapper.update(count(a))
+        mapper.update(count(a, None))
     return mapper
 
 
 @count.register(list)
 @count.register(tuple)
-def _(exprs):
+def _(exprs, conds):
     mapper = Counter()
     for e in exprs:
-        mapper.update(count(e))
+        mapper.update(count(e, None))
     return mapper
+
+
+@count.register(ClusterizedEq)
+def _(exprs, conds):
+    conditionals = exprs.conditionals
+    return count(exprs.rhs, conditionals)
 
 
 @count.register(Indexed)
 @count.register(Symbol)
-def _(expr):
+def _(expr, conds):
     """
     Handler for objects preventing CSE to propagate through their arguments.
     """
@@ -185,24 +195,24 @@ def _(expr):
 
 
 @count.register(IndexDerivative)
-def _(expr):
+def _(expr, conds):
     """
     Handler for symbol-binding objects. There can be many of them and therefore
     they should be detected as common subexpressions, but it's either pointless
     or forbidden to look inside them.
     """
-    return Counter([expr])
+    return Counter([(expr, conds)])
 
 
 @count.register(Add)
 @count.register(Mul)
 @count.register(Pow)
 @count.register(Function)
-def _(expr):
+def _(expr, conds):
     mapper = Counter()
     for a in expr.args:
-        mapper.update(count(a))
+        mapper.update(count(a, conds))
 
-    mapper[expr] += 1
+    mapper[(expr, conds)] += 1
 
     return mapper

@@ -13,7 +13,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos,
-                    sin, sqrt, Ge)
+                    sin, sqrt, Ge, Lt)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
@@ -189,6 +189,55 @@ def test_cse_w_conditionals():
 
     assert_structure(op, ['x,y,z'], 'xyz')
     assert len(FindNodes(Conditional).visit(op)) == 1
+
+
+def test_cse_w_multi_conditionals():
+    grid = Grid(shape=(10, 10, 10))
+    x, _, _ = grid.dimensions
+
+    cd = ConditionalDimension(name='cd', parent=x, condition=Ge(x, 4),
+                              indirect=True)
+
+    cd2 = ConditionalDimension(name='cd2', parent=x, condition=Lt(x, 4),
+                               indirect=True)
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+    h = Function(name='h', grid=grid)
+    a0 = Function(name='a0', grid=grid)
+    a1 = Function(name='a1', grid=grid)
+    a2 = Function(name='a2', grid=grid)
+    a3 = Function(name='a3', grid=grid)
+
+    eq0 = Eq(h, a0, implicit_dims=cd)
+    eq1 = Eq(a0, a0 + f*g, implicit_dims=cd)
+    eq2 = Eq(a1, a1 + f*g, implicit_dims=cd)
+    eq3 = Eq(a2, a2 + f*g, implicit_dims=cd2)
+    eq4 = Eq(a3, a3 + f*g, implicit_dims=cd2)
+
+    op = Operator([eq0, eq1, eq3])
+
+    assert_structure(op, ['x,y,z'], 'xyz')
+    assert len(FindNodes(Conditional).visit(op)) == 2
+
+    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
+    assert len(tmps) == 0
+
+    op = Operator([eq0, eq1, eq3, eq4])
+
+    assert_structure(op, ['x,y,z'], 'xyz')
+    assert len(FindNodes(Conditional).visit(op)) == 2
+
+    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
+    assert len(tmps) == 1
+
+    op = Operator([eq0, eq1, eq2, eq3, eq4])
+
+    assert_structure(op, ['x,y,z'], 'xyz')
+    assert len(FindNodes(Conditional).visit(op)) == 2
+
+    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
+    assert len(tmps) == 2
 
 
 @pytest.mark.parametrize('expr,expected', [
@@ -2734,7 +2783,7 @@ class TestIsoAcoustic:
 
         assert summary1[('section0', None)].ops == 31
         assert summary1[('section1', None)].ops == 88
-        assert summary1[('section2', None)].ops == 25
+        assert summary1[('section2', None)].ops == 28
         assert np.isclose(summary1[('section0', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
