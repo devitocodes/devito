@@ -5,6 +5,7 @@ Passes to gather and form implicit equations from DSL abstractions.
 from collections import defaultdict
 from functools import singledispatch
 
+from sympy import Le, Ge
 import numpy as np
 
 from devito.ir import SEQUENTIAL, Queue, Forward
@@ -119,8 +120,7 @@ class LowerExplicitMSD(LowerMSD):
 
             # The Cluster performing the actual computation, enriched with
             # the thicknesses
-            ispace = inject_thickness(ispace, thickness)
-            processed.append(c.rebuild(ispace=ispace))
+            processed.append(inject_thickness(c, ispace, thickness))
 
         return processed
 
@@ -207,8 +207,7 @@ class LowerImplicitMSD(LowerMSD):
         # Add in the dynamic thickness
         for c in clusters:
             try:
-                ispace = inject_thickness(c.ispace, mapper[c])
-                processed.append(c.rebuild(ispace=ispace))
+                processed.append(inject_thickness(c, c.ispace, mapper[c]))
             except KeyError:
                 processed.append(c)
 
@@ -272,7 +271,7 @@ def make_implicit_exprs(mapper, sregistry):
     return exprs, frozendict(thickness)
 
 
-def inject_thickness(ispace, thickness):
+def inject_thickness(c, ispace, thickness):
     for i in ispace.itdims:
         if i.is_Block and i._depth > 1:
             # The thickness should be injected once only!
@@ -281,8 +280,30 @@ def inject_thickness(ispace, thickness):
             v0, v1 = thickness[i.root]
             ispace = ispace.translate(i, v0, -v1)
         except KeyError:
-            pass
-    return ispace
+            continue
+
+    # TODO: this is outrageously hacky, but it will be purged by #2405
+    guards = c.guards
+    for i in ispace.itdims:
+        subs = {}
+        try:
+            for g in guards[i].find(Le):
+                d, e = g.args
+                if d.root.symbolic_max in e.free_symbols:
+                    _, v1 = thickness[d.root]
+                    subs[e] = e - v1
+            for g in guards[i].find(Ge):
+                d, e = g.args
+                if d.root.symbolic_min in e.free_symbols:
+                    v0, _ = thickness[d.root]
+                    subs[e] = e + v0
+        except (AttributeError, KeyError):
+            continue
+
+        if subs:
+            guards = guards.impose(i, guards[i].subs(subs))
+
+    return c.rebuild(ispace=ispace, guards=guards)
 
 
 def reduce(m0, m1, edims, prefix):
