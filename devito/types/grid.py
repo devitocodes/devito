@@ -10,7 +10,7 @@ from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
-from devito.types.basic import Scalar
+from devito.types.basic import Scalar, Symbol
 from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
@@ -556,9 +556,10 @@ class MultiSubDimension(AbstractSubDimension):
 
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
+    def __init_finalize__(self, name, parent, left, right, thickness,
+                          functions=None, bounds_indices=None,
                           implicit_dimension=None):
-        super().__init_finalize__(name, parent)
+        super().__init_finalize__(name, parent, left, right, thickness)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
@@ -572,18 +573,6 @@ class MultiSubDimension(AbstractSubDimension):
     @cached_property
     def bound_symbols(self):
         return self.parent.bound_symbols
-
-    @cached_property
-    def symbolic_min(self):
-        return self.parent.symbolic_min
-
-    @cached_property
-    def symbolic_max(self):
-        return self.parent.symbolic_max
-
-    @cached_property
-    def symbolic_size(self):
-        return self.parent.symbolic_size
 
 
 class MultiSubDomain(AbstractSubDomain):
@@ -786,10 +775,22 @@ class SubDomainSet(MultiSubDomain):
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
             dname = '%si%d' % (d.name, counter)
-            dimensions.append(MultiSubDimension(dname, d,
-                                                functions=sd_func,
-                                                bounds_indices=(2*i, 2*i+1),
-                                                implicit_dimension=i_dim))
+
+            ltkn = Symbol(name="%s_ltkn%d" % (d.name, counter), dtype=np.int32,
+                          is_const=True, nonnegative=True)
+            rtkn = Symbol(name="%s_rtkn%d" % (d.name, counter), dtype=np.int32,
+                          is_const=True, nonnegative=True)
+
+            left = d.symbolic_min + ltkn
+            right = d.symbolic_max - rtkn
+
+            thickness = ((ltkn, None), (rtkn, None))
+
+            dimensions.append(MultiSubDimension(
+                dname, d, left, right, thickness,
+                functions=sd_func, bounds_indices=(2*i, 2*i+1),
+                implicit_dimension=i_dim
+            ))
 
         self._dimensions = tuple(dimensions)
 

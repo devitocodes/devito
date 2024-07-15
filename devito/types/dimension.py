@@ -539,16 +539,55 @@ class DerivedDimension(BasicDimension):
 class AbstractSubDimension(DerivedDimension):
 
     """
-    Symbol defining a convex iteration sub-space derived from a ``parent``
+    Symbol defining a convex iteration sub-space derived from a `parent`
     Dimension.
 
     Notes
     -----
-    This is an abstract class. The actual implementations are SubDimension
-    and MultiSubDimension.
+    This is just the abstract base class for various types of SubDimensions.
     """
 
     is_AbstractSub = True
+
+    __rargs__ = (DerivedDimension.__rargs__ +
+                 ('symbolic_min', 'symbolic_max', 'thickness'))
+    __rkwargs__ = ()
+
+    def __init_finalize__(self, name, parent, left, right, thickness, **kwargs):
+        super().__init_finalize__(name, parent)
+        self._interval = sympy.Interval(left, right)
+        self._thickness = Thickness(*thickness)
+
+    @cached_property
+    def symbolic_min(self):
+        return self._interval.left
+
+    @cached_property
+    def symbolic_max(self):
+        return self._interval.right
+
+    @cached_property
+    def symbolic_size(self):
+        # The size must be given as a function of the parent's symbols
+        return self.symbolic_max - self.symbolic_min + 1
+
+    @property
+    def thickness(self):
+        return self._thickness
+
+    @cached_property
+    def _thickness_map(self):
+        return dict(self.thickness)
+
+    @property
+    def ltkn(self):
+        # Shortcut for the left thickness symbol
+        return self.thickness.left[0]
+
+    @property
+    def rtkn(self):
+        # Shortcut for the right thickness symbol
+        return self.thickness.right[0]
 
 
 class SubDimension(AbstractSubDimension):
@@ -601,14 +640,10 @@ class SubDimension(AbstractSubDimension):
 
     is_Sub = True
 
-    __rargs__ = (DerivedDimension.__rargs__ +
-                 ('symbolic_min', 'symbolic_max', 'thickness', 'local'))
-    __rkwargs__ = ()
+    __rargs__ = AbstractSubDimension.__rargs__ + ('local',)
 
     def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
-        super().__init_finalize__(name, parent)
-        self._interval = sympy.Interval(left, right)
-        self._thickness = Thickness(*thickness)
+        super().__init_finalize__(name, parent, left, right, thickness)
         self._local = local
 
     @classmethod
@@ -645,26 +680,9 @@ class SubDimension(AbstractSubDimension):
                    thickness=((lst, thickness_left), (rst, thickness_right)),
                    local=local)
 
-    @cached_property
-    def symbolic_min(self):
-        return self._interval.left
-
-    @cached_property
-    def symbolic_max(self):
-        return self._interval.right
-
-    @cached_property
-    def symbolic_size(self):
-        # The size must be given as a function of the parent's symbols
-        return self.symbolic_max - self.symbolic_min + 1
-
     @property
     def local(self):
         return self._local
-
-    @property
-    def thickness(self):
-        return self._thickness
 
     @property
     def is_left(self):
@@ -686,10 +704,6 @@ class SubDimension(AbstractSubDimension):
     @property
     def _maybe_distributed(self):
         return not self.local
-
-    @cached_property
-    def _thickness_map(self):
-        return dict(self.thickness)
 
     @cached_property
     def _offset_left(self):
