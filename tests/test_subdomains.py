@@ -307,6 +307,36 @@ class TestMultiSubDomain:
         reads = set().union(*[e.reads for e in exprs])
         assert len(reads) == 4  # f, g, h, mydomains
 
+    def test_multi_eq_split(self):
+        """
+        Test cases where two loops over the same SubDomainSet will be
+        separated by another loop.
+        """
+        # Note: a bug was found where this would cause SubDomainSet
+        # bounds expressions not to be generated in the second loop over
+        # the SubDomainSet
+        class MSD(SubDomainSet):
+            name = 'msd'
+
+        msd = MSD(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(11, 11), subdomains=(msd,))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        eq0 = Eq(f, 1, subdomain=msd)
+        eq1 = Eq(f, g)  # Dependency needed to fix equation order
+        eq2 = Eq(g, 1, subdomain=msd)
+
+        op = Operator([eq0, eq1, eq2])
+
+        # Ensure the loop structure is correct
+        # Note the two 'n0' correspond to the thickness definitions
+        assert_structure(op,
+                         ['n0', 'n0xy', 'xy', 'n0', 'n0xy'],
+                         'n0xyxyn0xy')
+
     def test_multi_sets(self):
         """
         Check functionality for when multiple subdomain sets are present.
