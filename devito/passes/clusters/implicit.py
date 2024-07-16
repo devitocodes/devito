@@ -6,12 +6,11 @@ from collections import defaultdict
 from functools import singledispatch
 
 from sympy import Le, Ge
-import numpy as np
 
 from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
 from devito.tools import Bunch, frozendict, timed_pass, filter_ordered
-from devito.types import Eq, Symbol
+from devito.types import Eq
 from devito.types.dimension import BlockDimension
 from devito.types.grid import MultiSubDimension
 
@@ -60,10 +59,10 @@ class LowerExplicitMSD(LowerMSD):
 
     where `xi_n` and `yi_n` are MultiSubDimensions, generate:
 
-        Cluster([Eq(xi_n_ltkn, xi_n_m[n])
-                 Eq(xi_n_rtkn, xi_n_M[n])
-                 Eq(yi_n_ltkn, yi_n_m[n])
-                 Eq(yi_n_rtkn, yi_n_M[n])])
+        Cluster([Eq(xi_n_ltkn, msd[n, 0])
+                 Eq(xi_n_rtkn, msd[n, 1])
+                 Eq(yi_n_ltkn, msd[n, 2])
+                 Eq(yi_n_rtkn, msd[n, 3])])
         Cluster([Eq(f[t1, xi_n, yi_n], f[t0, xi_n, yi_n] + 1)])
     """
 

@@ -3,20 +3,19 @@ from collections import namedtuple
 from functools import cached_property
 
 import numpy as np
-from sympy import prod, Interval
+from sympy import prod
 
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
-from devito.types.basic import Scalar, Symbol
+from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension,
-                                    AbstractSubDimension, DefaultDimension,
-                                    Thickness)
+                                    MultiSubDimension, DefaultDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -545,51 +544,6 @@ class SubDomain(AbstractSubDomain):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
-
-
-class MultiSubDimension(AbstractSubDimension):
-
-    """
-    A special Dimension to be used in MultiSubDomains.
-    """
-
-    is_MultiSub = True
-
-    __rargs__ = ('name', 'parent')
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension',
-                   'symbolic_min', 'symbolic_max', 'thickness')
-
-    def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
-                          implicit_dimension=None, symbolic_min=None, symbolic_max=None,
-                          thickness=None):
-        super().__init_finalize__(name, parent, symbolic_min, symbolic_max, thickness)
-        self.functions = functions
-        self.bounds_indices = bounds_indices
-        self.implicit_dimension = implicit_dimension
-
-    @classmethod
-    def build(cls, name, parent, functions, bounds_indices, implicit_dimension):
-        lst, rst = cls._symbolic_thickness(name)
-        i_left, i_right = bounds_indices
-        thickness_left = functions[implicit_dimension, i_left]
-        thickness_right = functions[implicit_dimension, i_right]
-        return cls(name, parent,
-                   functions=functions,
-                   bounds_indices=bounds_indices,
-                   implicit_dimension=implicit_dimension,
-                   symbolic_min=parent.symbolic_min+lst,
-                   symbolic_max=parent.symbolic_max-rst,
-                   thickness=((lst, thickness_left), (rst, thickness_right)))
-
-    def __hash__(self):
-        # There is no possibility for two MultiSubDimensions to ever hash the
-        # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
-        # which is unique
-        return id(self)
-
-    @cached_property
-    def bound_symbols(self):
-        return self.parent.bound_symbols
 
 
 class MultiSubDomain(AbstractSubDomain):
