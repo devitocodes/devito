@@ -558,6 +558,13 @@ class AbstractSubDimension(DerivedDimension):
         self._interval = sympy.Interval(left, right)
         self._thickness = Thickness(*thickness)
 
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True))
+
     @cached_property
     def symbolic_min(self):
         return self._interval.left
@@ -645,13 +652,6 @@ class SubDimension(AbstractSubDimension):
     def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
         super().__init_finalize__(name, parent, left, right, thickness)
         self._local = local
-
-    @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):

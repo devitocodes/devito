@@ -10,7 +10,7 @@ from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
-from devito.types.basic import Scalar, Symbol
+from devito.types.basic import Scalar
 from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
@@ -747,10 +747,7 @@ class SubDomainSet(MultiSubDomain):
 
             dname = '%si%d' % (d.name, counter)
 
-            ltkn = Symbol(name="%s_ltkn%d" % (d.name, counter), dtype=np.int32,
-                          is_const=True, nonnegative=True)
-            rtkn = Symbol(name="%s_rtkn%d" % (d.name, counter), dtype=np.int32,
-                          is_const=True, nonnegative=True)
+            ltkn, rtkn = MultiSubDimension._symbolic_thickness(dname)
 
             left = d.symbolic_min + ltkn
             right = d.symbolic_max - rtkn
