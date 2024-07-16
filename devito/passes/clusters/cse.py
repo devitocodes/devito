@@ -1,6 +1,7 @@
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, namedtuple
 from functools import singledispatch
 
+import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
 try:
     from sympy.core.core import ordering_of_classes
@@ -9,14 +10,17 @@ except ImportError:
     from sympy.core.basic import ordering_of_classes
 
 from devito.finite_differences.differentiable import IndexDerivative
-from devito.ir import Cluster, Scope, cluster_pass, ClusterizedEq
+from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import as_list
+from devito.tools import as_list, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
+
+
+Counted = namedtuple('Candidate', 'expr, conditionals')
 
 
 class CTemp(Temp):
@@ -90,14 +94,12 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
 
     while True:
         # Detect redundancies
-        counted = count(processed, None).items()
-        targets = OrderedDict([(k, estimate_cost(k[0], True))
+        counted = count(processed).items()
+        targets = OrderedDict([(k, estimate_cost(k.expr, True))
                                for k, v in counted if v > 1])
-
         # Rule out Dimension-independent data dependencies
         targets = OrderedDict([(k, v) for k, v in targets.items()
-                               if not k[0].free_symbols & exclude])
-
+                               if not k.expr.free_symbols & exclude])
         if not targets or max(targets.values()) < min_cost:
             break
 
@@ -112,13 +114,12 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         updated = []
         for e in processed:
             pe = e
-            pe_c = e.conditionals
-            for (k, c), v in chosen:
-                if not c == pe_c:
+            for k, v in chosen:
+                if not k.conditionals == e.conditionals:
                     continue
-                pe, changed = _uxreplace(pe, {k: v})
+                pe, changed = _uxreplace(pe, {k.expr: v})
                 if changed and v not in scheduled:
-                    updated.append(pe.func(v, k, operation=None))
+                    updated.append(pe.func(v, k.expr, operation=None))
                     scheduled.append(v)
             updated.append(pe)
         processed = updated
@@ -160,34 +161,39 @@ def _compact_temporaries(exprs, exclude):
 
 
 @singledispatch
-def count(expr, conds):
+def count(expr):
     """
     Construct a mapper `expr -> #occurrences` for each sub-expression in `expr`.
     """
     mapper = Counter()
     for a in expr.args:
-        mapper.update(count(a, None))
+        mapper.update(count(a))
     return mapper
 
 
 @count.register(list)
 @count.register(tuple)
-def _(exprs, conds):
+def _(exprs):
     mapper = Counter()
     for e in exprs:
-        mapper.update(count(e, None))
+        mapper.update(count(e))
+
     return mapper
 
 
-@count.register(ClusterizedEq)
-def _(exprs, conds):
-    conditionals = exprs.conditionals
-    return count(exprs.rhs, conditionals)
+@count.register(sympy.Eq)
+def _(expr):
+    mapper = count(expr.rhs)
+    try:
+        cond = expr.conditionals
+    except AttributeError:
+        cond = frozendict()
+    return {Counted(e, cond): v for e, v in mapper.items()}
 
 
 @count.register(Indexed)
 @count.register(Symbol)
-def _(expr, conds):
+def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.
     """
@@ -195,24 +201,24 @@ def _(expr, conds):
 
 
 @count.register(IndexDerivative)
-def _(expr, conds):
+def _(expr):
     """
     Handler for symbol-binding objects. There can be many of them and therefore
     they should be detected as common subexpressions, but it's either pointless
     or forbidden to look inside them.
     """
-    return Counter([(expr, conds)])
+    return Counter([expr])
 
 
 @count.register(Add)
 @count.register(Mul)
 @count.register(Pow)
 @count.register(Function)
-def _(expr, conds):
+def _(expr):
     mapper = Counter()
     for a in expr.args:
-        mapper.update(count(a, conds))
+        mapper.update(count(a))
 
-    mapper[(expr, conds)] += 1
+    mapper[expr] += 1
 
     return mapper
