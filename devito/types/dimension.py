@@ -15,7 +15,7 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension',
+           'CustomDimension', 'SteppingDimension', 'SubDimension', 'MultiSubDimension',
            'ConditionalDimension', 'ModuloDimension', 'IncrDimension',
            'BlockDimension', 'StencilDimension', 'VirtualDimension',
            'Spacing', 'dimensions']
@@ -788,6 +788,35 @@ class SubDimension(AbstractSubDimension):
             rtkn = r_rtkn or 0
 
         return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
+
+
+class MultiSubDimension(AbstractSubDimension):
+
+    """
+    A special Dimension to be used in MultiSubDomains.
+    """
+
+    is_MultiSub = True
+
+    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
+
+    def __init_finalize__(self, name, parent, left, right, thickness,
+                          functions=None, bounds_indices=None,
+                          implicit_dimension=None):
+        super().__init_finalize__(name, parent, left, right, thickness)
+        self.functions = functions
+        self.bounds_indices = bounds_indices
+        self.implicit_dimension = implicit_dimension
+
+    def __hash__(self):
+        # There is no possibility for two MultiSubDimensions to ever hash the
+        # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
+        # which is unique
+        return id(self)
+
+    @cached_property
+    def bound_symbols(self):
+        return self.parent.bound_symbols
 
 
 class ConditionalDimension(DerivedDimension):

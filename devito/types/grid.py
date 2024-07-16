@@ -15,7 +15,7 @@ from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension,
-                                    AbstractSubDimension, DefaultDimension)
+                                    MultiSubDimension, DefaultDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -544,35 +544,6 @@ class SubDomain(AbstractSubDomain):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
-
-
-class MultiSubDimension(AbstractSubDimension):
-
-    """
-    A special Dimension to be used in MultiSubDomains.
-    """
-
-    is_MultiSub = True
-
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
-
-    def __init_finalize__(self, name, parent, left, right, thickness,
-                          functions=None, bounds_indices=None,
-                          implicit_dimension=None):
-        super().__init_finalize__(name, parent, left, right, thickness)
-        self.functions = functions
-        self.bounds_indices = bounds_indices
-        self.implicit_dimension = implicit_dimension
-
-    def __hash__(self):
-        # There is no possibility for two MultiSubDimensions to ever hash the
-        # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
-        # which is unique
-        return id(self)
-
-    @cached_property
-    def bound_symbols(self):
-        return self.parent.bound_symbols
 
 
 class MultiSubDomain(AbstractSubDomain):
