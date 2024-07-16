@@ -556,16 +556,17 @@ class MultiSubDimension(AbstractSubDimension):
     is_MultiSub = True
 
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension',
-                   'thickness')
+                   'symbolic_min', 'symbolic_max', 'thickness')
 
     def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
-                          implicit_dimension=None, left=None, right=None, thickness=None):
+                          implicit_dimension=None, symbolic_min=None, symbolic_max=None,
+                          thickness=None):
         super().__init_finalize__(name, parent)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
         # TODO: Could be further homogenised with SubDimension
-        self.interval = Interval(left, right)
+        self.interval = Interval(symbolic_min, symbolic_max)
         self.thickness = Thickness(*thickness)
 
     @classmethod
@@ -578,8 +579,8 @@ class MultiSubDimension(AbstractSubDimension):
                    functions=functions,
                    bounds_indices=bounds_indices,
                    implicit_dimension=implicit_dimension,
-                   left=parent.symbolic_min+lst,
-                   right=parent.symbolic_max-rst,
+                   symbolic_min=parent.symbolic_min+lst,
+                   symbolic_max=parent.symbolic_max-rst,
                    thickness=((lst, thickness_left), (rst, thickness_right)))
 
     def __hash__(self):

@@ -10,7 +10,7 @@ import numpy as np
 
 from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
-from devito.tools import Bunch, frozendict, timed_pass
+from devito.tools import Bunch, frozendict, timed_pass, filter_ordered
 from devito.types import Eq, Symbol
 from devito.types.dimension import BlockDimension
 from devito.types.grid import MultiSubDimension
@@ -95,10 +95,6 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            # Get all MultiSubDimensions in the cluster and get the dynamic thickness
-            # mapper for the associated MultiSubDomain
-            # mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None}, c)
-
             msdims = {msdim(i.dim) for i in c.ispace[idx:]} - {None}
             dims = {d.implicit_dimension for d in msdims}
 
@@ -107,9 +103,7 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            # Should filter_ordered this
-            exprs = make_implicit_exprs(msdims)
-            print(exprs)
+            exprs = make_implicit_exprs(filter_ordered(msdims))
 
             ispace = c.ispace.insert(dim, dims)
 
@@ -127,7 +121,6 @@ class LowerExplicitMSD(LowerMSD):
             # the thicknesses
             processed.append(c.rebuild(ispace=ispace))
 
-        print("Processed", processed)
         return processed
 
 
