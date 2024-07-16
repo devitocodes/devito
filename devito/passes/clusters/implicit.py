@@ -221,8 +221,8 @@ def _lower_msd(dim, cluster):
 @_lower_msd.register(MultiSubDimension)
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
-    mapper = {(dim, i): dim.functions[i_dim, mM]
-              for i, mM in enumerate(dim.bounds_indices)}
+    mapper = {t[0]: dim.functions[i_dim, mM]
+              for t, mM in zip(dim.thickness, dim.bounds_indices)}
     return mapper, i_dim
 
 
@@ -246,7 +246,7 @@ def lower_msd(msdims, cluster):
 
 
 def make_implicit_exprs(mapper):
-    return [Eq(list(d._thickness_map)[side], v) for (d, side), v in mapper.items()]
+    return [Eq(k, v) for k, v in mapper.items()]
 
 
 def reduce(m0, m1, edims, prefix):
