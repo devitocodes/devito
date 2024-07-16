@@ -555,19 +555,17 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
+    __rargs__ = ('name', 'parent')
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension',
                    'symbolic_min', 'symbolic_max', 'thickness')
 
     def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
                           implicit_dimension=None, symbolic_min=None, symbolic_max=None,
                           thickness=None):
-        super().__init_finalize__(name, parent)
+        super().__init_finalize__(name, parent, symbolic_min, symbolic_max, thickness)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
-        # TODO: Could be further homogenised with SubDimension
-        self.interval = Interval(symbolic_min, symbolic_max)
-        self.thickness = Thickness(*thickness)
 
     @classmethod
     def build(cls, name, parent, functions, bounds_indices, implicit_dimension):
@@ -592,19 +590,6 @@ class MultiSubDimension(AbstractSubDimension):
     @cached_property
     def bound_symbols(self):
         return self.parent.bound_symbols
-
-    @cached_property
-    def symbolic_min(self):
-        return self.interval.left
-
-    @cached_property
-    def symbolic_max(self):
-        return self.interval.right
-
-    @cached_property
-    def symbolic_size(self):
-        # The size must be given as a function of the parent's symbols
-        return self.symbolic_max - self.symbolic_min + 1
 
 
 class MultiSubDomain(AbstractSubDomain):
@@ -808,18 +793,6 @@ class SubDomainSet(MultiSubDomain):
 
             dname = '%si%d' % (d.name, counter)
 
-            # thickness = (
-            #     Symbol(name="%s_ltkn%d" % (d.name, counter), dtype=np.int32,
-            #            is_const=True, nonnegative=True),
-            #     Symbol(name="%s_rtkn%d" % (d.name, counter), dtype=np.int32,
-            #            is_const=True, nonnegative=True)
-            # )
-
-            # dimensions.append(MultiSubDimension(dname, d,
-            #                                     functions=sd_func,
-            #                                     bounds_indices=(2*i, 2*i+1),
-            #                                     implicit_dimension=i_dim,
-            #                                     thickness=thickness))
             dimensions.append(MultiSubDimension.build(dname, d, sd_func, (2*i, 2*i+1),
                                                       i_dim))
 
