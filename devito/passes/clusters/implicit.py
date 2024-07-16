@@ -92,6 +92,8 @@ class LowerExplicitMSD(LowerMSD):
                 d = None
             if d is None:
                 processed.append(c)
+                # If no MultiSubDomain present in this cluster, then tip should be reset
+                tip = None
                 continue
 
             # Get all MultiSubDimensions in the cluster and get the dynamic thickness
