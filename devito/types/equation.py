@@ -5,7 +5,7 @@ import sympy
 from functools import cached_property
 
 from devito.finite_differences import default_rules
-from devito.tools import as_tuple
+from devito.tools import as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
@@ -136,6 +136,10 @@ class Eq(sympy.Eq, Evaluable):
     @property
     def implicit_dims(self):
         return self._implicit_dims
+
+    @property
+    def conditionals(self):
+        return frozendict()
 
     @cached_property
     def _uses_symbolic_coefficients(self):

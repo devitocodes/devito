@@ -1,6 +1,7 @@
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, namedtuple
 from functools import singledispatch
 
+import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
 try:
     from sympy.core.core import ordering_of_classes
@@ -13,10 +14,13 @@ from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import as_list
+from devito.tools import as_list, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
+
+
+Counted = namedtuple('Candidate', 'expr, conditionals')
 
 
 class CTemp(Temp):
@@ -91,12 +95,11 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     while True:
         # Detect redundancies
         counted = count(processed).items()
-        targets = OrderedDict([(k, estimate_cost(k, True)) for k, v in counted if v > 1])
-
+        targets = OrderedDict([(k, estimate_cost(k.expr, True))
+                               for k, v in counted if v > 1])
         # Rule out Dimension-independent data dependencies
         targets = OrderedDict([(k, v) for k, v in targets.items()
-                               if not k.free_symbols & exclude])
-
+                               if not k.expr.free_symbols & exclude])
         if not targets or max(targets.values()) < min_cost:
             break
 
@@ -112,9 +115,11 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         for e in processed:
             pe = e
             for k, v in chosen:
-                pe, changed = _uxreplace(pe, {k: v})
+                if not k.conditionals == e.conditionals:
+                    continue
+                pe, changed = _uxreplace(pe, {k.expr: v})
                 if changed and v not in scheduled:
-                    updated.append(pe.func(v, k, operation=None))
+                    updated.append(pe.func(v, k.expr, operation=None))
                     scheduled.append(v)
             updated.append(pe)
         processed = updated
@@ -172,7 +177,18 @@ def _(exprs):
     mapper = Counter()
     for e in exprs:
         mapper.update(count(e))
+
     return mapper
+
+
+@count.register(sympy.Eq)
+def _(expr):
+    mapper = count(expr.rhs)
+    try:
+        cond = expr.conditionals
+    except AttributeError:
+        cond = frozendict()
+    return {Counted(e, cond): v for e, v in mapper.items()}
 
 
 @count.register(Indexed)
