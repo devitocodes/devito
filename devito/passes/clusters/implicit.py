@@ -97,14 +97,19 @@ class LowerExplicitMSD(LowerMSD):
 
             # Get all MultiSubDimensions in the cluster and get the dynamic thickness
             # mapper for the associated MultiSubDomain
-            mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None}, c)
+            # mapper, dims = lower_msd({msdim(i.dim) for i in c.ispace[idx:]} - {None}, c)
+
+            msdims = {msdim(i.dim) for i in c.ispace[idx:]} - {None}
+            dims = {d.implicit_dimension for d in msdims}
 
             if not dims:
                 # An Implicit MSD
                 processed.append(c)
                 continue
 
-            exprs = make_implicit_exprs(mapper)
+            # Should filter_ordered this
+            exprs = make_implicit_exprs(msdims)
+            print(exprs)
 
             ispace = c.ispace.insert(dim, dims)
 
@@ -122,6 +127,7 @@ class LowerExplicitMSD(LowerMSD):
             # the thicknesses
             processed.append(c.rebuild(ispace=ispace))
 
+        print("Processed", processed)
         return processed
 
 
@@ -257,8 +263,8 @@ def lower_msd(msdims, cluster):
     return frozendict(mapper), tuple(dims - {None})
 
 
-def make_implicit_exprs(mapper):
-    return [Eq(d.thickness[side], v) for (d, side), v in mapper.items()]
+def make_implicit_exprs(msdims):
+    return [Eq(*t) for d in msdims for t in d.thickness]
 
 
 def inject_thickness(c, ispace, thickness):

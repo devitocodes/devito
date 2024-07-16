@@ -550,6 +550,13 @@ class AbstractSubDimension(DerivedDimension):
 
     is_AbstractSub = True
 
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Scalar(name="%s_rtkn" % name, dtype=np.int32,
+                       is_const=True, nonnegative=True))
+
 
 class SubDimension(AbstractSubDimension):
 
@@ -610,13 +617,6 @@ class SubDimension(AbstractSubDimension):
         self._interval = sympy.Interval(left, right)
         self._thickness = Thickness(*thickness)
         self._local = local
-
-    @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True))
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
