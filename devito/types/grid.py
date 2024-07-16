@@ -10,7 +10,7 @@ from devito.logger import warning
 from devito.mpi import Distributor, MPI
 from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
-from devito.types.basic import Scalar
+from devito.types.basic import Scalar, Symbol
 from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
@@ -554,14 +554,16 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
+    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension',
+                   'thickness')
 
     def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
-                          implicit_dimension=None):
+                          implicit_dimension=None, thickness=None):
         super().__init_finalize__(name, parent)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
+        self.thickness = thickness
 
     def __hash__(self):
         # There is no possibility for two MultiSubDimensions to ever hash the
@@ -575,11 +577,11 @@ class MultiSubDimension(AbstractSubDimension):
 
     @cached_property
     def symbolic_min(self):
-        return self.parent.symbolic_min
+        return self.parent.symbolic_min + self.thickness[0]
 
     @cached_property
     def symbolic_max(self):
-        return self.parent.symbolic_max
+        return self.parent.symbolic_max - self.thickness[1]
 
     @cached_property
     def symbolic_size(self):
@@ -786,10 +788,19 @@ class SubDomainSet(MultiSubDomain):
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
             dname = '%si%d' % (d.name, counter)
+
+            thickness = (
+                Symbol(name="%s_ltkn%d" % (d.name, counter), dtype=np.int32,
+                       is_const=True, nonnegative=True),
+                Symbol(name="%s_rtkn%d" % (d.name, counter), dtype=np.int32,
+                       is_const=True, nonnegative=True)
+            )
+
             dimensions.append(MultiSubDimension(dname, d,
                                                 functions=sd_func,
                                                 bounds_indices=(2*i, 2*i+1),
-                                                implicit_dimension=i_dim))
+                                                implicit_dimension=i_dim,
+                                                thickness=thickness))
 
         self._dimensions = tuple(dimensions)
 

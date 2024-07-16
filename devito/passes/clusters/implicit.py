@@ -104,7 +104,7 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            exprs, thickness = make_implicit_exprs(mapper, self.sregistry)
+            exprs = make_implicit_exprs(mapper)
 
             ispace = c.ispace.insert(dim, dims)
 
@@ -120,7 +120,7 @@ class LowerExplicitMSD(LowerMSD):
 
             # The Cluster performing the actual computation, enriched with
             # the thicknesses
-            processed.append(inject_thickness(c, ispace, thickness))
+            processed.append(c.rebuild(ispace=ispace))
 
         return processed
 
@@ -233,7 +233,7 @@ def _lower_msd(dim, cluster):
 @_lower_msd.register(MultiSubDimension)
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
-    mapper = {(dim.root, i): dim.functions[i_dim, mM]
+    mapper = {(dim, i): dim.functions[i_dim, mM]
               for i, mM in enumerate(dim.bounds_indices)}
     return mapper, i_dim
 
@@ -257,18 +257,8 @@ def lower_msd(msdims, cluster):
     return frozendict(mapper), tuple(dims - {None})
 
 
-def make_implicit_exprs(mapper, sregistry):
-    exprs = []
-    thickness = defaultdict(lambda: [None, None])
-    for (d, side), v in mapper.items():
-        tkn = 'l' if side == 0 else 'r'
-        name = sregistry.make_name('%s_%stkn' % (d.name, tkn))
-        s = Symbol(name=name, dtype=np.int32, is_const=True, nonnegative=True)
-
-        exprs.append(Eq(s, v))
-        thickness[d][side] = s
-
-    return exprs, frozendict(thickness)
+def make_implicit_exprs(mapper):
+    return [Eq(d.thickness[side], v) for (d, side), v in mapper.items()]
 
 
 def inject_thickness(c, ispace, thickness):
