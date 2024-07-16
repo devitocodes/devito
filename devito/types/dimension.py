@@ -798,15 +798,13 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rargs__ = ('name', 'parent')
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension',
-                   'symbolic_min', 'symbolic_max', 'thickness')
+    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    def __init_finalize__(self, name, parent, functions=None, bounds_indices=None,
-                          implicit_dimension=None, symbolic_min=None, symbolic_max=None,
-                          thickness=None):
-        super().__init_finalize__(name, parent, symbolic_min, symbolic_max, thickness)
+    def __init_finalize__(self, name, parent, left, right, thickness, functions=None,
+                          bounds_indices=None, implicit_dimension=None):
+        super().__init_finalize__(name, parent, left, right, thickness)
         self.functions = functions
+        # FIXME: bounds_indices should be dropped
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
 
@@ -817,12 +815,12 @@ class MultiSubDimension(AbstractSubDimension):
         thickness_left = functions[implicit_dimension, i_left]
         thickness_right = functions[implicit_dimension, i_right]
         return cls(name, parent,
+                   parent.symbolic_min+lst,
+                   parent.symbolic_max-rst,
+                   ((lst, thickness_left), (rst, thickness_right)),
                    functions=functions,
                    bounds_indices=bounds_indices,
-                   implicit_dimension=implicit_dimension,
-                   symbolic_min=parent.symbolic_min+lst,
-                   symbolic_max=parent.symbolic_max-rst,
-                   thickness=((lst, thickness_left), (rst, thickness_right)))
+                   implicit_dimension=implicit_dimension)
 
     def __hash__(self):
         # There is no possibility for two MultiSubDimensions to ever hash the
