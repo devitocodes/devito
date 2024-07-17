@@ -559,11 +559,11 @@ class AbstractSubDimension(DerivedDimension):
         self._thickness = Thickness(*thickness)
 
     @classmethod
-    def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32,
-                       is_const=True, nonnegative=True))
+    def _symbolic_thickness(cls, name, stype=Scalar):
+        return (stype(name="%s_ltkn" % name, dtype=np.int32,
+                      is_const=True, nonnegative=True),
+                stype(name="%s_rtkn" % name, dtype=np.int32,
+                      is_const=True, nonnegative=True))
 
     @cached_property
     def symbolic_min(self):
@@ -843,6 +843,10 @@ class MultiSubDimension(AbstractSubDimension):
         # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
         # which is unique
         return id(self)
+
+    @classmethod
+    def _symbolic_thickness(cls, name):
+        return super()._symbolic_thickness(name, stype=Symbol)
 
     @cached_property
     def bound_symbols(self):
