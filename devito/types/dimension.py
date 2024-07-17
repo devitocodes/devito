@@ -1307,10 +1307,8 @@ class BlockDimension(AbstractIncrDimension):
             return ()
 
     def _arg_defaults(self, **kwargs):
-        # TODO: need a heuristic to pick a default incr size
-        # TODO: move default value to __new__
         try:
-            return {self.step.name: 8}
+            return {self.step.name: 16}
         except AttributeError:
             # `step` not a Symbol
             return {}
