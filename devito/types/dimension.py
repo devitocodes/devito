@@ -828,8 +828,13 @@ class MultiSubDimension(AbstractSubDimension):
             elif all(isinstance(i, tuple) and len(i) == 2 for i in thickness):
                 (ltkn, _), (rtkn, _) = thickness
 
-            left = parent.symbolic_min + ltkn
-            right = parent.symbolic_max - rtkn
+            try:
+                left = parent.symbolic_min + ltkn
+                right = parent.symbolic_max - rtkn
+            except TypeError:
+                # May end up here after a reconstruction
+                left = sympy.S.NegativeInfinity
+                right = sympy.S.Infinity
         else:
             raise ValueError("MultiSubDimension expects a tuple of thicknesses")
 
