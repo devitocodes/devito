@@ -14,6 +14,7 @@ from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
 
+
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension',
            'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
@@ -946,7 +947,7 @@ class ConditionalDimension(DerivedDimension):
         super().__init_finalize__(name, parent)
 
         # Always make the factor symbolic to allow overrides with different factor.
-        if factor is None:
+        if factor is None or factor == 1:
             self._factor = None
         elif is_integer(factor):
             self._factor = Constant(name="%sf" % name, value=factor, dtype=np.int32)
@@ -954,6 +955,7 @@ class ConditionalDimension(DerivedDimension):
             self._factor = factor
         else:
             raise ValueError("factor must be an integer or integer Constant")
+
         self._condition = condition
         self._indirect = indirect
 
@@ -1009,7 +1011,7 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim._factor is None or size is None:
+        if dim.condition is not None or size is None:
             return defaults
         try:
             # Is it a symbolic factor?

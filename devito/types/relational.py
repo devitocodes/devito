@@ -1,8 +1,9 @@
 """User API to specify relationals."""
+from functools import singledispatch
 
 import sympy
 
-__all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne']
+__all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne', 'relational_min']
 
 
 class AbstractRel:
@@ -208,3 +209,44 @@ class Ne(AbstractRel, sympy.Ne):
 
 ops = {Ge: Lt, Gt: Le, Le: Gt, Lt: Ge}
 rev = {Ge: Le, Gt: Lt, Lt: Gt, Le: Ge}
+
+
+def relational_min(expr, s):
+    """
+    Infer the minimum valid value for symbol `s` in the expression `expr`.
+    For example
+        - if `expr` is `s < 10`, then the minimum valid value for `s` is 0
+        - if `expr` is `s >= 10`, then the minimum valid value for `s` is 10
+    """
+    if not expr.has(s):
+        return 0
+
+    return _relational_min(expr, s)
+
+
+@singledispatch
+def _relational_min(s, expr):
+    return 0
+
+
+@_relational_min.register(sympy.And)
+def _(expr, s):
+    return max([_relational_min(e, s) for e in expr.args])
+
+
+@_relational_min.register(Gt)
+@_relational_min.register(Lt)
+def _(expr, s):
+    if s == expr.gts:
+        return expr.lts + 1
+    else:
+        return 0
+
+
+@_relational_min.register(Ge)
+@_relational_min.register(Le)
+def _(expr, s):
+    if s == expr.gts:
+        return expr.lts
+    else:
+        return 0
