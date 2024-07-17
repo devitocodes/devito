@@ -747,17 +747,11 @@ class SubDomainSet(MultiSubDomain):
 
             dname = '%si%d' % (d.name, counter)
 
-            ltkn, rtkn = MultiSubDimension._symbolic_thickness(dname)
-
-            left = d.symbolic_min + ltkn
-            right = d.symbolic_max - rtkn
-
-            thickness = ((ltkn, None), (rtkn, None))
+            thickness = MultiSubDimension._symbolic_thickness(dname)
 
             dimensions.append(MultiSubDimension(
-                dname, d, left, right, thickness,
-                functions=sd_func, bounds_indices=(2*i, 2*i+1),
-                implicit_dimension=i_dim
+                dname, d, thickness, functions=sd_func,
+                bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
         self._dimensions = tuple(dimensions)

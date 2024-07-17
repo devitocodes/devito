@@ -9,7 +9,7 @@ import numpy as np
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer
+from devito.tools import Pickable, is_integer, flatten
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
@@ -587,6 +587,10 @@ class AbstractSubDimension(DerivedDimension):
         return dict(self.thickness)
 
     @property
+    def is_abstract(self):
+        return all(i is None for i in flatten(self.thickness))
+
+    @property
     def ltkn(self):
         # Shortcut for the left thickness symbol
         return self.thickness.left[0]
@@ -654,7 +658,8 @@ class SubDimension(AbstractSubDimension):
 
     __rargs__ = AbstractSubDimension.__rargs__ + ('local',)
 
-    def __init_finalize__(self, name, parent, left, right, thickness, local, **kwargs):
+    def __init_finalize__(self, name, parent, left, right, thickness, local,
+                          **kwargs):
         super().__init_finalize__(name, parent, left, right, thickness)
         self._local = local
 
@@ -803,11 +808,31 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
+    __rargs__ = (DerivedDimension.__rargs__ + ('thickness',))
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    def __init_finalize__(self, name, parent, left, right, thickness,
-                          functions=None, bounds_indices=None,
-                          implicit_dimension=None):
+    def __init_finalize__(self, name, parent, thickness, functions=None,
+                          bounds_indices=None, implicit_dimension=None):
+        # Canonicalize thickness
+        if thickness is None:
+            # Using dummy left/right is the only thing we can do for such
+            # an abstract MultiSubDimension
+            thickness = ((None, None), (None, None))
+
+            left = sympy.S.NegativeInfinity
+            right = sympy.S.Infinity
+        elif isinstance(thickness, tuple):
+            if all(isinstance(i, Symbol) for i in thickness):
+                ltkn, rtkn = thickness
+                thickness = ((ltkn, None), (rtkn, None))
+            elif all(isinstance(i, tuple) and len(i) == 2 for i in thickness):
+                (ltkn, _), (rtkn, _) = thickness
+
+            left = parent.symbolic_min + ltkn
+            right = parent.symbolic_max - rtkn
+        else:
+            raise ValueError("MultiSubDimension expects a tuple of thicknesses")
+
         super().__init_finalize__(name, parent, left, right, thickness)
         self.functions = functions
         self.bounds_indices = bounds_indices

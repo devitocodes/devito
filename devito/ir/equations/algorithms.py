@@ -214,23 +214,19 @@ def _(d, mapper):
 
 @_concretize_subdims.register(MultiSubDimension)
 def _(d, mapper):
-    if any(d.thickness):
+    if not d.is_abstract:
         # TODO: for now Grid.__subdomain_finalize__ creates the thickness, but
         # soon it will be done here instead
         return
-    else:
-        pd = d.parent
 
-        subs = mapper[pd]
+    pd = d.parent
 
-        ltkn = Symbol(name="%s_ltkn%d" % (pd.name, len(subs)), dtype=np.int32,
-                      is_const=True, nonnegative=True)
-        rtkn = Symbol(name="%s_rtkn%d" % (pd.name, len(subs)), dtype=np.int32,
-                      is_const=True, nonnegative=True)
+    subs = mapper[pd]
 
-        left = pd.symbolic_min + ltkn
-        right = pd.symbolic_max - rtkn
+    ltkn = Symbol(name="%s_ltkn%d" % (pd.name, len(subs)), dtype=np.int32,
+                  is_const=True, nonnegative=True)
+    rtkn = Symbol(name="%s_rtkn%d" % (pd.name, len(subs)), dtype=np.int32,
+                  is_const=True, nonnegative=True)
+    thickness = (ltkn, rtkn)
 
-        thickness = ((ltkn, None), (rtkn, None))
-
-        subs[d] = d._rebuild(d.name, pd, left, right, thickness)
+    subs[d] = d._rebuild(d.name, pd, thickness)
