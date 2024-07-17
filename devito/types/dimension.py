@@ -13,7 +13,6 @@ from devito.tools import Pickable, is_integer, flatten
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
-from devito.types.relational import relational_min
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -948,7 +947,7 @@ class ConditionalDimension(DerivedDimension):
         super().__init_finalize__(name, parent)
 
         # Always make the factor symbolic to allow overrides with different factor.
-        if factor is None:
+        if factor is None or factor == 1:
             self._factor = None
         elif is_integer(factor):
             self._factor = Constant(name="%sf" % name, value=factor, dtype=np.int32)
@@ -976,18 +975,6 @@ class ConditionalDimension(DerivedDimension):
     @property
     def indirect(self):
         return self._indirect
-
-    @property
-    def fact_index(self):
-        if self.condition is None or self._factor is None:
-            return self.index
-
-        # This is the corner case where both a condition and a factor are provided
-        # the index will need to be `self.parent - min(self.condition)` to avoid
-        # shifted indexing. E.g if you have `factor=2` and `condition=Ge(time, 10)`
-        # then the lowered index needs to be `(time - 10)/ 2`
-        ltkn = relational_min(self.condition, self.parent)
-        return self.index - ltkn
 
     @cached_property
     def free_symbols(self):

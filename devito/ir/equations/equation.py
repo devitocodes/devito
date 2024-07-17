@@ -8,7 +8,7 @@ from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSp
                                Stencil, detect_io, detect_accesses)
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import Pickable, Tag, frozendict
-from devito.types import Eq, Inc, ReduceMax, ReduceMin
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax']
 
@@ -192,11 +192,15 @@ class LoweredEq(IREq):
                 conditionals[d] = GuardFactor(d)
             else:
                 cond = diff2sympy(lower_exprs(d.condition))
-                if d.factor is not None:
+                if d._factor is not None:
                     cond = sympy.And(cond, GuardFactor(d))
                 conditionals[d] = cond
-            if d.factor is not None:
-                expr = uxreplace(expr, {d: IntDiv(d.fact_index, d.factor)})
+            # Replace dimension with index
+            index = d.index
+            if d.condition is not None:
+                index = index - relational_min(d.condition, d.parent)
+            expr = uxreplace(expr, {d: IntDiv(index, d.factor)})
+
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations

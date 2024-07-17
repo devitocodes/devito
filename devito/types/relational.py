@@ -218,7 +218,8 @@ def relational_min(expr, s):
         - if `expr` is `s < 10`, then the minimum valid value for `s` is 0
         - if `expr` is `s >= 10`, then the minimum valid value for `s` is 10
     """
-    assert expr.has(s), "Symbol %s not found in expression %s" % (s, expr)
+    if not expr.has(s):
+        return 0
 
     return _relational_min(expr, s)
 
