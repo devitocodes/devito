@@ -12,7 +12,7 @@ from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import InvalidOperator, ExecutionError
 from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
-from devito.ir.equations import LoweredEq, lower_exprs
+from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
                            derive_parameters, iet_build)
@@ -342,6 +342,10 @@ class Operator(Callable):
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
 
+        # Turn user-defined SubDimensions into concrete SubDimensions,
+        # in particular uniqueness across expressions is ensured
+        expressions = concretize_subdims(expressions, **kwargs)
+
         processed = [LoweredEq(i) for i in expressions]
 
         return processed
@@ -367,8 +371,6 @@ class Operator(Callable):
               as parallelism.
             * Optimize Clusters for performance
         """
-        sregistry = kwargs['sregistry']
-
         # Build a sequence of Clusters from a sequence of Eqs
         clusters = clusterize(expressions, **kwargs)
 
@@ -385,7 +387,7 @@ class Operator(Callable):
             pass
 
         # Generate implicit Clusters from higher level abstractions
-        clusters = generate_implicit(clusters, sregistry=sregistry)
+        clusters = generate_implicit(clusters)
 
         # Lower all remaining high order symbolic objects
         clusters = lower_index_derivatives(clusters, **kwargs)

@@ -5,12 +5,10 @@ Passes to gather and form implicit equations from DSL abstractions.
 from collections import defaultdict
 from functools import singledispatch
 
-import numpy as np
-
 from devito.ir import SEQUENTIAL, Queue, Forward
 from devito.symbolics import retrieve_dimensions
 from devito.tools import Bunch, frozendict, timed_pass
-from devito.types import Eq, Symbol
+from devito.types import Eq
 from devito.types.dimension import BlockDimension
 from devito.types.grid import MultiSubDimension
 
@@ -18,7 +16,7 @@ __all__ = ['generate_implicit']
 
 
 @timed_pass()
-def generate_implicit(clusters, sregistry):
+def generate_implicit(clusters):
     """
     Create and add implicit expressions from high-level abstractions.
 
@@ -29,17 +27,14 @@ def generate_implicit(clusters, sregistry):
 
         * MultiSubDomains attached to input equations.
     """
-    clusters = LowerExplicitMSD(sregistry).process(clusters)
-    clusters = LowerImplicitMSD(sregistry).process(clusters)
+    clusters = LowerExplicitMSD().process(clusters)
+    clusters = LowerImplicitMSD().process(clusters)
 
     return clusters
 
 
 class LowerMSD(Queue):
-
-    def __init__(self, sregistry):
-        super().__init__()
-        self.sregistry = sregistry
+    pass
 
 
 class LowerExplicitMSD(LowerMSD):
@@ -105,7 +100,7 @@ class LowerExplicitMSD(LowerMSD):
                 processed.append(c)
                 continue
 
-            exprs, thickness = make_implicit_exprs(mapper, self.sregistry)
+            exprs = make_implicit_exprs(mapper)
 
             ispace = c.ispace.insert(dim, dims)
 
@@ -121,7 +116,6 @@ class LowerExplicitMSD(LowerMSD):
 
             # The Cluster performing the actual computation, enriched with
             # the thicknesses
-            ispace = inject_thickness(ispace, thickness)
             processed.append(c.rebuild(ispace=ispace))
 
         return processed
@@ -190,12 +184,9 @@ class LowerImplicitMSD(LowerMSD):
                                                mapper, edims, prefix)
 
         # Turn the reduced mapper into a list of equations
-        mapper = {}
         processed = []
         for bunch in found.values():
-            exprs, thickness = make_implicit_exprs(bunch.mapper, self.sregistry)
-
-            mapper.update({c: thickness for c in bunch.clusters})
+            exprs = make_implicit_exprs(bunch.mapper)
 
             # Only retain outer guards (e.g., along None) if any
             key = lambda i: i is None or i in prefix.prefix([pd])
@@ -206,13 +197,7 @@ class LowerImplicitMSD(LowerMSD):
                 c.rebuild(exprs=exprs, ispace=prefix, guards=guards, syncs=syncs)
             )
 
-        # Add in the dynamic thickness
-        for c in clusters:
-            try:
-                ispace = inject_thickness(c.ispace, mapper[c])
-                processed.append(c.rebuild(ispace=ispace))
-            except KeyError:
-                processed.append(c)
+        processed.extend(clusters)
 
         return processed
 
@@ -236,8 +221,8 @@ def _lower_msd(dim, cluster):
 @_lower_msd.register(MultiSubDimension)
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
-    mapper = {(dim.root, i): dim.functions[i_dim, mM]
-              for i, mM in enumerate(dim.bounds_indices)}
+    mapper = {tkn: dim.functions[i_dim, mM]
+              for tkn, mM in zip(dim.tkns, dim.bounds_indices)}
     return mapper, i_dim
 
 
@@ -260,31 +245,8 @@ def lower_msd(msdims, cluster):
     return frozendict(mapper), tuple(dims - {None})
 
 
-def make_implicit_exprs(mapper, sregistry):
-    exprs = []
-    thickness = defaultdict(lambda: [None, None])
-    for (d, side), v in mapper.items():
-        tkn = 'l' if side == 0 else 'r'
-        name = sregistry.make_name('%s_%stkn' % (d.name, tkn))
-        s = Symbol(name=name, dtype=np.int32, is_const=True, nonnegative=True)
-
-        exprs.append(Eq(s, v))
-        thickness[d][side] = s
-
-    return exprs, frozendict(thickness)
-
-
-def inject_thickness(ispace, thickness):
-    for i in ispace.itdims:
-        if i.is_Block and i._depth > 1:
-            # The thickness should be injected once only!
-            continue
-        try:
-            v0, v1 = thickness[i.root]
-            ispace = ispace.translate(i, v0, -v1)
-        except KeyError:
-            pass
-    return ispace
+def make_implicit_exprs(mapper):
+    return [Eq(k, v) for k, v in mapper.items()]
 
 
 def reduce(m0, m1, edims, prefix):
