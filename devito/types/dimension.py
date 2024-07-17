@@ -13,6 +13,8 @@ from devito.tools import Pickable, is_integer, flatten
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
+from devito.types.relational import relational_min
+
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension',
@@ -954,6 +956,7 @@ class ConditionalDimension(DerivedDimension):
             self._factor = factor
         else:
             raise ValueError("factor must be an integer or integer Constant")
+
         self._condition = condition
         self._indirect = indirect
 
@@ -973,6 +976,18 @@ class ConditionalDimension(DerivedDimension):
     @property
     def indirect(self):
         return self._indirect
+
+    @property
+    def fact_index(self):
+        if self.condition is None or self._factor is None:
+            return self.index
+
+        # This is the corner case where both a condition and a factor are provided
+        # the index will need to be `self.parent - min(self.condition)` to avoid
+        # shifted indexing. E.g if you have `factor=2` and `condition=Ge(time, 10)`
+        # then the lowered index needs to be `(time - 10)/ 2`
+        ltkn = relational_min(self.condition, self.parent)
+        return self.index - ltkn
 
     @cached_property
     def free_symbols(self):
@@ -1009,7 +1024,7 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim._factor is None or size is None:
+        if dim.condition is not None or size is None:
             return defaults
         try:
             # Is it a symbolic factor?

@@ -191,9 +191,12 @@ class LoweredEq(IREq):
             if d.condition is None:
                 conditionals[d] = GuardFactor(d)
             else:
-                conditionals[d] = diff2sympy(lower_exprs(d.condition))
+                cond = diff2sympy(lower_exprs(d.condition))
+                if d.factor is not None:
+                    cond = sympy.And(cond, GuardFactor(d))
+                conditionals[d] = cond
             if d.factor is not None:
-                expr = uxreplace(expr, {d: IntDiv(d.index, d.factor)})
+                expr = uxreplace(expr, {d: IntDiv(d.fact_index, d.factor)})
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations

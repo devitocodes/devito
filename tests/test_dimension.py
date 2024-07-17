@@ -1013,6 +1013,35 @@ class TestConditionalDimension:
         op.apply(time_M=1)
         assert np.all(np.flatnonzero(f.data) == [3, 30])
 
+    def test_issue_2273(self):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        nt = 200
+        bounds = (10, 100)
+        factor = 5
+
+        condition = And(Ge(time, bounds[0]), Le(time, bounds[1]))
+
+        time_under = ConditionalDimension(name='timeu', parent=time,
+                                          factor=factor, condition=condition)
+        buffer_size = (bounds[1] - bounds[0] + factor) // factor + 1
+
+        rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt,
+                                 coordinates=[(.5, .5)])
+        rec.data[:] = 1.0
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        usaved = TimeFunction(name='usaved', grid=grid, space_order=2,
+                              time_dim=time_under, save=buffer_size)
+
+        eq = [Eq(u.forward, u)] + rec.inject(field=u.forward, expr=rec) + [Eq(usaved, u)]
+
+        op = Operator(eq)
+        op(time_m=0, time_M=nt-1)
+        expected = np.linspace(bounds[0], bounds[1], num=buffer_size-1)
+        assert np.allclose(usaved.data[:-1, 5, 5], expected)
+
     def test_subsampled_fd(self):
         """
         Test that the FD shortcuts are handled correctly with ConditionalDimensions
