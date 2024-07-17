@@ -200,7 +200,7 @@ def _(expr, mapper):
 def _(d, mapper):
     # TODO: to be implemented as soon as we drop the counter machinery in
     # Grid.__subdomain_finalize__
-    return {}
+    pass
 
 
 @_concretize_subdims.register(ConditionalDimension)
@@ -209,7 +209,7 @@ def _(d, mapper):
     # Grid.__subdomain_finalize__
     # TODO: call `_concretize_subdims(d.parent, mapper)` as the parent might be
     # a SubDimension!
-    return {}
+    pass
 
 
 @_concretize_subdims.register(MultiSubDimension)

@@ -15,10 +15,10 @@ from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension', 'MultiSubDimension',
-           'ConditionalDimension', 'ModuloDimension', 'IncrDimension',
-           'BlockDimension', 'StencilDimension', 'VirtualDimension',
-           'Spacing', 'dimensions']
+           'CustomDimension', 'SteppingDimension', 'SubDimension',
+           'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
+           'IncrDimension', 'BlockDimension', 'StencilDimension',
+           'VirtualDimension', 'Spacing', 'dimensions']
 
 
 Thickness = namedtuple('Thickness', 'left right')
@@ -595,6 +595,11 @@ class AbstractSubDimension(DerivedDimension):
     def rtkn(self):
         # Shortcut for the right thickness symbol
         return self.thickness.right[0]
+
+    @property
+    def tkns(self):
+        # Shortcut for both thickness symbols
+        return self.ltkn, self.rtkn
 
 
 class SubDimension(AbstractSubDimension):
