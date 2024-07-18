@@ -1011,7 +1011,7 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim.condition is not None or size is None:
+        if dim.condition is not None or size is None or dim._factor is None:
             return defaults
         try:
             # Is it a symbolic factor?
