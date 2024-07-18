@@ -193,7 +193,6 @@ def _(v, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(Eq)
 def _(expr, mapper, rebuilt, sregistry):
-    print(expr.free_symbols)
     for d in expr.free_symbols:
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 
@@ -219,6 +218,9 @@ def _(d, mapper, rebuilt, sregistry):
     # Grid.__subdomain_finalize__
     # TODO: call `_concretize_subdims(d.parent, mapper)` as the parent might be
     # a SubDimension!
+    # TODO: Figure out why the hell this doesn't seem to be needed???
+    # Probably because the name never changes so it won't break generated code. Probably
+    # bad for optimisations though
     pass
 
 
@@ -228,7 +230,7 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    name = sregistry.make_name(prefix=d.name)
+    name = sregistry.make_name(prefix=d.parent.name)
     ltkn, rtkn = MultiSubDimension._symbolic_thickness(name)
 
     kwargs = {'thickness': (ltkn, rtkn), 'functions': d.functions}
@@ -238,13 +240,30 @@ def _(d, mapper, rebuilt, sregistry):
         try:
             # Get a preexisiting substitution if one exists
             idim1 = rebuilt[idim0]
+            # If a substitution exists for the implicit dimension,
+            # then there is also one for the function
+            functions = rebuilt[d.functions]
         except KeyError:
             iname = sregistry.make_name(prefix=idim0.name)
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
-        kwargs['implicit_dimension'] = idim1
+            # FIXME: Horrible. Needs replacement. But works.
+            fdims = list(d.functions.dimensions)
+            fdims[0] = idim1
+            fdims = tuple(fdims)
 
-        # FIXME: Options are rebuild with name change or fix derive_parameters
-        kwargs['functions'] = d.functions.subs(idim0, idim1)
+            fname = sregistry.make_name(prefix=d.functions.name)
+
+            frebuilt = d.functions._rebuild(name=fname, dimensions=fdims,
+                                            halo=None, padding=None)
+            frebuilt.data[:] = d.functions.data[:]
+            rebuilt[d.functions] = functions = frebuilt
+
+            # FIXME: This is much nicer but doesn't play nice with derive_parameters
+            # and FindSymbols
+            # rebuilt[d.functions] = functions = d.functions.subs(idim0, idim1)
+
+        kwargs['implicit_dimension'] = idim1
+        kwargs['functions'] = functions
 
     mapper[d] = d._rebuild(**kwargs)
