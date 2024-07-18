@@ -13,7 +13,7 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
-from devito.arch import (AMDGPUX, Cpu64, AppleArm, NVIDIAX, POWER8, POWER9, GRAVITON,
+from devito.arch import (AMDGPUX, Cpu64, AppleArm, NVIDIAX, POWER8, POWER9, Graviton,
                          IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
@@ -434,6 +434,10 @@ class GNUCompiler(Compiler):
         if platform in [POWER8, POWER9]:
             # -march isn't supported on power architectures, is -mtune needed?
             self.cflags = ['-mcpu=native'] + self.cflags
+        elif platform is Graviton:
+            # Graviton flag
+            mx = platform.march
+            self.cflags = ['-mcpu=%s' % mx] + self.cflags
         else:
             self.cflags = ['-march=native'] + self.cflags
 
@@ -462,8 +466,9 @@ class ArmCompiler(GNUCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         # Graviton flag
-        if platform is GRAVITON:
-            self.cflags += ['-mcpu=neoverse-n1']
+        if platform is Graviton:
+            mx = platform.march
+            self.cflags += ['-mcpu=%s' % mx]
 
 
 class ClangCompiler(Compiler):
@@ -962,7 +967,26 @@ class CustomCompiler(Compiler):
         return super().__new_with__(base=self._base, **kwargs)
 
 
-compiler_registry = {
+class CompilerRegistry(dict):
+    """
+    Registry dict for deriving Compiler classes according to the environment variable
+    DEVITO_ARCH. Developers should add new compiler classes here.
+    """
+
+    def __getitem__(self, key):
+        if key.startswith('gcc-'):
+            i = key.split('-')[1]
+            return partial(GNUCompiler, suffix=i)
+        return super().__getitem__(key)
+
+    def has_key(self, k):
+        return k in self.keys() or k.startswith('gcc-')
+
+    def __contains__(self, k):
+        return self.has_key(k)
+
+
+_compiler_registry = {
     'custom': CustomCompiler,
     'gnu': GNUCompiler,
     'gcc': GNUCompiler,
@@ -989,10 +1013,6 @@ compiler_registry = {
     'knl': IntelKNLCompiler,
     'dpcpp': DPCPPCompiler,
 }
-"""
-Registry dict for deriving Compiler classes according to the environment variable
-DEVITO_ARCH. Developers should add new compiler classes here.
-"""
-compiler_registry.update({'gcc-%s' % i: partial(GNUCompiler, suffix=i)
-                          for i in ['4.9', '5', '6', '7', '8', '9', '10',
-                                    '11', '12', '13']})
+
+
+compiler_registry = CompilerRegistry(**_compiler_registry)
