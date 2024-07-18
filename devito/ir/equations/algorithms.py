@@ -198,15 +198,27 @@ def _(v, mapper, sregistry):
 
 @_concretize_subdims.register(Eq)
 def _(expr, mapper, sregistry):
+    print(expr.free_symbols)
     for d in expr.free_symbols:
         _concretize_subdims(d, mapper, sregistry)
 
 
 @_concretize_subdims.register(SubDimension)
 def _(d, mapper, sregistry):
-    # TODO: to be implemented as soon as we drop the counter machinery in
-    # Grid.__subdomain_finalize__
-    pass
+    pd = d.parent
+    subs = mapper[pd]
+
+    if d in subs:
+        # Already have a substitution for this dimension
+        return
+
+    name = sregistry.make_name(prefix=d.name)
+    tkns = SubDimension._symbolic_thickness(name)
+    tkns_subs = {tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)}
+    left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
+    thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
+
+    subs[d] = d._rebuild(symbolic_min=left, symbolic_max=right, thickness=thickness)
 
 
 @_concretize_subdims.register(ConditionalDimension)
@@ -220,13 +232,14 @@ def _(d, mapper, sregistry):
 
 @_concretize_subdims.register(MultiSubDimension)
 def _(d, mapper, sregistry):
+    print("Is a multisubdomain", d)
     if not d.is_abstract:
+        print("First return")
         # TODO: for now Grid.__subdomain_finalize__ creates the thickness, but
         # soon it will be done here instead
         return
 
     pd = d.parent
-
     subs = mapper[pd]
 
     if d in subs:
@@ -238,4 +251,16 @@ def _(d, mapper, sregistry):
 
     thickness = (ltkn, rtkn)
 
-    subs[d] = d._rebuild(d.name, pd, thickness)
+    try:
+        i_dim0 = d.implicit_dimension
+        i_name = sregistry.make_name(prefix=i_dim0.name)
+        i_dim1 = i_dim0._rebuild(name=i_name)
+
+        functions = d.functions.subs(i_dim0, i_dim1)
+    except AttributeError:
+        # No implicit dimension to replace
+        functions = d.functions
+        i_dim1 = None
+
+    subs[d] = d._rebuild(thickness=thickness, implicit_dimension=i_dim1,
+                         functions=functions)
