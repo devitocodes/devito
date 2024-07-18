@@ -2,13 +2,14 @@ import pytest
 import numpy as np
 from math import floor
 
-from sympy import sin, tan
+from sympy import sin, tan, simplify
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Lt)
-from devito.ir import FindNodes, Expression, Iteration
+from devito.ir import FindNodes, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
+from devito.symbolics.search import retrieve_dimensions
 
 
 class TestSubdomains:
@@ -35,8 +36,10 @@ class TestSubdomains:
 
         eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
         with timed_region('x'):
-            expr = Operator._lower_exprs([eq0], options={})[0]
-        assert expr.rhs == x1 * f[x1 + 1, y1 + 1] + y1
+            # _lower_exprs expects a SymbolRegistry, so create one
+            expr = Operator._lower_exprs([eq0], options={},
+                                         sregistry=SymbolRegistry())[0]
+        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
 
     def test_multiple_middle(self):
         """
