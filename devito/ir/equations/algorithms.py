@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from collections import defaultdict
 from functools import singledispatch
 
 from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
@@ -168,61 +167,54 @@ def concretize_subdims(exprs, **kwargs):
     """
     sregistry = kwargs.get('sregistry')
 
-    # {root Dimension -> {SubDimension -> concrete SubDimension}}
-    mapper = defaultdict(dict)
+    mapper = {}
+    rebuilt = {}  # Rebuilt implicit dims etc which are shared between dimensions
 
-    _concretize_subdims(exprs, mapper, sregistry)
+    _concretize_subdims(exprs, mapper, rebuilt, sregistry)
     if not mapper:
         return exprs
 
-    subs = {}
-    for i in mapper.values():
-        subs.update(i)
-
-    processed = [uxreplace(e, subs) for e in exprs]
+    processed = [uxreplace(e, mapper) for e in exprs]
 
     return processed
 
 
 @singledispatch
-def _concretize_subdims(a, mapper, sregistry):
+def _concretize_subdims(a, mapper, rebuilt, sregistry):
     pass
 
 
 @_concretize_subdims.register(list)
 @_concretize_subdims.register(tuple)
-def _(v, mapper, sregistry):
+def _(v, mapper, rebuilt, sregistry):
     for i in v:
-        _concretize_subdims(i, mapper, sregistry)
+        _concretize_subdims(i, mapper, rebuilt, sregistry)
 
 
 @_concretize_subdims.register(Eq)
-def _(expr, mapper, sregistry):
+def _(expr, mapper, rebuilt, sregistry):
     print(expr.free_symbols)
     for d in expr.free_symbols:
-        _concretize_subdims(d, mapper, sregistry)
+        _concretize_subdims(d, mapper, rebuilt, sregistry)
 
 
 @_concretize_subdims.register(SubDimension)
-def _(d, mapper, sregistry):
-    pd = d.parent
-    subs = mapper[pd]
-
-    if d in subs:
+def _(d, mapper, rebuilt, sregistry):
+    if d in mapper:
         # Already have a substitution for this dimension
         return
 
-    name = sregistry.make_name(prefix=d.name)
+    name = sregistry.make_name(prefix=d.parent.name)
     tkns = SubDimension._symbolic_thickness(name)
     tkns_subs = {tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)}
     left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
     thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
 
-    subs[d] = d._rebuild(symbolic_min=left, symbolic_max=right, thickness=thickness)
+    mapper[d] = d._rebuild(symbolic_min=left, symbolic_max=right, thickness=thickness)
 
 
 @_concretize_subdims.register(ConditionalDimension)
-def _(d, mapper, sregistry):
+def _(d, mapper, rebuilt, sregistry):
     # TODO: to be implemented as soon as we drop the counter machinery in
     # Grid.__subdomain_finalize__
     # TODO: call `_concretize_subdims(d.parent, mapper)` as the parent might be
@@ -231,36 +223,28 @@ def _(d, mapper, sregistry):
 
 
 @_concretize_subdims.register(MultiSubDimension)
-def _(d, mapper, sregistry):
-    print("Is a multisubdomain", d)
-    if not d.is_abstract:
-        print("First return")
-        # TODO: for now Grid.__subdomain_finalize__ creates the thickness, but
-        # soon it will be done here instead
-        return
-
-    pd = d.parent
-    subs = mapper[pd]
-
-    if d in subs:
+def _(d, mapper, rebuilt, sregistry):
+    if d in mapper:
         # Already have a substitution for this dimension
         return
 
     name = sregistry.make_name(prefix=d.name)
     ltkn, rtkn = MultiSubDimension._symbolic_thickness(name)
 
-    thickness = (ltkn, rtkn)
+    kwargs = {'thickness': (ltkn, rtkn), 'functions': d.functions}
 
-    try:
-        i_dim0 = d.implicit_dimension
-        i_name = sregistry.make_name(prefix=i_dim0.name)
-        i_dim1 = i_dim0._rebuild(name=i_name)
+    idim0 = d.implicit_dimension
+    if idim0 is not None:
+        try:
+            # Get a preexisiting substitution if one exists
+            idim1 = rebuilt[idim0]
+        except KeyError:
+            iname = sregistry.make_name(prefix=idim0.name)
+            rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
-        functions = d.functions.subs(i_dim0, i_dim1)
-    except AttributeError:
-        # No implicit dimension to replace
-        functions = d.functions
-        i_dim1 = None
+        kwargs['implicit_dimension'] = idim1
 
-    subs[d] = d._rebuild(thickness=thickness, implicit_dimension=i_dim1,
-                         functions=functions)
+        # FIXME: Options are rebuild with name change or fix derive_parameters
+        kwargs['functions'] = d.functions.subs(idim0, idim1)
+
+    mapper[d] = d._rebuild(**kwargs)
