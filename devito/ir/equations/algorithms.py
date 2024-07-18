@@ -190,6 +190,9 @@ def _(expr, mapper, rebuilt, sregistry):
     for d in expr.free_symbols:
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 
+    # Subdimensions can be hiding in implicit dims
+    _concretize_subdims(expr.implicit_dims, mapper, rebuilt, sregistry)
+
 
 @_concretize_subdims.register(SubDimension)
 def _(d, mapper, rebuilt, sregistry):
@@ -208,14 +211,30 @@ def _(d, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(ConditionalDimension)
 def _(d, mapper, rebuilt, sregistry):
-    # TODO: to be implemented as soon as we drop the counter machinery in
-    # Grid.__subdomain_finalize__
-    # TODO: call `_concretize_subdims(d.parent, mapper)` as the parent might be
-    # a SubDimension!
-    # TODO: Figure out why the hell this doesn't seem to be needed???
-    # Probably because the name never changes so it won't break generated code. Probably
-    # bad for optimisations though
-    pass
+    if d in mapper:
+        # Already have a substitution for this dimension
+        return
+
+    _concretize_subdims(d.parent, mapper, rebuilt, sregistry)
+
+    kwargs = {}
+
+    # Parent may be a subdimension
+    if d.parent in mapper:
+        kwargs['parent'] = mapper[d.parent]
+
+    # Condition may contain subdimensions
+    if d.condition is not None:
+        for v in d.condition.free_symbols:
+            _concretize_subdims(v, mapper, rebuilt, sregistry)
+
+        if any(v in mapper for v in d.condition.free_symbols):
+            # Substitute into condition
+            kwargs['condition'] = d.condition.subs(mapper)
+
+    if kwargs:
+        # Rebuild if parent or condition need replacing
+        mapper[d] = d._rebuild(**kwargs)
 
 
 @_concretize_subdims.register(MultiSubDimension)
