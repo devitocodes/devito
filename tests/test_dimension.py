@@ -749,6 +749,9 @@ class TestSubDimension:
         a = Array(name='a', dimensions=(xi,), dtype=grid.dtype)
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
                       opt=('advanced', {'openmp': False}))
+        
+        # FIXME: I think the failure here is similar to the one in the pass when rebuilding
+        # implicit dimensions. The Array probably gets reverted during parameter derivation
         assert len(op.parameters) == 6
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
@@ -775,7 +778,7 @@ class TestSubDimension:
         op = Operator(eqn, opt=opt)
 
         op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
-                 xi_ltkn=0, xi_rtkn=0, yi_ltkn=0, yi_rtkn=0)
+                 x0_ltkn=0, x0_rtkn=0, y0_ltkn=0, y0_rtkn=0)
 
         assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
         assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
