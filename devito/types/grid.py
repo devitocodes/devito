@@ -750,10 +750,8 @@ class SubDomainSet(MultiSubDomain):
                 idx = 2*i + j
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
-            thickness = MultiSubDimension._symbolic_thickness(d.name)
-
             dimensions.append(MultiSubDimension(
-                d.name, d, thickness, functions=sd_func,
+                d.name, d, None, functions=sd_func,
                 bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
