@@ -2,14 +2,13 @@ import pytest
 import numpy as np
 from math import floor
 
-from sympy import sin, tan, simplify
+from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Lt)
-from devito.ir import FindNodes, Expression, Iteration, SymbolRegistry
+from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
-from devito.symbolics.search import retrieve_dimensions
 
 
 class TestSubdomains:
@@ -672,10 +671,14 @@ class TestMultiSubDomain:
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
-                         't,n0,xi20_blk0,yi20_blk0,x,y,z')
+        assert_structure(op, ['t,n0', 't,n0,ix0_blk0,iy0_blk0,x,y,z'],
+                         't,n0,ix0_blk0,iy0_blk0,x,y,z')
 
-        xi, _, _ = dummy.dimensions
+        # Drag a rebuilt MultiSubDimension out of the operator kicking and screaming
+        dims = {d.name: d for d in FindSymbols('dimensions').visit(op)}
+        xi = [d for d in dims['x']._defines if d.is_MultiSub]
+        assert len(xi) == 1  # Sanity check
+        xi = xi.pop()
         # Check that the correct number of thickness expressions are generated
         sdsexprs = [i.expr for i in FindNodes(Expression).visit(op)
                     if i.expr.rhs.is_Indexed
