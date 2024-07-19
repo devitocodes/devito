@@ -1849,6 +1849,12 @@ class TestConditionalDimension:
         op(time_m=1, time_M=nt-1, dt=1)
         assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
 
+    def test_issue_2325(self):
+        """MFE for issue 2325"""
+        x = Dimension(name='x')
+        cd = ConditionalDimension(name='cd', parent=x, condition=Ge(x, 1))
+        assert cd._rebuild().factor is None
+
 
 class TestCustomDimension:
 

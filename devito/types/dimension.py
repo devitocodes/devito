@@ -966,6 +966,10 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def factor(self):
+        return self._factor
+
+    @property
+    def factor_default(self):
         return self._factor if self._factor is not None else 1
 
     @property
@@ -982,7 +986,7 @@ class ConditionalDimension(DerivedDimension):
         if self.condition is not None:
             retval |= self.condition.free_symbols
         try:
-            retval |= self.factor.free_symbols
+            retval |= self.factor_default.free_symbols
         except AttributeError:
             pass
         return retval
