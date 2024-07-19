@@ -564,6 +564,8 @@ class Operator(Callable):
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
+        print(defaults)
+
         # Process data-carrier overrides
         for p in overrides:
             args.update(p._arg_values(**kwargs))

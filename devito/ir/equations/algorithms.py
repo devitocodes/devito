@@ -232,6 +232,10 @@ def _(d, mapper, rebuilt, sregistry):
             # Substitute into condition
             kwargs['condition'] = d.condition.subs(mapper)
 
+    if d._factor is None:
+        # Note: this is needed due to a bug in ConditionalDimension reconstruction
+        kwargs['factor'] = None
+
     if kwargs:
         # Rebuild if parent or condition need replacing
         mapper[d] = d._rebuild(**kwargs)
@@ -265,9 +269,7 @@ def _(d, mapper, rebuilt, sregistry):
             fdims[0] = idim1
             fdims = tuple(fdims)
 
-            fname = sregistry.make_name(prefix=d.functions.name)
-
-            frebuilt = d.functions._rebuild(name=fname, dimensions=fdims,
+            frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
                                             halo=None, padding=None)
             frebuilt.data[:] = d.functions.data[:]
             rebuilt[d.functions] = functions = frebuilt
@@ -275,6 +277,9 @@ def _(d, mapper, rebuilt, sregistry):
             # FIXME: This is much nicer but doesn't play nice with derive_parameters
             # and FindSymbols
             # rebuilt[d.functions] = functions = d.functions.subs(idim0, idim1)
+
+            # FIXME: Alternative approach. Also doesn't work.
+            # rebuilt[d.functions] = functions = uxreplace(d.functions, {idim0: idim1})
 
         kwargs['implicit_dimension'] = idim1
         kwargs['functions'] = functions
