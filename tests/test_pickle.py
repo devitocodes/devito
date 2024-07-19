@@ -58,7 +58,16 @@ class TestBasic:
         new_t = pickle.loads(pkl_t)
 
         assert new_t == tup  # This only tests the actual tuple
-        assert new_t._getters == tup._getters
+        assert new_t.getters == tup.getters
+        assert new_t.left == tup.left
+        assert new_t.right == tup.right
+
+    def test_enrichedtuple_rebuild(self, pickle):
+        tup = EnrichedTuple(11, 31, getters=('a', 'b'), left=[3, 4], right=[5, 6])
+        new_t = tup._rebuild()
+
+        assert new_t == tup
+        assert new_t.getters == tup.getters
         assert new_t.left == tup.left
         assert new_t.right == tup.right
 

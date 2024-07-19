@@ -222,7 +222,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             raise TypeError("Side only supported for first order single"
                             "Dimension derivative such as `.dxl` or .dx(side=left)")
         # Cross derivative
-        _fd_order = dict(self.fd_order._getters)
+        _fd_order = dict(self.fd_order.getters)
         try:
             _fd_order.update(fd_order or {})
             _fd_order = tuple(_fd_order.values())
@@ -358,7 +358,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         if self.expr.staggered == func.staggered:
             return self
 
-        x0 = func.indices_ref._getters
+        x0 = func.indices_ref.getters
         if self.expr.is_Add:
             # If `expr` has both staggered and non-staggered terms such as
             # `(u(x + h_x/2) + v(x)).dx` then we exploit linearity of FD to split

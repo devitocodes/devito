@@ -43,11 +43,22 @@ class EnrichedTuple(tuple, Pickable):
     A tuple with an arbitrary number of additional attributes.
     """
 
+    __rargs__ = ('*items',)
+    __rkwargs__ = ('getters',)
+
     def __new__(cls, *items, getters=None, **kwargs):
         obj = super().__new__(cls, items)
         obj.__dict__.update(kwargs)
-        obj._getters = OrderedDict(zip(getters or [], items))
+        # Convert to list if we're getting an OrderedDict from rebuild
+        obj.getters = OrderedDict(zip(list(getters or []), items))
         return obj
+
+    def _rebuild(self, *args, **kwargs):
+        # Need to explicitly apply any additional attributes
+        _kwargs = dict(self.__dict__)
+        _kwargs.update(**kwargs)
+
+        return super()._rebuild(*args, **_kwargs)
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -60,21 +71,26 @@ class EnrichedTuple(tuple, Pickable):
             start = key.start or 0
             stop = key.stop if key.stop is not None else len(self)
             kwargs = dict(self.__dict__)
-            kwargs['getters'] = list(self._getters)[start:stop]
+            kwargs['getters'] = list(self.getters)[start:stop]
             return EnrichedTuple(*items, **kwargs)
         else:
             return self.__getitem_hook__(key)
 
     def __getitem_hook__(self, key):
-        return self._getters[key]
+        return self.getters[key]
 
     def __getnewargs_ex__(self):
         # Bypass default reconstruction logic since this class spawns
         # objects with varying number of attributes
-        return (tuple(self), dict(self.__dict__))
+        return tuple(self), dict(self.__dict__)
 
     def get(self, key, val=None):
-        return self._getters.get(key, val)
+        return self.getters.get(key, val)
+
+    @property
+    def items(self) -> tuple:
+        # Needed for rargs
+        return tuple(self)
 
 
 class ReducerMap(MultiDict):
