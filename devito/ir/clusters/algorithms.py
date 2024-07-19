@@ -504,13 +504,10 @@ def reduction_comms(clusters):
     return processed
 
 
-def normalize(clusters, **kwargs):
-    options = kwargs['options']
-    sregistry = kwargs['sregistry']
-
+def normalize(clusters, sregistry=None, options=None, platform=None, **kwargs):
     clusters = normalize_nested_indexeds(clusters, sregistry)
     if options['mapify-reduce']:
-        clusters = normalize_reductions_dense(clusters, sregistry)
+        clusters = normalize_reductions_dense(clusters, sregistry, platform)
     else:
         clusters = normalize_reductions_minmax(clusters)
     clusters = normalize_reductions_sparse(clusters, sregistry)
@@ -594,31 +591,49 @@ def normalize_reductions_minmax(cluster):
     return init + [cluster.rebuild(processed)]
 
 
-def normalize_reductions_dense(cluster, sregistry):
+def normalize_reductions_dense(cluster, sregistry, platform):
     """
     Extract the right-hand sides of reduction Eq's in to temporaries.
     """
-    return _normalize_reductions_dense(cluster, sregistry, {})
+    return _normalize_reductions_dense(cluster, {}, sregistry, platform)
 
 
 @cluster_pass(mode='dense')
-def _normalize_reductions_dense(cluster, sregistry, mapper):
-    dims = [d for d in cluster.ispace.itdims
-            if cluster.properties.is_parallel_atomic(d)]
-    if not dims:
+def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
+    """
+    Transform augmented expressions whose left-hand side is a scalar into
+    map-reduces.
+
+    Examples
+    --------
+    Given an increment expression such as
+
+        s += f(u[x], v[x], ...)
+
+    Turn it into
+
+        r[x] = f(u[x], v[x], ...)
+        s += r[x]
+    """
+    # The candidate Dimensions along which to perform the map part
+    candidates = [d for d in cluster.ispace.itdims
+                  if cluster.properties.is_parallel_atomic(d)]
+    if not candidates:
         return cluster
 
+    # If there are more parallel dimensions than the maximum allowed by the
+    # target platform, we must restrain the number of candidates
+    max_par_dims = platform.limits()['max-par-dims']
+    dims = candidates[-max_par_dims:]
+
+    # All other dimensions must be sequentialized because the output Array
+    # is constrained to `dims`
+    sequentialize = candidates[:-max_par_dims]
+
     processed = []
+    properties = cluster.properties
     for e in cluster.exprs:
         if e.is_Reduction:
-            # Transform `e` into what is in essence an explicit map-reduce
-            # For example, turn:
-            # `s += f(u[x], v[x], ...)`
-            # into
-            # `r[x] = f(u[x], v[x], ...)`
-            # `s += r[x]`
-            # This makes it much easier to parallelize the map part regardless
-            # of the target backend
             lhs, rhs = e.args
 
             try:
@@ -650,10 +665,13 @@ def _normalize_reductions_dense(cluster, sregistry, mapper):
 
                 processed.extend([Eq(a.indexify(), rhs),
                                   e.func(lhs, a.indexify())])
+
+                for d in sequentialize:
+                    properties = properties.sequentialize(d)
         else:
             processed.append(e)
 
-    return cluster.rebuild(processed)
+    return cluster.rebuild(exprs=processed, properties=properties)
 
 
 @cluster_pass(mode='sparse')

@@ -164,8 +164,14 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
         return any(cluster.properties.is_parallel_atomic(i)
                    for i in set(cluster.ispace.itdims) - {d})
 
-    def _has_enough_large_blockable_dims(self, cluster, d):
-        return len([i for i in set(cluster.ispace.itdims) - {d}
+    def _has_enough_large_blockable_dims(self, cluster, d, nested=False):
+        if nested:
+            _, ispace = cluster.ispace.split(d)
+            dims = set(ispace.itdims)
+        else:
+            ispace = cluster.ispace
+            dims = set(cluster.ispace.itdims) - {d}
+        return len([i for i in dims
                     if (cluster.properties.is_parallel_relaxed(i) and
                         not self._has_short_trip_count(i))]) >= 3
 
@@ -190,6 +196,11 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
                         # Optimization: pointless, from a performance standpoint,
                         # to have more than three large blockable Dimensions
                         return clusters
+
+                if self._has_enough_large_blockable_dims(c, d, nested=True):
+                    # Virtually all device programming models forbid parallelism
+                    # along more than three dimensions
+                    return clusters
 
                 if any(self._has_short_trip_count(i) for i in c.ispace.itdims):
                     properties = c.properties.block(d, 'small')
