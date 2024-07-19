@@ -434,10 +434,8 @@ class GNUCompiler(Compiler):
         if platform in [POWER8, POWER9]:
             # -march isn't supported on power architectures, is -mtune needed?
             self.cflags = ['-mcpu=native'] + self.cflags
-        elif platform is Graviton:
-            # Graviton flag
-            mx = platform.march
-            self.cflags = ['-mcpu=%s' % mx] + self.cflags
+        elif isinstance(platform, Graviton):
+            self.cflags = ['-mcpu=%s' % platform.march] + self.cflags
         else:
             self.cflags = ['-march=native'] + self.cflags
 
@@ -466,9 +464,8 @@ class ArmCompiler(GNUCompiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         # Graviton flag
-        if platform is Graviton:
-            mx = platform.march
-            self.cflags += ['-mcpu=%s' % mx]
+        if isinstance(platform, Graviton):
+            self.cflags += ['-mcpu=%s' % platform.march]
 
 
 class ClangCompiler(Compiler):
@@ -979,11 +976,8 @@ class CompilerRegistry(dict):
             return partial(GNUCompiler, suffix=i)
         return super().__getitem__(key)
 
-    def has_key(self, k):
-        return k in self.keys() or k.startswith('gcc-')
-
     def __contains__(self, k):
-        return self.has_key(k)
+        return k in self.keys() or k.startswith('gcc-')
 
 
 _compiler_registry = {
