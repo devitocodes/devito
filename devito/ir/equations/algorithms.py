@@ -200,8 +200,11 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    name = sregistry.make_name(prefix=d.parent.name)
-    tkns = SubDimension._symbolic_thickness(name)
+    # name = sregistry.make_name(prefix=d.name)
+    # print(d.name, name)
+    # tkns = SubDimension._symbolic_thickness(name)
+    tkns = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+            for tkn in d.tkns]
     tkns_subs = {tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)}
     left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
     thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
@@ -247,10 +250,13 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    name = sregistry.make_name(prefix=d.parent.name)
-    ltkn, rtkn = MultiSubDimension._symbolic_thickness(name)
+    # name = sregistry.make_name(prefix=d.name)
+    # ltkn, rtkn = MultiSubDimension._symbolic_thickness(name)
+    tkns0 = MultiSubDimension._symbolic_thickness(d.name)
+    tkns1 = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+             for tkn in tkns0]
 
-    kwargs = {'thickness': (ltkn, rtkn), 'functions': d.functions}
+    kwargs = {'thickness': tuple(tkns1), 'functions': d.functions}
 
     idim0 = d.implicit_dimension
     if idim0 is not None:
