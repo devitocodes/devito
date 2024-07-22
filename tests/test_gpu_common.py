@@ -8,13 +8,14 @@ from conftest import assert_structure
 from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
                     SubDimension, SubDomain, SubDomainSet, TimeFunction,
-                    Operator, configuration, switchconfig, TensorTimeFunction)
+                    Operator, configuration, switchconfig, TensorTimeFunction,
+                    Buffer)
 from devito.arch import get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
                        retrieve_iteration_tree)
 from devito.passes.iet.languages.openmp import OmpIteration
-from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray
+from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
 
 from conftest import skipif
 
@@ -146,6 +147,24 @@ class TestPassesEdgeCases:
 
         op()
         assert np.all(w.data == 10)
+
+    def test_reduction_many_dims(self):
+        grid = Grid(shape=(25, 25, 25))
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, save=Buffer(1))
+        s = Symbol(name='s', dtype=np.float32)
+
+        eqns = [Eq(s, 0),
+                Inc(s, 2*u + 1)]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
+
+        tree, = retrieve_iteration_tree(op0)
+        assert 'collapse(4) reduction(+:s)' in str(tree.root.pragmas[0])
+
+        tree, = retrieve_iteration_tree(op1)
+        assert 'collapse(3) reduction(+:s)' in str(tree[1].pragmas[0])
 
 
 class Bundle(SubDomain):

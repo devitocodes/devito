@@ -1,16 +1,16 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from subprocess import PIPE, Popen, DEVNULL, run
-
 from functools import cached_property
-import cpuinfo
+from subprocess import PIPE, Popen, DEVNULL, run
 import ctypes
-import numpy as np
-import psutil
 import re
 import os
 import sys
 import json
+
+import cpuinfo
+import numpy as np
+import psutil
 
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
@@ -665,6 +665,16 @@ class Platform:
         assert self.max_mem_trans_nbytes % np.dtype(dtype).itemsize == 0
         return int(self.max_mem_trans_nbytes / np.dtype(dtype).itemsize)
 
+    def limits(self, compiler=None, language=None):
+        """
+        Return the architecture-specific limits for the given compiler and
+        language.
+        """
+        return {
+            'max-par-dims': sys.maxsize,
+            'max-block-dims': sys.maxsize,
+        }
+
 
 class Cpu64(Platform):
 
@@ -846,6 +856,12 @@ class Device(Platform):
             return info['mem.free'](deviceid)
         except (AttributeError, KeyError):
             return None
+
+    def limits(self, compiler=None, language=None):
+        return {
+            'max-par-dims': 3,
+            'max-block-dims': 3,
+        }
 
 
 class IntelDevice(Device):
