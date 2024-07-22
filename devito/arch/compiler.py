@@ -977,6 +977,8 @@ class CompilerRegistry(dict):
         return super().__getitem__(key)
 
     def __contains__(self, k):
+        if isinstance(k, Compiler):
+            k = k.name
         return k in self.keys() or k.startswith('gcc-')
 
 
