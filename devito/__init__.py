@@ -64,7 +64,7 @@ def reinit_compiler(val):
 # Setup target platform and compiler
 configuration.add('platform', 'cpu64', list(platform_registry),
                   callback=lambda i: platform_registry[i]())
-configuration.add('compiler', 'custom', list(compiler_registry),
+configuration.add('compiler', 'custom', compiler_registry,
                   callback=lambda i: compiler_registry[i]())
 
 # Setup language for shared-memory parallelism
