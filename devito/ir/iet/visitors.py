@@ -13,6 +13,7 @@ import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
 
+from devito.parameters import configuration, switchconfig
 from devito.exceptions import VisitorException
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
@@ -176,7 +177,7 @@ class CGen(Visitor):
 
     def __init__(self, *args, compiler=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._compiler = compiler
+        self._compiler = compiler or configuration['compiler']
 
     # The following mappers may be customized by subclasses (that is,
     # backend-specific CGen-erators)
@@ -187,6 +188,16 @@ class CGen(Visitor):
         '_mem_shared': '',
     }
     _restrict_keyword = 'restrict'
+
+    @property
+    def compiler(self):
+        return self._compiler
+
+    def visit(self, o, *args, **kwargs):
+        # Make sure the visitor always is within the generating compiler
+        # in case the configuration is accessed
+        with switchconfig(compiler=self.compiler.name):
+            return super().visit(o, *args, **kwargs)
 
     def _gen_struct_decl(self, obj, masked=()):
         """
@@ -376,10 +387,11 @@ class CGen(Visitor):
     def visit_PointerCast(self, o):
         f = o.function
         i = f.indexed
+        cstr = i._C_typedata
 
         if f.is_PointerArray:
             # lvalue
-            lvalue = c.Value(i._C_typedata, '**%s' % f.name)
+            lvalue = c.Value(cstr, '**%s' % f.name)
 
             # rvalue
             if isinstance(o.obj, ArrayObject):
@@ -388,7 +400,7 @@ class CGen(Visitor):
                 v = f._C_name
             else:
                 assert False
-            rvalue = '(%s**) %s' % (i._C_typedata, v)
+            rvalue = '(%s**) %s' % (cstr, v)
 
         else:
             # lvalue
@@ -399,10 +411,10 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(i._C_typedata, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(cstr, '(*restrict %s)%s' % (v, shape))
             else:
                 rshape = '*'
-                lvalue = c.Value(i._C_typedata, '*%s' % v)
+                lvalue = c.Value(cstr, '*%s' % v)
             if o.alignment and f._data_alignment:
                 lvalue = c.AlignedAttribute(f._data_alignment, lvalue)
 
@@ -415,14 +427,14 @@ class CGen(Visitor):
                 else:
                     assert False
 
-                rvalue = '(%s %s) %s->%s' % (i._C_typedata, rshape, f._C_name, v)
+                rvalue = '(%s %s) %s->%s' % (cstr, rshape, f._C_name, v)
             else:
                 if isinstance(o.obj, Pointer):
                     v = o.obj.name
                 else:
                     v = f._C_name
 
-                rvalue = '(%s %s) %s' % (i._C_typedata, rshape, v)
+                rvalue = '(%s %s) %s' % (cstr, rshape, v)
 
         return c.Initializer(lvalue, rvalue)
 
@@ -430,15 +442,15 @@ class CGen(Visitor):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
             i = a1.indexed
+            cstr = i._C_typedata
             if o.flat is None:
                 shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
-                rvalue = '(%s (*)%s) %s[%s]' % (i._C_typedata, shape, a1.name,
+                rvalue = '(%s (*)%s) %s[%s]' % (cstr, shape, a1.name,
                                                 a1.dim.name)
-                lvalue = c.Value(i._C_typedata,
-                                 '(*restrict %s)%s' % (a0.name, shape))
+                lvalue = c.Value(cstr, '(*restrict %s)%s' % (a0.name, shape))
             else:
-                rvalue = '(%s *) %s[%s]' % (i._C_typedata, a1.name, a1.dim.name)
-                lvalue = c.Value(i._C_typedata, '*restrict %s' % a0.name)
+                rvalue = '(%s *) %s[%s]' % (cstr, a1.name, a1.dim.name)
+                lvalue = c.Value(cstr, '*restrict %s' % a0.name)
             if a0._data_alignment:
                 lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:
@@ -590,7 +602,7 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_UsingNamespace(self, o):
-        return c.Statement('using namespace %s' % ccode(o.namespace))
+        return c.Statement('using namespace %s' % str(o.namespace))
 
     def visit_Lambda(self, o):
         body = []

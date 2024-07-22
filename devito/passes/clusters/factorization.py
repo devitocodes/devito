@@ -173,7 +173,6 @@ def _collect_nested(expr):
     Recursion helper for `collect_nested`.
     """
     # Return semantic (rebuilt expression, factorization candidates)
-
     if expr.is_Number:
         return expr, {'coeffs': expr}
     elif expr.is_Function:

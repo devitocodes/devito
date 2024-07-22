@@ -11,6 +11,7 @@ from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
 
+from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
@@ -33,15 +34,27 @@ class CodePrinter(C99CodePrinter):
 
     @property
     def dtype(self):
-        return self._settings['dtype']
+        try:
+            return self._settings['dtype'].nptype
+        except AttributeError:
+            return self._settings['dtype']
 
     @property
     def compiler(self):
-        return self._settings['compiler']
+        return self._settings['compiler'] or configuration['compiler']
 
-    def single_prec(self, expr=None):
+    def single_prec(self, expr=None, with_f=False):
+        no_f = self.compiler._cpp and not with_f
+        if no_f and expr is not None:
+            return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return dtype in [np.float32, np.float16]
+        return any(issubclass(dtype, d) for d in [np.float32, np.float16, np.complex64])
+
+    def complex_prec(self, expr=None):
+        if self.compiler._cpp:
+            return False
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return np.issubdtype(dtype, np.complexfloating)
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
@@ -110,6 +123,8 @@ class CodePrinter(C99CodePrinter):
 
         if self.single_prec(expr):
             cname = '%sf' % cname
+        if self.complex_prec(expr):
+            cname = 'c%s' % cname
 
         args = ', '.join((self._print(arg) for arg in expr.args))
 
@@ -208,6 +223,15 @@ class CodePrinter(C99CodePrinter):
 
         return rv
 
+    def _print_ImaginaryUnit(self, expr):
+        if self.compiler._cpp:
+            if self.single_prec(with_f=True):
+                return '1if'
+            else:
+                return '1i'
+        else:
+            return '_Complex_I'
+
     def _print_Differentiable(self, expr):
         return "(%s)" % self._print(expr._expr)
 
@@ -259,8 +283,12 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
+
         if self.single_prec():
             func_name = '%sf' % func_name
+        if self.complex_prec():
+            func_name = 'c%s' % func_name
+
         return '%s(%s)' % (func_name, self._print(*expr.args))
 
     def _print_DefFunction(self, expr):

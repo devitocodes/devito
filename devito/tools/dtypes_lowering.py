@@ -133,6 +133,9 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
+    if isinstance(dtype, CustomDtype):
+        return dtype
+
     try:
         return ctypes_vector_mapper[dtype]
     except KeyError:
@@ -230,7 +233,6 @@ def ctypes_to_cstr(ctype, toarray=None):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
-
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
@@ -301,7 +303,8 @@ def infer_dtype(dtypes):
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
+               np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:
