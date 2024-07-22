@@ -66,6 +66,8 @@ class TestBasic:
 
         assert d.name == new_d.name
         assert d.dtype == new_d.dtype
+        assert d.symbolic_min == new_d.symbolic_min
+        assert d.symbolic_max == new_d.symbolic_max
 
     def test_enrichedtuple(self, pickle):
         # Dummy enriched tuple
@@ -194,12 +196,14 @@ class TestBasic:
         assert new_s.name == s.name
         assert new_s.dtype is np.int32
         assert new_s.is_const is True
+        assert new_s.nonnegative is None
 
         s = Scalar(name='s', nonnegative=True)
         pkl_s = pickle.dumps(s)
         new_s = pickle.loads(pkl_s)
         assert new_s.name == s.name
         assert new_s.assumptions0['nonnegative'] is True
+        assert new_s.nonnegative is True
 
     def test_bound_symbol(self, pickle):
         grid = Grid(shape=(3, 3, 3))
@@ -372,6 +376,12 @@ class TestBasic:
 
         assert new_fi.name == fi.name
         assert new_fi.accessor == 'fL'
+        from sympy import preorder_traversal
+        import sympy as sp
+        for i, j in zip(fi.indices, new_fi.indices):
+            for ia, ja in zip(preorder_traversal(i), preorder_traversal(j)):
+                print(ia, ja, type(ia), type(ja), ia == ja,
+                      isinstance(ia, sp.core.Basic), isinstance(ja, sp.core.Basic))
         assert new_fi.indices == (x+1, y, z-2)
         assert new_fi.strides_map == fi.strides_map
 
