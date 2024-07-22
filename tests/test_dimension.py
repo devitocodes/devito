@@ -776,9 +776,10 @@ class TestSubDimension:
         eqn = eqn.subs({x: xi, y: yi})
 
         op = Operator(eqn, opt=opt)
+        print(op.parameters)
 
         op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
-                 x0_ltkn=0, x0_rtkn=0, y0_ltkn=0, y0_rtkn=0)
+                 x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)
 
         assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
         assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
@@ -1932,7 +1933,7 @@ class TestMashup:
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'i0x0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'ix0_blk0'})
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
@@ -1943,7 +1944,7 @@ class TestMashup:
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
 
-        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
+        exprs = FindNodes(Expression).visit(bns['ix0_blk0'])
         assert len(exprs) == 1
         assert exprs[0].write is h
 
@@ -1973,8 +1974,8 @@ class TestMashup:
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
-        assert len(FindNodes(Expression).visit(bns['i0x0_blk0'])) == 3
+        bns, _ = assert_blocking(op, {'ix0_blk0', 'x0_blk0'})
+        assert len(FindNodes(Expression).visit(bns['ix0_blk0'])) == 3
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
@@ -2006,8 +2007,8 @@ class TestMashup:
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0', 'i0x1_blk0'})
-        exprs = FindNodes(Expression).visit(bns['i0x0_blk0'])
+        bns, _ = assert_blocking(op, {'ix0_blk0', 'x0_blk0', 'ix1_blk0'})
+        exprs = FindNodes(Expression).visit(bns['ix0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
@@ -2018,6 +2019,6 @@ class TestMashup:
         assert exprs[1].write is gsave
 
         # Additional nest due to anti-dependence
-        exprs = FindNodes(Expression).visit(bns['i0x1_blk0'])
+        exprs = FindNodes(Expression).visit(bns['ix1_blk0'])
         assert len(exprs) == 2
         assert exprs[1].write is h

@@ -666,7 +666,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
@@ -675,7 +675,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def right(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
@@ -684,7 +684,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_min+lst,
                    right=parent.symbolic_max-rst,

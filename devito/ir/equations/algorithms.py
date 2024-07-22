@@ -206,9 +206,6 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    # name = sregistry.make_name(prefix=d.name)
-    # print(d.name, name)
-    # tkns = SubDimension._symbolic_thickness(name)
     tkns = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
             for tkn in d.tkns]
     tkns_subs = {tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)}
@@ -276,22 +273,11 @@ def _(d, mapper, rebuilt, sregistry):
             iname = sregistry.make_name(prefix=idim0.name)
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
-            # FIXME: Horrible. Needs replacement. But works.
-            fdims = list(d.functions.dimensions)
-            fdims[0] = idim1
-            fdims = tuple(fdims)
-
+            fdims = (idim1,) + (d.functions.dimensions[1:])
             frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
-                                            halo=None, padding=None)
-            frebuilt.data[:] = d.functions.data[:]
+                                            halo=None, padding=None,
+                                            initializer=d.functions.data)
             rebuilt[d.functions] = functions = frebuilt
-
-            # FIXME: This is much nicer but doesn't play nice with derive_parameters
-            # and FindSymbols
-            # rebuilt[d.functions] = functions = d.functions.subs(idim0, idim1)
-
-            # FIXME: Alternative approach. Also doesn't work.
-            # rebuilt[d.functions] = functions = uxreplace(d.functions, {idim0: idim1})
 
         kwargs['implicit_dimension'] = idim1
         kwargs['functions'] = functions

@@ -1117,8 +1117,8 @@ class TestCodeGeneration:
         assert calls[1].name == 'haloupdate0'
 
         # ... and none in the created efuncs
-        bns, _ = assert_blocking(op, {'i0x0_blk0', 'x0_blk0'})
-        calls = FindNodes(Call).visit(bns['i0x0_blk0'])
+        bns, _ = assert_blocking(op, {'ix0_blk0', 'x0_blk0'})
+        calls = FindNodes(Call).visit(bns['ix0_blk0'])
         assert len(calls) == 0
         calls = FindNodes(Call).visit(bns['x0_blk0'])
         assert len(calls) == 0

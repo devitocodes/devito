@@ -334,7 +334,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
-    __rkwargs__ = ('name', 'dtype', 'is_const')
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'nonnegative')
 
     @classmethod
     def _filter_assumptions(cls, **kwargs):
@@ -348,6 +348,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
+        # Handle the nonnegative argument
+        if 'nonnegative' in assumptions and assumptions['nonnegative'] is None:
+            assumptions.pop('nonnegative')
+
         return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):
@@ -385,7 +389,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __hash__ = sympy.Symbol.__hash__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.dtype, self.is_const)
+        return super()._hashable_content() \
+            + (self.dtype, self.is_const, self.nonnegative)
 
     @property
     def dtype(self):
@@ -428,6 +433,13 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         its value is provided by the user directly from Python-land), False otherwise.
         """
         return self._is_const
+
+    @property
+    def nonnegative(self):
+        """
+        Alias for is_nonnegative
+        """
+        return self.is_nonnegative
 
     @property
     def _C_name(self):
