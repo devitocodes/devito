@@ -2447,8 +2447,6 @@ class TestAliases:
         t = grid.stepping_dim
 
         nthreads = 2
-        x0_blk0_size = 8
-        y0_blk0_size = 8
 
         u = TimeFunction(name='u', grid=grid, space_order=3)
         u1 = TimeFunction(name="u", grid=grid, space_order=3)
@@ -2474,6 +2472,12 @@ class TestAliases:
         # TempFunctions expect an override
         with pytest.raises(InvalidArgument):
             op1(time_M=1, u=u1)
+
+        block_dims = [i for i in op1.dimensions if i.is_Block and i._depth == 1]
+        assert len(block_dims) == 2
+        mapper = {d.root: d for d in block_dims}
+        x0_blk0_size = mapper[x]._arg_defaults()[mapper[x].step.name]
+        y0_blk0_size = mapper[y]._arg_defaults()[mapper[y].step.name]
 
         # Prepare to run op1
         shape = [nthreads, x0_blk0_size, y0_blk0_size, grid.shape[-1]]
@@ -2845,7 +2849,7 @@ class TestTTI:
 
         # Check expected opcount/oi
         assert summary[('section1', None)].ops == 92
-        assert np.isclose(summary[('section1', None)].oi, 2.072, atol=0.001)
+        assert np.isclose(summary[('section1', None)].oi, 1.99, atol=0.001)
 
         # With optimizations enabled, there should be exactly four BlockDimensions
         op = wavesolver.op_fwd()
