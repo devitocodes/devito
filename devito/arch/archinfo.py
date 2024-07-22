@@ -670,8 +670,8 @@ class Platform:
         language.
         """
         return {
-            'max-par-dims': np.inf,
-            'max-block-dims': np.inf,
+            'max-par-dims': sys.maxsize,
+            'max-block-dims': sys.maxsize,
         }
 
 

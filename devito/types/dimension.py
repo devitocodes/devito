@@ -1327,6 +1327,8 @@ class BlockDimension(AbstractIncrDimension):
             # no value supplied -> the sub-block will span the entire block
             return {name: args[self.parent.step.name]}
         else:
+            # TODO": Check the args for space order and apply heuristics (e.g.,
+            # `2*space_order`?) for even better block sizes
             value = self._arg_defaults()[name]
             if value <= args[self.root.max_name] - args[self.root.min_name] + 1:
                 return {name: value}
