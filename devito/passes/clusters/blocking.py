@@ -502,30 +502,33 @@ class BlockSizeGenerator:
 
     def __init__(self, par_tile):
         self.tip = -1
-
-        # The default par-tile, as an UnboundedMultiTuple. It will be used
-        # for most cases
         self.umt = par_tile
 
-        # Special case 1: a smaller par-tile to avoid under-utilizing
-        # computational resources when the iteration spaces are too small
-        self.umt_small = UnboundedMultiTuple(par_tile.default)
-
-        # Special case 2: par-tiles for iteration spaces that must be fully
-        # blocked for correctness
-        if par_tile.sparse:
-            self.umt_sparse = UnboundTuple(*par_tile.sparse, 1)
-        elif len(par_tile) == 1:
-            self.umt_sparse = UnboundTuple(*par_tile[0], 1)
+        if par_tile.is_multi:
+            # The user has supplied one specific par-tile per blocked nest
+            self.umt_small = par_tile
+            self.umt_sparse = par_tile
+            self.umt_reduce = par_tile
         else:
-            self.umt_sparse = UnboundTuple(*par_tile.default, 1)
+            # Special case 1: a smaller par-tile to avoid under-utilizing
+            # computational resources when the iteration spaces are too small
+            self.umt_small = UnboundedMultiTuple(par_tile.default)
 
-        if par_tile.reduce:
-            self.umt_reduce = UnboundTuple(*par_tile.reduce, 1)
-        elif len(par_tile) == 1:
-            self.umt_reduce = UnboundTuple(*par_tile[0], 1)
-        else:
-            self.umt_reduce = UnboundTuple(*par_tile.default, 1)
+            # Special case 2: par-tiles for iteration spaces that must be fully
+            # blocked for correctness
+            if par_tile.sparse:
+                self.umt_sparse = UnboundTuple(*par_tile.sparse, 1)
+            elif len(par_tile) == 1:
+                self.umt_sparse = UnboundTuple(*par_tile[0], 1)
+            else:
+                self.umt_sparse = UnboundTuple(*par_tile.default, 1)
+
+            if par_tile.reduce:
+                self.umt_reduce = UnboundTuple(*par_tile.reduce, 1)
+            elif len(par_tile) == 1:
+                self.umt_reduce = UnboundTuple(*par_tile[0], 1)
+            else:
+                self.umt_reduce = UnboundTuple(*par_tile.default, 1)
 
     def next(self, prefix, d, clusters):
         # If a whole new set of Dimensions, move the tip -- this means `clusters`
