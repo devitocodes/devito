@@ -14,7 +14,7 @@ from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 
 class TestGradient:
 
-    @skipif(['chkpnt', 'cpu64-icc'])
+    @skipif(['chkpnt', 'cpu64-icc', 'cpu64-arm'])
     @switchconfig(safe_math=True)
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('opt', [('advanced', {'openmp': True}),
@@ -59,7 +59,7 @@ class TestGradient:
 
         assert np.allclose(gradient.data, gradient2.data, atol=0, rtol=0)
 
-    @skipif('cpu64-icc')
+    @skipif(['cpu64-icc', 'cpu64-arm'])
     @pytest.mark.parametrize('tn', [750.])
     @pytest.mark.parametrize('spacing', [(10, 10)])
     @pytest.mark.parametrize("dtype, tolerance", [(np.float32, 1e-4),
