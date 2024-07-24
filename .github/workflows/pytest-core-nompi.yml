@@ -31,8 +31,8 @@ jobs:
       matrix:
         name: [
            pytest-ubuntu-py311-gcc11-noomp,
-           pytest-ubuntu-py38-gcc12-omp,
-           pytest-ubuntu-py38-gcc7-omp,
+           pytest-ubuntu-py312-gcc12-omp,
+           pytest-ubuntu-py39-gcc7-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
@@ -49,15 +49,15 @@ jobs:
           language: "C"
           sympy: "1.11"
 
-        - name: pytest-ubuntu-py38-gcc12-omp
-          python-version: '3.8'
-          os: ubuntu-22.04
+        - name: pytest-ubuntu-py312-gcc12-omp
+          python-version: '3.12'
+          os: ubuntu-24.04
           arch: "gcc-12"
           language: "openmp"
-          sympy: "1.10"
+          sympy: "1.13"
 
-        - name: pytest-ubuntu-py38-gcc7-omp
-          python-version: '3.8'
+        - name: pytest-ubuntu-py39-gcc7-omp
+          python-version: '3.9'
           os: ubuntu-20.04
           arch: "gcc-7"
           language: "openmp"
@@ -82,14 +82,14 @@ jobs:
           os: ubuntu-20.04
           arch: "custom"
           language: "openmp"
-          sympy: "1.9"
+          sympy: "1.10"
 
         - name: pytest-osx-py312-clang-omp
           python-version: '3.12'
           os: macos-latest
           arch: "clang"
-          language: "C"
-          sympy: "1.9"
+          language: "openmp"
+          sympy: "1.13"
 
         - name: pytest-docker-py39-gcc-omp
           python-version: '3.9'
@@ -124,6 +124,7 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
 
     - name: Build docker image
       if: contains(matrix.name, 'docker')
@@ -147,9 +148,8 @@ jobs:
     - name: Set tests (reduced number for OSX)
       run : |
           if [ "${{ runner.os }}" == 'macOS' ]; then
-              echo "TESTS=tests/test_operator.py" >> $GITHUB_ENV
-          else
-              echo "TESTS=tests/" >> $GITHUB_ENV
+            brew install llvm libomp
+            echo "/opt/homebrew/bin:/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
           fi
       id: set-tests
     
@@ -162,9 +162,9 @@ jobs:
     - name: Install dependencies
       if: "!contains(matrix.name, 'docker')"
       run: |
-        pip install ${{ env.PIPFLAGS }} --upgrade pip
-        pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
-        pip install ${{ env.PIPFLAGS }} -e .[tests]
+        python3 -m pip install ${{ env.PIPFLAGS }} --upgrade pip
+        python3 -m pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
+        python3 -m pip install ${{ env.PIPFLAGS }} -e .[tests,extras]
 
     - name: Check configuration
       run: |

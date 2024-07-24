@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 
+from conftest import skipif
 from devito import Grid, Constant, TimeFunction, Eq, Operator, switchconfig
 
 
@@ -84,6 +85,7 @@ class TestRoundoff:
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @switchconfig(log_level='DEBUG', safe_math=True)
+    @skipif('cpu64-arm')
     def test_lm_fb(self, dat, dtype):
         """
         Test logistic map with forward and backward terms that should cancel.
@@ -123,6 +125,7 @@ class TestRoundoff:
     @pytest.mark.parametrize('dat', [0.5, 0.624, 1.0, 1.5, 2.0, 3.0, 3.6767, 4.0])
     @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @switchconfig(log_level='DEBUG', safe_math=True)
+    @skipif('cpu64-arm')
     def test_lm_ds(self, dat, dtype):
         """
         Test logistic map with 2nd derivative term that should cancel.

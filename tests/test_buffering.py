@@ -3,7 +3,8 @@ import numpy as np
 
 from conftest import skipif
 from devito import (Constant, Grid, TimeFunction, Operator, Eq, SubDimension,
-                    SubDomain, ConditionalDimension)
+                    SubDomain, ConditionalDimension, configuration, switchconfig)
+from devito.arch.archinfo import AppleArm
 from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.exceptions import InvalidOperator
 
@@ -672,6 +673,7 @@ def test_everything():
 
 
 @pytest.mark.parametrize('subdomain', ['domain', 'interior'])
+@switchconfig(safe_math=True, condition=isinstance(configuration['platform'], AppleArm))
 def test_stencil_issue_1915(subdomain):
     nt = 5
     grid = Grid(shape=(6, 6))
