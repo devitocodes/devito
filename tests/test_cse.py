@@ -5,7 +5,7 @@ from sympy.core.mul import _mulsort
 
 from conftest import assert_structure
 from devito import (Grid, Function, TimeFunction, ConditionalDimension, Eq,  # noqa
-                    Operator, cos)
+                    Operator, cos, sin)
 from devito.finite_differences.differentiable import diffify
 from devito.ir import DummyEq, FindNodes, FindSymbols, Conditional
 from devito.ir.support import generator
@@ -81,7 +81,7 @@ from devito.types import Array, Symbol, Temp
       '-tu[t, e0, y, z] + tw[t, x, y, z]'], 1)
 ])
 def test_default_algo(exprs, expected, min_cost):
-    """Test common subexpressions elimination."""
+    """Test the default common subexpressions elimination algorithm."""
     grid = Grid((3, 3, 3))
     x, y, z = grid.dimensions
     t = grid.stepping_dim  # noqa
@@ -197,3 +197,31 @@ def test_w_multi_conditionals():
 
     tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
     assert len(tmps) == 2
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    (['Eq(u, sin(f)*cos(g)*sin(g) + sin(f)*cos(g)*cos(f))'],
+     ['cos(g[x, y, z])', 'sin(f[x, y, z])', 'r0*r1',
+      'r2*sin(g[x, y, z]) + r2*cos(f[x, y, z])']),
+    (['Eq(u, sin(f)*cos(f)*sin(g)*cos(g) + sin(f)*cos(f)*sin(g) + sin(f)*cos(f))'],
+     ['cos(f[x, y, z])', 'sin(f[x, y, z])', 'sin(g[x, y, z])', 'r0*r1',
+      'r2*r4', 'r0*r1 + r2*r4 + r3*cos(g[x, y, z])']),
+])
+def test_tuplets_algo(exprs, expected):
+    """Test the tuplets-based common subexpressions elimination algorithm."""
+    grid = Grid((3, 3, 3))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+    u = TimeFunction(name="u", grid=grid, space_order=2)
+
+    # List comprehension would need explicit locals/globals mappings to eval
+    for i, e in enumerate(list(exprs)):
+        exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
+
+    counter = generator()
+    make = lambda: CTemp(name='r%d' % counter()).indexify()
+    processed = _cse(exprs, make, mode='advanced')
+
+    assert len(processed) == len(expected)
+    assert all(str(i.rhs) == j for i, j in zip(processed, expected))

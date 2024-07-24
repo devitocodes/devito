@@ -38,6 +38,7 @@ class Cpu64OperatorMixin:
 
         # CSE
         o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+        o['cse-algo'] = oo.pop('cse-algo', cls.CSE_ALGO)
 
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
@@ -175,7 +176,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, options)
+        clusters = cse(clusters, **kwargs)
 
         # Blocking to improve data locality
         if options['blocklazy']:

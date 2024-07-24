@@ -27,6 +27,11 @@ class BasicOperator(Operator):
     common sub=expression.
     """
 
+    CSE_ALGO = 'default'
+    """
+    The algorithm to use for common sub-expression elimination.
+    """
+
     BLOCK_LEVELS = 1
     """
     Loop blocking depth. So, 1 => "blocks", 2 => "blocks" and "sub-blocks",

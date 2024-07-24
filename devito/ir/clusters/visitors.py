@@ -204,11 +204,12 @@ class cluster_pass:
         else:
             self.cond = lambda c: True
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         if timed_pass.is_enabled():
-            maybe_timed = lambda *_args: timed_pass(self.func, self.func.__name__)(*_args)
+            maybe_timed = lambda *_args: \
+                timed_pass(self.func, self.func.__name__)(*_args, **kwargs)
         else:
-            maybe_timed = lambda *_args: self.func(*_args)
+            maybe_timed = lambda *_args: self.func(*_args, **kwargs)
         args = list(args)
         maybe_clusters = args.pop(0)
         if isinstance(maybe_clusters, Iterable):

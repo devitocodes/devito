@@ -1,4 +1,4 @@
-from collections import Counter, OrderedDict, namedtuple
+from collections import Counter, OrderedDict, defaultdict, namedtuple
 from functools import singledispatch
 
 import sympy
@@ -12,15 +12,16 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
-from devito.symbolics import estimate_cost, q_leaf
-from devito.symbolics.manipulation import _uxreplace
+from devito.symbolics import estimate_cost, q_leaf, search
+from devito.symbolics.manipulation import Uxmapper, _uxreplace
 from devito.tools import as_list, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
 
 
-Counted = namedtuple('Candidate', 'expr, conditionals')
+Candidate = namedtuple('Candidate', 'expr conditionals sources')
+Candidate.__new__.__defaults__ = (None, None, None)
 
 
 class CTemp(Temp):
@@ -32,12 +33,14 @@ class CTemp(Temp):
 
 
 @cluster_pass
-def cse(cluster, sregistry, options, *args, mode='default'):
+def cse(cluster, sregistry=None, options=None, **kwargs):
     """
     Common sub-expressions elimination (CSE).
     """
     make = lambda: CTemp(name=sregistry.make_name(), dtype=cluster.dtype)
-    exprs = _cse(cluster, make, min_cost=options['cse-min-cost'], mode=mode)
+    exprs = _cse(cluster, make,
+                 min_cost=options['cse-min-cost'],
+                 mode=options['cse-algo'])
 
     return cluster.rebuild(exprs=exprs)
 
@@ -55,9 +58,9 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     make : callable
         Build symbols to store temporary, redundant values.
     mode : str, optional
-        The CSE algorithm applied. Accepted: ['default', 'tuplets', 'all'].
+        The CSE algorithm applied. Accepted: ['default', 'tuplets', 'advanced'].
     """
-    assert mode in ('default', 'tuplets', 'all')
+    assert mode in ('default', 'tuplets', 'advanced')
 
     # Note: not defaulting to SymPy's CSE() function for three reasons:
     # - it also captures array index access functions
@@ -91,9 +94,9 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     d_anti = {i.source.access for i in scope.d_anti.independent()}
     exclude = d_flow & d_anti
 
-    if mode in ('default', 'all'):
+    if mode in ('default', 'advanced'):
         exprs = _cse_default(exprs, exclude, make, min_cost)
-    if mode in ('tuplets', 'all'):
+    if mode in ('tuplets', 'advanced'):
         exprs = _cse_tuplets(exprs, exclude, make)
 
     # Drop useless temporaries (e.g., r0=r1)
@@ -111,6 +114,7 @@ def _cse_default(exprs, exclude, make, min_cost):
         counted = count(exprs).items()
         targets = OrderedDict([(k, estimate_cost(k.expr, True))
                                for k, v in counted if v > 1])
+
         # Rule out Dimension-independent data dependencies
         targets = OrderedDict([(k, v) for k, v in targets.items()
                                if not k.expr.free_symbols & exclude])
@@ -122,21 +126,7 @@ def _cse_default(exprs, exclude, make, min_cost):
         chosen = [(k, make()) for k, v in targets.items() if v == hit]
 
         # Apply replacements
-        # The extracted temporaries are inserted before the first expression
-        # that contains it
-        scheduled = []
-        processed = []
-        for e in exprs:
-            pe = e
-            for k, v in chosen:
-                if not k.conditionals == e.conditionals:
-                    continue
-                pe, changed = _uxreplace(pe, {k.expr: v})
-                if changed and v not in scheduled:
-                    processed.append(pe.func(v, k.expr, operation=None))
-                    scheduled.append(v)
-            processed.append(pe)
-        exprs = processed
+        exprs, scheduled = _inject_temporaries(exprs, chosen, exclude)
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
@@ -148,11 +138,90 @@ def _cse_default(exprs, exclude, make, min_cost):
 def _cse_tuplets(exprs, exclude, make):
     """
     The tuplets-based common sub-expressions elimination algorithm.
+
+    This algo relies on SymPy's canonical ordering of operands. It extracts
+    sub-expressions of decreasing size that may or may not be redundant.
+
+    Unlike the default algorithm, this one looks inside the individual operations.
+    However, it does so speculatively, as it doesn't attempt to estimate the cost
+    of the extracted sub-expressions, which would be an hard problem to solve.
+
+    Another simplification is that we only explore operations whose operands are
+    leaves, i.e., symbols or indexed objects.
+
+    Examples
+    --------
+    Given the expression `a*b*c*d + c*d + a*b*c + a*b*e`, the following
+    sub-expressions are extracted: `r0 = a*b, r1 = r0*c`, which leads to the
+    following optimized expression: `r1*d + c*d + r1 + r0*e`.
     """
+    key = lambda candidate: len(candidate.expr.args)
+
     while True:
-        break
+        mapper = defaultdict(list)
+        for e in exprs:
+            try:
+                cond = e.conditionals
+            except AttributeError:
+                cond = None
+
+            for op in (Add, Mul):
+                for i in search(e, op):
+                    # The args are in canonical order (thanks to SymPy); let's pick
+                    # the largest sub-expression that is not `i` itself
+                    args = i.args[:-1]
+
+                    terms = [a for a in args if q_leaf(a)]
+
+                    if len(terms) > 1:
+                        mapper[Candidate(op(*terms), cond)].append(i)
+
+        #mapper = {k: v for k, v in mapper.items()
+        #          if not k.expr.free_symbols & exclude}
+
+        if not mapper:
+            break
+
+        # Create temporaries of decreasing size
+        hit = max(mapper, key=key)
+        chosen = [(Candidate(i.expr, i.conditionals, sources), make())
+                  for i, sources in mapper.items() if key(i) == key(hit)]
+
+        # Apply replacements
+        exprs, _ = _inject_temporaries(exprs, chosen, exclude)
 
     return exprs
+
+
+def _inject_temporaries(exprs, chosen, exclude):
+    """
+    Insert temporaries into the expression list such that they appear right
+    before the first expression that contains them.
+    """
+    scheduled = []
+    processed = []
+    for e in exprs:
+        pe = e
+        for k, v in chosen:
+            if k.conditionals != e.conditionals:
+                continue
+
+            if k.sources:
+                # Perform compound-based replacement, see uxreplace.__doc__
+                args = list(k.expr.args)
+                pivot = args.pop(0)
+                compound = {pivot: v, **{a: None for a in args}}
+                subs = {i: compound for i in k.sources}
+            else:
+                subs = {k.expr: v}
+
+            pe, changed = _uxreplace(pe, subs)
+            if changed and v not in scheduled:
+                processed.append(pe.func(v, k.expr, operation=None))
+                scheduled.append(v)
+        processed.append(pe)
+
+    return processed, scheduled
 
 
 def _compact_temporaries(exprs, exclude):
@@ -209,7 +278,7 @@ def _(expr):
         cond = expr.conditionals
     except AttributeError:
         cond = frozendict()
-    return {Counted(e, cond): v for e, v in mapper.items()}
+    return {Candidate(e, cond): v for e, v in mapper.items()}
 
 
 @count.register(Indexed)
