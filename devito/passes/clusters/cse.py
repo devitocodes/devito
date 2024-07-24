@@ -32,12 +32,12 @@ class CTemp(Temp):
 
 
 @cluster_pass
-def cse(cluster, sregistry, options, *args):
+def cse(cluster, sregistry, options, *args, mode='default'):
     """
     Common sub-expressions elimination (CSE).
     """
     make = lambda: CTemp(name=sregistry.make_name(), dtype=cluster.dtype)
-    exprs = _cse(cluster, make, min_cost=options['cse-min-cost'])
+    exprs = _cse(cluster, make, min_cost=options['cse-min-cost'], mode=mode)
 
     return cluster.rebuild(exprs=exprs)
 
@@ -55,28 +55,27 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     make : callable
         Build symbols to store temporary, redundant values.
     mode : str, optional
-        The CSE algorithm applied. Accepted: ['default'].
+        The CSE algorithm applied. Accepted: ['default', 'tuplets', 'all'].
     """
+    assert mode in ('default', 'tuplets', 'all')
 
     # Note: not defaulting to SymPy's CSE() function for three reasons:
-    # - it also captures array index access functions (eg, i+1 in A[i+1] and B[i+1]);
+    # - it also captures array index access functions
+    #   (e.g., i+1 in A[i+1] and B[i+1]);
     # - it sometimes "captures too much", losing factorization opportunities;
     # - very slow
-    # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
-    # also ensuring some form of post-processing
-    assert mode == 'default'  # Only supported mode ATM
 
     # Accept Clusters, Eqs or even just exprs
     if isinstance(maybe_exprs, Cluster):
-        processed = list(maybe_exprs.exprs)
+        exprs = list(maybe_exprs.exprs)
         scope = maybe_exprs.scope
     else:
         maybe_exprs = as_list(maybe_exprs)
         if all(e.is_Equality for e in maybe_exprs):
-            processed = maybe_exprs
+            exprs = maybe_exprs
             scope = Scope(maybe_exprs)
         else:
-            processed = [Eq(make(), e) for e in maybe_exprs]
+            exprs = [Eq(make(), e) for e in maybe_exprs]
             scope = Scope([])
 
     # Some sub-expressions aren't really "common" -- that's the case of Dimension-
@@ -92,9 +91,24 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     d_anti = {i.source.access for i in scope.d_anti.independent()}
     exclude = d_flow & d_anti
 
+    if mode in ('default', 'all'):
+        exprs = _cse_default(exprs, exclude, make, min_cost)
+    if mode in ('tuplets', 'all'):
+        exprs = _cse_tuplets(exprs, exclude, make)
+
+    # Drop useless temporaries (e.g., r0=r1)
+    processed = _compact_temporaries(exprs, exclude)
+
+    return processed
+
+
+def _cse_default(exprs, exclude, make, min_cost):
+    """
+    The default common sub-expressions elimination algorithm.
+    """
     while True:
         # Detect redundancies
-        counted = count(processed).items()
+        counted = count(exprs).items()
         targets = OrderedDict([(k, estimate_cost(k.expr, True))
                                for k, v in counted if v > 1])
         # Rule out Dimension-independent data dependencies
@@ -111,27 +125,34 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         # The extracted temporaries are inserted before the first expression
         # that contains it
         scheduled = []
-        updated = []
-        for e in processed:
+        processed = []
+        for e in exprs:
             pe = e
             for k, v in chosen:
                 if not k.conditionals == e.conditionals:
                     continue
                 pe, changed = _uxreplace(pe, {k.expr: v})
                 if changed and v not in scheduled:
-                    updated.append(pe.func(v, k.expr, operation=None))
+                    processed.append(pe.func(v, k.expr, operation=None))
                     scheduled.append(v)
-            updated.append(pe)
-        processed = updated
+            processed.append(pe)
+        exprs = processed
 
         # Update `exclude` for the same reasons as above -- to rule out CSE across
         # Dimension-independent data dependences
         exclude.update(scheduled)
 
-    # At this point we may have useless temporaries (e.g., r0=r1). Let's drop them
-    processed = _compact_temporaries(processed, exclude)
+    return exprs
 
-    return processed
+
+def _cse_tuplets(exprs, exclude, make):
+    """
+    The tuplets-based common sub-expressions elimination algorithm.
+    """
+    while True:
+        break
+
+    return exprs
 
 
 def _compact_temporaries(exprs, exclude):
