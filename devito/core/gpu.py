@@ -48,6 +48,7 @@ class DeviceOperatorMixin:
 
         # CSE
         o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+        o['cse-algo'] = oo.pop('cse-algo', cls.CSE_ALGO)
 
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
@@ -203,7 +204,7 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, options)
+        clusters = cse(clusters, **kwargs)
 
         # Blocking to define thread blocks
         if options['blocklazy']:
