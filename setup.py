@@ -1,7 +1,6 @@
 import versioneer
 
 import os
-import sys
 import pkg_resources
 from setuptools import setup, find_packages
 
@@ -19,10 +18,6 @@ def numpy_compat(required):
     new_reqs = [r for r in required if "numpy" not in r and "sympy" not in r]
     sympy_lb, sympy_ub = min_max(required, "sympy")
     numpy_lb, numpy_ub = min_max(required, "numpy")
-    if sys.version_info < (3, 9):
-        # Numpy 2.0 requires python > 3.8
-        new_reqs.extend([f"sympy>={sympy_lb},<1.12.1", f"numpy>{numpy_lb},<2.0"])
-        return new_reqs
 
     # Due to api changes in numpy 2.0, it requires sympy 1.12.1 at the minimum
     # Check if sympy is installed and enforce numpy version accordingly.
@@ -108,7 +103,7 @@ setup(name='devito',
       },
       url='http://www.devitoproject.org',
       platforms=["Linux", "Mac OS-X", "Unix"],
-      python_requires=">=3.8",
+      python_requires=">=3.9",
       classifiers=[
           'Development Status :: 5 - Production/Stable',
           'Intended Audience :: Developers',
@@ -120,7 +115,6 @@ setup(name='devito',
           'Operating System :: Unix',
           'Programming Language :: Python',
           'Programming Language :: Python :: 3',
-          'Programming Language :: Python :: 3.8',
           'Programming Language :: Python :: 3.9',
           'Programming Language :: Python :: 3.10',
           'Programming Language :: Python :: 3.11',
