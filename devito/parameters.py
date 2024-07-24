@@ -146,6 +146,7 @@ env_vars_mapper = {
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_OPT': 'opt',
     'DEVITO_MPI': 'mpi',
+    'DEVITO_TOPOLOGY': 'topology',
     'DEVITO_LANGUAGE': 'language',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_LOGGING': 'log-level',

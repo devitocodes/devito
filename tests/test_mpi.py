@@ -228,6 +228,16 @@ class TestDistributor:
         custom_topology = CustomTopology(topology, dummy_comm)
         assert custom_topology == dist_topology
 
+    @pytest.mark.parallel(mode=[(4, 'diag2')])
+    @switchconfig(topology='y')
+    def test_custom_topology_fallback(self, mode):
+        grid = Grid(shape=(16,))
+        f = Function(name='f', grid=grid)
+
+        # The input topology was `y` but Grid only has one axis, so we decompose
+        # along that instead
+        assert f.shape == (4,)
+
 
 class TestFunction:
 
