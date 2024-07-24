@@ -22,6 +22,7 @@ from devito.types.tensor import *  # noqa
 from devito.finite_differences import *  # noqa
 from devito.operations.solve import *
 from devito.operator import Operator  # noqa
+from devito.symbolics import CondEq, CondNe  # noqa
 
 # Other stuff exposed to the user
 from devito.builtins import *  # noqa
