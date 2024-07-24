@@ -66,6 +66,10 @@ class HaloExchangeBuilder:
         Construct Callables and Calls implementing distributed-memory halo
         exchange for the HaloSpot ``hs``.
         """
+        print(hs.omapper.core)
+        # FIXME: hs.omapper.core is contaminated at this point
+        # FIXME: Contains Max(0, iy_ltkn0): (Max(0, Max(0, iy_ltkn0) - 2),)
+        # FIXME: rather than iy_ltkn0: (Max(0, iy_ltkn0 - 2),)
         # Sanity check
         assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
 
@@ -668,6 +672,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             assert hs.body.is_Call
             return hs.body._rebuild(dynamic_args_mapper=hs.omapper.core)
         else:
+            # FIXME: Fails when it goes down this route
             return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
     def _make_wait(self, f, hse, key, msg=None):
