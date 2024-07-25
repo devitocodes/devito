@@ -332,7 +332,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
-    __rkwargs__ = ('name', 'dtype', 'is_const')
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'nonnegative')
 
     @classmethod
     def _filter_assumptions(cls, **kwargs):
@@ -426,6 +426,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         its value is provided by the user directly from Python-land), False otherwise.
         """
         return self._is_const
+
+    @property
+    def nonnegative(self):
+        return self.is_nonnegative
 
     @property
     def _C_name(self):
