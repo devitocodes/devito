@@ -201,7 +201,7 @@ class Derivative(sympy.Derivative, Differentiable):
             # Only given a value
             _x0 = kwargs.get('x0')
             assert len(dims) == 1 or _x0 is None
-            if _x0 is not None:
+            if _x0 is not None and _x0 is not dims[0]:
                 x0 = frozendict({dims[0]: _x0})
             else:
                 x0 = frozendict({})
@@ -359,6 +359,10 @@ class Derivative(sympy.Derivative, Differentiable):
         # If an x0 already exists or evaluating at the same function (i.e u = u.dx)
         # do not overwrite it
         if self.x0 or self.side is not None or func.function is self.expr.function:
+            return self
+        # For basic equation of the form f = Derivative(g, ...) we can just
+        # compare staggering
+        if self.expr.staggered == func.staggered:
             return self
 
         x0 = func.indices_ref._getters

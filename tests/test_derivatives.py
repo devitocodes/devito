@@ -713,6 +713,16 @@ class TestFD:
         assert dxy0.x0 == {y: y+y.spacing/2}
         assert dxy02.x0 == {x: x+x.spacing/2}
 
+    def test_deriv_stagg_plain(self):
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        f1 = Function(name="f1", grid=grid, space_order=2, staggered=NODE)
+        f2 = Function(name="f2", grid=grid, space_order=2, staggered=NODE)
+
+        eq0 = Eq(f1, f2.laplace).evaluate
+        assert eq0.rhs == f2.laplace.evaluate
+        assert eq0.rhs != 0
+
 
 class TestTwoStageEvaluation:
 
