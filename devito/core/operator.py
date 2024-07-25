@@ -430,3 +430,7 @@ class ParTile(UnboundedMultiTuple, OptOption):
         obj.reduce = as_tuple(reduce)
 
         return obj
+
+    @property
+    def is_multi(self):
+        return len(self) > 1

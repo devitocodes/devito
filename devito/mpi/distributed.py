@@ -242,9 +242,7 @@ class Distributor(AbstractDistributor):
                 self._topology = compute_dims(self._input_comm.size, len(shape))
             else:
                 # A custom topology may contain integers or the wildcard '*'
-                topology = CustomTopology(topology, self._input_comm)
-
-                self._topology = topology
+                self._topology = CustomTopology(topology, self._input_comm)
 
             if self._input_comm is not input_comm:
                 # By default, Devito arranges processes into a cartesian topology.
@@ -634,8 +632,9 @@ class CustomTopology(tuple):
 
     Examples
     --------
-    For example, let's consider a domain with three distributed dimensions: x, y, and z,
-    and an MPI communicator with N processes. Here are a few examples of CustomTopology:
+    For example, let's consider a domain with three distributed dimensions: x,
+    y, and z, and an MPI communicator with N processes. Here are a few examples
+    of CustomTopology:
 
     With N known, say N=4:
     * `(1, 1, 4)`: the z Dimension is decomposed into 4 chunks
@@ -643,14 +642,15 @@ class CustomTopology(tuple):
                    is decomposed into 2 chunks
 
     With N unknown:
-    * `(1, '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose the y
-                     Dimension into N chunks
-    * `('*', '*', 1)`: the wildcard `'*'` indicates that the runtime should decompose both
-                       the x and y Dimensions in `nstars` factors of N, prioritizing
-                       the outermost dimension
+    * `(1, '*', 1)`: the wildcard `'*'` indicates that the runtime should
+                     decompose the y Dimension into N chunks
+    * `('*', '*', 1)`: the wildcard `'*'` indicates that the runtime should
+                       decompose both the x and y Dimensions in `nstars` factors
+                       of N, prioritizing the outermost dimension
 
-    Assuming that the number of ranks `N` cannot evenly be decomposed to the requested
-    stars=6 we decompose as evenly as possible by prioritising the outermost dimension
+    Assuming that the number of ranks `N` cannot evenly be decomposed to the
+    requested stars=6 we decompose as evenly as possible by prioritising the
+    outermost dimension
 
     For N=3
     * `('*', '*', 1)` gives: (3, 1, 1)
@@ -673,6 +673,13 @@ class CustomTopology(tuple):
     Users should not directly use the CustomTopology class. It is instantiated
     by the Devito runtime based on user input.
     """
+
+    _shortcuts = {
+        'x': ('*', 1, 1),
+        'y': (1, '*', 1),
+        'z': (1, 1, '*'),
+        'xy': ('*', '*', 1),
+    }
 
     def __new__(cls, items, input_comm):
         # Keep track of nstars and already defined decompositions

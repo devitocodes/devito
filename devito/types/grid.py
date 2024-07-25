@@ -5,6 +5,7 @@ from functools import cached_property
 import numpy as np
 from sympy import prod
 
+from devito import configuration
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI
@@ -163,8 +164,18 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Create a Distributor, used internally to implement domain decomposition
         # by all Functions defined on this Grid
-        self._topology = topology
-        self._distributor = Distributor(shape, dimensions, comm, topology)
+        topology = topology or configuration['topology']
+        if topology:
+            if len(topology) == len(self.shape):
+                self._topology = topology
+            else:
+                warning("Ignoring the provided topology `%s` as it "
+                        "is incompatible with the grid shape `%s`" %
+                        (topology, self.shape))
+                self._topology = None
+        else:
+            self._topology = None
+        self._distributor = Distributor(shape, dimensions, comm, self._topology)
 
         # The physical extent
         self._extent = as_tuple(extent or tuple(1. for _ in self.shape))

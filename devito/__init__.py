@@ -71,12 +71,18 @@ configuration.add('compiler', 'custom', compiler_registry,
 # Setup language for shared-memory parallelism
 preprocessor = lambda i: {0: 'C', 1: 'openmp'}.get(i, i)  # Handles DEVITO_OPENMP deprec
 configuration.add('language', 'C', [0, 1] + list(operator_registry._languages),
-                  preprocessor=preprocessor, callback=reinit_compiler, deprecate='openmp')
+                  preprocessor=preprocessor, callback=reinit_compiler,
+                  deprecate='openmp')
 
 # MPI mode (0 => disabled, 1 == basic)
 preprocessor = lambda i: bool(i) if isinstance(i, int) else i
 configuration.add('mpi', 0, [0, 1] + list(mpi_registry),
                   preprocessor=preprocessor, callback=reinit_compiler)
+
+# Domain decomposition topology. Only relevant with MPI
+preprocessor = lambda i: CustomTopology._shortcuts.get(i)
+configuration.add('topology', None, [None] + list(CustomTopology._shortcuts),
+                  preprocessor=preprocessor)
 
 # Should Devito run a first-touch Operator upon data allocation?
 configuration.add('first-touch', 0, [0, 1], preprocessor=bool, impacts_jit=False)
