@@ -1,5 +1,5 @@
-from collections import Counter, OrderedDict, defaultdict, namedtuple
-from functools import singledispatch
+from collections import defaultdict
+from functools import cached_property, singledispatch
 
 import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
@@ -12,16 +12,12 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.passes.clusters.utils import makeit_ssa
-from devito.symbolics import estimate_cost, q_leaf, search
-from devito.symbolics.manipulation import Uxmapper, _uxreplace
-from devito.tools import as_list, frozendict
+from devito.symbolics import estimate_cost, q_leaf, q_terminal
+from devito.symbolics.manipulation import _uxreplace
+from devito.tools import DAG, as_list, as_tuple, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
-
-
-Candidate = namedtuple('Candidate', 'expr conditionals sources')
-Candidate.__new__.__defaults__ = (None, None, None)
 
 
 class CTemp(Temp):
@@ -35,21 +31,50 @@ class CTemp(Temp):
 @cluster_pass
 def cse(cluster, sregistry=None, options=None, **kwargs):
     """
-    Common sub-expressions elimination (CSE).
+    Perform common sub-expressions elimination (CSE) on a Cluster.
+
+    Two algorithms are available, 'default' and 'advanced'.
+
+    The 'default' algorithm searches for common sub-expressions across the
+    operations in a given Cluster. However, it does not look for sub-expressions
+    that are subsets of operands of a given n-ary operation. For example, given
+    the expression `a*b*c*d + c*d + a*b*c + a*b*e`, it would capture `a*b*c`,
+    but not `a*b`.
+
+    The 'advanced' algorithm also extracts subsets of operands from a
+    given n-ary operation, e.g. `a*b` in `a*b*c*d`. In particular, for a given
+    operation `op(a1, a2, ..., an)` it searches for `n-2` additional
+    sub-expressions of increasing size, namely `a1*a2`, `a1*a2*a3`, etc.
+    This algorithm heuristically relies on SymPy's canonical ordering of operands
+    to maximize the likelihood of finding common sub-expressions.
+
+    Parameters
+    ----------
+    cluster : Cluster
+        The input Cluster.
+    sregistry : SymbolRegistry
+        The symbol registry to use for creating temporaries.
+    options : dict
+        The optimization options.
+        Accepted: ['cse-min-cost', 'cse-algo'].
+        * 'cse-min-cost': int. The minimum cost of a common sub-expression to be
+          considered for CSE. Default is 1.
+        * 'cse-algo': str. The CSE algorithm to apply. Accepted: ['default',
+          'advanced']. Default is 'default'.
     """
+    min_cost = options['cse-min-cost']
+    mode = options['cse-algo']
+
     make = lambda: CTemp(name=sregistry.make_name(), dtype=cluster.dtype)
-    exprs = _cse(cluster, make,
-                 min_cost=options['cse-min-cost'],
-                 mode=options['cse-algo'])
+
+    exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 
     return cluster.rebuild(exprs=exprs)
 
 
 def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     """
-    Main common sub-expressions elimination routine.
-
-    Note: the output is guaranteed to be topologically sorted.
+    Carry out the bulk of the CSE process.
 
     Parameters
     ----------
@@ -58,15 +83,17 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     make : callable
         Build symbols to store temporary, redundant values.
     mode : str, optional
-        The CSE algorithm applied. Accepted: ['default', 'tuplets', 'advanced'].
-    """
-    assert mode in ('default', 'tuplets', 'advanced')
+        The CSE algorithm applied. Accepted: ['default', 'advanced'].
 
-    # Note: not defaulting to SymPy's CSE() function for three reasons:
-    # - it also captures array index access functions
-    #   (e.g., i+1 in A[i+1] and B[i+1]);
-    # - it sometimes "captures too much", losing factorization opportunities;
-    # - very slow
+    Notes
+    -----
+    We're not using SymPy's CSE for three reasons:
+
+        * It also captures array index access functions (e.g., i+1 in A[i+1]);
+        * It sometimes "captures too much", losing factorization opportunities;
+        * It tends to be very slow.
+    """
+    assert mode in ('default', 'advanced')
 
     # Accept Clusters, Eqs or even just exprs
     if isinstance(maybe_exprs, Cluster):
@@ -94,111 +121,47 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     d_anti = {i.source.access for i in scope.d_anti.independent()}
     exclude = d_flow & d_anti
 
-    if mode in ('default', 'advanced'):
-        exprs = _cse_default(exprs, exclude, make, min_cost)
-    if mode in ('tuplets', 'advanced'):
-        exprs = _cse_tuplets(exprs, exclude, make)
+    # Perform CSE
+    key = lambda c: c.cost
+
+    scheduled = {}
+    while True:
+        # Detect redundancies
+        candidates = catch(exprs, mode)
+
+        # Rule out Dimension-independent data dependencies
+        candidates = [c for c in candidates if not c.expr.free_symbols & exclude]
+
+        if not candidates:
+            break
+
+        # Start with the largest
+        cost = key(max(candidates, key=key))
+        if cost < min_cost:
+            break
+        candidates = [c for c in candidates if c.cost == cost]
+
+        # Apply replacements
+        chosen = [(c, scheduled.get(c.key) or make()) for c in candidates]
+        exprs = _inject(exprs, chosen, scheduled)
 
     # Drop useless temporaries (e.g., r0=r1)
-    processed = _compact_temporaries(exprs, exclude)
+    processed = _compact(exprs, exclude)
+
+    # Ensure topo-sorting
+    if mode == 'advanced':
+        processed = _toposort(processed)
 
     return processed
 
 
-def _cse_default(exprs, exclude, make, min_cost):
+def _inject(exprs, chosen, scheduled):
     """
-    The default common sub-expressions elimination algorithm.
+    Insert temporaries into the expression list.
+
+    The resulting expression list may not be topologically sorted. The caller
+    is responsible for ensuring that.
     """
-    while True:
-        # Detect redundancies
-        counted = count(exprs).items()
-        targets = OrderedDict([(k, estimate_cost(k.expr, True))
-                               for k, v in counted if v > 1])
-
-        # Rule out Dimension-independent data dependencies
-        targets = OrderedDict([(k, v) for k, v in targets.items()
-                               if not k.expr.free_symbols & exclude])
-        if not targets or max(targets.values()) < min_cost:
-            break
-
-        # Create temporaries
-        hit = max(targets.values())
-        chosen = [(k, make()) for k, v in targets.items() if v == hit]
-
-        # Apply replacements
-        exprs, scheduled = _inject_temporaries(exprs, chosen, exclude)
-
-        # Update `exclude` for the same reasons as above -- to rule out CSE across
-        # Dimension-independent data dependences
-        exclude.update(scheduled)
-
-    return exprs
-
-
-def _cse_tuplets(exprs, exclude, make):
-    """
-    The tuplets-based common sub-expressions elimination algorithm.
-
-    This algo relies on SymPy's canonical ordering of operands. It extracts
-    sub-expressions of decreasing size that may or may not be redundant.
-
-    Unlike the default algorithm, this one looks inside the individual operations.
-    However, it does so speculatively, as it doesn't attempt to estimate the cost
-    of the extracted sub-expressions, which would be an hard problem to solve.
-
-    Another simplification is that we only explore operations whose operands are
-    leaves, i.e., symbols or indexed objects.
-
-    Examples
-    --------
-    Given the expression `a*b*c*d + c*d + a*b*c + a*b*e`, the following
-    sub-expressions are extracted: `r0 = a*b, r1 = r0*c`, which leads to the
-    following optimized expression: `r1*d + c*d + r1 + r0*e`.
-    """
-    key = lambda candidate: len(candidate.expr.args)
-
-    while True:
-        mapper = defaultdict(list)
-        for e in exprs:
-            try:
-                cond = e.conditionals
-            except AttributeError:
-                cond = None
-
-            for op in (Add, Mul):
-                for i in search(e, op):
-                    # The args are in canonical order (thanks to SymPy); let's pick
-                    # the largest sub-expression that is not `i` itself
-                    args = i.args[:-1]
-
-                    terms = [a for a in args if q_leaf(a)]
-
-                    if len(terms) > 1:
-                        mapper[Candidate(op(*terms), cond)].append(i)
-
-        #mapper = {k: v for k, v in mapper.items()
-        #          if not k.expr.free_symbols & exclude}
-
-        if not mapper:
-            break
-
-        # Create temporaries of decreasing size
-        hit = max(mapper, key=key)
-        chosen = [(Candidate(i.expr, i.conditionals, sources), make())
-                  for i, sources in mapper.items() if key(i) == key(hit)]
-
-        # Apply replacements
-        exprs, _ = _inject_temporaries(exprs, chosen, exclude)
-
-    return exprs
-
-
-def _inject_temporaries(exprs, chosen, exclude):
-    """
-    Insert temporaries into the expression list such that they appear right
-    before the first expression that contains them.
-    """
-    scheduled = []
     processed = []
     for e in exprs:
         pe = e
@@ -206,37 +169,49 @@ def _inject_temporaries(exprs, chosen, exclude):
             if k.conditionals != e.conditionals:
                 continue
 
-            if k.sources:
-                # Perform compound-based replacement, see uxreplace.__doc__
-                args = list(k.expr.args)
-                pivot = args.pop(0)
-                compound = {pivot: v, **{a: None for a in args}}
-                subs = {i: compound for i in k.sources}
-            else:
-                subs = {k.expr: v}
+            if e.lhs is v:
+                # This happens when `k.expr` wasn't substituted in a previous
+                # iteration because `k.sources` (whose construction
+                # is based on heuristics to avoid a combinatorial explosion)
+                # didn't include all of the `k.expr` occurrences across `exprs`,
+                # in particular those as part of a middle-term in a n-ary operation
+                # (e.g., `b*c` in `a*b*c*d`)
+                assert k.expr == e.rhs
+                continue
+
+            subs = k.as_subs(v)
 
             pe, changed = _uxreplace(pe, subs)
-            if changed and v not in scheduled:
+
+            if changed and k.key not in scheduled:
                 processed.append(pe.func(v, k.expr, operation=None))
-                scheduled.append(v)
+                scheduled[k.key] = v
+
         processed.append(pe)
 
-    return processed, scheduled
+    return processed
 
 
-def _compact_temporaries(exprs, exclude):
+def _compact(exprs, exclude):
     """
-    Drop temporaries consisting of isolated symbols.
+    Drop useless temporaries:
+
+        * Temporaries of the form `t0 = s`, where `s` is a leaf;
+        * Temporaries of the form `t0 = expr` such that `t0` is accessed only once.
     """
-    # First of all, convert to SSA
     exprs = makeit_ssa(exprs)
 
-    # Drop candidates are all exprs in the form `t0 = s` where `s` is a symbol
-    # Note: only CSE-captured Temps, which are by construction local objects, may
-    # safely be compacted; a generic Symbol could instead be accessed in a subsequent
-    # Cluster, for example: `for (i = ...) { a = b; for (j = a ...) ...`
-    mapper = {e.lhs: e.rhs for e in exprs
-              if isinstance(e.lhs, CTemp) and q_leaf(e.rhs) and e.lhs not in exclude}
+    # Only CSE-captured Temps, namely CTemps, can safely be optimized; a
+    # generic Symbol could instead be accessed in a subsequent Cluster, e.g.
+    # `for (i = ...) { a = b; for (j = a ...) ... }`
+    candidates = [e for e in exprs if isinstance(e.lhs, CTemp)]
+
+    mapper = {e.lhs: e.rhs for e in candidates
+              if q_leaf(e.rhs) and e.lhs not in exclude}
+
+    #TODO? TO GO?
+    mapper.update({e.lhs: e.rhs for e in candidates
+                   if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
 
     processed = []
     for e in exprs:
@@ -250,65 +225,181 @@ def _compact_temporaries(exprs, exclude):
     return processed
 
 
+def _toposort(exprs):
+    """
+    Ensure the expression list is topologically sorted.
+    """
+    dag = DAG(exprs)
+
+    for e0 in exprs:
+        if not isinstance(e0.lhs, CTemp):
+            continue
+
+        for e1 in exprs:
+            if e0.lhs in e1.rhs.free_symbols:
+                dag.add_edge(e0, e1, force_add=True)
+
+    def choose_element(queue, scheduled):
+        # Try to honor temporary names as much as possible
+        first = sorted(queue, key=lambda i: i.lhs.base.name).pop(0)
+        queue.remove(first)
+        return first
+
+    processed = dag.topological_sort(choose_element)
+
+    return processed
+
+
+class Candidate(tuple):
+
+    def __new__(cls, expr, conditionals=None, sources=()):
+        conditionals = frozendict(conditionals or {})
+        sources = as_tuple(sources)
+        return tuple.__new__(cls, (expr, conditionals, sources))
+
+    @property
+    def expr(self):
+        return self[0]
+
+    @property
+    def conditionals(self):
+        return self[1]
+
+    @property
+    def sources(self):
+        return self[2]
+
+    @property
+    def key(self):
+        return (self.expr, self.conditionals)
+
+    @cached_property
+    def cost(self):
+        if len(self.sources) == 1:
+            return 0
+        else:
+            return estimate_cost(self.expr)
+
+    def as_subs(self, v):
+        subs = {self.expr: v}
+
+        # Also add in subs for compound-based replacement
+        # E.g., `a*b*c*d` -> `r0*c*d`
+        for i in self.sources:
+            if self.expr == i:
+                continue
+
+            args = [v]
+            queue = list(self.expr.args)
+            for a in i.args:
+                try:
+                    queue.remove(a)
+                except ValueError:
+                    args.append(a)
+            assert not queue
+            subs[i] = self.expr.func(*args)
+
+        return subs
+
+
+def catch(exprs, mode):
+    """
+    Return all common sub-expressions in `exprs` as Candidates.
+    """
+    mapper = _catch(exprs)
+
+    candidates = []
+    for k, v in mapper.items():
+        if mode == 'default':
+            sources = [i for i in v if i == k.expr]
+        else:
+            sources = v
+
+        if len(sources) > 1:
+            candidates.append(Candidate(k.expr, k.conditionals, sources))
+
+    return candidates
+
+
 @singledispatch
-def count(expr):
+def _catch(expr):
     """
-    Construct a mapper `expr -> #occurrences` for each sub-expression in `expr`.
+    Construct a mapper `(expr, cond) -> [occurrences]` for each sub-expression
+    in `expr`.
+
+    For example, given `expr = a*b*c`, the output would be:
+    `{(a*b*c, None): [a*b*c], (a*b, None): [a*b*c]}`.
     """
-    mapper = Counter()
+    mapper = defaultdict(list)
     for a in expr.args:
-        mapper.update(count(a))
+        for k, v in _catch(a).items():
+            mapper[k].extend(v)
     return mapper
 
 
-@count.register(list)
-@count.register(tuple)
+@_catch.register(list)
+@_catch.register(tuple)
 def _(exprs):
-    mapper = Counter()
+    mapper = defaultdict(list)
     for e in exprs:
-        mapper.update(count(e))
-
+        for k, v in _catch(e).items():
+            mapper[k].extend(v)
     return mapper
 
 
-@count.register(sympy.Eq)
+@_catch.register(sympy.Eq)
 def _(expr):
-    mapper = count(expr.rhs)
+    mapper = _catch(expr.rhs)
     try:
         cond = expr.conditionals
     except AttributeError:
         cond = frozendict()
-    return {Candidate(e, cond): v for e, v in mapper.items()}
+    return {Candidate(c.expr, cond): v for c, v in mapper.items()}
 
 
-@count.register(Indexed)
-@count.register(Symbol)
+@_catch.register(Indexed)
+@_catch.register(Symbol)
 def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.
     """
-    return Counter()
+    return {}
 
 
-@count.register(IndexDerivative)
+@_catch.register(IndexDerivative)
 def _(expr):
     """
     Handler for symbol-binding objects. There can be many of them and therefore
     they should be detected as common subexpressions, but it's either pointless
     or forbidden to look inside them.
     """
-    return Counter([expr])
+    return {Candidate(expr): [expr]}
 
 
-@count.register(Add)
-@count.register(Mul)
-@count.register(Pow)
-@count.register(Function)
+@_catch.register(Add)
+@_catch.register(Mul)
 def _(expr):
-    mapper = Counter()
-    for a in expr.args:
-        mapper.update(count(a))
+    mapper = _catch(expr.args)
 
-    mapper[expr] += 1
+    mapper[Candidate(expr)].append(expr)
+
+    for n in range(2, len(expr.args)):
+        terms = expr.args[:n]
+
+        # Heuristic: let the factorizer handle the rest
+        terms = [a for a in terms if q_terminal(a)]
+
+        v = expr.func(*terms, evaluate=False)
+        mapper[Candidate(v)].append(expr)
+
+    return mapper
+
+
+@_catch.register(Pow)
+@_catch.register(Function)
+def _(expr):
+    mapper = _catch(expr.args)
+
+    mapper[Candidate(expr)].append(expr)
 
     return mapper
