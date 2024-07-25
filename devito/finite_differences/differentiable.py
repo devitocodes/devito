@@ -511,6 +511,7 @@ class Add(DifferentiableOp, sympy.Add):
         # set of basic simplifications
 
         # (a+b)+c -> a+b+c (flattening)
+        # TODO: use symbolics.flatten_args; not using it to avoid a circular import
         nested, others = split(args, lambda e: isinstance(e, Add))
         args = flatten(e.args for e in nested) + list(others)
 
@@ -533,6 +534,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         # to avoid generating functional, but ugly, code
 
         # (a*b)*c -> a*b*c (flattening)
+        # TODO: use symbolics.flatten_args; not using it to avoid a circular import
         nested, others = split(args, lambda e: isinstance(e, Mul))
         args = flatten(e.args for e in nested) + list(others)
 

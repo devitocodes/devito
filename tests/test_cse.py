@@ -1,5 +1,6 @@
 import pytest
 
+import numpy as np
 from sympy import Ge, Lt
 from sympy.core.mul import _mulsort
 
@@ -35,7 +36,7 @@ from devito.types import Array, Symbol, Temp
     # Divisions (== powers with negative exponenet) are always captured
     (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
      ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0'], 0),
-    # `compact_temporaries` must detect chains of isolated temporaries
+    # `cse._compact(...)` must detect chains of isolated temporaries
     (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
      ['tv[t, x, y, z]'], 0),
     # Dimension-independent flow+anti dependences should be a stopper for CSE
@@ -54,22 +55,23 @@ from devito.types import Array, Symbol, Temp
     # Fancy use case with lots of temporaries
     (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
       'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
-     ['1/h_x', '-r11*tu[t, x, y, z] + r11*tu[t, x + 1, y, z] + 1',
-      '-r11*tv[t, x, y, z] + r11*tv[t, x + 1, y, z] + 1',
-      '1/dt', '-r12*tv[t, x - 1, y - 1, z] + r12*tv[t + 1, x - 1, y - 1, z]',
-      '-r12*tv[t, x + 1, y - 1, z] + r12*tv[t + 1, x + 1, y - 1, z]',
-      '-r12*tv[t, x, y - 1, z] + r12*tv[t + 1, x, y - 1, z]',
-      '-r12*tv[t, x - 1, y + 1, z] + r12*tv[t + 1, x - 1, y + 1, z]',
-      '-r12*tv[t, x + 1, y + 1, z] + r12*tv[t + 1, x + 1, y + 1, z]',
-      '-r12*tv[t, x, y + 1, z] + r12*tv[t + 1, x, y + 1, z]',
-      '-r12*tv[t, x - 1, y, z] + r12*tv[t + 1, x - 1, y, z]',
-      '-r12*tv[t, x + 1, y, z] + r12*tv[t + 1, x + 1, y, z]',
-      '-r12*tv[t, x, y, z] + r12*tv[t + 1, x, y, z]',
-      'h_x**(-2)', '-2.0*r13', 'h_y**(-2)', '-2.0*r14',
-      'r10*(r13*r6 + r13*r7 + r8*r9) + r14*(r0*r13 + r1*r13 + r2*r9) + ' +
-      'r14*(r13*r3 + r13*r4 + r5*r9) + 1',
-      'r13*(r0*r14 + r10*r6 + r14*r3) + r13*(r1*r14 + r10*r7 + r14*r4) + ' +
-      'r9*(r10*r8 + r14*r2 + r14*r5) + 2'], 0),
+     ['1/h_x',
+      '-r9*tu[t, x, y, z] + r9*tu[t, x + 1, y, z] + 1',
+      '-r9*tv[t, x, y, z] + r9*tv[t, x + 1, y, z] + 1',
+      '1/dt',
+      '-r10*tv[t, x - 1, y - 1, z] + r10*tv[t + 1, x - 1, y - 1, z]',
+      '-r10*tv[t, x + 1, y - 1, z] + r10*tv[t + 1, x + 1, y - 1, z]',
+      '-r10*tv[t, x, y - 1, z] + r10*tv[t + 1, x, y - 1, z]',
+      '-r10*tv[t, x - 1, y + 1, z] + r10*tv[t + 1, x - 1, y + 1, z]',
+      '-r10*tv[t, x + 1, y + 1, z] + r10*tv[t + 1, x + 1, y + 1, z]',
+      '-r10*tv[t, x, y + 1, z] + r10*tv[t + 1, x, y + 1, z]',
+      '-r10*tv[t, x - 1, y, z] + r10*tv[t + 1, x - 1, y, z]',
+      '-r10*tv[t, x + 1, y, z] + r10*tv[t + 1, x + 1, y, z]',
+      '-r10*tv[t, x, y, z] + r10*tv[t + 1, x, y, z]',
+      'h_y**(-2)',
+      'h_x**(-2)',
+      '(-2.0*r11)*(r12*r6 + r12*r7 - 2.0*r12*r8) + r11*(r0*r12 + r1*r12 - 2.0*r12*r2) + r11*(r12*r3 + r12*r4 - 2.0*r12*r5) + 1',
+      '(-2.0*r12)*(r11*r2 + r11*r5 - 2.0*r11*r8) + r12*(r0*r11 + r11*r3 - 2.0*r11*r6) + r12*(r1*r11 + r11*r4 - 2.0*r11*r7) + 2'], 0),
     # Existing temporaries from nested Function as index
     (['Eq(e0, fx[x])', 'Eq(tu, cos(-tu[t, e0, y, z]) + tv[t, x, y, z])',
       'Eq(tv, cos(tu[t, e0, y, z]) + tw)'],
@@ -91,14 +93,16 @@ def test_default_algo(exprs, expected, min_cost):
     tw = TimeFunction(name="tw", grid=grid, space_order=2)  # noqa
     tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
     fx = Function(name="fx", grid=grid, dimensions=(x,), shape=(3,))  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
-    t0 = CTemp(name='t0')  # noqa
-    t1 = CTemp(name='t1')  # noqa
-    t2 = CTemp(name='t2')  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z),
+                dtype=np.float32).indexify()  # noqa
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z),
+                dtype=np.float32).indexify()  # noqa
+    t0 = CTemp(name='t0', dtype=np.float32)  # noqa
+    t1 = CTemp(name='t1', dtype=np.float32)  # noqa
+    t2 = CTemp(name='t2', dtype=np.float32)  # noqa
     # Needs to not be a Temp to mimic nested index extraction and prevent
     # cse to compact the temporary back.
-    e0 = Symbol(name='e0')  # noqa
+    e0 = Symbol(name='e0', dtype=np.float32)  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
@@ -201,26 +205,43 @@ def test_w_multi_conditionals():
 
 @pytest.mark.parametrize('exprs,expected', [
     (['Eq(u, sin(f)*cos(g)*sin(g) + sin(f)*cos(g)*cos(f))'],
-     ['cos(g[x, y, z])', 'sin(f[x, y, z])', 'r0*r1',
+     ['sin(f[x, y, z])*cos(g[x, y, z])',
       'r2*sin(g[x, y, z]) + r2*cos(f[x, y, z])']),
     (['Eq(u, sin(f)*cos(f)*sin(g)*cos(g) + sin(f)*cos(f)*sin(g) + sin(f)*cos(f))'],
-     ['cos(f[x, y, z])', 'sin(f[x, y, z])', 'sin(g[x, y, z])', 'r0*r1',
-      'r2*r4', 'r0*r1 + r2*r4 + r3*cos(g[x, y, z])']),
+     ['sin(f[x, y, z])*cos(f[x, y, z])', 'r4*sin(g[x, y, z])',
+      'r3*cos(g[x, y, z]) + r3 + r4']),
+    (['Eq(u, t0*t1*t2)'],
+     ['t0*t1*t2']),
+    # Because of the compound heuristic, we ain't catching the inner r0*r1
+    (['Eq(u, 2*sin(f)*cos(f)*sin(g) + 3*sin(f)*cos(f))'],
+     ['cos(f[x, y, z])', 'sin(f[x, y, z])', '2*r0*r1*sin(g[x, y, z]) + 3*r0*r1']),
+    (['Eq(u, 2*sin(f)*cos(f)*sin(g) + sin(f)*cos(f))'],
+     ['sin(f[x, y, z])*cos(f[x, y, z])', '2*r2*sin(g[x, y, z]) + r2']),
+    (['Eq(u, t0 + t1 - (t2 + t3 + f))', 'Eq(v, t0 + t1 - (t2 + t3 + g))'],
+     ['t0 + t1', 'r0 - t2 - t3 - f[x, y, z]', 'r0 - t2 - t3 - g[x, y, z]']),
+    (['Eq(u, t0 + t1 - f*(t2 + t3))', 'Eq(v, f*(t0 + t1) - g*(t2 + t3))'],
+     ['t2 + t3', 't0 + t1', '-r0*f[x, y, z] + r1',
+      '-r0*g[x, y, z] + r1*f[x, y, z]']),
 ])
-def test_tuplets_algo(exprs, expected):
-    """Test the tuplets-based common subexpressions elimination algorithm."""
+def test_advanced_algo(exprs, expected):
+    """Test the advanced common subexpressions elimination algorithm."""
     grid = Grid((3, 3, 3))
 
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
-    u = TimeFunction(name="u", grid=grid, space_order=2)
+    f = Function(name='f', grid=grid) # noqa
+    g = Function(name='g', grid=grid) # noqa
+    u = TimeFunction(name="u", grid=grid, space_order=2)  # noqa
+    v = TimeFunction(name="v", grid=grid, space_order=2)  # noqa
+    t0 = CTemp(name='t0', dtype=np.float32)  # noqa
+    t1 = CTemp(name='t1', dtype=np.float32)  # noqa
+    t2 = CTemp(name='t2', dtype=np.float32)  # noqa
+    t3 = CTemp(name='t3', dtype=np.float32)  # noqa
 
     # List comprehension would need explicit locals/globals mappings to eval
     for i, e in enumerate(list(exprs)):
         exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
-    make = lambda: CTemp(name='r%d' % counter()).indexify()
+    make = lambda: CTemp(name='r%d' % counter(), dtype=np.float32).indexify()
     processed = _cse(exprs, make, mode='advanced')
 
     assert len(processed) == len(expected)

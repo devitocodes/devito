@@ -1763,7 +1763,7 @@ class TestAliases:
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
-    @pytest.mark.parametrize('so_ops', [(4, 146), (8, 210)])
+    @pytest.mark.parametrize('so_ops', [(4, 147), (8, 211)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_complete(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
