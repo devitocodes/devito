@@ -586,7 +586,7 @@ class Mul(DifferentiableOp, sympy.Mul):
 
         func_args = highest_priority(self)
         new_args = []
-        ref_inds = func_args.indices_ref._getters
+        ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
             if f not in self._args_diff:
@@ -594,7 +594,7 @@ class Mul(DifferentiableOp, sympy.Mul):
             elif f is func_args or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
-                ind_f = f.indices_ref._getters
+                ind_f = f.indices_ref.getters
                 mapper = {ind_f.get(d, d): ref_inds.get(d, d)
                           for d in self.dimensions
                           if ind_f.get(d, d) is not ref_inds.get(d, d)}

@@ -99,7 +99,7 @@ def test_gather_for_diff(expr, expected):
 
 @pytest.mark.parametrize('expr, expected', [
     ('((a + b).dx._eval_at(a)).is_Add', 'True'),
-    ('(a + b).dx._eval_at(a)', 'a.dx(x0=a.indices_ref._getters) + b.dx._eval_at(a)'),
+    ('(a + b).dx._eval_at(a)', 'a.dx(x0=a.indices_ref.getters) + b.dx._eval_at(a)'),
     ('(a*b).dx._eval_at(a).expr', 'a.subs({x: x0}) * b'),
     ('(a * b.dx).dx._eval_at(b).expr._eval_deriv ',
      'a.subs({x: x0}) * b.dx.evaluate')])
