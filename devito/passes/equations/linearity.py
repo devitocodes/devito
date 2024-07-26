@@ -103,7 +103,7 @@ def _(expr, mapper, nn_derivs=None):
 @aggregate_coeffs.register(sympy.Derivative)
 def _(expr, mapper, nn_derivs=None):
     # Opens up a new derivative scope, so do not propagate `nn_derivs`
-    args = [aggregate_coeffs(a, mapper) for a in expr.args]
+    args = [aggregate_coeffs(expr.expr, mapper)]
     expr = reuse_if_untouched(expr, args)
 
     return expr
@@ -164,10 +164,10 @@ def _(expr, mapper, nn_derivs=None):
         return expr
 
     if len(derivs) == 1 and with_deriv is derivs[0]:
-        expr = with_deriv._new_from_self(expr=expr.func(*hope_coeffs, with_deriv.expr))
+        expr = with_deriv._rebuild(expr=expr.func(*hope_coeffs, with_deriv.expr))
     else:
         others = [expr.func(*hope_coeffs, a) for a in others]
-        derivs = [a._new_from_self(expr=expr.func(*hope_coeffs, a.expr)) for a in derivs]
+        derivs = [a._rebuild(expr=expr.func(*hope_coeffs, a.expr)) for a in derivs]
         expr = with_deriv.func(*(derivs + others))
 
     return expr
@@ -187,6 +187,14 @@ def factorize_derivatives(expr):
 @factorize_derivatives.register(sympy.Symbol)
 @factorize_derivatives.register(sympy.Function)
 def _(expr):
+    return expr
+
+
+@factorize_derivatives.register(sympy.Derivative)
+def _(expr):
+    args = [factorize_derivatives(expr.expr)]
+    expr = reuse_if_untouched(expr, args)
+
     return expr
 
 
@@ -216,7 +224,7 @@ def _(expr):
         if len(v) == 1:
             args.append(c)
         else:
-            args.append(c._new_from_self(expr=expr.func(*[i.expr for i in v])))
+            args.append(c._rebuild(expr=expr.func(*[i.expr for i in v])))
     expr = expr.func(*args)
 
     return expr
