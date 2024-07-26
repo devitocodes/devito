@@ -25,10 +25,12 @@ from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
+from devito.passes.iet.langbase import LangBB
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val)
+from devito.tools.dtypes_lowering import ctypes_vector_mapper
 from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
                           disk_layer)
 
@@ -264,6 +266,9 @@ class Operator(Callable):
         # expression for which a partial or complete lowering is desired
         kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
 
+        # Load language-specific types into the global dtype->ctype mapper
+        cls._load_dtype_mappings(**kwargs)
+
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
 
@@ -284,6 +289,11 @@ class Operator(Callable):
     @classmethod
     def _rcompile_wrapper(cls, **kwargs0):
         raise NotImplementedError
+
+    @classmethod
+    def _load_dtype_mappings(cls, **kwargs):
+        lang: type[LangBB] = cls._Target.DataManager.lang
+        ctypes_vector_mapper.update(lang.mapper.get('types', {}))
 
     @classmethod
     def _initialize_state(cls, **kwargs):
