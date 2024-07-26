@@ -346,9 +346,9 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
-        # Nonnegative should always be set
-        if 'nonnegative' not in assumptions:
-            assumptions.update({'nonnegative': False})
+        # Handle the nonnegative argument
+        if 'nonnegative' in assumptions and assumptions['nonnegative'] is None:
+            assumptions.pop('nonnegative')
 
         return assumptions, kwargs
 
@@ -437,7 +437,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         """
         Alias for is_nonnegative
         """
-        return False if self.is_nonnegative is None else self.is_nonnegative
+        return self.is_nonnegative
 
     @property
     def _C_name(self):

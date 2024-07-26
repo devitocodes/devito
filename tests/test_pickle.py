@@ -195,7 +195,7 @@ class TestBasic:
         assert new_s.name == s.name
         assert new_s.dtype is np.int32
         assert new_s.is_const is True
-        assert new_s.nonnegative is False
+        assert new_s.nonnegative is None
 
         s = Scalar(name='s', nonnegative=True)
         pkl_s = pickle.dumps(s)
@@ -436,9 +436,6 @@ class TestBasic:
 
         pkl_gb = pickle.dumps(gb)
         new_gb = pickle.loads(pkl_gb)
-
-        print(gb._args_rebuild)
-        print(new_gb._args_rebuild)
 
         assert str(gb) == str(new_gb)
 

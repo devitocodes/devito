@@ -668,7 +668,6 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             assert hs.body.is_Call
             return hs.body._rebuild(dynamic_args_mapper=hs.omapper.core)
         else:
-            # FIXME: Fails when it goes down this route
             return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
     def _make_wait(self, f, hse, key, msg=None):
