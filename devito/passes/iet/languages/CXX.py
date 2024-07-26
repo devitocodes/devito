@@ -3,8 +3,7 @@ import numpy as np
 from devito.ir import Call, UsingNamespace
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import c_float16, c_float16_p
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
-from devito.tools.dtypes_lowering import ctypes_vector_mapper
+from devito.symbolics.extended_dtypes import Float16P, c_complex, c_double_complex
 
 __all__ = ['CXXBB']
 
@@ -46,29 +45,8 @@ std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
 """
 
 
-class CXXCFloat(np.complex64):
-    pass
-
-
-class CXXCDouble(np.complex128):
-    pass
-
-
-class CXXHalf(np.float16):
-    pass
-
-
-class CXXHalfP(np.float16):
-    pass
-
-
 cxx_complex = type('std::complex<float>', (c_complex,), {})
 cxx_double_complex = type('std::complex<double>', (c_double_complex,), {})
-
-ctypes_vector_mapper[CXXCFloat] = cxx_complex
-ctypes_vector_mapper[CXXCDouble] = cxx_double_complex
-ctypes_vector_mapper[CXXHalf] = c_float16
-ctypes_vector_mapper[CXXHalfP] = c_float16_p
 
 
 class CXXBB(LangBB):
@@ -89,7 +67,8 @@ class CXXBB(LangBB):
         'header-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
         'def-complex': std_arith,
-        'types': {np.complex128: CXXCDouble, np.complex64: CXXCFloat,
-                  np.float16: CXXHalf},
-        'half_types': (CXXHalf, CXXHalfP),
+        "types": {np.complex128: cxx_double_complex,
+                  np.complex64: cxx_complex,
+                  np.float16: c_float16,
+                  Float16P: c_float16_p}
     }

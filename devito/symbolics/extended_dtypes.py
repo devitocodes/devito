@@ -7,7 +7,7 @@ from devito.tools import (Bunch, float2, float3, float4, double2, double3, doubl
 
 __all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
-           'c_half', 'c_half_p']
+           'c_half', 'c_half_p', 'Float16P']
 
 
 limits_mapper = {
@@ -62,6 +62,16 @@ class c_half_p(ctypes.POINTER(c_half)):
     def from_param(cls, val):
         arr = np.array(val, dtype=np.float16)
         return arr.ctypes.data_as(cls)
+
+
+class Float16P(np.float16):
+    """
+    Dummy dtype for a scalar float16 value that's been mapped to a pointer.
+    This is needed because we can't directly pass in the values; we map to
+    pointers and dereference in the kernel; see `passes.iet.dtypes`.
+    """
+
+    pass
 
 
 class CustomType(ReservedWord):
