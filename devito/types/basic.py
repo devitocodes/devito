@@ -346,6 +346,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
+        # Nonnegative should always be set
+        if 'nonnegative' not in assumptions:
+            assumptions.update({'nonnegative': False})
+
         return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):
@@ -383,7 +387,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __hash__ = sympy.Symbol.__hash__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.dtype, self.is_const)
+        return super()._hashable_content() \
+            + (self.dtype, self.is_const, self.nonnegative)
 
     @property
     def dtype(self):
@@ -429,7 +434,10 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     @property
     def nonnegative(self):
-        return self.is_nonnegative
+        """
+        Alias for is_nonnegative
+        """
+        return False if self.is_nonnegative is None else self.is_nonnegative
 
     @property
     def _C_name(self):
