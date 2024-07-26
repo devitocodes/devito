@@ -2123,7 +2123,6 @@ class TestOperatorAdvanced:
         assert np.all(v.data_ro_domain[1, :, 1] == 4.)
         assert np.all(v.data_ro_domain[1, :, 2] == 4.)
         assert np.all(v.data_ro_domain[1, :, 3] == 0.)
-        assert False
 
     @pytest.mark.parallel(mode=2)
     def test_haloupdate_same_timestep(self, mode):
