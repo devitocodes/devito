@@ -164,10 +164,10 @@ def _(expr, mapper, nn_derivs=None):
         return expr
 
     if len(derivs) == 1 and with_deriv is derivs[0]:
-        expr = with_deriv._new_from_self(expr=expr.func(*hope_coeffs, with_deriv.expr))
+        expr = with_deriv._rebuild(expr.func(*hope_coeffs, with_deriv.expr))
     else:
         others = [expr.func(*hope_coeffs, a) for a in others]
-        derivs = [a._new_from_self(expr=expr.func(*hope_coeffs, a.expr)) for a in derivs]
+        derivs = [a._rebuild(expr.func(*hope_coeffs, a.expr)) for a in derivs]
         expr = with_deriv.func(*(derivs + others))
 
     return expr
@@ -216,7 +216,7 @@ def _(expr):
         if len(v) == 1:
             args.append(c)
         else:
-            args.append(c._new_from_self(expr=expr.func(*[i.expr for i in v])))
+            args.append(c._rebuild(expr.func(*[i.expr for i in v])))
     expr = expr.func(*args)
 
     return expr
