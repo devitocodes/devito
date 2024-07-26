@@ -126,10 +126,6 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
         return obj
 
-    def _rebuild(self, *args, **kwargs):
-        kwargs['preprocessed'] = True
-        return super()._rebuild(*args, **kwargs)
-
     @classmethod
     def _process_kwargs(cls, expr, *dims, **kwargs):
         """
@@ -236,6 +232,12 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
         return self._rebuild(fd_order=_fd_order, x0=_x0)
 
+    def _rebuild(self, *args, **kwargs):
+        kwargs['preprocessed'] = True
+        return super()._rebuild(*args, **kwargs)
+
+    func = _rebuild
+
     def _subs(self, old, new, **hints):
         # Basic case
         if self == old:
@@ -244,7 +246,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         if self.expr.has(old):
             newexpr = self.expr._subs(old, new, **hints)
             try:
-                return self._rebuild(newexpr)
+                return self._rebuild(expr=newexpr)
             except ValueError:
                 # Expr replacement leads to non-differentiable expression
                 # e.g `f.dx.subs(f: 1) = 1.dx = 0`
@@ -365,7 +367,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             mapper = as_mapper(self.expr._args_diff, lambda i: i.staggered)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a, x0=x0) for a in args]
+            args = [self._rebuild(expr=a, x0=x0) for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear

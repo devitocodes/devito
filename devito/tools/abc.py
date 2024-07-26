@@ -143,7 +143,7 @@ class Reconstructable:
 
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
 
-        # Should we use a constum reconstructor?
+        # Should we use a custom reconstructor?
         try:
             cls = self._rcls
         except AttributeError:
