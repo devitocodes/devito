@@ -13,7 +13,7 @@ from devito.ir import (Block, Call, Definition, DummyExpr, Return, EntryFunction
                        FindNodes, FindSymbols, MapExprStmts, Transformer,
                        make_callable)
 from devito.passes import is_gpu_create
-from devito.passes.iet.dtypes import include_complex
+from devito.passes.iet.dtypes import lower_dtypes
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
@@ -466,8 +466,8 @@ class DataManager:
         return iet, {}
 
     @iet_pass
-    def include_complex(self, iet):
-        iet, metadata = include_complex(iet, self.lang, self.compiler)
+    def lower_dtypes(self, iet):
+        iet, metadata = lower_dtypes(iet, self.lang, self.compiler, self.sregistry)
         return iet, metadata
 
     def process(self, graph):
@@ -476,7 +476,7 @@ class DataManager:
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
-        self.include_complex(graph)
+        self.lower_dtypes(graph)
 
 
 class DeviceAwareDataManager(DataManager):
@@ -618,7 +618,7 @@ class DeviceAwareDataManager(DataManager):
         self.place_devptr(graph)
         self.place_bundling(graph, writes_input=graph.writes_input)
         self.place_casts(graph)
-        self.include_complex(graph)
+        self.lower_dtypes(graph)
 
 
 def make_zero_init(obj, rcompile, sregistry):
