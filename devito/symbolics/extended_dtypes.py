@@ -19,7 +19,13 @@ limits_mapper = {
 
 
 class NoDeclStruct(ctypes.Structure):
-    """A ctypes.Structure that does not generate a struct definition"""
+    """
+    A ctypes.Structure that does not generate a struct definition.
+
+    Some foreign types (e.g. complex) need to be passed to C/C++ as a struct
+    that mimics an existing type, but the struct types themselves don't show
+    up in the kernel, so we don't need to generate their definitions.
+    """
 
     pass
 
