@@ -3,7 +3,8 @@ from collections import defaultdict
 from sympy import Add, Mul, S, collect
 
 from devito.ir import cluster_pass
-from devito.symbolics import BasicWrapperMixin, estimate_cost, retrieve_symbols
+from devito.symbolics import (BasicWrapperMixin, estimate_cost, reuse_if_untouched,
+                              retrieve_symbols, q_routine)
 from devito.tools import ReducerMap
 from devito.types.object import AbstractObject
 
@@ -72,6 +73,17 @@ def collect_special(expr):
         else:
             terms.append(i)
 
+    # Any factorization possible?
+    if not any(len(i) > 1 for i in [w_funcs, w_pows, w_coeffs]):
+        # `evaluate=True` below guarantees de-nesting of Adds
+        # For example:
+        # `args[0] = ((0.1*(a + b)) + (0.2*(c + d)))`
+        # `args[1] = ((0.1*(e + f)) + (0.2*(g + h)))`
+        # ->
+        # `expr = (0.1*(a + b) + 0.2*(c + d) + 0.1*(e + f) + 0.2*(g + h))`
+        # Which is then further factorizable by `collect_const`
+        return reuse_if_untouched(expr, args, evaluate=True)
+
     # Collect common funcs
     if len(w_funcs) > 1:
         w_funcs = Add(*w_funcs, evaluate=False)
@@ -96,7 +108,7 @@ def collect_special(expr):
     # Collect common temporaries (r0, r1, ...)
     w_coeffs = Add(*w_coeffs, evaluate=False)
     symbols = retrieve_symbols(w_coeffs)
-    if symbols:
+    if len(set(symbols)) != len(symbols):
         w_coeffs = collect(w_coeffs, symbols, evaluate=False)
         try:
             terms.extend([Mul(k, collect_const(v), evaluate=False)
@@ -127,6 +139,11 @@ def collect_const(expr):
             inverse_mapper[v].append(k)
         else:
             inverse_mapper[-v].append(-k)
+
+    # Any factorization possible?
+    if len(inverse_mapper) == len(expr.args) or \
+       list(inverse_mapper) == [1]:
+        return expr
 
     terms = []
     for k, v in inverse_mapper.items():
@@ -176,6 +193,10 @@ def _collect_nested(expr):
 
     if expr.is_Number:
         return expr, {'coeffs': expr}
+    elif q_routine(expr):
+        # E.g., a DefFunction
+        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        return expr.func(*args, evaluate=False), {}
     elif expr.is_Function:
         return expr, {'funcs': expr}
     elif expr.is_Pow:
@@ -187,7 +208,8 @@ def _collect_nested(expr):
         return strategies['default'](expr), {}
     elif expr.is_Mul:
         args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
-        return Mul(*args), ReducerMap.fromdicts(*candidates)
+        expr = reuse_if_untouched(expr, args, evaluate=True)
+        return expr, ReducerMap.fromdicts(*candidates)
     elif expr.is_Equality:
         args, candidates = zip(*[_collect_nested(expr.lhs),
                                  _collect_nested(expr.rhs)])

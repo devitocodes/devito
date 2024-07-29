@@ -13,7 +13,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos,
-                    sin, sqrt, Ge, Lt)
+                    sin, sqrt, floor, Ge, Lt)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
@@ -276,13 +276,19 @@ def test_pow_to_mul(expr, expected):
 
 @pytest.mark.parametrize('expr,expected', [
     ('s - SizeOf("int")*fa[x]', 's - fa[x]*sizeof(int)'),
+    ('foo(4*fa[x] + 4*fb[x])', 'foo(4*(fa[x] + fb[x]))'),
+    ('floor(0.1*a + 0.1*fa[x])', 'floor(0.1*(a + fa[x]))'),
+    ('floor(0.1*(a + fa[x]))', 'floor(0.1*(a + fa[x]))'),
 ])
 def test_factorize(expr, expected):
     grid = Grid((4, 5))
     x, y = grid.dimensions
 
-    s = Scalar(name='s')  # noqa
+    s = Scalar(name='s', dtype=np.float32)  # noqa
+    a = Symbol(name='a', dtype=np.float32)  # noqa
     fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+    fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+    foo = lambda *args: DefFunction('foo', tuple(args))  # noqa
 
     assert str(collect_nested(eval(expr))) == expected
 
@@ -2205,9 +2211,9 @@ class TestAliases:
         ('v.dx.dx + p.dx.dx',
          (2, 2, (0, 2)), (61, 61, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
-         (3, 3, (0, 3)), (218, 202, 75)),
+         (3, 3, (0, 3)), (218, 202, 66)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
-         (1, 1, (0, 1)), (52, 70, 20)),
+         (1, 1, (0, 1)), (52, 66, 20)),
         ('g*(f.dx.dx + g.dx.dx)',
          (1, 2, (0, 1)), (47, 62, 17)),
     ])
