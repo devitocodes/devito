@@ -141,11 +141,10 @@ class CodePrinter(C99CodePrinter):
         # Need to override because of issue #1627
         # E.g., (Pow(h_x, -1) AND h_x.dtype == np.float32) => 1.0F/h_x
         try:
+            PREC = precedence(expr)
             if expr.exp == -1 and self.single_prec():
-                PREC = precedence(expr)
                 return '1.0F/%s' % self.parenthesize(expr.base, PREC)
             if expr.exp == -1 and self.half_prec():
-                PREC = precedence(expr)
                 return '1.0F16/%s' % self.parenthesize(expr.base, PREC)
         except AttributeError:
             pass
