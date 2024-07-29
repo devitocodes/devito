@@ -27,7 +27,7 @@ def lower_dtypes(iet: Callable, lang: type[LangBB], compiler: Compiler,
 
     # Lower scalar float16s to pointers and dereference them
     params = set(iet.parameters)
-    for s in FindSymbols('scalars').visit(iet):
+    for s in FindSymbols('abstractsymbols').visit(iet):
         if s.dtype != np.float16 or s not in params:
             continue
 
