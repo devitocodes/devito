@@ -1,17 +1,18 @@
-import numpy as np
 import ctypes
+import numpy as np
 
-from devito.ir import FindSymbols
-from devito.ir.iet.nodes import Dereference
-from devito.ir.iet.visitors import Uxreplace
+from devito.arch.compiler import Compiler
+from devito.ir import Callable, Dereference, FindSymbols, SymbolRegistry, Uxreplace
+from devito.passes.iet.langbase import LangBB
 from devito.symbolics.extended_dtypes import Float16P
-from devito.tools.utils import as_list
-from devito.types.basic import Symbol
+from devito.tools import as_list
+from devito.types import Symbol
 
 __all__ = ['lower_dtypes']
 
 
-def lower_dtypes(iet, lang, compiler, sregistry):
+def lower_dtypes(iet: Callable, lang: type[LangBB], compiler: Compiler,
+                 sregistry: SymbolRegistry) -> tuple[Callable, dict]:
     """
     Lowers float16 scalar types to pointers since we can't directly pass their
     value. Also includes headers for complex arithmetic if needed.
@@ -20,13 +21,14 @@ def lower_dtypes(iet, lang, compiler, sregistry):
     iet, metadata = _complex_includes(iet, lang, compiler)
 
     # Lower float16 parameters to pointers and dereference
-    body_prefix = []
+    prefix = []
     body_mapper = {}
     params_mapper = {}
 
     # Lower scalar float16s to pointers and dereference them
+    params = set(iet.parameters)
     for s in FindSymbols('scalars').visit(iet):
-        if not np.issubdtype(s.dtype, np.float16) or s not in iet.parameters:
+        if s.dtype != np.float16 or s not in params:
             continue
 
         # Replace the parameter with a pointer; replace occurences in the IET
@@ -36,17 +38,18 @@ def lower_dtypes(iet, lang, compiler, sregistry):
                      is_const=s.is_const)
 
         params_mapper[s], body_mapper[s] = ptr, val
-        body_prefix.append(Dereference(val, ptr))  # val = *ptr
+        prefix.append(Dereference(val, ptr))  # val = *ptr
 
     # Apply the replacements
-    body = body_prefix + as_list(Uxreplace(body_mapper).visit(iet.body))
+    prefix.extend(as_list(Uxreplace(body_mapper).visit(iet.body)))
     params = Uxreplace(params_mapper).visit(iet.parameters)
 
-    iet = iet._rebuild(body=body, parameters=params)
+    iet = iet._rebuild(body=prefix, parameters=params)
     return iet, metadata
 
 
-def _complex_includes(iet, lang, compiler):
+def _complex_includes(iet: Callable, lang: type[LangBB],
+                      compiler: Compiler) -> tuple[Callable, dict]:
     """
     Include complex arithmetic headers for the given language, if needed.
     """
