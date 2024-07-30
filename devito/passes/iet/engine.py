@@ -606,6 +606,7 @@ def update_args(root, efuncs, dag):
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
     new_params = derive_parameters(root)
+
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
     defines = FindSymbols('defines').visit(root.body)
