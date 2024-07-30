@@ -81,18 +81,20 @@ class TestCodeGeneration:
     def test_complex(self, dtype):
         grid = Grid((5, 5))
         x, y = grid.dimensions
+
+        c = Constant(name='c', dtype=dtype)
         u = Function(name="u", grid=grid, dtype=dtype)
 
-        eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing))
+        eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing) * c)
         op = Operator(eq)
-        op()
+        op(c=1.0 + 2.0j)
 
         # Check against numpy
         dx = grid.spacing_map[x.spacing]
         xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
-        npres = xx + 1j*yy + np.exp(1j + dx)
+        npres = xx + 1j*yy + np.exp(1j + dx) * (1.0 + 2.0j)
 
-        assert np.allclose(u.data, npres.T, rtol=1e-6, atol=0)
+        assert np.allclose(u.data, npres.T, rtol=1e-7, atol=0)
 
 
 class TestPassesOptional:
