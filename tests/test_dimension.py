@@ -12,6 +12,8 @@ from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  
                     CustomDimension, dimensions, configuration, norm, Inc, sum)
 from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
                            FindSymbols, retrieve_iteration_tree)
+from devito.ir.equations.algorithms import concretize_subdims
+from devito.ir import SymbolRegistry
 from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.dimension import AffineIndexAccessFunction
@@ -2020,3 +2022,25 @@ class TestMashup:
         exprs = FindNodes(Expression).visit(bns['ix1_blk0'])
         assert len(exprs) == 2
         assert exprs[1].write is h
+
+
+class TestConcretization:
+    """
+    Class for testing renaming of SubDimensions and MultiSubDimensions
+    during compilation.
+    """
+
+    def test_correct_thicknesses(self):
+        """
+        Check that thicknesses aren't created where they shouldn't be.
+        """
+        x = Dimension('x')
+        ix0 = SubDimension.left('x', x, 2)
+        ix1 = SubDimension.right('x', x, 2)
+        ix2 = SubDimension.middle('x', x, 2, 2)
+
+        rebuilt = concretize_subdims([ix0, ix1, ix2], sregistry=SymbolRegistry())
+
+        assert rebuilt[0].is_left
+        assert rebuilt[1].is_right
+        assert rebuilt[2].is_middle
