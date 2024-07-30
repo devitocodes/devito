@@ -1,13 +1,14 @@
 from collections.abc import Iterable
 from functools import singledispatch
 
-from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
+from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
+                              retrieve_functions)
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.grid import MultiSubDimension
+from devito.types.dimension import MultiSubDimension
 
 __all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
 
@@ -174,6 +175,17 @@ def concretize_subdims(exprs, **kwargs):
     if not mapper:
         return exprs
 
+    # There may be indexed Arrays defined on SubDimensions in the expressions.
+    # These must have their dimensions replaced and their .function attribute
+    # reset to prevent recovery of the original SubDimensions.
+    functions = set().union(*[set(retrieve_functions(e)) for e in exprs])
+    functions = {f for f in functions if f.is_Array}
+    for f in functions:
+        dimensions = tuple(mapper[d] if d in mapper else d for d in f.dimensions)
+        if dimensions != f.dimensions:  # A dimension has been rebuilt
+            # So build a mapper for Indexed
+            mapper[f.indexed] = f._rebuild(dimensions=dimensions, function=None).indexed
+
     processed = [uxreplace(e, mapper) for e in exprs]
 
     return processed
@@ -269,6 +281,7 @@ def _(d, mapper, rebuilt, sregistry):
 
             fdims = (idim1,) + (d.functions.dimensions[1:])
             frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
+                                            halo=None, padding=None,
                                             initializer=d.functions.data)
             rebuilt[d.functions] = functions = frebuilt
 
