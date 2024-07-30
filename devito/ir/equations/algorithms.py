@@ -269,7 +269,6 @@ def _(d, mapper, rebuilt, sregistry):
 
             fdims = (idim1,) + (d.functions.dimensions[1:])
             frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
-                                            halo=None, padding=None,
                                             initializer=d.functions.data)
             rebuilt[d.functions] = functions = frebuilt
 
