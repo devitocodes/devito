@@ -133,7 +133,6 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
     # using devito as a library-generator to be embedded within legacy codes
     if ordering == 'canonical':
         parameters = sorted(parameters, key=lambda p: str(type(p)))
-
     return parameters
 
 
