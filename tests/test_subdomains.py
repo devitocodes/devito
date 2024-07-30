@@ -674,7 +674,7 @@ class TestMultiSubDomain:
         assert_structure(op, ['t,n0', 't,n0,ix0_blk0,iy0_blk0,x,y,z'],
                          't,n0,ix0_blk0,iy0_blk0,x,y,z')
 
-        # Drag a rebuilt MultiSubDimension out of the operator kicking and screaming
+        # Drag a rebuilt MultiSubDimension out of the operator
         dims = {d.name: d for d in FindSymbols('dimensions').visit(op)}
         xi = [d for d in dims['x']._defines if d.is_MultiSub]
         assert len(xi) == 1  # Sanity check
