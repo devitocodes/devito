@@ -376,12 +376,6 @@ class TestBasic:
 
         assert new_fi.name == fi.name
         assert new_fi.accessor == 'fL'
-        from sympy import preorder_traversal
-        import sympy as sp
-        for i, j in zip(fi.indices, new_fi.indices):
-            for ia, ja in zip(preorder_traversal(i), preorder_traversal(j)):
-                print(ia, ja, type(ia), type(ja), ia == ja,
-                      isinstance(ia, sp.core.Basic), isinstance(ja, sp.core.Basic))
         assert new_fi.indices == (x+1, y, z-2)
         assert new_fi.strides_map == fi.strides_map
 

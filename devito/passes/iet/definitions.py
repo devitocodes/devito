@@ -337,6 +337,8 @@ class DataManager:
         storage = Storage()
         defines = FindSymbols('defines-aliases|globals').visit(iet)
 
+        # FIXME: Use of findsymbols here is the culprit, pulls the original
+        # version of a(ix), and thus subdimensions rather than the rebuilt ones
         for i in FindSymbols().visit(iet):
             if i in defines:
                 continue

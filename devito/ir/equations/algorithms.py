@@ -253,8 +253,6 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    # name = sregistry.make_name(prefix=d.name)
-    # ltkn, rtkn = MultiSubDimension._symbolic_thickness(name)
     tkns0 = MultiSubDimension._symbolic_thickness(d.name)
     tkns1 = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
              for tkn in tkns0]
@@ -275,7 +273,6 @@ def _(d, mapper, rebuilt, sregistry):
 
             fdims = (idim1,) + (d.functions.dimensions[1:])
             frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
-                                            halo=None, padding=None,
                                             initializer=d.functions.data)
             rebuilt[d.functions] = functions = frebuilt
 
