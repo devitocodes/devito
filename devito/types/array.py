@@ -6,16 +6,23 @@ from sympy import Expr
 
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
            'ComponentAccess', 'Bag']
 
 
-class ArrayBasic(AbstractFunction):
+class ArrayBasic(AbstractFunction, LocalType):
 
     is_ArrayBasic = True
+
+    __rkwargs__ = AbstractFunction.__rkwargs__ + ('is_const', 'liveness')
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._liveness = kwargs.setdefault('liveness', 'lazy')
+        super().__init_finalize__(*args, **kwargs)
+        self._is_const = kwargs.get('is_const', False)
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
@@ -144,24 +151,12 @@ class Array(ArrayBasic):
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
-    def liveness(self):
-        return self._liveness
-
-    @property
     def scope(self):
         return self._scope
 
     @property
     def _C_ctype(self):
         return POINTER(dtype_to_ctype(self.dtype))
-
-    @property
-    def _mem_internal_eager(self):
-        return self._liveness == 'eager'
-
-    @property
-    def _mem_internal_lazy(self):
-        return self._liveness == 'lazy'
 
     @property
     def _mem_stack(self):

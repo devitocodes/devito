@@ -259,6 +259,7 @@ class Basic(CodeSymbol):
     is_Bundle = False
     is_Object = False
     is_LocalObject = False
+    is_LocalType = False
 
     # Created by the user
     is_Input = False
@@ -1662,3 +1663,26 @@ class IrregularFunctionInterface:
     @property
     def nbytes_max(self):
         raise NotImplementedError
+    
+
+class LocalType(Basic):
+
+    is_LocalType = True
+
+    @property
+    def liveness(self):
+        return self._liveness
+
+    @property
+    def _mem_internal_eager(self):
+        return self._liveness == 'eager'
+
+    @property
+    def _mem_internal_lazy(self):
+        return self._liveness == 'lazy'
+    
+    @property
+    def is_const(self):
+        return self._is_const
+    
+    _C_modifier = None
