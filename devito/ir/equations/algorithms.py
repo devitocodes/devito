@@ -232,9 +232,9 @@ def _(d, mapper, rebuilt, sregistry):
             # Substitute into condition
             kwargs['condition'] = d.condition.subs(mapper)
 
-    if d._factor is None:
-        # Note: this is needed due to a bug in ConditionalDimension reconstruction
-        kwargs['factor'] = None
+    # if d._factor is None:
+    #     # Note: this is needed due to a bug in ConditionalDimension reconstruction
+    #     kwargs['factor'] = None
 
     if kwargs:
         # Rebuild if parent or condition need replacing
