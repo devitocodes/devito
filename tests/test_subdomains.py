@@ -813,3 +813,65 @@ class TestSubDomain_w_condition:
         op.apply()
 
         assert_structure(op, ['xy'], 'xy')
+
+
+class TestRenaming:
+    """
+    Class for testing renaming of SubDimensions and MultiSubDimensions
+    during compilation.
+    """
+
+    def test_subdimension_name_determinism(self):
+        """
+        Ensure that names allocated during compilation are deterministic in their
+        ordering.
+        """
+        # Create two subdomains, two multisubdomains, then interleave them
+        # across multiple equations
+
+        class SD0(SubDomain):
+            name = 'sd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 2)}
+
+        class SD1(SubDomain):
+            name = 'sd1'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 2), y: ('left', 2)}
+
+        class MSD0(SubDomainSet):
+            name = 'msd0'
+
+        class MSD1(SubDomainSet):
+            name = 'msd1'
+
+        sd0 = SD0()
+        sd1 = SD1()
+        msd0 = MSD0(N=1, bounds=(1, 1, 1, 1))
+        msd1 = MSD1(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(11, 11), subdomains=(sd1, sd0, msd1, msd0))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        eq0 = Eq(f, 1, subdomain=sd0)
+        eq1 = Eq(g, f+1, subdomain=msd0)
+        eq2 = Eq(h, f+g, subdomain=sd0)
+        eq3 = Eq(g, h, subdomain=sd1)
+        eq4 = Eq(f, f+1, subdomain=sd1)
+        eq5 = Eq(f, h+1, subdomain=msd1)
+        eq6 = Eq(f, g+1, subdomain=sd0)
+        eq7 = Eq(g, 1, subdomain=msd1)
+        eq8 = Eq(g, 1, subdomain=msd0)
+
+        op = Operator([eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7, eq8])
+        assert_structure(op, ['xy', 'n0', 'n0xy', 'xy', 'xy',
+                              'n1', 'n1xy', 'xy', 'n1', 'n1xy',
+                              'n0', 'n0xy'],
+                         'xyn0xyxyxyn1xyxyn1xyn0xy')
