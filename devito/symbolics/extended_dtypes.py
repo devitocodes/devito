@@ -72,9 +72,9 @@ class c_half_p(ctypes.POINTER(c_half)):
 
 class Float16P(np.float16):
     """
-    Dummy dtype for a scalar float16 value that's been mapped to a pointer.
+    Dummy dtype for a scalar half value that has been mapped to a pointer.
     This is needed because we can't directly pass in the values; we map to
-    pointers and dereference in the kernel; see `passes.iet.dtypes`.
+    pointers and dereference in the kernel. See `passes.iet.dtypes`.
     """
 
     pass
