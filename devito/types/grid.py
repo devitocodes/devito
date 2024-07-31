@@ -16,7 +16,8 @@ from devito.types.dense import Function
 from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension,
-                                    MultiSubDimension, DefaultDimension)
+                                    MultiSubDimension, DefaultDimension,
+                                    UniqueDimension)
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -737,7 +738,10 @@ class SubDomainSet(MultiSubDomain):
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
 
-        i_dim = Dimension(name='n')
+        # Standard Dimensions hash the same, which means that they are all the same object
+        # if their names are the same. Hence tag them with the SubDomainSet location to
+        # make them unique.
+        i_dim = UniqueDimension('n', id(self))
         d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,
                            shape=(self._n_domains, 2*grid.dim),
