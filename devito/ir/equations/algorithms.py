@@ -255,33 +255,37 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    tkns0 = MultiSubDimension._symbolic_thickness(d.parent.name)
-    tkns1 = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-             for tkn in tkns0]
+    abstract_tkns = MultiSubDimension._symbolic_thickness(d.parent.name)
+    concrete_tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+                          for tkn in abstract_tkns)
 
-    kwargs = {'thickness': tuple(tkns1), 'functions': d.functions}
+    kwargs = {'thickness': concrete_tkns}
+    fkwargs = {}
 
     idim0 = d.implicit_dimension
-    # FIXME: Can remove this if once I have an ABox handler?/Combine into ABox handler
     if idim0 is not None:
         try:
             idim1 = rebuilt[idim0]
-            # If a substitution exists for the implicit dimension,
-            # then there is also one for the function
-            functions = rebuilt[d.functions]
         except KeyError:
             iname = sregistry.make_name(prefix=idim0.name)
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
-            fname = sregistry.make_name(prefix=d.functions.name)
-            fdims = (idim1,) + (d.functions.dimensions[1:])
-            frebuilt = d.functions._rebuild(name=fname, dimensions=fdims, function=None,
-                                            halo=None, padding=None,
-                                            allocator=ExternalAllocator(d.functions.data),
-                                            initializer=lambda x: None)
-            rebuilt[d.functions] = functions = frebuilt
-
         kwargs['implicit_dimension'] = idim1
-        kwargs['functions'] = functions
+        fkwargs.update({'dimensions': (idim1,) + (d.functions.dimensions[1:]),
+                        'halo': None,
+                        'padding': None})
+
+    try:
+        functions = rebuilt[d.functions]
+    except KeyError:
+        fkwargs.update({'name': sregistry.make_name(prefix=d.functions.name),
+                        'function': None,
+                        'allocator': ExternalAllocator(d.functions.data),
+                        'initializer': lambda x: None})
+
+        frebuilt = d.functions._rebuild(**fkwargs)
+        rebuilt[d.functions] = functions = frebuilt
+
+    kwargs['functions'] = functions
 
     mapper[d] = d._rebuild(**kwargs)
