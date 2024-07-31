@@ -442,8 +442,16 @@ class TestCaching:
         assert y0 is y1
         assert x0.spacing is x1.spacing
         assert y0.spacing is y1.spacing
-        assert ox0 is ox1
-        assert oy0 is oy1
+
+    def test_grid_dtypes(self):
+        """
+        Test that two grids with different dtypes have different hash values.
+        """
+
+        grid0 = Grid(shape=(4, 4), dtype=np.float32)
+        grid1 = Grid(shape=(4, 4), dtype=np.float64)
+
+        assert hash(grid0) != hash(grid1)
 
     def test_special_symbols(self):
         """
