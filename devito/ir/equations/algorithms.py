@@ -263,7 +263,6 @@ def _(d, mapper, rebuilt, sregistry):
     idim0 = d.implicit_dimension
     if idim0 is not None:
         try:
-            # Get a preexisiting substitution if one exists
             idim1 = rebuilt[idim0]
             # If a substitution exists for the implicit dimension,
             # then there is also one for the function
