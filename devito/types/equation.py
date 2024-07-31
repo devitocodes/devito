@@ -1,10 +1,8 @@
 """User API to specify equations."""
+from warnings import warn
 
 import sympy
 
-from functools import cached_property
-
-from devito.finite_differences import default_rules
 from devito.tools import as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
@@ -65,13 +63,42 @@ class Eq(sympy.Eq, Evaluable):
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
+        if coefficients is not None:
+            warn("The Substitution API is deprecated and will be removed, "
+                 "coefficients should be passed directly to the derivative object"
+                 " i.e `u.dx(weights=...)",
+                 DeprecationWarning, stacklevel=2)
         kwargs['evaluate'] = False
+        # Backward compat
+        rhs = cls._apply_coeffs(rhs, coefficients)
+        lhs = cls._apply_coeffs(lhs, coefficients)
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
 
         return obj
+
+    @classmethod
+    def _apply_coeffs(cls, expr, coefficients):
+        """
+        This process legacy API of Substitution/Coefficients applying the weights
+        to the target Derivatives.
+        """
+        from devito.symbolics import retrieve_derivatives
+        if coefficients is None:
+            return expr
+        mapper = {}
+        for coeff in coefficients.coefficients:
+            derivs = [d for d in retrieve_derivatives(expr)
+                      if coeff.dimension in d.dims and
+                      coeff.deriv_order == d.deriv_order]
+            if not derivs:
+                continue
+            mapper.update({d: d._rebuild(weights=coeff.weights) for d in derivs})
+        if not mapper:
+            return expr
+        return expr.xreplace(mapper)
 
     def _evaluate(self, **kwargs):
         """
@@ -88,15 +115,6 @@ class Eq(sympy.Eq, Evaluable):
                        coefficients=self.substitutions,
                        implicit_dims=self._implicit_dims)
 
-        if eq._uses_symbolic_coefficients:
-            # NOTE: As Coefficients.py is expanded we will not want
-            # all rules to be expunged during this procress.
-            rules = default_rules(eq, eq._symbolic_functions)
-            try:
-                eq = eq.xreplace({**eq.substitutions.rules, **rules})
-            except AttributeError:
-                if bool(rules):
-                    eq = eq.xreplace(rules)
         return eq
 
     @property
@@ -140,27 +158,6 @@ class Eq(sympy.Eq, Evaluable):
     @property
     def conditionals(self):
         return frozendict()
-
-    @cached_property
-    def _uses_symbolic_coefficients(self):
-        return bool(self._symbolic_functions)
-
-    @cached_property
-    def _symbolic_functions(self):
-        try:
-            return self.lhs._symbolic_functions.union(self.rhs._symbolic_functions)
-        except AttributeError:
-            pass
-        try:
-            return self.lhs._symbolic_functions
-        except AttributeError:
-            pass
-        try:
-            return self.rhs._symbolic_functions
-        except AttributeError:
-            return frozenset()
-        else:
-            TypeError('Failed to retrieve symbolic functions')
 
     func = Evaluable._rebuild
 

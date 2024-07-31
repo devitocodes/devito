@@ -2,7 +2,7 @@ from functools import wraps, partial
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify
+from sympy import S, finite_diff_weights, cacheit, sympify, Function
 
 from devito.tools import Tag, as_tuple
 from devito.types.dimension import StencilDimension
@@ -52,22 +52,6 @@ def check_input(func):
         except AttributeError:
             raise ValueError("'%s' must be of type Differentiable, not %s"
                              % (expr, type(expr)))
-    return wrapper
-
-
-def check_symbolic(func):
-    @wraps(func)
-    def wrapper(expr, *args, **kwargs):
-        if expr._uses_symbolic_coefficients:
-            expr_dict = expr.as_coefficients_dict()
-            if any(v > 1 for k, v in expr_dict.items()):
-                raise NotImplementedError("Applying the chain rule to functions "
-                                          "with symbolic coefficients is not currently "
-                                          "supported")
-            kwargs['coefficients'] = 'symbolic'
-        else:
-            kwargs['coefficients'] = expr.coefficients
-        return func(expr, *args, **kwargs)
     return wrapper
 
 
@@ -236,22 +220,16 @@ def make_stencil_dimension(expr, _min, _max):
     return StencilDimension(name='i%d' % n, _min=_min, _max=_max)
 
 
-def symbolic_weights(function, deriv_order, indices, x0):
-    return [function._coeff_symbol(indices[j], deriv_order, function, x0)
-            for j in range(0, len(indices))]
-
-
 @cacheit
 def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
-                       'symbolic': symbolic_weights}
-coeff_priority = {'taylor': 1, 'standard': 1, 'symbolic': 0}
+fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights}
+coeff_priority = {'taylor': 1, 'standard': 1}
 
 
-def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
+def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights=None):
     """
     Indices for the finite-difference scheme.
 
@@ -299,6 +277,12 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None):
         else:
             o_min -= 1
 
+    if nweights > 0 and (o_max - o_min + 1) != nweights:
+        assert nweights == (o_max - o_min + 1) + 1
+        if (o_max - mid) > (mid - o_min):
+            o_min -= 1
+        else:
+            o_max += 1
     # StencilDimension and expression
     d = make_stencil_dimension(expr, o_min, o_max)
     iexpr = expr.indices_ref[dim] + d * dim.spacing
@@ -325,3 +309,16 @@ def make_shift_x0(shift, ndim):
             raise ValueError("ndim length must be equal to 1 or 2")
     raise ValueError("shift parameter must be one of the following options: "
                      "None, float or tuple with shape equal to %s" % (ndim,))
+
+
+def process_weights(weights, expr):
+    if weights is None:
+        return 0, None
+    elif isinstance(weights, Function):
+        wdim = {d for d in weights.dimensions if d not in expr.dimensions}
+        assert len(wdim) == 1
+        wdim = wdim.pop()
+        shape = weights.shape
+        return shape[weights.dimensions.index(wdim)], wdim
+    else:
+        return len(list(weights)), None

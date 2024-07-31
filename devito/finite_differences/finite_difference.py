@@ -2,7 +2,7 @@ from sympy import sympify
 
 from .differentiable import EvalDerivative, DiffDerivative, Weights
 from .tools import (left, right, generate_indices, centered, direct, transpose,
-                    check_input, check_symbolic, fd_weights_registry)
+                    check_input, fd_weights_registry, process_weights)
 
 __all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
            'left', 'right', 'centered', 'transpose', 'generate_indices']
@@ -13,7 +13,6 @@ _PRECISION = 9
 
 
 @check_input
-@check_symbolic
 def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
@@ -87,9 +86,8 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
 
 
 @check_input
-@check_symbolic
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
-                       coefficients='taylor', expand=True, side=None):
+                       coefficients='taylor', expand=True, weights=None, side=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -135,7 +133,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         coefficients = 'taylor'
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, coefficients, expand)
+                           matvec, x0, coefficients, expand, weights)
 
 
 # Backward compatibility
@@ -144,18 +142,22 @@ def first_derivative(expr, dim, fd_order, **kwargs):
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
-                    expand):
+                    expand, weights=None):
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
     expand = True if dim.is_Time else expand
 
     # The stencil indices
+    nweights, wdim = process_weights(weights, expr)
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
-                                   x0=x0)
+                                   x0=x0, nweights=nweights)
     # Finite difference weights corresponding to the indices. Computed via the
     # `coefficients` method (`taylor` or `symbolic`)
-    weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
+    if weights is None:
+        weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
+    elif wdim is not None:
+        weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     weights = [sympify(w).evalf(_PRECISION) for w in weights]
