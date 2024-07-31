@@ -3,15 +3,12 @@ import sympy as sp
 import pytest
 
 from devito import (Grid, Function, TimeFunction, Eq,
-                    Dimension, solve, Operator, NODE)
+                    Dimension, solve, Operator)
 from devito.finite_differences import Differentiable
 from devito.finite_differences.coefficients import Coefficient, Substitutions
 from devito.finite_differences.finite_difference import _PRECISION
 from devito.symbolics import retrieve_derivatives
 from devito.tools import as_tuple
-from devito.passes.equations.linearity import factorize_derivatives, aggregate_coeffs
-
-_PRECISION = 9
 
 
 class TestSC:
@@ -41,7 +38,7 @@ class TestSC:
         eq = Eq(eval(expr), coefficients=Substitutions(coeffs))
         deriv = retrieve_derivatives(eq.lhs)[0]
         assert np.all(deriv.weights == weights)
-        
+
         assert isinstance(eq.lhs, Differentiable)
         assert sp.simplify(eval(expected).evalf(_PRECISION) - eq.evaluate.lhs) == 0
 
@@ -90,7 +87,6 @@ class TestSC:
         x = grid.dimensions[0]
         h_x = x.spacing
 
-        dorder = 2
         weights = np.array([-0.6, 0.1, 0.6])
 
         c = sp.Symbol('c')
@@ -180,7 +176,8 @@ class TestSC:
 
         eq_f = Eq(f, f.dx2(weights=weights))
 
-        expected = 'Eq(f(x + h_x/2), 1.0*f(x - h_x/2) - 2.0*f(x + h_x/2) + 1.0*f(x + 3*h_x/2))'
+        expected = 'Eq(f(x + h_x/2), 1.0*f(x - h_x/2) - 2.0*f(x + h_x/2)'\
+            ' + 1.0*f(x + 3*h_x/2))'
         assert(str(eq_f.evaluate) == expected)
 
     @pytest.mark.parametrize('stagger', [True, False])

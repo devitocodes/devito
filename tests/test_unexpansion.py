@@ -39,17 +39,16 @@ class TestSymbolicCoeffs:
         w = np.zeros(3)
 
         # Pure derivative
-        Operator(Eq(u, u.dx2(weights=w), coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, u.dx2(weights=w)), opt=opt).cfunction
 
         # Mixed derivative
-        Operator(Eq(u, u.dx.dx, coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, u.dx.dx), opt=opt).cfunction
 
         # Non-perfect mixed derivative
-        Operator(Eq(u, (u.dx(weights=w) + v.dx).dx, coefficients=coeffs),
-                 opt=opt).cfunction
+        Operator(Eq(u, (u.dx(weights=w) + v.dx).dx), opt=opt).cfunction
 
         # Compound expression
-        Operator(Eq(u, (v*u.dx).dy(weights=w), coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, (v*u.dx).dy(weights=w)), opt=opt).cfunction
 
     @pytest.mark.parametrize('coeffs,expected', [
         ((7, 7, 7), 1),  # We've had a bug triggered by identical coeffs
