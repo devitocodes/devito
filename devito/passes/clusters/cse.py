@@ -33,13 +33,17 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     """
     Perform common sub-expressions elimination (CSE) on a Cluster.
 
-    Two algorithms are available, 'default' and 'advanced'.
+    Three algorithms are available, 'basic', 'smartsort', and 'advanced'.
 
-    The 'default' algorithm searches for common sub-expressions across the
+    The 'basic' algorithm searches for common sub-expressions across the
     operations in a given Cluster. However, it does not look for sub-expressions
     that are subsets of operands of a given n-ary operation. For example, given
     the expression `a*b*c*d + c*d + a*b*c + a*b*e`, it would capture `a*b*c`,
     but not `a*b`.
+
+    The 'smartsort' algorithm is an extension of the 'basic' algorithm. It
+    performs a final topological sorting of the expressions to maximize the
+    proximity of the common sub-expressions to their uses.
 
     The 'advanced' algorithm also extracts subsets of operands from a
     given n-ary operation, e.g. `a*b` in `a*b*c*d`. In particular, for a given
@@ -47,6 +51,8 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     sub-expressions of increasing size, namely `a1*a2`, `a1*a2*a3`, etc.
     This algorithm heuristically relies on SymPy's canonical ordering of operands
     to maximize the likelihood of finding common sub-expressions.
+    This algorithm also performs a final topological sorting of the expressions,
+    like the 'smartsort' algorithm.
 
     Parameters
     ----------
@@ -59,8 +65,8 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
         Accepted: ['cse-min-cost', 'cse-algo'].
         * 'cse-min-cost': int. The minimum cost of a common sub-expression to be
           considered for CSE. Default is 1.
-        * 'cse-algo': str. The CSE algorithm to apply. Accepted: ['default',
-          'advanced']. Default is 'default'.
+        * 'cse-algo': str. The CSE algorithm to apply. Accepted: ['basic',
+          'smartsort', 'advanced']. Default is 'basic'.
     """
     min_cost = options['cse-min-cost']
     mode = options['cse-algo']
@@ -72,7 +78,7 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     return cluster.rebuild(exprs=exprs)
 
 
-def _cse(maybe_exprs, make, min_cost=1, mode='default'):
+def _cse(maybe_exprs, make, min_cost=1, mode='basic'):
     """
     Carry out the bulk of the CSE process.
 
@@ -83,7 +89,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     make : callable
         Build symbols to store temporary, redundant values.
     mode : str, optional
-        The CSE algorithm applied. Accepted: ['default', 'advanced'].
+        The CSE algorithm applied. Accepted: ['basic', 'smartsort', 'advanced'].
 
     Notes
     -----
@@ -93,7 +99,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
         * It sometimes "captures too much", losing factorization opportunities;
         * It tends to be very slow.
     """
-    assert mode in ('default', 'advanced')
+    assert mode in ('basic', 'smartsort', 'advanced')
 
     # Accept Clusters, Eqs or even just exprs
     if isinstance(maybe_exprs, Cluster):
@@ -148,8 +154,8 @@ def _cse(maybe_exprs, make, min_cost=1, mode='default'):
     # Drop useless temporaries (e.g., r0=r1)
     processed = _compact(exprs, exclude)
 
-    # Ensure topo-sorting
-    if mode == 'advanced':
+    # Ensure topo-sorting ('basic' doesn't require it)
+    if mode in ('smartsort', 'advanced'):
         processed = _toposort(processed)
 
     return processed
@@ -310,7 +316,7 @@ def catch(exprs, mode):
 
     candidates = []
     for k, v in mapper.items():
-        if mode == 'default':
+        if mode in ('basic', 'smartsort'):
             sources = [i for i in v if i == k.expr]
         else:
             sources = v

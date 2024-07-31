@@ -27,9 +27,14 @@ class BasicOperator(Operator):
     common sub=expression.
     """
 
-    CSE_ALGO = 'default'
+    CSE_ALGO = 'basic'
     """
     The algorithm to use for common sub-expression elimination.
+    """
+
+    FACT_SCHEDULE = 'basic'
+    """
+    The schedule to use for the computation of factorizations.
     """
 
     BLOCK_LEVELS = 1
@@ -163,6 +168,9 @@ class BasicOperator(Operator):
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
+
+        if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
+            raise InvalidArgument("Illegal `cse-algo` value")
 
         if oo['deriv-schedule'] not in ('basic', 'smart'):
             raise InvalidArgument("Illegal `deriv-schedule` value")
