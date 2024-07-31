@@ -283,6 +283,5 @@ def _(d, mapper, rebuilt, sregistry):
 
         kwargs['implicit_dimension'] = idim1
         kwargs['functions'] = functions
-    print(rebuilt)
 
     mapper[d] = d._rebuild(**kwargs)
