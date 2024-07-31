@@ -145,9 +145,9 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
                    for s, l in zip(sigma, lw))]
         processed = []
-        for w in weights:
+        for (w, l) in zip(weights, lw):
             temp = list(w)
-            while len(temp) < 2*max(lw)+1:
+            while len(temp) < 2*l+1:
                 temp.insert(0, 0)
                 temp.append(0)
             processed.append(np.array(temp))

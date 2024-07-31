@@ -229,7 +229,7 @@ fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights}
 coeff_priority = {'taylor': 1, 'standard': 1}
 
 
-def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights=None):
+def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights=0):
     """
     Indices for the finite-difference scheme.
 
