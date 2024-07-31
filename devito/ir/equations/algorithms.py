@@ -261,13 +261,14 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    tkns0 = MultiSubDimension._symbolic_thickness(d.name)
+    tkns0 = MultiSubDimension._symbolic_thickness(d.parent.name)
     tkns1 = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
              for tkn in tkns0]
 
     kwargs = {'thickness': tuple(tkns1), 'functions': d.functions}
 
     idim0 = d.implicit_dimension
+    # FIXME: Can remove this if once I have an ABox handler?/Combine into ABox handler
     if idim0 is not None:
         try:
             idim1 = rebuilt[idim0]
@@ -278,8 +279,9 @@ def _(d, mapper, rebuilt, sregistry):
             iname = sregistry.make_name(prefix=idim0.name)
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
+            fname = sregistry.make_name(prefix=d.functions.name)
             fdims = (idim1,) + (d.functions.dimensions[1:])
-            frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
+            frebuilt = d.functions._rebuild(name=fname, dimensions=fdims, function=None,
                                             halo=None, padding=None,
                                             allocator=ExternalAllocator(d.functions.data),
                                             initializer=lambda x: None)

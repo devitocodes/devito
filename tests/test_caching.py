@@ -12,6 +12,7 @@ from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunc
 from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, LocalObject,
                           Scalar, Symbol, ThreadID)
 from devito.types.basic import AbstractSymbol
+from devito.types.dimension import UniqueDimension
 
 
 @pytest.fixture
@@ -76,6 +77,23 @@ class TestHashing:
         d3 = Dimension(name='d', spacing=Constant(name='s1'))
         assert hash(d3) != hash(d0)
         assert hash(d3) != hash(d1)
+
+    def test_unique_dimension(self):
+        """
+        Test that UniqueDimensions have different hash values, so long as
+        their tags differ.
+        """
+        d0 = UniqueDimension('d', 0)
+        d1 = UniqueDimension('d', 1)
+        assert hash(d0) != hash(d1)
+
+        s = Scalar(name='s')
+        d2 = UniqueDimension('d', 0, spacing=s)
+        d3 = UniqueDimension('d', 1, spacing=s)
+        assert hash(d2) != hash(d3)
+
+        d4 = UniqueDimension('d', 0)
+        assert hash(d0) == hash(d4)
 
     def test_sub_dimension(self):
         """Test that different SubDimensions have different hash value."""
