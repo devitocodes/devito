@@ -53,6 +53,10 @@ class ArrayBasic(AbstractFunction, LocalType):
     def shape_allocated(self):
         return self.symbolic_shape
 
+    @property
+    def is_const(self):
+        return self._is_const
+
 
 class Array(ArrayBasic):
 
