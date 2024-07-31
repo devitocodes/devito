@@ -1,10 +1,13 @@
+import ctypes
 import numpy as np
 
 from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4)
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'DOUBLE', 'VOID']  # noqa
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',
+           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
+           'c_half', 'c_half_p', 'Float16P']
 
 
 limits_mapper = {
@@ -13,6 +16,68 @@ limits_mapper = {
     np.float32: Bunch(min=-ValueLimit('FLT_MAX'), max=ValueLimit('FLT_MAX')),
     np.float64: Bunch(min=-ValueLimit('DBL_MAX'), max=ValueLimit('DBL_MAX')),
 }
+
+
+class NoDeclStruct(ctypes.Structure):
+    """
+    A ctypes.Structure that does not generate a struct definition.
+
+    Some foreign types (e.g. complex) need to be passed to C/C++ as a struct
+    that mimics an existing type, but the struct types themselves don't show
+    up in the kernel, so we don't need to generate their definitions.
+    """
+
+    pass
+
+
+class c_complex(NoDeclStruct):
+    """Structure for passing complex float to C/C++"""
+
+    _fields_ = [('real', ctypes.c_float), ('imag', ctypes.c_float)]
+
+    @classmethod
+    def from_param(cls, val):
+        return cls(val.real, val.imag)
+
+
+class c_double_complex(NoDeclStruct):
+    """Structure for passing complex double to C/C++"""
+
+    _fields_ = [('real', ctypes.c_double), ('imag', ctypes.c_double)]
+
+    @classmethod
+    def from_param(cls, val):
+        return cls(val.real, val.imag)
+
+
+class c_half(ctypes.c_uint16):
+    """Ctype for non-scalar half floats"""
+
+    @classmethod
+    def from_param(cls, val):
+        return cls(np.float16(val).view(np.uint16))
+
+
+class c_half_p(ctypes.POINTER(c_half)):
+    """
+    Ctype for half scalars; we can't directly pass _Float16 values so
+    we use a pointer and dereference (see `passes.iet.dtypes`)
+    """
+
+    @classmethod
+    def from_param(cls, val):
+        arr = np.array(val, dtype=np.float16)
+        return arr.ctypes.data_as(cls)
+
+
+class Float16P(np.float16):
+    """
+    Dummy dtype for a scalar half value that has been mapped to a pointer.
+    This is needed because we can't directly pass in the values; we map to
+    pointers and dereference in the kernel. See `passes.iet.dtypes`.
+    """
+
+    pass
 
 
 class CustomType(ReservedWord):

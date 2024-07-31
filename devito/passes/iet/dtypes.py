@@ -1,25 +1,69 @@
-import numpy as np
 import ctypes
+import numpy as np
 
-from devito.ir import FindSymbols, Uxreplace
+from devito.arch.compiler import Compiler
+from devito.ir import Callable, Dereference, FindSymbols, Node, SymbolRegistry, Uxreplace
+from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import Float16P
+from devito.tools import as_list
+from devito.types.basic import AbstractSymbol, Basic, Symbol
 
-__all__ = ['lower_complex']
+__all__ = ['lower_dtypes']
 
 
-def lower_complex(iet, lang, compiler):
+def lower_dtypes(iet: Callable, lang: type[LangBB], compiler: Compiler,
+                 sregistry: SymbolRegistry) -> tuple[Callable, dict]:
     """
-    Add headers for complex arithmetic
+    Lowers float16 scalar types to pointers since we can't directly pass their
+    value. Also includes headers for complex arithmetic if needed.
     """
-    # Check if there is complex numbers that always take dtype precedence
+
+    iet, metadata = _complex_includes(iet, lang, compiler)
+
+    # Lower float16 parameters to pointers and dereference
+    prefix: list[Node] = []
+    params_mapper: dict[AbstractSymbol, AbstractSymbol] = {}
+    body_mapper: dict[AbstractSymbol, Symbol] = {}
+
+    params_set = set(iet.parameters)
+    s: AbstractSymbol
+    for s in FindSymbols('abstractsymbols').visit(iet):
+        if s.dtype != np.float16 or s not in params_set:
+            continue
+
+        # Replace the parameter with a pointer; replace occurences in the IET
+        # body with dereferenced symbol (using the original symbol's dtype)
+        ptr: AbstractSymbol = s._rebuild(dtype=Float16P, is_const=True)
+        val = Symbol(name=sregistry.make_name(prefix='hf'), dtype=s.dtype,
+                     is_const=s.is_const)
+
+        params_mapper[s], body_mapper[s] = ptr, val
+        prefix.append(Dereference(val, ptr))  # val = *ptr
+
+    # Apply the replacements
+    prefix.extend(as_list(Uxreplace(body_mapper).visit(iet.body)))
+    params: tuple[Basic] = Uxreplace(params_mapper).visit(iet.parameters)
+
+    iet = iet._rebuild(body=prefix, parameters=params)
+    return iet, metadata
+
+
+def _complex_includes(iet: Callable, lang: type[LangBB],
+                      compiler: Compiler) -> tuple[Callable, dict]:
+    """
+    Includes complex arithmetic headers for the given language, if needed.
+    """
+
+    # Check if there are complex numbers that always take dtype precedence
     types = {f.dtype for f in FindSymbols().visit(iet)
              if not issubclass(f.dtype, ctypes._Pointer)}
 
     if not any(np.issubdtype(d, np.complexfloating) for d in types):
         return iet, {}
 
+    metadata = {}
     lib = (lang['header-complex'],)
 
-    metadata = {}
     if lang.get('complex-namespace') is not None:
         metadata['namespaces'] = lang['complex-namespace']
 
@@ -31,24 +75,6 @@ def lower_complex(iet, lang, compiler):
             ff.write(str(lang['def-complex']))
         lib += (str(hfile),)
 
-    iet = _complex_dtypes(iet, lang)
     metadata['includes'] = lib
 
     return iet, metadata
-
-
-def _complex_dtypes(iet, lang):
-    """
-    Lower dtypes to language specific types
-    """
-    mapper = {}
-
-    for s in FindSymbols('indexeds|basics|symbolics').visit(iet):
-        if s.dtype in lang['types']:
-            mapper[s] = s._rebuild(dtype=lang['types'][s.dtype])
-
-    body = Uxreplace(mapper).visit(iet.body)
-    params = Uxreplace(mapper).visit(iet.parameters)
-    iet = iet._rebuild(body=body, parameters=params)
-
-    return iet

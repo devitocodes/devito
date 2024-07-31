@@ -20,10 +20,11 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import (FieldFromComposite, FieldFromPointer,
                               ListInitializer, ccode, uxreplace)
+from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
-from devito.types.basic import AbstractFunction, Basic
+from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
@@ -208,7 +209,7 @@ class CGen(Visitor):
             while issubclass(ctype, ctypes._Pointer):
                 ctype = ctype._type_
 
-            if not issubclass(ctype, ctypes.Structure):
+            if not issubclass(ctype, ctypes.Structure) or issubclass(ctype, NoDeclStruct):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
@@ -454,7 +455,7 @@ class CGen(Visitor):
             if a0._data_alignment:
                 lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:
-            rvalue = '%s->%s' % (a1.name, a0._C_name)
+            rvalue = '*%s' % a1.name if a1.is_Symbol else '%s->%s' % (a1.name, a0._C_name)
             lvalue = self._gen_value(a0, 0)
         return c.Initializer(lvalue, rvalue)
 
@@ -957,6 +958,7 @@ class FindSymbols(Visitor):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
+        - `abstractsymbols`: Collect all AbstractSymbol objects
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
@@ -977,6 +979,8 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
+        'abstractsymbols': lambda n: [i for i in n.expr_symbols
+                                      if isinstance(i, AbstractSymbol)],
         'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
