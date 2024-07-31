@@ -175,7 +175,7 @@ def concretize_subdims(exprs, **kwargs):
     # reset to prevent recovery of the original SubDimensions
     functions = {f for f in retrieve_functions(exprs) if f.is_Array}
     for f in functions:
-        dimensions = tuple(mapper[d] if d in mapper else d for d in f.dimensions)
+        dimensions = tuple(mapper.get(d, d) for d in f.dimensions)
         if dimensions != f.dimensions:
             # A dimension has been rebuilt, so build a mapper for Indexed
             mapper[f.indexed] = f._rebuild(dimensions=dimensions, function=None).indexed
