@@ -69,9 +69,10 @@ class Grid(CartesianDiscretization, ArgProvider):
     ----------
     shape : tuple of ints
         Shape of the computational domain in grid points.
-    extent : tuple of floats, default=unit box of extent 1m in all dimensions
+    extent : tuple of values interpretable as dtype, default=unit box of extent 1m
+    in all dimensions
         Physical extent of the domain in m.
-    origin : tuple of floats, default=0.0 in all dimensions
+    origin : tuple of values interpretable as dtype, default=0.0 in all dimensions
         Physical coordinate of the origin of the domain.
     dimensions : tuple of SpaceDimension, optional
         The dimensions of the computational domain encapsulated by this Grid.
@@ -168,7 +169,8 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._distributor = Distributor(shape, dimensions, comm, topology)
 
         # The physical extent
-        self._extent = as_tuple(extent or tuple(1. for _ in self.shape))
+        extent = as_tuple(extent or tuple(1. for _ in self.shape))
+        self._extent = tuple(dtype(e) for e in extent)
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
@@ -176,7 +178,8 @@ class Grid(CartesianDiscretization, ArgProvider):
             i.__subdomain_finalize__(self, counter=counter)
         self._subdomains = subdomains
 
-        self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        origin = as_tuple(origin or tuple(0. for _ in self.shape))
+        self._origin = tuple(dtype(o) for o in origin)
         self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
                                             is_const=True)
                                      for d in self.dimensions)
