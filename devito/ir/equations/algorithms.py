@@ -8,6 +8,7 @@ from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension
+from devito.data.allocators import ExternalAllocator
 
 __all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
 
@@ -274,7 +275,8 @@ def _(d, mapper, rebuilt, sregistry):
             fdims = (idim1,) + (d.functions.dimensions[1:])
             frebuilt = d.functions._rebuild(dimensions=fdims, function=None,
                                             halo=None, padding=None,
-                                            initializer=d.functions.data)
+                                            allocator=ExternalAllocator(d.functions.data),
+                                            initializer=lambda x: None)
             rebuilt[d.functions] = functions = frebuilt
 
         kwargs['implicit_dimension'] = idim1
