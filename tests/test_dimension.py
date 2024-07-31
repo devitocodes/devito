@@ -776,7 +776,6 @@ class TestSubDimension:
         eqn = eqn.subs({x: xi, y: yi})
 
         op = Operator(eqn, opt=opt)
-        print(op.parameters)
 
         op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
                  x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)

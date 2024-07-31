@@ -169,15 +169,14 @@ def concretize_subdims(exprs, **kwargs):
     if not mapper:
         return exprs
 
-    # There may be indexed Arrays defined on SubDimensions in the expressions.
+    # There may be indexed Arrays defined on SubDimensions in the expressions
     # These must have their dimensions replaced and their .function attribute
-    # reset to prevent recovery of the original SubDimensions.
-    functions = set().union(*[set(retrieve_functions(e)) for e in exprs])
-    functions = {f for f in functions if f.is_Array}
+    # reset to prevent recovery of the original SubDimensions
+    functions = {f for f in retrieve_functions(exprs) if f.is_Array}
     for f in functions:
         dimensions = tuple(mapper[d] if d in mapper else d for d in f.dimensions)
-        if dimensions != f.dimensions:  # A dimension has been rebuilt
-            # So build a mapper for Indexed
+        if dimensions != f.dimensions:
+            # A dimension has been rebuilt, so build a mapper for Indexed
             mapper[f.indexed] = f._rebuild(dimensions=dimensions, function=None).indexed
 
     processed = [uxreplace(e, mapper) for e in exprs]
