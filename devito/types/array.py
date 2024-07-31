@@ -20,8 +20,11 @@ class ArrayBasic(AbstractFunction, LocalType):
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('is_const', 'liveness')
 
     def __init_finalize__(self, *args, **kwargs):
-        self._liveness = kwargs.setdefault('liveness', 'lazy')
         super().__init_finalize__(*args, **kwargs)
+
+        self._liveness = kwargs.get('liveness', 'lazy')
+        assert self._liveness in ['eager', 'lazy']
+
         self._is_const = kwargs.get('is_const', False)
 
     @classmethod
@@ -112,8 +115,8 @@ class Array(ArrayBasic):
 
     is_Array = True
 
-    __rkwargs__ = (AbstractFunction.__rkwargs__ +
-                   ('dimensions', 'liveness', 'scope', 'initvalue'))
+    __rkwargs__ = (ArrayBasic.__rkwargs__ +
+                   ('dimensions', 'scope', 'initvalue'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -126,9 +129,6 @@ class Array(ArrayBasic):
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
-
-        self._liveness = kwargs.get('liveness', 'lazy')
-        assert self._liveness in ['eager', 'lazy']
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared']

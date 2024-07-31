@@ -231,12 +231,6 @@ class LocalObject(AbstractObject, LocalType):
         """
         return None
 
-    """
-    A modifier added to the LocalObject's C declaration when the object appears
-    in a function signature. For example, a subclass might define `_C_modifier = '&'`
-    to impose pass-by-reference semantics.
-    """
-
     @property
     def _mem_global(self):
         return self._is_global

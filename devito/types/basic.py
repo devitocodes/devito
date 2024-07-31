@@ -1672,7 +1672,7 @@ class LocalType(Basic):
 
     Notes
     -----
-    Subclasses should setup `liveness`.
+    Subclasses should setup `_liveness`.
     """
 
     is_LocalType = True
@@ -1689,4 +1689,9 @@ class LocalType(Basic):
     def _mem_internal_lazy(self):
         return self._liveness == 'lazy'
 
+    """
+    A modifier added to the subclass C declaration when it appears
+    in a function signature. For example, a subclass might define `_C_modifier = '&'`
+    to impose pass-by-reference semantics.
+    """
     _C_modifier = None
