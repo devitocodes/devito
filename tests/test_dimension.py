@@ -1255,6 +1255,24 @@ class TestConditionalDimension:
         assert np.all(f.data[0, :, 0] == 0.)
         assert np.all(f.data[0, :, -1] == 0.)
 
+    def test_no_index_symbolic(self):
+        grid = Grid(shape=(10, 10, 10))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid)
+
+        v0 = Constant(name='v0', dtype=np.float32)
+        v1 = Constant(name='v1', dtype=np.float32)
+        condition = And(Ge(x, v0), Le(x, v1))
+        cd = ConditionalDimension(name='cd', parent=x, condition=condition,
+                                  indirect=True)
+
+        eq = Eq(u.forward, u + 1, implicit_dims=cd)
+
+        # Ensure both code generation and jitting work
+        op = Operator(eq)
+        op.cfunction
+
     def test_symbolic_factor(self):
         """
         Test ConditionalDimension with symbolic factor (provided as a Constant).
