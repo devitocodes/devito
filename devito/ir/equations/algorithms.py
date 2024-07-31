@@ -262,7 +262,7 @@ def _(d, mapper, rebuilt, sregistry):
     kwargs = {'thickness': tuple(tkns1), 'functions': d.functions}
 
     idim0 = d.implicit_dimension
-    # FIXME: Can remove this if once I have an ABox handler?
+    # FIXME: Can remove this if once I have an ABox handler?/Combine into ABox handler
     if idim0 is not None:
         try:
             idim1 = rebuilt[idim0]
@@ -283,5 +283,6 @@ def _(d, mapper, rebuilt, sregistry):
 
         kwargs['implicit_dimension'] = idim1
         kwargs['functions'] = functions
+    print(rebuilt)
 
     mapper[d] = d._rebuild(**kwargs)
