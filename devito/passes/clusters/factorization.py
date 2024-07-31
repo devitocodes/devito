@@ -19,7 +19,7 @@ is applied.
 
 
 @cluster_pass
-def factorize(cluster, *args):
+def factorize(cluster, *args, options=None, **kwargs):
     """
     Factorize trascendental functions, symbolic powers, numeric coefficients.
 
@@ -27,16 +27,18 @@ def factorize(cluster, *args):
     then the algorithm is applied recursively until no more factorization
     opportunities are detected.
     """
+    strategy = options.get('fact_schedule', 'basic')
+
     processed = []
     for expr in cluster.exprs:
-        handle = collect_nested(expr)
+        handle = collect_nested(expr, strategy)
         cost_handle = estimate_cost(handle)
 
         if cost_handle >= MIN_COST_FACTORIZE:
             handle_prev = handle
             cost_prev = estimate_cost(expr)
             while cost_handle < cost_prev:
-                handle_prev, handle = handle, collect_nested(handle)
+                handle_prev, handle = handle, collect_nested(handle, strategy)
                 cost_prev, cost_handle = cost_handle, estimate_cost(handle)
             cost_handle, handle = cost_prev, handle_prev
 
@@ -45,12 +47,12 @@ def factorize(cluster, *args):
     return cluster.rebuild(processed)
 
 
-def collect_special(expr):
+def collect_special(expr, strategy):
     """
     Factorize elemental functions, pows, and other special symbolic objects,
     prioritizing the most expensive entities.
     """
-    args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+    args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
     candidates = ReducerMap.fromdicts(*candidates)
 
     funcs = candidates.getall('funcs', [])
@@ -173,19 +175,19 @@ def collect_const(expr):
     return Add(*terms)
 
 
-def strategy0(expr):
-    rebuilt = collect_special(expr)
+def strategy0(expr, strategy):
+    rebuilt = collect_special(expr, strategy)
     rebuilt = collect_const(rebuilt)
 
     return rebuilt
 
 
 strategies = {
-    'default': strategy0
+    'basic': strategy0
 }
 
 
-def _collect_nested(expr):
+def _collect_nested(expr, strategy):
     """
     Recursion helper for `collect_nested`.
     """
@@ -195,7 +197,7 @@ def _collect_nested(expr):
         return expr, {'coeffs': expr}
     elif q_routine(expr):
         # E.g., a DefFunction
-        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
         return expr.func(*args, evaluate=False), {}
     elif expr.is_Function:
         return expr, {'funcs': expr}
@@ -205,21 +207,21 @@ def _collect_nested(expr):
           isinstance(expr, (BasicWrapperMixin, AbstractObject))):
         return expr, {}
     elif expr.is_Add:
-        return strategies['default'](expr), {}
+        return strategies[strategy](expr, strategy), {}
     elif expr.is_Mul:
-        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
         expr = reuse_if_untouched(expr, args, evaluate=True)
         return expr, ReducerMap.fromdicts(*candidates)
     elif expr.is_Equality:
-        args, candidates = zip(*[_collect_nested(expr.lhs),
-                                 _collect_nested(expr.rhs)])
+        args, candidates = zip(*[_collect_nested(expr.lhs, strategy),
+                                 _collect_nested(expr.rhs, strategy)])
         return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
     else:
-        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
         return expr.func(*args), ReducerMap.fromdicts(*candidates)
 
 
-def collect_nested(expr):
+def collect_nested(expr, strategy='basic'):
     """
     Collect numeric coefficients, trascendental functions, pows, and other
     symbolic objects across all levels of the expression tree.
@@ -229,4 +231,4 @@ def collect_nested(expr):
     expr : expr-like
         The expression to be factorized.
     """
-    return _collect_nested(expr)[0]
+    return _collect_nested(expr, strategy)[0]
