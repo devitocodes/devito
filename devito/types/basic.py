@@ -1672,7 +1672,7 @@ class LocalType(Basic):
 
     Notes
     -----
-    Subclasses should override __init_finalize__ to setup `liveness`.
+    Subclasses should setup `liveness`.
     """
 
     is_LocalType = True
