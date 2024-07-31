@@ -830,24 +830,24 @@ class TestRenaming:
         # across multiple equations
 
         class SD0(SubDomain):
-            name = 'sd0'
+            name = 'sd'
 
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: x, y: ('right', 2)}
 
         class SD1(SubDomain):
-            name = 'sd1'
+            name = 'sd'
 
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 1, 2), y: ('left', 2)}
 
         class MSD0(SubDomainSet):
-            name = 'msd0'
+            name = 'msd'
 
         class MSD1(SubDomainSet):
-            name = 'msd1'
+            name = 'msd'
 
         sd0 = SD0()
         sd1 = SD1()
