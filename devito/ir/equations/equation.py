@@ -71,7 +71,10 @@ class IREq(sympy.Eq, Pickable):
         """
         args = [func(self.lhs), func(self.rhs)]
         kwargs = dict(self.state)
-        kwargs['conditionals'] = {k: func(v) for k, v in self.conditionals.items()}
+
+        conditionals = {k: func(v) for k, v in self.conditionals.items()}
+        kwargs['conditionals'] = frozendict(conditionals)
+
         return self.func(*args, **kwargs)
 
     def __repr__(self):
@@ -197,7 +200,7 @@ class LoweredEq(IREq):
                 conditionals[d] = cond
             # Replace dimension with index
             index = d.index
-            if d.condition is not None:
+            if d.condition is not None and d in expr.free_symbols:
                 index = index - relational_min(d.condition, d.parent)
             expr = uxreplace(expr, {d: IntDiv(index, d.factor)})
 
