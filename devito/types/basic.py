@@ -332,19 +332,29 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_imaginary = False
     is_commutative = True
 
-    __rkwargs__ = ('name', 'dtype', 'is_const')
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'assumptions0')
 
     @classmethod
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
+        assumptions0 = kwargs.get('assumptions0', {})
+
         assumptions = {}
-        # pop predefined assumptions
+        # Pop predefined assumptions
         for key in ('real', 'imaginary', 'commutative'):
             kwargs.pop(key, None)
-        # extract sympy.Symbol-specific kwargs
+            assumptions0.pop(key, None)
+
+        # Extract sympy.Symbol-specific kwargs
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
+
+        # Extract any remaining unset assumptions
+        for k, v in assumptions0.items():
+            if k not in assumptions:
+                assumptions[k] = v
+
         return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):
