@@ -97,7 +97,14 @@ def test_sympy_assumptions():
     assert s1.assumptions0 == s1r.assumptions0
     assert s1 == s1r
 
-    # Check that sympy assumptions can be changed during a rebuild
+
+def test_modified_sympy_assumptions():
+    """
+    Check that sympy assumptions can be changed during a rebuild.
+    """
+    s0 = AbstractSymbol('s')
+    s1 = AbstractSymbol('s', nonnegative=True, integer=False, real=True)
+
     s2 = s0._rebuild(nonnegative=True, integer=False, real=True)
 
     assert s2.assumptions0 == s1.assumptions0
