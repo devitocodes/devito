@@ -7,7 +7,7 @@ from devito.symbolics.unevaluation import Add, Mul, Pow
 __all__ = ['unevaluate']
 
 
-@cluster_pass
+@cluster_pass(mode='all')
 def unevaluate(cluster):
     exprs = [_unevaluate(e) for e in cluster.exprs]
 

@@ -864,7 +864,8 @@ class TestOperator:
         assert np.isclose(np.linalg.norm(ricker.data), np.linalg.norm(new_ricker.data))
         # FIXME: fails randomly when using data.flatten() AND numpy is using MKL
 
-    def test_usave_sampled(self, pickle):
+    @pytest.mark.parametrize('subs', [False, True])
+    def test_usave_sampled(self, pickle, subs):
         grid = Grid(shape=(10, 10, 10))
         u = TimeFunction(name="u", grid=grid, time_order=2, space_order=8)
 
@@ -884,7 +885,9 @@ class TestOperator:
 
         eqn = [stencil] + src_term
         eqn += [Eq(u0_save, u)]
-        op_fwd = Operator(eqn)
+
+        subs = grid.spacing_map if subs else {}
+        op_fwd = Operator(eqn, subs=subs)
 
         tmp_pickle_op_fn = "tmp_operator.pickle"
         pickle.dump(op_fwd, open(tmp_pickle_op_fn, "wb"))
