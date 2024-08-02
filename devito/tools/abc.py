@@ -143,6 +143,14 @@ class Reconstructable:
 
         kwargs.update({i: getattr(self, i) for i in self.__rkwargs__ if i not in kwargs})
 
+        # If this object has SymPy assumptions associated with it, which were not
+        # in the kwargs, then include them
+        try:
+            assumptions = self._assumptions_orig
+            kwargs.update({k: v for k, v in assumptions.items() if k not in kwargs})
+        except AttributeError:
+            pass
+
         # Should we use a custom reconstructor?
         try:
             cls = self._rcls

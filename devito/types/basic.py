@@ -338,10 +338,11 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
         assumptions = {}
-        # pop predefined assumptions
+        # Pop predefined assumptions
         for key in ('real', 'imaginary', 'commutative'):
             kwargs.pop(key, None)
-        # extract sympy.Symbol-specific kwargs
+
+        # Extract sympy.Symbol-specific kwargs
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)

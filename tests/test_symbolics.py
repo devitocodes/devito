@@ -17,6 +17,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           Symbol as dSymbol)
+from devito.types.basic import AbstractSymbol
 
 
 def test_float_indices():
@@ -68,6 +69,46 @@ def test_floatification_issue_1627(dtype, expected):
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
     assert str(exprs[0]) == expected
+
+
+def test_sympy_assumptions():
+    """
+    Ensure that AbstractSymbol assumptions are set correctly and
+    preserved during rebuild.
+    """
+    s0 = AbstractSymbol('s')
+    s1 = AbstractSymbol('s', nonnegative=True, integer=False, real=True)
+
+    assert s0.is_negative is None
+    assert s0.is_positive is None
+    assert s0.is_integer is None
+    assert s0.is_real is True
+    assert s1.is_negative is False
+    assert s1.is_positive is True
+    assert s1.is_integer is False
+    assert s1.is_real is True
+
+    s0r = s0._rebuild()
+    s1r = s1._rebuild()
+
+    assert s0.assumptions0 == s0r.assumptions0
+    assert s0 == s0r
+
+    assert s1.assumptions0 == s1r.assumptions0
+    assert s1 == s1r
+
+
+def test_modified_sympy_assumptions():
+    """
+    Check that sympy assumptions can be changed during a rebuild.
+    """
+    s0 = AbstractSymbol('s')
+    s1 = AbstractSymbol('s', nonnegative=True, integer=False, real=True)
+
+    s2 = s0._rebuild(nonnegative=True, integer=False, real=True)
+
+    assert s2.assumptions0 == s1.assumptions0
+    assert s2 == s1
 
 
 def test_constant():
