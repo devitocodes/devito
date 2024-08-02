@@ -7,7 +7,7 @@ from sympy import sin, tan
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Lt)
-from devito.ir import FindNodes, Expression, Iteration
+from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
 
@@ -35,8 +35,10 @@ class TestSubdomains:
 
         eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
         with timed_region('x'):
-            expr = Operator._lower_exprs([eq0], options={})[0]
-        assert expr.rhs == x1 * f[x1 + 1, y1 + 1] + y1
+            # _lower_exprs expects a SymbolRegistry, so create one
+            expr = Operator._lower_exprs([eq0], options={},
+                                         sregistry=SymbolRegistry())[0]
+        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
 
     def test_multiple_middle(self):
         """
@@ -669,10 +671,14 @@ class TestMultiSubDomain:
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,xi20_blk0,yi20_blk0,x,y,z'],
-                         't,n0,xi20_blk0,yi20_blk0,x,y,z')
+        assert_structure(op, ['t,n0', 't,n0,ix0_blk0,iy0_blk0,x,y,z'],
+                         't,n0,ix0_blk0,iy0_blk0,x,y,z')
 
-        xi, _, _ = dummy.dimensions
+        # Drag a rebuilt MultiSubDimension out of the operator
+        dims = {d.name: d for d in FindSymbols('dimensions').visit(op)}
+        xi = [d for d in dims['x']._defines if d.is_MultiSub]
+        assert len(xi) == 1  # Sanity check
+        xi = xi.pop()
         # Check that the correct number of thickness expressions are generated
         sdsexprs = [i.expr for i in FindNodes(Expression).visit(op)
                     if i.expr.rhs.is_Indexed
@@ -807,3 +813,65 @@ class TestSubDomain_w_condition:
         op.apply()
 
         assert_structure(op, ['xy'], 'xy')
+
+
+class TestRenaming:
+    """
+    Class for testing renaming of SubDimensions and MultiSubDimensions
+    during compilation.
+    """
+
+    def test_subdimension_name_determinism(self):
+        """
+        Ensure that names allocated during compilation are deterministic in their
+        ordering.
+        """
+        # Create two subdomains, two multisubdomains, then interleave them
+        # across multiple equations
+
+        class SD0(SubDomain):
+            name = 'sd'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 2)}
+
+        class SD1(SubDomain):
+            name = 'sd'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 2), y: ('left', 2)}
+
+        class MSD0(SubDomainSet):
+            name = 'msd'
+
+        class MSD1(SubDomainSet):
+            name = 'msd'
+
+        sd0 = SD0()
+        sd1 = SD1()
+        msd0 = MSD0(N=1, bounds=(1, 1, 1, 1))
+        msd1 = MSD1(N=1, bounds=(1, 1, 1, 1))
+
+        grid = Grid(shape=(11, 11), subdomains=(sd1, sd0, msd1, msd0))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid)
+
+        eq0 = Eq(f, 1, subdomain=sd0)
+        eq1 = Eq(g, f+1, subdomain=msd0)
+        eq2 = Eq(h, f+g, subdomain=sd0)
+        eq3 = Eq(g, h, subdomain=sd1)
+        eq4 = Eq(f, f+1, subdomain=sd1)
+        eq5 = Eq(f, h+1, subdomain=msd1)
+        eq6 = Eq(f, g+1, subdomain=sd0)
+        eq7 = Eq(g, 1, subdomain=msd1)
+        eq8 = Eq(g, 1, subdomain=msd0)
+
+        op = Operator([eq0, eq1, eq2, eq3, eq4, eq5, eq6, eq7, eq8])
+        assert_structure(op, ['xy', 'n0', 'n0xy', 'xy', 'xy',
+                              'n1', 'n1xy', 'xy', 'n1', 'n1xy',
+                              'n0', 'n0xy'],
+                         'xyn0xyxyxyn1xyxyn1xyn0xy')

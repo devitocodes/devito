@@ -395,6 +395,22 @@ class BasicDimension(Dimension, Symbol):
     __hash__ = Symbol.__hash__
 
 
+class UniqueDimension(BasicDimension):
+    """
+    Like BasicDimension, but with a tag for unique hashing.
+    """
+
+    __rargs__ = Dimension.__rargs__ + ('tag',)
+
+    def __init_finalize__(self, name, tag, **kwargs):
+        super().__init_finalize__(name, **kwargs)
+        self._tag = tag
+
+    @property
+    def tag(self):
+        return self._tag
+
+
 class DefaultDimension(Dimension, DataSymbol):
 
     """
@@ -666,7 +682,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_min,
                    right=parent.symbolic_min+lst-1,
@@ -675,7 +691,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def right(cls, name, parent, thickness, local=True):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_max-rst+1,
                    right=parent.symbolic_max,
@@ -684,7 +700,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        lst, rst = cls._symbolic_thickness(name)
+        lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_min+lst,
                    right=parent.symbolic_max-rst,

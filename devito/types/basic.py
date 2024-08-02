@@ -346,6 +346,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
+
         return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):
@@ -878,6 +879,12 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             # Special case: a syntactically identical alias of `function`, so
             # let's just return `function` itself
             return function
+
+        # If dimensions have been replaced, then it is necessary to remove halo
+        # and padding kwargs so that they are rebuilt with the new dimensions
+        if function is not None and function.dimensions != dimensions:
+            kwargs.pop('padding')
+            kwargs.pop('halo')
 
         with sympy_mutex:
             # Go straight through Basic, thus bypassing caching and machinery
