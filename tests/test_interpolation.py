@@ -137,6 +137,7 @@ def test_precomputed_interpolation(r):
                                    interpolation_coeffs=interpolation_coeffs)
     eqn = sf.interpolate(m)
     op = Operator(eqn)
+    print(op)
 
     op()
     expected_values = [sin(point[0]) + sin(point[1]) for point in points]

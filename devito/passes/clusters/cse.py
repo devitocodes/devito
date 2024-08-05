@@ -357,7 +357,7 @@ def _(exprs):
 def _(expr):
     mapper = _catch(expr.rhs)
     try:
-        cond = expr.conditionals
+        cond = frozendict(expr.conditionals)
     except AttributeError:
         cond = frozendict()
     return {Candidate(c.expr, cond): v for c, v in mapper.items()}
