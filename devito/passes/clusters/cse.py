@@ -185,7 +185,7 @@ def _(exprs):
 def _(expr):
     mapper = count(expr.rhs)
     try:
-        cond = expr.conditionals
+        cond = frozendict(expr.conditionals)
     except AttributeError:
         cond = frozendict()
     return {Counted(e, cond): v for e, v in mapper.items()}

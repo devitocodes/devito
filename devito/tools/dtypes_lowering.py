@@ -158,7 +158,8 @@ def dtype_to_mpitype(dtype):
         np.int32: 'MPI_INT',
         np.float32: 'MPI_FLOAT',
         np.int64: 'MPI_LONG',
-        np.float64: 'MPI_DOUBLE'
+        np.float64: 'MPI_DOUBLE',
+        np.float16: 'MPI_UNSIGNED_SHORT'
     }[dtype]
 
 

@@ -15,7 +15,7 @@ from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, SubFunction)
+                          CustomDimension, SubFunction, SubDimension)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -180,22 +180,24 @@ class WeightedInterpolator(GenericInterpolator):
 
     @cached_property
     def _rdim(self):
-        parent = self.sfunction._sparse_dim
-        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
-                                -self.r+1, self.r, 2*self.r, parent)
-                for d in self._gdims]
-
-        # Make radius dimension conditional to avoid OOB
         rdims = []
         pos = self.sfunction._position_map.values()
+        conds = []
 
-        for (d, rd, p) in zip(self._gdims, dims, pos):
+        for (d, p) in zip(self._gdims, pos):
+            rd = SubDimension("r%s%s" % (self.sfunction.name, d.name),
+                              d, p-self.r+1, p+self.r, None, True)
             # Add conditional to avoid OOB
-            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
+            lb = sympy.And(rd >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(rd <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
-            rdims.append(ConditionalDimension(rd.name, rd, condition=cond,
-                                              indirect=True))
+            conds.append(cond)
+            if d is not self._gdims[-1]:
+                rdims.append(rd)
+            else:
+                # Add all conditions to most inner dim
+                condall = sympy.And(*conds, evaluate=False)
+                rdims.append(ConditionalDimension(rd.name, rd, condition=condall))
 
         return DimensionTuple(*rdims, getters=self._gdims)
 
@@ -212,6 +214,7 @@ class WeightedInterpolator(GenericInterpolator):
             idims = self.sfunction.dimensions + as_tuple(implicit_dims) + extra
         else:
             idims = extra + as_tuple(implicit_dims) + self.sfunction.dimensions
+
         return tuple(idims)
 
     def _coeff_temps(self, implicit_dims):
@@ -236,7 +239,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitution mapper for variables
         mapper = self._rdim.getters
-        idx_subs = {v: v.subs({k: c + p
+        idx_subs = {v: v.subs({k: c.parent if c.is_NonlinearDerived else c
                     for ((k, c), p) in zip(mapper.items(), pos)})
                     for v in variables}
 
@@ -319,7 +322,7 @@ class WeightedInterpolator(GenericInterpolator):
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
         summands.extend([Inc(rhs, (self._weights * _expr).xreplace(idx_subs),
-                             implicit_dims=implicit_dims)])
+                             implicit_dims=implicit_dims + self._rdim)])
 
         # Write/Incr `self`
         lhs = self.sfunction.subs(self_subs)
@@ -365,16 +368,13 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
-        # Move all temporaries inside inner loop to improve parallelism
-        # Can only be done for inject as interpolation need a temporary
-        # summing temp that wouldn't allow collapsing
-        implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
                                            pos_only=variables)
 
         # Substitute coordinate base symbols into the interpolation coefficients
+        implicit_dims = implicit_dims + self._rdim
         eqns = [Inc(_field.xreplace(idx_subs),
                     (self._weights * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
@@ -397,8 +397,13 @@ class LinearInterpolator(WeightedInterpolator):
 
     @property
     def _weights(self):
-        c = [(1 - p) * (1 - r) + p * r
-             for (p, d, r) in zip(self._point_symbols, self._gdims, self._rdim)]
+        c = []
+        for (p, d, r) in zip(self._point_symbols, self._gdims, self._rdim):
+            if r.is_NonlinearDerived:
+                ri = r - r.parent.symbolic_min
+            else:
+                ri = r - r.symbolic_min
+            c.append((1 - p) * (1 - ri) + p * ri)
         return Mul(*c)
 
     @cached_property
@@ -445,8 +450,14 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @property
     def _weights(self):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
-                   for (ri, rd) in enumerate(self._rdim)]
+        mappers = []
+        for (ri, rd) in enumerate(self._rdim):
+            if rd.is_NonlinearDerived:
+                rdl = rd - rd.parent.symbolic_min
+            else:
+                rdl = rd - rd.symbolic_min
+            mappers.append({ddim: ri, cdim: rdl})
+
         return Mul(*[self.interpolation_coeffs.subs(mapper)
                      for mapper in mappers])
 

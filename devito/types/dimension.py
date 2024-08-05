@@ -557,7 +557,10 @@ class AbstractSubDimension(DerivedDimension):
     def __init_finalize__(self, name, parent, left, right, thickness, **kwargs):
         super().__init_finalize__(name, parent)
         self._interval = sympy.Interval(left, right)
-        self._thickness = Thickness(*thickness)
+        try:
+            self._thickness = Thickness(*thickness)
+        except TypeError:
+            self._thickness = None
 
     @classmethod
     def _symbolic_thickness(cls, name, stype=Scalar):
@@ -760,6 +763,8 @@ class SubDimension(AbstractSubDimension):
 
     @property
     def _arg_names(self):
+        if self.thickness is None:
+            return self.parent._arg_names
         return tuple(k.name for k, _ in self.thickness) + self.parent._arg_names
 
     def _arg_defaults(self, grid=None, **kwargs):
@@ -770,6 +775,9 @@ class SubDimension(AbstractSubDimension):
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
+        if self.thickness is None:
+            return {}
+
         r_ltkn, r_rtkn = (
             kwargs.get(k.name, v) for k, v in self.thickness
         )
