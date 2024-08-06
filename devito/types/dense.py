@@ -87,7 +87,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         initializer = kwargs.get('initializer')
 
         # Don't want to reinitialise array if DataReference used as allocator;
-        # create a no-op intialiser
+        # create a no-op intialiser to avoid overwriting the original array.
         if isinstance(self._allocator, DataReference):
             initializer = lambda x: None
 
