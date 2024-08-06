@@ -880,6 +880,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             # let's just return `function` itself
             return function
 
+        # If dimensions have been replaced, then it is necessary to set `function`
+        # to None. It is also necessary to remove halo and padding kwargs so that
+        # they are rebuilt with the new dimensions
+        if function is not None and function.dimensions != dimensions:
+            function = kwargs['function'] = None
+            kwargs.pop('padding', None)
+            kwargs.pop('halo', None)
+
         with sympy_mutex:
             # Go straight through Basic, thus bypassing caching and machinery
             # in sympy.Application/Function that isn't really necessary
