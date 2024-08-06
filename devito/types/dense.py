@@ -11,6 +11,7 @@ from functools import cached_property
 from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
                          Data, default_allocator)
+from devito.data.allocators import DataReference
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -84,6 +85,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # Data initialization
         initializer = kwargs.get('initializer')
+
+        # Don't want to reinitialise array if DataReference used as allocator;
+        # create a no-op intialiser
+        if isinstance(self._allocator, DataReference):
+            initializer = lambda x: None
+
         if self.alias:
             self._initializer = None
         elif function is not None:
