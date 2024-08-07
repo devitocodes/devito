@@ -210,14 +210,9 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
         return x0
 
-<<<<<<< HEAD
-    def __call__(self, x0=None, fd_order=None, side=None, method=None):
-        side = side or self._side
-
-=======
     @classmethod
     def _process_weights(cls, **kwargs):
-        weights = kwargs.get('weights')
+        weights = kwargs.get('weights', kwargs.get('w'))
         if weights is None:
             return None
         elif isinstance(weights, sympy.Function):
@@ -226,7 +221,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             return as_tuple(weights)
 
     def __call__(self, x0=None, fd_order=None, side=None, method=None, weights=None):
->>>>>>> a14fdae7e (api: revamp custom coefficients API to be passed to derivatives directly)
+        side = side or self._side
         x0 = self._process_x0(self.dims, x0=x0)
         _x0 = frozendict({**self.x0, **x0})
         if self.ndims == 1:
