@@ -212,7 +212,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
     @classmethod
     def _process_weights(cls, **kwargs):
-        weights = kwargs.get('weights')
+        weights = kwargs.get('weights', kwargs.get('w'))
         if weights is None:
             return None
         elif isinstance(weights, sympy.Function):
