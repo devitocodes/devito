@@ -89,7 +89,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method')
+                   'x0', 'method', 'weights')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) is sympy.Derivative:
@@ -110,6 +110,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._method = kwargs.get("method", 'FD')
+        obj._weights = cls._process_weights(**kwargs)
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -209,14 +210,26 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
         return x0
 
-    def __call__(self, x0=None, fd_order=None, side=None, method=None):
+    @classmethod
+    def _process_weights(cls, **kwargs):
+        weights = kwargs.get('weights', kwargs.get('w'))
+        if weights is None:
+            return None
+        elif isinstance(weights, sympy.Function):
+            return weights
+        else:
+            return as_tuple(weights)
+
+    def __call__(self, x0=None, fd_order=None, side=None, method=None, weights=None):
         x0 = self._process_x0(self.dims, x0=x0)
         _x0 = frozendict({**self.x0, **x0})
         if self.ndims == 1:
             fd_order = fd_order or self._fd_order
             side = side or self._side
             method = method or self._method
-            return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method)
+            weights = weights if weights is not None else self._weights
+            return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method,
+                                 weights=weights)
 
         if side is not None:
             raise TypeError("Side only supported for first order single"
@@ -329,6 +342,10 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         return self._method
 
     @property
+    def weights(self):
+        return self._weights
+
+    @property
     def T(self):
         """Transpose of the Derivative.
 
@@ -423,7 +440,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             assert self.method == 'FD'
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
-                                   x0=self.x0, expand=expand)
+                                   x0=self.x0, expand=expand, weights=self.weights)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
@@ -431,7 +448,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
-                                     self.deriv_order,
+                                     self.deriv_order, weights=self.weights,
                                      matvec=self.transpose, x0=self.x0, expand=expand)
 
         # Step 3: Apply substitutions

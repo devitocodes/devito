@@ -3,7 +3,7 @@ import pytest
 
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
-                    Substitutions, Coefficient, cos, sin)
+                    cos, sin)
 from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
@@ -29,42 +29,26 @@ class TestLoopScheduling:
 
 class TestSymbolicCoeffs:
 
-    def test_fallback_to_default(self):
-        grid = Grid(shape=(8, 8, 8))
-
-        u = TimeFunction(name='u', grid=grid, coefficients='symbolic',
-                         space_order=4, time_order=2)
-
-        eq = Eq(u.forward, u.dx2 + 1)
-
-        op = Operator(eq, opt=('advanced', {'expand': False}))
-
-        # Ensure all symbols have been resolved
-        op.arguments(dt=1, time_M=10)
-        op.cfunction
-
     def test_numeric_coeffs(self):
         grid = Grid(shape=(11, 11), extent=(10., 10.))
 
-        u = Function(name='u', grid=grid, coefficients='symbolic', space_order=2)
-        v = Function(name='v', grid=grid, coefficients='symbolic', space_order=2)
-
-        coeffs = Substitutions(Coefficient(2, u, grid.dimensions[0], np.zeros(3)),
-                               Coefficient(2, u, grid.dimensions[1], np.zeros(3)))
+        u = Function(name='u', grid=grid, space_order=2)
+        v = Function(name='v', grid=grid, space_order=2)
 
         opt = ('advanced', {'expand': False})
+        w = np.zeros(3)
 
         # Pure derivative
-        Operator(Eq(u, u.dx2, coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, u.dx2(weights=w)), opt=opt).cfunction
 
         # Mixed derivative
-        Operator(Eq(u, u.dx.dx, coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, u.dx.dx), opt=opt).cfunction
 
         # Non-perfect mixed derivative
-        Operator(Eq(u, (u.dx + v.dx).dx, coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, (u.dx(weights=w) + v.dx).dx), opt=opt).cfunction
 
         # Compound expression
-        Operator(Eq(u, (v*u.dx).dy, coefficients=coeffs), opt=opt).cfunction
+        Operator(Eq(u, (v*u.dx).dy(weights=w)), opt=opt).cfunction
 
     @pytest.mark.parametrize('coeffs,expected', [
         ((7, 7, 7), 1),  # We've had a bug triggered by identical coeffs
@@ -74,19 +58,15 @@ class TestSymbolicCoeffs:
         grid = Grid(shape=(11, 11, 11), extent=(10., 10., 10.))
         x, y, z = grid.dimensions
 
-        p = TimeFunction(name='p', grid=grid, space_order=4,
-                         coefficients='symbolic')
+        p = TimeFunction(name='p', grid=grid, space_order=4)
 
         c0, c1, c2 = coeffs
         coeffs0 = np.full(5, c0)
         coeffs1 = np.full(5, c1)
         coeffs2 = np.full(5, c2)
 
-        subs = Substitutions(Coefficient(1, p, x, coeffs0),
-                             Coefficient(1, p, y, coeffs1),
-                             Coefficient(1, p, z, coeffs2))
-
-        eq = Eq(p.forward, p.dy.dz + p.dx.dy, coefficients=subs)
+        eq = Eq(p.forward, p.dy(weights=coeffs1).dz(weights=coeffs2) +
+                p.dx(weights=coeffs0).dy(weights=coeffs1))
 
         op = Operator(eq, opt=('advanced', {'expand': False}))
         op.cfunction

@@ -145,9 +145,9 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
                    for s, l in zip(sigma, lw))]
         processed = []
-        for w in weights:
+        for (w, l) in zip(weights, lw):
             temp = list(w)
-            while len(temp) < 2*max(lw)+1:
+            while len(temp) < 2*l+1:
                 temp.insert(0, 0)
                 temp.append(0)
             processed.append(np.array(temp))
@@ -188,8 +188,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
 
-    f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw),
-                      coefficients='symbolic', dtype=dtype)
+    f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw), dtype=dtype)
     f_o = dv.Function(name='f_o', grid=grid, dtype=dtype)
 
     weights = create_gaussian_weights(sigma, lw)
@@ -201,10 +200,8 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
         options = []
 
         lhs.append(f_o)
-        rhs.append(dv.generic_derivative(f_c, d, 2*l, 1))
-        coeffs = dv.Coefficient(1, f_c, d, w)
-        options.append({'coefficients': dv.Substitutions(coeffs),
-                        'subdomain': grid.subdomains['objective_domain']})
+        rhs.append(dv.generic_derivative(f_c, d, 2*l, 1, weights=w))
+        options.append({'subdomain': grid.subdomains['objective_domain']})
 
         lhs.append(f_c)
         rhs.append(f_o)
