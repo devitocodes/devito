@@ -396,15 +396,25 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         Evaluate the finite-difference approximation of the Derivative.
         Evaluation is carried out via the following three steps:
 
-        - 1: Evaluate derivatives within the expression. For example given
+        - 1: Interpolate non-derivative shifts.
+            I.e u[x, y].dx(x0={y: y + h_y/2}) requires to interpolate `u` in `y`
+        - 2: Evaluate derivatives within the expression. For example given
             `f.dx * g`, `f.dx` will be evaluated first.
-        - 2: Evaluate the finite difference for the (new) expression.
+        - 3: Evaluate the finite difference for the (new) expression.
              This in turn is a two-step procedure, for Functions that may
              may need to be evaluated at a different point due to e.g. a
              shited derivative.
-        - 3: Apply substitutions.
+        - 4: Apply substitutions.
         """
-        # Step 1: Evaluate derivatives within expression
+        # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
+        # interpolation to avoid very expensive finite differences on top of it.
+        x0_interp = {k: v for k, v in self.x0.items() if k not in self.dims
+                     and v is not expr.indices_ref.get(k) and not k.is_Time}
+        if x0_interp and self.method == 'FD':
+            expr = Derivative(expr, *x0_interp.keys(), deriv_order=0,
+                              fd_order=2, x0=x0_interp)
+
+        # Step 2: Evaluate derivatives within expression
         try:
             expr = expr._evaluate(**kwargs)
         except AttributeError:
@@ -414,7 +424,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         # otherwise an IndexSum will returned
         expand = kwargs.get('expand', True)
 
-        # Step 2: Evaluate FD of the new expression
+        # Step 3: Evaluate FD of the new expression
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order == 1
@@ -434,7 +444,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
                                      self.deriv_order,
                                      matvec=self.transpose, x0=self.x0, expand=expand)
 
-        # Step 3: Apply substitutions
+        # Step 4: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 
