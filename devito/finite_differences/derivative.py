@@ -5,7 +5,7 @@ from functools import cached_property
 import sympy
 
 from .finite_difference import generic_derivative, first_derivative, cross_derivative
-from .differentiable import Differentiable
+from .differentiable import Differentiable, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
@@ -413,12 +413,11 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         for d, v in self.x0.items():
             if d in self.dims:
                 x0_deriv[d] = v
-            elif v is not expr.indices_ref.get(d) and not d.is_Time:
+            elif not d.is_Time:
                 x0_interp[d] = v
 
         if x0_interp and self.method == 'FD':
-            dims = ((d, 0) for d in x0_interp)
-            expr = Derivative(expr, *dims, d_order=2, x0=x0_interp)
+            expr = interp_for_fd(expr, x0_interp, **kwargs)
 
         # Step 2: Evaluate derivatives within expression
         try:
