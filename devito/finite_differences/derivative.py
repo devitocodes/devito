@@ -5,7 +5,7 @@ from functools import cached_property
 import sympy
 
 from .finite_difference import generic_derivative, first_derivative, cross_derivative
-from .differentiable import Differentiable
+from .differentiable import Differentiable, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
@@ -396,15 +396,30 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         Evaluate the finite-difference approximation of the Derivative.
         Evaluation is carried out via the following three steps:
 
-        - 1: Evaluate derivatives within the expression. For example given
+        - 1: Interpolate non-derivative shifts.
+             E.g u[x, y].dx(x0={y: y + h_y/2}) requires to interpolate `u` in `y`
+        - 2: Evaluate derivatives within the expression. For example given
             `f.dx * g`, `f.dx` will be evaluated first.
-        - 2: Evaluate the finite difference for the (new) expression.
+        - 3: Evaluate the finite difference for the (new) expression.
              This in turn is a two-step procedure, for Functions that may
              may need to be evaluated at a different point due to e.g. a
              shited derivative.
-        - 3: Apply substitutions.
+        - 4: Apply substitutions.
         """
-        # Step 1: Evaluate derivatives within expression
+        # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
+        # interpolation to avoid very expensive finite differences on top of it
+        x0_interp = {}
+        x0_deriv = {}
+        for d, v in self.x0.items():
+            if d in self.dims:
+                x0_deriv[d] = v
+            elif not d.is_Time:
+                x0_interp[d] = v
+
+        if x0_interp and self.method == 'FD':
+            expr = interp_for_fd(expr, x0_interp, **kwargs)
+
+        # Step 2: Evaluate derivatives within expression
         try:
             expr = expr._evaluate(**kwargs)
         except AttributeError:
@@ -414,7 +429,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         # otherwise an IndexSum will returned
         expand = kwargs.get('expand', True)
 
-        # Step 2: Evaluate FD of the new expression
+        # Step 3: Evaluate FD of the new expression
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order == 1
@@ -423,18 +438,18 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             assert self.method == 'FD'
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
-                                   x0=self.x0, expand=expand)
+                                   x0=x0_deriv, expand=expand)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
-                                   matvec=self.transpose, x0=self.x0, expand=expand)
+                                   matvec=self.transpose, x0=x0_deriv, expand=expand)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
                                      self.deriv_order,
-                                     matvec=self.transpose, x0=self.x0, expand=expand)
+                                     matvec=self.transpose, x0=x0_deriv, expand=expand)
 
-        # Step 3: Apply substitutions
+        # Step 4: Apply substitutions
         for e in self._ppsubs:
             res = res.xreplace(e)
 

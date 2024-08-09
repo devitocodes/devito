@@ -1,6 +1,6 @@
 import sympy
-from devito import Function, Grid, Differentiable
-from devito.finite_differences.differentiable import Add, Mul, Pow, diffify
+from devito import Function, Grid, Differentiable, NODE
+from devito.finite_differences.differentiable import Add, Mul, Pow, diffify, interp_for_fd
 
 
 def test_differentiable():
@@ -49,3 +49,36 @@ def test_shift():
     assert a.shift(x, x.spacing).shift(x, x.spacing) == a.shift(x, 2*x.spacing)
     assert a.dx.evaluate.shift(x, x.spacing) == a.shift(x, x.spacing).dx.evaluate
     assert a.shift(x, .5 * x.spacing)._grid_map == {x: x + .5 * x.spacing}
+
+
+def test_interp():
+    grid = Grid((10, 10))
+    x = grid.dimensions[0]
+    a = Function(name="a", grid=grid, staggered=NODE)
+    sa = Function(name="as", grid=grid, staggered=x)
+
+    sp_diff = lambda a, b: sympy.simplify(a - b) == 0
+
+    # Base case, no interp
+    assert interp_for_fd(a, {}, expand=True) == a
+    assert interp_for_fd(a, {x: x}, expand=True) == a
+    assert interp_for_fd(sa, {}, expand=True) == sa
+    assert interp_for_fd(sa, {x: x + x.spacing/2}, expand=True) == sa
+
+    # Base case, interp
+    assert sp_diff(interp_for_fd(a, {x: x + x.spacing/2}, expand=True),
+                   .5*a + .5*a.shift(x, x.spacing))
+    assert sp_diff(interp_for_fd(sa, {x: x}, expand=True),
+                   .5*sa + .5*sa.shift(x, -x.spacing))
+
+    # Mul case, split interp
+    assert sp_diff(interp_for_fd(a*sa, {x: x + x.spacing/2}, expand=True),
+                   sa * interp_for_fd(a, {x: x + x.spacing/2}, expand=True))
+    assert sp_diff(interp_for_fd(a*sa, {x: x}, expand=True),
+                   a * interp_for_fd(sa, {x: x}, expand=True))
+
+    # Add case, split interp
+    assert sp_diff(interp_for_fd(a + sa, {x: x + x.spacing/2}, expand=True),
+                   sa + interp_for_fd(a, {x: x + x.spacing/2}, expand=True))
+    assert sp_diff(interp_for_fd(a + sa, {x: x}, expand=True),
+                   a + interp_for_fd(sa, {x: x}, expand=True))
