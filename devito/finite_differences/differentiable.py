@@ -1005,3 +1005,28 @@ def diff2sympy(expr):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
+
+
+# Interpolation for finite differences
+@singledispatch
+def interp_for_fd(expr, x0, **kwargs):
+    return expr
+
+
+@interp_for_fd.register(Differentiable)
+def _(expr, x0, **kwargs):
+    from devito.finite_differences.derivative import Derivative
+    x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
+    if x0_expr:
+        dims = tuple((d, 0) for d in x0_expr)
+        fd_o = tuple([2]*len(dims))
+        return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)._evaluate(**kwargs)
+    else:
+        return expr
+
+
+@interp_for_fd.register(Add)
+@interp_for_fd.register(Mul)
+@interp_for_fd.register(Pow)
+def _(expr, x0, **kwargs):
+    return expr.func(*[interp_for_fd(i, x0, **kwargs) for i in expr.args])
