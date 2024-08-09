@@ -397,7 +397,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         Evaluation is carried out via the following three steps:
 
         - 1: Interpolate non-derivative shifts.
-            I.e u[x, y].dx(x0={y: y + h_y/2}) requires to interpolate `u` in `y`
+             E.g u[x, y].dx(x0={y: y + h_y/2}) requires to interpolate `u` in `y`
         - 2: Evaluate derivatives within the expression. For example given
             `f.dx * g`, `f.dx` will be evaluated first.
         - 3: Evaluate the finite difference for the (new) expression.
@@ -407,12 +407,18 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         - 4: Apply substitutions.
         """
         # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
-        # interpolation to avoid very expensive finite differences on top of it.
-        x0_interp = {k: v for k, v in self.x0.items() if k not in self.dims
-                     and v is not expr.indices_ref.get(k) and not k.is_Time}
+        # interpolation to avoid very expensive finite differences on top of it
+        x0_interp = {}
+        x0_deriv = {}
+        for d, v in self.x0.items():
+            if d in self.dims:
+                x0_deriv[d] = v
+            elif v is not expr.indices_ref.get(d) and not d.is_Time:
+                x0_interp[d] = v
+
         if x0_interp and self.method == 'FD':
-            expr = Derivative(expr, *x0_interp.keys(), deriv_order=0,
-                              fd_order=2, x0=x0_interp)
+            dims = ((d, 0) for d in x0_interp)
+            expr = Derivative(expr, *dims, d_order=2, x0=x0_interp)
 
         # Step 2: Evaluate derivatives within expression
         try:
@@ -433,16 +439,16 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             assert self.method == 'FD'
             res = first_derivative(expr, self.dims[0], self.fd_order,
                                    side=self.side, matvec=self.transpose,
-                                   x0=self.x0, expand=expand)
+                                   x0=x0_deriv, expand=expand)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
-                                   matvec=self.transpose, x0=self.x0, expand=expand)
+                                   matvec=self.transpose, x0=x0_deriv, expand=expand)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
                                      self.deriv_order,
-                                     matvec=self.transpose, x0=self.x0, expand=expand)
+                                     matvec=self.transpose, x0=x0_deriv, expand=expand)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
