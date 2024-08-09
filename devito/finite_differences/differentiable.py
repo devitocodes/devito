@@ -20,6 +20,7 @@ from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
                           infer_dtype, is_integer, split)
 from devito.types import (Array, DimensionTuple, Evaluable, Indexed,
                           StencilDimension)
+from devito.types.basic import AbstractFunction
 
 __all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
            'Weights']
@@ -1013,11 +1014,11 @@ def interp_for_fd(expr, x0, **kwargs):
     return expr
 
 
-@interp_for_fd.register(Differentiable)
+@interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
     from devito.finite_differences.derivative import Derivative
     x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
-    if x0_expr:
+    if x0_expr and not expr.is_parameter:
         dims = tuple((d, 0) for d in x0_expr)
         fd_o = tuple([2]*len(dims))
         return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)._evaluate(**kwargs)
