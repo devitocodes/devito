@@ -1014,6 +1014,19 @@ def interp_for_fd(expr, x0, **kwargs):
     return expr
 
 
+@interp_for_fd.register(sympy.Derivative)
+def _(expr, x0, **kwargs):
+    return expr.func(expr=interp_for_fd(expr.expr, x0, **kwargs))
+
+
+@interp_for_fd.register(sympy.Expr)
+def _(expr, x0, **kwargs):
+    if expr.args:
+        return expr.func(*[interp_for_fd(i, x0, **kwargs) for i in expr.args])
+    else:
+        return expr
+
+
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
     from devito.finite_differences.derivative import Derivative
@@ -1024,10 +1037,3 @@ def _(expr, x0, **kwargs):
         return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)._evaluate(**kwargs)
     else:
         return expr
-
-
-@interp_for_fd.register(Add)
-@interp_for_fd.register(Mul)
-@interp_for_fd.register(Pow)
-def _(expr, x0, **kwargs):
-    return expr.func(*[interp_for_fd(i, x0, **kwargs) for i in expr.args])

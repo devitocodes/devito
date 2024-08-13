@@ -4,7 +4,7 @@ from functools import cached_property
 
 import sympy
 
-from .finite_difference import generic_derivative, first_derivative, cross_derivative
+from .finite_difference import generic_derivative, cross_derivative
 from .differentiable import Differentiable, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
@@ -210,17 +210,15 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         return x0
 
     def __call__(self, x0=None, fd_order=None, side=None, method=None):
+        side = side or self._side
+
         x0 = self._process_x0(self.dims, x0=x0)
         _x0 = frozendict({**self.x0, **x0})
         if self.ndims == 1:
             fd_order = fd_order or self._fd_order
-            side = side or self._side
             method = method or self._method
             return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method)
 
-        if side is not None:
-            raise TypeError("Side only supported for first order single"
-                            "Dimension derivative such as `.dxl` or .dx(side=left)")
         # Cross derivative
         _fd_order = dict(self.fd_order.getters)
         try:
@@ -230,7 +228,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         except AttributeError:
             raise TypeError("Multi-dimensional Derivative, input expected as a dict")
 
-        return self._rebuild(fd_order=_fd_order, x0=_x0)
+        return self._rebuild(fd_order=_fd_order, x0=_x0, side=side)
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True
@@ -434,19 +432,15 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
             assert len(self.dims) == 1
             assert self.deriv_order == 1
             res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
-        elif self.side is not None and self.deriv_order == 1:
-            assert self.method == 'FD'
-            res = first_derivative(expr, self.dims[0], self.fd_order,
-                                   side=self.side, matvec=self.transpose,
-                                   x0=x0_deriv, expand=expand)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
-                                   matvec=self.transpose, x0=x0_deriv, expand=expand)
+                                   matvec=self.transpose, x0=x0_deriv, expand=expand,
+                                   side=self.side)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
-                                     self.deriv_order,
+                                     self.deriv_order, side=self.side,
                                      matvec=self.transpose, x0=x0_deriv, expand=expand)
 
         # Step 4: Apply substitutions
