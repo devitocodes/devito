@@ -10,7 +10,7 @@ from sympy.core.decorators import call_highest_priority
 from devito.finite_differences.elementary import Min, Max
 from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
                           float3, float4, double2, double3, double4, int2, int3,
-                          int4)
+                          int4, dtype_to_ctype, ctypes_to_cstr, ctypes_vector_mapper)
 from devito.types import Symbol
 from devito.types.basic import Basic
 
@@ -382,15 +382,14 @@ class Cast(UnaryOp):
     Symbolic representation of the C notation `(type)expr`.
     """
 
-    _base_typ = ''
-
+    __rargs__ = ('dtype', 'base')
     __rkwargs__ = ('stars',)
 
-    def __new__(cls, base, stars=None, **kwargs):
+    def __new__(cls, dtype, base, stars=None, **kwargs):
         # Attempt simplifcation
         # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
         try:
-            return sympify(eval(cls._base_typ)(base))
+            return sympify(eval(dtype)(base))
         except (NameError, SyntaxError):
             # E.g., `_base_typ` is "char" or "unsigned long"
             pass
@@ -400,6 +399,7 @@ class Cast(UnaryOp):
 
         obj = super().__new__(cls, base)
         obj._stars = stars
+        obj._dtype = ctypes_vector_mapper.get(dtype, dtype)
         return obj
 
     def _hashable_content(self):
@@ -412,8 +412,16 @@ class Cast(UnaryOp):
         return self._stars
 
     @property
+    def dtype(self):
+        return self._dtype
+
+    @property
     def typ(self):
-        return '%s%s' % (self._base_typ, self.stars or '')
+        try:
+            btyp = ctypes_to_cstr(dtype_to_ctype(self.dtype))
+        except:
+            btyp = self.dtype
+        return '%s%s' % (btyp, self.stars or '')
 
     @property
     def _op(self):
@@ -753,10 +761,8 @@ class Rvalue(sympy.Expr, Pickable):
 
 class CastStar:
 
-    base = None
-
-    def __new__(cls, base=''):
-        return cls.base(base, '*')
+    def __new__(cls, dtype, base, ase=''):
+        return Cast(dtype, base, stars='*')
 
 
 # Some other utility objects

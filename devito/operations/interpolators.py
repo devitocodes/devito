@@ -15,7 +15,7 @@ from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, SubFunction, SubDimension)
+                          SubFunction, SubDimension)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -185,7 +185,7 @@ class WeightedInterpolator(GenericInterpolator):
         conds = []
 
         for (d, p) in zip(self._gdims, pos):
-            rd = SubDimension("r%s%s" % (self.sfunction.name, d.name),
+            rd = SubDimension("%s" % d.name,
                               d, p-self.r+1, p+self.r, None, True)
             # Add conditional to avoid OOB
             lb = sympy.And(rd >= d.symbolic_min - self.r, evaluate=False)
@@ -375,9 +375,9 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Substitute coordinate base symbols into the interpolation coefficients
         implicit_dims = implicit_dims + self._rdim
-        eqns = [Inc(_field.xreplace(idx_subs),
-                    (self._weights * _expr).xreplace(idx_subs),
-                    implicit_dims=implicit_dims)
+        eqns = [Eq(_field.xreplace(idx_subs), _field.xreplace(idx_subs) +
+                   (self._weights * _expr).xreplace(idx_subs),
+                   implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs)]
 
         return temps + eqns

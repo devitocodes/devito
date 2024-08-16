@@ -1,8 +1,8 @@
-import ctypes
 import numpy as np
 
 from devito.arch.compiler import Compiler
 from devito.ir import Callable, Dereference, FindSymbols, Node, SymbolRegistry, Uxreplace
+
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics.extended_dtypes import Float16P
 from devito.tools import as_list
@@ -45,6 +45,7 @@ def lower_dtypes(iet: Callable, lang: type[LangBB], compiler: Compiler,
     params: tuple[Basic] = Uxreplace(params_mapper).visit(iet.parameters)
 
     iet = iet._rebuild(body=prefix, parameters=params)
+
     return iet, metadata
 
 
@@ -55,8 +56,13 @@ def _complex_includes(iet: Callable, lang: type[LangBB],
     """
 
     # Check if there are complex numbers that always take dtype precedence
-    types = {f.dtype for f in FindSymbols().visit(iet)
-             if not issubclass(f.dtype, ctypes._Pointer)}
+    types = {}
+    for f in FindSymbols().visit(iet):
+        try:
+            if np.issubdtype(f.dtype, np.generic):
+                types.update(f.dtype)
+        except TypeError:
+            pass
 
     if not any(np.issubdtype(d, np.complexfloating) for d in types):
         return iet, {}

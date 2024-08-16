@@ -421,9 +421,9 @@ class DataManager:
         """
         Apply the `place_definitions` and `place_casts` passes.
         """
+        self.lower_dtypes(graph)
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
-        self.lower_dtypes(graph)
 
 
 class DeviceAwareDataManager(DataManager):
@@ -568,12 +568,12 @@ class DeviceAwareDataManager(DataManager):
         """
         Apply the `place_transfers`, `place_definitions` and `place_casts` passes.
         """
+        self.lower_dtypes(graph)
         self.place_transfers(graph, data_movs=graph.data_movs)
         self.place_definitions(graph, globs=set())
         self.place_devptr(graph)
         self.place_bundling(graph, writes_input=graph.writes_input)
         self.place_casts(graph)
-        self.lower_dtypes(graph)
 
 
 def make_zero_init(obj):
