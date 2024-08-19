@@ -480,7 +480,7 @@ def reduction_comms(clusters):
             rdims = set(c.ispace.itdims) - set(ispace.itdims)
 
             # The reduced Dimensions inducing a global distributed reduction
-            grdims = {d for d in rdims if d._defines & c.dist_dimensions}
+            grdims = {d for d in rdims if d._defines & c.dist_dimensions and not d.local}
             if not grdims:
                 continue
 

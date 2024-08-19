@@ -200,6 +200,10 @@ class Dimension(ArgProvider):
         return self
 
     @property
+    def local(self):
+        return False
+
+    @property
     def is_const(self):
         return False
 

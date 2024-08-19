@@ -93,6 +93,7 @@ dtypes_vector_mapper = DTypesVectorMapper()
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
 dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
+dtypes_vector_mapper.update({(np.float16, 1): np.float16})
 
 
 # *** Custom types escaping both the numpy and ctypes namespaces
