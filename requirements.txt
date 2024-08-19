@@ -1,5 +1,5 @@
 pip>=9.0.1
-numpy>1.16,<2.1
+numpy>1.16,<2.2
 sympy>=1.9,<1.14
 psutil>=5.1.0,<7.0
 py-cpuinfo<10
