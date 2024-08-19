@@ -123,8 +123,7 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
 
     # Maybe filter out all other compiler-generated objects
     if drop_locals:
-        parameters = [p for p in parameters
-                      if not (p.is_ArrayBasic or p.is_LocalObject)]
+        parameters = [p for p in parameters if not p.is_LocalType]
 
     # NOTE: This is requested by the caller when the parameters are used to
     # construct Callables whose signature only depends on the object types,
