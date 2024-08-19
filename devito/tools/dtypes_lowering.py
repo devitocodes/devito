@@ -93,7 +93,8 @@ dtypes_vector_mapper = DTypesVectorMapper()
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
 dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
-dtypes_vector_mapper.update({(np.float16, 1): np.float16})
+for i in range(1, 5):
+    dtypes_vector_mapper.update({(np.float16, i): np.float16})
 
 
 # *** Custom types escaping both the numpy and ctypes namespaces
@@ -157,6 +158,10 @@ def dtype_alloc_ctype(dtype):
     if isinstance(dtype, CustomDtype):
         return dtype, 1
 
+    if dtype == np.float16:
+        # Allocate half float as unsigned short
+        return ctypes.c_uint16, 1
+
     try:
         return ctypes_vector_mapper[dtype], 1
     except KeyError:
@@ -164,10 +169,6 @@ def dtype_alloc_ctype(dtype):
 
     if issubclass(dtype, ctypes._SimpleCData):
         return dtype, 1
-
-    if dtype == np.float16:
-        # Allocate half float as unsigned short
-        return ctypes.c_uint16, 1
 
     if np.issubdtype(dtype, np.complexfloating):
         # For complex float, allocate twice the size of real/imaginary part

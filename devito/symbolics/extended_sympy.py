@@ -399,13 +399,25 @@ class Cast(UnaryOp):
 
         obj = super().__new__(cls, base)
         obj._stars = stars
-        obj._dtype = ctypes_vector_mapper.get(dtype, dtype)
+        obj._dtype = obj.__process_dtype__(dtype)
         return obj
 
     def _hashable_content(self):
         return super()._hashable_content() + (self._stars,)
 
     func = Pickable._rebuild
+
+    @classmethod
+    def __process_dtype__(cls, dtype):
+        if isinstance(dtype, str):
+            return dtype
+        dtype = ctypes_vector_mapper.get(dtype, dtype)
+        try:
+            dtype = ctypes_to_cstr(dtype_to_ctype(dtype))
+        except:
+            pass
+
+        return str(dtype)
 
     @property
     def stars(self):
@@ -417,11 +429,7 @@ class Cast(UnaryOp):
 
     @property
     def typ(self):
-        try:
-            btyp = ctypes_to_cstr(dtype_to_ctype(self.dtype))
-        except:
-            btyp = self.dtype
-        return '%s%s' % (btyp, self.stars or '')
+        return '%s%s' % (self._dtype, self.stars or '')
 
     @property
     def _op(self):

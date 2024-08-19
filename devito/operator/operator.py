@@ -149,7 +149,12 @@ class Operator(Callable):
         if expressions is None:
             # Return a dummy Callable. This is exploited by unpickling. Users
             # can't do anything useful with it
-            return super().__new__(cls, **kwargs)
+            op = super().__new__(cls, **kwargs)
+
+            # Ugly but needed with current setup
+            op._load_dtype_mappings(**kwargs)
+
+            return op
 
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
