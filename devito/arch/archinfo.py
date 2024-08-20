@@ -784,7 +784,9 @@ class Graviton(Arm):
     @cached_property
     def march(self):
         if self.version >= 4:
-            return 'neoverse-n2'
+            return 'neoverse-v2'
+        elif self.version == 3:
+            return 'neoverse-v1'
         else:
             return 'neoverse-n1'
 
