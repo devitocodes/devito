@@ -723,6 +723,14 @@ class TestFD:
         assert eq0.rhs == f2.laplace.evaluate
         assert eq0.rhs != 0
 
+    def test_issue_2442(self):
+        grid = Grid((11, 11))
+        f = Function(name="f", grid=grid, space_order=2)
+
+        dfdxdy = f.dxdy(side=centered).evaluate
+        dfdxdy_split = f.dxc.dyc
+        assert dfdxdy.evaluate == dfdxdy_split.evaluate
+
 
 class TestTwoStageEvaluation:
 

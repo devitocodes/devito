@@ -1788,7 +1788,7 @@ class TestAliases:
         so = 8
         grid = Grid(shape=(6, 6, 6))
 
-        f = Function(name='f', grid=grid, space_order=so, is_param=True)
+        f = Function(name='f', grid=grid, space_order=so, parameter=True)
         v = TimeFunction(name="v", grid=grid, space_order=so)
         v1 = TimeFunction(name="v1", grid=grid, space_order=so)
         p = TimeFunction(name="p", grid=grid, space_order=so, staggered=NODE)
@@ -2013,7 +2013,7 @@ class TestAliases:
         assert len(arrays) == 10
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 6
 
-    @pytest.mark.parametrize('so_ops', [(4, 33), (8, 69)])
+    @pytest.mark.parametrize('so_ops', [(4, 31), (8, 69)])
     @pytest.mark.parametrize('rotate', [False, True])
     @switchconfig(profiling='advanced')
     def test_tti_adjoint_akin(self, so_ops, rotate):

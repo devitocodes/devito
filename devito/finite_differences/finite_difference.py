@@ -14,96 +14,7 @@ _PRECISION = 9
 
 @check_input
 @check_symbolic
-def first_derivative(expr, dim, fd_order=None, side=centered, matvec=direct, x0=None,
-                     coefficients='taylor', expand=True):
-    """
-    First-order derivative of a given expression.
-
-    Parameters
-    ----------
-    expr : expr-like
-        Expression for which the first-order derivative is produced.
-    dim : Dimension
-        The Dimension w.r.t. which to differentiate.
-    fd_order : int, optional, default=expr.space_order
-        Coefficient discretization order. Note: this impacts the width of
-        the resulting stencil.
-    side : Side, optional, default=centered
-        Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1).
-    matvec : Transpose, optional, default=direct
-        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
-        finite difference.
-    x0 : dict, optional, default=None
-        Origin of the finite-difference scheme as a map dim: origin_dim.
-    coefficients : string, optional, default='taylor'
-        Use taylor or custom coefficients (weights).
-    expand : bool, optional, default=True
-        If True, the derivative is fully expanded as a sum of products,
-        otherwise an IndexSum is returned.
-
-    Returns
-    -------
-    expr-like
-        First-order derivative of ``expr``.
-
-    Examples
-    --------
-    >>> from devito import Function, Grid, first_derivative, transpose
-    >>> grid = Grid(shape=(4, 4))
-    >>> x, _ = grid.dimensions
-    >>> f = Function(name='f', grid=grid)
-    >>> g = Function(name='g', grid=grid)
-    >>> first_derivative(f*g, dim=x)
-    -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
-
-    Semantically, this is equivalent to
-
-    >>> (f*g).dx
-    Derivative(f(x, y)*g(x, y), x)
-
-    The only difference is that in the latter case derivatives remain unevaluated.
-    The expanded form is obtained via ``evaluate``
-
-    >>> (f*g).dx.evaluate
-    -f(x, y)*g(x, y)/h_x + f(x + h_x, y)*g(x + h_x, y)/h_x
-
-    For the adjoint mode of the first derivative, pass ``matvec=transpose``
-
-    >>> g = Function(name='g', grid=grid)
-    >>> first_derivative(f*g, dim=x, matvec=transpose)
-    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
-
-    This is also accessible via the .T shortcut
-
-    >>> (f*g).dx.T.evaluate
-    -f(x, y)*g(x, y)/h_x + f(x - h_x, y)*g(x - h_x, y)/h_x
-
-    Finally the x0 argument allows to choose the origin of the finite-difference
-
-    >>> first_derivative(f, dim=x, x0={x: x + x.spacing})
-    -f(x + h_x, y)/h_x + f(x + 2*h_x, y)/h_x
-
-    or specifying a specific location
-
-    >>> first_derivative(f, dim=x, x0={x: 1})
-    f(1, y)/h_x - f(1 - h_x, y)/h_x
-
-    """
-    fd_order = fd_order or expr.space_order
-    deriv_order = 1
-
-    # Enforce stable time coefficients
-    if dim.is_Time and coefficients != 'symbolic':
-        coefficients = 'taylor'
-
-    return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, coefficients, expand)
-
-
-@check_input
-@check_symbolic
-def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, **kwargs):
+def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kwargs):
     """
     Arbitrary-order cross derivative of a given expression.
 
@@ -170,7 +81,7 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     x0 = x0 or {}
     for d, fd, dim in zip(deriv_order, fd_order, dims):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
-                                  **kwargs)
+                                  side=side, **kwargs)
 
     return expr
 
@@ -178,7 +89,7 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
 @check_input
 @check_symbolic
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
-                       coefficients='taylor', expand=True):
+                       coefficients='taylor', expand=True, side=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -210,10 +121,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     expr-like
         ``deriv-order`` derivative of ``expr``.
     """
-    side = None
     # First order derivative with 2nd order FD is strongly discouraged so taking
     # first order fd that is a lot better
-    if deriv_order == 1 and fd_order == 2:
+    if deriv_order == 1 and fd_order == 2 and side is None:
         fd_order = 1
 
     # Zeroth order derivative is just the expression itself if not shifted
@@ -226,6 +136,11 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
                            matvec, x0, coefficients, expand)
+
+
+# Backward compatibility
+def first_derivative(expr, dim, fd_order, **kwargs):
+    return generic_derivative(expr, dim, fd_order, 1, **kwargs)
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,

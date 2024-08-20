@@ -2370,9 +2370,9 @@ class TestOperatorAdvanced:
         op(time_M=2)
 
         # Expected norms computed "manually" from sequential runs
-        assert np.isclose(norm(ux), 6042.554, rtol=1.e-4)
-        assert np.isclose(norm(uxx), 64632.75, rtol=1.e-4)
-        assert np.isclose(norm(uxy), 59737.77, rtol=1.e-4)
+        assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
+        assert np.isclose(norm(uxx), 78902.21, rtol=1.e-4)
+        assert np.isclose(norm(uxy), 71852.62, rtol=1.e-4)
 
     @pytest.mark.parallel(mode=2)
     def test_op_new_dist(self, mode):
