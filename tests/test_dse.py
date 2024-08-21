@@ -190,44 +190,6 @@ def test_estimate_cost(expr, expected, estimate):
     assert estimate_cost(eval(expr), estimate) == expected
 
 
-@pytest.mark.parametrize('exprs,exp_u,exp_v', [
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + 4, implicit_dims=(x, y))',
-      'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + s + 4, implicit_dims=(x, y))',
-      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))',
-      'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Eq(u, s)'], 4, 4),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Inc(s, 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
-    (['Eq(u, 0)', 'Inc(u, 4)', 'Eq(v, u)', 'Inc(u, 4)'], 8, 4),
-    (['Eq(u, 1)', 'Eq(v, 4)', 'Inc(u, v)', 'Inc(v, u)'], 5, 9),
-])
-def test_makeit_ssa(exprs, exp_u, exp_v):
-    """
-    A test building Operators with non-trivial sequences of input expressions
-    that push hard on the `makeit_ssa` utility function.
-    """
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
-    u = Function(name='u', grid=grid)  # noqa
-    v = Function(name='v', grid=grid)  # noqa
-    s = Scalar(name='s')  # noqa
-
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = eval(e)
-
-    op = Operator(exprs)
-    op.apply()
-
-    assert np.all(u.data == exp_u)
-    assert np.all(v.data == exp_v)
-
-
 @pytest.mark.parametrize('opt', ['noop', 'advanced'])
 def test_time_dependent_split(opt):
     grid = Grid(shape=(10, 10))

@@ -11,7 +11,6 @@ except ImportError:
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
-from devito.passes.clusters.utils import makeit_ssa
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, frozendict
@@ -205,8 +204,6 @@ def _compact(exprs, exclude):
         * Temporaries of the form `t0 = s`, where `s` is a leaf;
         * Temporaries of the form `t0 = expr` such that `t0` is accessed only once.
     """
-    exprs = makeit_ssa(exprs)
-
     # Only CSE-captured Temps, namely CTemps, can safely be optimized; a
     # generic Symbol could instead be accessed in a subsequent Cluster, e.g.
     # `for (i = ...) { a = b; for (j = a ...) ... }`

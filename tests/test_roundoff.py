@@ -97,7 +97,6 @@ class TestRoundoff:
 
         grid = Grid(shape=(2, 2), extent=(1, 1), dtype=dtype)
         dt = grid.stepping_dim.spacing
-        print("dt = ", dt)
 
         f0 = TimeFunction(name='f0', grid=grid, time_order=2, dtype=dtype)
         f1 = TimeFunction(name='f1', grid=grid, time_order=2, save=iterations+2,
