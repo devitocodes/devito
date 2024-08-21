@@ -70,8 +70,8 @@ from devito.types import Array, Symbol, Temp
       '-r10*tv[t, x, y, z] + r10*tv[t + 1, x, y, z]',
       'h_y**(-2)',
       'h_x**(-2)',
-      '(-2.0*r11)*(r12*r6 + r12*r7 - 2.0*r12*r8) + r11*(r0*r12 + r1*r12 - 2.0*r12*r2) + r11*(r12*r3 + r12*r4 - 2.0*r12*r5) + 1',
-      '(-2.0*r12)*(r11*r2 + r11*r5 - 2.0*r11*r8) + r12*(r0*r11 + r11*r3 - 2.0*r11*r6) + r12*(r1*r11 + r11*r4 - 2.0*r11*r7) + 2'], 0),
+      '(-2.0*r11)*(r12*r6 + r12*r7 - 2.0*r12*r8) + r11*(r0*r12 + r1*r12 - 2.0*r12*r2) + r11*(r12*r3 + r12*r4 - 2.0*r12*r5) + 1',  # noqa
+      '(-2.0*r12)*(r11*r2 + r11*r5 - 2.0*r11*r8) + r12*(r0*r11 + r11*r3 - 2.0*r11*r6) + r12*(r1*r11 + r11*r4 - 2.0*r11*r7) + 2'], 0),  # noqa
     # Existing temporaries from nested Function as index
     (['Eq(e0, fx[x])', 'Eq(tu, cos(-tu[t, e0, y, z]) + tv[t, x, y, z])',
       'Eq(tv, cos(tu[t, e0, y, z]) + tw)'],
@@ -93,10 +93,10 @@ def test_default_algo(exprs, expected, min_cost):
     tw = TimeFunction(name="tw", grid=grid, space_order=2)  # noqa
     tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
     fx = Function(name="fx", grid=grid, dimensions=(x,), shape=(3,))  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z),
-                dtype=np.float32).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z),
-                dtype=np.float32).indexify()  # noqa
+    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z),  # noqa
+                dtype=np.float32).indexify()
+    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z),  # noqa
+                dtype=np.float32).indexify()
     t0 = CTemp(name='t0', dtype=np.float32)  # noqa
     t1 = CTemp(name='t1', dtype=np.float32)  # noqa
     t2 = CTemp(name='t2', dtype=np.float32)  # noqa
