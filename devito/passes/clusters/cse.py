@@ -203,16 +203,19 @@ def _compact(exprs, exclude):
 
         * Temporaries of the form `t0 = s`, where `s` is a leaf;
         * Temporaries of the form `t0 = expr` such that `t0` is accessed only once.
+
+    Notes
+    -----
+    Only CSE-captured Temps, namely CTemps, can safely be optimized; a
+    generic Symbol could instead be accessed in a subsequent Cluster, e.g.
+    `for (i = ...) { a = b; for (j = a ...) ... }`. Hence, this routine
+    only targets CTemps.
     """
-    # Only CSE-captured Temps, namely CTemps, can safely be optimized; a
-    # generic Symbol could instead be accessed in a subsequent Cluster, e.g.
-    # `for (i = ...) { a = b; for (j = a ...) ... }`
-    candidates = [e for e in exprs if isinstance(e.lhs, CTemp)]
+    candidates = [e for e in exprs
+                  if isinstance(e.lhs, CTemp) and e.lhs not in exclude]
 
-    mapper = {e.lhs: e.rhs for e in candidates
-              if q_leaf(e.rhs) and e.lhs not in exclude}
+    mapper = {e.lhs: e.rhs for e in candidates if q_leaf(e.rhs)}
 
-    #TODO? TO GO?
     mapper.update({e.lhs: e.rhs for e in candidates
                    if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
 
