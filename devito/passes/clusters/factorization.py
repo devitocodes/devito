@@ -27,7 +27,10 @@ def factorize(cluster, *args, options=None, **kwargs):
     then the algorithm is applied recursively until no more factorization
     opportunities are detected.
     """
-    strategy = options.get('fact_schedule', 'basic')
+    try:
+        strategy = options['fact-schedule']
+    except TypeError:
+        strategy = 'basic'
 
     processed = []
     for expr in cluster.exprs:
