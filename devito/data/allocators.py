@@ -337,10 +337,10 @@ class NumaAllocator(MemoryAllocator):
         return self._node == 'local'
 
 
-class ExternalAllocator(MemoryAllocator):
+class DataReference(MemoryAllocator):
 
     """
-    An ExternalAllocator is used to assign pre-existing user data to Functions.
+    A DataReference is used to assign pre-existing user data to Functions.
     Thus, Devito does not allocate any memory.
 
     Parameters
@@ -350,23 +350,23 @@ class ExternalAllocator(MemoryAllocator):
 
     Notes
     -------
-    * Use ExternalAllocator and pass a reference to the external memory when
+    * Use DataReference and pass a reference to the external memory when
       creating a Function. This Function will now use this memory as its f.data.
 
-    * If the data present in this external memory is valuable, provide a noop
-      initialiser, or else Devito will reset it to 0.
+    * This can be used to pass one Function's data to another to avoid copying
+      during Function rebuilds (this should only be used internally).
 
     Example
     --------
     >>> from devito import Grid, Function
-    >>> from devito.data.allocators import ExternalAllocator
+    >>> from devito.data.allocators import DataReference
     >>> import numpy as np
     >>> shape = (2, 2)
     >>> numpy_array = np.ones(shape, dtype=np.float32)
     >>> g = Grid(shape)
     >>> space_order = 0
     >>> f = Function(name='f', grid=g, space_order=space_order,
-    ...      allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
+    ...      allocator=DataReference(numpy_array))
     >>> f.data[0, 1] = 2
     >>> numpy_array
     array([[1., 2.],
@@ -386,6 +386,9 @@ class ExternalAllocator(MemoryAllocator):
 
         return (self.numpy_array, None)
 
+
+# For backward compatibility
+ExternalAllocator = DataReference
 
 ALLOC_GUARD = GuardAllocator(1048576)
 ALLOC_ALIGNED = PosixAllocator()

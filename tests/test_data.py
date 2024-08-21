@@ -6,9 +6,9 @@ from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension,
                     switchconfig, SparseFunction, PrecomputedSparseFunction,
                     PrecomputedSparseTimeFunction)
 from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
+from devito.data.allocators import DataReference
 from devito.tools import as_tuple
 from devito.types import Scalar
-from devito.data.allocators import ExternalAllocator
 
 
 class TestDataBasic:
@@ -1570,31 +1570,6 @@ def test_numpy_c_contiguous():
     assert(u._data_allocated.flags.c_contiguous)
 
 
-def test_external_allocator():
-    shape = (2, 2)
-    space_order = 0
-    numpy_array = np.ones(shape, dtype=np.float32)
-    g = Grid(shape)
-    f = Function(name='f', space_order=space_order, grid=g,
-                 allocator=ExternalAllocator(numpy_array), initializer=lambda x: None)
-
-    # Ensure the two arrays have the same value
-    assert(np.array_equal(f.data, numpy_array))
-
-    # Ensure the original numpy array is unchanged
-    assert(np.array_equal(numpy_array, np.ones(shape, dtype=np.float32)))
-
-    # Change the underlying numpy array
-    numpy_array[:] = 3.
-    # Ensure the function.data changes too
-    assert(np.array_equal(f.data, numpy_array))
-
-    # Change the function.data
-    f.data[:] = 4.
-    # Ensure the underlying numpy array changes too
-    assert(np.array_equal(f.data, numpy_array))
-
-
 def test_boolean_masking_array():
     """
     Test truth value of array, raised in Python 3.9 (MFE for issue #1788)
@@ -1610,6 +1585,78 @@ def test_boolean_masking_array():
     f.data[bool_arr] = 1
 
     assert all(f.data == [1, 1, 0, 0, 1])
+
+
+class TestDataReference:
+    """
+    Tests for passing data to a Function using a reference to a
+    preexisting array-like.
+    """
+
+    def test_w_array(self):
+        """Test using a preexisting NumPy array as Function data"""
+        grid = Grid(shape=(3, 3))
+        a = np.reshape(np.arange(25, dtype=np.float32), (5, 5))
+        b = a.copy()
+        c = a.copy()
+
+        b[1:-1, 1:-1] += 1
+
+        f = Function(name='f', grid=grid, space_order=1,
+                     allocator=DataReference(a))
+
+        # Check that the array hasn't been zeroed
+        assert np.any(a != 0)
+
+        # Check that running operator updates the original array
+        Operator(Eq(f, f+1))()
+        assert np.all(a == b)
+
+        # Check that updating the array updates the function data
+        a[1:-1, 1:-1] -= 1
+        assert np.all(f.data_with_halo == c)
+
+    def _w_data(self):
+        shape = (5, 5)
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid, space_order=1)
+        f.data_with_halo[:] = np.reshape(np.arange(49, dtype=np.float32), (7, 7))
+
+        g = Function(name='g', grid=grid, space_order=1,
+                     allocator=DataReference(f._data))
+
+        # Check that the array hasn't been zeroed
+        assert np.any(f.data_with_halo != 0)
+
+        assert np.all(f.data_with_halo == g.data_with_halo)
+
+        # Update f
+        Operator(Eq(f, f+1))()
+        assert np.all(f.data_with_halo == g.data_with_halo)
+
+        # Update g
+        Operator(Eq(g, g+1))()
+        assert np.all(f.data_with_halo == g.data_with_halo)
+
+        check = np.array(f.data_with_halo[1:-1, 1:-1])
+
+        # Update both
+        Operator([Eq(f, f+1), Eq(g, g+1)])()
+        assert np.all(f.data_with_halo == g.data_with_halo)
+        # Check that it was incremented by two
+        check += 2
+        assert np.all(f.data == check)
+
+    def test_w_data(self):
+        """Test passing preexisting Function data to another Function"""
+        self._w_data()
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_w_data_mpi(self, mode):
+        """
+        Test passing preexisting Function data to another Function with MPI.
+        """
+        self._w_data()
 
 
 if __name__ == "__main__":
