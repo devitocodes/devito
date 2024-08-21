@@ -247,7 +247,7 @@ def _toposort(exprs):
 
     def choose_element(queue, scheduled):
         # Try to honor temporary names as much as possible
-        first = sorted(queue, key=lambda i: i.lhs.base.name).pop(0)
+        first = sorted(queue, key=lambda i: str(i.lhs)).pop(0)
         queue.remove(first)
         return first
 
