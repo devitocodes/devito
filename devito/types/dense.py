@@ -86,11 +86,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         # Data initialization
         initializer = kwargs.get('initializer')
 
-        # Don't want to reinitialise array if DataReference used as allocator;
-        # create a no-op intialiser to avoid overwriting the original array.
-        if isinstance(self._allocator, DataReference):
-            initializer = lambda x: None
-
         if self.alias:
             self._initializer = None
         elif function is not None:
@@ -98,6 +93,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # `f(x+1)`), so we just copy the reference to the original data
             self._initializer = None
             self._data = function._data
+        elif isinstance(self._allocator, DataReference):
+            # Don't want to reinitialise array if DataReference used as allocator;
+            # create a no-op intialiser to avoid overwriting the original array.
+            self._initializer = lambda x: None
         elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
