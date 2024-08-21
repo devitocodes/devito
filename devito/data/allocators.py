@@ -387,6 +387,9 @@ class DataReference(MemoryAllocator):
         return (self.numpy_array, None)
 
 
+# For backward compatibility
+ExternalAllocator = DataReference
+
 ALLOC_GUARD = GuardAllocator(1048576)
 ALLOC_ALIGNED = PosixAllocator()
 ALLOC_KNL_DRAM = NumaAllocator(0)
