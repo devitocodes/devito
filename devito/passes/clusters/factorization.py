@@ -147,7 +147,7 @@ def collect_const(expr):
 
     # Any factorization possible?
     if len(inverse_mapper) == len(expr.args) or \
-       list(inverse_mapper) == [1]:
+       (len(inverse_mapper) == 1 and 1 in inverse_mapper):
         return expr
 
     terms = []
@@ -216,9 +216,9 @@ def _collect_nested(expr, strategy):
         expr = reuse_if_untouched(expr, args, evaluate=True)
         return expr, ReducerMap.fromdicts(*candidates)
     elif expr.is_Equality:
-        args, candidates = zip(*[_collect_nested(expr.lhs, strategy),
-                                 _collect_nested(expr.rhs, strategy)])
-        return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
+        rhs, _ = _collect_nested(expr.rhs, strategy)
+        expr = reuse_if_untouched(expr, (expr.lhs, rhs))
+        return expr, {}
     else:
         args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
         return expr.func(*args), ReducerMap.fromdicts(*candidates)
