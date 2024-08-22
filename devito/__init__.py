@@ -158,6 +158,9 @@ configuration.add('opt-options', {}, deprecate='dle-options')
 # Setup Operator profiling
 configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
 
+# Setup pickling mode
+configuration.add('pickling', 'data', ['data', 'no-data'], impacts_jit=False)
+
 # Initialize `configuration`
 init_configuration()
 

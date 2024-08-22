@@ -890,7 +890,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @property
     def _pickle_rkwargs(self):
         # Picklying carries data over, if available
-        return tuple(self.__rkwargs__) + ('initializer',)
+        rkwargs = tuple(self.__rkwargs__)
+        if configuration['pickling'] == 'data':
+            rkwargs += ('initializer',)
+        return rkwargs
 
 
 class Function(DiscreteFunction):
