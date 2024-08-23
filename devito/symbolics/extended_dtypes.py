@@ -96,44 +96,41 @@ for base_name in ['int', 'float', 'double']:
         globals()[clsp.__name__] = clsp
 
 
+def no_dtype(kwargs):
+    return {k: v for k, v in kwargs.items() if k != 'dtype'}
+
+
 def cast_mapper(arg):
-    if len(arg) == 2 and arg[1] == '*':
-        return lambda v, **kw: CastStar(arg[0], v, **kw)
-    else:
-        return lambda v, **kw: Cast(arg, v, **kw)
+    try:
+        assert len(arg) == 2 and arg[1] == '*'
+        return lambda v, **kw: CastStar(v, dtype=arg[0], **no_dtype(kw))
+    except TypeError:
+        return lambda v, **kw: Cast(v, dtype=arg, **no_dtype(kw))
 
 
 # Standard ones
-
-
-class VOID(Cast):
-
-    __rargs__ = ('base',)
+class BaseCast(Cast):
 
     def __new__(cls, base, stars=None, **kwargs):
-        dtype = type('void', (ctypes.c_int,), {})
-        return super().__new__(cls, dtype, base, stars=stars, **kwargs)
+        kwargs['dtype'] = cls._dtype
+        return super().__new__(cls, base, stars=stars, **kwargs)
 
 
-class INT(Cast):
+class VOID(BaseCast):
 
-    __rargs__ = ('base',)
-
-    def __new__(cls, base, stars=None, **kwargs):
-        return super().__new__(cls, np.int32, base, stars=stars, **kwargs)
+    _dtype = type('void', (ctypes.c_int,), {})
 
 
-class FLOAT(Cast):
+class INT(BaseCast):
 
-    __rargs__ = ('base',)
-
-    def __new__(cls, base, stars=None, **kwargs):
-        return super().__new__(cls, np.float32, base, stars=stars, **kwargs)
+    _dtype = np.int32
 
 
-class DOUBLE(Cast):
+class FLOAT(BaseCast):
 
-    __rargs__ = ('base',)
+    _dtype = np.float32
 
-    def __new__(cls, base, stars=None, **kwargs):
-        return super().__new__(cls, np.float64, base, stars, **kwargs)
+
+class DOUBLE(BaseCast):
+
+    _dtype = np.float64

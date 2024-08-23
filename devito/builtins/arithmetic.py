@@ -29,10 +29,16 @@ def norm(f, order=2):
 
     n = make_retval(f)
     s = dv.types.Symbol(name='sum', dtype=n.dtype)
+    if f.dtype is np.float16:
+        fprec = f._rebuild(name='%s_prec' % f.name, dtype=np.float32)
+        eqns.append(dv.Eq(fprec, f))
+    else:
+        fprec = f
 
     op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
-                     [dv.Inc(s, dv.Abs(Pow(p, order))), dv.Eq(n[0], s)],
+                     [dv.Inc(s, dv.Abs(Pow(fprec, order))), dv.Inc(n[0], s)],
                      name='norm%d' % order)
+
     op.apply(**kwargs)
 
     v = np.power(n.data[0], 1/order)

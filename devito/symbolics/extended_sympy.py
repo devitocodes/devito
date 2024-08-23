@@ -382,14 +382,17 @@ class Cast(UnaryOp):
     Symbolic representation of the C notation `(type)expr`.
     """
 
-    __rargs__ = ('dtype', 'base')
-    __rkwargs__ = ('stars',)
+    __rargs__ = ('base', )
+    __rkwargs__ = ('stars', 'dtype')
 
-    def __new__(cls, dtype, base, stars=None, **kwargs):
+    def __new__(cls, base, dtype=None, stars=None, **kwargs):
         # Attempt simplifcation
         # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
         try:
-            return sympify(eval(dtype)(base))
+            if isinstance(dtype, str):
+                return sympify(eval(dtype)(base))
+            else:
+                return sympify(dtype(base))
         except (NameError, SyntaxError):
             # E.g., `_base_typ` is "char" or "unsigned long"
             pass
@@ -769,8 +772,8 @@ class Rvalue(sympy.Expr, Pickable):
 
 class CastStar:
 
-    def __new__(cls, dtype, base, ase=''):
-        return Cast(dtype, base, stars='*')
+    def __new__(cls, base, dtype=None, ase=''):
+        return Cast(base, dtype=dtype, stars='*')
 
 
 # Some other utility objects

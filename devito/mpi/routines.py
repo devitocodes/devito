@@ -7,7 +7,6 @@ from operator import mul
 
 from sympy import Integer
 
-from devito.logger import debug
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
