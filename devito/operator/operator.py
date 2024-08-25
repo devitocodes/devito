@@ -1092,7 +1092,8 @@ class Operator(Callable):
             self._lib.name = soname
 
         self._allocator = default_allocator(
-            '%s.%s.%s' % (self._compiler.name, self._language, self._platform)
+            '%s.%s.%s' % (self._compiler.__class__.__name__, self._language,
+                          self._platform)
         )
 
 
@@ -1378,7 +1379,7 @@ def parse_kwargs(**kwargs):
 
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        '%s.%s.%s' % (kwargs['compiler'].name,
+        '%s.%s.%s' % (kwargs['compiler'].__class__.__name__,
                       kwargs['language'],
                       kwargs['platform'])
     )

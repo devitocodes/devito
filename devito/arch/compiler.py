@@ -181,6 +181,8 @@ class Compiler(GCCToolchain):
 
     def __init__(self, **kwargs):
         self._name = kwargs.pop('name', self.__class__.__name__)
+        if isinstance(self._name, Compiler):
+            self._name = self._name.name
 
         super().__init__(**kwargs)
 
@@ -977,6 +979,8 @@ class CompilerRegistry(dict):
     """
 
     def __getitem__(self, key):
+        if isinstance(key, Compiler):
+            key = key.name
         if key.startswith('gcc-'):
             i = key.split('-')[1]
             return partial(GNUCompiler, suffix=i)

@@ -52,11 +52,11 @@ class CodePrinter(C99CodePrinter):
 
     def half_prec(self, expr=None, with_f=False):
         return False
-        #no_f = self.compiler._cpp and not with_f
-        #if no_f and expr is not None:
-        #    return False
-        #dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        #return issubclass(dtype, np.float16)
+        # no_f = self.compiler._cpp and not with_f
+        # if no_f and expr is not None:
+        #     return False
+        # dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        # return issubclass(dtype, np.float16)
 
     def complex_prec(self, expr=None):
         if self.compiler._cpp:
