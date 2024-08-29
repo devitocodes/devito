@@ -223,7 +223,7 @@ def make_stencil_dimension(expr, _min, _max):
     Create a StencilDimension for `expr` with unique name.
     """
     n = len(expr.find(StencilDimension))
-    return StencilDimension(name='i%d' % n, _min=_min, _max=_max)
+    return StencilDimension('i%d' % n, _min, _max)
 
 
 @cacheit
