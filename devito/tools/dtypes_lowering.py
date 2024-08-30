@@ -93,7 +93,7 @@ dtypes_vector_mapper = DTypesVectorMapper()
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
 dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
-for i in range(1, 5):
+for i in range(1, 7):
     dtypes_vector_mapper.update({(np.float16, i): np.float16})
 
 
