@@ -46,8 +46,10 @@ class DeviceOperatorMixin:
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)
 
-        # CSE
+        # Flops minimization
         o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+        o['cse-algo'] = oo.pop('cse-algo', cls.CSE_ALGO)
+        o['fact-schedule'] = oo.pop('fact-schedule', cls.FACT_SCHEDULE)
 
         # Blocking
         o['blockinner'] = oo.pop('blockinner', True)
@@ -196,14 +198,14 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cire(clusters, 'sops', sregistry, options, platform)
-        clusters = factorize(clusters)
+        clusters = factorize(clusters, **kwargs)
         clusters = optimize_pows(clusters)
 
         # The previous passes may have created fusion opportunities
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, options)
+        clusters = cse(clusters, **kwargs)
 
         # Blocking to define thread blocks
         if options['blocklazy']:

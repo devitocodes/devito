@@ -36,8 +36,10 @@ class Cpu64OperatorMixin:
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)
 
-        # CSE
+        # Flops minimization
         o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)
+        o['cse-algo'] = oo.pop('cse-algo', cls.CSE_ALGO)
+        o['fact-schedule'] = oo.pop('fact-schedule', cls.FACT_SCHEDULE)
 
         # Blocking
         o['blockinner'] = oo.pop('blockinner', False)
@@ -168,14 +170,14 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cire(clusters, 'sops', sregistry, options, platform)
-        clusters = factorize(clusters)
+        clusters = factorize(clusters, **kwargs)
         clusters = optimize_pows(clusters)
 
         # The previous passes may have created fusion opportunities
         clusters = fuse(clusters)
 
         # Reduce flops
-        clusters = cse(clusters, sregistry, options)
+        clusters = cse(clusters, **kwargs)
 
         # Blocking to improve data locality
         if options['blocklazy']:

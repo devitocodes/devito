@@ -6,6 +6,7 @@ from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
+from devito.finite_differences.differentiable import EvalDerivative
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
@@ -17,7 +18,7 @@ from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'reuse_if_untouched',
-           'evalrel']
+           'evalrel', 'flatten_args']
 
 
 def uxreplace(expr, rule):
@@ -139,6 +140,7 @@ def _(expr, args, kwargs):
     if all(i.is_commutative for i in args):
         _addsort(args)
         _eval_numbers(expr, args)
+        args = flatten_args(args, Add, ignore=EvalDerivative)
         return expr.func(*args, evaluate=False)
     else:
         return expr._new_rawargs(*args)
@@ -154,6 +156,7 @@ def _(expr, args, kwargs):
     if all(i.is_commutative for i in args):
         _mulsort(args)
         _eval_numbers(expr, args)
+        args = flatten_args(args, Mul, ignore=EvalDerivative)
         return expr.func(*args, evaluate=False)
     else:
         return expr._new_rawargs(*args)
@@ -274,6 +277,25 @@ def _eval_numbers(expr, args):
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
         args[:] = [expr.func(*numbers)] + others
+
+
+def flatten_args(args, op, ignore=None):
+    """
+    Flatten the arguments of type `op` in `args`.
+
+    Examples
+    --------
+    * (a+b)+c -> a+b+c
+    * (a*b)*c -> a*b*c
+    * (a+b)*c -> (a+b)*c
+    """
+    if ignore is not None and any(isinstance(a, ignore) for a in args):
+        return args
+
+    key = lambda e: isinstance(e, op)
+    nested, others = split(args, key)
+
+    return flatten(e.args for e in nested) + list(others)
 
 
 def pow_to_mul(expr):

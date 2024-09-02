@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from sympy import Mul  # noqa
-from sympy.core.mul import _mulsort
 
 from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
                       get_params, get_arrays, check_array)
@@ -13,20 +12,18 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos,
-                    sin, sqrt, Ge, Lt)
+                    sin, sqrt, floor, Ge, Lt)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.finite_differences.differentiable import diffify
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.factorization import collect_nested
-from devito.passes.clusters.cse import CTemp, _cse
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
                               IndexedPointer, Keyword, SizeOf, estimate_cost,
                               pow_to_mul, indexify)
-from devito.tools import as_tuple, generator
-from devito.types import Array, Scalar, Symbol, PrecomputedSparseTimeFunction, Temp
+from devito.tools import as_tuple
+from devito.types import Scalar, Symbol, PrecomputedSparseTimeFunction
 
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, AcquisitionGeometry
@@ -53,191 +50,6 @@ def test_scheduling_after_rewrite():
     assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
-
-
-@pytest.mark.parametrize('exprs,expected,min_cost', [
-    # Simple cases
-    (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, t0 + t1)', 'Eq(ti1, t0 + t1)'],
-     ['t0 + t1', '2/r0', 'r0', 'r0'], 0),
-    (['Eq(tu, 2/(t0 + t1))', 'Eq(ti0, 2/(t0 + t1) + 1)', 'Eq(ti1, 2/(t0 + t1) + 1)'],
-     ['2/(t0 + t1)', 'r1', 'r1 + 1', 'r0', 'r0'], 0),
-    (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
-     ['ti0[x, y, z] + ti1[x, y, z]',
-      'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)'], 0),
-    (['Eq(tu, t0/t1)', 'Eq(ti0, 2 + t0/t1)', 'Eq(ti1, 2 + t0/t1)'],
-     ['t0/t1', 'r1', 'r1 + 2', 'r0', 'r0'], 0),
-    # Across expressions
-    (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
-     ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0'], 0),
-    # Intersecting
-    pytest.param(['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
-                 ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'], 0,
-                 marks=pytest.mark.xfail),
-    # Divisions (== powers with negative exponenet) are always captured
-    (['Eq(tu, tv**-1*(tw*5 + tw*5*t0))', 'Eq(ti0, tv**-1*t0)'],
-     ['1/tv[t, x, y, z]', 'r0*(5*t0*tw[t, x, y, z] + 5*tw[t, x, y, z])', 'r0*t0'], 0),
-    # `compact_temporaries` must detect chains of isolated temporaries
-    (['Eq(t0, tv)', 'Eq(t1, t0)', 'Eq(t2, t1)', 'Eq(tu, t2)'],
-     ['tv[t, x, y, z]'], 0),
-    # Dimension-independent flow+anti dependences should be a stopper for CSE
-    (['Eq(t0, cos(t1))', 'Eq(t1, 5)', 'Eq(t2, cos(t1))'],
-     ['cos(t1)', '5', 'cos(t1)'], 0),
-    (['Eq(tu, tv + 1)', 'Eq(tv, tu)', 'Eq(tw, tv + 1)'],
-     ['tv[t, x, y, z] + 1', 'tu[t, x, y, z]', 'tv[t, x, y, z] + 1'], 0),
-    # Dimension-independent flow (but not anti) dependences are OK instead as
-    # long as the temporaries are introduced after the write
-    (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
-      'Eq(tw.forward, tv.dt + 1)', 'Eq(tz.forward, tv.dt + 2)'],
-     ['1/h_x', '-r1*tu[t, x, y, z] + r1*tu[t, x + 1, y, z] + 1',
-      '-r1*tv[t, x, y, z] + r1*tv[t, x + 1, y, z] + 1',
-      '1/dt', '-r2*tv[t, x, y, z] + r2*tv[t + 1, x, y, z]',
-      'r0 + 1', 'r0 + 2'], 0),
-    # Fancy use case with lots of temporaries
-    (['Eq(tu.forward, tu.dx + 1)', 'Eq(tv.forward, tv.dx + 1)',
-      'Eq(tw.forward, tv.dt.dx2.dy2 + 1)', 'Eq(tz.forward, tv.dt.dy2.dx2 + 2)'],
-     ['1/h_x', '-r11*tu[t, x, y, z] + r11*tu[t, x + 1, y, z] + 1',
-      '-r11*tv[t, x, y, z] + r11*tv[t, x + 1, y, z] + 1',
-      '1/dt', '-r12*tv[t, x - 1, y - 1, z] + r12*tv[t + 1, x - 1, y - 1, z]',
-      '-r12*tv[t, x + 1, y - 1, z] + r12*tv[t + 1, x + 1, y - 1, z]',
-      '-r12*tv[t, x, y - 1, z] + r12*tv[t + 1, x, y - 1, z]',
-      '-r12*tv[t, x - 1, y + 1, z] + r12*tv[t + 1, x - 1, y + 1, z]',
-      '-r12*tv[t, x + 1, y + 1, z] + r12*tv[t + 1, x + 1, y + 1, z]',
-      '-r12*tv[t, x, y + 1, z] + r12*tv[t + 1, x, y + 1, z]',
-      '-r12*tv[t, x - 1, y, z] + r12*tv[t + 1, x - 1, y, z]',
-      '-r12*tv[t, x + 1, y, z] + r12*tv[t + 1, x + 1, y, z]',
-      '-r12*tv[t, x, y, z] + r12*tv[t + 1, x, y, z]',
-      'h_x**(-2)', '-2.0*r13', 'h_y**(-2)', '-2.0*r14',
-      'r10*(r13*r6 + r13*r7 + r8*r9) + r14*(r0*r13 + r1*r13 + r2*r9) + ' +
-      'r14*(r13*r3 + r13*r4 + r5*r9) + 1',
-      'r13*(r0*r14 + r10*r6 + r14*r3) + r13*(r1*r14 + r10*r7 + r14*r4) + ' +
-      'r9*(r10*r8 + r14*r2 + r14*r5) + 2'], 0),
-    # Existing temporaries from nested Function as index
-    (['Eq(e0, fx[x])', 'Eq(tu, cos(-tu[t, e0, y, z]) + tv[t, x, y, z])',
-      'Eq(tv, cos(tu[t, e0, y, z]) + tw)'],
-     ['fx[x]', 'cos(tu[t, e0, y, z])', 'r0 + tv[t, x, y, z]', 'r0 + tw[t, x, y, z]'], 0),
-    # Make sure -x isn't factorized with default minimum cse cost
-    (['Eq(e0, fx[x])', 'Eq(tu, -tu[t, e0, y, z] + tv[t, x, y, z])',
-      'Eq(tv, -tu[t, e0, y, z] + tw)'],
-     ['fx[x]', '-tu[t, e0, y, z] + tv[t, x, y, z]',
-      '-tu[t, e0, y, z] + tw[t, x, y, z]'], 1)
-])
-def test_cse(exprs, expected, min_cost):
-    """Test common subexpressions elimination."""
-    grid = Grid((3, 3, 3))
-    x, y, z = grid.dimensions
-    t = grid.stepping_dim  # noqa
-
-    tu = TimeFunction(name="tu", grid=grid, space_order=2)  # noqa
-    tv = TimeFunction(name="tv", grid=grid, space_order=2)  # noqa
-    tw = TimeFunction(name="tw", grid=grid, space_order=2)  # noqa
-    tz = TimeFunction(name="tz", grid=grid, space_order=2)  # noqa
-    fx = Function(name="fx", grid=grid, dimensions=(x,), shape=(3,))  # noqa
-    ti0 = Array(name='ti0', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
-    ti1 = Array(name='ti1', shape=(3, 5, 7), dimensions=(x, y, z)).indexify()  # noqa
-    t0 = CTemp(name='t0')  # noqa
-    t1 = CTemp(name='t1')  # noqa
-    t2 = CTemp(name='t2')  # noqa
-    # Needs to not be a Temp to mimic nested index extraction and prevent
-    # cse to compact the temporary back.
-    e0 = Symbol(name='e0')  # noqa
-
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
-
-    counter = generator()
-    make = lambda: CTemp(name='r%d' % counter()).indexify()
-    processed = _cse(exprs, make, min_cost)
-
-    assert len(processed) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(processed, expected))
-
-
-def test_cse_temp_order():
-    # Test order of classes inserted to Sympy's core ordering
-    a = Temp(name='r6')
-    b = CTemp(name='r6')
-    c = Symbol(name='r6')
-
-    args = [b, a, c]
-
-    _mulsort(args)
-
-    assert type(args[0]) is Symbol
-    assert type(args[1]) is Temp
-    assert type(args[2]) is CTemp
-
-
-def test_cse_w_conditionals():
-    grid = Grid(shape=(10, 10, 10))
-    x, _, _ = grid.dimensions
-
-    cd = ConditionalDimension(name='cd', parent=x, condition=Ge(x, 4),
-                              indirect=True)
-
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
-    h = Function(name='h', grid=grid)
-    a0 = Function(name='a0', grid=grid)
-    a1 = Function(name='a1', grid=grid)
-
-    eqns = [Eq(h, a0, implicit_dims=cd),
-            Eq(a0, a0 + f*g, implicit_dims=cd),
-            Eq(a1, a1 + f*g, implicit_dims=cd)]
-
-    op = Operator(eqns)
-
-    assert_structure(op, ['x,y,z'], 'xyz')
-    assert len(FindNodes(Conditional).visit(op)) == 1
-
-
-def test_cse_w_multi_conditionals():
-    grid = Grid(shape=(10, 10, 10))
-    x, _, _ = grid.dimensions
-
-    cd = ConditionalDimension(name='cd', parent=x, condition=Ge(x, 4),
-                              indirect=True)
-
-    cd2 = ConditionalDimension(name='cd2', parent=x, condition=Lt(x, 4),
-                               indirect=True)
-
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
-    h = Function(name='h', grid=grid)
-    a0 = Function(name='a0', grid=grid)
-    a1 = Function(name='a1', grid=grid)
-    a2 = Function(name='a2', grid=grid)
-    a3 = Function(name='a3', grid=grid)
-
-    eq0 = Eq(h, a0, implicit_dims=cd)
-    eq1 = Eq(a0, a0 + f*g, implicit_dims=cd)
-    eq2 = Eq(a1, a1 + f*g, implicit_dims=cd)
-    eq3 = Eq(a2, a2 + f*g, implicit_dims=cd2)
-    eq4 = Eq(a3, a3 + f*g, implicit_dims=cd2)
-
-    op = Operator([eq0, eq1, eq3])
-
-    assert_structure(op, ['x,y,z'], 'xyz')
-    assert len(FindNodes(Conditional).visit(op)) == 2
-
-    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
-    assert len(tmps) == 0
-
-    op = Operator([eq0, eq1, eq3, eq4])
-
-    assert_structure(op, ['x,y,z'], 'xyz')
-    assert len(FindNodes(Conditional).visit(op)) == 2
-
-    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
-    assert len(tmps) == 1
-
-    op = Operator([eq0, eq1, eq2, eq3, eq4])
-
-    assert_structure(op, ['x,y,z'], 'xyz')
-    assert len(FindNodes(Conditional).visit(op)) == 2
-
-    tmps = [s for s in FindSymbols().visit(op) if s.name.startswith('r')]
-    assert len(tmps) == 2
 
 
 @pytest.mark.parametrize('expr,expected', [
@@ -276,13 +88,19 @@ def test_pow_to_mul(expr, expected):
 
 @pytest.mark.parametrize('expr,expected', [
     ('s - SizeOf("int")*fa[x]', 's - fa[x]*sizeof(int)'),
+    ('foo(4*fa[x] + 4*fb[x])', 'foo(4*(fa[x] + fb[x]))'),
+    ('floor(0.1*a + 0.1*fa[x])', 'floor(0.1*(a + fa[x]))'),
+    ('floor(0.1*(a + fa[x]))', 'floor(0.1*(a + fa[x]))'),
 ])
 def test_factorize(expr, expected):
     grid = Grid((4, 5))
     x, y = grid.dimensions
 
-    s = Scalar(name='s')  # noqa
+    s = Scalar(name='s', dtype=np.float32)  # noqa
+    a = Symbol(name='a', dtype=np.float32)  # noqa
     fa = Function(name='fa', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+    fb = Function(name='fb', grid=grid, dimensions=(x,), shape=(4,))  # noqa
+    foo = lambda *args: DefFunction('foo', tuple(args))  # noqa
 
     assert str(collect_nested(eval(expr))) == expected
 
@@ -370,44 +188,6 @@ def test_estimate_cost(expr, expected, estimate):
     ffp = FieldFromPointer('size', fa._C_symbol)  # noqa
 
     assert estimate_cost(eval(expr), estimate) == expected
-
-
-@pytest.mark.parametrize('exprs,exp_u,exp_v', [
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + 4, implicit_dims=(x, y))',
-      'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Eq(s, s + s + 4, implicit_dims=(x, y))',
-      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))',
-      'Eq(u, s)'], 4, 0),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Eq(u, s)'], 4, 4),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Eq(s, s + 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
-    (['Eq(s, 0, implicit_dims=(x, y))', 'Inc(s, 4, implicit_dims=(x, y))', 'Eq(v, s)',
-      'Inc(s, 4, implicit_dims=(x, y))', 'Eq(u, s)'], 8, 4),
-    (['Eq(u, 0)', 'Inc(u, 4)', 'Eq(v, u)', 'Inc(u, 4)'], 8, 4),
-    (['Eq(u, 1)', 'Eq(v, 4)', 'Inc(u, v)', 'Inc(v, u)'], 5, 9),
-])
-def test_makeit_ssa(exprs, exp_u, exp_v):
-    """
-    A test building Operators with non-trivial sequences of input expressions
-    that push hard on the `makeit_ssa` utility function.
-    """
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
-    u = Function(name='u', grid=grid)  # noqa
-    v = Function(name='v', grid=grid)  # noqa
-    s = Scalar(name='s')  # noqa
-
-    # List comprehension would need explicit locals/globals mappings to eval
-    for i, e in enumerate(list(exprs)):
-        exprs[i] = eval(e)
-
-    op = Operator(exprs)
-    op.apply()
-
-    assert np.all(u.data == exp_u)
-    assert np.all(v.data == exp_v)
 
 
 @pytest.mark.parametrize('opt', ['noop', 'advanced'])
@@ -1945,7 +1725,7 @@ class TestAliases:
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
-    @pytest.mark.parametrize('so_ops', [(4, 146), (8, 210)])
+    @pytest.mark.parametrize('so_ops', [(4, 147), (8, 211)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_complete(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
@@ -2205,9 +1985,9 @@ class TestAliases:
         ('v.dx.dx + p.dx.dx',
          (2, 2, (0, 2)), (61, 61, 25)),
         ('(v.dx + v.dy).dx - (v.dx + v.dy).dy + 2*f.dx.dx + f*f.dy.dy + f.dx.dx(x0=1)',
-         (3, 3, (0, 3)), (218, 202, 75)),
+         (3, 3, (0, 3)), (218, 202, 66)),
         ('(g*(1 + f)*v.dx).dx + (2*g*f*v.dx).dx',
-         (1, 1, (0, 1)), (52, 70, 20)),
+         (1, 1, (0, 1)), (52, 66, 20)),
         ('g*(f.dx.dx + g.dx.dx)',
          (1, 2, (0, 1)), (47, 62, 17)),
     ])

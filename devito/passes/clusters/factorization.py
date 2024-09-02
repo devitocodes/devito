@@ -3,7 +3,8 @@ from collections import defaultdict
 from sympy import Add, Mul, S, collect
 
 from devito.ir import cluster_pass
-from devito.symbolics import BasicWrapperMixin, estimate_cost, retrieve_symbols
+from devito.symbolics import (BasicWrapperMixin, estimate_cost, reuse_if_untouched,
+                              retrieve_symbols, q_routine)
 from devito.tools import ReducerMap
 from devito.types.object import AbstractObject
 
@@ -18,7 +19,7 @@ is applied.
 
 
 @cluster_pass
-def factorize(cluster, *args):
+def factorize(cluster, *args, options=None, **kwargs):
     """
     Factorize trascendental functions, symbolic powers, numeric coefficients.
 
@@ -26,16 +27,21 @@ def factorize(cluster, *args):
     then the algorithm is applied recursively until no more factorization
     opportunities are detected.
     """
+    try:
+        strategy = options['fact-schedule']
+    except TypeError:
+        strategy = 'basic'
+
     processed = []
     for expr in cluster.exprs:
-        handle = collect_nested(expr)
+        handle = collect_nested(expr, strategy)
         cost_handle = estimate_cost(handle)
 
         if cost_handle >= MIN_COST_FACTORIZE:
             handle_prev = handle
             cost_prev = estimate_cost(expr)
             while cost_handle < cost_prev:
-                handle_prev, handle = handle, collect_nested(handle)
+                handle_prev, handle = handle, collect_nested(handle, strategy)
                 cost_prev, cost_handle = cost_handle, estimate_cost(handle)
             cost_handle, handle = cost_prev, handle_prev
 
@@ -44,12 +50,12 @@ def factorize(cluster, *args):
     return cluster.rebuild(processed)
 
 
-def collect_special(expr):
+def collect_special(expr, strategy):
     """
     Factorize elemental functions, pows, and other special symbolic objects,
     prioritizing the most expensive entities.
     """
-    args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+    args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
     candidates = ReducerMap.fromdicts(*candidates)
 
     funcs = candidates.getall('funcs', [])
@@ -71,6 +77,17 @@ def collect_special(expr):
             w_coeffs.append(i)
         else:
             terms.append(i)
+
+    # Any factorization possible?
+    if not any(len(i) > 1 for i in [w_funcs, w_pows, w_coeffs]):
+        # `evaluate=True` below guarantees de-nesting of Adds
+        # For example:
+        # `args[0] = ((0.1*(a + b)) + (0.2*(c + d)))`
+        # `args[1] = ((0.1*(e + f)) + (0.2*(g + h)))`
+        # ->
+        # `expr = (0.1*(a + b) + 0.2*(c + d) + 0.1*(e + f) + 0.2*(g + h))`
+        # Which is then further factorizable by `collect_const`
+        return reuse_if_untouched(expr, args, evaluate=True)
 
     # Collect common funcs
     if len(w_funcs) > 1:
@@ -96,7 +113,7 @@ def collect_special(expr):
     # Collect common temporaries (r0, r1, ...)
     w_coeffs = Add(*w_coeffs, evaluate=False)
     symbols = retrieve_symbols(w_coeffs)
-    if symbols:
+    if len(set(symbols)) != len(symbols):
         w_coeffs = collect(w_coeffs, symbols, evaluate=False)
         try:
             terms.extend([Mul(k, collect_const(v), evaluate=False)
@@ -128,6 +145,11 @@ def collect_const(expr):
         else:
             inverse_mapper[-v].append(-k)
 
+    # Any factorization possible?
+    if len(inverse_mapper) == len(expr.args) or \
+       (len(inverse_mapper) == 1 and 1 in inverse_mapper):
+        return expr
+
     terms = []
     for k, v in inverse_mapper.items():
         if len(v) == 1 and not v[0].is_Add:
@@ -156,19 +178,19 @@ def collect_const(expr):
     return Add(*terms)
 
 
-def strategy0(expr):
-    rebuilt = collect_special(expr)
+def strategy0(expr, strategy):
+    rebuilt = collect_special(expr, strategy)
     rebuilt = collect_const(rebuilt)
 
     return rebuilt
 
 
 strategies = {
-    'default': strategy0
+    'basic': strategy0
 }
 
 
-def _collect_nested(expr):
+def _collect_nested(expr, strategy):
     """
     Recursion helper for `collect_nested`.
     """
@@ -176,6 +198,10 @@ def _collect_nested(expr):
 
     if expr.is_Number:
         return expr, {'coeffs': expr}
+    elif q_routine(expr):
+        # E.g., a DefFunction
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+        return expr.func(*args, evaluate=False), {}
     elif expr.is_Function:
         return expr, {'funcs': expr}
     elif expr.is_Pow:
@@ -184,20 +210,21 @@ def _collect_nested(expr):
           isinstance(expr, (BasicWrapperMixin, AbstractObject))):
         return expr, {}
     elif expr.is_Add:
-        return strategies['default'](expr), {}
+        return strategies[strategy](expr, strategy), {}
     elif expr.is_Mul:
-        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
-        return Mul(*args), ReducerMap.fromdicts(*candidates)
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+        expr = reuse_if_untouched(expr, args, evaluate=True)
+        return expr, ReducerMap.fromdicts(*candidates)
     elif expr.is_Equality:
-        args, candidates = zip(*[_collect_nested(expr.lhs),
-                                 _collect_nested(expr.rhs)])
-        return expr.func(*args, evaluate=False), ReducerMap.fromdicts(*candidates)
+        rhs, _ = _collect_nested(expr.rhs, strategy)
+        expr = reuse_if_untouched(expr, (expr.lhs, rhs))
+        return expr, {}
     else:
-        args, candidates = zip(*[_collect_nested(arg) for arg in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
         return expr.func(*args), ReducerMap.fromdicts(*candidates)
 
 
-def collect_nested(expr):
+def collect_nested(expr, strategy='basic'):
     """
     Collect numeric coefficients, trascendental functions, pows, and other
     symbolic objects across all levels of the expression tree.
@@ -207,4 +234,4 @@ def collect_nested(expr):
     expr : expr-like
         The expression to be factorized.
     """
-    return _collect_nested(expr)[0]
+    return _collect_nested(expr, strategy)[0]

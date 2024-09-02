@@ -44,8 +44,10 @@ class NThreadsBase(NThreadsAbstract):
 
     @cached_property
     def default_value(self):
-        return int(os.environ.get('OMP_NUM_THREADS',
-                                  configuration['platform'].cores_physical))
+        return int(os.environ.get(
+            'OMP_NUM_THREADS',
+            configuration['platform'].cores_physical_per_numa_domain
+        ))
 
     def _arg_defaults(self, **kwargs):
         base_nthreads = self.default_value

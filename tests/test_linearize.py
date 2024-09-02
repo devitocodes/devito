@@ -49,7 +49,7 @@ def test_mpi(mode):
     op0.apply(time_M=10)
     op1.apply(time_M=10, u=u1)
 
-    assert np.all(u.data == u1.data)
+    assert np.allclose(u.data, u1.data, rtol=1e-5)
 
 
 def test_cire():
