@@ -687,6 +687,10 @@ class CudaCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('--use_fast_math')
 
+        # Optionally print out per-kernel shared memory and register usage
+        if configuration['profiling'] == 'advanced2':
+            self.cflags.append('--ptxas-options=-v')
+
         self.src_ext = 'cu'
 
         # NOTE: not sure where we should place this. It definitely needs
