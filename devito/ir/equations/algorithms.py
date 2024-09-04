@@ -286,11 +286,9 @@ def _(d, mapper, rebuilt, sregistry):
     except KeyError:
         fkwargs.update({'name': sregistry.make_name(prefix=d.functions.name),
                         'function': None,
-                        'allocator': ExternalAllocator(d.functions.data),
-                        'initializer': lambda x: None})
+                        'allocator': ExternalAllocator(d.functions._data)})
 
-        frebuilt = d.functions._rebuild(**fkwargs)
-        rebuilt[d.functions] = functions = frebuilt
+        rebuilt[d.functions] = functions = d.functions._rebuild(**fkwargs)
 
     kwargs['functions'] = functions
 
