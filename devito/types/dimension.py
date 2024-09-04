@@ -395,22 +395,6 @@ class BasicDimension(Dimension, Symbol):
     __hash__ = Symbol.__hash__
 
 
-class UniqueDimension(BasicDimension):
-    """
-    Like BasicDimension, but with a tag for unique hashing.
-    """
-
-    __rargs__ = Dimension.__rargs__ + ('tag',)
-
-    def __init_finalize__(self, name, tag, **kwargs):
-        super().__init_finalize__(name, **kwargs)
-        self._tag = tag
-
-    @property
-    def tag(self):
-        return self._tag
-
-
 class DefaultDimension(Dimension, DataSymbol):
 
     """
