@@ -9,7 +9,7 @@ from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension
-from devito.data.allocators import ExternalAllocator
+from devito.data.allocators import DataReference
 
 __all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
 
@@ -273,11 +273,11 @@ def _(d, mapper, rebuilt, sregistry):
         try:
             idim1 = rebuilt[idim0]
         except KeyError:
-            iname = sregistry.make_name(prefix=idim0.name)
+            iname = sregistry.make_name(prefix='n')
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
         kwargs['implicit_dimension'] = idim1
-        fkwargs.update({'dimensions': (idim1,) + (d.functions.dimensions[1:]),
+        fkwargs.update({'dimensions': (idim1,) + d.functions.dimensions[1:],
                         'halo': None,
                         'padding': None})
 
@@ -286,7 +286,7 @@ def _(d, mapper, rebuilt, sregistry):
     except KeyError:
         fkwargs.update({'name': sregistry.make_name(prefix=d.functions.name),
                         'function': None,
-                        'allocator': ExternalAllocator(d.functions._data)})
+                        'allocator': DataReference(d.functions._data)})
 
         rebuilt[d.functions] = functions = d.functions._rebuild(**fkwargs)
 
