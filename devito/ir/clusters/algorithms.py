@@ -9,7 +9,7 @@ from devito.exceptions import InvalidOperator
 from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
                                pull_dims, null_ispace)
-from devito.ir.equations import OpMin, OpMax
+from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
@@ -580,8 +580,8 @@ def normalize_reductions_minmax(cluster):
         elif e.operation is OpMax:
             if not f.is_Input:
                 expr = Eq(lhs, limits_mapper[lhs.dtype].min)
-                ispce = cluster.ispace.project(lambda i: i not in dims)
-                init.append(cluster.rebuild(exprs=expr, ispace=ispce))
+                ispace = cluster.ispace.project(lambda i: i not in dims)
+                init.append(cluster.rebuild(exprs=expr, ispace=ispace))
 
             processed.append(e.func(lhs, Max(lhs, rhs)))
 
@@ -663,8 +663,18 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
                 a = mapper[rhs] = Array(name=name, dtype=e.dtype, dimensions=dims,
                                         grid=grid)
 
-                processed.extend([Eq(a.indexify(), rhs),
-                                  e.func(lhs, a.indexify())])
+                # Populate the Array (the "map" part)
+                processed.append(e.func(a.indexify(), rhs, operation=None))
+
+                # Set all untouched entried to the identity value if necessary
+                if e.conditionals:
+                    nc = {d: sympy.Not(v) for d, v in e.conditionals.items()}
+                    v = identity_mapper[e.lhs.dtype][e.operation]
+                    processed.append(
+                        e.func(a.indexify(), v, operation=None, conditionals=nc)
+                    )
+
+                processed.append(e.func(lhs, a.indexify()))
 
                 for d in sequentialize:
                     properties = properties.sequentialize(d)

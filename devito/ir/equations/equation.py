@@ -1,16 +1,18 @@
 from functools import cached_property
 
+import numpy as np
 import sympy
 
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
                                Stencil, detect_io, detect_accesses)
-from devito.symbolics import IntDiv, uxreplace
+from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax']
+__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax',
+           'identity_mapper']
 
 
 class IREq(sympy.Eq, Pickable):
@@ -117,6 +119,22 @@ class Operation(Tag):
 OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
+
+
+identity_mapper = {
+    np.int32: {OpInc: sympy.S.Zero,
+               OpMax: limits_mapper[np.int32].min,
+               OpMin: limits_mapper[np.int32].max},
+    np.int64: {OpInc: sympy.S.Zero,
+               OpMax: limits_mapper[np.int64].min,
+               OpMin: limits_mapper[np.int64].max},
+    np.float32: {OpInc: sympy.S.Zero,
+                 OpMax: limits_mapper[np.float32].min,
+                 OpMin: limits_mapper[np.float32].max},
+    np.float64: {OpInc: sympy.S.Zero,
+                 OpMax: limits_mapper[np.float64].min,
+                 OpMin: limits_mapper[np.float64].max},
+}
 
 
 class LoweredEq(IREq):
