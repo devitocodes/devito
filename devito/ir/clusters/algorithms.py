@@ -362,7 +362,11 @@ class Stepper(Queue):
             for size, v in groups.items():
                 key = partial(rule, size)
                 subs = {md.origin: md for md in v}
-                sub_iterators[d].extend(v)
+                # Modulo 1 will be removed later but need to be removed
+                # from the sub_iterator here to prevent bad dimension analysis
+                # E.g. it would prevent some outer loop parallelism
+                if size != 1:
+                    sub_iterators[d].extend(v)
 
                 func = partial(xreplace_indices, mapper=subs, key=key)
                 exprs = [e.apply(func) for e in exprs]
@@ -378,14 +382,14 @@ class Stepper(Queue):
 @timed_pass()
 def simplify_modulo(clusters):
     """
-    Simplify trivial modulo expressions such  as %1
+    Simplify trivial modulo expressions such as %1
     """
     processed = []
     for c in clusters:
         mds = {d for d in retrieve_dimensions(c.exprs, deep=True) if d.is_Modulo}
+        subs = {d: 0 for d in mds if d._modulo == 1}
 
-        if mds:
-            subs = {d: 0 for d in mds if d._modulo == 1}
+        if subs:
             func = partial(xreplace_indices, mapper=subs)
             exprs = [e.apply(func) for e in c.exprs]
             processed.append(c.rebuild(exprs=exprs))
