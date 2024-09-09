@@ -356,7 +356,7 @@ class SeismicModel(GenericModel):
         if 'lam' in self._physical_parameters or 'vs' in self._physical_parameters:
             coeffs = fd_w(1, range(-self.space_order//2+1, self.space_order//2+1), .5)
             c_fd = sum(np.abs(coeffs[-1][-1])) / 2
-            return np.sqrt(self.dim) / self.dim / c_fd
+            return .95 * np.sqrt(self.dim) / self.dim / c_fd
         a1 = 4  # 2nd order in time
         coeffs = fd_w(2, range(-self.space_order, self.space_order+1), 0)[-1][-1]
         return np.sqrt(a1/float(self.grid.dim * sum(np.abs(coeffs))))
