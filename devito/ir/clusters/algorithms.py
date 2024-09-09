@@ -16,7 +16,7 @@ from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
-                              xreplace_indices)
+                              xreplace_indices, retrieve_dimensions)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, split, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
@@ -50,6 +50,9 @@ def clusterize(exprs, **kwargs):
 
     # Derive the necessary communications for distributed-memory parallelism
     clusters = communications(clusters)
+
+    # Substitute potential stepping simplifications
+    clusters = simplify_modulo(clusters)
 
     return ClusterGroup(clusters)
 
@@ -358,12 +361,8 @@ class Stepper(Queue):
             groups = as_mapper(mds, lambda d: d.modulo)
             for size, v in groups.items():
                 key = partial(rule, size)
-                if size == 1:
-                    # Optimization -- avoid useless "% 1" ModuloDimensions
-                    subs = {md.origin: 0 for md in v}
-                else:
-                    subs = {md.origin: md for md in v}
-                    sub_iterators[d].extend(v)
+                subs = {md.origin: md for md in v}
+                sub_iterators[d].extend(v)
 
                 func = partial(xreplace_indices, mapper=subs, key=key)
                 exprs = [e.apply(func) for e in exprs]
@@ -374,6 +373,26 @@ class Stepper(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
+
+
+@timed_pass()
+def simplify_modulo(clusters):
+    """
+    Simplify trivial modulo expressions such  as %1
+    """
+    processed = []
+    for c in clusters:
+        mds = {d for d in retrieve_dimensions(c.exprs, deep=True) if d.is_Modulo}
+
+        if mds:
+            subs = {d: 0 for d in mds if d._modulo == 1}
+            func = partial(xreplace_indices, mapper=subs)
+            exprs = [e.apply(func) for e in c.exprs]
+            processed.append(c.rebuild(exprs=exprs))
+        else:
+            processed.append(c)
+
+    return processed
 
 
 @timed_pass(name='communications')

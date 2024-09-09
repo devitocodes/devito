@@ -628,7 +628,7 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                         except KeyError:
                             # E.g., `usave(cd, x, y)` and `usave.dx` in an
                             # adjoint Operator
-                            assert d0.is_Conditional
+                            assert d0.is_Conditional or d1.is_Stepping
                             loc_dirs[d1] = hse0.loc_dirs[d0.root]
 
                 if len(loc_indices) != len(hse0.loc_indices):
