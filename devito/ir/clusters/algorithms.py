@@ -16,7 +16,7 @@ from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
-                              xreplace_indices, retrieve_dimensions)
+                              xreplace_indices)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, split, timed_pass, toposort)
 from devito.types import Array, Eq, Symbol
@@ -50,9 +50,6 @@ def clusterize(exprs, **kwargs):
 
     # Derive the necessary communications for distributed-memory parallelism
     clusters = communications(clusters)
-
-    # Substitute potential stepping simplifications
-    clusters = simplify_modulo(clusters)
 
     return ClusterGroup(clusters)
 
@@ -377,26 +374,6 @@ class Stepper(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
-
-
-@timed_pass()
-def simplify_modulo(clusters):
-    """
-    Simplify trivial modulo expressions such as %1
-    """
-    processed = []
-    for c in clusters:
-        mds = {d for d in retrieve_dimensions(c.exprs, deep=True) if d.is_Modulo}
-        subs = {d: 0 for d in mds if d._modulo == 1}
-
-        if subs:
-            func = partial(xreplace_indices, mapper=subs)
-            exprs = [e.apply(func) for e in c.exprs]
-            processed.append(c.rebuild(exprs=exprs))
-        else:
-            processed.append(c)
-
-    return processed
 
 
 @timed_pass(name='communications')

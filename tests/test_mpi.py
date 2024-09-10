@@ -1657,6 +1657,10 @@ class TestCodeGeneration:
         # halo(v), eq_u, halo_u, eq(v)
         assert len(calls) == 2
 
+        # Also ensure the compiler is doing its job removing unnecessary
+        # ModuloDimensions
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
+
 
 class TestOperatorAdvanced:
 

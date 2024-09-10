@@ -246,9 +246,13 @@ def remove_redundant_moddims(iet):
     if not mds:
         return iet
 
-    mapper = as_mapper(mds, key=lambda md: md.offset % md.modulo)
+    # Modulo-1 dimensions are always redundant as they can be replaced by 0
+    degenerate, mds = split(mds, lambda md: md.modulo == 1)
+    subs = {md: sympy.S.Zero for md in degenerate}
 
-    subs = {}
+    # Group ModuloDimensions so that we can pick one and remove the others that
+    # would map to the same modulo value
+    mapper = as_mapper(mds, key=lambda md: md.offset % md.modulo)
     for k, v in mapper.items():
         chosen = v.pop(0)
         subs.update({d: chosen for d in v})
