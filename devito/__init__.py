@@ -75,7 +75,7 @@ configuration.add('language', 'C', [0, 1] + list(operator_registry._languages),
                   deprecate='openmp')
 
 # MPI mode (0 => disabled, 1 == basic)
-preprocessor = lambda i: bool(i) if isinstance(i, int) else i
+preprocessor = lambda i: {0: False, 1: 'basic'}.get(i, i)
 configuration.add('mpi', 0, [0, 1] + list(mpi_registry),
                   preprocessor=preprocessor, callback=reinit_compiler)
 

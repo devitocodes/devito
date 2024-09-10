@@ -1002,7 +1002,6 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
 
 mpi_registry = {
-    True: BasicHaloExchangeBuilder,
     'basic': BasicHaloExchangeBuilder,
     'diag': DiagHaloExchangeBuilder,
     'diag2': Diag2HaloExchangeBuilder,
