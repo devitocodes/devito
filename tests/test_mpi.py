@@ -4,10 +4,10 @@ from functools import cached_property
 
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension,
+                    SparseTimeFunction, Dimension, ConditionalDimension, div,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension)
+                    PrecomputedSparseFunction, DefaultDimension, Buffer)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -1638,6 +1638,28 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2   # One for `v` and one for `usave`
+
+    @pytest.mark.parallel(mode=1)
+    def test_haloupdate_buffer1(self, mode):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        u = TimeFunction(name='u', grid=grid, time_order=1, save=Buffer(1))
+        v = TimeFunction(name='v', grid=grid, time_order=1, save=Buffer(1))
+
+        eqns = [Eq(u.forward, div(v) + 1.),
+                Eq(v.forward, div(u.forward) + 1.)]
+
+        op = Operator(eqns)
+
+        calls = FindNodes(Call).visit(op)
+        # There should be two separate calls
+        # halo(v), eq_u, halo_u, eq(v)
+        assert len(calls) == 2
+
+        # Also ensure the compiler is doing its job removing unnecessary
+        # ModuloDimensions
+        assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
 
 
 class TestOperatorAdvanced:

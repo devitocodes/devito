@@ -246,25 +246,31 @@ def remove_redundant_moddims(iet):
     if not mds:
         return iet
 
-    mapper = as_mapper(mds, key=lambda md: md.offset % md.modulo)
-
-    subs = {}
-    for k, v in mapper.items():
-        chosen = v.pop(0)
-        subs.update({d: chosen for d in v})
-
-    body = Uxreplace(subs).visit(iet.body)
-    iet = iet._rebuild(body=body)
-
     # ModuloDimensions are defined in Iteration headers, hence they must be
-    # removed from there too
-    subs = {}
+    # removed from there first of all
+    mapper = {}
     for n in FindNodes(Iteration).visit(iet):
-        if not set(n.uindices) & set(mds):
-            continue
-        subs[n] = n._rebuild(uindices=filter_ordered(n.uindices))
+        candidates = [d for d in n.uindices if d in mds]
 
-    iet = Transformer(subs, nested=True).visit(iet)
+        degenerates, others = split(candidates, lambda d: d.modulo == 1)
+        subs = {d: sympy.S.Zero for d in degenerates}
+
+        redundants = as_mapper(others, key=lambda d: d.offset % d.modulo)
+        for k, v in redundants.items():
+            chosen = v.pop(0)
+            subs.update({d: chosen for d in v})
+
+        if subs:
+            # Expunge the ModuloDimensions from the Iteration header
+            uindices = [d for d in n.uindices if d not in subs]
+            iteration = n._rebuild(uindices=uindices)
+
+            # Replace the ModuloDimensions in the Iteration body
+            iteration = Uxreplace(subs).visit(iteration)
+
+            mapper[n] = iteration
+
+    iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
 

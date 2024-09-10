@@ -358,12 +358,8 @@ class Stepper(Queue):
             groups = as_mapper(mds, lambda d: d.modulo)
             for size, v in groups.items():
                 key = partial(rule, size)
-                if size == 1:
-                    # Optimization -- avoid useless "% 1" ModuloDimensions
-                    subs = {md.origin: 0 for md in v}
-                else:
-                    subs = {md.origin: md for md in v}
-                    sub_iterators[d].extend(v)
+                subs = {md.origin: md for md in v}
+                sub_iterators[d].extend(v)
 
                 func = partial(xreplace_indices, mapper=subs, key=key)
                 exprs = [e.apply(func) for e in exprs]

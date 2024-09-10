@@ -161,7 +161,7 @@ class TestPassesEdgeCases:
         op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
 
         tree, = retrieve_iteration_tree(op0)
-        assert 'collapse(4) reduction(+:s)' in str(tree.root.pragmas[0])
+        assert 'collapse(3) reduction(+:s)' in str(tree[1].pragmas[0])
 
         tree, = retrieve_iteration_tree(op1)
         assert 'collapse(3) reduction(+:s)' in str(tree[1].pragmas[0])
