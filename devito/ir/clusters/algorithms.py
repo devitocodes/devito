@@ -359,11 +359,7 @@ class Stepper(Queue):
             for size, v in groups.items():
                 key = partial(rule, size)
                 subs = {md.origin: md for md in v}
-                # Modulo 1 will be removed later but need to be removed
-                # from the sub_iterator here to prevent bad dimension analysis
-                # E.g. it would prevent some outer loop parallelism
-                if size != 1:
-                    sub_iterators[d].extend(v)
+                sub_iterators[d].extend(v)
 
                 func = partial(xreplace_indices, mapper=subs, key=key)
                 exprs = [e.apply(func) for e in exprs]
