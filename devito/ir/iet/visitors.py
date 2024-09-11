@@ -1229,7 +1229,10 @@ class Uxreplace(Transformer):
         dimension = uxreplace(o.dim, self.mapper)
         limits = [uxreplace(i, self.mapper) for i in o.limits]
         pragmas = self._visit(o.pragmas)
+
         uindices = [uxreplace(i, self.mapper) for i in o.uindices]
+        uindices = filter_ordered(i for i in uindices if isinstance(i, Dimension))
+
         return o._rebuild(nodes=nodes, dimension=dimension, limits=limits,
                           pragmas=pragmas, uindices=uindices)
 
