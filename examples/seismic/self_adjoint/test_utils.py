@@ -1,5 +1,8 @@
 import numpy as np
-import pytest
+try:
+    import pytest
+except:
+    pass
 from devito import Grid, Function
 from examples.seismic.self_adjoint import setup_w_over_q
 

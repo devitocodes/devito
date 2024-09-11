@@ -1,6 +1,9 @@
 from scipy.special import hankel2
 import numpy as np
-import pytest
+try:
+    import pytest
+except:
+    pass
 from devito import Grid, Function, Eq, Operator, info
 from examples.seismic import RickerSource, TimeAxis, Model, AcquisitionGeometry
 from examples.seismic.self_adjoint import (acoustic_sa_setup, setup_w_over_q,

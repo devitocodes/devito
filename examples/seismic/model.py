@@ -1,6 +1,9 @@
 import numpy as np
 from sympy import finite_diff_weights as fd_w
-import pytest
+try:
+    import pytest
+except:
+    pass
 
 from devito import (Grid, SubDomain, Function, Constant, warning,
                     SubDimension, Eq, Inc, Operator, div, sin, Abs)

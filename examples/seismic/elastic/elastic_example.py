@@ -1,5 +1,8 @@
 import numpy as np
-import pytest
+try:
+    import pytest
+except:
+    pass
 from devito import norm
 from devito.logger import info
 from examples.seismic.elastic import ElasticWaveSolver

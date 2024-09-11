@@ -1,4 +1,7 @@
-import pytest
+try:
+    import pytest
+except:
+    pass
 import numpy as np
 
 from devito import norm
