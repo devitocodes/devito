@@ -1,5 +1,8 @@
 import numpy as np
-import pytest
+try:
+    import pytest
+except ImportError:
+    pass
 
 from devito import Function, smooth, norm, info, Constant
 

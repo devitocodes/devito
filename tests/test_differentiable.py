@@ -1,4 +1,8 @@
+from itertools import product
+
 import sympy
+import pytest
+
 from devito import Function, Grid, Differentiable, NODE
 from devito.finite_differences.differentiable import Add, Mul, Pow, diffify, interp_for_fd
 
@@ -82,3 +86,28 @@ def test_interp():
                    sa + interp_for_fd(a, {x: x + x.spacing/2}, expand=True))
     assert sp_diff(interp_for_fd(a + sa, {x: x}, expand=True),
                    a + interp_for_fd(sa, {x: x}, expand=True))
+
+
+@pytest.mark.parametrize('ndim', [1, 2, 3])
+def test_avg_mode(ndim):
+    grid = Grid([11]*ndim)
+    v = Function(name='v', grid=grid, staggered=grid.dimensions)
+    a0 = Function(name="a0", grid=grid)
+    a = Function(name="a", grid=grid, parameter=True)
+    b = Function(name="b", grid=grid, parameter=True, avg_mode='harmonic')
+
+    a0_avg = a0._eval_at(v)
+    a_avg = a._eval_at(v).evaluate
+    b_avg = b._eval_at(v).evaluate
+
+    assert a0_avg == a0
+
+    # Indices around the point at the center of a cell
+    all_shift = tuple(product(*[[0, 1] for _ in range(ndim)]))
+    args = [{d: d + i * d.spacing for d, i in zip(grid.dimensions, s)} for s in all_shift]
+
+    # Default is arithmetic average
+    assert sympy.simplify(a_avg - 0.5**ndim * sum(a.subs(arg) for arg in args)) == 0
+
+    # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
+    assert sympy.simplify(b_avg - 1/(0.5**ndim * sum(1/b.subs(arg) for arg in args))) == 0

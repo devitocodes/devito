@@ -852,7 +852,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     """
 
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
-                   'alias', 'space', 'function', 'is_transient')
+                   'alias', 'space', 'function', 'is_transient', 'avg_mode')
 
     def __new__(cls, *args, **kwargs):
         # Preprocess arguments
@@ -982,6 +982,12 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Python-land by the user. This allows the compiler/run-time to apply
         # certain optimizations, such as avoiding memory copies
         self._is_transient = kwargs.get('is_transient', False)
+
+        # Averaging mode for off the grid evaluation
+        self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
+        if self._avg_mode not in ['arithmetic', 'harmonic']:
+            raise ValueError("Invalid averaging mode_mode %s, accepted values are"
+                             " arithmetic or harmonic" % self._avg_mode)
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -1147,13 +1153,19 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return self
 
         # Base function
-        retval = self.function
+        if self._avg_mode == 'harmonic':
+            retval = 1 / self.function
+        else:
+            retval = self.function
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
-            retval = retval.diff(d, 0, fd_order=2, x0={d: i})
+            retval = retval.diff(d, deriv_order=0, fd_order=2, x0={d: i})
+        if self._avg_mode == 'harmonic':
+            retval = 1 / retval
+
         # Evaluate. Since we used `self.function` it will be on the grid when evaluate
         # is called again within FD
-        return retval.evaluate
+        return retval.evaluate.expand()
 
     @property
     def shape(self):
@@ -1254,6 +1266,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_transient(self):
         return self._is_transient
+
+    @property
+    def avg_mode(self):
+        return self._avg_mode
 
     @property
     def alias(self):

@@ -1,6 +1,9 @@
 import numpy as np
 from sympy import finite_diff_weights as fd_w
-import pytest
+try:
+    import pytest
+except:
+    pass
 
 from devito import (Grid, SubDomain, Function, Constant, warning,
                     SubDimension, Eq, Inc, Operator, div, sin, Abs)
@@ -167,12 +170,12 @@ class GenericModel:
         return {i.name: kwargs.get(i.name, i) or i for i in known}
 
     def _gen_phys_param(self, field, name, space_order, is_param=True,
-                        default_value=0, **kwargs):
+                        default_value=0, avg_mode='arithmetic', **kwargs):
         if field is None:
             return default_value
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
-                                parameter=is_param)
+                                parameter=is_param, avg_mode=avg_mode)
             initialize_function(function, field, self.padsizes)
         else:
             function = Constant(name=name, value=field, dtype=self.grid.dtype)
@@ -304,7 +307,11 @@ class SeismicModel(GenericModel):
             vs = kwargs.pop('vs')
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
                                             is_param=True)
-            self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True)
+            # Need to add small value to avoid division by zero
+            if isinstance(vs, np.ndarray):
+                vs = vs + 1e-12
+            self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True,
+                                           avg_mode='harmonic')
         else:
             # All other seismic models have at least a velocity
             self.vp = self._gen_phys_param(vp, 'vp', space_order)
