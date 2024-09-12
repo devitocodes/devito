@@ -144,14 +144,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     def create_gaussian_weights(sigma, lw):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
                    for s, l in zip(sigma, lw))]
-        processed = []
-        for (w, l) in zip(weights, lw):
-            temp = list(w)
-            while len(temp) < 2*l+1:
-                temp.insert(0, 0)
-                temp.append(0)
-            processed.append(np.array(temp))
-        return as_tuple(processed)
+        return as_tuple(np.array(w) for w in weights)
 
     def fset(f, g):
         indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw)]
