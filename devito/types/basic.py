@@ -985,8 +985,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
-        assert self._avg_mode in ['arithmetic', 'harmonic'], "Accepted avg_mode " \
-            "values are 'arithmetic' or 'harmonic', invalid %s" % self._avg_mode
+        if self._avg_mode not in ['arithmetic', 'harmonic']:
+            raise ValueError("Invalid averaging mode_mode %s, accepted values are"
+                             " arithmetic or harmonic" % self._avg_mode)
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -1152,10 +1153,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return self
 
         # Base function
-        retval = 1 / self.function if self._avg_mode == 'harmonic' else self.function
+        if self._avg_mode == 'harmonic':
+            retval = 1 / self.function
+        else:
+            retval = self.function
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
-            retval = retval.diff(d, deriv_order=0, fd_order=2, x0={d: i}).evaluate
+            retval = retval.diff(d, deriv_order=0, fd_order=2, x0={d: i})
         if self._avg_mode == 'harmonic':
             retval = 1 / retval
 

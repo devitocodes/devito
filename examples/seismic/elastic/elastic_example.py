@@ -1,7 +1,7 @@
 import numpy as np
 try:
     import pytest
-except:
+except ImportError:
     pass
 from devito import norm
 from devito.logger import info

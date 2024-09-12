@@ -1,7 +1,6 @@
 import atexit
 from itertools import product
 import os
-from . import _version
 
 import numpy as np
 
@@ -194,10 +193,6 @@ if "PYTEST_VERSION" in os.environ and np.version.full_version.startswith('2'):
 # For whatever reason, if we don't do this the garbage collector won't its
 # job properly and thus we may end up missing some custom __del__'s
 atexit.register(clear_cache)
-
-
-__version__ = _version.get_versions()['version']
-
 
 # Clean up namespace
 del atexit, product
