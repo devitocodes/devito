@@ -270,9 +270,9 @@ def _(d, mapper, rebuilt, sregistry):
 
     idim0 = d.implicit_dimension
     if idim0 is not None:
-        try:
+        if idim0 in rebuilt:
             idim1 = rebuilt[idim0]
-        except KeyError:
+        else:
             iname = sregistry.make_name(prefix='n')
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
@@ -281,12 +281,17 @@ def _(d, mapper, rebuilt, sregistry):
                         'halo': None,
                         'padding': None})
 
-    try:
+    if d.functions in rebuilt:
         functions = rebuilt[d.functions]
-    except KeyError:
+    else:
         fkwargs.update({'name': sregistry.make_name(prefix=d.functions.name),
-                        'function': None,
-                        'allocator': DataReference(d.functions._data)})
+                        'function': None})
+
+        # Data in MultiSubDimension function may not have been touched at this point,
+        # in which case do not use an allocator, as there is nothing to allocate, and
+        # doing so will petrify the `_data` attribute as None.
+        if d.functions._data is not None:
+            fkwargs.update({'allocator': DataReference(d.functions._data)})
 
         rebuilt[d.functions] = functions = d.functions._rebuild(**fkwargs)
 
