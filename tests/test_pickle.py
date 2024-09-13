@@ -11,6 +11,7 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     PrecomputedSparseTimeFunction)
 from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
+from devito.finite_differences.tools import direct, transpose, left, right, centered
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
@@ -503,6 +504,33 @@ class TestBasic:
 
         assert np.all(new_rec.data == 1)
         assert np.all(new_rec.coordinates.data == [[0.], [1.], [2.]])
+
+    @pytest.mark.parametrize('transpose', [direct, transpose])
+    @pytest.mark.parametrize('side', [left, right, centered])
+    @pytest.mark.parametrize('deriv_order', [1, 2])
+    @pytest.mark.parametrize('fd_order', [2, 4])
+    @pytest.mark.parametrize('x0', ["{}", "{x: x + x.spacing/2}"])
+    @pytest.mark.parametrize('method', ['FD', 'RSFD'])
+    @pytest.mark.parametrize('weights', [None, [1., 2., 3.]])
+    def test_derivative(self, pickle, transpose, side, deriv_order,
+                        fd_order, x0, method, weights):
+        grid = Grid(shape=(3,))
+        x = grid.dimensions[0]
+        x0 = eval(x0)
+        f = Function(name='f', grid=grid, space_order=2)
+        dfdx = f.diff(x, order=deriv_order, fd_order=fd_order, side=side,
+                      x0=x0, method=method, weights=weights)
+
+        pkl_dfdx = pickle.dumps(dfdx)
+        new_dfdx = pickle.loads(pkl_dfdx)
+
+        assert new_dfdx.dims == dfdx.dims
+        assert new_dfdx.side == dfdx.side
+        assert new_dfdx.fd_order == dfdx.fd_order
+        assert new_dfdx.deriv_order == dfdx.deriv_order
+        assert new_dfdx.x0 == dfdx.x0
+        assert new_dfdx.method == dfdx.method
+        assert new_dfdx.weights == dfdx.weights
 
 
 class TestAdvanced:

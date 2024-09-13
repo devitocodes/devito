@@ -9,13 +9,13 @@ from .differentiable import Differentiable, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
-                          Reconstructable)
+                          Pickable)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
 
 
-class Derivative(sympy.Derivative, Differentiable, Reconstructable):
+class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     """
     An unevaluated Derivative, which carries metadata (Dimensions,
