@@ -226,9 +226,9 @@ class Distributor(AbstractDistributor):
             # First time we enter here, we make sure MPI is initialized
             devito_mpi_init()
 
-                # If BENCH logging is selected, only emit from rank 0
-                if configuration['log-level'] == 'BENCH':
-                    set_log_level('DEBUG', comm=MPI.COMM_WORLD)
+            # If BENCH logging is selected, only emit from rank 0
+            if configuration['log-level'] == 'BENCH':
+                set_log_level('DEBUG', comm=MPI.COMM_WORLD)
 
             # Note: the cloned communicator doesn't need to be explicitly freed;
             # mpi4py takes care of that when the object gets out of scope
