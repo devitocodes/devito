@@ -1,8 +1,7 @@
 """User API to specify equations."""
-from warnings import warn
-
 import sympy
 
+from devito.deprecations import deprecations
 from devito.tools import as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
@@ -64,15 +63,14 @@ class Eq(sympy.Eq, Evaluable):
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
         if coefficients is not None:
-            warn("The Substitution API is deprecated and will be removed, "
-                 "coefficients should be passed directly to the derivative object"
-                 " i.e `u.dx(weights=...)",
-                 DeprecationWarning, stacklevel=2)
+            deprecations.coeff_warn
         kwargs['evaluate'] = False
-        # Backward compat
+        # Backward compatibility
         rhs = cls._apply_coeffs(rhs, coefficients)
         lhs = cls._apply_coeffs(lhs, coefficients)
+
         obj = sympy.Eq.__new__(cls, lhs, rhs, **kwargs)
+
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
@@ -82,7 +80,7 @@ class Eq(sympy.Eq, Evaluable):
     @classmethod
     def _apply_coeffs(cls, expr, coefficients):
         """
-        This process legacy API of Substitution/Coefficients applying the weights
+        This processes legacy API of Substitution/Coefficients applying the weights
         to the target Derivatives.
         """
         from devito.symbolics import retrieve_derivatives

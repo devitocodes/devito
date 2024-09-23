@@ -1,13 +1,11 @@
-from warnings import warn
+from devito.deprecations import deprecations
 
 __all__ = ['Coefficient', 'Substitutions']
 
 
 class Coefficient:
     def __init__(self, deriv_order, function, dimension, weights):
-        warn("The Coefficient API is deprecated and will be removed, coefficients should"
-             "be passed directly to the derivative object `u.dx(weights=...)",
-             DeprecationWarning, stacklevel=2)
+        deprecations.coeff_warn
         self._weights = weights
         self._deriv_order = deriv_order
         self._function = function
@@ -36,9 +34,7 @@ class Coefficient:
 
 class Substitutions:
     def __init__(self, *args):
-        warn("The Coefficient API is deprecated and will be removed, coefficients should"
-             "be passed directly to the derivative object `u.dx(weights=...)",
-             DeprecationWarning, stacklevel=2)
+        deprecations.coeff_warn
         if any(not isinstance(arg, Coefficient) for arg in args):
             raise TypeError("Non Coefficient object within input")
 

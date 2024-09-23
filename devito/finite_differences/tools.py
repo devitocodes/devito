@@ -278,7 +278,10 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
             o_min -= 1
 
     if nweights > 0 and (o_max - o_min + 1) != nweights:
+        # We cannot infer how the stencil should be centered
+        # if nweights is more than one extra point.
         assert nweights == (o_max - o_min + 1) + 1
+        # In the "one extra" case  we need to pad with one point to symmetrize
         if (o_max - mid) > (mid - o_min):
             o_min -= 1
         else:
