@@ -144,13 +144,6 @@ class Differentiable(sympy.Expr, Evaluable):
         key = lambda x: coeff_priority.get(x, -1)
         return sorted(coefficients, key=key, reverse=True)[0]
 
-    @cached_property
-    def _coeff_symbol(self, *args, **kwargs):
-        if self._uses_symbolic_coefficients:
-            return W
-        else:
-            raise ValueError("Couldn't find any symbolic coefficients")
-
     def _eval_at(self, func):
         if not func.is_Staggered:
             # Cartesian grid, do no waste time
@@ -433,10 +426,6 @@ def highest_priority(DiffOp):
     # priority appear
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
     return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
-
-
-# Abstract symbol representing a symbolic coefficient
-W = sympy.Function('W')
 
 
 class DifferentiableOp(Differentiable):
