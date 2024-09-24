@@ -158,6 +158,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # `coefficients` method (`taylor` or `symbolic`)
     if weights is None:
         weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
+    elif wdim is not None:
+        weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     weights = [sympify(w).evalf(_PRECISION) for w in weights]
@@ -191,8 +193,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
     else:
         terms = []
-        if wdim is not None:
-            weights = [weights._subs(wdim, i) for i in range(len(indices))]
         for i, c in zip(indices, weights):
             # The FD term
             term = expr._subs(dim, i) * c

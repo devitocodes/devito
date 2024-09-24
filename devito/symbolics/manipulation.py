@@ -2,6 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from functools import singledispatch
 
+import numpy as np
 from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
@@ -98,6 +99,7 @@ def _(expr, rule):
     return _uxreplace(expr, rule)
 
 
+@_uxreplace_dispatch.register(np.ndarray)
 @_uxreplace_dispatch.register(tuple)
 @_uxreplace_dispatch.register(Tuple)
 @_uxreplace_dispatch.register(list)

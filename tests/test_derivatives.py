@@ -731,6 +731,12 @@ class TestFD:
         dfdxdy_split = f.dxc.dyc
         assert dfdxdy.evaluate == dfdxdy_split.evaluate
 
+    def test_cross_newnest(self):
+        grid = Grid((11, 11))
+        f = Function(name="f", grid=grid, space_order=2)
+
+        assert f.dxdy == f.dx.dy
+
 
 class TestTwoStageEvaluation:
 
