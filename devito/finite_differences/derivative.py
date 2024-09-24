@@ -9,13 +9,13 @@ from .differentiable import Differentiable, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
-                          Reconstructable)
+                          Pickable)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['Derivative']
 
 
-class Derivative(sympy.Derivative, Differentiable, Reconstructable):
+class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     """
     An unevaluated Derivative, which carries metadata (Dimensions,
@@ -89,7 +89,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method')
+                   'x0', 'method', 'weights')
 
     def __new__(cls, expr, *dims, **kwargs):
         if type(expr) is sympy.Derivative:
@@ -110,6 +110,7 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._method = kwargs.get("method", 'FD')
+        obj._weights = cls._process_weights(**kwargs)
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -209,15 +210,26 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
 
         return x0
 
-    def __call__(self, x0=None, fd_order=None, side=None, method=None):
-        side = side or self._side
+    @classmethod
+    def _process_weights(cls, **kwargs):
+        weights = kwargs.get('weights', kwargs.get('w'))
+        if weights is None:
+            return None
+        elif isinstance(weights, sympy.Function):
+            return weights
+        else:
+            return as_tuple(weights)
 
+    def __call__(self, x0=None, fd_order=None, side=None, method=None, weights=None):
+        side = side or self._side
         x0 = self._process_x0(self.dims, x0=x0)
         _x0 = frozendict({**self.x0, **x0})
         if self.ndims == 1:
             fd_order = fd_order or self._fd_order
             method = method or self._method
-            return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method)
+            weights = weights if weights is not None else self._weights
+            return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method,
+                                 weights=weights)
 
         # Cross derivative
         _fd_order = dict(self.fd_order.getters)
@@ -325,6 +337,10 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
     @property
     def method(self):
         return self._method
+
+    @property
+    def weights(self):
+        return self._weights
 
     @property
     def T(self):
@@ -440,8 +456,9 @@ class Derivative(sympy.Derivative, Differentiable, Reconstructable):
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
-                                     self.deriv_order, side=self.side,
-                                     matvec=self.transpose, x0=x0_deriv, expand=expand)
+                                     self.deriv_order, weights=self.weights,
+                                     side=self.side, matvec=self.transpose,
+                                     x0=self.x0, expand=expand)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
