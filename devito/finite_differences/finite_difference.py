@@ -129,8 +129,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         return expr
 
     # Enforce stable time coefficients
-    if dim.is_Time and coefficients != 'symbolic':
+    if dim.is_Time:
         coefficients = 'taylor'
+    else:
+        coefficients = expr.coefficients
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
                            matvec, x0, coefficients, expand, weights)
