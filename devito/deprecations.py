@@ -11,5 +11,12 @@ class DevitoDeprecation():
              DeprecationWarning, stacklevel=2)
         return
 
+    @cached_property
+    def symbolic_warn(self):
+        warn("coefficients='symbolic' is deprecated, coefficients should"
+             "be passed directly to the derivative object `u.dx(weights=...)",
+             DeprecationWarning, stacklevel=2)
+        return
+
 
 deprecations = DevitoDeprecation()

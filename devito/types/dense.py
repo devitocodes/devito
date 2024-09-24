@@ -12,6 +12,7 @@ from devito.builtins import assign
 from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
                          Data, default_allocator)
 from devito.data.allocators import DataReference
+from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -73,10 +74,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         super().__init_finalize__(*args, **kwargs)
 
         # Symbolic (finite difference) coefficients
-        self._coefficients = kwargs.get('coefficients', self._default_fd)
-        if self._coefficients not in fd_weights_registry:
-            raise ValueError("coefficients must be one of %s"
-                             " not %s" % (str(fd_weights_registry), self._coefficients))
+        self._coefficients = self.__coefficients_setup__(**kwargs)
 
         # Data-related properties
         self._data = None
@@ -168,6 +166,19 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return grid.dtype
         else:
             return np.float32
+
+    def __coefficients_setup__(self, **kwargs):
+        """
+        Setup finite-differences coefficients mode
+        """
+        coeffs = kwargs.get('coefficients', self._default_fd)
+        if coeffs not in fd_weights_registry:
+            if coeffs == 'symbolic':
+                deprecations.symbolic_warn
+            else:
+                raise ValueError("coefficients must be one of %s"
+                                 " not %s" % (str(fd_weights_registry), coeffs))
+        return coeffs
 
     def __staggered_setup__(self, **kwargs):
         """

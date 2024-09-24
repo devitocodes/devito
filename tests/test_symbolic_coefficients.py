@@ -25,7 +25,7 @@ class TestSC:
     def test_coefficients(self, expr, sorder, dorder, dim, weights, expected):
         """Test that custom coefficients return the expected result"""
         grid = Grid(shape=(10, 10))
-        u = Function(name='u', grid=grid, space_order=sorder)
+        u = Function(name='u', grid=grid, space_order=sorder, coefficients='symbolic')
         x, y = grid.dimensions
         h_x, h_y = grid.spacing_symbols  # noqa
 
