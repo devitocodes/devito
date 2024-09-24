@@ -80,6 +80,30 @@ class TestSC:
 
         assert np.all(np.isclose(f0.data[:] - f1.data[:], 0.0, atol=1e-5, rtol=0))
 
+    def test_function_coefficients_xderiv(self):
+        p = Dimension('p')
+
+        nstc = 8
+
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=(2*nstc, 0, 0),
+                     coefficients='symbolic')
+        g = Function(name='g', grid=grid, space_order=(2*nstc, 0, 0))
+        ax = Function(name='DD2x', space_order=0, shape=(2*nstc + 1,),
+                      dimensions=(p,))
+        ay = Function(name='DD2y', space_order=0, shape=(2*nstc + 1,),
+                      dimensions=(p,))
+        stencil_coeffs_x_p1 = Coefficient(1, f, x, ax)
+        stencil_coeffs_y_p1 = Coefficient(1, f, y, ay)
+        stencil_coeffs = Substitutions(stencil_coeffs_x_p1, stencil_coeffs_y_p1)
+
+        eqn = Eq(g, f.dxdy, coefficients=stencil_coeffs)
+
+        op = Operator(eqn)
+        op()
+
     def test_coefficients_w_xreplace(self):
         """Test custom coefficients with an xreplace before they are applied"""
         grid = Grid(shape=(4, 4))

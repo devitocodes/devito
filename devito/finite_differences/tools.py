@@ -86,8 +86,18 @@ def generate_fd_shortcuts(dims, so, to=0):
     from devito.finite_differences.derivative import Derivative
 
     def diff_f(expr, deriv_order, dims, fd_order, side=None, **kwargs):
-        return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
-                          fd_order=fd_order, side=side, **kwargs)
+        # Spearate dimension to always have cross derivatives return nested
+        # derivatives.
+        # Reverse to match the syntax `u.dxdy = (u.dx).dy` with x the inner
+        # derivative
+        dims = as_tuple(dims)[::-1]
+        deriv_order = as_tuple(deriv_order)[::-1]
+        fd_order = as_tuple(fd_order)[::-1]
+        deriv = Derivative(expr, dims[0], deriv_order=deriv_order[0],
+                           fd_order=fd_order[0], side=side, **kwargs)
+        for (d, do, fo) in zip(dims[1:], deriv_order[1:], fd_order[1:]):
+            deriv = Derivative(deriv, d, deriv_order=do, fd_order=fo, side=side, **kwargs)
+        return deriv
 
     all_combs = dim_with_order(dims, orders)
 
@@ -318,6 +328,8 @@ def process_weights(weights, expr):
     if weights is None:
         return 0, None
     elif isinstance(weights, Function):
+        if len(weights.dimensions) == 1:
+            return weights.shape[0], weights.dimensions[0]
         wdim = {d for d in weights.dimensions if d not in expr.dimensions}
         assert len(wdim) == 1
         wdim = wdim.pop()

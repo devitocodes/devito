@@ -103,10 +103,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj = Differentiable.__new__(cls, expr, *var_count)
         obj._dims = tuple(OrderedDict.fromkeys(new_dims))
 
-        skip = kwargs.get('preprocessed', False) or obj.ndims == 1
-
-        obj._fd_order = fd_o if skip else DimensionTuple(*fd_o, getters=obj._dims)
-        obj._deriv_order = orders if skip else DimensionTuple(*orders, getters=obj._dims)
+        obj._fd_order = DimensionTuple(*as_tuple(fd_o), getters=obj._dims)
+        obj._deriv_order = DimensionTuple(*as_tuple(orders), getters=obj._dims)
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._method = kwargs.get("method", 'FD')
@@ -137,7 +135,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             fd_orders = kwargs.get('fd_order')
             deriv_orders = kwargs.get('deriv_order')
             if len(dims) == 1:
-                dims = tuple([dims[0]]*max(1, deriv_orders))
+                dims = tuple([dims[0]]*max(1, deriv_orders[0]))
             variable_count = [sympy.Tuple(s, dims.count(s))
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
@@ -293,8 +291,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             except AttributeError:
                 return new, True
 
+        new_expr = self.expr.xreplace(subs)
         subs = self._ppsubs + (subs,)  # Postponed substitutions
-        return self._rebuild(subs=subs), True
+        return self._rebuild(subs=subs, expr=new_expr), True
 
     @cached_property
     def _metadata(self):
@@ -455,8 +454,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                                    side=self.side)
         else:
             assert self.method == 'FD'
-            res = generic_derivative(expr, self.dims[0], as_tuple(self.fd_order)[0],
-                                     self.deriv_order, weights=self.weights,
+            res = generic_derivative(expr, self.dims[0], self.fd_order[0],
+                                     self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
                                      x0=self.x0, expand=expand)
 
