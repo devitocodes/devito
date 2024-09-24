@@ -30,7 +30,7 @@ class SymbolRegistry:
         # passes, to maximize symbol (especially Dimension) reuse
         self.caches = {}
 
-    def make_name(self, prefix=None):
+    def make_name(self, prefix=None, increment_first=True):
         # By default we're creating a new symbol
         if prefix is None:
             prefix = self._symbol_prefix
@@ -39,6 +39,10 @@ class SymbolRegistry:
             counter = self.counters[prefix]
         except KeyError:
             counter = self.counters.setdefault(prefix, generator())
+
+            # Only increment symbol names after the first encountered
+            if not increment_first:
+                return prefix
 
         return "%s%d" % (prefix, counter())
 
