@@ -10,6 +10,7 @@ from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension
 from devito.data.allocators import DataReference
+from devito.logger import warning
 
 __all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
 
@@ -184,7 +185,7 @@ def concretize_subdims(exprs, **kwargs):
         dimensions = tuple(mapper.get(d, d) for d in f.dimensions)
         if dimensions != f.dimensions:
             # A dimension has been rebuilt, so build a mapper for Indexed
-            mapper[f.indexed] = f._rebuild(dimensions=dimensions, function=None).indexed
+            mapper[f.indexed] = f._rebuild(dimensions=dimensions).indexed
 
     processed = [uxreplace(e, mapper) for e in exprs]
 
@@ -218,9 +219,8 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    tkns = [tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-            for tkn in d.tkns]
-    tkns_subs = {tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)}
+    tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+                 for tkn in d.tkns}
     left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
     thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
 
@@ -277,15 +277,22 @@ def _(d, mapper, rebuilt, sregistry):
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
         kwargs['implicit_dimension'] = idim1
-        fkwargs.update({'dimensions': (idim1,) + d.functions.dimensions[1:],
-                        'halo': None,
-                        'padding': None})
+        fkwargs['dimensions'] = (idim1,) + d.functions.dimensions[1:]
 
     if d.functions in rebuilt:
         functions = rebuilt[d.functions]
     else:
-        fkwargs.update({'name': sregistry.make_name(prefix=d.functions.name),
-                        'function': None})
+        # Increment every instance of this name after the first encountered
+        fname = sregistry.make_name(prefix=d.functions.name, increment_first=False)
+        # Warn the user if name has been changed, since this will affect overrides
+        if fname != d.functions.name:
+            fkwargs['name'] = fname
+            warning("%s <%s> renamed as '%s'. Consider assigning a unique name to %s." %
+                    (str(d.functions), id(d.functions), fname, d.functions.name))
+
+        fkwargs.update({'function': None,
+                        'halo': None,
+                        'padding': None})
 
         # Data in MultiSubDimension function may not have been touched at this point,
         # in which case do not use an allocator, as there is nothing to allocate, and
