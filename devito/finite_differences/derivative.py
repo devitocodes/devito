@@ -220,25 +220,37 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def __call__(self, x0=None, fd_order=None, side=None, method=None, weights=None):
         side = side or self._side
+        method = method or self._method
+        weights = weights if weights is not None else self._weights
+
         x0 = self._process_x0(self.dims, x0=x0)
         _x0 = frozendict({**self.x0, **x0})
-        if self.ndims == 1:
-            fd_order = fd_order or self._fd_order
-            method = method or self._method
-            weights = weights if weights is not None else self._weights
-            return self._rebuild(fd_order=fd_order, side=side, x0=_x0, method=method,
-                                 weights=weights)
 
-        # Cross derivative
         _fd_order = dict(self.fd_order.getters)
         try:
             _fd_order.update(fd_order or {})
-            _fd_order = tuple(_fd_order.values())
-            _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
+        except TypeError:
+            assert self.ndims == 1
+            _fd_order.update({self.dims[0]: fd_order or self.fd_order[0]})
         except AttributeError:
-            raise TypeError("Multi-dimensional Derivative, input expected as a dict")
+            raise TypeError("fd_order incompatible with dimensions")
 
-        return self._rebuild(fd_order=_fd_order, x0=_x0, side=side)
+        # In case this was called on a cross derivative we need to propagate
+        # the call to the nested derivative
+        if isinstance(self.expr, Derivative):
+            _fd_orders = {k: v for k, v in _fd_order.items() if k in self.expr.dims}
+            _x0s = {k: v for k, v in _x0.items() if k in self.expr.dims and
+                    k not in self.dims}
+            new_expr = self.expr(x0=_x0s, fd_order=_fd_orders, side=side,
+                                 method=method, weights=weights)
+        else:
+            new_expr = self.expr
+
+        _fd_order = tuple(v for k, v in _fd_order.items() if k in self.dims)
+        _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
+
+        return self._rebuild(fd_order=_fd_order, x0=_x0, side=side, method=method,
+                             weights=weights, expr=new_expr)
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True
@@ -291,7 +303,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             except AttributeError:
                 return new, True
 
-        new_expr = self.expr.xreplace(subs)
+        # Resolve nested derivatives
+        dsubs = {k: v for k, v in subs.items() if isinstance(k, Derivative)}
+        new_expr = self.expr.xreplace(dsubs)
+
         subs = self._ppsubs + (subs,)  # Postponed substitutions
         return self._rebuild(subs=subs, expr=new_expr), True
 
@@ -445,7 +460,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # Step 3: Evaluate FD of the new expression
         if self.method == 'RSFD':
             assert len(self.dims) == 1
-            assert self.deriv_order == 1
+            assert self.deriv_order[0] == 1
             res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
