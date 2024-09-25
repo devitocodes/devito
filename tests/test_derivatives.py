@@ -404,6 +404,11 @@ class TestFD:
             - f.dx(x0=x+h_x/2).dy(x0=y+h_y/2).evaluate
         assert simplify(expr) == 0
 
+        # Check x0 is correctly set
+        dfdxdx = f.dx(x0=x+h_x/2).dx(x0=x-h_x/2)
+        assert dict(dfdxdx.x0) == {x: x-h_x/2}
+        assert dict(dfdxdx.expr.x0) == {x: x+h_x/2}
+
     def test_fd_new_side(self):
         grid = Grid((10,))
         u = Function(name="u", grid=grid, space_order=4)

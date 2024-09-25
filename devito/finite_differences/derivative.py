@@ -235,22 +235,19 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         except AttributeError:
             raise TypeError("fd_order incompatible with dimensions")
 
-        # In case this was called on a cross derivative we need to propagate
-        # the call to the nested derivative
         if isinstance(self.expr, Derivative):
-            _fd_orders = {k: v for k, v in _fd_order.items() if k in self.expr.dims}
-            _x0s = {k: v for k, v in _x0.items() if k in self.expr.dims and
-                    k not in self.dims}
-            new_expr = self.expr(x0=_x0s, fd_order=_fd_orders, side=side,
-                                 method=method, weights=weights)
+            # In case this was called on a perfect cross-derivative `u.dxdy`
+            # we need to propagate the call to the nested derivative
+            x0s = self._filter_dims(self.expr._filter_dims(_x0), neg=True)
+            expr = self.expr(x0=x0s, fd_order=self.expr._filter_dims(_fd_order),
+                             side=side, method=method)
         else:
-            new_expr = self.expr
+            expr = self.expr
 
-        _fd_order = tuple(v for k, v in _fd_order.items() if k in self.dims)
-        _fd_order = DimensionTuple(*_fd_order, getters=self.dims)
+        _fd_order = self._filter_dims(_fd_order, as_tuple=True)
 
         return self._rebuild(fd_order=_fd_order, x0=_x0, side=side, method=method,
-                             weights=weights, expr=new_expr)
+                             weights=weights, expr=expr)
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True
@@ -305,16 +302,29 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         # Resolve nested derivatives
         dsubs = {k: v for k, v in subs.items() if isinstance(k, Derivative)}
-        new_expr = self.expr.xreplace(dsubs)
+        expr = self.expr.xreplace(dsubs)
 
         subs = self._ppsubs + (subs,)  # Postponed substitutions
-        return self._rebuild(subs=subs, expr=new_expr), True
+        return self._rebuild(subs=subs, expr=expr), True
 
     @cached_property
     def _metadata(self):
         ret = [self.dims] + [getattr(self, i) for i in self.__rkwargs__]
         ret.append(self.expr.staggered or (None,))
         return tuple(ret)
+
+    def _filter_dims(self, col, as_tuple=False, neg=False):
+        """
+        Filter collection to only keep the Derivative's dimensions as keys.
+        """
+        if neg:
+            filtered = {k: v for k, v in col.items() if k not in self.dims}
+        else:
+            filtered = {k: v for k, v in col.items() if k in self.dims}
+        if as_tuple:
+            return DimensionTuple(*filtered.values(), getters=self.dims)
+        else:
+            return filtered
 
     @property
     def dims(self):
@@ -436,13 +446,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         """
         # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
         # interpolation to avoid very expensive finite differences on top of it
-        x0_interp = {}
-        x0_deriv = {}
-        for d, v in self.x0.items():
-            if d in self.dims:
-                x0_deriv[d] = v
-            elif not d.is_Time:
-                x0_interp[d] = v
+        x0_deriv = self._filter_dims(self.x0)
+        x0_interp = {d: v for d, v in self.x0.items()
+                     if d not in x0_deriv and not d.is_Time}
 
         if x0_interp and self.method == 'FD':
             expr = interp_for_fd(expr, x0_interp, **kwargs)

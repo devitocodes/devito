@@ -86,16 +86,14 @@ def generate_fd_shortcuts(dims, so, to=0):
     from devito.finite_differences.derivative import Derivative
 
     def diff_f(expr, deriv_order, dims, fd_order, side=None, **kwargs):
-        # Spearate dimension to always have cross derivatives return nested
-        # derivatives.
+        # Separate dimensions to always have cross derivatives return nested
+        # derivatives. E.g `u.dxdy -> u.dx.dy`
         dims = as_tuple(dims)
         deriv_order = as_tuple(deriv_order)
         fd_order = as_tuple(fd_order)
-        deriv = Derivative(expr, dims[0], deriv_order=deriv_order[0],
-                           fd_order=fd_order[0], side=side, **kwargs)
-        for (d, do, fo) in zip(dims[1:], deriv_order[1:], fd_order[1:]):
-            deriv = Derivative(deriv, d, deriv_order=do, fd_order=fo, side=side, **kwargs)
-        return deriv
+        for (d, do, fo) in zip(dims, deriv_order, fd_order):
+            expr = Derivative(expr, d, deriv_order=do, fd_order=fo, side=side, **kwargs)
+        return expr
 
     all_combs = dim_with_order(dims, orders)
 

@@ -138,9 +138,9 @@ def _lower_exprs(expressions, subs):
 
             # Handle Array
             if isinstance(f, Array) and f.initvalue is not None:
-                initv = [_lower_exprs(i, subs) for i in f.initvalue]
+                initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
                 # TODO: fix rebuild to avoid new name
-                f = f._rebuild(name='%si' % f.name, initvalue=initv)
+                f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
 
             mapper[i] = f.indexed[indices]
         # Add dimensions map to the mapper in case dimensions are used
