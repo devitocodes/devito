@@ -59,7 +59,7 @@ def cross_derivative(expr, dims, fd_order, deriv_order, x0=None, side=None, **kw
     Semantically, this is equivalent to
 
     >>> (f*g).dxdy
-    Derivative(f(x, y)*g(x, y), x, y)
+    Derivative(Derivative(f(x, y)*g(x, y), x), y)
 
     The only difference is that in the latter case derivatives remain unevaluated.
     The expanded form is obtained via ``evaluate``

@@ -90,12 +90,13 @@ class Eq(sympy.Eq, Evaluable):
         for coeff in coefficients.coefficients:
             derivs = [d for d in retrieve_derivatives(expr)
                       if coeff.dimension in d.dims and
-                      coeff.deriv_order == d.deriv_order]
+                      coeff.deriv_order == d.deriv_order.get(coeff.dimension, None)]
             if not derivs:
                 continue
             mapper.update({d: d._rebuild(weights=coeff.weights) for d in derivs})
         if not mapper:
             return expr
+
         return expr.xreplace(mapper)
 
     def _evaluate(self, **kwargs):

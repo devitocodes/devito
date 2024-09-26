@@ -86,8 +86,14 @@ def generate_fd_shortcuts(dims, so, to=0):
     from devito.finite_differences.derivative import Derivative
 
     def diff_f(expr, deriv_order, dims, fd_order, side=None, **kwargs):
-        return Derivative(expr, *as_tuple(dims), deriv_order=deriv_order,
-                          fd_order=fd_order, side=side, **kwargs)
+        # Separate dimensions to always have cross derivatives return nested
+        # derivatives. E.g `u.dxdy -> u.dx.dy`
+        dims = as_tuple(dims)
+        deriv_order = as_tuple(deriv_order)
+        fd_order = as_tuple(fd_order)
+        for (d, do, fo) in zip(dims, deriv_order, fd_order):
+            expr = Derivative(expr, d, deriv_order=do, fd_order=fo, side=side, **kwargs)
+        return expr
 
     all_combs = dim_with_order(dims, orders)
 
@@ -225,7 +231,8 @@ def numeric_weights(function, deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
 
 
-fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights}
+fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,
+                       'symbolic': numeric_weights}  # Backward compat for 'symbolic'
 coeff_priority = {'taylor': 1, 'standard': 1}
 
 
@@ -318,6 +325,8 @@ def process_weights(weights, expr):
     if weights is None:
         return 0, None
     elif isinstance(weights, Function):
+        if len(weights.dimensions) == 1:
+            return weights.shape[0], weights.dimensions[0]
         wdim = {d for d in weights.dimensions if d not in expr.dimensions}
         assert len(wdim) == 1
         wdim = wdim.pop()

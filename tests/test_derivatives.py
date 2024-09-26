@@ -87,18 +87,19 @@ class TestFD:
 
     @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
         (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
-        (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
-        (Function, ['dx2dydz'], 3, 'Derivative(u(x, y, z), (x, 2), y, z)'),
+        (Function, ['dx2dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
+        (Function, ['dx2dydz'], 3,
+         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), z)'),
         (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
         (Function, ['dx2dy', 'dz2'], 3,
-         'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
+         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), (z, 2))'),
         (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
-        (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
+        (TimeFunction, ['dx2dy'], 3, 'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
         (TimeFunction, ['dx2', 'dy'], 3,
          'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
         (TimeFunction, ['dx', 'dy', 'dx2', 'dz', 'dydz'], 3,
-         'Derivative(Derivative(Derivative(Derivative(Derivative(u(t, x, y, z), x), y),' +
-         ' (x, 2)), z), y, z)')
+         'Derivative(Derivative(Derivative(Derivative(Derivative(Derivative(' +
+         'u(t, x, y, z), x), y), (x, 2)), z), y), z)')
     ])
     def test_unevaluation(self, SymbolType, derivative, dim, expected):
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
@@ -111,13 +112,13 @@ class TestFD:
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
-        ('u.dxdy', 'Derivative(u, x, y)'),
+        ('u.dxdy', 'Derivative(Derivative(u, x), y)'),
         ('u.laplace',
          'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
         ('(u.dx + u.dy).dx', 'Derivative(Derivative(u, x) + Derivative(u, y), x)'),
         ('((u.dx + u.dy).dx + u.dxdy).dx',
          'Derivative(Derivative(Derivative(u, x) + Derivative(u, y), x) +' +
-         ' Derivative(u, x, y), x)'),
+         ' Derivative(Derivative(u, x), y), x)'),
         ('(u**4).dx', 'Derivative(u**4, x)'),
         ('(u/4).dx', 'Derivative(u/4, x)'),
         ('((u.dx + v.dy).dx * v.dx).dy.dz',
@@ -403,6 +404,11 @@ class TestFD:
             - f.dx(x0=x+h_x/2).dy(x0=y+h_y/2).evaluate
         assert simplify(expr) == 0
 
+        # Check x0 is correctly set
+        dfdxdx = f.dx(x0=x+h_x/2).dx(x0=x-h_x/2)
+        assert dict(dfdxdx.x0) == {x: x-h_x/2}
+        assert dict(dfdxdx.expr.x0) == {x: x+h_x/2}
+
     def test_fd_new_side(self):
         grid = Grid((10,))
         u = Function(name="u", grid=grid, space_order=4)
@@ -659,9 +665,9 @@ class TestFD:
         drv1 = Derivative(f, (x, 2), (y, 0))
         assert drv0.dims == (x,)
         assert drv1.dims == (x, y)
-        assert drv0.fd_order == 2
+        assert drv0.fd_order == (2,)
         assert drv1.fd_order == (2, 2)
-        assert drv0.deriv_order == 2
+        assert drv0.deriv_order == (2,)
         assert drv1.deriv_order == (2, 0)
 
         assert drv0.evaluate == drv1.evaluate
@@ -730,6 +736,12 @@ class TestFD:
         dfdxdy = f.dxdy(side=centered).evaluate
         dfdxdy_split = f.dxc.dyc
         assert dfdxdy.evaluate == dfdxdy_split.evaluate
+
+    def test_cross_newnest(self):
+        grid = Grid((11, 11))
+        f = Function(name="f", grid=grid, space_order=2)
+
+        assert f.dxdy == f.dx.dy
 
 
 class TestTwoStageEvaluation:
@@ -984,8 +996,8 @@ class TestTwoStageEvaluation:
         df = f.laplacian(order=2, shift=.5)
         for (v, d) in zip(df.args, grid.dimensions):
             assert v.dims[0] == d
-            assert v.fd_order == 2
-            assert v.deriv_order == 2
+            assert v.fd_order == (2,)
+            assert v.deriv_order == (2,)
             assert d in v.x0
 
 

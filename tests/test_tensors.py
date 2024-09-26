@@ -353,7 +353,7 @@ def test_shifted_curl_of_vector(shift, ndim):
         dorder = order or 4
         for drv in drvs:
             assert drv.expr in f
-            assert drv.fd_order == dorder
+            assert drv.fd_order == (dorder,)
             if shift is None:
                 assert drv.x0 == {}
             else:

@@ -6,6 +6,7 @@ from devito.symbolics import retrieve_indexed, uxreplace, retrieve_dimensions
 from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
+from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.grid import MultiSubDimension
 
@@ -135,8 +136,13 @@ def _lower_exprs(expressions, subs):
             if dimension_map:
                 indices = [j.xreplace(dimension_map) for j in indices]
 
-            mapper[i] = f.indexed[indices]
+            # Handle Array
+            if isinstance(f, Array) and f.initvalue is not None:
+                initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
+                # TODO: fix rebuild to avoid new name
+                f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
 
+            mapper[i] = f.indexed[indices]
         # Add dimensions map to the mapper in case dimensions are used
         # as an expression, i.e. Eq(u, x, subdomain=xleft)
         mapper.update(dimension_map)

@@ -141,15 +141,8 @@ class Differentiable(sympy.Expr, Evaluable):
         coefficients = {f.coefficients for f in self._functions}
         # If there is multiple ones, we have to revert to the highest priority
         # i.e we have to remove symbolic
-        key = lambda x: coeff_priority[x]
+        key = lambda x: coeff_priority.get(x, -1)
         return sorted(coefficients, key=key, reverse=True)[0]
-
-    @cached_property
-    def _coeff_symbol(self, *args, **kwargs):
-        if self._uses_symbolic_coefficients:
-            return W
-        else:
-            raise ValueError("Couldn't find any symbolic coefficients")
 
     def _eval_at(self, func):
         if not func.is_Staggered:
@@ -427,12 +420,12 @@ class Differentiable(sympy.Expr, Evaluable):
 
 
 def highest_priority(DiffOp):
-    prio = lambda x: getattr(x, '_fd_priority', 0)
+    # We want to get the object with highest priority
+    # We also need to make sure that the object with the largest
+    # set of dimensions is used when multiple ones with the same
+    # priority appear
+    prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
     return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
-
-
-# Abstract symbol representing a symbolic coefficient
-W = sympy.Function('W')
 
 
 class DifferentiableOp(Differentiable):
@@ -1018,7 +1011,8 @@ def interp_for_fd(expr, x0, **kwargs):
 
 @interp_for_fd.register(sympy.Derivative)
 def _(expr, x0, **kwargs):
-    return expr.func(expr=interp_for_fd(expr.expr, x0, **kwargs))
+    x0_expr = {d: v for d, v in x0.items() if d not in expr.dims}
+    return expr.func(expr=interp_for_fd(expr.expr, x0_expr, **kwargs))
 
 
 @interp_for_fd.register(sympy.Expr)

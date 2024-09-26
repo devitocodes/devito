@@ -144,11 +144,11 @@ def retrieve_indexed(exprs, mode='all', deep=False):
     return search(exprs, q_indexed, mode, 'dfs', deep)
 
 
-def retrieve_functions(exprs, mode='all'):
+def retrieve_functions(exprs, mode='all', deep=False):
     """Shorthand to retrieve the DiscreteFunctions in `exprs`."""
-    indexeds = search(exprs, q_indexed, mode, 'dfs')
+    indexeds = search(exprs, q_indexed, mode, 'dfs', deep)
 
-    functions = search(exprs, q_function, mode, 'dfs')
+    functions = search(exprs, q_function, mode, 'dfs', deep)
     functions.update({i.function for i in indexeds})
 
     return functions
