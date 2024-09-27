@@ -517,6 +517,11 @@ class Operator(Callable):
         return tuple(i for i in self.parameters if i.is_TempFunction)
 
     @cached_property
+    def transients(self):
+        return tuple(i for i in self.parameters
+                     if i.is_AbstractFunction and i.is_transient)
+
+    @cached_property
     def objects(self):
         return tuple(i for i in self.parameters if i.is_Object)
 
@@ -560,7 +565,10 @@ class Operator(Callable):
 
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
-        kwargs['metadata'] = self.threads_info
+        kwargs['metadata'] = {'language': self._language,
+                              'platform': self._platform,
+                              'transients': self.transients,
+                              **self.threads_info}
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
