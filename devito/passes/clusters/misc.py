@@ -340,6 +340,8 @@ class Fusion(Queue):
                 return t0 < v <= t1 or t1 < v <= t0
 
             for cg1 in cgroups[n+1:]:
+                n1 = cgroups.index(cg1)
+
                 # A Scope to compute all cross-ClusterGroup anti-dependences
                 scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=is_cross)
 
@@ -355,14 +357,16 @@ class Fusion(Queue):
                     break
 
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
-                # and forbid any sort of fusion
-                elif any(scope.d_anti_gen()) or\
-                        any(i.is_iaw for i in scope.d_output_gen()):
+                # and forbid any sort of fusion. Fences have the same effect
+                elif (any(scope.d_anti_gen()) or
+                      any(i.is_iaw for i in scope.d_output_gen()) or
+                      any(c.is_fence for c in flatten(cgroups[n:n1+1]))):
                     dag.add_edge(cg0, cg1)
 
                 # Any flow-dependences along an inner Dimension (i.e., a Dimension
                 # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
-                elif any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()):
+                elif any(not (i.cause and i.cause & prefix)
+                         for i in scope.d_flow_gen()):
                     dag.add_edge(cg0, cg1)
 
                 # Clearly, output dependences must be honored

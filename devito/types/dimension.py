@@ -1534,9 +1534,9 @@ class StencilDimension(BasicDimension):
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
     __rkwargs__ = BasicDimension.__rkwargs__ + ('step',)
 
-    def __init_finalize__(self, name, _min, _max, spacing=None, step=1,
+    def __init_finalize__(self, name, _min, _max, spacing=1, step=1,
                           **kwargs):
-        self._spacing = sympy.sympify(spacing) or sympy.S.One
+        self._spacing = sympy.sympify(spacing)
 
         if not is_integer(_min):
             raise ValueError("Expected integer `min` (got %s)" % _min)
