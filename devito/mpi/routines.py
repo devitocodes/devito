@@ -66,6 +66,12 @@ class HaloExchangeBuilder:
         Construct Callables and Calls implementing distributed-memory halo
         exchange for the HaloSpot ``hs``.
         """
+        print(hs)
+        print("Fmapper", hs.fmapper)
+        for f in hs.fmapper:
+            for d in f.dimensions:
+                if d.is_AbstractSub:
+                    print(d, d.ltkn, d.rtkn)
         # Sanity check
         assert all(f.is_Function and f.grid is not None for f in hs.fmapper)
 
