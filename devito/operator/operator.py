@@ -612,6 +612,10 @@ class Operator(Callable):
             if set(d._arg_names).intersection(kwargs):
                 futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
 
+        # Prepare to process data-carriers
+        args = kwargs['args'] = ReducerMap()
+        kwargs['metadata'] = self.threads_info
+
         # Process data-carrier overrides
         for p in overrides:
             args.update(p._arg_values(**kwargs))
