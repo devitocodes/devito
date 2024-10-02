@@ -611,21 +611,21 @@ class SubDomain(AbstractSubDomain):
                     thickness = s - ltkn - rtkn
                     sdshape.append(thickness)
                 except ValueError:
-                    side, ltkn = v
+                    side, tkn = v
                     if side == 'left':
-                        if s - ltkn < 0:
+                        if s - tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, ltkn))
+                                             "is %d, not %d" % (k.name, s, tkn))
                         sub_dimensions.append(SubDimension.left('i%s' % k.name,
-                                                                k, ltkn))
-                        sdshape.append(ltkn)
+                                                                k, tkn))
+                        sdshape.append(tkn)
                     elif side == 'right':
-                        if s - rtkn < 0:
+                        if s - tkn < 0:
                             raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, rtkn))
+                                             "is %d, not %d" % (k.name, s, tkn))
                         sub_dimensions.append(SubDimension.right('i%s' % k.name,
-                                                                 k, rtkn))
-                        sdshape.append(rtkn)
+                                                                 k, tkn))
+                        sdshape.append(tkn)
                     else:
                         raise ValueError("Expected sides 'left|right', not `%s`" % side)
 

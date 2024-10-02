@@ -545,10 +545,6 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise ValueError("Unrecognized argument %s=%s" % (k, v))
 
-        # Prepare to process data-carriers
-        args = kwargs['args'] = ReducerMap()
-        kwargs['metadata'] = self.threads_info
-
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
@@ -603,6 +599,10 @@ class Operator(Callable):
         for d in reversed(toposort):
             if set(d._arg_names).intersection(kwargs):
                 futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
+
+        # Prepare to process data-carriers
+        args = kwargs['args'] = ReducerMap()
+        kwargs['metadata'] = self.threads_info
 
         # Process data-carrier overrides
         for p in overrides:
