@@ -666,6 +666,7 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
+        # Pass a tag through from SubDomain?
         lst, rst = cls._symbolic_thickness(parent.name)
         return cls(name, parent,
                    left=parent.symbolic_min,
