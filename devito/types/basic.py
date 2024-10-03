@@ -348,6 +348,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         for i in list(kwargs):
             if i in _assume_rules.defined_facts:
                 assumptions[i] = kwargs.pop(i)
+
         return assumptions, kwargs
 
     def __new__(cls, *args, **kwargs):

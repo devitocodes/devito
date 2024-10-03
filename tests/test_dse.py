@@ -581,11 +581,11 @@ class TestAliases:
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        bns, pbs = assert_blocking(op1, {'i0x0_blk0'})
-        xs, ys, zs = get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
+        bns, pbs = assert_blocking(op1, {'ix0_blk0'})
+        xs, ys, zs = get_params(op1, 'ix0_blk0_size', 'iy0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(bns['ix0_blk0']) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(pbs['i0x0_blk0'])) == 1
+        assert len(FindNodes(VExpanded).visit(pbs['ix0_blk0'])) == 1
         check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -755,11 +755,11 @@ class TestAliases:
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        bns, pbs = assert_blocking(op1, {'i0x0_blk0'})
-        xs, ys, zs = get_params(op1, 'i0x0_blk0_size', 'i0y0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(bns['i0x0_blk0']) if i.is_Array]
+        bns, pbs = assert_blocking(op1, {'ix0_blk0'})
+        xs, ys, zs = get_params(op1, 'ix0_blk0_size', 'iy0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(bns['ix0_blk0']) if i.is_Array]
         assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(pbs['i0x0_blk0'])) == 2
+        assert len(FindNodes(VExpanded).visit(pbs['ix0_blk0'])) == 2
         check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 

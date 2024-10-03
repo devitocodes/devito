@@ -130,13 +130,15 @@ def test_cache_blocking_structure_subdims():
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior))
 
-    bns, _ = assert_blocking(op, {'i0x0_blk0'})
+    bns, _ = assert_blocking(op, {'ix0_blk0'})
 
-    trees = retrieve_iteration_tree(bns['i0x0_blk0'])
+    trees = retrieve_iteration_tree(bns['ix0_blk0'])
     tree = trees[0]
     assert len(tree) == 5
-    assert tree[0].dim.is_Block and tree[0].dim.parent is xi and tree[0].dim.root is x
-    assert tree[1].dim.is_Block and tree[1].dim.parent is yi and tree[1].dim.root is y
+    assert tree[0].dim.is_Block and tree[0].dim.parent.name == 'ix' and\
+        tree[0].dim.root is x
+    assert tree[1].dim.is_Block and tree[1].dim.parent.name == 'iy' and\
+        tree[1].dim.root is y
     assert tree[2].dim.is_Block and tree[2].dim.parent is tree[0].dim and\
         tree[2].dim.root is x
     assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
@@ -144,8 +146,9 @@ def test_cache_blocking_structure_subdims():
     # zi is rebuilt with name z, so check symbolic max and min are preserved
     # Also check the zi was rebuilt
     assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
-        tree[4].dim.symbolic_min is zi.symbolic_min and\
-        tree[4].dim.symbolic_max is zi.symbolic_max and tree[4].dim.parent is z
+        str(tree[4].dim.symbolic_min) == 'z_ltkn0 + z_m' and\
+        str(tree[4].dim.symbolic_max) == 'z_M - z_rtkn0' and\
+        tree[4].dim.parent is z
 
 
 @pytest.mark.parallel(mode=[(1, 'full')])  # Shortcut to put loops in nested efuncs
@@ -1354,14 +1357,16 @@ class TestNestedParallelism:
                             'par-collapse-ncores': 2,
                             'par-dynamic-work': 0}))
 
-        bns, _ = assert_blocking(op, {'i0x0_blk0'})
+        bns, _ = assert_blocking(op, {'ix0_blk0'})
 
-        trees = retrieve_iteration_tree(bns['i0x0_blk0'])
+        trees = retrieve_iteration_tree(bns['ix0_blk0'])
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 5 + (blocklevels - 1) * 2
-        assert tree[0].dim.is_Block and tree[0].dim.parent is xi and tree[0].dim.root is x
-        assert tree[1].dim.is_Block and tree[1].dim.parent is yi and tree[1].dim.root is y
+        assert tree[0].dim.is_Block and tree[0].dim.parent.name == 'ix' and\
+            tree[0].dim.root is x
+        assert tree[1].dim.is_Block and tree[1].dim.parent.name == 'iy' and\
+            tree[1].dim.root is y
         assert tree[2].dim.is_Block and tree[2].dim.parent is tree[0].dim and\
             tree[2].dim.root is x
         assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
@@ -1369,8 +1374,9 @@ class TestNestedParallelism:
 
         if blocklevels == 1:
             assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
-                tree[4].dim.symbolic_min is zi.symbolic_min and\
-                tree[4].dim.symbolic_max is zi.symbolic_max and tree[4].dim.parent is z
+                str(tree[4].dim.symbolic_min) == 'z_ltkn0 + z_m' and\
+                str(tree[4].dim.symbolic_max) == 'z_M - z_rtkn0' and\
+                tree[4].dim.parent is z
         elif blocklevels == 2:
             assert tree[3].dim.is_Block and tree[3].dim.parent is tree[1].dim and\
                 tree[3].dim.root is y
@@ -1379,8 +1385,9 @@ class TestNestedParallelism:
             assert tree[5].dim.is_Block and tree[5].dim.parent is tree[3].dim and\
                 tree[5].dim.root is y
             assert not tree[6].dim.is_Block and tree[6].dim is not zi and\
-                tree[6].dim.symbolic_min is zi.symbolic_min and\
-                tree[6].dim.symbolic_max is zi.symbolic_max and tree[6].dim.parent is z
+                str(tree[6].dim.symbolic_min) == 'z_ltkn0 + z_m' and\
+                str(tree[6].dim.symbolic_max) == 'z_M - z_rtkn0' and\
+                tree[6].dim.parent is z
 
         assert trees[0][0].pragmas[0].ccode.value ==\
             'omp for collapse(2) schedule(dynamic,1)'

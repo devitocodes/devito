@@ -66,6 +66,8 @@ class TestBasic:
 
         assert d.name == new_d.name
         assert d.dtype == new_d.dtype
+        assert d.symbolic_min == new_d.symbolic_min
+        assert d.symbolic_max == new_d.symbolic_max
 
     def test_enrichedtuple(self, pickle):
         # Dummy enriched tuple
@@ -194,12 +196,14 @@ class TestBasic:
         assert new_s.name == s.name
         assert new_s.dtype is np.int32
         assert new_s.is_const is True
+        assert new_s.is_nonnegative is None
 
         s = Scalar(name='s', nonnegative=True)
         pkl_s = pickle.dumps(s)
         new_s = pickle.loads(pkl_s)
         assert new_s.name == s.name
         assert new_s.assumptions0['nonnegative'] is True
+        assert new_s.is_nonnegative is True
 
     def test_bound_symbol(self, pickle):
         grid = Grid(shape=(3, 3, 3))

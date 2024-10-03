@@ -182,8 +182,8 @@ class Grid(CartesianDiscretization, ArgProvider):
 
         # Initialize SubDomains
         subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for counter, i in enumerate(subdomains):
-            i.__subdomain_finalize__(self, counter=counter)
+        for i in subdomains:
+            i.__subdomain_finalize__(self)
         self._subdomains = subdomains
 
         self._origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -502,7 +502,6 @@ class SubDomain(AbstractSubDomain):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        counter = kwargs.get('counter', 0) - 1
         for k, v, s in zip(self.define(grid.dimensions).keys(),
                            self.define(grid.dimensions).values(), grid.shape):
             if isinstance(v, Dimension):
@@ -514,8 +513,7 @@ class SubDomain(AbstractSubDomain):
                     side, thickness_left, thickness_right = v
                     if side != 'middle':
                         raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('i%d%s' %
-                                                              (counter, k.name),
+                    sub_dimensions.append(SubDimension.middle('i%s' % k.name,
                                                               k, thickness_left,
                                                               thickness_right))
                     thickness = s-thickness_left-thickness_right
@@ -526,16 +524,14 @@ class SubDomain(AbstractSubDomain):
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%d%s' %
-                                                                (counter, k.name),
+                        sub_dimensions.append(SubDimension.left('i%s' % k.name,
                                                                 k, thickness))
                         sdshape.append(thickness)
                     elif side == 'right':
                         if s-thickness < 0:
                             raise ValueError("Maximum thickness of dimension %s "
                                              "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%d%s' %
-                                                                 (counter, k.name),
+                        sub_dimensions.append(SubDimension.right('i%s' % k.name,
                                                                  k, thickness))
                         sdshape.append(thickness)
                     else:
@@ -701,7 +697,7 @@ class SubDomainSet(MultiSubDomain):
         except AttributeError:
             pass
 
-    def __subdomain_finalize__(self, grid, counter=0, **kwargs):
+    def __subdomain_finalize__(self, grid, **kwargs):
         self._grid = grid
         self._dtype = grid.dtype
 
@@ -740,11 +736,12 @@ class SubDomainSet(MultiSubDomain):
 
         # Associate the `_local_bounds` to suitable symbolic objects that the
         # compiler can use to generate code
-        n = counter - npresets
-        assert n >= 0
 
-        i_dim = Dimension(name='n%d' % n)
-        d_dim = DefaultDimension(name='d%d' % n, default_value=2*grid.dim)
+        # Dimensions with identical names hash the same, hence tag them with the
+        # SubDomainSet ID to make them unique so they can be used to key a dictionary
+        # of replacements without risking overwriting.
+        i_dim = Dimension('n_%s' % str(id(self)))
+        d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,
                            shape=(self._n_domains, 2*grid.dim),
                            dimensions=(i_dim, d_dim), dtype=np.int32)
@@ -756,12 +753,8 @@ class SubDomainSet(MultiSubDomain):
                 idx = 2*i + j
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
-            dname = '%si%d' % (d.name, counter)
-
-            thickness = MultiSubDimension._symbolic_thickness(dname)
-
             dimensions.append(MultiSubDimension(
-                dname, d, thickness, functions=sd_func,
+                'i%s' % d.name, d, None, functions=sd_func,
                 bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
