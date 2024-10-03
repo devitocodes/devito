@@ -1038,6 +1038,34 @@ class TestSubDomainFunctions:
                           [0., 0., 0., 0., 0., 0., 0., 0.]])
         assert np.all(f.data_with_halo == check)
 
+    def test_multiple_functions(self):
+        """
+        Test that multiple Functions defined on different SubDomains can be included
+        in a single operator.
+        """
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        sd0 = ReducedDomain(('middle', 2, 3),
+                            ('right', 6),
+                            grid=grid)
+        sd1 = ReducedDomain(('middle', 4, 1),
+                            ('left', 3),
+                            grid=grid)
+        
+        f = Function(name='f', grid=sd0)
+        g = Function(name='g', grid=sd1)
+
+        eq_f = Eq(f, f+1)
+        eq_g = Eq(g, g+1)
+
+        op = Operator([eq_f, eq_g])
+        op()
+        print(op.ccode)
+
+        assert(np.all(f.data[:] == 1))
+        assert(np.all(g.data[:] == 1))
+
+    # TODO: Add a test to check that offsets are consistent with rebuilt subdimensions
+
     def test_mixed_functions(self):
         """
         Test with some Functions on a `SubDomain` and some not.
@@ -1172,8 +1200,8 @@ class TestSubDomainFunctionsParallel:
     @pytest.mark.parametrize('x', _mpi_subdomain_specs)
     @pytest.mark.parametrize('y', _mpi_subdomain_specs)
     # @pytest.mark.parallel(mode=[(2, 'full')])
-    @pytest.mark.parallel(mode=[(1, 'full')])
-    # @pytest.mark.parallel(mode=[1])
+    # @pytest.mark.parallel(mode=[(1, 'full')])
+    @pytest.mark.parallel(mode=[1])
     def test_basic_function_mpi(self, x, y, mode):
         """
         Test a trivial operator with a single Function
@@ -1185,10 +1213,9 @@ class TestSubDomainFunctionsParallel:
         eq = Eq(f, f+1)
 
         Operator(eq)()
+        # print(Operator(eq).ccode)
 
         assert(np.all(f.data == 1))
-
-        # print(Operator(eq).ccode)
 
     @pytest.mark.parallel(mode=[(2, 'full')])
     def test_mixed_functions_mpi(self, mode):
