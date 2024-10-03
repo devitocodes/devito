@@ -197,14 +197,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return {self.function}
 
     @property
-    def _data_buffer(self):
-        """
-        Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
-        this *never* returns a view of the data. This method is for internal use only.
-        """
-        return self._data_allocated
-
-    @property
     def _data_alignment(self):
         return self._allocator.guaranteed_alignment
 
@@ -558,6 +550,14 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         self._halo_exchange()
         return np.asarray(self._data)
 
+    def _data_buffer(self, **kwargs):
+        """
+        Reference to the data. Unlike :attr:`data` and :attr:`data_with_halo`,
+        this *never* returns a view of the data. This method is for internal
+        use only.
+        """
+        return self._data_allocated
+
     def _data_in_region(self, region, dim, side):
         """
         The data values in a given region.
@@ -691,9 +691,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """
         key = alias or self
         data = args[key.name]
+
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
         dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
+
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
                                                     zip(data.shape, self._size_padding)])
@@ -809,7 +811,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of argument names introduced by this function."""
         return (self.name,)
 
-    def _arg_defaults(self, alias=None):
+    def _arg_defaults(self, alias=None, metadata=None):
         """
         A map of default argument values defined by this symbol.
 
@@ -819,7 +821,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             To bind the argument values to different names.
         """
         key = alias or self
-        args = ReducerMap({key.name: self._data_buffer})
+        args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
 
         # Collect default dimension arguments from all indices
         for a, i, s in zip(key.dimensions, self.dimensions, self.shape):
@@ -827,7 +829,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         return args
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, metadata=None, **kwargs):
         """
         A map of argument values after evaluating user input. If no
         user input is provided, return a default value.
@@ -843,7 +845,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             new = kwargs.pop(self.name)
             if isinstance(new, DiscreteFunction):
                 # Set new values and re-derive defaults
-                values = new._arg_defaults(alias=self).reduce_all()
+                values = new._arg_defaults(alias=self, metadata=metadata)
+                values = values.reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
@@ -852,7 +855,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
         else:
-            values = self._arg_defaults(alias=self).reduce_all()
+            values = self._arg_defaults(alias=self, metadata=metadata)
+            values = values.reduce_all()
 
         return values
 

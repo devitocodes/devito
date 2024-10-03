@@ -470,30 +470,22 @@ class DeviceAwareDataManager(DataManager):
             if is_gpu_create(obj, self.gpu_create):
                 mmap = self.lang._map_alloc(obj)
 
-                cdims = make_zero_init(obj)
-                eq = Eq(obj[cdims], 0)
-
-                irs, _ = self.rcompile(eq)
-
-                init = irs.iet.body.body[0]
-
-                name = self.sregistry.make_name(prefix='init')
-                efunc = make_callable(name, init)
-                init = Call(name, efunc.parameters)
+                efuncs, init = make_zero_init(obj, self.rcompile, self.sregistry)
 
                 mmap = (mmap, init)
             else:
                 mmap = self.lang._map_to(obj)
-                efunc = ()
+                efuncs = ()
 
-            unmap = [self.lang._map_update(obj),
-                     self.lang._map_release(obj, devicerm=devicerm)]
+            # Copy back to host memory, release device memory
+            unmap = (self.lang._map_update(obj),
+                     self.lang._map_release(obj, devicerm=devicerm))
         else:
             mmap = self.lang._map_to(obj)
-            efunc = ()
+            efuncs = ()
             unmap = self.lang._map_delete(obj, devicerm=devicerm)
 
-        storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efunc)
+        storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efuncs)
 
     @iet_pass
     def place_transfers(self, iet, data_movs=None, **kwargs):
@@ -566,7 +558,7 @@ class DeviceAwareDataManager(DataManager):
         self.place_casts(graph)
 
 
-def make_zero_init(obj):
+def make_zero_init(obj, rcompile, sregistry):
     cdims = []
     for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape):
         if d.is_NonlinearDerived:
@@ -578,4 +570,17 @@ def make_zero_init(obj):
             M = d.symbolic_max + h1
         cdims.append(CustomDimension(name=d.name, parent=d,
                                      symbolic_min=m, symbolic_max=M))
-    return cdims
+
+    eq = Eq(obj[cdims], 0)
+
+    irs, byproduct = rcompile(eq)
+
+    init = irs.iet.body.body[0]
+
+    name = sregistry.make_name(prefix='init')
+    efunc = make_callable(name, init)
+    init = Call(name, efunc.parameters)
+
+    efuncs = [efunc] + [i.root for i in byproduct.funcs]
+
+    return efuncs, init
