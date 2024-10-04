@@ -9,7 +9,7 @@ from devito import configuration
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDistributor
-from devito.tools import ReducerMap, as_tuple, memoized_meth
+from devito.tools import ReducerMap, as_tuple, memoized_meth, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -262,7 +262,7 @@ class Grid(CartesianDiscretization, ArgProvider):
     @property
     def subdomains(self):
         """The SubDomains defined in this Grid."""
-        return {i.name: i for i in self._subdomains}
+        return frozendict({i.name: i for i in self._subdomains})
 
     @property
     def interior(self):
@@ -485,7 +485,7 @@ class AbstractSubDomain(CartesianDiscretization):
 
     @property
     def dimension_map(self):
-        return {d.root: d for d in self.dimensions}
+        return frozendict({d.root: d for d in self.dimensions})
 
     @property
     def grid(self):
@@ -936,7 +936,3 @@ class Interior(SubDomain):
 
     def define(self, dimensions):
         return {d: ('middle', 1, 1) for d in dimensions}
-
-
-preset_subdomains = [Domain, Interior]
-npresets = len(preset_subdomains)
