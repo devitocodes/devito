@@ -1,7 +1,17 @@
 import versioneer
 
 import os
-import pkg_resources
+try:
+    import importlib.metadata as metadata
+    get_version = lambda x: metadata.version(x)
+    PkgNotFound = metadata.PackageNotFoundError
+    parse_version = lambda x: metadata.version(x)
+except ImportError:
+    import pkg_resources
+    get_version = lambda x: pkg_resources.get_distribution(x).version
+    PkgNotFound = pkg_resources.DistributionNotFound
+    parse_version = lambda x: pkg_resources.parse_version(x)
+
 from setuptools import setup, find_packages
 
 
@@ -23,13 +33,13 @@ def numpy_compat(required):
     # Check if sympy is installed and enforce numpy version accordingly.
     # If sympy isn't installed, enforce sympy>=1.12.1 and numpy>=2.0
     try:
-        sympy_version = pkg_resources.get_distribution("sympy").version
-        min_ver2 = pkg_resources.parse_version("1.12.1")
-        if pkg_resources.parse_version(sympy_version) < min_ver2:
+        sympy_version = get_version("sympy")
+        min_ver2 = parse_version("1.12.1")
+        if parse_version(sympy_version) < min_ver2:
             new_reqs.extend([f"numpy>{numpy_lb},<2.0", f"sympy=={sympy_version}"])
         else:
             new_reqs.extend([f"numpy>=2.0,<{numpy_ub}", f"sympy=={sympy_version}"])
-    except pkg_resources.DistributionNotFound:
+    except PkgNotFound:
         new_reqs.extend([f"sympy>=1.12.1,<{sympy_ub}", f"numpy>=2.0,<{numpy_ub}"])
 
     return new_reqs
