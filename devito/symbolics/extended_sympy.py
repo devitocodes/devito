@@ -799,6 +799,14 @@ class UCHAR(Cast):
     _base_typ = 'unsigned char'
 
 
+class UINT(Cast):
+    _base_typ = 'unsigned int'
+
+
+class UINTP(CastStar):
+    base = UINT
+
+
 class LONG(Cast):
     _base_typ = 'long'
 
