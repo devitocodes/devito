@@ -189,6 +189,12 @@ def concretize_subdims(exprs, **kwargs):
 
     print("Concretisation mapper", mapper)
     # FIXME: Functions on SubDomains will have thicknesses as offsets in the indices
+    # FIXME: Cannot have a pass after concretisation to expand subdimensions with their
+    # offsets as the offset comes from the subdomain on which the Function is defined
+    # whilst the index comes from the iteration subdomain
+
+    # Or can I? Is the .function attribute preserved? -> no
+    print("Concretisation check", {k: v.tkns for k, v in mapper.items()})
 
     processed = [uxreplace(e, mapper) for e in exprs]
 
@@ -215,12 +221,23 @@ def _(expr, mapper, rebuilt, sregistry):
     # Subdimensions can be hiding in implicit dims
     _concretize_subdims(expr.implicit_dims, mapper, rebuilt, sregistry)
 
+    # Equations may contain Functions on SubDomains; any SubDimensions appearing in these
+    # SubDomains will require concretisation, as the equation SubDomain may differ from
+    # the SubDomain on which the Function is defined.
+    functions = filter_sorted(f for f in retrieve_functions(expr) if f._is_on_subdomain)
+    print("Functions retrieved", functions)
+    # FIXME: Finish this
+    for f in functions:
+        _concretize_subdims(f.dimensions, mapper, rebuilt, sregistry)
+
 
 @_concretize_subdims.register(SubDimension)
 def _(d, mapper, rebuilt, sregistry):
     if d in mapper:
         # Already have a substitution for this dimension
+        print("Already seen", d)
         return
+    print("Rebuilding", d)
 
     tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
                  for tkn in d.tkns}

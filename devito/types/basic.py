@@ -1467,7 +1467,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Indices after substitutions
         indices = []
         # FIXME: Does use of _offset_subdomain here occur before or after concretisation?
-        # FIXME: Thus, does it resurrect the subdomain inadvertently?
+        # FIXME: Thus, does it resurrect the subdomain inadvertently? <- I don't think so
         for a, d, o, of, s in zip(self.args, self.dimensions, self.origin,
                                   self._offset_subdomain, subs):
             if d in a.free_symbols:
