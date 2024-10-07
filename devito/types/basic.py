@@ -1423,15 +1423,18 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
-    @cached_property
-    def _offset_subdomain(self):
+    @memoized_meth
+    def _offset_subdomain(self, *dimensions):
         """Offset of subdomain incides versus the global index."""
         # If defined on a SubDomain, then need to offset indices accordingly
+
+        # Offsets are applied during concretization, as it is necessary to reuse the
+        # rebuilt subdimensions with unique thicknesses, rather than the original objects
         if not self._is_on_subdomain:
             return (0,)*len(self.dimensions)
         # Symbolic offsets to avoid potential issues with user overrides
         offsets = []
-        for d in self.dimensions:
+        for d in dimensions:
             if d.is_Sub:
                 ((l_sym, l_val), (r_sym, r_val)) = d.thickness
                 if l_val is None:
@@ -1466,16 +1469,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Indices after substitutions
         indices = []
-        # FIXME: Does use of _offset_subdomain here occur before or after concretisation?
-        # FIXME: Thus, does it resurrect the subdomain inadvertently? <- I don't think so
-        for a, d, o, of, s in zip(self.args, self.dimensions, self.origin,
-                                  self._offset_subdomain, subs):
+        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
             if d in a.free_symbols:
-                # Shift by origin and offset d -> d - o - of.
-                indices.append(sympy.sympify(a.subs(d, d - o - of).xreplace(s)))
+                # Shift by origin and offset d -> d - o.
+                indices.append(sympy.sympify(a.subs(d, d - o).xreplace(s)))
             else:
                 # Dimension has been removed, e.g. u[10], plain shift by origin
-                indices.append(sympy.sympify(a - o - of).xreplace(s))
+                indices.append(sympy.sympify(a - o).xreplace(s))
 
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]

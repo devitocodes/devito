@@ -208,22 +208,36 @@ def concretize_subdims(exprs, **kwargs):
             # A dimension has been rebuilt, so build a mapper for Indexed
             mapper[f.indexed] = f._rebuild(dimensions=dimensions).indexed
 
-    print("Concretisation mapper", mapper)
-    print("Concretisation check", {k: v.tkns for k, v in mapper.items()})
-    # FIXME: Functions on SubDomains will have thicknesses as offsets in the indices
-    subdomain_funcs = {f for f in retrieve_functions(exprs) if f._is_on_subdomain}
-    print("SubDomain functions", subdomain_funcs)
-    # Need to first grab the subdomain offsets
-    offsets = [f._offset_subdomain for f in subdomain_funcs]
-    print("Offsets", offsets)
-    # FIXME: These need to be calculated with the updated SubDimensions with new
-    # thicknesses.
-    # This means that the concretisation mapper will need to be passed to
-    # _offset_subdomain as a function arg
-    # Need to subtract the subdomain offset from the indices for that Function in
-    # particular
-
     processed = [uxreplace(e, mapper) for e in exprs]
+
+    # Functions defined on SubDomains require their indices offsetting. This must be
+    # carried out at the end of concretisation as the uniquely-named SubDimension
+    # thicknesses are required.
+
+    # Extract Functions defined on SubDomains from the expressions
+    subdomain_funcs = {f for f in retrieve_functions(processed) if f._is_on_subdomain}
+
+    # If no Functions are on SubDomains, then nothing further to do
+    if not subdomain_funcs:
+        return processed
+
+    # Build a mapper between each Function and the offset for its indices
+    offset_mapper = {}
+    for f in subdomain_funcs:
+        rebuilt_dims = [mapper[d] if d in mapper else d for d in f.dimensions]
+        offset_mapper[f] = f._offset_subdomain(*rebuilt_dims)
+
+    # Extract Indexed for these Functions, and build a mapper between indices and
+    # offset indices
+    indexed = {i for i in retrieve_indexed(processed) if i.function._is_on_subdomain}
+    indexed_mapper = {}
+    for i in indexed:
+        index_offset = offset_mapper[i.function]
+        indexed_mapper[i] = i.subs({ind: ind-ofs for ind, ofs
+                                    in zip(i.indices, index_offset)})
+
+    # Replace indices for Functions on SubDomains with their offset equivalents
+    processed = [uxreplace(e, indexed_mapper) for e in processed]
 
     return processed
 

@@ -1081,8 +1081,8 @@ class TestSubDomainFunctions:
         eq_f = Eq(f, f+1, subdomain=sd1)
 
         op = Operator(eq_f)
-        op()
         print(op.ccode)
+        op()
         # Assert against a check here
         assert False
 
