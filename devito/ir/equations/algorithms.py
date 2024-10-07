@@ -209,13 +209,19 @@ def concretize_subdims(exprs, **kwargs):
             mapper[f.indexed] = f._rebuild(dimensions=dimensions).indexed
 
     print("Concretisation mapper", mapper)
-    # FIXME: Functions on SubDomains will have thicknesses as offsets in the indices
-    # FIXME: Cannot have a pass after concretisation to expand subdimensions with their
-    # offsets as the offset comes from the subdomain on which the Function is defined
-    # whilst the index comes from the iteration subdomain
-
-    # Or can I? Is the .function attribute preserved? -> no
     print("Concretisation check", {k: v.tkns for k, v in mapper.items()})
+    # FIXME: Functions on SubDomains will have thicknesses as offsets in the indices
+    subdomain_funcs = {f for f in retrieve_functions(exprs) if f._is_on_subdomain}
+    print("SubDomain functions", subdomain_funcs)
+    # Need to first grab the subdomain offsets
+    offsets = [f._offset_subdomain for f in subdomain_funcs]
+    print("Offsets", offsets)
+    # FIXME: These need to be calculated with the updated SubDimensions with new
+    # thicknesses.
+    # This means that the concretisation mapper will need to be passed to
+    # _offset_subdomain as a function arg
+    # Need to subtract the subdomain offset from the indices for that Function in
+    # particular
 
     processed = [uxreplace(e, mapper) for e in exprs]
 
@@ -245,9 +251,9 @@ def _(expr, mapper, rebuilt, sregistry):
     # Equations may contain Functions on SubDomains; any SubDimensions appearing in these
     # SubDomains will require concretisation, as the equation SubDomain may differ from
     # the SubDomain on which the Function is defined.
+    # These Functions are sorted by name for deterministic ordering of SubDimension
+    # thickness names.
     functions = filter_sorted(f for f in retrieve_functions(expr) if f._is_on_subdomain)
-    print("Functions retrieved", functions)
-    # FIXME: Finish this
     for f in functions:
         _concretize_subdims(f.dimensions, mapper, rebuilt, sregistry)
 
@@ -256,9 +262,7 @@ def _(expr, mapper, rebuilt, sregistry):
 def _(d, mapper, rebuilt, sregistry):
     if d in mapper:
         # Already have a substitution for this dimension
-        print("Already seen", d)
         return
-    print("Rebuilding", d)
 
     tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
                  for tkn in d.tkns}
