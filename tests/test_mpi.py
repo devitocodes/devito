@@ -1053,7 +1053,7 @@ class TestCodeGeneration:
         assert calls[0].arguments[0] is tau
         assert calls[1].arguments[0] is v
 
-        #except:
+        # except:
         #    # Current redundant codegen
         #    assert len(calls) == 3
         #    assert calls[0].arguments[0] is tau
