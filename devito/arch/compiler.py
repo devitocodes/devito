@@ -47,6 +47,7 @@ def sniff_compiler_version(cc, allow_fail=False):
         else:
             raise RuntimeError("The `%s` compiler isn't available on this system" % cc)
 
+    ver = ver.strip()
     if ver.startswith("gcc"):
         compiler = "gcc"
     elif ver.startswith("clang"):
@@ -63,13 +64,15 @@ def sniff_compiler_version(cc, allow_fail=False):
         compiler = "icx"
     elif ver.startswith("pgcc"):
         compiler = "pgcc"
+    elif ver.startswith("nvc++"):
+        compiler = "nvc"
     elif ver.startswith("cray"):
         compiler = "cray"
     else:
         compiler = "unknown"
 
     ver = Version("0")
-    if compiler in ["gcc", "icc", "icx"]:
+    if compiler in ["gcc", "icc", "icx", "nvc"]:
         try:
             # gcc-7 series only spits out patch level on dumpfullversion.
             res = run([cc, "-dumpfullversion"], stdout=PIPE, stderr=DEVNULL)
@@ -605,7 +608,11 @@ class PGICompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         if platform is NVIDIAX:
-            self.cflags.append('-gpu=pinned')
+            if self.version >= Version("24.9"):
+                self.cflags.append('-gpu=mem:separate:pinnedalloc')
+            else:
+                self.cflags.append('-gpu=pinned')
+
             if language == 'openacc':
                 self.cflags.extend(['-mp', '-acc:gpu'])
             elif language == 'openmp':
