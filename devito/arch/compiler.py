@@ -398,8 +398,12 @@ class Compiler(GCCToolchain):
     def add_include_dirs(self, dirs):
         self.include_dirs = filter_ordered(self.include_dirs + as_list(dirs))
 
-    def add_library_dirs(self, dirs):
+    def add_library_dirs(self, dirs, rpath=False):
         self.library_dirs = filter_ordered(self.library_dirs + as_list(dirs))
+        if rpath:
+            # Add rpath flag to embed library dir
+            for d in as_list(dirs):
+                self.ldflags.append('-Wl,-rpath,%s' % d)
 
     def add_libraries(self, libs):
         self.libraries = filter_ordered(self.libraries + as_list(libs))

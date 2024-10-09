@@ -127,7 +127,8 @@ class Graph:
                 compiler = kwargs['compiler']
                 compiler.add_include_dirs(as_tuple(metadata.get('include_dirs')))
                 compiler.add_libraries(as_tuple(metadata.get('libs')))
-                compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')))
+                compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
+                                          rpath=metadata.get('rpath', False))
             except KeyError:
                 pass
 
