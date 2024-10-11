@@ -261,7 +261,7 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    abstract_tkns = MultiSubDimension._symbolic_thickness(d.parent.name)
+    abstract_tkns = d._symbolic_thickness
     concrete_tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
                           for tkn in abstract_tkns)
 
