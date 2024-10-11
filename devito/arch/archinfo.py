@@ -649,6 +649,10 @@ class Platform:
         return self.cores_logical // self.cores_physical
 
     @property
+    def cores_physical_per_numa_domain(self):
+        return self.cores_physical // self.numa_domains
+
+    @property
     def memtotal(self):
         """Physical memory size in bytes, or None if unknown."""
         return None
@@ -734,10 +738,6 @@ class Cpu64(Platform):
             warning("NUMA domain count autodetection failed")
             return 1
 
-    @property
-    def cores_physical_per_numa_domain(self):
-        return self.cores_physical // self.numa_domains
-
     @cached_property
     def memtotal(self):
         return psutil.virtual_memory().total
@@ -804,13 +804,15 @@ class Power(Cpu64):
 
 class Device(Platform):
 
-    def __init__(self, name, cores_logical=1, cores_physical=1, isa='cpp',
+    def __init__(self, name, cores_logical=None, cores_physical=None, isa='cpp',
                  max_threads_per_block=1024, max_threads_dimx=1024,
                  max_threads_dimy=1024, max_threads_dimz=64):
         super().__init__(name)
 
-        self.cores_logical = cores_logical
-        self.cores_physical = cores_physical
+        cpu_info = get_cpu_info()
+
+        self.cores_logical = cores_logical or cpu_info['logical']
+        self.cores_physical = cores_physical or cpu_info['physical']
         self.isa = isa
 
         self.max_threads_per_block = max_threads_per_block
