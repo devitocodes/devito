@@ -538,6 +538,9 @@ class DerivedDimension(BasicDimension):
 
 class SubDimensionThickness(Scalar):
     # Dummy for now
+    # FIXME: If this subclasses symbol, then it needs an arg check.
+    # This arg check/arg vals could be used to move some functionality
+    # from SubDimension to SubDimensionThickness
     pass
 
 
@@ -588,18 +591,13 @@ class AbstractSubDimension(DerivedDimension):
 
     @cached_property
     def _symbolic_thickness(self):
-        if isinstance(self._thicknesstype, SubDimensionThickness):
-            kwargs = {'subdim', self}
-        else:
-            kwargs = {}
-
         ltkn = self._thicknesstype(name="%s_ltkn" % self.parent.name,
                                    dtype=np.int32, is_const=True,
-                                   nonnegative=True, **kwargs)
+                                   nonnegative=True)
 
         rtkn = self._thicknesstype(name="%s_rtkn" % self.parent.name,
                                    dtype=np.int32, is_const=True,
-                                   nonnegative=True, **kwargs)
+                                   nonnegative=True)
 
         return (ltkn, rtkn)
 
@@ -642,6 +640,9 @@ class AbstractSubDimension(DerivedDimension):
     def tkns(self):
         # Shortcut for both thickness symbols
         return self.ltkn, self.rtkn
+
+    def __hash__(self):
+        return id(self)
 
 
 class SubDimension(AbstractSubDimension):
@@ -880,12 +881,6 @@ class MultiSubDimension(AbstractSubDimension):
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
-
-    def __hash__(self):
-        # There is no possibility for two MultiSubDimensions to ever hash the
-        # same, since a MultiSubDimension carries a reference to a MultiSubDomain,
-        # which is unique
-        return id(self)
 
     @cached_property
     def bound_symbols(self):
