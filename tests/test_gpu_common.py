@@ -10,7 +10,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     SubDimension, SubDomain, SubDomainSet, TimeFunction,
                     Operator, configuration, switchconfig, TensorTimeFunction,
                     Buffer)
-from devito.arch import get_gpu_info
+from devito.arch import get_gpu_info, get_cpu_info, Device, Cpu64
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
                        retrieve_iteration_tree)
@@ -46,6 +46,15 @@ class TestGPUInfo:
             # Check jit-compilation and correct execution
             op.apply(time_M=10)
             assert np.all(u.data[1] == 11)
+
+    def test_host_threads(self):
+        plat = configuration['platform']
+
+        assert isinstance(plat, Device)
+
+        nth = plat.cores_physical
+        assert nth == get_cpu_info()['physical']
+        assert nth == Cpu64("test").cores_physical
 
 
 class TestCodeGeneration:

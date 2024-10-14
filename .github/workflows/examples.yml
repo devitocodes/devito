@@ -42,6 +42,7 @@ jobs:
        activate-environment: devito
        environment-file: environment-dev.yml
        auto-activate-base: false
+       python-version: 3.11
 
     - name: Install dependencies
       run: |
