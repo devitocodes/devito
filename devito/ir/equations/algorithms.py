@@ -8,7 +8,7 @@ from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension
+from devito.types.dimension import MultiSubDimension, SubDimensionThickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
@@ -213,6 +213,14 @@ def _(expr, mapper, rebuilt, sregistry):
     _concretize_subdims(expr.implicit_dims, mapper, rebuilt, sregistry)
 
 
+@_concretize_subdims.register(SubDimensionThickness)
+def _(tkn, mapper, rebuilt, sregistry):
+    # Concretising the parent SubDimension ensures that SubDimension thicknesses
+    # are incremented in lockstep
+    if tkn.subdimension is not None:
+        _concretize_subdims(tkn.subdimension, mapper, rebuilt, sregistry)
+
+
 @_concretize_subdims.register(SubDimension)
 def _(d, mapper, rebuilt, sregistry):
     if d in mapper:
@@ -221,6 +229,11 @@ def _(d, mapper, rebuilt, sregistry):
 
     tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
                  for tkn in d.tkns}
+
+    # Add the thickness substitutions to the mapper, as they may appear without the
+    # SubDimension
+    mapper.update(tkns_subs)
+
     left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
     thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
 
