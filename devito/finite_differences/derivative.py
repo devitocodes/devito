@@ -219,35 +219,45 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return as_tuple(weights)
 
     def __call__(self, x0=None, fd_order=None, side=None, method=None, weights=None):
-        side = side or self._side
-        method = method or self._method
-        weights = weights if weights is not None else self._weights
+        rkw = {}
+        if side is not None:
+            rkw['side'] = side
+        if method is not None:
+            rkw['method'] = method
+        if weights is not None:
+            rkw['weights'] = weights
 
-        x0 = self._process_x0(self.dims, x0=x0)
-        _x0 = frozendict({**self.x0, **x0})
+        if x0 is not None:
+            x0 = self._process_x0(self.dims, x0=x0)
+            rkw['x0'] = frozendict({**self.x0, **x0})
 
-        _fd_order = dict(self.fd_order.getters)
-        try:
-            _fd_order.update(fd_order or {})
-        except TypeError:
-            assert self.ndims == 1
-            _fd_order.update({self.dims[0]: fd_order or self.fd_order[0]})
-        except AttributeError:
-            raise TypeError("fd_order incompatible with dimensions")
+        if fd_order is not None:
+            try:
+                _fd_order = dict(fd_order)
+            except TypeError:
+                assert self.ndims == 1
+                _fd_order = {self.dims[0]: fd_order}
+            except AttributeError:
+                raise TypeError("fd_order incompatible with dimensions")
 
         if isinstance(self.expr, Derivative):
             # In case this was called on a perfect cross-derivative `u.dxdy`
             # we need to propagate the call to the nested derivative
-            x0s = self._filter_dims(self.expr._filter_dims(_x0), neg=True)
-            expr = self.expr(x0=x0s, fd_order=self.expr._filter_dims(_fd_order),
-                             side=side, method=method)
-        else:
-            expr = self.expr
+            rkwe = dict(rkw)
+            rkwe.pop('weights', None)
+            if 'x0' in rkwe:
+                rkwe['x0'] = self._filter_dims(self.expr._filter_dims(rkw['x0']),
+                                               neg=True)
+            if fd_order is not None:
+                fdo = self.expr._filter_dims(_fd_order)
+                if fdo:
+                    rkwe['fd_order'] = fdo
+            rkw['expr'] = self.expr(**rkwe)
 
-        _fd_order = self._filter_dims(_fd_order, as_tuple=True)
+        if fd_order is not None:
+            rkw['fd_order'] = self._filter_dims(_fd_order, as_tuple=True)
 
-        return self._rebuild(fd_order=_fd_order, x0=_x0, side=side, method=method,
-                             weights=weights, expr=expr)
+        return self._rebuild(**rkw)
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True

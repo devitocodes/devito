@@ -743,6 +743,24 @@ class TestFD:
 
         assert f.dxdy == f.dx.dy
 
+    def test_nested_call(self):
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        f = Function(name="f", grid=grid, space_order=8)
+
+        deriv = Derivative(f, x, y, deriv_order=(0, 0), fd_order=(2, 2),
+                           x0={x: x-x.spacing/2, y: y+y.spacing/2}).dy(x0=y-y.spacing/2)
+
+        derivc = Derivative(f.dy(x0=y-y.spacing/2), x, y, deriv_order=(0, 0),
+                            fd_order=(2, 2), x0={x: x-x.spacing/2, y: y+y.spacing/2})
+
+        assert deriv.expr.fd_order == (2, 2)
+        assert deriv.expr.deriv_order == (0, 0)
+        assert deriv.expr.x0 == {x: x-x.spacing/2, y: y+y.spacing/2}
+
+        # Should be commutative
+        assert simplify(deriv.evaluate - derivc.evaluate) == 0
+
 
 class TestTwoStageEvaluation:
 
