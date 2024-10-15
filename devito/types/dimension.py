@@ -13,6 +13,7 @@ from devito.tools import Pickable, is_integer, flatten
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
+from devito.types.caching import Uncached
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -536,12 +537,22 @@ class DerivedDimension(BasicDimension):
 # The Dimensions below are exposed in the user API. They can only be created by
 # the user
 
-class SubDimensionThickness(Scalar):
-    # Dummy for now
-    # FIXME: If this subclasses symbol, then it needs an arg check.
-    # This arg check/arg vals could be used to move some functionality
-    # from SubDimension to SubDimensionThickness
-    pass
+class SubDimensionThickness(Constant):
+    # FIXME: This needs a docstring and should probably live in types/basic.py
+    # FIXME: SubDimension is dropped during pickling and rebuilding -> this is an issue
+    # FIXME: What about making it a Constant?
+    # FIXME: Or even a DataSymbol
+    __rargs__ = Constant.__rargs__ + ('subdimension',)
+
+    def __new__(cls, *args, **kwargs):
+        subdimension = kwargs.pop('subdimension', None)
+        newobj = super().__new__(cls, *args, **kwargs)
+        newobj._subdimension = subdimension
+        return newobj
+
+    @property
+    def subdimension(self):
+        return self._subdimension
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -560,7 +571,7 @@ class AbstractSubDimension(DerivedDimension):
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
     __rkwargs__ = ()
 
-    _thicknesstype = SubDimensionThickness
+    _thickness_type = SubDimensionThickness
 
     def __init_finalize__(self, name, parent, thickness, **kwargs):
         super().__init_finalize__(name, parent)
@@ -574,6 +585,9 @@ class AbstractSubDimension(DerivedDimension):
             ltkn, rtkn = tuple((sym, val) for sym, val
                                in zip(self._symbolic_thickness, thickness))
 
+        # FIXME: I think some weirdness may occur if one pickles then unpickles
+        # a SubDimension, then uses only the thicknesses of that subdimension in
+        # an Operator. This should be tested.
         self._thickness = Thickness(ltkn, rtkn)
 
         # Just need to set up the interval accordingly
@@ -591,13 +605,17 @@ class AbstractSubDimension(DerivedDimension):
 
     @cached_property
     def _symbolic_thickness(self):
-        ltkn = self._thicknesstype(name="%s_ltkn" % self.parent.name,
-                                   dtype=np.int32, is_const=True,
-                                   nonnegative=True)
+        if self._thickness_type == SubDimensionThickness:
+            kwargs = {'subdimension': self}
+        else:
+            kwargs = {}
+        ltkn = self._thickness_type(name="%s_ltkn" % self.parent.name,
+                                    dtype=np.int64, is_const=True,
+                                    nonnegative=True, **kwargs)
 
-        rtkn = self._thicknesstype(name="%s_rtkn" % self.parent.name,
-                                   dtype=np.int32, is_const=True,
-                                   nonnegative=True)
+        rtkn = self._thickness_type(name="%s_rtkn" % self.parent.name,
+                                    dtype=np.int64, is_const=True,
+                                    nonnegative=True, **kwargs)
 
         return (ltkn, rtkn)
 
@@ -843,7 +861,8 @@ class MultiSubDimension(AbstractSubDimension):
 
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    _thicknesstype = Symbol
+    # FIXME: Is this still necessary?
+    _thickness_type = Symbol
 
     def _process_thicknesses(self, thickness):
         # Canonicalize thickness
