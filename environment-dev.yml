@@ -3,6 +3,10 @@ channels:
   - defaults
   - conda-forge
 dependencies:
+  - python<3.13
   - pip>=21.1.2
   - pip:
     - -r requirements.txt
+    - -r requirements-optional.txt
+    - -r requirements-testing.txt
+    - -e .
