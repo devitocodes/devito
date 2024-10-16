@@ -9,7 +9,7 @@ import numpy as np
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, flatten
+from devito.tools import Pickable, is_integer, flatten, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
@@ -537,22 +537,70 @@ class DerivedDimension(BasicDimension):
 # The Dimensions below are exposed in the user API. They can only be created by
 # the user
 
-class SubDimensionThickness(Constant):
-    # FIXME: This needs a docstring and should probably live in types/basic.py
-    # FIXME: SubDimension is dropped during pickling and rebuilding -> this is an issue
-    # FIXME: What about making it a Constant?
-    # FIXME: Or even a DataSymbol
-    __rargs__ = Constant.__rargs__ + ('subdimension',)
+class SubDimensionThickness(DataSymbol):
+    """A DataSymbol to represent a thickness of a SubDimension"""
+    # FIXME: Shouldn't store reference to the subdimension, just the
+    # metadata necessary to do arg_values etc
+    # FIXME: Should carry the root of its parent subdimension
+    # FIXME: Should also have some understanding of if it is associated with
+    # a left, right, or middle subdimension -> Should be subsumed into local
+    # FIXME: Should know if it is the left or right side
+
+    # FIXME: Currently dumps an integer into the generated code
+
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
     def __new__(cls, *args, **kwargs):
-        subdimension = kwargs.pop('subdimension', None)
+        # What is the root dimension?
+        try:
+            root = kwargs.pop('root')
+        except KeyError:
+            raise ValueError("No root dimension provided")
+        # Is this thickness LEFT or RIGHT?
+        try:
+            side = kwargs.pop('side')
+        except KeyError:
+            raise ValueError("No side specified")
+        # Is this thickness for a local SubDimension?
+        try:
+            local = kwargs.pop('local')
+        except KeyError:
+            raise ValueError("Locality of thickness not specified")
+
         newobj = super().__new__(cls, *args, **kwargs)
-        newobj._subdimension = subdimension
+        newobj._root = root
+        newobj._side = side
+        newobj._local = local
+        # NOTE: Can determine correct override from the value, side, local, and root
+
         return newobj
 
+    def __init_finalize__(self, *args, **kwargs):
+        self._value = kwargs.pop('value', None)
+
+        kwargs.setdefault('is_const', True)
+        super().__init_finalize__(*args, **kwargs)
+
     @property
-    def subdimension(self):
-        return self._subdimension
+    def root(self):
+        return self._root
+
+    @property
+    def side(self):
+        return self._side
+
+    @property
+    def local(self):
+        return self._local
+
+    @property
+    def value(self):
+        return self._value
+
+    def _arg_check(self, *args, **kwargs):
+        # TODO: Should check that the thickness isn't larger than the parent
+        # domain
+        assert False
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -579,22 +627,26 @@ class AbstractSubDimension(DerivedDimension):
 
     def _process_thicknesses(self, thickness):
 
-        ltkn, rtkn = thickness
-        if not isinstance(ltkn, tuple) or not isinstance(rtkn, tuple):
+        # ltkn, rtkn = thickness
+        # if not isinstance(ltkn, tuple) or not isinstance(rtkn, tuple):
             # FIXME: somewhat ugly
-            ltkn, rtkn = tuple((sym, val) for sym, val
-                               in zip(self._symbolic_thickness, thickness))
+        # ltkn, rtkn = tuple((sym, val) for sym, val
+        #                        in zip(self._symbolic_thickness, thickness))
+        ltkn, rtkn = self._symbolic_thickness(thickness=thickness)
 
         # FIXME: I think some weirdness may occur if one pickles then unpickles
         # a SubDimension, then uses only the thicknesses of that subdimension in
         # an Operator. This should be tested.
+        # FIXME: The numerical value of the thickness should be carried by the
+        # SubDimensionThickness symbols themselves, thereby making the Thickness
+        # namedtuple obsolete
         self._thickness = Thickness(ltkn, rtkn)
 
         # Just need to set up the interval accordingly
-        if self.thickness.right[1] is None:  # Left SubDimension
+        if self.thickness.right.value is None:  # Left SubDimension
             left = self.parent.symbolic_min
             right = self.parent.symbolic_min + self.ltkn - 1
-        elif self.thickness.left[1] is None:  # Right SubDimension
+        elif self.thickness.left.value is None:  # Right SubDimension
             left = self.parent.symbolic_max - self.rtkn + 1
             right = self.parent.symbolic_max
         else:  # Middle SubDimension
@@ -603,19 +655,19 @@ class AbstractSubDimension(DerivedDimension):
 
         self._interval = sympy.Interval(left, right)
 
-    @cached_property
-    def _symbolic_thickness(self):
-        if self._thickness_type == SubDimensionThickness:
-            kwargs = {'subdimension': self}
-        else:
-            kwargs = {}
+    @memoized_meth
+    def _symbolic_thickness(self, thickness=None):
+        thickness = thickness or (None, None)
+
+        kwargs = {'dtype': np.int64, 'is_const': True, 'nonnegative': True,
+                  'root': self.root, 'local': self.local}
         ltkn = self._thickness_type(name="%s_ltkn" % self.parent.name,
-                                    dtype=np.int64, is_const=True,
-                                    nonnegative=True, **kwargs)
+                                    side=LEFT, value=thickness[0],
+                                    **kwargs)
 
         rtkn = self._thickness_type(name="%s_rtkn" % self.parent.name,
-                                    dtype=np.int64, is_const=True,
-                                    nonnegative=True, **kwargs)
+                                    side=RIGHT, value=thickness[1],
+                                    **kwargs)
 
         return (ltkn, rtkn)
 
@@ -636,10 +688,6 @@ class AbstractSubDimension(DerivedDimension):
     def thickness(self):
         return self._thickness
 
-    @cached_property
-    def _thickness_map(self):
-        return dict(self.thickness)
-
     @property
     def is_abstract(self):
         return all(i is None for i in flatten(self.thickness))
@@ -647,12 +695,12 @@ class AbstractSubDimension(DerivedDimension):
     @property
     def ltkn(self):
         # Shortcut for the left thickness symbol
-        return self.thickness.left[0]
+        return self.thickness.left
 
     @property
     def rtkn(self):
         # Shortcut for the right thickness symbol
-        return self.thickness.right[0]
+        return self.thickness.right
 
     @property
     def tkns(self):
@@ -717,8 +765,8 @@ class SubDimension(AbstractSubDimension):
 
     def __init_finalize__(self, name, parent, thickness, local,
                           **kwargs):
-        super().__init_finalize__(name, parent, thickness)
         self._local = local
+        super().__init_finalize__(name, parent, thickness)
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
@@ -765,48 +813,6 @@ class SubDimension(AbstractSubDimension):
     @property
     def _maybe_distributed(self):
         return not self.local
-
-    @cached_property
-    def _offset_left(self):
-        # The left extreme of the SubDimension can be related to either the
-        # min or max of the parent dimension
-        try:
-            symbolic_thickness = self.symbolic_min - self.parent.symbolic_min
-            val = symbolic_thickness.subs(self._thickness_map)
-            return SubDimensionOffset(
-                int(val),
-                self.parent.symbolic_min,
-                symbolic_thickness
-            )
-        except TypeError:
-            symbolic_thickness = self.symbolic_min - self.parent.symbolic_max
-            val = symbolic_thickness.subs(self._thickness_map)
-            return SubDimensionOffset(
-                int(val),
-                self.parent.symbolic_max,
-                symbolic_thickness
-            )
-
-    @cached_property
-    def _offset_right(self):
-        # The right extreme of the SubDimension can be related to either the
-        # min or max of the parent dimension
-        try:
-            symbolic_thickness = self.symbolic_max - self.parent.symbolic_min
-            val = symbolic_thickness.subs(self._thickness_map)
-            return SubDimensionOffset(
-                int(val),
-                self.parent.symbolic_min,
-                symbolic_thickness
-            )
-        except TypeError:
-            symbolic_thickness = self.symbolic_max - self.parent.symbolic_max
-            val = symbolic_thickness.subs(self._thickness_map)
-            return SubDimensionOffset(
-                int(val),
-                self.parent.symbolic_max,
-                symbolic_thickness
-            )
 
     @property
     def _arg_names(self):
