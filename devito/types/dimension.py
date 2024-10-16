@@ -600,7 +600,13 @@ class SubDimensionThickness(DataSymbol):
     def _arg_check(self, *args, **kwargs):
         # TODO: Should check that the thickness isn't larger than the parent
         # domain
-        assert False
+        pass
+
+    def _arg_finalize(self, *args, **kwargs):
+        # FIXME: Something here is going to need a Grid
+        # print("Args", args)
+        # print("Kwargs", kwargs)
+        return {}
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -705,6 +711,7 @@ class AbstractSubDimension(DerivedDimension):
     @property
     def tkns(self):
         # Shortcut for both thickness symbols
+        # FIXME: Maybe redundant now?
         return self.ltkn, self.rtkn
 
     def __hash__(self):

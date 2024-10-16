@@ -672,6 +672,7 @@ class Operator(Callable):
         # pointers to ctypes.Struct
         for p in self.parameters:
             try:
+                # FIXME: Maybe one of these should pass the grid
                 args.update(kwargs.get(p.name, p)._arg_finalize(args, alias=p))
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_finalize`
