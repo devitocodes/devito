@@ -174,7 +174,6 @@ def concretize_subdims(exprs, **kwargs):
     rebuilt = {}  # Rebuilt implicit dims etc which are shared between dimensions
 
     _concretize_subdims(exprs, mapper, rebuilt, sregistry)
-    print("Concretization mapper", mapper)
     if not mapper:
         return exprs
 
@@ -216,11 +215,6 @@ def _(expr, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(SubDimensionThickness)
 def _(tkn, mapper, rebuilt, sregistry):
-    # TODO: Can this be modified so SubDimension thicknesses always get
-    # generated in lockstep? -> Should concretise dimensions before thicknesses
-    # This way thicknesses get concretised with their parent dimensions, assuming
-    # their parent dimensions are actually present in the equations supplied to
-    # an operator
     if tkn in mapper:
         # Already have a substitution for this thickness
         return
@@ -234,17 +228,9 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-                 for tkn in d.tkns}
-
-    # Add the thickness substitutions to the mapper, as they may appear without the
-    # SubDimension
-    mapper.update(tkns_subs)
-
-    left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
-    thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
-
-    mapper[d] = d._rebuild(symbolic_min=left, symbolic_max=right, thickness=thickness)
+    tkns = tuple(t._rebuild(name=sregistry.make_name(prefix=t.name)) for t in d.tkns)
+    mapper.update({t0: t1 for t0, t1 in zip(d.tkns, tkns)})
+    mapper[d] = d._rebuild(thickness=tkns)
 
 
 @_concretize_subdims.register(ConditionalDimension)

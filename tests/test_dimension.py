@@ -323,15 +323,15 @@ class TestSubDimension:
         xleft = SubDimension.left(name='xleft', parent=x, thickness=thickness)
         assert xleft.is_left
         assert not xleft.is_middle
-        assert xleft.symbolic_size == xleft.thickness.left[0]
+        assert xleft.symbolic_size == xleft.thickness.left
 
         xi = SubDimension.middle(name='xi', parent=x,
                                  thickness_left=thickness, thickness_right=thickness)
         assert xi.symbolic_size == (x.symbolic_max - x.symbolic_min -
-                                    xi.thickness.left[0] - xi.thickness.right[0] + 1)
+                                    xi.thickness.left - xi.thickness.right + 1)
 
         xright = SubDimension.right(name='xright', parent=x, thickness=thickness)
-        assert xright.symbolic_size == xright.thickness.right[0]
+        assert xright.symbolic_size == xright.thickness.right
 
     @pytest.mark.parametrize('opt', opts_tiling)
     def test_bcs(self, opt):
