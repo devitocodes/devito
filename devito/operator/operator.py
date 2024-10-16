@@ -31,6 +31,8 @@ from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tup
                           split, timed_pass, timed_region, contains_val)
 from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
                           disk_layer)
+from devito.types.dimension import SubDimensionThickness
+
 
 __all__ = ['Operator']
 
@@ -650,6 +652,11 @@ class Operator(Callable):
         for o in self.objects:
             args.update(o._arg_values(grid=grid, **kwargs))
 
+        # Process SubDimensionThicknesses
+        for p in self.parameters:
+            if isinstance(p, SubDimensionThickness):
+                args.update(p._arg_values(grid=grid, **kwargs))
+
         # Purge `kwargs`
         kwargs.pop('args')
         kwargs.pop('metadata')
@@ -672,7 +679,6 @@ class Operator(Callable):
         # pointers to ctypes.Struct
         for p in self.parameters:
             try:
-                # FIXME: Maybe one of these should pass the grid
                 args.update(kwargs.get(p.name, p)._arg_finalize(args, alias=p))
             except AttributeError:
                 # User-provided floats/ndarray obviously do not have `_arg_finalize`

@@ -551,6 +551,7 @@ class SubDimensionThickness(DataSymbol):
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
     def __new__(cls, *args, **kwargs):
+        # TODO: Args or kwargs?
         # What is the root dimension?
         try:
             root = kwargs.pop('root')
@@ -602,10 +603,82 @@ class SubDimensionThickness(DataSymbol):
         # domain
         pass
 
+    def _arg_values(self, grid=None, **kwargs):
+        # Allow override of thickness values to disable BCs
+        # However, arguments from the user are considered global
+        # So overriding the thickness to a nonzero value should not cause
+        # boundaries to exist between ranks where they did not before
+
+        # r_ltkn, r_rtkn = (
+        #     kwargs.get(k.name, v) for k, v in self.thickness
+        # )
+
+        # if grid is not None and grid.is_distributed(self.root):
+        #     # Get local thickness
+        #     if self.local:
+        #         # dimension is of type ``left``/right`` - compute the 'offset'
+        #         # and then add 1 to get the appropriate thickness
+        #         if r_ltkn is not None:
+        #             ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
+        #             ltkn = ltkn+1 if ltkn is not None else 0
+        #         else:
+        #             ltkn = 0
+
+        #         if r_rtkn is not None:
+        #             rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
+        #             rtkn = rtkn+1 if rtkn is not None else 0
+        #         else:
+        #             rtkn = 0
+        #     else:
+        #         # dimension is of type ``middle``
+        #         ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
+        #         rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
+        # else:
+        #     ltkn = r_ltkn or 0
+        #     rtkn = r_rtkn or 0
+
+        # return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
+        r_tkn = kwargs.get(self.name, self.value)
+
+        # FIXME: Can refactor and consolidate the checks for LEFT and RIGHT
+        if grid is not None and grid.is_distributed(self.root):
+            # Get local thickness
+            if self.local:
+                # Dimension is of type `left`/`right` - compute the offset
+                # and then add 1 to get the appropriate thickness
+                if self.side is LEFT:
+                    if self.value is not None:
+                        ltkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, LEFT)
+                        ltkn = ltkn+1 if ltkn is not None else 0
+                    else:
+                        ltkn = 0
+
+                elif self.side is RIGHT:
+                    if self.value is not None:
+                        rtkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, RIGHT)
+                        rtkn = rtkn+1 if rtkn is not None else 0
+                    else:
+                        rtkn = 0
+
+                else:
+                    raise ValueError("Unrecognised side %s" % self.side)
+
+            else:
+                # Dimension is of type `middle`
+                if self.side is LEFT:
+                    ltkn = grid.distributor.glb_to_loc(self.root, r_tkn, LEFT) or 0
+                elif self.side is RIGHT:
+                    rtkn = grid.distributor.glb_to_loc(self.root, r_tkn, RIGHT) or 0
+                else:
+                    raise ValueError("Unrecognised side %s" % self.side)
+        
+        else:
+            ltkn = r_tkn or 0
+            rtkn = r_tkn or 0
+        
+
+
     def _arg_finalize(self, *args, **kwargs):
-        # FIXME: Something here is going to need a Grid
-        # print("Args", args)
-        # print("Kwargs", kwargs)
         return {}
 
 
@@ -664,16 +737,14 @@ class AbstractSubDimension(DerivedDimension):
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
         thickness = thickness or (None, None)
-
         kwargs = {'dtype': np.int64, 'is_const': True, 'nonnegative': True,
                   'root': self.root, 'local': self.local}
+
         ltkn = self._thickness_type(name="%s_ltkn" % self.parent.name,
-                                    side=LEFT, value=thickness[0],
-                                    **kwargs)
+                                    side=LEFT, value=thickness[0], **kwargs)
 
         rtkn = self._thickness_type(name="%s_rtkn" % self.parent.name,
-                                    side=RIGHT, value=thickness[1],
-                                    **kwargs)
+                                    side=RIGHT, value=thickness[1], **kwargs)
 
         return (ltkn, rtkn)
 
