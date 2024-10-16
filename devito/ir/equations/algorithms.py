@@ -217,8 +217,8 @@ def _(expr, mapper, rebuilt, sregistry):
 def _(tkn, mapper, rebuilt, sregistry):
     # Concretising the parent SubDimension ensures that SubDimension thicknesses
     # are incremented in lockstep
-    if tkn.subdimension is not None:
-        _concretize_subdims(tkn.subdimension, mapper, rebuilt, sregistry)
+    # TODO: Finish
+    pass
 
 
 @_concretize_subdims.register(SubDimension)

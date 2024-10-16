@@ -25,7 +25,6 @@ from devito.tools import (GenericVisitor, as_tuple, ctypes_to_cstr, filter_order
 from devito.types.basic import AbstractFunction, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
-from devito.types.dimension import SubDimensionThickness
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
@@ -966,12 +965,7 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
-        # FIXME: This displeases me greatly
-        'dimensions': lambda n: list({i for i in n.expr_symbols
-                                      if isinstance(i, Dimension)}
-                                     | {i.subdimension for i in n.expr_symbols
-                                        if isinstance(i, SubDimensionThickness)
-                                        and i.subdimension is not None}),
+        'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols
                                    if isinstance(i, IndexedBase)],
