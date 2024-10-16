@@ -539,30 +539,19 @@ class DerivedDimension(BasicDimension):
 
 class SubDimensionThickness(DataSymbol):
     """A DataSymbol to represent a thickness of a SubDimension"""
-    # FIXME: Shouldn't store reference to the subdimension, just the
-    # metadata necessary to do arg_values etc
-    # FIXME: Should carry the root of its parent subdimension
-    # FIXME: Should also have some understanding of if it is associated with
-    # a left, right, or middle subdimension -> Should be subsumed into local
-    # FIXME: Should know if it is the left or right side
-
-    # FIXME: Currently dumps an integer into the generated code
+    # TODO: This should live in types/basic.py
 
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
     def __new__(cls, *args, **kwargs):
-        # TODO: Args or kwargs?
-        # What is the root dimension?
         try:
             root = kwargs.pop('root')
         except KeyError:
             raise ValueError("No root dimension provided")
-        # Is this thickness LEFT or RIGHT?
         try:
             side = kwargs.pop('side')
         except KeyError:
             raise ValueError("No side specified")
-        # Is this thickness for a local SubDimension?
         try:
             local = kwargs.pop('local')
         except KeyError:
@@ -572,7 +561,6 @@ class SubDimensionThickness(DataSymbol):
         newobj._root = root
         newobj._side = side
         newobj._local = local
-        # NOTE: Can determine correct override from the value, side, local, and root
 
         return newobj
 
@@ -608,78 +596,32 @@ class SubDimensionThickness(DataSymbol):
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
-
-        # r_ltkn, r_rtkn = (
-        #     kwargs.get(k.name, v) for k, v in self.thickness
-        # )
-
-        # if grid is not None and grid.is_distributed(self.root):
-        #     # Get local thickness
-        #     if self.local:
-        #         # dimension is of type ``left``/right`` - compute the 'offset'
-        #         # and then add 1 to get the appropriate thickness
-        #         if r_ltkn is not None:
-        #             ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
-        #             ltkn = ltkn+1 if ltkn is not None else 0
-        #         else:
-        #             ltkn = 0
-
-        #         if r_rtkn is not None:
-        #             rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
-        #             rtkn = rtkn+1 if rtkn is not None else 0
-        #         else:
-        #             rtkn = 0
-        #     else:
-        #         # dimension is of type ``middle``
-        #         ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
-        #         rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
-        # else:
-        #     ltkn = r_ltkn or 0
-        #     rtkn = r_rtkn or 0
-
-        # return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
         r_tkn = kwargs.get(self.name, self.value)
 
-        # FIXME: Can refactor and consolidate the checks for LEFT and RIGHT
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             if self.local:
                 # Dimension is of type `left`/`right` - compute the offset
                 # and then add 1 to get the appropriate thickness
-                if self.side is LEFT:
-                    if self.value is not None:
-                        ltkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, LEFT)
-                        ltkn = ltkn+1 if ltkn is not None else 0
-                    else:
-                        ltkn = 0
-
-                elif self.side is RIGHT:
-                    if self.value is not None:
-                        rtkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, RIGHT)
-                        rtkn = rtkn+1 if rtkn is not None else 0
-                    else:
-                        rtkn = 0
-
+                if self.value is not None:
+                    tkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, self.side)
+                    tkn = tkn+1 if tkn is not None else 0
                 else:
-                    raise ValueError("Unrecognised side %s" % self.side)
-
+                    tkn = 0
             else:
                 # Dimension is of type `middle`
-                if self.side is LEFT:
-                    ltkn = grid.distributor.glb_to_loc(self.root, r_tkn, LEFT) or 0
-                elif self.side is RIGHT:
-                    rtkn = grid.distributor.glb_to_loc(self.root, r_tkn, RIGHT) or 0
-                else:
-                    raise ValueError("Unrecognised side %s" % self.side)
-        
+                tkn = grid.distributor.glb_to_loc(self.root, r_tkn, self.side) or 0
         else:
-            ltkn = r_tkn or 0
-            rtkn = r_tkn or 0
-        
+            tkn = r_tkn or 0
 
+        return {self.name: tkn}
 
     def _arg_finalize(self, *args, **kwargs):
         return {}
+
+    def _arg_apply(self, *args, **kwargs):
+        # TODO: What is this actually for?
+        pass
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -705,20 +647,11 @@ class AbstractSubDimension(DerivedDimension):
         self._process_thicknesses(thickness)
 
     def _process_thicknesses(self, thickness):
-
-        # ltkn, rtkn = thickness
-        # if not isinstance(ltkn, tuple) or not isinstance(rtkn, tuple):
-            # FIXME: somewhat ugly
-        # ltkn, rtkn = tuple((sym, val) for sym, val
-        #                        in zip(self._symbolic_thickness, thickness))
         ltkn, rtkn = self._symbolic_thickness(thickness=thickness)
 
         # FIXME: I think some weirdness may occur if one pickles then unpickles
         # a SubDimension, then uses only the thicknesses of that subdimension in
         # an Operator. This should be tested.
-        # FIXME: The numerical value of the thickness should be carried by the
-        # SubDimensionThickness symbols themselves, thereby making the Thickness
-        # namedtuple obsolete
         self._thickness = Thickness(ltkn, rtkn)
 
         # Just need to set up the interval accordingly
@@ -900,39 +833,9 @@ class SubDimension(AbstractSubDimension):
         return {}
 
     def _arg_values(self, interval, grid=None, **kwargs):
-        # Allow override of thickness values to disable BCs
-        # However, arguments from the user are considered global
-        # So overriding the thickness to a nonzero value should not cause
-        # boundaries to exist between ranks where they did not before
-        r_ltkn, r_rtkn = (
-            kwargs.get(k.name, v) for k, v in self.thickness
-        )
-
-        if grid is not None and grid.is_distributed(self.root):
-            # Get local thickness
-            if self.local:
-                # dimension is of type ``left``/right`` - compute the 'offset'
-                # and then add 1 to get the appropriate thickness
-                if r_ltkn is not None:
-                    ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn-1, LEFT)
-                    ltkn = ltkn+1 if ltkn is not None else 0
-                else:
-                    ltkn = 0
-
-                if r_rtkn is not None:
-                    rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn-1, RIGHT)
-                    rtkn = rtkn+1 if rtkn is not None else 0
-                else:
-                    rtkn = 0
-            else:
-                # dimension is of type ``middle``
-                ltkn = grid.distributor.glb_to_loc(self.root, r_ltkn, LEFT) or 0
-                rtkn = grid.distributor.glb_to_loc(self.root, r_rtkn, RIGHT) or 0
-        else:
-            ltkn = r_ltkn or 0
-            rtkn = r_rtkn or 0
-
-        return {i.name: v for i, v in zip(self._thickness_map, (ltkn, rtkn))}
+        # SubDimension thicknesses at runtime are calculated by the thicknesses
+        # themselves
+        return {}
 
 
 class MultiSubDimension(AbstractSubDimension):
