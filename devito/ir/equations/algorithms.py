@@ -174,6 +174,7 @@ def concretize_subdims(exprs, **kwargs):
     rebuilt = {}  # Rebuilt implicit dims etc which are shared between dimensions
 
     _concretize_subdims(exprs, mapper, rebuilt, sregistry)
+    print("Concretization mapper", mapper)
     if not mapper:
         return exprs
 
@@ -215,10 +216,16 @@ def _(expr, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(SubDimensionThickness)
 def _(tkn, mapper, rebuilt, sregistry):
-    # Concretising the parent SubDimension ensures that SubDimension thicknesses
-    # are incremented in lockstep
-    # TODO: Finish
-    pass
+    # TODO: Can this be modified so SubDimension thicknesses always get
+    # generated in lockstep? -> Should concretise dimensions before thicknesses
+    # This way thicknesses get concretised with their parent dimensions, assuming
+    # their parent dimensions are actually present in the equations supplied to
+    # an operator
+    if tkn in mapper:
+        # Already have a substitution for this thickness
+        return
+
+    mapper[tkn] = tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
 
 
 @_concretize_subdims.register(SubDimension)

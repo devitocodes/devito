@@ -687,6 +687,8 @@ class Operator(Callable):
         # Execute autotuning and adjust arguments accordingly
         args.update(self._autotune(args, autotune or configuration['autotuning']))
 
+        print("Args", args)
+
         return args
 
     def _postprocess_errors(self, retval):
