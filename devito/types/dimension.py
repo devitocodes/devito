@@ -13,7 +13,6 @@ from devito.tools import Pickable, is_integer, flatten, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
-from devito.types.caching import Uncached
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -539,7 +538,6 @@ class DerivedDimension(BasicDimension):
 
 class SubDimensionThickness(DataSymbol):
     """A DataSymbol to represent a thickness of a SubDimension"""
-    # TODO: This should live in types/basic.py
 
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
@@ -647,14 +645,14 @@ class AbstractSubDimension(DerivedDimension):
         self._process_thicknesses(thickness)
 
     def _process_thicknesses(self, thickness):
-        ltkn, rtkn = self._symbolic_thickness(thickness=thickness)
+        if any(isinstance(tkn, SubDimensionThickness) for tkn in thickness):
+            ltkn, rtkn = thickness
+        else:
+            ltkn, rtkn = self._symbolic_thickness(thickness=thickness)
 
-        # FIXME: I think some weirdness may occur if one pickles then unpickles
-        # a SubDimension, then uses only the thicknesses of that subdimension in
-        # an Operator. This should be tested.
         self._thickness = Thickness(ltkn, rtkn)
 
-        # Just need to set up the interval accordingly
+        # Set up the interval
         if self.thickness.right.value is None:  # Left SubDimension
             left = self.parent.symbolic_min
             right = self.parent.symbolic_min + self.ltkn - 1
@@ -806,11 +804,11 @@ class SubDimension(AbstractSubDimension):
 
     @property
     def is_left(self):
-        return self.thickness.right[1] is None
+        return self.thickness.right.value is None
 
     @property
     def is_right(self):
-        return self.thickness.left[1] is None
+        return self.thickness.left.value is None
 
     @property
     def is_middle(self):
@@ -827,7 +825,7 @@ class SubDimension(AbstractSubDimension):
 
     @property
     def _arg_names(self):
-        return tuple(k.name for k, _ in self.thickness) + self.parent._arg_names
+        return tuple(k.name for k in self.thickness) + self.parent._arg_names
 
     def _arg_defaults(self, grid=None, **kwargs):
         return {}
@@ -852,6 +850,7 @@ class MultiSubDimension(AbstractSubDimension):
     _thickness_type = Symbol
 
     def _process_thicknesses(self, thickness):
+        # FIXME: Requires homogensisation with SubDimension._process_thickness
         # Canonicalize thickness
         if thickness is None:
             # Using dummy left/right is the only thing we can do for such

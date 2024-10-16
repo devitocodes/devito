@@ -197,7 +197,7 @@ class TestSubdomains:
         check = np.zeros(grid.shape)
 
         mM_map = {x.symbolic_min: 0, x.symbolic_max: grid.shape[0]-1}
-        t_map = {k: v for k, v in xd0._thickness_map.items() if v is not None}
+        t_map = {tkn: tkn.value for tkn in xd0.thickness if tkn.value is not None}
         start = int(xd0.symbolic_min.subs({**mM_map, **t_map}))
         stop = int(xd0.symbolic_max.subs({**mM_map, **t_map})+1)
 
