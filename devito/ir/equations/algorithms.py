@@ -267,11 +267,9 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    abstract_tkns = d._symbolic_thickness
-    concrete_tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-                          for tkn in abstract_tkns)
-
-    kwargs = {'thickness': concrete_tkns}
+    tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+                 for tkn in d.thickness)
+    kwargs = {'thickness': tkns}
     fkwargs = {}
 
     idim0 = d.implicit_dimension
