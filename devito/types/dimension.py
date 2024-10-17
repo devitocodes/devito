@@ -9,7 +9,7 @@ import numpy as np
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, flatten, memoized_meth
+from devito.tools import Pickable, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
@@ -542,18 +542,9 @@ class SubDimensionThickness(DataSymbol):
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
     def __new__(cls, *args, **kwargs):
-        try:
-            root = kwargs.pop('root')
-        except KeyError:
-            raise ValueError("No root dimension provided")
-        try:
-            side = kwargs.pop('side')
-        except KeyError:
-            raise ValueError("No side specified")
-        try:
-            local = kwargs.pop('local')
-        except KeyError:
-            raise ValueError("Locality of thickness not specified")
+        root = kwargs.pop('root')
+        side = kwargs.pop('side')
+        local = kwargs.pop('local')
 
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
@@ -595,7 +586,6 @@ class SubDimensionThickness(DataSymbol):
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
         r_tkn = kwargs.get(self.name, self.value)
-
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             if self.local:
@@ -638,21 +628,18 @@ class AbstractSubDimension(DerivedDimension):
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
     __rkwargs__ = ()
 
-    _thickness_type = SubDimensionThickness
+    _thickness_type = Symbol
 
     def __init_finalize__(self, name, parent, thickness, **kwargs):
         super().__init_finalize__(name, parent)
-        self._process_thicknesses(thickness)
-
-    def _process_thicknesses(self, thickness):
-        if any(isinstance(tkn, SubDimensionThickness) for tkn in thickness):
-            ltkn, rtkn = thickness
+        thickness = thickness or (None, None)
+        if any(isinstance(tkn, self._thickness_type) for tkn in thickness):
+            self._thickness = Thickness(*thickness)
         else:
-            ltkn, rtkn = self._symbolic_thickness(thickness=thickness)
+            self._thickness = self._symbolic_thickness(thickness=thickness)
 
-        self._thickness = Thickness(ltkn, rtkn)
-
-        # Set up the interval
+    @cached_property
+    def _interval(self):
         if self.thickness.right.value is None:  # Left SubDimension
             left = self.parent.symbolic_min
             right = self.parent.symbolic_min + self.ltkn - 1
@@ -663,21 +650,14 @@ class AbstractSubDimension(DerivedDimension):
             left = self.parent.symbolic_min + self.ltkn
             right = self.parent.symbolic_max - self.rtkn
 
-        self._interval = sympy.Interval(left, right)
+        return sympy.Interval(left, right)
 
     @memoized_meth
-    def _symbolic_thickness(self, thickness=None):
-        thickness = thickness or (None, None)
-        kwargs = {'dtype': np.int64, 'is_const': True, 'nonnegative': True,
-                  'root': self.root, 'local': self.local}
+    def _symbolic_thickness(self, **kwargs):
+        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
 
-        ltkn = self._thickness_type(name="%s_ltkn" % self.parent.name,
-                                    side=LEFT, value=thickness[0], **kwargs)
-
-        rtkn = self._thickness_type(name="%s_rtkn" % self.parent.name,
-                                    side=RIGHT, value=thickness[1], **kwargs)
-
-        return (ltkn, rtkn)
+        names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
+        return Thickness(*[Symbol(name=n, **kwargs) for n in names])
 
     @cached_property
     def symbolic_min(self):
@@ -696,9 +676,7 @@ class AbstractSubDimension(DerivedDimension):
     def thickness(self):
         return self._thickness
 
-    @property
-    def is_abstract(self):
-        return all(i is None for i in flatten(self.thickness))
+    tkns = thickness  # Shortcut for thickness
 
     @property
     def ltkn(self):
@@ -709,12 +687,6 @@ class AbstractSubDimension(DerivedDimension):
     def rtkn(self):
         # Shortcut for the right thickness symbol
         return self.thickness.right
-
-    @property
-    def tkns(self):
-        # Shortcut for both thickness symbols
-        # FIXME: Maybe redundant now?
-        return self.ltkn, self.rtkn
 
     def __hash__(self):
         return id(self)
@@ -772,6 +744,8 @@ class SubDimension(AbstractSubDimension):
 
     __rargs__ = AbstractSubDimension.__rargs__ + ('local',)
 
+    _thickness_type = SubDimensionThickness
+
     def __init_finalize__(self, name, parent, thickness, local,
                           **kwargs):
         self._local = local
@@ -779,24 +753,24 @@ class SubDimension(AbstractSubDimension):
 
     @classmethod
     def left(cls, name, parent, thickness, local=True):
-        return cls(name, parent,
-                   thickness=(thickness, None),
-                   # thickness=((lst, thickness), (rst, None)),
-                   local=local)
+        return cls(name, parent, thickness=(thickness, None), local=local)
 
     @classmethod
     def right(cls, name, parent, thickness, local=True):
-        return cls(name, parent,
-                   thickness=(None, thickness),
-                   # thickness=((lst, None), (rst, thickness)),
-                   local=local)
+        return cls(name, parent, thickness=(None, thickness), local=local)
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        return cls(name, parent,
-                   thickness=(thickness_left, thickness_right),
-                   # thickness=((lst, thickness_left), (rst, thickness_right)),
-                   local=local)
+        return cls(name, parent, thickness=(thickness_left, thickness_right), local=local)
+
+    @memoized_meth
+    def _symbolic_thickness(self, thickness=None):
+        kwargs = {'dtype': np.int64, 'is_const': True, 'nonnegative': True,
+                  'root': self.root, 'local': self.local}
+
+        names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
+        return Thickness(*[SubDimensionThickness(name=n, side=s, value=t, **kwargs)
+                           for n, s, t in zip(names, (LEFT, RIGHT), thickness)])
 
     @property
     def local(self):
@@ -846,39 +820,6 @@ class MultiSubDimension(AbstractSubDimension):
 
     __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
 
-    # FIXME: Is this still necessary?
-    _thickness_type = Symbol
-
-    def _process_thicknesses(self, thickness):
-        # FIXME: Requires homogensisation with SubDimension._process_thickness
-        # Canonicalize thickness
-        if thickness is None:
-            # Using dummy left/right is the only thing we can do for such
-            # an abstract MultiSubDimension
-            thickness = ((None, None), (None, None))
-
-            left = sympy.S.NegativeInfinity
-            right = sympy.S.Infinity
-        elif isinstance(thickness, tuple):
-            if all(isinstance(i, Symbol) for i in thickness):
-                ltkn, rtkn = thickness
-                thickness = ((ltkn, None), (rtkn, None))
-            elif all(isinstance(i, tuple) and len(i) == 2 for i in thickness):
-                (ltkn, _), (rtkn, _) = thickness
-
-            try:
-                left = self.parent.symbolic_min + ltkn
-                right = self.parent.symbolic_max - rtkn
-            except TypeError:
-                # May end up here after a reconstruction
-                left = sympy.S.NegativeInfinity
-                right = sympy.S.Infinity
-        else:
-            raise ValueError("MultiSubDimension expects a tuple of thicknesses")
-
-        self._thickness = Thickness(*thickness)
-        self._interval = sympy.Interval(left, right)
-
     def __init_finalize__(self, name, parent, thickness, functions=None,
                           bounds_indices=None, implicit_dimension=None):
 
@@ -886,6 +827,12 @@ class MultiSubDimension(AbstractSubDimension):
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
+
+    @cached_property
+    def _interval(self):
+        left = self.parent.symbolic_min + self.ltkn
+        right = self.parent.symbolic_max - self.rtkn
+        return sympy.Interval(left, right)
 
     @cached_property
     def bound_symbols(self):

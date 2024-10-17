@@ -787,6 +787,18 @@ class TestSubDimension:
         assert np.all(u.data[:, :, :2] == 0.)
         assert np.all(u.data[:, :, -2:] == 0.)
 
+    def test_standalone_thickness(self):
+        x = Dimension('x')
+        ix = SubDimension.left('ix', x, 2)
+        f = Function(name="f", dimensions=(ix,), shape=(5,), dtype=np.int32)
+
+        eqns = Eq(f[ix.symbolic_max], 1)
+
+        op = Operator(eqns)
+        assert 'x_ltkn0' in str(op.ccode)
+        op(x_m=0)
+        assert np.all(f.data == np.array([0, 1, 0, 0, 0]))
+
 
 class TestConditionalDimension:
 
