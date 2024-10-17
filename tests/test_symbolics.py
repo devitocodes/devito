@@ -130,15 +130,15 @@ def test_subdimension():
 
     di = SubDimension.middle(name='di', parent=d, thickness_left=4, thickness_right=4)
     assert di.free_symbols == {di}
-    assert di.bound_symbols == {d.symbolic_min, d.symbolic_max} | set(di._thickness_map)
+    assert di.bound_symbols == {d.symbolic_min, d.symbolic_max} | set(di.thickness)
 
     dl = SubDimension.left(name='dl', parent=d, thickness=4)
     assert dl.free_symbols == {dl}
-    assert dl.bound_symbols == {d.symbolic_min, dl.thickness.left[0]}
+    assert dl.bound_symbols == {d.symbolic_min, dl.thickness.left}
 
     dr = SubDimension.right(name='dr', parent=d, thickness=4)
     assert dr.free_symbols == {dr}
-    assert dr.bound_symbols == {d.symbolic_max, dr.thickness.right[0]}
+    assert dr.bound_symbols == {d.symbolic_max, dr.thickness.right}
 
 
 def test_timefunction():
