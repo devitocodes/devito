@@ -22,7 +22,7 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'VirtualDimension', 'Spacing', 'dimensions']
 
 
-Thickness = namedtuple('Thickness', 'left right')
+SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
 
 
 class Dimension(ArgProvider):
@@ -535,16 +535,12 @@ class DerivedDimension(BasicDimension):
 # The Dimensions below are exposed in the user API. They can only be created by
 # the user
 
-class SubDimensionThickness(DataSymbol):
+class Thickness(DataSymbol):
     """A DataSymbol to represent a thickness of a SubDimension"""
 
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
-    def __new__(cls, *args, **kwargs):
-        root = kwargs.pop('root')
-        side = kwargs.pop('side')
-        local = kwargs.pop('local')
-
+    def __new__(cls, *args, root=None, side=None, local=False, **kwargs):
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
@@ -633,7 +629,7 @@ class AbstractSubDimension(DerivedDimension):
         super().__init_finalize__(name, parent)
         thickness = thickness or (None, None)
         if any(isinstance(tkn, self._thickness_type) for tkn in thickness):
-            self._thickness = Thickness(*thickness)
+            self._thickness = SubDimensionThickness(*thickness)
         else:
             self._thickness = self._symbolic_thickness(thickness=thickness)
 
@@ -648,7 +644,7 @@ class AbstractSubDimension(DerivedDimension):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
 
         names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
-        return Thickness(*[Symbol(name=n, **kwargs) for n in names])
+        return SubDimensionThickness(*[Symbol(name=n, **kwargs) for n in names])
 
     @cached_property
     def symbolic_min(self):
@@ -735,7 +731,7 @@ class SubDimension(AbstractSubDimension):
 
     __rargs__ = AbstractSubDimension.__rargs__ + ('local',)
 
-    _thickness_type = SubDimensionThickness
+    _thickness_type = Thickness
 
     def __init_finalize__(self, name, parent, thickness, local,
                           **kwargs):
@@ -756,12 +752,13 @@ class SubDimension(AbstractSubDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
-        kwargs = {'dtype': np.int64, 'is_const': True, 'nonnegative': True,
+        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
                   'root': self.root, 'local': self.local}
 
         names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
-        return Thickness(*[SubDimensionThickness(name=n, side=s, value=t, **kwargs)
-                           for n, s, t in zip(names, (LEFT, RIGHT), thickness)])
+        return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
+                                       for n, s, t
+                                       in zip(names, (LEFT, RIGHT), thickness)])
 
     @cached_property
     def _interval(self):
