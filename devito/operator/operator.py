@@ -504,12 +504,6 @@ class Operator(Callable):
 
         # During compilation other Dimensions may have been produced
         dimensions = FindSymbols('dimensions').visit(self)
-
-        # SubDimensions may only be present in the operator in the form of
-        # their thicknesses. These SubDimensions should be recovered if not
-        # already present in the operator dimensions.
-        ret.update(d for d in dimensions if d.is_Sub)
-
         ret.update(d for d in dimensions if d.is_PerfKnob)
 
         ret = tuple(sorted(ret, key=attrgetter('name')))
