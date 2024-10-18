@@ -639,16 +639,8 @@ class AbstractSubDimension(DerivedDimension):
 
     @cached_property
     def _interval(self):
-        if self.thickness.right.value is None:  # Left SubDimension
-            left = self.parent.symbolic_min
-            right = self.parent.symbolic_min + self.ltkn - 1
-        elif self.thickness.left.value is None:  # Right SubDimension
-            left = self.parent.symbolic_max - self.rtkn + 1
-            right = self.parent.symbolic_max
-        else:  # Middle SubDimension
-            left = self.parent.symbolic_min + self.ltkn
-            right = self.parent.symbolic_max - self.rtkn
-
+        left = self.parent.symbolic_min + self.ltkn
+        right = self.parent.symbolic_max - self.rtkn
         return sympy.Interval(left, right)
 
     @memoized_meth
@@ -771,6 +763,19 @@ class SubDimension(AbstractSubDimension):
         return Thickness(*[SubDimensionThickness(name=n, side=s, value=t, **kwargs)
                            for n, s, t in zip(names, (LEFT, RIGHT), thickness)])
 
+    @cached_property
+    def _interval(self):
+        if self.thickness.right.value is None:  # Left SubDimension
+            left = self.parent.symbolic_min
+            right = self.parent.symbolic_min + self.ltkn - 1
+        elif self.thickness.left.value is None:  # Right SubDimension
+            left = self.parent.symbolic_max - self.rtkn + 1
+            right = self.parent.symbolic_max
+        else:  # Middle SubDimension
+            return super()._interval
+
+        return sympy.Interval(left, right)
+
     @property
     def local(self):
         return self._local
@@ -826,12 +831,6 @@ class MultiSubDimension(AbstractSubDimension):
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
-
-    @cached_property
-    def _interval(self):
-        left = self.parent.symbolic_min + self.ltkn
-        right = self.parent.symbolic_max - self.rtkn
-        return sympy.Interval(left, right)
 
     @cached_property
     def bound_symbols(self):
