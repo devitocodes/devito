@@ -648,14 +648,14 @@ class Operator(Callable):
         for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
 
-        # Process Objects
-        for o in self.objects:
-            args.update(o._arg_values(grid=grid, **kwargs))
-
         # Process SubDimensionThicknesses
         for p in self.parameters:
             if isinstance(p, SubDimensionThickness):
                 args.update(p._arg_values(grid=grid, **kwargs))
+
+        # Process Objects
+        for o in self.objects:
+            args.update(o._arg_values(grid=grid, **kwargs))
 
         # Purge `kwargs`
         kwargs.pop('args')
