@@ -8,7 +8,7 @@ from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension, SubDimensionThickness
+from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
@@ -213,7 +213,7 @@ def _(expr, mapper, rebuilt, sregistry):
     _concretize_subdims(expr.implicit_dims, mapper, rebuilt, sregistry)
 
 
-@_concretize_subdims.register(SubDimensionThickness)
+@_concretize_subdims.register(Thickness)
 def _(tkn, mapper, rebuilt, sregistry):
     if tkn in mapper:
         # Already have a substitution for this thickness
