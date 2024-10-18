@@ -23,7 +23,6 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
 
 
 Thickness = namedtuple('Thickness', 'left right')
-SubDimensionOffset = namedtuple('SubDimensionOffset', 'value extreme thickness')
 
 
 class Dimension(ArgProvider):
