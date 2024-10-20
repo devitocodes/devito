@@ -7,6 +7,7 @@ import sympy
 
 from mpmath.libmp import prec_to_dps, to_str
 from packaging.version import Version
+
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from sympy.printing.c import C99CodePrinter
@@ -185,6 +186,7 @@ class CodePrinter(C99CodePrinter):
             dps = 0
         else:
             dps = prec_to_dps(expr._prec)
+
         if self._settings["full_prec"] is True:
             strip = False
         elif self._settings["full_prec"] is False:
