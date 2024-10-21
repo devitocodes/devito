@@ -2,7 +2,7 @@ from functools import wraps, partial
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify, Function
+from sympy import S, finite_diff_weights, cacheit, sympify, Function, Rational
 
 from devito.tools import Tag, as_tuple
 from devito.types.dimension import StencilDimension
@@ -308,8 +308,8 @@ def make_shift_x0(shift, ndim):
     """
     if shift is None:
         return lambda s, d, i, j: None
-    elif isinstance(shift, float):
-        return lambda s, d, i, j: d + s * d.spacing
+    elif sympify(shift).is_Number:
+        return lambda s, d, i, j: d + Rational(s) * d.spacing
     elif type(shift) is tuple and np.shape(shift) == ndim:
         if len(ndim) == 1:
             return lambda s, d, i, j: d + s[j] * d.spacing
