@@ -1319,17 +1319,17 @@ class TestNestedParallelism:
         bns, _ = assert_blocking(op, {'x0_blk0'})
 
         trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
+        assert len(trees) == 4
 
-        assert trees[0][0] is trees[1][0]
-        assert trees[0][0].pragmas[0].ccode.value ==\
+        assert len(set(i.root for i in trees)) == 1
+        assert trees[-2].root.pragmas[0].ccode.value ==\
             'omp for collapse(2) schedule(dynamic,1)'
-        assert not trees[0][2].pragmas
-        assert not trees[0][3].pragmas
-        assert trees[0][4].pragmas[0].ccode.value ==\
+        assert not trees[-2][2].pragmas
+        assert not trees[-2][3].pragmas
+        assert trees[-2][4].pragmas[0].ccode.value ==\
             'omp parallel for schedule(dynamic,1) num_threads(nthreads_nested)'
-        assert not trees[1][2].pragmas
-        assert trees[1][3].pragmas[0].ccode.value ==\
+        assert not trees[-1][2].pragmas
+        assert trees[-1][3].pragmas[0].ccode.value ==\
             'omp parallel for schedule(dynamic,1) num_threads(nthreads_nested)'
 
     @pytest.mark.parametrize('blocklevels', [1, 2])
