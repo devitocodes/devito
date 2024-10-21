@@ -1131,13 +1131,13 @@ class TestAliases:
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
         trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
-        assert trees[0][-1].nodes[0].body[0].write.is_Array
-        assert trees[1][-1].nodes[0].body[0].write is u
+        assert len(trees) == 4 if rotate else 2
+        assert trees[-2][-1].nodes[0].body[0].write.is_Array
+        assert trees[-1][-1].nodes[0].body[0].write is u
         trees = retrieve_iteration_tree(bns['x1_blk0'])
-        assert len(trees) == 2
-        assert trees[0][-1].nodes[0].body[0].write.is_Array
-        assert trees[1][-1].nodes[0].body[0].write is v
+        assert len(trees) == 4 if rotate else 2
+        assert trees[-2][-1].nodes[0].body[0].write.is_Array
+        assert trees[-1][-1].nodes[0].body[0].write is v
 
         # Check numerical output
         op0(time_M=1)
@@ -2093,9 +2093,12 @@ class TestAliases:
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
         trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
+        if rotate:
+            assert len(trees) == 5
+        else:
+            assert len(trees) == 2
+            assert trees[0][2] is not trees[1][2]
         assert trees[0][1] is trees[1][1]
-        assert trees[0][2] is not trees[1][2]
 
         # Check numerical output
         op0.apply(time_M=2)
@@ -2241,7 +2244,11 @@ class TestAliases:
         if rotate:
             assert_structure(
                 op1,
-                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z',
+                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yc',
                           't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yc,z',
                           't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z'],
                 't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z,y,yc,z,z'
