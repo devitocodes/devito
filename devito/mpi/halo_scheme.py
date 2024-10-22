@@ -95,7 +95,8 @@ class HaloScheme:
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
-        return "HaloScheme<%s>" % fnames
+        loc_indices = "[%s]" % ",".join(str(i) for i in self.loc_indices2)
+        return "HaloScheme<%s%s>" % (fnames, loc_indices)
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -120,6 +121,7 @@ class HaloScheme:
         """
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
+        # import pdb; pdb.set_trace()
         halo_schemes = [hs for hs in halo_schemes if hs is not None]
         if not halo_schemes:
             return None
@@ -364,6 +366,10 @@ class HaloScheme:
     @cached_property
     def loc_indices(self):
         return set().union(*[i.loc_indices.keys() for i in self.fmapper.values()])
+
+    @cached_property
+    def loc_indices2(self):
+        return set().union(*[i.loc_indices.values() for i in self.fmapper.values()])
 
     @cached_property
     def arguments(self):

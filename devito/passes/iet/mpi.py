@@ -7,11 +7,11 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.ir.support.guards import GuardFactorEq
-from devito.mpi.halo_scheme import HaloScheme
+from devito.mpi.halo_scheme import HaloScheme, HaloSchemeEntry
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import generator
+from devito.tools import generator, frozendict
 
 __all__ = ['mpiize']
 
@@ -24,6 +24,9 @@ def optimize_halospots(iet, **kwargs):
     """
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
+
+    iet = _merge_halospots_byfunc(iet)
+
     iet = _merge_halospots(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
@@ -122,6 +125,16 @@ def _hoist_halospots(iet):
     iet = Transformer(mapper, nested=True).visit(iet)
 
     # Clean up: de-nest HaloSpots if necessary
+    iet = denest_halospots(iet)
+
+    return iet
+
+
+def denest_halospots(iet):
+    """
+    Denest nested HaloSpots.
+    # TOFIX: This also merges HaloSpots that have different loc_indices
+    """
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
         if hs.body.is_HaloSpot:
@@ -206,6 +219,145 @@ def _merge_halospots(iet):
 
     # Transform the IET merging/dropping HaloSpots as according to the analysis
     iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
+
+
+def _merge_halospots_byfunc(iet):
+    """
+    Merge HaloSpots on the same Iteration tree level where all data dependencies
+    would be honored.
+    """
+
+    # Merge rules -- if the retval is True, then it means the input `dep` is not
+    # a stopper to halo merging
+
+    def rule0(dep, hs, loc_indices):
+        # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` => True
+        return not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
+                       for d in dep.cause)
+
+    def rule1(dep, hs, loc_indices):
+        # TODO This is apparently never hit, but feeling uncomfortable to remove it
+        return (dep.is_regular and
+                dep.read is not None and
+                all(not any(dep.read.touched_halo(d.root)) for d in dep.cause))
+
+    def rule2(dep, hs, loc_indices):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
+        return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+                   for d, v in loc_indices.items())
+
+    rules = [rule0, rule1, rule2]
+
+    # Analysis
+    cond_mapper = MapHaloSpots().visit(iet)
+    cond_mapper = {hs: {i for i in v if i.is_Conditional and
+                        not isinstance(i.condition, GuardFactorEq)}
+                   for hs, v in cond_mapper.items()}
+
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+
+    mapper = {}
+    hoist_mapper = {}
+    raw_loc_indices = {}
+
+    for iter, halo_spots in iter_mapper.items():
+        if iter is None or len(halo_spots) <= 1:
+            continue
+
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(iter)])
+
+        candidates = []
+
+        for i, _ in enumerate(halo_spots):
+            hs0 = halo_spots[i]
+
+            for hs1 in halo_spots[i+1:]:
+                # If there are Conditionals involved, both `hs0` and `hs1` must be
+                # within the same Conditional, otherwise we would break the control
+                # flow semantics
+                if cond_mapper.get(hs0) != cond_mapper.get(hs1):
+                    continue
+
+                for f, v in hs1.fmapper.items():
+                    for dep in scope.d_flow.project(f):
+                        if not any(r(dep, hs1, v.loc_indices) for r in rules):
+                            break
+                    else:
+                        try:
+                            reps = (*hs0.functions, *hs1.functions).count(f)
+                            candidates.append((hs0, hs1, reps))
+                        except ValueError:
+                            # import pdb;pdb.set_trace()
+                            pass
+
+        if candidates:
+            ordered_candidates = sorted([candidates[-1]], key=lambda x: x[-1])
+
+            for hs0, hs1, reps in ordered_candidates:
+                # We assume that the latter HaloSpot is lifted while the former
+                # stays in place. We only work with twins "{t0, t1}" and not identicals
+
+                # Ensure they are different
+                bool_locs = hs0.halo_scheme.loc_indices2 == hs1.halo_scheme.loc_indices2
+                if bool_locs:
+                    continue
+
+                # We do not work with less than two occurences of the function
+                if reps < 2:
+                    continue
+
+                hs1_temp = hs1
+
+                # This drops the latter halospot
+                hs1_temp = hs1_temp._rebuild(halo_scheme=hs1_temp.halo_scheme.drop(f))
+                mapper[hs1] = hs1_temp.halo_scheme
+
+                # Now we need to reconstruct a HaloSchemeEntry for the hoisted HaloSpot
+                loc_indices = hs1.halo_scheme.fmapper[f].loc_indices
+                loc_dirs = hs1.halo_scheme.fmapper[f].loc_dirs
+                halos = hs1.halo_scheme.fmapper[f].halos
+                dims = hs1.halo_scheme.fmapper[f].dims
+
+                # Since lifted, we need to update the loc_indices
+                # with known values
+
+                for d in loc_indices:
+                    root_min = loc_indices[d].symbolic_min
+                    new_min = root_min.subs(loc_indices[d].root,
+                                            loc_indices[d].root.symbolic_min)
+                    raw_loc_indices[d] = new_min
+
+                raw_loc_indices = frozendict(raw_loc_indices)
+
+                # Is that safe in terms of immutability ?
+                hs1.halo_scheme.fmapper[f] = HaloSchemeEntry(raw_loc_indices,
+                                                             loc_dirs,
+                                                             halos,
+                                                             dims)
+                # import pdb;pdb.set_trace()
+
+                hs1_new = hs1._rebuild(halo_scheme=hs1.halo_scheme, body=iter)
+                # mapper[hs0.body] = hs1_new
+                hoist_mapper[iter] = hs1_new
+
+        # Post-process analysis
+        # This is also necessary to avoid the no-children error
+        for i, hs in mapper.items():
+            try:
+                if hs.is_void:
+                    mapper[i] = i.body
+            except AttributeError:
+                pass
+
+        # Transform the IET merging/dropping HaloSpots as according to the analysis
+        iet = Transformer(hoist_mapper, nested=False).visit(iet)
+        iet = Transformer(mapper, nested=False).visit(iet)
+
+    # Clean up: de-nest HaloSpots if necessary
+    # THis also merges HaloSpots that have different loc_indices
+    # iet = denest_halospots(iet)
 
     return iet
 
