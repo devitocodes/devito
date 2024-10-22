@@ -5,9 +5,10 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import Max, Min
-from devito.ir import (Any, Forward, List, Prodder, FindApplications, FindNodes,
-                       FindSymbols, Transformer, Uxreplace, filter_iterations,
-                       retrieve_iteration_tree, pull_dims)
+from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
+                       FindApplications, FindNodes, FindSymbols, Transformer,
+                       Uxreplace, filter_iterations, retrieve_iteration_tree,
+                       pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper,
@@ -231,10 +232,13 @@ def minimize_symbols(iet):
 
         * Remove redundant ModuloDimensions (e.g., due to using the
           `save=Buffer(2)` API)
+        * Simplify Iteration headers (e.g., ModuloDimensions with identical
+          starting point and step)
         * Abridge SubDimension names where possible to declutter generated
           loop nests and shrink indices
     """
     iet = remove_redundant_moddims(iet)
+    iet = simplify_iteration_headers(iet)
     iet = abridge_dim_names(iet)
 
     return iet, {}
@@ -260,6 +264,30 @@ def remove_redundant_moddims(iet):
     # take care of cleaning up the `parameters` list
     body = Uxreplace(subs).visit(iet.body)
     iet = iet._rebuild(body=body)
+
+    return iet
+
+
+def simplify_iteration_headers(iet):
+    mapper = {}
+    for i in FindNodes(Iteration).visit(iet):
+        candidates = [d for d in i.uindices
+                      if d.is_Modulo and d.symbolic_min == d.symbolic_incr]
+
+        # Don't touch `t0, t1, ...` for codegen aesthetics and to avoid
+        # massive changes in the test suite
+        candidates = [d for d in candidates
+                      if not any(dd.is_Time for dd in d._defines)]
+
+        if not candidates:
+            continue
+
+        uindices = [d for d in i.uindices if d not in candidates]
+        stmts = [DummyExpr(d, d.symbolic_incr, init=True) for d in candidates]
+
+        mapper[i] = i._rebuild(nodes=tuple(stmts) + i.nodes, uindices=uindices)
+
+    iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
 

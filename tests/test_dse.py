@@ -12,7 +12,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
                     centered, first_derivative, solve, transpose, Abs, cos,
-                    sin, sqrt, floor, Ge, Lt)
+                    sin, sqrt, floor, Ge, Lt, Derivative)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
                        FindSymbols, ParallelIteration, retrieve_iteration_tree)
@@ -1131,13 +1131,13 @@ class TestAliases:
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
         trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
-        assert trees[0][-1].nodes[0].body[0].write.is_Array
-        assert trees[1][-1].nodes[0].body[0].write is u
+        assert len(trees) == 4 if rotate else 2
+        assert trees[-2][-1].nodes[0].body[0].write.is_Array
+        assert trees[-1][-1].nodes[0].body[0].write is u
         trees = retrieve_iteration_tree(bns['x1_blk0'])
-        assert len(trees) == 2
-        assert trees[0][-1].nodes[0].body[0].write.is_Array
-        assert trees[1][-1].nodes[0].body[0].write is v
+        assert len(trees) == 4 if rotate else 2
+        assert trees[-2][-1].nodes[0].body[0].write.is_Array
+        assert trees[-1][-1].nodes[0].body[0].write is v
 
         # Check numerical output
         op0(time_M=1)
@@ -2093,14 +2093,67 @@ class TestAliases:
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
         trees = retrieve_iteration_tree(bns['x0_blk0'])
-        assert len(trees) == 2
+        if rotate:
+            assert len(trees) == 5
+        else:
+            assert len(trees) == 2
+            assert trees[0][2] is not trees[1][2]
         assert trees[0][1] is trees[1][1]
-        assert trees[0][2] is not trees[1][2]
 
         # Check numerical output
         op0.apply(time_M=2)
         op1.apply(time_M=2, u=u1)
         assert np.isclose(norm(u), norm(u1), rtol=1e-5)
+
+    def test_multiple_rotating_dims(self):
+        space_order = 8
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        dt = 0.1
+        nt = 5
+
+        u = TimeFunction(name="u", grid=grid, space_order=space_order)
+        vx = TimeFunction(name="vx", grid=grid, space_order=space_order)
+        vy = TimeFunction(name="vy", grid=grid, space_order=space_order)
+
+        f = Function(name='f', grid=grid, space_order=space_order)
+        g = Function(name='g', grid=grid, space_order=space_order)
+
+        expr0 = 1-cos(f)**2
+        expr1 = sin(f)*cos(f)
+        expr2 = sin(g)*cos(f)
+        expr3 = (1-cos(g))*sin(f)*cos(f)
+
+        stencil0 = ((expr0*vx.forward).dx(x0=x-x.spacing/2) +
+                    Derivative(expr1*vx.forward, x, deriv_order=0, fd_order=2,
+                               x0=x-x.spacing/2).dy(x0=y) +
+                    Derivative(expr2*vx.forward, x, deriv_order=0, fd_order=2,
+                               x0=x-x.spacing/2).dz(x0=z))
+        stencil1 = Derivative(expr3*vy.forward, y, deriv_order=0, fd_order=2,
+                              x0=y-y.spacing/2).dx(x0=x)
+
+        eqns = [Eq(vx.forward, u*.1),
+                Eq(vy.forward, u*.1),
+                Eq(u.forward, stencil0 + stencil1 + .1)]
+
+        op0 = Operator(eqns)
+        op1 = Operator(eqns, opt=("advanced", {"cire-rotate": True}))
+
+        f.data_with_halo[:] = .3
+        g.data_with_halo[:] = .7
+
+        u1 = u.func(name='u1')
+        vx1 = vx.func(name='vx1')
+        vy1 = vy.func(name='vy1')
+
+        op0.apply(time_m=0, time_M=nt-2, dt=dt)
+
+        # NOTE: the main issue leading to this test was actually failing
+        # to jit-compile `op1`. However, we also check numerical correctness
+        op1.apply(time_m=0, time_M=nt-2, dt=dt, u=u1, vx=vx1, vy=vy1)
+
+        assert np.allclose(u.data, u1.data, rtol=1e-5)
 
     def test_maxpar_option_v2(self):
         """
@@ -2191,7 +2244,11 @@ class TestAliases:
         if rotate:
             assert_structure(
                 op1,
-                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z',
+                prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y',
+                          't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yc',
                           't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,yc,z',
                           't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z'],
                 't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,xc,y,z,y,yc,z,z'
