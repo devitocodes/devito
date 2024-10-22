@@ -7,7 +7,8 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, Dimension, ConditionalDimension, div,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer)
+                    PrecomputedSparseFunction, DefaultDimension, Buffer,
+                    solve)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -17,8 +18,10 @@ from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
                                  ComputeCall)
 from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
+from devito.types.dimension import SpaceDimension
 
 from examples.seismic.acoustic import acoustic_setup
+from examples.seismic import Receiver, TimeAxis
 
 
 class TestDistributor:
@@ -1006,6 +1009,51 @@ class TestCodeGeneration:
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
+    def test_issue_2448(self, mode):
+        # TOFIX: Placeholder test for issue 2448
+        # Space related
+        extent = (1500., )
+        shape = (201, )
+        x = SpaceDimension(name='x', spacing=Constant(name='h_x',
+                                                      value=extent[0]/(shape[0]-1)))
+        grid = Grid(extent=extent, shape=shape, dimensions=(x, ))
+
+        # Time related
+        t0, tn = 0., 30.
+        dt = (10. / np.sqrt(2.)) / 6.
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        # Velocity and pressure fields
+        so = 2
+        to = 1
+        v = TimeFunction(name='v', grid=grid, space_order=so, time_order=to)
+        tau = TimeFunction(name='tau', grid=grid, space_order=so, time_order=to)
+
+        # The receiver
+        nrec = 1
+        rec = Receiver(name="rec", grid=grid, npoint=nrec, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
+        rec_term = rec.interpolate(expr=v)
+
+        # First order elastic-like dependencies equations
+        pde_v = v.dt - (tau.dx)
+        pde_tau = (tau.dt - ((v.forward).dx))
+        u_v = Eq(v.forward, solve(pde_v, v.forward))
+
+        u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
+
+        op = Operator([u_v] + [u_tau] + rec_term)
+
+        calls = [i for i in FindNodes(Call).visit(op)
+                 if isinstance(i, HaloUpdateCall)]
+
+        # The correct we want
+        assert len(calls) == 3
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is tau
+        assert calls[2].arguments[0] is v
+
+    @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_subdims(self, mode):
         grid = Grid(shape=(4,))
         x = grid.dimensions[0]
@@ -1357,6 +1405,7 @@ class TestCodeGeneration:
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
+        print(op.ccode)
         assert len(calls) == 1
 
         op.apply(time_M=1)
