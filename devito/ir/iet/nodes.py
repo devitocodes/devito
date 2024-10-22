@@ -1457,8 +1457,9 @@ class HaloSpot(Node):
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        functions = "(%s)" % ",".join(i.name for i in self.functions)
-        return "<%s%s>" % (self.__class__.__name__, functions)
+        functions = "(%s" % ",".join(i.name for i in self.functions)
+        loc_indices = "[%s])" % ",".join(str(i) for i in self.halo_scheme.loc_indices2)
+        return "<%s%s%s>" % (self.__class__.__name__, functions, loc_indices)
 
     @property
     def halo_scheme(self):

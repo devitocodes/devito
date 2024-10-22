@@ -25,7 +25,7 @@ AFFINE = IndexMode('affine')  # noqa
 REGULAR = IndexMode('regular')
 IRREGULAR = IndexMode('irregular')
 
-# Symbols to create mock data depdendencies
+# Symbols to create mock data dependencies
 mocksym0 = Symbol(name='__⋈_0__')
 mocksym1 = Symbol(name='__⋈_1__')
 
