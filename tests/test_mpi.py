@@ -1186,7 +1186,6 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
-
         # Also make sure the Call is at the right place in the IET
         assert op.body.body[-1].body[1].body[0].body[0].body[0].body[0].is_Call
         assert op.body.body[-1].body[1].body[0].body[0].body[1].is_Iteration
@@ -1406,7 +1405,7 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         print(op.ccode)
-        assert len(calls) == 1
+        assert len(calls) == 2
 
         op.apply(time_M=1)
         glb_pos_map = f.grid.distributor.glb_pos_map
