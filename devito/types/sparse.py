@@ -1153,7 +1153,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         if r <= 0:
             raise ValueError('`r` must be > 0')
         # Make sure radius matches the coefficients size
-        if any(c in kwargs for c in ckeys):
+        if any(c in kwargs for c in ckeys) and self._interpolation_coeffs is not None:
             nr = self._interpolation_coeffs.shape[-1]
             if nr // 2 != r:
                 if nr == r:
