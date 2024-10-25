@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from devito import Dimension, Function
-from devito.types import StencilDimension
+from devito import Dimension, Function, Grid
+from devito.types import StencilDimension, SparseFunction, PrecomputedSparseFunction
 from devito.data.allocators import DataReference
 
 
@@ -65,3 +65,19 @@ class TestDimension:
 
         # TODO: Look into Symbol._cache_key and the way the key is generated
         assert sd0 is sd1
+
+
+class TestSparseFunction:
+
+    @pytest.mark.parametrize('sfunc', [SparseFunction, PrecomputedSparseFunction])
+    def test_none_subfunc(self, sfunc):
+        grid = Grid((4, 4))
+        coords = np.zeros((5, 2))
+
+        s = sfunc(name='s', grid=grid, npoint=5, coordinates=coords, r=1)
+
+        assert s.coordinates is not None
+
+        # Explicity set coordinates to None
+        sr = s._rebuild(function=None, initializer=None, coordinates=None)
+        assert sr.coordinates is None
