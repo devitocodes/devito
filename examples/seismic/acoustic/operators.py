@@ -1,4 +1,4 @@
-from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign
+from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign, ConditionalDimension
 from devito.symbolics import retrieve_functions, INT, retrieve_derivatives
 
 
@@ -108,7 +108,7 @@ def iso_stencil(field, model, kernel, **kwargs):
 
 
 def ForwardOperator(model, geometry, space_order=4,
-                    save=False, kernel='OT2', **kwargs):
+                    save=False, kernel='OT2', factor=None, **kwargs):
     """
     Construct a forward modelling operator in an acoustic medium.
 
@@ -126,6 +126,8 @@ def ForwardOperator(model, geometry, space_order=4,
         Defaults to False.
     kernel : str, optional
         Type of discretization, 'OT2' or 'OT4'.
+    factor : int, optional
+        Downsampling factor to save snapshots of the wavefield.
     """
     m = model.m
 
@@ -144,10 +146,28 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u)
+    # Build operator equations
+    equations = eqn + src_term + rec_term
 
+    if factor:
+        # Implement snapshotting
+        nsnaps = (geometry.nt + factor - 1) // factor
+        time_subsampled = ConditionalDimension(
+            't_sub', parent=model.grid.time_dim, factor=factor)
+        usnaps = TimeFunction(name='usnaps', grid=model.grid,
+                              time_order=2, space_order=space_order,
+                              save=nsnaps, time_dim=time_subsampled)
+        # Add equation to save snapshots
+        snapshot_eq = Eq(usnaps, u)
+        equations += [snapshot_eq]
+    else:
+        usnaps = None
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
-                    name='Forward', **kwargs)
+    op = Operator(equations, subs=model.spacing_map, name='Forward', **kwargs)
+    if usnaps is not None:
+        return op, usnaps
+    else:
+        return op
 
 
 def AdjointOperator(model, geometry, space_order=4,
@@ -189,8 +209,8 @@ def AdjointOperator(model, geometry, space_order=4,
 
 
 def GradientOperator(model, geometry, space_order=4, save=True,
-                     kernel='OT2', **kwargs):
-    """
+                     kernel='OT2', factor=None, **kwargs):
+     """
     Construct a gradient operator in an acoustic media.
 
     Parameters
@@ -206,30 +226,59 @@ def GradientOperator(model, geometry, space_order=4, save=True,
         Option to store the entire (unrolled) wavefield.
     kernel : str, optional
         Type of discretization, centered or shifted.
+    factor : int, optional
+        Downsampling factor to save snapshots of the wavefield.
     """
     m = model.m
 
-    # Gradient symbol and wavefield symbols
+    # Gradient symbol
     grad = Function(name='grad', grid=model.grid)
-    u = TimeFunction(name='u', grid=model.grid, save=geometry.nt if save
-                     else None, time_order=2, space_order=space_order)
-    v = TimeFunction(name='v', grid=model.grid, save=None,
-                     time_order=2, space_order=space_order)
-    rec = geometry.rec
+
+    # Create the adjoint wavefield
+    v = TimeFunction(name='v', grid=model.grid, time_order=2, space_order=space_order)
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, model, kernel, forward=False)
 
-    if kernel == 'OT2':
-        gradient_update = Inc(grad, - u * v.dt2)
-    elif kernel == 'OT4':
-        gradient_update = Inc(grad, - u * v.dt2 - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
     # Add expression for receiver injection
+    rec = geometry.rec
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
 
+    time = model.grid.time_dim
+
+    if factor is not None:
+        # Condition to apply gradient update only at snapshot times
+        condition = Eq(time % factor, 0)
+        # Create the ConditionalDimension for subsampling
+        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
+        # Define usnaps with time_subsampled as its time dimension
+        nsnaps = (geometry.nt + factor - 1) // factor
+        usnaps = TimeFunction(name='usnaps', grid=model.grid,
+                              time_order=2, space_order=space_order,
+                              save=nsnaps, time_dim=time_subsampled)
+        # Gradient update without indexing usnaps
+        if kernel == 'OT2':
+            gradient_update = Inc(grad, - usnaps * v.dt2, implicit_dims=[time_subsampled],
+                                  condition=condition)
+        elif kernel == 'OT4':
+            gradient_update = Inc(grad, - usnaps * v.dt2
+                                  - s**2 / 12.0 * usnaps.biharmonic(m**(-2)) * v,
+                                  implicit_dims=[time_subsampled],
+                                  condition=condition)
+    else:
+        u = TimeFunction(name='u', grid=model.grid,
+                         save=geometry.nt if save else None,
+                         time_order=2, space_order=space_order)
+        if kernel == 'OT2':
+            gradient_update = Inc(grad, - u * v.dt2)
+        elif kernel == 'OT4':
+            gradient_update = Inc(grad, - u * v.dt2
+                                  - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
+            
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
-                    name='Gradient', **kwargs)
+    op = Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
+                  name='Gradient', **kwargs)
+    return op
 
 
 def BornOperator(model, geometry, space_order=4,
