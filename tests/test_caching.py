@@ -692,7 +692,7 @@ class TestCaching:
         assert len(_SymbolCache) == init_cache_size + 6
         clear_cache()
         # Now we should be back to the original state plus the dimension bounds
-        # (x_m, x_M, y_m, y_M).
+        # (x_m, x_M, y_m, y_M)
         assert len(_SymbolCache) == init_cache_size + 4
 
     def test_after_indexification(self):
