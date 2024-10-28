@@ -663,8 +663,8 @@ class TestCaching:
         i = u.inject(expr=u, field=u)
 
         # created: rux, ruy (radius dimensions) and spacings
-        # posx, posy, px, py, u_coords (as indexified),
-        ncreated = 2+1+2+2+2+1
+        # posx, posy, px, py, u_coords (as indexified), x_m, x_M, y_m, y_M
+        ncreated = 2+1+2+2+2+1+4
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
         i.evaluate
@@ -684,14 +684,16 @@ class TestCaching:
         # in the first clear_cache they were still referenced by their "parent" objects
         # (e.g., ru* by ConditionalDimensions, through `condition`)
 
-        assert len(_SymbolCache) == init_cache_size + 8
+        assert len(_SymbolCache) == init_cache_size + 12
         clear_cache()
         # Now we should be back to the original state except for
-        # pos* that belong to the abstract class
-        assert len(_SymbolCache) == init_cache_size + 2
+        # pos* that belong to the abstract class and the dimension
+        # bounds (x_m, x_M, y_m, y_M)
+        assert len(_SymbolCache) == init_cache_size + 6
         clear_cache()
-        # Now we should be back to the original state
-        assert len(_SymbolCache) == init_cache_size
+        # Now we should be back to the original state plus the dimension bounds
+        # (x_m, x_M, y_m, y_M).
+        assert len(_SymbolCache) == init_cache_size + 4
 
     def test_after_indexification(self):
         """
