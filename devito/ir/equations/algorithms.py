@@ -229,7 +229,7 @@ def _(d, mapper, rebuilt, sregistry):
         return
 
     tkns = tuple(t._rebuild(name=sregistry.make_name(prefix=t.name)) for t in d.tkns)
-    mapper.update({t0: t1 for t0, t1 in zip(d.tkns, tkns)})
+    mapper.update({tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)})
     mapper[d] = d._rebuild(thickness=tkns)
 
 
