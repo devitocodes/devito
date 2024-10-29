@@ -28,7 +28,39 @@ IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
 
-HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices loc_dirs halos dims')
+class HaloSchemeEntry:
+
+    def __init__(self, loc_indices, loc_dirs, halos, dims):
+        self.loc_indices = loc_indices
+        self.loc_dirs = loc_dirs
+        self.halos = halos
+        self.dims = dims
+
+    def __repr__(self):
+        return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
+                f"loc_dirs={self.loc_dirs}, halos={self.halos}, dims={self.dims})")
+
+    def __eq__(self, other):
+        if not isinstance(other, HaloSchemeEntry):
+            return False
+        return (self.loc_indices == other.loc_indices and
+                self.loc_dirs == other.loc_dirs and
+                self.halos == other.halos and
+                self.dims == other.dims)
+
+    def __hash__(self):
+        return hash((frozenset(self.loc_indices.items()),
+                     frozenset(self.loc_dirs.items()),
+                     frozenset(self.halos),
+                     frozenset(self.dims)))
+
+    def rebuild(self, **kwargs):
+        loc_indices = kwargs.get('loc_indices', self.loc_indices)
+        loc_dirs = kwargs.get('loc_dirs', self.loc_dirs)
+        halos = kwargs.get('halos', self.halos)
+        dims = kwargs.get('dims', self.dims)
+        return HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
+
 
 Halo = namedtuple('Halo', 'dim side')
 
@@ -94,9 +126,20 @@ class HaloScheme:
         self._honored = frozendict(self._honored)
 
     def __repr__(self):
-        fnames = ",".join(i.name for i in set(self._mapper))
-        loc_indices = "[%s]" % ",".join(str(i) for i in self.loc_indices2)
-        return "HaloScheme<%s%s>" % (fnames, loc_indices)
+        fstrings = []
+        for f in self.fmapper:
+            loc_indices = set().union(*[self._mapper[f].loc_indices.values()])
+            loc_indices = list(loc_indices)
+            if loc_indices:
+                loc_indices_str = str(loc_indices)
+            else:
+                loc_indices_str = ""
+
+            fstrings.append(f"{f.name}{loc_indices_str}")
+
+        functions = ",".join(fstrings)
+
+        return "%s<%s>" % (self.__class__.__name__, functions)
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -121,7 +164,6 @@ class HaloScheme:
         """
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
-        # import pdb; pdb.set_trace()
         halo_schemes = [hs for hs in halo_schemes if hs is not None]
         if not halo_schemes:
             return None
@@ -368,7 +410,7 @@ class HaloScheme:
         return set().union(*[i.loc_indices.keys() for i in self.fmapper.values()])
 
     @cached_property
-    def loc_indices2(self):
+    def loc_values(self):
         return set().union(*[i.loc_indices.values() for i in self.fmapper.values()])
 
     @cached_property
@@ -640,9 +682,8 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     # Nope, let's try with the next Indexed, if any
                     continue
 
-                hse = HaloSchemeEntry(frozendict(loc_indices),
-                                      frozendict(loc_dirs),
-                                      hse0.halos, hse0.dims)
+                hse = hse0.rebuild(loc_indices=frozendict(loc_indices),
+                                   loc_dirs=frozendict(loc_dirs))
 
             else:
                 continue
