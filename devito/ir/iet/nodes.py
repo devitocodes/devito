@@ -1457,18 +1457,18 @@ class HaloSpot(Node):
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        function_strings = []
-        for func in self.functions:
-            loc_indices = set().union(*[self.halo_scheme.fmapper[func].loc_indices.values()])
+        fstrings = []
+        for f in self.functions:
+            loc_indices = set().union(*[self.halo_scheme.fmapper[f].loc_indices.values()])
             loc_indices = list(loc_indices)
             if loc_indices:
                 loc_indices_str = str(loc_indices)
             else:
                 loc_indices_str = ""
 
-            function_strings.append(f"{func.name}{loc_indices_str}")
+            fstrings.append(f"{f.name}{loc_indices_str}")
 
-        functions = ",".join(function_strings)
+        functions = ",".join(fstrings)
 
         return "<%s(%s)>" % (self.__class__.__name__, functions)
 
