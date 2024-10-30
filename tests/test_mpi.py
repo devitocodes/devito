@@ -4,11 +4,12 @@ from functools import cached_property
 
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension, div,
+                    SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
+                    Dimension, ConditionalDimension, div,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
                     PrecomputedSparseFunction, DefaultDimension, Buffer,
-                    solve)
+                    solve, diag, grad)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -21,7 +22,8 @@ from devito.tools import Bunch
 from devito.types.dimension import SpaceDimension
 
 from examples.seismic.acoustic import acoustic_setup
-from examples.seismic import Receiver, TimeAxis
+from examples.seismic import Receiver, TimeAxis, demo_model
+from tests.test_dse import TestTTI
 
 
 class TestDistributor:
@@ -983,6 +985,7 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        assert calls[0].functions[0] is f
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_if_distr_but_sequential(self, mode):
@@ -1010,8 +1013,11 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448(self, mode):
-        extent = (1500., )
-        shape = (201, )
+        extent = (10., )
+        shape = (2, )
+        so = 2
+        to = 1
+
         x = SpaceDimension(name='x', spacing=Constant(name='h_x',
                                                       value=extent[0]/(shape[0]-1)))
         grid = Grid(extent=extent, shape=shape, dimensions=(x, ))
@@ -1022,16 +1028,8 @@ class TestCodeGeneration:
         time_range = TimeAxis(start=t0, stop=tn, step=dt)
 
         # Velocity and pressure fields
-        so = 2
-        to = 1
         v = TimeFunction(name='v', grid=grid, space_order=so, time_order=to)
         tau = TimeFunction(name='tau', grid=grid, space_order=so, time_order=to)
-
-        # The receiver
-        nrec = 1
-        rec = Receiver(name="rec", grid=grid, npoint=nrec, time_range=time_range)
-        rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
-        rec_term = rec.interpolate(expr=v)
 
         # First order elastic-like dependencies equations
         pde_v = v.dt - (tau.dx)
@@ -1040,57 +1038,44 @@ class TestCodeGeneration:
 
         u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
 
-        op = Operator([u_v] + [u_tau] + rec_term)
+        # Test two variants of receiver interpolation
+        nrec = 1
+        rec = Receiver(name="rec", grid=grid, npoint=nrec, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
 
-        calls = [i for i in FindNodes(Call).visit(op)
+        # The receiver 0
+        rec_term0 = rec.interpolate(expr=v)
+
+        # The receiver 1
+        rec_term1 = rec.interpolate(expr=v.forward)
+
+        # Test receiver interpolation 0, here we have a halo exchange hoisted
+        op0 = Operator([u_v] + [u_tau] + rec_term0)
+
+        calls = [i for i in FindNodes(Call).visit(op0)
                  if isinstance(i, HaloUpdateCall)]
 
         # The correct we want
         assert len(calls) == 3
+
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[1])) == 2
         assert calls[0].arguments[0] is v
         assert calls[1].arguments[0] is tau
         assert calls[2].arguments[0] is v
 
-    @pytest.mark.parallel(mode=1)
-    def test_issue_2448_v2(self, mode):
-        # Similar but with v.forward
-        extent = (1500., )
-        shape = (201, )
-        x = SpaceDimension(name='x', spacing=Constant(name='h_x',
-                                                      value=extent[0]/(shape[0]-1)))
-        grid = Grid(extent=extent, shape=shape, dimensions=(x, ))
+        # Test receiver interpolation 1, here we should not have any halo exchange
+        # hoisted
+        op1 = Operator([u_v] + [u_tau] + rec_term1)
 
-        # Time related
-        t0, tn = 0., 30.
-        dt = (10. / np.sqrt(2.)) / 6.
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        # Velocity and pressure fields
-        so = 2
-        to = 1
-        v = TimeFunction(name='v', grid=grid, space_order=so, time_order=to)
-        tau = TimeFunction(name='tau', grid=grid, space_order=so, time_order=to)
-
-        # The receiver
-        nrec = 1
-        rec = Receiver(name="rec", grid=grid, npoint=nrec, time_range=time_range)
-        rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
-        rec_term = rec.interpolate(expr=v.forward)
-
-        # First order elastic-like dependencies equations
-        pde_v = v.dt - (tau.dx)
-        pde_tau = (tau.dt - ((v.forward).dx))
-        u_v = Eq(v.forward, solve(pde_v, v.forward))
-
-        u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
-
-        op = Operator([u_v] + [u_tau] + rec_term)
-
-        calls = [i for i in FindNodes(Call).visit(op)
+        calls = [i for i in FindNodes(Call).visit(op1)
                  if isinstance(i, HaloUpdateCall)]
 
         # The correct we want
         assert len(calls) == 3
+
+        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[0])) == 0
+        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[1])) == 3
         assert calls[0].arguments[0] is tau
         assert calls[1].arguments[0] is v
         assert calls[2].arguments[0] is v
@@ -1131,8 +1116,8 @@ class TestCodeGeneration:
 
         eq = Eq(u.forward, u[t, 1] + u[t, 1 + x.symbolic_min] + u[t, x])
         op = Operator(eq)
-
         calls = FindNodes(Call).visit(op)
+
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
@@ -1228,6 +1213,7 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+
         # Also make sure the Call is at the right place in the IET
         assert op.body.body[-1].body[1].body[0].body[0].body[0].body[0].is_Call
         assert op.body.body[-1].body[1].body[0].body[0].body[1].is_Iteration
@@ -2479,7 +2465,6 @@ class TestOperatorAdvanced:
         op = Operator(eqns)
 
         op(time_M=2)
-
         # Expected norms computed "manually" from sequential runs
         assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
         assert np.isclose(norm(uxx), 78902.21, rtol=1.e-4)
@@ -2814,6 +2799,85 @@ class TestIsotropicAcoustic:
         practically scale up to higher process counts.
         """
         self.run_adjoint_F(3)
+
+
+class TestElastic:
+
+    @pytest.mark.parallel(mode=[(1, 'diag')])
+    def test_elastic_structure(self, mode):
+
+        so = 4
+        model = demo_model(preset='layers-elastic', nlayers=1,
+                           shape=(301, 301), spacing=(10., 10.),
+                           space_order=so)
+
+        t0, tn = 0., 2000.
+        dt = model.critical_dt
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        x, z = model.grid.dimensions
+
+        v = VectorTimeFunction(name='v', grid=model.grid, space_order=so, time_order=1)
+        tau = TensorTimeFunction(name='t', grid=model.grid, space_order=so, time_order=1)
+
+        # The receiver
+        nrec = 301
+        rec = Receiver(name="rec", grid=model.grid, npoint=nrec, time_range=time_range)
+        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec.coordinates.data[:, -1] = 5.
+
+        rec_term = rec.interpolate(expr=v[0] + v[1])
+
+        # Now let's try and create the staggered updates
+        # Lame parameters
+        l, mu, ro = model.lam, model.mu, model.b
+
+        # First order elastic wave equation
+        pde_v = v.dt - ro * div(tau)
+        pde_tau = (tau.dt - l * diag(div(v.forward)) -
+                   mu * (grad(v.forward) + grad(v.forward).transpose(inner=False)))
+        # Time update
+        u_v = Eq(v.forward, model.damp * solve(pde_v, v.forward))
+        u_t = Eq(tau.forward, model.damp * solve(pde_tau, tau.forward))
+
+        op = Operator([u_v] + [u_t] + rec_term)
+
+        assert len(op._func_table) == 11
+
+        calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
+
+        # The correct we want
+        assert len(calls) == 5
+
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[2])) == 0
+
+        assert calls[0].arguments[0] is v[0]
+        assert calls[0].arguments[1] is v[1]
+
+        assert calls[1].arguments[0] is tau[0, 0]
+        assert calls[2].arguments[0] is tau[0, 1]
+        assert calls[3].arguments[0] is tau[1, 1]
+
+        assert calls[4].arguments[0] is v[0]
+        assert calls[4].arguments[1] is v[1]
+
+
+class TestTTI_w_MPI:
+
+    @pytest.mark.parallel(mode=[(1)])
+    def test_halo_structure(self, mode):
+
+        mytest = TestTTI()
+        solver = mytest.tti_operator(opt='advanced', space_order=8)
+        op = solver.op_fwd(save=False)
+
+        calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 1
+        assert calls[0].functions[0].name == 'u'
+        assert calls[0].functions[1].name == 'v'
 
 
 if __name__ == "__main__":

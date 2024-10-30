@@ -129,17 +129,13 @@ class HaloScheme:
         fstrings = []
         for f in self.fmapper:
             loc_indices = set().union(*[self._mapper[f].loc_indices.values()])
-            loc_indices = list(loc_indices)
-            if loc_indices:
-                loc_indices_str = str(loc_indices)
-            else:
-                loc_indices_str = ""
+            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
 
             fstrings.append(f"{f.name}{loc_indices_str}")
 
         functions = ",".join(fstrings)
 
-        return "%s<%s>" % (self.__class__.__name__, functions)
+        return f"<{self.__class__.__name__}({functions})>"
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
