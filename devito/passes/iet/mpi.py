@@ -24,7 +24,6 @@ def optimize_halospots(iet, **kwargs):
     """
     iet = _drop_halospots(iet)
     iet = _hoist_halospots(iet)
-    iet = _hoist_and_drop(iet)
     iet = _merge_halospots(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
@@ -60,157 +59,94 @@ def _hoist_halospots(iet):
     """
     Hoist HaloSpots from inner to outer Iterations where all data dependencies
     would be honored.
+
+    Example:
+                                   haloupd v[t0]
+    for time                       for time
+      W v[t1]- R v[t0]             W v[t1]- R v[t0]
+      haloupd v[t1]                  haloupd v[t1]
+      R v[t1]                        R v[t1]
+      haloupd v[t0]                  R v[t0]
+      R v[t0]
+
     """
 
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
 
+    cond_mapper = _create_cond_mapper(iet)
+
     # Analysis
     hsmapper = {}
     imapper = defaultdict(list)
-    # Look for parent Iterations of children HaloSpots
-    for iters, halo_spots in MapNodes(Iteration, HaloSpot, 'groupby').visit(iet).items():
-        for hs in halo_spots:
-            hsmapper[hs] = hs.halo_scheme
-
-            for f, v in hs.fmapper.items():
-                loc_dims = frozenset().union([q for d in v.loc_indices
-                                              for q in d._defines])
-
-                for n, i in enumerate(iters):
-                    if i not in scopes:
-                        continue
-
-                    candidates = [i.dim._defines for i in iters[n:]]
-
-                    all_candidates = set().union(*candidates)
-                    reads = scopes[i].getreads(f)
-                    if any(set(a.ispace.dimensions) & all_candidates
-                           for a in reads):
-                        continue
-
-                    for dep in scopes[i].d_flow.project(f):
-                        if not any(r(dep, candidates, loc_dims) for r in hoist_rules()):
-                            break
-                    else:
-                        hsmapper[hs] = hsmapper[hs].drop(f)
-                        imapper[i].append(hs.halo_scheme.project(f))
-                        break
-
-    # Post-process analysis
-    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
-              for i, hss in imapper.items()}
-
-    mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-                   for i, hs in hsmapper.items()})
-
-    # Transform the IET hoisting/dropping HaloSpots as according to the analysis
-    iet = Transformer(mapper, nested=True).visit(iet)
-
-    # Clean up: de-nest HaloSpots if necessary
-    iet = denest_halospots(iet)
-
-    return iet
-
-
-def _hoist_and_drop(iet):
-    """
-    Detect HaloSpots that refer to different time slices of the same TimeFunction and
-    could be hoisted to the outermost Iteration.  This is a function that mixes principles
-    from both `_hoist_halospots` and `_merge_halospots`, aiming to catch a special case
-    where the HaloSpots refer to the same Function but with different loc_indices.
-    In some cases, it is better to hoist rather than merge and this is why this comes
-    before `_merge_halospots`.
-    """
-    # Analysis
-    cond_mapper = _create_cond_mapper(iet)
-
-    candidates = []
 
     # Look for parent Iterations of children HaloSpots
     for iters, halo_spots in MapNodes(Iteration, HaloSpot, 'groupby').visit(iet).items():
-        if iters is None or len(halo_spots) <= 1:
-            continue
+        for i, hs0 in enumerate(halo_spots):
 
-        # Try to detect pairs of halospots that refer to the same function
-        for i, _ in enumerate(halo_spots):
-            hs0 = halo_spots[i]
+            # Nothing to do if the HaloSpot is void
+            if hs0.halo_scheme.is_void:
+                continue
 
             for hs1 in halo_spots[i+1:]:
                 # If there are Conditionals involved, both `hs0` and `hs1` must be
                 # within the same Conditional, otherwise we would break the control
-                # flow semantics
                 if cond_mapper.get(hs0) != cond_mapper.get(hs1):
                     continue
 
-                # Ensure no common loc_indices are shared for the two candidates
+                # If there are overlapping time accesses, skip
                 if any(i in hs0.halo_scheme.loc_values
-                       for i in hs1.halo_scheme.loc_values):
+                        for i in hs1.halo_scheme.loc_values):
                     continue
 
-                for f, v in hs1.fmapper.items():
-                    # Skip functions that do not have time accesses
-                    if not hs1.halo_scheme.fmapper[f].loc_indices:
-                        continue
+                # Compare hs0 to subsequent halo_spots, looking for optimization
+                # possibilities
+                _process_halo_to_halo(hs0, hs1, iters, scopes, hsmapper, imapper)
 
-                    for iter in iters:
-                        # Follow the rules of mrgeable HaloSpots
-                        scope = Scope([e.expr for e in FindNodes(Expression).visit(iter)])
-                        for dep in scope.d_flow.project(f):
-                            if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
-                                break
-                        else:
-                            # Count the number of repetitions of the function, stop
-                            # if it appears only once
-                            count = (*hs0.functions, *hs1.functions).count(f)
-                            if count < 2:
-                                continue
-                            else:
-                                candidates.append((hs0, hs1, f, count, iter))
-
-    # Mapper for the iterations (hoist the halospots)
-    imapper = defaultdict(list)
-    # Mapper for the halospots (drop functions from the halospots)
-    hs_mapper = {}
-
-    if candidates:
-        # The latter HaloSpot (hs1) is lifted while the former (hs0) stays in place
-        for hs0, hs1, f, reps, iter in candidates:
-
-            # Drop more functions if the Halospot already exists in mapper
-            if hs1 in hs_mapper:
-                hs_mapper[hs1] = hs_mapper[hs1].drop(f)
-            else:
-                hs_mapper[hs1] = hs1.halo_scheme.drop(f)
-
-            # Reconstruct a HaloSchemeEntry for the hoisted HaloSpot
-            fm = hs1.halo_scheme.fmapper[f]
-
-            raw_loc_indices = {}
-            # Since lifted, we need to update the loc_indices with known values
-            # TODO: Can I get this in a more elegant way?
-            for d in fm.loc_indices:
-                root_min = fm.loc_indices[d].symbolic_min
-                new_min = root_min.subs(fm.loc_indices[d].root,
-                                        fm.loc_indices[d].root.symbolic_min)
-                raw_loc_indices[d] = new_min
-
-            hs_entry = hs1.halo_scheme.fmapper[f]
-            hs_entry = hs_entry.rebuild(loc_indices=frozendict(raw_loc_indices))
-            hs1.halo_scheme.fmapper[f] = hs_entry
-
-            imapper[iter].append(hs1.halo_scheme.project(f))
-
-    # Post-process analysis
     mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
               for i, hss in imapper.items()}
-
     mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-                   for i, hs in hs_mapper.items()})
+                   for i, hs in hsmapper.items()})
 
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
+
+
+def _process_halo_to_halo(hs0, hs1, iters, scopes, hsmapper, imapper):
+
+    # Loop over the functions in the HaloSpots
+    for f, v in hs1.fmapper.items():
+        # If no time accesses, skip
+        if not hs1.halo_scheme.fmapper[f].loc_indices:
+            continue
+
+        # If the function is not in both HaloSpots, skip
+        if (*hs0.functions, *hs1.functions).count(f) < 2:
+            continue
+
+        for iter in iters:
+            # If also merge-able we can start hoisting the latter
+            for dep in scopes[iter].d_flow.project(f):
+                if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
+                    break
+            else:
+                hse = hs1.halo_scheme.fmapper[f]
+                raw_loc_indices = {}
+                # Entering here means we can lift, and we need to update
+                # the loc_indices with known values
+                # TODO: Can I get this in a more elegant way?
+                for d in hse.loc_indices:
+                    root_min = hse.loc_indices[d].symbolic_min
+                    new_min = root_min.subs(hse.loc_indices[d].root,
+                                            hse.loc_indices[d].root.symbolic_min)
+                    raw_loc_indices[d] = new_min
+
+                hse = hse.rebuild(loc_indices=frozendict(raw_loc_indices))
+                hs1.halo_scheme.fmapper[f] = hse
+
+                hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
+                imapper[iter].append(hs1.halo_scheme.project(f))
 
 
 def _merge_halospots(iet):
@@ -229,10 +165,6 @@ def _merge_halospots(iet):
 
         scope = Scope([e.expr for e in FindNodes(Expression).visit(iter)])
 
-        # TOFIX: Why only comparing against the first HaloSpot?
-        # We could similary to `_hoist_and_drop` compare all pairs of HaloSpots
-        # and merge them based upon some priority ranking on which pair we prefer to
-        # merge
         hs0 = halo_spots[0]
         mapper[hs0] = hs0.halo_scheme
 
@@ -250,14 +182,9 @@ def _merge_halospots(iet):
                     if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
                         break
                 else:
-                    try:
-                        hs = hs1.halo_scheme.project(f)
-                        mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
-                        mapper[hs1] = mapper[hs1].drop(f)
-                    except ValueError:
-                        # `hs1.loc_indices=<frozendict {t: t1}` and
-                        # `hs0.loc_indices=<frozendict {t: t0}`
-                        pass
+                    hs = hs1.halo_scheme.project(f)
+                    mapper[hs0] = HaloScheme.union([mapper[hs0], hs])
+                    mapper[hs1] = mapper[hs1].drop(f)
 
     # Post-process analysis
     mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
@@ -431,21 +358,6 @@ def mpiize(graph, **kwargs):
 
 # Utility functions to avoid code duplication
 
-def denest_halospots(iet):
-    """
-    Denest nested HaloSpots.
-    # TOFIX: This also merges HaloSpots that have different loc_indices
-    """
-    mapper = {}
-    for hs in FindNodes(HaloSpot).visit(iet):
-        if hs.body.is_HaloSpot:
-            halo_scheme = HaloScheme.union([hs.halo_scheme, hs.body.halo_scheme])
-            mapper[hs] = hs._rebuild(halo_scheme=halo_scheme, body=hs.body.body)
-    iet = Transformer(mapper, nested=True).visit(iet)
-
-    return iet
-
-
 def _create_cond_mapper(iet):
     cond_mapper = MapHaloSpots().visit(iet)
     return {hs: {i for i in v if i.is_Conditional and
@@ -474,26 +386,5 @@ def merge_rules():
                    for d, v in loc_indices.items())
 
     rules = [rule0, rule1, rule2]
-
-    return rules
-
-
-def hoist_rules():
-    # Hoisting rules -- if the retval is True, then it means the input `dep` is not
-    # a stopper to halo hoisting
-
-    def rule0(dep, candidates, loc_dims):
-        # E.g., `dep=W<f,[x]> -> R<f,[x-1]>` and `candidates=({time}, {x})` => False
-        # E.g., `dep=W<f,[t1, x, y]> -> R<f,[t0, x-1, y+1]>`, `dep.cause={t,time}` and
-        #       `candidates=({x},)` => True
-        return (all(i & set(dep.distance_mapper) for i in candidates) and
-                not any(i & dep.cause for i in candidates) and
-                not any(i & loc_dims for i in candidates))
-
-    def rule1(dep, candidates, loc_dims):
-        # A reduction isn't a stopper to hoisting
-        return dep.write is not None and dep.write.is_reduction
-
-    rules = [rule0, rule1]
 
     return rules
