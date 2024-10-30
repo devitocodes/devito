@@ -158,7 +158,7 @@ def test_read_only_backwards_unstructured():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -445,7 +445,7 @@ def test_conddim_backwards():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 4
+    assert len(retrieve_iteration_tree(op1)) == 5
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -478,7 +478,7 @@ def test_conddim_backwards_multi_slots():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 4
+    assert len(retrieve_iteration_tree(op1)) == 5
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -515,7 +515,7 @@ def test_conddim_backwards_unstructured():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 4
+    assert len(retrieve_iteration_tree(op1)) == 5
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -560,7 +560,7 @@ def test_conddim_w_shifting():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 4
+    assert len(retrieve_iteration_tree(op1)) == 5
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -599,7 +599,7 @@ def test_multi_access():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len(retrieve_iteration_tree(op1)) == 3
+    assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
     assert len(buffers) == 1
 
@@ -623,7 +623,7 @@ def test_issue_1901():
     op = Operator(eq, opt='buffering')
 
     trees = retrieve_iteration_tree(op)
-    assert len(trees) == 3
+    assert len(trees) == 4
     assert trees[2].root.dim is time
     assert not trees[2].root.is_Parallel
     assert trees[2].root.is_Sequential  # Obv
