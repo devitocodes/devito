@@ -251,36 +251,50 @@ class InjectBuffers(Queue):
         if self.options['fuse-tasks']:
             return init + processed
         else:
-            return init + self._optimize(processed, descriptors)
+            return self._optimize(init + processed, descriptors)
 
     def _optimize(self, clusters, descriptors):
+        # A unique stamp for the IterationSpaces of the Clusters accessing a
+        # buffer (but not the corresponding buffered Function)
+        stamp0 = Stamp()
+        key0 = lambda: stamp0
+
         for b, v in descriptors.items():
+            # Per-buffered Function stamps are also necessary as we ultimately
+            # want to ensure that different buffered Functions aren't fused
+            # within the same Cluster
+
             if v.is_writeonly:
                 # `b` might be written by multiple, potentially mutually
                 # exclusive, equations. For example, two equations that have or
                 # will have complementary guards, hence only one will be
                 # executed. In such a case, we can split the equations over
                 # separate IterationSpaces
-                key0 = lambda: Stamp()
+                key1 = lambda: Stamp()
             elif v.is_readonly:
                 # `b` is read multiple times -- this could just be the case of
                 # coupled equations, so we more cautiously perform a
                 # "buffer-wise" splitting of the IterationSpaces (i.e., only
                 # relevant if there are at least two read-only buffers)
-                stamp = Stamp()
-                key0 = lambda: stamp
+                stamp1 = Stamp()
+                key1 = lambda: stamp1
             else:
                 continue
 
+            key2 = lambda d: not d._defines & v.dim._defines
+
             processed = []
             for c in clusters:
-                if b not in c.functions:
+                if v.f in c.functions:
+                    key = key1
+                elif b in c.functions:
+                    key = key0
+                else:
                     processed.append(c)
                     continue
 
-                key1 = lambda d: not d._defines & v.dim._defines
-                dims = c.ispace.project(key1).itdims
-                ispace = c.ispace.lift(dims, key0())
+                dims = c.ispace.project(key2).itdims
+                ispace = c.ispace.lift(dims, key())
                 processed.append(c.rebuild(ispace=ispace))
 
             clusters = processed

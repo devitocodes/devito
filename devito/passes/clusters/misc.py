@@ -113,7 +113,7 @@ class Fusion(Queue):
         options = options or {}
 
         self.toposort = toposort
-        self.fusetasks = options.get('fuse-tasks', False)
+        self.fuse_tasks = options.get('fuse-tasks', False)
 
         super().__init__()
 
@@ -201,7 +201,7 @@ class Fusion(Queue):
                     if isinstance(s, PrefetchUpdate):
                         continue
 
-                    if isinstance(s, WaitLock) and not self.fusetasks:
+                    if isinstance(s, WaitLock) and not self.fuse_tasks:
                         # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                         # be fused, as in the worst case scenario the WaitLocks
                         # get "hoisted" above the first Cluster in the sequence
@@ -209,7 +209,7 @@ class Fusion(Queue):
 
                     if isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
                         mapper[k].add(type(s))
-                    elif isinstance(s, WithLock) and self.fusetasks:
+                    elif isinstance(s, WithLock) and self.fuse_tasks:
                         # NOTE: Different WithLocks aren't fused unless the user
                         # explicitly asks for it
                         mapper[k].add(type(s))
