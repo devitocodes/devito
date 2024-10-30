@@ -791,7 +791,7 @@ class TestStreaming:
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
-        assert len(retrieve_iteration_tree(op1)) == 4
+        assert len(retrieve_iteration_tree(op1)) == 3
         assert len(retrieve_iteration_tree(op2)) == 3
         symbols = FindSymbols().visit(op1)
         assert len([i for i in symbols if isinstance(i, Lock)]) == 5
