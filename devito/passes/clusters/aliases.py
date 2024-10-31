@@ -958,15 +958,58 @@ def pick_best(variants):
 
         flops = flops0 + flops1
 
-        # Data movement in the two sweeps
-        indexeds0 = search([sa.pivot for sa in i.schedule], Indexed)
+        # Estimate the data movement in the two sweeps
+
+        # With cross-loop blocking, a Function appearing in both sweeps is
+        # much more likely to be in cache during the second sweep, hence
+        # we count it only once
+        functions0 = set()
+        functions1 = set()
+        for sa in i.schedule:
+            indexeds0 = search(sa.pivot, Indexed)
+
+            if any(d.is_Block for d in sa.ispace.itdims):
+                functions1.update({i.function for i in indexeds0})
+            else:
+                functions0.update({i.function for i in indexeds0})
+
         indexeds1 = search(i.exprs, Indexed)
+        functions1.update({i.function for i in indexeds1})
 
-        ntemps = len(i.schedule)
-        nfunctions0 = len({i.function for i in indexeds0})
-        nfunctions1 = len({i.function for i in indexeds1})
+        nfunctions0 = len(functions0)
+        nfunctions1 = len(functions1)
 
-        ws = ntemps*2 + nfunctions0 + nfunctions1
+        # All temporaries impact data movement, but some kind of temporaries
+        # are more likely to be in cache than others, so they are given a
+        # lighter weight
+        for ii in indexeds1:
+            grid = ii.function.grid
+            if grid is None:
+                continue
+
+            ntemps = 0
+            for sa in i.schedule:
+                if len(sa.writeto) < grid.dim:
+                    # Tiny temporary, extremely likely to be in cache, hardly
+                    # impacting data movement in a significant way
+                    ntemps += 0.1
+                elif any(d.is_Block for d in sa.writeto.itdims):
+                    # Cross-loop blocking temporary, likely to be in some level
+                    # of cache (but unlikely to be in the fastest level)
+                    ntemps += 1
+                else:
+                    # Grid-size temporary, likely _not_ to be in cache, and
+                    # therefore requiring at least two costly accesses per
+                    # grid point
+                    ntemps += 2
+
+            ntemps = int(ntemps)
+
+            break
+        else:
+            ntemps = len(i.schedule)
+
+        ws = ntemps + nfunctions0 + nfunctions1
 
         if best is None:
             best, best_flops, best_ws = i, flops, ws
