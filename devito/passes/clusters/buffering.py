@@ -248,12 +248,20 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
         # Lift {write,read}-only buffers into separate IterationSpaces
+        #TODO: postpone options handling inside self._optimize
+        #return self._optimize(init + processed, descriptors)
         if self.options['fuse-tasks']:
             return init + processed
         else:
             return self._optimize(init + processed, descriptors)
 
     def _optimize(self, clusters, descriptors):
+        fuse_tasks = self.options['fuse-tasks']
+        
+        # TODO: ADD THIS, and optionally set it to True by default in the
+        # CPU or GPU backends, or both... according to empirical evidence
+        #fuse_waits = self.options['fuse-waits']
+
         # A unique stamp for the IterationSpaces of the Clusters accessing a
         # buffer (but not the corresponding buffered Function)
         stamp0 = Stamp()
@@ -285,7 +293,11 @@ class InjectBuffers(Queue):
 
             processed = []
             for c in clusters:
-                if v.f in c.functions:
+                #if fuse_tasks:
+                #    processed.append(c)
+                #    continue
+
+                if v.f in c.functions:  #and fuse_waits ??? double check this...
                     key = key1
                 elif b in c.functions:
                     key = key0
