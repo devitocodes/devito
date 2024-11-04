@@ -137,10 +137,15 @@ def _process_halo_to_halo(hs0, hs1, iters, scopes, hsmapper, imapper):
                 # the loc_indices with known values
                 # TODO: Can I get this in a more elegant way?
                 for d in hse.loc_indices:
-                    root_min = hse.loc_indices[d].symbolic_min
-                    new_min = root_min.subs(hse.loc_indices[d].root,
-                                            hse.loc_indices[d].root.symbolic_min)
-                    raw_loc_indices[d] = new_min
+                    if hse.loc_indices[d].is_Symbol:
+                        assert d in hse.loc_indices[d]._defines
+                        root_min = hse.loc_indices[d].symbolic_min
+                        new_min = root_min.subs(hse.loc_indices[d].root,
+                                                hse.loc_indices[d].root.symbolic_min)
+                        raw_loc_indices[d] = new_min
+                    else:
+                        assert d.symbolic_min in hse.loc_indices[d].free_symbols
+                        raw_loc_indices[d] = hse.loc_indices[d]
 
                 hse = hse.rebuild(loc_indices=frozendict(raw_loc_indices))
                 hs1.halo_scheme.fmapper[f] = hse

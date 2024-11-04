@@ -1460,7 +1460,6 @@ class HaloSpot(Node):
         fstrings = []
         for f in self.functions:
             loc_indices = set().union(*[self.halo_scheme.fmapper[f].loc_indices.values()])
-            loc_indices = list(loc_indices)
             loc_indices_str = str(list(loc_indices)) if loc_indices else ""
 
             fstrings.append(f"{f.name}{loc_indices_str}")
