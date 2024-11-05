@@ -22,7 +22,7 @@ from devito.tools import Bunch
 from devito.types.dimension import SpaceDimension
 
 from examples.seismic.acoustic import acoustic_setup
-from examples.seismic import Receiver, TimeAxis, demo_model
+from examples.seismic import demo_model
 from tests.test_dse import TestTTI
 
 
@@ -1013,23 +1013,20 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448(self, mode):
-        extent = (10., )
-        shape = (2, )
+        extent = (10.,)
+        shape = (2,)
         so = 2
-        to = 1
 
         x = SpaceDimension(name='x', spacing=Constant(name='h_x',
                                                       value=extent[0]/(shape[0]-1)))
-        grid = Grid(extent=extent, shape=shape, dimensions=(x, ))
+        grid = Grid(extent=extent, shape=shape, dimensions=(x,))
 
         # Time related
-        t0, tn = 0., 30.
-        dt = (10. / np.sqrt(2.)) / 6.
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+        tn = 30
 
         # Velocity and pressure fields
-        v = TimeFunction(name='v', grid=grid, space_order=so, time_order=to)
-        tau = TimeFunction(name='tau', grid=grid, space_order=so, time_order=to)
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+        tau = TimeFunction(name='tau', grid=grid, space_order=so)
 
         # First order elastic-like dependencies equations
         pde_v = v.dt - (tau.dx)
@@ -1040,7 +1037,7 @@ class TestCodeGeneration:
 
         # Test two variants of receiver interpolation
         nrec = 1
-        rec = Receiver(name="rec", grid=grid, npoint=nrec, time_range=time_range)
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=nrec, nt=tn)
         rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
 
         # The receiver 0
@@ -2811,18 +2808,12 @@ class TestElastic:
                            shape=(301, 301), spacing=(10., 10.),
                            space_order=so)
 
-        t0, tn = 0., 2000.
-        dt = model.critical_dt
-        time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-        x, z = model.grid.dimensions
-
-        v = VectorTimeFunction(name='v', grid=model.grid, space_order=so, time_order=1)
-        tau = TensorTimeFunction(name='t', grid=model.grid, space_order=so, time_order=1)
+        v = VectorTimeFunction(name='v', grid=model.grid, space_order=so)
+        tau = TensorTimeFunction(name='t', grid=model.grid, space_order=so)
 
         # The receiver
         nrec = 301
-        rec = Receiver(name="rec", grid=model.grid, npoint=nrec, time_range=time_range)
+        rec = SparseTimeFunction(name="rec", grid=model.grid, npoint=nrec, nt=10)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, -1] = 5.
 
@@ -2864,9 +2855,9 @@ class TestElastic:
         assert calls[4].arguments[1] is v[1]
 
 
-class TestTTI_w_MPI:
+class TestTTIwMPI:
 
-    @pytest.mark.parallel(mode=[(1)])
+    @pytest.mark.parallel(mode=1)
     def test_halo_structure(self, mode):
 
         mytest = TestTTI()
