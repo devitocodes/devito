@@ -161,7 +161,10 @@ class HaloScheme:
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
         halo_schemes = [hs for hs in halo_schemes if hs is not None]
-        if not halo_schemes:
+
+        if len(halo_schemes) == 1:
+            return halo_schemes[0]
+        elif not halo_schemes:
             return None
 
         fmapper = {}
