@@ -63,7 +63,7 @@ def _hoist_halospots(iet):
     Example:
                                    haloupd v[t0]
     for time                       for time
-      W v[t1]- R v[t0]             W v[t1]- R v[t0]
+      W v[t1]- R v[t0]               W v[t1]- R v[t0]
       haloupd v[t1]                  haloupd v[t1]
       R v[t1]                        R v[t1]
       haloupd v[t0]                  R v[t0]
@@ -74,7 +74,7 @@ def _hoist_halospots(iet):
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
 
-    cond_mapper = _create_cond_mapper(iet)
+    cond_mapper = _make_cond_mapper(iet)
 
     # Analysis
     hsmapper = {}
@@ -95,13 +95,46 @@ def _hoist_halospots(iet):
                     continue
 
                 # If there are overlapping time accesses, skip
-                if any(i in hs0.halo_scheme.loc_values
-                        for i in hs1.halo_scheme.loc_values):
+                if hs0.halo_scheme.loc_values.intersection(hs1.halo_scheme.loc_values):
                     continue
 
-                # Compare hs0 to subsequent halo_spots, looking for optimization
-                # possibilities
-                _process_halo_to_halo(hs0, hs1, iters, scopes, hsmapper, imapper)
+                # Loop over the functions in the HaloSpots
+                for f, v in hs1.fmapper.items():
+                    # If no time accesses, skip
+                    if not hs1.halo_scheme.fmapper[f].loc_indices:
+                        continue
+
+                    # If the function is not in both HaloSpots, skip
+                    if f not in hs0.functions:
+                        continue
+
+                    for it in iters:
+                        # If also merge-able we can start hoisting the latter
+                        for dep in scopes[it].d_flow.project(f):
+                            if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
+                                break
+                        else:
+                            hse = hs1.halo_scheme.fmapper[f]
+                            raw_loc_indices = {}
+                            # Entering here means we can lift, and we need to update
+                            # the loc_indices with known values
+                            # TODO: Can I get this in a more elegant way?
+                            for d in hse.loc_indices:
+                                if hse.loc_indices[d].is_Symbol:
+                                    assert d in hse.loc_indices[d]._defines
+                                    root_min = hse.loc_indices[d].symbolic_min
+                                    new_min = root_min.subs(hse.loc_indices[d].root,
+                                                            hse.loc_indices[d].root.symbolic_min)
+                                    raw_loc_indices[d] = new_min
+                                else:
+                                    assert d.symbolic_min in hse.loc_indices[d].free_symbols
+                                    raw_loc_indices[d] = hse.loc_indices[d]
+
+                            hse = hse.rebuild(loc_indices=frozendict(raw_loc_indices))
+                            hs1.halo_scheme.fmapper[f] = hse
+
+                            hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
+                            imapper[it].append(hs1.halo_scheme.project(f))
 
     mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
               for i, hss in imapper.items()}
@@ -113,47 +146,6 @@ def _hoist_halospots(iet):
     return iet
 
 
-def _process_halo_to_halo(hs0, hs1, iters, scopes, hsmapper, imapper):
-
-    # Loop over the functions in the HaloSpots
-    for f, v in hs1.fmapper.items():
-        # If no time accesses, skip
-        if not hs1.halo_scheme.fmapper[f].loc_indices:
-            continue
-
-        # If the function is not in both HaloSpots, skip
-        if (*hs0.functions, *hs1.functions).count(f) < 2:
-            continue
-
-        for iter in iters:
-            # If also merge-able we can start hoisting the latter
-            for dep in scopes[iter].d_flow.project(f):
-                if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
-                    break
-            else:
-                hse = hs1.halo_scheme.fmapper[f]
-                raw_loc_indices = {}
-                # Entering here means we can lift, and we need to update
-                # the loc_indices with known values
-                # TODO: Can I get this in a more elegant way?
-                for d in hse.loc_indices:
-                    if hse.loc_indices[d].is_Symbol:
-                        assert d in hse.loc_indices[d]._defines
-                        root_min = hse.loc_indices[d].symbolic_min
-                        new_min = root_min.subs(hse.loc_indices[d].root,
-                                                hse.loc_indices[d].root.symbolic_min)
-                        raw_loc_indices[d] = new_min
-                    else:
-                        assert d.symbolic_min in hse.loc_indices[d].free_symbols
-                        raw_loc_indices[d] = hse.loc_indices[d]
-
-                hse = hse.rebuild(loc_indices=frozendict(raw_loc_indices))
-                hs1.halo_scheme.fmapper[f] = hse
-
-                hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
-                imapper[iter].append(hs1.halo_scheme.project(f))
-
-
 def _merge_halospots(iet):
     """
     Merge HaloSpots on the same Iteration tree level where all data dependencies
@@ -161,7 +153,7 @@ def _merge_halospots(iet):
     """
 
     # Analysis
-    cond_mapper = _create_cond_mapper(iet)
+    cond_mapper = _make_cond_mapper(iet)
 
     mapper = {}
     for iter, halo_spots in MapNodes(Iteration, HaloSpot, 'immediate').visit(iet).items():
@@ -363,7 +355,7 @@ def mpiize(graph, **kwargs):
 
 # Utility functions to avoid code duplication
 
-def _create_cond_mapper(iet):
+def _make_cond_mapper(iet):
     cond_mapper = MapHaloSpots().visit(iet)
     return {hs: {i for i in v if i.is_Conditional and
                  not isinstance(i.condition, GuardFactorEq)}
