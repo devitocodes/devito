@@ -106,6 +106,14 @@ def iso_stencil(field, model, kernel, **kwargs):
         eqns.append(freesurface(model, Eq(unext, eq_time)))
     return eqns
 
+def create_snapshot_time_function(model, name, geometry, space_order, factor, save=True):
+    nsnaps = (geometry.nt + factor - 1) // factor
+    time_subsampled = ConditionalDimension('t_sub', 
+                                            parent=model.grid.time_dim, factor=factor)
+    u_ = TimeFunction(name=name, grid=model.grid, 
+                        time_order=2, space_order=space_order,
+                        save=nsnaps if save else None, time_dim=time_subsampled)
+    return u_
 
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', factor=None, **kwargs):
@@ -133,8 +141,9 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
-                     save=geometry.nt if save else None,
+                     save=geometry.nt if save and factor is None else None,
                      time_order=2, space_order=space_order)
+    
     src = geometry.src
     rec = geometry.rec
 
@@ -146,28 +155,18 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u)
+
     # Build operator equations
     equations = eqn + src_term + rec_term
 
     if factor:
-        # Implement snapshotting
-        nsnaps = (geometry.nt + factor - 1) // factor
-        time_subsampled = ConditionalDimension(
-            't_sub', parent=model.grid.time_dim, factor=factor)
-        usnaps = TimeFunction(name='usnaps', grid=model.grid,
-                              time_order=2, space_order=space_order,
-                              save=nsnaps, time_dim=time_subsampled)
         # Add equation to save snapshots
+        usnaps = create_snapshot_time_function(model, 'usnaps', geometry, space_order, factor)
         snapshot_eq = Eq(usnaps, u)
         equations += [snapshot_eq]
-    else:
-        usnaps = None
+    
     # Substitute spacing terms to reduce flops
-    op = Operator(equations, subs=model.spacing_map, name='Forward', **kwargs)
-    if usnaps is not None:
-        return op, usnaps
-    else:
-        return op
+    return Operator(equations, subs=model.spacing_map, name='Forward', **kwargs)
 
 
 def AdjointOperator(model, geometry, space_order=4,
@@ -210,8 +209,8 @@ def AdjointOperator(model, geometry, space_order=4,
 
 def GradientOperator(model, geometry, space_order=4, save=True,
                      kernel='OT2', factor=None, **kwargs):
-     """
-    Construct a gradient operator in an acoustic media.
+    """
+    Construct a gradient operator in an acoustic medium.
 
     Parameters
     ----------
@@ -231,54 +230,33 @@ def GradientOperator(model, geometry, space_order=4, save=True,
     """
     m = model.m
 
-    # Gradient symbol
+    # Gradient symbol and wavefield symbols
     grad = Function(name='grad', grid=model.grid)
-
-    # Create the adjoint wavefield
-    v = TimeFunction(name='v', grid=model.grid, time_order=2, space_order=space_order)
+    if factor: # Apply the imaging condition at the snapshots of the full wavefield
+        u = create_snapshot_time_function(model, 'u', geometry, space_order, factor)
+    else:# Apply the imaging condition at every time step of the full wavefield
+        u = TimeFunction(name='u', grid=model.grid,
+                         save=geometry.nt if save else None,
+                         time_order=2, space_order=space_order) 
+    v = TimeFunction(name='v', grid=model.grid, save=None, 
+                     time_order=2, space_order=space_order)
+    rec = geometry.rec
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, model, kernel, forward=False)
-
-    # Add expression for receiver injection
-    rec = geometry.rec
+    
+    if kernel == 'OT2':
+        gradient_update = Inc(grad, - u * v.dt2)
+    elif kernel == 'OT4':
+        gradient_update = Inc(grad, - u * v.dt2
+                                - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
+        
+     # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
-
-    time = model.grid.time_dim
-
-    if factor is not None:
-        # Condition to apply gradient update only at snapshot times
-        condition = Eq(time % factor, 0)
-        # Create the ConditionalDimension for subsampling
-        time_subsampled = ConditionalDimension('t_sub', parent=time, factor=factor)
-        # Define usnaps with time_subsampled as its time dimension
-        nsnaps = (geometry.nt + factor - 1) // factor
-        usnaps = TimeFunction(name='usnaps', grid=model.grid,
-                              time_order=2, space_order=space_order,
-                              save=nsnaps, time_dim=time_subsampled)
-        # Gradient update without indexing usnaps
-        if kernel == 'OT2':
-            gradient_update = Inc(grad, - usnaps * v.dt2, implicit_dims=[time_subsampled],
-                                  condition=condition)
-        elif kernel == 'OT4':
-            gradient_update = Inc(grad, - usnaps * v.dt2
-                                  - s**2 / 12.0 * usnaps.biharmonic(m**(-2)) * v,
-                                  implicit_dims=[time_subsampled],
-                                  condition=condition)
-    else:
-        u = TimeFunction(name='u', grid=model.grid,
-                         save=geometry.nt if save else None,
-                         time_order=2, space_order=space_order)
-        if kernel == 'OT2':
-            gradient_update = Inc(grad, - u * v.dt2)
-        elif kernel == 'OT4':
-            gradient_update = Inc(grad, - u * v.dt2
-                                  - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
-            
+    
     # Substitute spacing terms to reduce flops
-    op = Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
+    return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
                   name='Gradient', **kwargs)
-    return op
 
 
 def BornOperator(model, geometry, space_order=4,

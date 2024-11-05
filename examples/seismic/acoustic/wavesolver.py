@@ -1,7 +1,7 @@
 from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
 from devito.tools import memoized_meth
-from devitofwi.devito.acoustic.operators import (
-    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+from examples.seismic.acoustic.operators import (
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator, create_snapshot_time_function
 )
 
 
@@ -100,35 +100,29 @@ class AcousticWaveSolver:
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
-        # Create a new receiver object to store the result
+        # Create a new receiver object to store the result 
         rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.geometry.nt if save else None,
-                              time_order=2, space_order=self.space_order)
-
+                                save=self.geometry.nt if save and factor is None else None,
+                                time_order=2, space_order=self.space_order)
+        if factor: # Create snapshots of the forward wavefield
+            usnaps = create_snapshot_time_function(self.model, 'usnaps', self.geometry, self.space_order, factor)
+        
         model = model or self.model
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
-        # Get the operator
-        op_fwd = self.op_fwd(save=save, factor=factor)
-        # Prepare parameters for operator apply
-        op_args = {'src': src, 'rec': rec, 'u': u, 'dt': kwargs.pop('dt', self.dt)}
-        op_args.update(kwargs)
 
         # Execute operator and return wavefield and receiver data
-        if factor:
-            # Operator returned is op, usnaps
-            op, usnaps = op_fwd
-            op_args['usnaps'] = usnaps
-            summary = op.apply(**op_args)
-            
-        else:
-            op = op_fwd
-            usnaps = None
-            summary = op.apply(**op_args)
-        return rec, u, usnaps, summary
+        if factor: # Return snapshots of the forward wavefield
+            summary = self.op_fwd(save, factor).apply(src=src, rec=rec, u=u, usnaps=usnaps,
+                                        dt=kwargs.pop('dt', self.dt), **kwargs)
+            return rec, usnaps, summary
+        else:# Return the full forward wavefield
+            summary = self.op_fwd(save, factor).apply(src=src, rec=rec, u=u,
+                                        dt=kwargs.pop('dt', self.dt), **kwargs)
+            return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, model=None, **kwargs):
         """
@@ -160,7 +154,7 @@ class AcousticWaveSolver:
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
-
+        
         model = model or self.model
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
@@ -170,7 +164,7 @@ class AcousticWaveSolver:
                                       dt=kwargs.pop('dt', self.dt), **kwargs)
         return srca, v, summary
 
-    def jacobian_adjoint(self, rec, u=None, usnaps=None, src=None, v=None, grad=None, model=None,
+    def jacobian_adjoint(self, rec, u, src=None, v=None, grad=None, model=None,
                          factor=None, checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
@@ -236,16 +230,8 @@ class AcousticWaveSolver:
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:
-            if factor is not None:
-                # Get the gradient operator
-                op = self.op_grad(save=False, factor=factor)
-                op_args = {'rec': rec, 'grad': grad, 'v': v, 'dt': dt, 'usnaps': usnaps}
-            else:
-                op = self.op_grad(save=True, factor=None)
-                op_args = {'rec': rec, 'grad': grad, 'v': v, 'dt': dt, 'u': u}
-
-            op_args.update(kwargs)
-            summary = op.apply(**op_args)
+            summary = self.op_grad(factor=factor).apply(rec=rec, grad=grad, v=v, u=u, dt=dt,
+                                           **kwargs)
 
         return grad, summary
 
