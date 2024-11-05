@@ -65,12 +65,11 @@ jobs:
         python3 scripts/clear_devito_cache.py
 
     - name: Test mpi notebooks
-      continue-on-error: true
       run : |
         ./scripts/create_ipyparallel_mpi_profile.sh
         ipcluster start --profile=mpi --engines=mpi -n 4 --daemonize
         # A few seconds to ensure workers are ready
-        sleep 20
+        sleep 10
         py.test --nbval examples/mpi
         ipcluster stop --profile=mpi
 
