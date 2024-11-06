@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted)
+                          frozendict, is_integer, filter_sorted, OrderedSet)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -28,17 +28,15 @@ IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
 
-class HaloSchemeEntry:
+class HaloSchemeEntry(Reconstructable):
+
+    __rkwargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
 
     def __init__(self, loc_indices, loc_dirs, halos, dims):
         self.loc_indices = loc_indices
         self.loc_dirs = loc_dirs
         self.halos = halos
         self.dims = dims
-
-    def __repr__(self):
-        return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
-                f"loc_dirs={self.loc_dirs}, halos={self.halos}, dims={self.dims})")
 
     def __eq__(self, other):
         if not isinstance(other, HaloSchemeEntry):
@@ -54,12 +52,9 @@ class HaloSchemeEntry:
                      frozenset(self.halos),
                      frozenset(self.dims)))
 
-    def rebuild(self, **kwargs):
-        loc_indices = kwargs.get('loc_indices', self.loc_indices)
-        loc_dirs = kwargs.get('loc_dirs', self.loc_dirs)
-        halos = kwargs.get('halos', self.halos)
-        dims = kwargs.get('dims', self.dims)
-        return HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
+    def __repr__(self):
+        return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
+                f"loc_dirs={self.loc_dirs}, halos={self.halos}, dims={self.dims})")
 
 
 Halo = namedtuple('Halo', 'dim side')
@@ -128,7 +123,7 @@ class HaloScheme:
     def __repr__(self):
         fstrings = []
         for f in self.fmapper:
-            loc_indices = set().union(*[self._mapper[f].loc_indices.values()])
+            loc_indices = OrderedSet(*(self._mapper[f].loc_indices.values()))
             loc_indices_str = str(list(loc_indices)) if loc_indices else ""
 
             fstrings.append(f"{f.name}{loc_indices_str}")
