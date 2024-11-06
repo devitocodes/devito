@@ -109,7 +109,6 @@ def _hoist_halospots(iet):
                         continue
 
                     for it in iters:
-                        # If also merge-able we can start hoisting the latter
                         for dep in scopes[it].d_flow.project(f):
                             if not any(r(dep, hs1, v.loc_indices) for r in merge_rules()):
                                 break
@@ -120,17 +119,18 @@ def _hoist_halospots(iet):
                             # the loc_indices with known values
                             # TODO: Can I get this in a more elegant way?
                             for d in hse.loc_indices:
-                                if hse.loc_indices[d].is_Symbol:
-                                    assert d in hse.loc_indices[d]._defines
-                                    root_min = hse.loc_indices[d].symbolic_min
-                                    new_min = root_min.subs(hse.loc_indices[d].root,
-                                                            hse.loc_indices[d].root.symbolic_min)
+                                md = hse.loc_indices[d]
+                                if md.is_Symbol:
+                                    root = md.root
+                                    hse_min = md.symbolic_min
+                                    new_min = hse_min.subs(root, root.symbolic_min)
                                     raw_loc_indices[d] = new_min
                                 else:
-                                    assert d.symbolic_min in hse.loc_indices[d].free_symbols
-                                    raw_loc_indices[d] = hse.loc_indices[d]
+                                    # md is in form of an expression
+                                    assert d.symbolic_min in md.free_symbols
+                                    raw_loc_indices[d] = md
 
-                            hse = hse.rebuild(loc_indices=frozendict(raw_loc_indices))
+                            hse = hse._rebuild(loc_indices=frozendict(raw_loc_indices))
                             hs1.halo_scheme.fmapper[f] = hse
 
                             hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
