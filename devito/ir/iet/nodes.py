@@ -16,7 +16,7 @@ from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC
                                Forward, WithLock, PrefetchUpdate, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          ctypes_to_cstr)
+                          ctypes_to_cstr, OrderedSet)
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
@@ -1459,7 +1459,7 @@ class HaloSpot(Node):
     def __repr__(self):
         fstrings = []
         for f in self.functions:
-            loc_indices = set().union(*[self.halo_scheme.fmapper[f].loc_indices.values()])
+            loc_indices = OrderedSet(*(self.halo_scheme.fmapper[f].loc_indices.values()))
             loc_indices_str = str(list(loc_indices)) if loc_indices else ""
 
             fstrings.append(f"{f.name}{loc_indices_str}")
