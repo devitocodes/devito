@@ -694,6 +694,11 @@ class TestCaching:
         # Now we should be back to the original state plus the dimension bounds
         # (x_m, x_M, y_m, y_M)
         assert len(_SymbolCache) == init_cache_size + 4
+        # Delete the grid and check that all symbols are subsequently garbage collected
+        del grid
+        for n in (10, 3, 0):
+            clear_cache()
+            assert len(_SymbolCache) == n
 
     def test_after_indexification(self):
         """
