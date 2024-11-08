@@ -315,6 +315,12 @@ _DevitoPRO only._
 
 Requires: `PLATFORM=amdgpuX` and `ARCH=hip`.
 
+#### LANGUAGE=sycl
+
+_DevitoPRO only._
+
+Requires: `PLATFORM=intelgpuX` or `PLATFORM=intel64`, and `ARCH=sycl`.
+
 [top](#Frequently-Asked-Questions)
 
 ## How do you run the unit tests from the command line
