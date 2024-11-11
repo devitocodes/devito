@@ -571,8 +571,6 @@ class Thickness(DataSymbol):
         return self._value
 
     def _arg_check(self, *args, **kwargs):
-        # TODO: Should check that the thickness isn't larger than the parent
-        # domain
         pass
 
     def _arg_values(self, grid=None, **kwargs):
@@ -580,22 +578,22 @@ class Thickness(DataSymbol):
         # However, arguments from the user are considered global
         # So overriding the thickness to a nonzero value should not cause
         # boundaries to exist between ranks where they did not before
-        r_tkn = kwargs.get(self.name, self.value)
+        rtkn = kwargs.get(self.name, self.value)
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             if self.local:
                 # Dimension is of type `left`/`right` - compute the offset
                 # and then add 1 to get the appropriate thickness
                 if self.value is not None:
-                    tkn = grid.distributor.glb_to_loc(self.root, r_tkn-1, self.side)
+                    tkn = grid.distributor.glb_to_loc(self.root, rtkn-1, self.side)
                     tkn = tkn+1 if tkn is not None else 0
                 else:
                     tkn = 0
             else:
                 # Dimension is of type `middle`
-                tkn = grid.distributor.glb_to_loc(self.root, r_tkn, self.side) or 0
+                tkn = grid.distributor.glb_to_loc(self.root, rtkn, self.side) or 0
         else:
-            tkn = r_tkn or 0
+            tkn = rtkn or 0
 
         return {self.name: tkn}
 
@@ -603,7 +601,6 @@ class Thickness(DataSymbol):
         return {}
 
     def _arg_apply(self, *args, **kwargs):
-        # TODO: What is this actually for?
         pass
 
 
@@ -756,9 +753,9 @@ class SubDimension(AbstractSubDimension):
                   'root': self.root, 'local': self.local}
 
         names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
+        sides = [LEFT, RIGHT]
         return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
-                                       for n, s, t
-                                       in zip(names, (LEFT, RIGHT), thickness)])
+                                       for n, s, t in zip(names, sides, thickness)])
 
     @cached_property
     def _interval(self):
