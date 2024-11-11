@@ -311,7 +311,7 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
-        mapper = self._rdim._getters.copy()
+        mapper = self._rdim.getters.copy()
 
         # Subsitution from SubDimensions to ConditionalDimensions
         smapper = {}

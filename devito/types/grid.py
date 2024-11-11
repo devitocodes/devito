@@ -840,11 +840,6 @@ class SubDomainSet(MultiSubDomain):
 
     def __subdomain_finalize_core__(self, grid):
         self._dtype = grid.dtype
-        # Create the SubDomainSet SubDimensions
-        self._dimensions = tuple(
-            MultiSubDimension('%si%d' % (d.name, self._counter(grid)), d, self)
-            for d in grid.dimensions
-        )
 
         # Compute the SubDomainSet shapes
         global_bounds = []
