@@ -109,7 +109,7 @@ ENV NVHPC_CUDA_HOME $HPCSDK_HOME/cuda
 ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
 ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
 ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
-ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/include:$HPCSDK_HOME/comm_libs/nccl/include:${CPATH}
+ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/include:$HPCSDK_HOME/comm_libs/nccl/include:$HPCSDK_HOME/math_libs/include:${CPATH}
 
 # MPI
 RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \
