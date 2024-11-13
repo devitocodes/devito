@@ -33,4 +33,5 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 --builtins=ArgumentError .
+    - name: Lint notebooks with flake8
         nbqa flake8 examples/
