@@ -1376,7 +1376,7 @@ def disjoint_test(e0, e1, d, it):
     if d.is_Custom:
         subs = {}
     elif d.is_Sub and d.is_left:
-        subs = {d.root.symbolic_min: 0, **dict([d.thickness.left])}
+        subs = {d.root.symbolic_min: 0, d.ltkn: d.ltkn.value}
     else:
         return False
 

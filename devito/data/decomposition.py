@@ -320,7 +320,7 @@ class Decomposition(tuple):
             if self.loc_empty:
                 return None
             abs_ofs, side = args
-            if side is LEFT:
+            if side == LEFT:
                 rel_ofs = self.glb_min + abs_ofs - base
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs

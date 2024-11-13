@@ -89,8 +89,7 @@ class HaloScheme:
                              if d._defines & self.dimensions])
         subdims = [d for d in dims if d.is_Sub and not d.local]
         for i in subdims:
-            ltk, _ = i.thickness.left
-            rtk, _ = i.thickness.right
+            ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
 

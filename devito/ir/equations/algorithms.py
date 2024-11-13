@@ -8,7 +8,7 @@ from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
-from devito.types.dimension import MultiSubDimension
+from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
@@ -213,18 +213,24 @@ def _(expr, mapper, rebuilt, sregistry):
     _concretize_subdims(expr.implicit_dims, mapper, rebuilt, sregistry)
 
 
+@_concretize_subdims.register(Thickness)
+def _(tkn, mapper, rebuilt, sregistry):
+    if tkn in mapper:
+        # Already have a substitution for this thickness
+        return
+
+    mapper[tkn] = tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+
+
 @_concretize_subdims.register(SubDimension)
 def _(d, mapper, rebuilt, sregistry):
     if d in mapper:
         # Already have a substitution for this dimension
         return
 
-    tkns_subs = {tkn: tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-                 for tkn in d.tkns}
-    left, right = [mM.subs(tkns_subs) for mM in (d.symbolic_min, d.symbolic_max)]
-    thickness = tuple((v, d._thickness_map[k]) for k, v in tkns_subs.items())
-
-    mapper[d] = d._rebuild(symbolic_min=left, symbolic_max=right, thickness=thickness)
+    tkns = tuple(t._rebuild(name=sregistry.make_name(prefix=t.name)) for t in d.tkns)
+    mapper.update({tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)})
+    mapper[d] = d._rebuild(thickness=tkns)
 
 
 @_concretize_subdims.register(ConditionalDimension)
@@ -261,11 +267,9 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    abstract_tkns = MultiSubDimension._symbolic_thickness(d.parent.name)
-    concrete_tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
-                          for tkn in abstract_tkns)
-
-    kwargs = {'thickness': concrete_tkns}
+    tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
+                 for tkn in d.thickness)
+    kwargs = {'thickness': tkns}
     fkwargs = {}
 
     idim0 = d.implicit_dimension

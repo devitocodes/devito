@@ -31,6 +31,8 @@ from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tup
                           split, timed_pass, timed_region, contains_val)
 from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
                           disk_layer)
+from devito.types.dimension import Thickness
+
 
 __all__ = ['Operator']
 
@@ -639,6 +641,11 @@ class Operator(Callable):
         # Process Dimensions
         for d in reversed(toposort):
             args.update(d._arg_values(self._dspace[d], grid, **kwargs))
+
+        # Process Thicknesses
+        for p in self.parameters:
+            if isinstance(p, Thickness):
+                args.update(p._arg_values(grid=grid, **kwargs))
 
         # Process Objects
         for o in self.objects:
