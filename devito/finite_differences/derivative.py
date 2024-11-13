@@ -218,8 +218,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         else:
             return as_tuple(weights)
 
-    def __call__(self, x0=None, fd_order=None, side=None, method=None,
-                 weights=None, w=None):
+    def __call__(self, x0=None, fd_order=None, side=None, method=None, **kwargs):
+        weights = kwargs.get('weights', kwargs.get('w'))
         rkw = {}
         if side is not None:
             rkw['side'] = side
@@ -227,8 +227,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             rkw['method'] = method
         if weights is not None:
             rkw['weights'] = weights
-        if w is not None:
-            rkw['weights'] = w
 
         if x0 is not None:
             x0 = self._process_x0(self.dims, x0=x0)
