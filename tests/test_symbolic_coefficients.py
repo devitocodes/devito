@@ -3,7 +3,7 @@ import sympy as sp
 import pytest
 
 from devito import (Grid, Function, TimeFunction, Eq,
-                    Dimension, solve, Operator)
+                    Dimension, solve, Operator, div, grad, laplace)
 from devito.finite_differences import Differentiable
 from devito.finite_differences.coefficients import Coefficient, Substitutions
 from devito.finite_differences.finite_difference import _PRECISION
@@ -300,3 +300,27 @@ class TestSC:
 
         # `str` simply because some objects are of type EvalDerivative
         assert sp.simplify(eq.evaluate.rhs - (term0 + term1 + term2)) == 0
+
+    def test_operators(self):
+        grid = Grid(shape=(11, 11))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        coeffs0 = [100, 100, 100]
+
+        # Div
+        expr0 = div(f, w=coeffs0)
+        assert expr0 == f.dx(weights=coeffs0) + f.dy(weights=coeffs0)
+        assert list(expr0.args[0].weights) == coeffs0
+
+        # Grad
+        expr2 = grad(f, w=coeffs0)
+        assert expr2[0] == f.dx(weights=coeffs0)
+        assert expr2[1] == f.dy(weights=coeffs0)
+        assert list(expr2[0].weights) == coeffs0
+
+        # Laplace
+        expr3 = laplace(f, w=coeffs0)
+        assert expr3 == f.dx2(weights=coeffs0) + f.dy2(weights=coeffs0)
+        assert list(expr3.args[0].weights) == coeffs0

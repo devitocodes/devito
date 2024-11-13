@@ -188,7 +188,7 @@ class TensorFunction(AbstractTensor):
         else:
             return super().values()
 
-    def div(self, shift=None, order=None, method='FD'):
+    def div(self, shift=None, order=None, method='FD', w=None):
         """
         Divergence of the TensorFunction (is a VectorFunction).
 
@@ -211,7 +211,7 @@ class TensorFunction(AbstractTensor):
         for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
                               (x0=shift_x0(shift, d, i, j), fd_order=order,
-                               method=method)
+                               method=method, w=w)
                               for j, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
@@ -222,7 +222,7 @@ class TensorFunction(AbstractTensor):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None):
+    def laplacian(self, shift=None, order=None, method='FD', w=None):
         """
         Laplacian of the TensorFunction with shifted derivatives and custom
         FD order.
@@ -246,11 +246,12 @@ class TensorFunction(AbstractTensor):
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         for j in range(ndim):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
-                              (x0=shift_x0(shift, d, j, i), fd_order=order)
+                              (x0=shift_x0(shift, d, j, i), fd_order=order,
+                               method=method, w=w)
                               for i, d in enumerate(self.space_dimensions)]))
         return func._new(comps)
 
-    def grad(self, shift=None, order=None):
+    def grad(self, shift=None, order=None, method=None, w=None):
         raise AttributeError("Gradient of a second order tensor not supported")
 
     def new_from_mat(self, mat):
@@ -313,7 +314,7 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    def div(self, shift=None, order=None, method='FD'):
+    def div(self, shift=None, order=None, method='FD', w=None):
         """
         Divergence of the VectorFunction, creates the divergence Function.
 
@@ -331,7 +332,7 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                     fd_order=order, method=method)
+                                                     fd_order=order, method=method, w=w)
                     for i, d in enumerate(self.space_dimensions)])
 
     @property
@@ -341,7 +342,7 @@ class VectorFunction(TensorFunction):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None):
+    def laplacian(self, shift=None, order=None, method='FD', w=None):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
 
@@ -357,12 +358,12 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         comps = [sum([getattr(s, 'd%s2' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                  fd_order=order)
+                                                  fd_order=order, w=w, method=method)
                       for i, d in enumerate(self.space_dimensions)])
                  for s in self]
         return func._new(comps)
 
-    def curl(self, shift=None, order=None, method='FD'):
+    def curl(self, shift=None, order=None, method='FD', w=None):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
 
@@ -385,21 +386,21 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
         order = order or self.space_order
         comp1 = (getattr(self[2], derivs[1])(x0=shift_x0(shift, dims[1], 2, 1),
-                                             fd_order=order, method=method) -
+                                             fd_order=order, method=method, w=w) -
                  getattr(self[1], derivs[2])(x0=shift_x0(shift, dims[2], 1, 2),
-                                             fd_order=order, method=method))
+                                             fd_order=order, method=method, w=w))
         comp2 = (getattr(self[0], derivs[2])(x0=shift_x0(shift, dims[2], 0, 2),
-                                             fd_order=order, method=method) -
+                                             fd_order=order, method=method, w=w) -
                  getattr(self[2], derivs[0])(x0=shift_x0(shift, dims[0], 2, 0),
-                                             fd_order=order, method=method))
+                                             fd_order=order, method=method, w=w))
         comp3 = (getattr(self[1], derivs[0])(x0=shift_x0(shift, dims[0], 1, 0),
-                                             fd_order=order, method=method) -
+                                             fd_order=order, method=method, w=w) -
                  getattr(self[0], derivs[1])(x0=shift_x0(shift, dims[1], 0, 1),
-                                             fd_order=order, method=method))
+                                             fd_order=order, method=method, w=w))
         func = vec_func(self)
         return func._new(3, 1, [comp1, comp2, comp3])
 
-    def grad(self, shift=None, order=None, method='FD'):
+    def grad(self, shift=None, order=None, method='FD', w=None):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
 
@@ -418,7 +419,7 @@ class VectorFunction(TensorFunction):
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
-        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j),
+        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j), w=w,
                                              fd_order=order, method=method)
                   for j, d in enumerate(self.space_dimensions)]
                  for i, f in enumerate(self)]

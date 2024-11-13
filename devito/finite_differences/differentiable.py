@@ -293,7 +293,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None):
+    def laplacian(self, shift=None, order=None, method='FD', w=None):
         """
         Laplacian of the Differentiable with shifted derivatives and custom
         FD order.
@@ -315,10 +315,10 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
-                                      fd_order=order)
+                                      method=method, fd_order=order, w=w)
                      for i, d in enumerate(derivs)])
 
-    def div(self, shift=None, order=None, method='FD'):
+    def div(self, shift=None, order=None, method='FD', w=None):
         """
         Divergence of the input Function.
 
@@ -339,10 +339,10 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                   fd_order=order, method=method)
+                                                   fd_order=order, method=method, w=w)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None, order=None, method='FD'):
+    def grad(self, shift=None, order=None, method='FD', w=None):
         """
         Gradient of the input Function.
 
@@ -364,7 +364,7 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                               fd_order=order, method=method)
+                                               fd_order=order, method=method, w=w)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
