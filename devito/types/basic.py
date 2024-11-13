@@ -526,7 +526,7 @@ class Symbol(AbstractSymbol, Cached):
     __hash__ = Cached.__hash__
 
 
-class DataSymbol(AbstractSymbol, Uncached):
+class DataSymbol(AbstractSymbol, Uncached, ArgProvider):
 
     """
     A unique scalar symbol that carries data.

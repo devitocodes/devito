@@ -2,13 +2,12 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.logger import warning
-from devito.types.args import ArgProvider
 from devito.types.basic import DataSymbol
 
 __all__ = ['Constant']
 
 
-class Constant(DataSymbol, ArgProvider):
+class Constant(DataSymbol):
 
     """
     Symbol representing a constant, scalar value in symbolic equations.
