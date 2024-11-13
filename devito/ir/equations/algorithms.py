@@ -206,7 +206,12 @@ def _(v, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(Eq)
 def _(expr, mapper, rebuilt, sregistry):
-    for d in expr.free_symbols:
+    # Split and reorder symbols so SubDimensions are processed before lone Thicknesses
+    # This means that if a Thickness appears both in the expression and attached to
+    # a SubDimension, it gets concretised with the SubDimension.
+    thicknesses = {i for i in expr.free_symbols if isinstance(i, Thickness)}
+    symbols = expr.free_symbols.difference(thicknesses)
+    for d in tuple(symbols) + tuple(thicknesses):
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 
     # Subdimensions can be hiding in implicit dims
