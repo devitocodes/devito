@@ -1458,16 +1458,16 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         offsets = []
         for d in self.dimensions:
             if d.is_Sub:
-                ((l_sym, l_val), (r_sym, r_val)) = d.thickness
-                if l_val is None:
+                l_tkn, r_tkn = d.tkns
+                if l_tkn.value is None:
                     # Right subdimension
-                    offsets.append(-r_sym + d.symbolic_max + 1)
-                elif r_val is None:
+                    offsets.append(-r_tkn + d.symbolic_max + 1)
+                elif r_tkn.value is None:
                     # Left subdimension
                     offsets.append(0)
                 else:
                     # Middle subdimension
-                    offsets.append(l_sym)
+                    offsets.append(l_tkn)
             else:
                 offsets.append(0)
         return tuple(offsets)
