@@ -580,7 +580,7 @@ class SubDistributor(DenseDistributor):
         for d in self.dimensions:
             if d.is_Sub:
                 # Need to filter None from thicknesses as used as placeholder
-                tkn_map = {k: v for k, v in d._thickness_map.items() if v is not None}
+                tkn_map = {tkn: tkn.value for tkn in d.thickness if tkn.value is not None}
                 tkn_map.update(bounds_map)
                 # Evaluate SubDimension thicknesses and substitute into Interval
                 sd_interval.append(d._interval.subs(tkn_map))
