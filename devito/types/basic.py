@@ -297,7 +297,7 @@ class Basic(CodeSymbol):
         return set()
 
 
-class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable, ArgProvider):
+class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     """
     Base class for scalar symbols.
@@ -526,7 +526,7 @@ class Symbol(AbstractSymbol, Cached):
     __hash__ = Cached.__hash__
 
 
-class DataSymbol(AbstractSymbol, Uncached):
+class DataSymbol(AbstractSymbol, Uncached, ArgProvider):
 
     """
     A unique scalar symbol that carries data.
@@ -549,7 +549,7 @@ class DataSymbol(AbstractSymbol, Uncached):
     __hash__ = Uncached.__hash__
 
 
-class Scalar(Symbol):
+class Scalar(Symbol, ArgProvider):
 
     """
     Like a Symbol, but in addition it can pass runtime values to an Operator.
