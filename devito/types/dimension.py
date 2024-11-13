@@ -570,9 +570,6 @@ class Thickness(DataSymbol):
     def value(self):
         return self._value
 
-    def _arg_check(self, *args, **kwargs):
-        pass
-
     def _arg_values(self, grid=None, **kwargs):
         # Allow override of thickness values to disable BCs
         # However, arguments from the user are considered global
@@ -596,12 +593,6 @@ class Thickness(DataSymbol):
             tkn = rtkn or 0
 
         return {self.name: tkn}
-
-    def _arg_finalize(self, *args, **kwargs):
-        return {}
-
-    def _arg_apply(self, *args, **kwargs):
-        pass
 
 
 class AbstractSubDimension(DerivedDimension):
