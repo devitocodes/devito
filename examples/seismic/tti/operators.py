@@ -1,5 +1,6 @@
 from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
                     cos, sin, sqrt, div, grad)
+from devito.types import Buffer
 from examples.seismic.acoustic.operators import freesurface
 
 
@@ -438,10 +439,12 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid, staggered=stagg_u,
-                     save=geometry.nt if save else None,
+                     # save=geometry.nt if save else None,
+                     save=Buffer(2),
                      time_order=time_order, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, staggered=stagg_v,
-                     save=geometry.nt if save else None,
+                     # save=geometry.nt if save else None,
+                     save=Buffer(2),
                      time_order=time_order, space_order=space_order)
     src = geometry.src
     rec = geometry.rec

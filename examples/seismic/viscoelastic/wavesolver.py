@@ -1,5 +1,6 @@
 from devito import VectorTimeFunction, TensorTimeFunction
 from devito.tools import memoized_meth
+from devito.types import Buffer
 from examples.seismic.viscoelastic.operators import ForwardOperator
 
 
@@ -92,7 +93,9 @@ class ViscoelasticWaveSolver:
         rec2 = rec2 or self.geometry.new_rec(name='rec2')
 
         # Create all the fields v, tau, r
-        save_t = src.nt if save else None
+        # save_t = src.nt if save else None
+        save_t = Buffer(1)
+
         v = v or VectorTimeFunction(name="v", grid=self.model.grid, save=save_t,
                                     time_order=1, space_order=self.space_order)
         # Stress:

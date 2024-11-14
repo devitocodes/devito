@@ -1,7 +1,9 @@
 # coding: utf-8
 from devito import (Function, TimeFunction, warning, NODE,
                     DevitoCheckpoint, CheckpointOperator, Revolver)
+from devito import norm
 from devito.tools import memoized_meth
+from devito.types import Buffer
 from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
 from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
 from examples.seismic.tti.operators import particle_velocity_fields
@@ -130,13 +132,15 @@ class AnisotropicWaveSolver:
         # Create the forward wavefield if not provided
         if u is None:
             u = TimeFunction(name='u', grid=self.model.grid, staggered=stagg_u,
-                             save=self.geometry.nt if save else None,
+                             # save=self.geometry.nt if save else None,
+                             save=Buffer(2),
                              time_order=time_order,
                              space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeFunction(name='v', grid=self.model.grid, staggered=stagg_v,
-                             save=self.geometry.nt if save else None,
+                             # save=self.geometry.nt if save else None,
+                             save=Buffer(2),
                              time_order=time_order,
                              space_order=self.space_order)
 
@@ -155,6 +159,11 @@ class AnisotropicWaveSolver:
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, v=v,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        print(norm(rec))
+        print(norm(u))
+        print(norm(v))
+
         return rec, u, v, summary
 
     def adjoint(self, rec, srca=None, p=None, r=None, model=None,

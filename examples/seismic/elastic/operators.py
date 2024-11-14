@@ -1,6 +1,6 @@
 from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
 from devito import div, grad, diag, solve
-
+from devito.types import Buffer
 
 def src_rec(v, tau, model, geometry):
     """
@@ -41,10 +41,12 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     """
 
     v = VectorTimeFunction(name='v', grid=model.grid,
-                           save=geometry.nt if save else None,
+                           save=save if save else None,
+                           # save=Buffer(1),
                            space_order=space_order, time_order=1)
     tau = TensorTimeFunction(name='tau', grid=model.grid,
-                             save=geometry.nt if save else None,
+                             # save=Buffer(1),
+                             save=save if save else None,
                              space_order=space_order, time_order=1)
 
     lam, mu, b = model.lam, model.mu, model.b

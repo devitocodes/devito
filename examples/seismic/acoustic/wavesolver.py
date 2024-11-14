@@ -1,4 +1,6 @@
 from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
+from devito import norm
+from devito.types import Buffer
 from devito.tools import memoized_meth
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -102,7 +104,8 @@ class AcousticWaveSolver:
 
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.geometry.nt if save else None,
+                              save=self.geometry.nt if save else Buffer(3),
+                              # save=self.geometry.nt if save else None,
                               time_order=2, space_order=self.space_order)
 
         model = model or self.model
@@ -112,6 +115,9 @@ class AcousticWaveSolver:
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
+
+        print(norm(rec))
+        print(norm(u))
 
         return rec, u, summary
 
