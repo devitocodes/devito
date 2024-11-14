@@ -33,8 +33,8 @@ class HaloSchemeEntry(Reconstructable):
     __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
 
     def __init__(self, loc_indices, loc_dirs, halos, dims):
-        self.loc_indices = loc_indices
-        self.loc_dirs = loc_dirs
+        self.loc_indices = frozendict(loc_indices)
+        self.loc_dirs = frozendict(loc_dirs)
         self.halos = halos
         self.dims = dims
 
@@ -596,7 +596,7 @@ def process_loc_indices(raw_loc_indices, directions):
     known = set().union(*[i._defines for i in loc_indices])
     loc_dirs = {d: v for d, v in directions.items() if d in known}
 
-    return frozendict(loc_indices), frozendict(loc_dirs)
+    return loc_indices, loc_dirs
 
 
 class HaloTouch(sympy.Function, Reconstructable):
@@ -674,8 +674,7 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     # Nope, let's try with the next Indexed, if any
                     continue
 
-                hse = hse0._rebuild(loc_indices=frozendict(loc_indices),
-                                    loc_dirs=frozendict(loc_dirs))
+                hse = hse0._rebuild(loc_indices=loc_indices, loc_dirs=loc_dirs)
 
             else:
                 continue
