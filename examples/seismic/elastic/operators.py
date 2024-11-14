@@ -10,16 +10,16 @@ def src_rec(v, tau, model, geometry):
     # Source symbol with input wavelet
     src = geometry.src
     rec1 = geometry.new_rec(name="rec1")
-    rec2 = geometry.new_rec(name="rec2")
+    # rec2 = geometry.new_rec(name="rec2")
 
     # The source injection term
     src_expr = src.inject(tau.forward.diagonal(), expr=src * s)
 
     # Create interpolation expression for receivers
     rec_term1 = rec1.interpolate(expr=tau[-1, -1])
-    rec_term2 = rec2.interpolate(expr=div(v))
+    # rec_term2 = rec2.interpolate(expr=div(v))
 
-    return src_expr + rec_term1 + rec_term2
+    return src_expr + rec_term1
 
 
 def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
