@@ -1461,12 +1461,10 @@ class HaloSpot(Node):
         for f in self.functions:
             loc_indices = OrderedSet(*(self.halo_scheme.fmapper[f].loc_indices.values()))
             loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-
-            fstrings.append(f"{f.name}{loc_indices_str}")
+            fstrings.append("%s%s" % (f.name, loc_indices_str))
 
         functions = ",".join(fstrings)
-
-        return f"<{self.__class__.__name__}({functions})>"
+        return "<%s(%s)>" % (self.__class__.__name__, functions)
 
     @property
     def halo_scheme(self):
