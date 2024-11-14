@@ -1,6 +1,6 @@
 from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign
 from devito.symbolics import retrieve_functions, INT, retrieve_derivatives
-
+from devito.types import Buffer
 
 def freesurface(model, eq):
     """
@@ -131,8 +131,10 @@ def ForwardOperator(model, geometry, space_order=4,
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
-                     save=geometry.nt if save else None,
-                     time_order=2, space_order=space_order)
+                    save=geometry.nt if save else Buffer(3),
+                    # save=geometry.nt if save else None,
+                    time_order=2, space_order=space_order)
+
     src = geometry.src
     rec = geometry.rec
 
