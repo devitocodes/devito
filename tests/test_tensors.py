@@ -5,7 +5,7 @@ from sympy import Rational
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
-from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl
+from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl, laplace
 from devito.symbolics import retrieve_derivatives
 from devito.types import NODE
 
@@ -401,3 +401,40 @@ def test_basic_arithmetic():
 
     t1 = tau * 2
     assert all(t1i == ti * 2 for (t1i, ti) in zip(t1, tau))
+
+
+def test_custom_coeffs_vector():
+    grid = Grid(tuple([5]*3))
+    v = VectorFunction(name="v", grid=grid, space_order=2)
+
+    # Custom coefficients
+    c = [10, 10, 10]
+
+    dv = div(v, weights=c)
+    assert dv == v[0].dx(w=c) + v[1].dy(w=c) + v[2].dz(w=c)
+    assert list(dv.args[0].weights) == c
+
+    for func in [div, grad, curl, laplace]:
+        dv = func(v, weights=c)
+        derivs = retrieve_derivatives(dv)
+        for drv in derivs:
+            assert list(drv.weights) == c
+
+
+def test_custom_coeffs_tensor():
+    grid = Grid(tuple([5]*3))
+    tau = TensorFunction(name="tau", grid=grid, space_order=2)
+
+    # Custom coefficients
+    c = [10, 10, 10]
+
+    dtau = div(tau, weights=c)
+    for i, d in enumerate(grid.dimensions):
+        assert dtau[i] == tau[i, 0].dx(w=c) + tau[i, 1].dy(w=c) + tau[i, 2].dz(w=c)
+        assert list(dtau[i].args[0].weights) == c
+
+    for func in [div, laplace]:
+        dtau = func(tau, weights=c)
+        derivs = retrieve_derivatives(dtau)
+        for drv in derivs:
+            assert list(drv.weights) == c

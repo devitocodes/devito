@@ -293,7 +293,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None):
+    def laplacian(self, shift=None, order=None, method='FD', **kwargs):
         """
         Laplacian of the Differentiable with shifted derivatives and custom
         FD order.
@@ -309,16 +309,22 @@ class Differentiable(sympy.Expr, Evaluable):
         order: int, optional, default=None
             Discretization order for the finite differences.
             Uses `func.space_order` when not specified
+        method: str, optional, default='FD'
+            Discretization method. Options are 'FD' (default) and
+            'RSFD' (rotated staggered grid finite-difference).
+        weights/w: list, tuple, or dict, optional, default=None
+            Custom weights for the finite differences.
         """
+        w = kwargs.get('weights', kwargs.get('w'))
         order = order or self.space_order
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
-                                      fd_order=order)
+                                      method=method, fd_order=order, w=w)
                      for i, d in enumerate(derivs)])
 
-    def div(self, shift=None, order=None, method='FD'):
+    def div(self, shift=None, order=None, method='FD', **kwargs):
         """
         Divergence of the input Function.
 
@@ -334,15 +340,18 @@ class Differentiable(sympy.Expr, Evaluable):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        weights/w: list, tuple, or dict, optional, default=None
+            Custom weights for the finite difference coefficients.
         """
+        w = kwargs.get('weights', kwargs.get('w'))
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                   fd_order=order, method=method)
+                                                   fd_order=order, method=method, w=w)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None, order=None, method='FD'):
+    def grad(self, shift=None, order=None, method='FD', **kwargs):
         """
         Gradient of the input Function.
 
@@ -358,13 +367,16 @@ class Differentiable(sympy.Expr, Evaluable):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        weights/w: list, tuple, or dict, optional, default=None
+            Custom weights for the finite
         """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = [d for d in self.dimensions if d.is_Space]
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
+        w = kwargs.get('weights', kwargs.get('w'))
         comps = [getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                               fd_order=order, method=method)
+                                               fd_order=order, method=method, w=w)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name='grad_%s' % self.name, time_order=self.time_order,
