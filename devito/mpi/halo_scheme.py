@@ -30,7 +30,7 @@ STENCIL = HaloLabel('stencil')
 
 class HaloSchemeEntry(Reconstructable):
 
-    __rkwargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
+    __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
 
     def __init__(self, loc_indices, loc_dirs, halos, dims):
         self.loc_indices = loc_indices
@@ -125,12 +125,10 @@ class HaloScheme:
         for f in self.fmapper:
             loc_indices = OrderedSet(*(self._mapper[f].loc_indices.values()))
             loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-
-            fstrings.append(f"{f.name}{loc_indices_str}")
+            fstrings.append("%s%s" % (f.name, loc_indices_str))
 
         functions = ",".join(fstrings)
-
-        return f"<{self.__class__.__name__}({functions})>"
+        return "<%s(%s)>" % (self.__class__.__name__, functions)
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -676,8 +674,8 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     # Nope, let's try with the next Indexed, if any
                     continue
 
-                hse = hse0.rebuild(loc_indices=frozendict(loc_indices),
-                                   loc_dirs=frozendict(loc_dirs))
+                hse = hse0._rebuild(loc_indices=frozendict(loc_indices),
+                                    loc_dirs=frozendict(loc_dirs))
 
             else:
                 continue

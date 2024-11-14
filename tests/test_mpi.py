@@ -5,11 +5,10 @@ from functools import cached_property
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
-                    Dimension, ConditionalDimension, div,
+                    Dimension, ConditionalDimension, div, solve, diag, grad,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer,
-                    solve, diag, grad)
+                    PrecomputedSparseFunction, DefaultDimension, Buffer)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -19,7 +18,6 @@ from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
                                  ComputeCall)
 from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
-from devito.types.dimension import SpaceDimension
 
 from examples.seismic.acoustic import acoustic_setup
 from examples.seismic import demo_model
@@ -1013,13 +1011,10 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448(self, mode):
-        extent = (10.,)
         shape = (2,)
         so = 2
 
-        x = SpaceDimension(name='x', spacing=Constant(name='h_x',
-                                                      value=extent[0]/(shape[0]-1)))
-        grid = Grid(extent=extent, shape=shape, dimensions=(x,))
+        grid = Grid(shape=shape)
 
         # Time related
         tn = 30
@@ -1030,7 +1025,7 @@ class TestCodeGeneration:
 
         # First order elastic-like dependencies equations
         pde_v = v.dt - (tau.dx)
-        pde_tau = (tau.dt - ((v.forward).dx))
+        pde_tau = tau.dt - ((v.forward).dx)
         u_v = Eq(v.forward, solve(pde_v, v.forward))
 
         u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
@@ -1038,7 +1033,7 @@ class TestCodeGeneration:
         # Test two variants of receiver interpolation
         nrec = 1
         rec = SparseTimeFunction(name="rec", grid=grid, npoint=nrec, nt=tn)
-        rec.coordinates.data[:, 0] = np.linspace(0., extent[0], num=nrec)
+        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
 
         # The receiver 0
         rec_term0 = rec.interpolate(expr=v)
@@ -1077,6 +1072,69 @@ class TestCodeGeneration:
         assert calls[1].arguments[0] is v
         assert calls[2].arguments[0] is v
 
+        # Further complicate/stree-test adding an artifical example
+        # with two hoisting opportunities
+
+        # Velocity and pressure fields
+        v2 = TimeFunction(name='v2', grid=grid, space_order=so)
+        tau2 = TimeFunction(name='tau2', grid=grid, space_order=so)
+
+        # First order elastic-like dependencies equations
+        pde_v2 = v2.dt - (tau2.dx)
+        pde_tau2 = tau2.dt - ((v2.forward).dx)
+        u_v2 = Eq(v2.forward, solve(pde_v2, v2.forward))
+
+        u_tau2 = Eq(tau2.forward, solve(pde_tau2, tau2.forward))
+
+        # Test two variants of receiver interpolation
+        nrec = 1
+        rec2 = SparseTimeFunction(name="rec2", grid=grid, npoint=nrec, nt=tn)
+        rec2.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
+
+        # The receiver 2
+        rec_term2 = rec2.interpolate(expr=v2)
+
+        # The receiver 3
+        rec_term3 = rec2.interpolate(expr=v2.forward)
+
+        # Test receiver interpolation 0, here we have a halo exchange hoisted
+        op2 = Operator([u_v] + [u_v2] + [u_tau] + [u_tau2] + rec_term0 + rec_term2)
+
+        calls = [i for i in FindNodes(Call).visit(op2)
+                 if isinstance(i, HaloUpdateCall)]
+
+        # The correct we want
+        assert len(calls) == 5
+
+        assert len(FindNodes(HaloUpdateCall).visit(op2.body.body[1].body[1].body[0])) == 2
+        assert len(FindNodes(HaloUpdateCall).visit(op2.body.body[1].body[1].body[1])) == 3
+
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is v2
+        assert calls[2].arguments[0] is tau
+        assert calls[2].arguments[1] is tau2
+        assert calls[3].arguments[0] is v
+        assert calls[4].arguments[0] is v2
+
+        # Test receiver interpolation 0, here we have a halo exchange hoisted
+        op3 = Operator([u_v] + [u_v2] + [u_tau] + [u_tau2] + rec_term0 + rec_term3)
+
+        calls = [i for i in FindNodes(Call).visit(op3)
+                 if isinstance(i, HaloUpdateCall)]
+
+        # The correct we want
+        assert len(calls) == 5
+
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 4
+
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is tau
+        assert calls[1].arguments[1] is tau2
+        assert calls[2].arguments[0] is v
+        assert calls[3].arguments[0] is v2
+        assert calls[4].arguments[0] is v2
+
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_subdims(self, mode):
         grid = Grid(shape=(4,))
@@ -1113,8 +1171,8 @@ class TestCodeGeneration:
 
         eq = Eq(u.forward, u[t, 1] + u[t, 1 + x.symbolic_min] + u[t, x])
         op = Operator(eq)
-        calls = FindNodes(Call).visit(op)
 
+        calls = FindNodes(Call).visit(op)
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
@@ -2860,8 +2918,7 @@ class TestTTIwMPI:
     @pytest.mark.parallel(mode=1)
     def test_halo_structure(self, mode):
 
-        mytest = TestTTI()
-        solver = mytest.tti_operator(opt='advanced', space_order=8)
+        solver = TestTTI().tti_operator(opt='advanced', space_order=8)
         op = solver.op_fwd(save=False)
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
