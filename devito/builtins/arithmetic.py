@@ -6,7 +6,7 @@ from devito.builtins.utils import make_retval
 __all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 
-#@dv.switchconfig(log_level='ERROR')
+@dv.switchconfig(log_level='ERROR')
 def norm(f, order=2):
     """
     Compute the norm of a Function.

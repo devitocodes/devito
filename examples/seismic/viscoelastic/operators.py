@@ -2,6 +2,7 @@ import sympy as sp
 
 from devito import (Eq, Operator, VectorTimeFunction, TensorTimeFunction,
                     div, grad, diag, solve)
+from devito.types import Buffer
 from examples.seismic.elastic import src_rec
 
 
@@ -33,15 +34,18 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
     # Create symbols for forward wavefield, source and receivers
     # Velocity:
     v = VectorTimeFunction(name="v", grid=model.grid,
-                           save=geometry.nt if save else None,
+                           save=Buffer(1),
+                           # save=geometry.nt if save else None,
                            time_order=1, space_order=space_order)
     # Stress:
     tau = TensorTimeFunction(name='t', grid=model.grid,
-                             save=geometry.nt if save else None,
+                             save=Buffer(1),
+                             # save=geometry.nt if save else None,
                              space_order=space_order, time_order=1)
     # Memory variable:
     r = TensorTimeFunction(name='r', grid=model.grid,
-                           save=geometry.nt if save else None,
+                           save=Buffer(1),
+                           # save=geometry.nt if save else None,
                            space_order=space_order, time_order=1)
 
     # Particle velocity
