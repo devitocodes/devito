@@ -861,6 +861,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
                    'alias', 'space', 'function', 'is_transient', 'avg_mode')
 
+    __properties__ = ('is_const', 'is_transient')
+
     def __new__(cls, *args, **kwargs):
         # Preprocess arguments
         args, kwargs = cls.__args_setup__(*args, **kwargs)
@@ -969,8 +971,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # A `Distributor` to handle domain decomposition
         self._distributor = self.__distributor_setup__(**kwargs)
-
-        # Symbol properties
 
         # "Aliasing" another AbstractFunction means that `self` logically
         # represents another object. For example, `self` might be used as the
@@ -1273,6 +1273,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_transient(self):
         return self._is_transient
+
+    @cached_property
+    def properties(self):
+        return frozendict([(i, getattr(self, i)) for i in self.__properties__])
 
     @property
     def avg_mode(self):
