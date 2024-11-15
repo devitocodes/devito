@@ -183,6 +183,27 @@ class TestBasic:
         assert sf.dtype == f0.dtype == new_f0.dtype
         assert sf.npoint == f0.npoint == new_f0.npoint
 
+    @pytest.mark.parametrize('interp', ['linear', 'sinc'])
+    @pytest.mark.parametrize('op', ['inject', 'interpolate'])
+    def test_sparse_op(self, pickle, interp, op):
+        grid = Grid(shape=(3,))
+        sf = SparseFunction(name='sf', grid=grid, npoint=3, space_order=2,
+                            coordinates=[(0.,), (1.,), (2.,)],
+                            interpolation=interp)
+        u = Function(name='u', grid=grid, space_order=4)
+
+        if op == 'inject':
+            expr = sf.inject(u, sf)
+        else:
+            expr = sf.interpolate(u)
+
+        pkl_expr = pickle.dumps(expr)
+        new_expr = pickle.loads(pkl_expr)
+
+        assert new_expr.interpolator._name == expr.interpolator._name
+        assert new_expr.implicit_dims == expr.implicit_dims
+        assert str(new_expr.evaluate) == str(expr.evaluate)
+
     def test_internal_symbols(self, pickle):
         s = dSymbol(name='s', dtype=np.float32)
         pkl_s = pickle.dumps(s)
