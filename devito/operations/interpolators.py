@@ -13,7 +13,7 @@ from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
-from devito.tools import as_tuple, flatten, filter_ordered
+from devito.tools import as_tuple, flatten, filter_ordered, Pickable
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension, SubFunction)
 from devito.types.utils import DimensionTuple
@@ -33,7 +33,7 @@ def check_radius(func):
     return wrapper
 
 
-class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
+class UnevaluatedSparseOperation(sympy.Expr, Evaluable, Pickable):
 
     """
     Represents an Injection or an Interpolation operation performed on a
@@ -48,6 +48,7 @@ class UnevaluatedSparseOperation(sympy.Expr, Evaluable):
     """
 
     subdomain = None
+    __rargs__ = ('interpolator',)
 
     def __new__(cls, interpolator):
         obj = super().__new__(cls)
@@ -79,6 +80,9 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
+    __rargs__ = ('expr', 'increment', 'implicit_dims', 'self_subs') + \
+        UnevaluatedSparseOperation.__rargs__
+
     def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator):
         obj = super().__new__(cls, interpolator)
 
@@ -106,6 +110,8 @@ class Injection(UnevaluatedSparseOperation):
     Represents an Injection operation performed on a SparseFunction.
     Evaluates to a list of Eq objects.
     """
+
+    __rargs__ = ('field', 'expr', 'implicit_dims') + UnevaluatedSparseOperation.__rargs__
 
     def __new__(cls, field, expr, implicit_dims, interpolator):
         obj = super().__new__(cls, interpolator)
