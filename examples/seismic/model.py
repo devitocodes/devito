@@ -94,7 +94,7 @@ class GenericModel:
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
                  dtype=np.float32, subdomains=(), bcs="damp", grid=None,
-                 fs=False):
+                 fs=False, topology=None):
         self.shape = shape
         self.space_order = space_order
         self.nbl = int(nbl)
@@ -119,7 +119,7 @@ class GenericModel:
             # Physical extent is calculated per cell, so shape - 1
             extent = tuple(np.array(spacing) * (shape_pml - 1))
             self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
-                             dtype=dtype, subdomains=subdomains)
+                             dtype=dtype, subdomains=subdomains, topology=topology)
         else:
             self.grid = grid
 
@@ -272,9 +272,10 @@ class SeismicModel(GenericModel):
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
-                 dtype=np.float32, subdomains=(), bcs="mask", grid=None, **kwargs):
-        super().__init__(origin, spacing, shape, space_order, nbl,
-                         dtype, subdomains, grid=grid, bcs=bcs, fs=fs)
+                 dtype=np.float32, subdomains=(), bcs="mask", grid=None,
+                 topology=None, **kwargs):
+        super().__init__(origin, spacing, shape, space_order, nbl, dtype, subdomains,
+                         topology=topology, grid=grid, bcs=bcs, fs=fs)
 
         # Initialize physics
         self._initialize_physics(vp, space_order, **kwargs)
