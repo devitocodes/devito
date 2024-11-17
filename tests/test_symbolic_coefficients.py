@@ -40,7 +40,8 @@ class TestSC:
         assert np.all(deriv.weights == weights)
 
         assert isinstance(eq.lhs, Differentiable)
-        assert sp.simplify(eval(expected).evalf(_PRECISION) - eq.evaluate.lhs) == 0
+        s = dim.spacing**(-dorder)
+        assert sp.simplify(eval(expected).evalf(_PRECISION) * s - eq.evaluate.lhs) == 0
 
     def test_function_coefficients(self):
         """Test that custom function coefficients return the expected result"""
@@ -118,7 +119,8 @@ class TestSC:
         eq = Eq(u.dx2(weights=weights) + c)
         eq = eq.xreplace({c: 2})
 
-        expected = 0.1*u - 0.6*u._subs(x, x - h_x) + 0.6*u.subs(x, x + h_x) + 2
+        s = x.spacing**(-2)
+        expected = (0.1*u - 0.6*u._subs(x, x - h_x) + 0.6*u.subs(x, x + h_x)) * s + 2
 
         assert sp.simplify(expected.evalf(_PRECISION) - eq.evaluate.lhs) == 0
 
@@ -200,8 +202,8 @@ class TestSC:
 
         eq_f = Eq(f, f.dx2(weights=weights))
 
-        expected = 'Eq(f(x + h_x/2), 1.0*f(x - h_x/2) - 2.0*f(x + h_x/2)'\
-            ' + 1.0*f(x + 3*h_x/2))'
+        expected = 'Eq(f(x + h_x/2), (1.0*f(x - h_x/2) - 2.0*f(x + h_x/2)'\
+            ' + 1.0*f(x + 3*h_x/2))/h_x**2)'
         assert(str(eq_f.evaluate) == expected)
 
     @pytest.mark.parametrize('stagger', [True, False])
@@ -241,7 +243,8 @@ class TestSC:
 
         eq = Eq(p.forward, p.dx2(weights=coeffs0).dy2(weights=coeffs1))
 
-        mul = lambda e: sp.Mul(e, 200, evaluate=False)
+        s = x.spacing**(-2) * y.spacing**(-2)
+        mul = lambda e: sp.Mul(e, 200 * s, evaluate=False)
         term0 = mul(p*100 +
                     p.subs(x, x-hx)*100 +
                     p.subs(x, x+hx)*100)
@@ -270,9 +273,10 @@ class TestSC:
         term0 = f*p*100
         term1 = (f*p*100).subs(x, x-hx)
         term2 = (f*p*100).subs(x, x+hx)
+        s = x.spacing**(-2)
 
         # `str` simply because some objects are of type EvalDerivative
-        assert sp.simplify(eq.evaluate.rhs - (term0 + term1 + term2)) == 0
+        assert sp.simplify(eq.evaluate.rhs - (term0 + term1 + term2) * s) == 0
 
     def test_compound_nested_subs(self):
         grid = Grid(shape=(11, 11))
@@ -298,8 +302,9 @@ class TestSC:
                     p.subs({x: x-hx, y: y+hy})*100 +
                     p.subs({x: x+hx, y: y+hy})*100, 1)
 
+        s = x.spacing**(-2) * y.spacing**(-2)
         # `str` simply because some objects are of type EvalDerivative
-        assert sp.simplify(eq.evaluate.rhs - (term0 + term1 + term2)) == 0
+        assert sp.simplify(eq.evaluate.rhs - (term0 + term1 + term2) * s) == 0
 
     def test_operators(self):
         grid = Grid(shape=(11, 11))
@@ -324,3 +329,18 @@ class TestSC:
         expr3 = laplace(f, w=coeffs0)
         assert expr3 == f.dx2(weights=coeffs0) + f.dy2(weights=coeffs0)
         assert list(expr3.args[0].weights) == coeffs0
+
+    def test_spacing(self):
+        grid = Grid(shape=(11, 11))
+        x, _ = grid.dimensions
+        s = x.spacing
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        coeffs0 = [100, 100, 100]
+        coeffs1 = [100/s, 100/s, 100/s]
+
+        df = f.dx(weights=coeffs0)
+        df_s = f.dx(weights=coeffs1)
+
+        assert sp.simplify(df_s.evaluate - df.evaluate) == 0
