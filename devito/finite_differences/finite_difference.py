@@ -85,7 +85,7 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     return expr
 
 
-# @check_input
+@check_input
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                        coefficients='taylor', expand=True, weights=None, side=None):
     """
@@ -151,7 +151,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     expand = True if dim.is_Time else expand
 
     # The stencil indices
-    nweights, wdim = process_weights(weights, expr)
+    nweights, wdim, scale = process_weights(weights, expr, dim)
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0, nweights=nweights)
     # Finite difference weights corresponding to the indices. Computed via the
@@ -163,11 +163,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     weights = [sympify(w).evalf(_PRECISION) for w in weights]
-
-    # Adimensional weight from custom coeffs need to multiply by h^order
-    scale = None
-    if wdim is None and not weights[0].has(dim.spacing):
-        scale = dim.spacing**(-deriv_order)
 
     # Transpose the FD, if necessary
     if matvec == transpose:
@@ -213,6 +208,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
         deriv = EvalDerivative(*terms, base=expr)
 
-    if scale is not None:
-        deriv = scale * deriv
+    if scale:
+        deriv = dim.spacing**(-deriv_order) * deriv
+
     return deriv
