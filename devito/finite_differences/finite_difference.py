@@ -151,7 +151,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     expand = True if dim.is_Time else expand
 
     # The stencil indices
-    nweights, wdim = process_weights(weights, expr)
+    nweights, wdim, scale = process_weights(weights, expr, dim)
     indices, x0 = generate_indices(expr, dim, fd_order, side=side, matvec=matvec,
                                    x0=x0, nweights=nweights)
     # Finite difference weights corresponding to the indices. Computed via the
@@ -207,5 +207,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
             terms.append(term)
 
         deriv = EvalDerivative(*terms, base=expr)
+
+    if scale:
+        deriv = dim.spacing**(-deriv_order) * deriv
 
     return deriv

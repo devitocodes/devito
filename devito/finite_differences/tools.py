@@ -321,16 +321,18 @@ def make_shift_x0(shift, ndim):
                      "None, float or tuple with shape equal to %s" % (ndim,))
 
 
-def process_weights(weights, expr):
+def process_weights(weights, expr, dim):
     if weights is None:
-        return 0, None
+        return 0, None, False
     elif isinstance(weights, Function):
         if len(weights.dimensions) == 1:
-            return weights.shape[0], weights.dimensions[0]
+            return weights.shape[0], weights.dimensions[0], False
         wdim = {d for d in weights.dimensions if d not in expr.dimensions}
         assert len(wdim) == 1
         wdim = wdim.pop()
         shape = weights.shape
-        return shape[weights.dimensions.index(wdim)], wdim
+        return shape[weights.dimensions.index(wdim)], wdim, False
     else:
-        return len(list(weights)), None
+        # Adimensional weight from custom coeffs need to be multiplied by h^order
+        scale = not all(sympify(w).has(dim.spacing) for w in weights if w != 0)
+        return len(list(weights)), None, scale

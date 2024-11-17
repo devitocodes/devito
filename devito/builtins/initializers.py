@@ -179,7 +179,9 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
     shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
-    grid = dv.Grid(shape=shape_padded, subdomains=objective_domain)
+    extent_padded = tuple([s-1 for s in shape_padded])
+    grid = dv.Grid(shape=shape_padded, subdomains=objective_domain,
+                   extent=extent_padded)
 
     f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw), dtype=dtype)
     f_o = dv.Function(name='f_o', grid=grid, dtype=dtype)
