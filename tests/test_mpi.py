@@ -20,7 +20,6 @@ from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
 from examples.seismic.acoustic import acoustic_setup
-from examples.seismic import demo_model
 from tests.test_dse import TestTTI
 
 
@@ -1031,9 +1030,8 @@ class TestCodeGeneration:
         u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
 
         # Test two variants of receiver interpolation
-        nrec = 1
-        rec = SparseTimeFunction(name="rec", grid=grid, npoint=nrec, nt=tn)
-        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=tn)
+        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=1)
 
         # The receiver 0
         rec_term0 = rec.interpolate(expr=v)
@@ -1087,9 +1085,8 @@ class TestCodeGeneration:
         u_tau2 = Eq(tau2.forward, solve(pde_tau2, tau2.forward))
 
         # Test two variants of receiver interpolation
-        nrec = 1
-        rec2 = SparseTimeFunction(name="rec2", grid=grid, npoint=nrec, nt=tn)
-        rec2.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
+        rec2 = SparseTimeFunction(name="rec2", grid=grid, npoint=1, nt=tn)
+        rec2.coordinates.data[:, 0] = np.linspace(0., shape[0], num=1)
 
         # The receiver 2
         rec_term2 = rec2.interpolate(expr=v2)
@@ -1134,6 +1131,56 @@ class TestCodeGeneration:
         assert calls[2].arguments[0] is v
         assert calls[3].arguments[0] is v2
         assert calls[4].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_backward(self, mode):
+        '''
+        Similar to test_issue_2448, but with backward instead of forward
+        so that the hoisted halo
+
+        '''
+        shape = (2,)
+        so = 2
+
+        grid = Grid(shape=shape)
+        t = grid.stepping_dim
+
+        tn = 7
+
+        # Velocity and pressure fields
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+        v.data_with_halo[0, :] = 1.
+        v.data_with_halo[1, :] = 3.
+
+        tau = TimeFunction(name='tau', grid=grid, space_order=so)
+        tau.data_with_halo[:] = 1.
+
+        # First order elastic-like dependencies equations
+        pde_v = v.dt - (tau.dx)
+        pde_tau = tau.dt - ((v.backward).dx)
+
+        u_v = Eq(v.backward, solve(pde_v, v))
+        u_tau = Eq(tau.backward, solve(pde_tau, tau))
+
+        # Test two variants of receiver interpolation
+        nrec = 1
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=nrec, nt=tn)
+        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
+
+        # Test receiver interpolation 0, here we have a halo exchange hoisted
+        op0 = Operator([u_v] + [u_tau] + rec.interpolate(expr=v))
+
+        calls = [i for i in FindNodes(Call).visit(op0)
+                 if isinstance(i, HaloUpdateCall)]
+
+        # The correct we want
+        assert len(calls) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[1])) == 2
+        assert calls[0].arguments[0] is v
+        assert calls[0].arguments[3].args[0] is t.symbolic_max
+        assert calls[1].arguments[0] is tau
+        assert calls[2].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_subdims(self, mode):
@@ -2862,35 +2909,30 @@ class TestElastic:
     def test_elastic_structure(self, mode):
 
         so = 4
-        model = demo_model(preset='layers-elastic', nlayers=1,
-                           shape=(301, 301), spacing=(10., 10.),
-                           space_order=so)
+        grid = Grid(shape=(3, 3))
 
-        v = VectorTimeFunction(name='v', grid=model.grid, space_order=so)
-        tau = TensorTimeFunction(name='t', grid=model.grid, space_order=so)
+        v = VectorTimeFunction(name='v', grid=grid, space_order=so)
+        tau = TensorTimeFunction(name='t', grid=grid, space_order=so)
+
+        damp = Function(name='damp', grid=grid)
+        l = Function(name='lam', grid=grid)
+        mu = Function(name='mu', grid=grid)
+        ro = Function(name='b', grid=grid)
 
         # The receiver
-        nrec = 301
-        rec = SparseTimeFunction(name="rec", grid=model.grid, npoint=nrec, nt=10)
-        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-        rec.coordinates.data[:, -1] = 5.
-
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=10)
         rec_term = rec.interpolate(expr=v[0] + v[1])
-
-        # Now let's try and create the staggered updates
-        # Lame parameters
-        l, mu, ro = model.lam, model.mu, model.b
 
         # First order elastic wave equation
         pde_v = v.dt - ro * div(tau)
         pde_tau = (tau.dt - l * diag(div(v.forward)) -
                    mu * (grad(v.forward) + grad(v.forward).transpose(inner=False)))
+
         # Time update
-        u_v = Eq(v.forward, model.damp * solve(pde_v, v.forward))
-        u_t = Eq(tau.forward, model.damp * solve(pde_tau, tau.forward))
+        u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
+        u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
 
         op = Operator([u_v] + [u_t] + rec_term)
-
         assert len(op._func_table) == 11
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
@@ -2898,17 +2940,15 @@ class TestElastic:
         # The correct we want
         assert len(calls) == 5
 
-        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[0])) == 1
-        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[1])) == 4
-        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[3].body[2])) == 0
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[2])) == 0
 
         assert calls[0].arguments[0] is v[0]
         assert calls[0].arguments[1] is v[1]
-
         assert calls[1].arguments[0] is tau[0, 0]
         assert calls[2].arguments[0] is tau[0, 1]
         assert calls[3].arguments[0] is tau[1, 1]
-
         assert calls[4].arguments[0] is v[0]
         assert calls[4].arguments[1] is v[1]
 
