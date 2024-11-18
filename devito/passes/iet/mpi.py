@@ -82,15 +82,7 @@ def _hoist_invariant(iet):
     hsmapper = {}
     imapper = defaultdict(list)
 
-    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
-
-    # Drop void `halo_scheme`s from the analysis
-    iter_mapper = {k: [hs for hs in v if not hs.halo_scheme.is_void]
-                   for k, v in iter_mapper.items()}
-
-    iter_mapper = {k: v for k, v in iter_mapper.items() if k is not None}
-
-    iter_mapper = {k: v for k, v in iter_mapper.items() if len(v) > 1}
+    iter_mapper = _filter_iter_mapper(iet)
 
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
@@ -121,9 +113,8 @@ def _hoist_invariant(iet):
                     for d in hse.loc_indices:
                         md = hse.loc_indices[d]
                         if md in it.uindices:
-                            new_min = md.symbolic_min.subs(it.dim,
-                                                           it.dim.symbolic_min)
-                            raw_loc_indices[d] = new_min
+                            md_sub = it.start
+                            raw_loc_indices[d] = md.symbolic_min.subs(it.dim, md_sub)
                         else:
                             raw_loc_indices[d] = md
 
@@ -164,11 +155,7 @@ def _merge_halospots(iet):
 
     mapper = {}
 
-    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
-
-    iter_mapper = {k: v for k, v in iter_mapper.items() if k is not None}
-
-    iter_mapper = {k: v for k, v in iter_mapper.items() if len(v) > 1}
+    iter_mapper = _filter_iter_mapper(iet)
 
     for it, halo_spots in iter_mapper.items():
         scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
@@ -362,6 +349,20 @@ def mpiize(graph, **kwargs):
 
 # *** Utilities
 
+def _filter_iter_mapper(iet):
+    """
+    Given an IET, return a mapper from Iterations to the HaloSpots.
+    Additionally, filter out Iterations that are not of interest.
+    """
+    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
+    iter_mapper = {k: [hs for hs in v if not hs.halo_scheme.is_void]
+                   for k, v in iter_mapper.items()}
+    iter_mapper = {k: v for k, v in iter_mapper.items() if k is not None}
+    iter_mapper = {k: v for k, v in iter_mapper.items() if len(v) > 1}
+
+    return iter_mapper
+
+
 def _make_cond_mapper(iet):
     cond_mapper = MapHaloSpots().visit(iet)
     return {hs: {i for i in v if i.is_Conditional and
@@ -395,4 +396,4 @@ def _rule1(dep, hs, loc_indices):
                for d, v in loc_indices.items())
 
 
-rules = [_rule0, _rule1]
+rules = (_rule0, _rule1)
