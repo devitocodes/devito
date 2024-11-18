@@ -557,6 +557,24 @@ class TestBasic:
         assert new_dfdx.method == dfdx.method
         assert new_dfdx.weights == dfdx.weights
 
+    def test_equation(self, pickle):
+        grid = Grid(shape=(3,))
+        x = grid.dimensions[0]
+        f = Function(name='f', grid=grid)
+
+        # Some implicit dim
+        xs = ConditionalDimension(name='xs', parent=x, factor=4)
+
+        eq = Eq(f, f+1, implicit_dims=xs)
+
+        pkl_eq = pickle0.dumps(eq)
+        new_eq = pickle0.loads(pkl_eq)
+
+        assert new_eq.lhs.name == f.name
+        assert str(new_eq.rhs) == 'f(x) + 1'
+        assert new_eq.implicit_dims[0].name == 'xs'
+        assert new_eq.implicit_dims[0].factor.data == 4
+
 
 class TestAdvanced:
 
