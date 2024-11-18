@@ -2,13 +2,13 @@
 import sympy
 
 from devito.deprecations import deprecations
-from devito.tools import as_tuple, frozendict
+from devito.tools import as_tuple, frozendict, Pickable
 from devito.types.lazy import Evaluable
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
 
 
-class Eq(sympy.Eq, Evaluable):
+class Eq(sympy.Eq, Evaluable, Pickable):
 
     """
     An equal relation between two objects, the left-hand side and the
