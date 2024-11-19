@@ -102,10 +102,11 @@ class AcousticWaveSolver:
         # Create a new receiver object to store the result
         rec = rec or self.geometry.rec
 
+        save_t = Buffer(2)
+
         # Create the forward wavefield if not provided
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.geometry.nt if save else Buffer(3),
-                              # save=self.geometry.nt if save else None,
+                              save=save_t,
                               time_order=2, space_order=self.space_order)
 
         model = model or self.model
@@ -114,7 +115,8 @@ class AcousticWaveSolver:
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_fwd(save).apply(src=src, rec=rec, u=u,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
+                                            dt=kwargs.pop('dt', self.dt),
+                                            **kwargs)
 
         print(norm(rec))
         print(norm(u))

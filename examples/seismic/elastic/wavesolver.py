@@ -88,6 +88,7 @@ class ElasticWaveSolver:
                                     space_order=self.space_order, time_order=1)
         tau = tau or TensorTimeFunction(name='tau', grid=self.model.grid, save=save_t,
                                         space_order=self.space_order, time_order=1)
+
         kwargs.update({k.name: k for k in v})
         kwargs.update({k.name: k for k in tau})
 
@@ -97,6 +98,6 @@ class ElasticWaveSolver:
 
         # Execute operator and return wavefield and receiver data
         # summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1,
+        summary = self.op_fwd(save_t).apply(src=src, rec1=rec1,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
         return rec1, rec2, v, tau, summary
