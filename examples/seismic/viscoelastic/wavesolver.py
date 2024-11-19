@@ -90,7 +90,7 @@ class ViscoelasticWaveSolver:
         src = src or self.geometry.src
         # Create a new receiver object to store the result
         rec1 = rec1 or self.geometry.new_rec(name='rec1')
-        rec2 = rec2 or self.geometry.new_rec(name='rec2')
+        # rec2 = rec2 or self.geometry.new_rec(name='rec2')
 
         # Create all the fields v, tau, r
         # save_t = src.nt if save else None
@@ -114,6 +114,7 @@ class ViscoelasticWaveSolver:
         kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec1=rec1, rec2=rec2,
+        # summary = self.op_fwd(save_t).apply(src=src, rec1=rec1, rec2=rec2,
+        summary = self.op_fwd(save_t).apply(src=src, rec1=rec1,
                                           dt=kwargs.pop('dt', self.dt), **kwargs)
-        return rec1, rec2, v, tau, summary
+        return rec1, v, tau, summary
