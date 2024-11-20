@@ -395,11 +395,12 @@ class Cluster:
         # intersecting intervals with matching only dimensions
         for f, v in parts.items():
             for i in v:
-                # oobs check is not required but helps reduce
-                # interval reconstruction
-                if i.dim in oobs and i.dim in f.dimensions:
+                if i.dim in self.ispace and i.dim in f.dimensions:
+                    # oobs check is not required but helps reduce
+                    # interval reconstruction
                     ii = intervals[i.dim].intersection(v[i.dim])
-                    intervals = intervals.set_upper(i.dim, ii.upper)
+                    if not ii.is_Null:
+                        intervals = intervals.set_upper(i.dim, ii.upper)
 
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
