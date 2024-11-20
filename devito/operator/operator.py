@@ -93,6 +93,7 @@ class Operator(Callable):
     ...                Eq(u[t+1, 2, y], 0)])
 
     A semantically equivalent computation can be expressed exploiting SubDomains.
+    This is the only way for expressing BCs, when running with MPI.
 
     >>> u.data[:] = 0
     >>> op = Operator(Eq(u.forward, u + 1, subdomain=grid.interior))
