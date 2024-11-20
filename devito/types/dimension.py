@@ -354,8 +354,8 @@ class Dimension(ArgProvider):
                 from devito.symbolics import normalize_args
                 upper = interval.upper.subs(normalize_args(args))
             if args[self.max_name] + upper >= size:
-                raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
-                                                                     args[self.max_name]))
+                raise InvalidArgument(f"OOB detected due to "
+                                      f"{self.max_name}={args[self.max_name]}")
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:

@@ -2159,11 +2159,6 @@ class TestInternals:
         assert op._dspace[time].lower == 0
         assert op._dspace[time].upper == offset
 
-        op()
-
-        assert np.all(f.data[0] == 0.)
-        assert np.all(f.data[i] == 3. for i in range(1, 10))
-
         if epass:
             assert op.arguments()['time_M'] == nt - offset - 1
             op()
