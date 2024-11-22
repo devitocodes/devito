@@ -3,7 +3,8 @@ from functools import singledispatch
 
 from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
                               retrieve_functions)
-from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
+from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
+                          frozendict)
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
@@ -114,6 +115,12 @@ def _lower_exprs(expressions, subs):
     for expr in as_tuple(expressions):
         try:
             dimension_map = expr.subdomain.dimension_map
+            # The indices of a Function defined on a SubDomain will all be the
+            # SubDimensions of that SubDomain. Thus extend the dimension_map mapper with
+            # `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the
+            # Function is defined, and `ix_i` is the SubDimension associated with the
+            # iterator.
+            dimension_map = _extend_dimension_map(expr, dimension_map)
         except AttributeError:
             # Some Relationals may be pure SymPy objects, thus lacking the subdomain
             dimension_map = {}
@@ -158,6 +165,20 @@ def _lower_exprs(expressions, subs):
     else:
         assert len(processed) == 1
         return processed.pop()
+
+
+def _extend_dimension_map(expr, mapper):
+    """
+    Extend the dimension map for a SubDomain to include mappings for any
+    Functions defined on SubDomains.
+    """
+    updated_mapper = {**mapper}
+
+    functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
+    for f in functions:
+        updated_mapper.update({d: mapper[d.root] for d in f.dimensions})
+
+    return frozendict(updated_mapper)
 
 
 def concretize_subdims(exprs, **kwargs):
