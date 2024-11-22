@@ -1079,6 +1079,60 @@ class TestSubDomainFunctions:
         h_check[2:-2, 3:-1] = 3
         assert(np.all(h.data == h_check))
 
+    def test_multiple_functions(self):
+        """
+        Test that multiple Functions defined on different SubDomains can be included
+        in a single operator.
+        """
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        sd0 = ReducedDomain(('middle', 2, 3),
+                            ('right', 6),
+                            grid=grid)
+        sd1 = ReducedDomain(('middle', 4, 1),
+                            ('left', 3),
+                            grid=grid)
+
+        f = Function(name='f', grid=sd0)
+        g = Function(name='g', grid=sd1)
+
+        eq_f = Eq(f, f+1, subdomain=sd0)
+        eq_g = Eq(g, g+1, subdomain=sd1)
+
+        op = Operator([eq_f, eq_g])
+        op()
+
+        assert(np.all(f.data[:] == 1))
+        assert(np.all(g.data[:] == 1))
+
+    def test_smaller_iteration(self):
+        """
+        Test iteration over Function on SubDomain, where the iteration domain is
+        smaller than that on which the Function is defined.
+        """
+        grid = Grid(shape=(10, 10), extent=(9., 9.))
+        sd0 = ReducedDomain(('middle', 1, 2),
+                            ('right', 7),
+                            grid=grid)
+        sd1 = ReducedDomain(('middle', 3, 3),
+                            ('right', 5),
+                            grid=grid)
+
+        f = Function(name='f', grid=sd0)
+        eq_f = Eq(f, f+1, subdomain=sd1)
+
+        op = Operator(eq_f)
+        op()
+        print(op.ccode)
+        # Assert against a check here
+        print(f.data)
+        assert False
+
+    # TODO: Add a test to check that defining a function on one subdomain and iterating
+    # over a larger one gets caught or at least handled sensibly
+    # TODO: Add a test to check that two Functions on SubDomains can be added over the
+    # intersection of their SubDomains
+    # TODO: Add a test to check that offsets are consistent with rebuilt subdimensions
+
     @pytest.mark.parametrize('s_o', [2, 4, 6])
     def test_derivatives(self, s_o):
         """Test that derivatives are correctly evaluated."""
