@@ -77,7 +77,7 @@ Key features include:
 ## Installation
 
 The easiest way to try Devito is through Docker using the following commands:
-```
+```bash
 # get the code
 git clone https://github.com/devitocodes/devito.git
 cd devito

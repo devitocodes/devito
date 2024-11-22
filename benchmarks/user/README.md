@@ -77,24 +77,28 @@ DEVITO_LANGUAGE=openmp
 ```
 One has two options: either set it explicitly or prepend it to the Python
 command. In the former case, assuming a bash shell:
-```
+```bash
 export DEVITO_LANGUAGE=openmp
 ```
 In the latter case:
-```
+```bash
 DEVITO_LANGUAGE=openmp python benchmark.py ...
 ```
 
 ## Enabling MPI
 
 To switch on MPI, one should set
-```
+```bash
 DEVITO_MPI=1
 ```
 and run with `mpirun -n number_of_processes python benchmark.py ...`
 
-Devito supports multiple MPI schemes for halo exchange. See the `Tips` section
-below.
+Devito supports multiple MPI schemes for halo exchange.
+
+* Devito's most prevalent MPI modes are three: `basic`, `diag2` and `full`.
+and are respectively activated e.g., via `DEVITO_MPI=basic`.
+These modes may perform better under different factors such as arithmetic intensity,
+or number of fields used in the computation.
 
 ## The optimization level
 
@@ -109,7 +113,7 @@ lines a few sections below.
 
 Auto-tuning can significantly improve the run-time performance of an Operator. It
 can be enabled on an Operator basis:
-```
+```python
 op = Operator(...)
 op.apply(autotune=True)
 ```
@@ -162,52 +166,41 @@ Run with `DEVITO_LOGGING=DEBUG` to find out the specific performance
 optimizations applied by an Operator, how auto-tuning is getting along, and to
 emit more performance metrics.
 
-## Tips
-
-* The most powerful MPI mode is called "full", and is activated setting
-  `DEVITO_MPI=full` instead of `DEVITO_MPI=1`. The "full" mode supports
-  computation/communication overlap.
-* When auto-tuning is enabled, one should always run in performance mode:
-  ```
-  from devito import mode_performance
-  mode_perfomance()
-  ```
-  This is automatically turned on by `benchmark.py`
 
 ## Example commands
 
 The isotropic acoustic wave forward Operator in a `512**3` grid, space order
 12, and a simulation time of 100ms:
-```
+```bash
 python benchmark.py run -P acoustic -d 512 512 512 -so 12 --tn 100
 ```
 Like before, but with auto-tuning in `basic` mode:
-```
+```bash
 python benchmark.py run -P acoustic -d 512 512 512 -so 12 -a basic --tn 100
 ```
 It is also possible to run a TTI forward operator -- here in a 512x402x890
 grid:
-```
+```bash
 python benchmark.py run -P tti -d 512 402 890 -so 12 -a basic --tn 100
 ```
 Same as before, but telling devito not to use temporaries to store the
 intermediate values which stem from mixed derivatives:
-```
+```bash
 python benchmark.py run -P tti -d 512 402 890 -so 12 -a basic --tn 100 --opt
 "('advanced', {'cire-mingain: 1000000'})"
 ```
 Do not forget to pin processes, especially on NUMA systems; below, we use
 `numactl` to pin processes and threads to one specific NUMA domain.
-```
+```bash
 numactl --cpubind=0 --membind=0 python benchmark.py ...
 ```
 While a benchmark is running, you can have some useful programs running in
 background in other shells. For example, to monitor pinning:
-```
+```bash
 htop
 ```
 or to keep the memory footprint under control:
-```
+```bash
 watch numastat -m
 ```
 
@@ -218,7 +211,7 @@ This is often referred to as the ["JIT backdoor"
 mode](https://github.com/devitocodes/devito/wiki/FAQ#can-i-manually-modify-the-c-code-generated-by-devito-and-test-these-modifications).
 With ``benchmark.py`` we can exploit this feature to manually hack and test the
 code generated for a given benchmark. So, we first run a problem, for example
-```
+```bash
 python benchmark.py run-jit-backdoor -P acoustic -d 512 512 512 -so 12 --tn 100
 ```
 As you may expect, the ``run-jit-backdoor`` mode accepts exactly the same arguments
@@ -235,7 +228,7 @@ you will see the performance impact of your changes.
 ## Running on HPC clusters
 
 `benchmark.py` can be used to evaluate MPI on multi-node systems:
-```
+```bash
 mpiexec python benchmark.py ...
 ```
 In `bench` mode, each MPI rank will produce a different `.json` file
