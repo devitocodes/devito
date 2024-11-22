@@ -1117,15 +1117,21 @@ class TestSubDomainFunctions:
                             ('right', 5),
                             grid=grid)
 
-        f = Function(name='f', grid=sd0)
+        f = Function(name='f', grid=sd0, dtype=np.int32)
         eq_f = Eq(f, f+1, subdomain=sd1)
 
         op = Operator(eq_f)
         op()
-        print(op.ccode)
-        # Assert against a check here
-        print(f.data)
-        assert False
+
+        check = np.array([[0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 0, 0, 0, 0, 0],
+                          [0, 0, 1, 1, 1, 1, 1],
+                          [0, 0, 1, 1, 1, 1, 1],
+                          [0, 0, 1, 1, 1, 1, 1],
+                          [0, 0, 1, 1, 1, 1, 1],
+                          [0, 0, 0, 0, 0, 0, 0]])
+
+        assert np.all(f.data == check)
 
     # TODO: Add a test to check that defining a function on one subdomain and iterating
     # over a larger one gets caught or at least handled sensibly
