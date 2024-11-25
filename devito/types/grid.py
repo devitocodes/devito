@@ -496,6 +496,11 @@ class SubDomain(AbstractSubDomain):
     --------
     Domain : An example of preset SubDomain.
     Interior : An example of preset Subdomain.
+
+    Notes
+    -----
+    SubDomains are the only way to harness the benefits of domain decomposition,
+    especially when defining BCs.
     """
 
     def __subdomain_finalize__(self, grid, **kwargs):
