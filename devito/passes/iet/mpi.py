@@ -76,18 +76,17 @@ def _hoist_invariant(iet):
     # Precompute scopes to save time
     scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
 
-    cond_mapper = _make_cond_mapper(iet)
-
     # Analysis
     hsmapper = {}
     imapper = defaultdict(list)
 
+    cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
 
-            if _ensure_control_flow(hs0, hs1, cond_mapper):
+            if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
             # If there are overlapping loc_indices, skip
@@ -110,13 +109,12 @@ def _hoist_invariant(iet):
                     hse = hs1.halo_scheme.fmapper[f]
                     raw_loc_indices = {}
 
-                    for d in hse.loc_indices:
-                        md = hse.loc_indices[d]
-                        if md in it.uindices:
-                            md_sub = it.start
-                            raw_loc_indices[d] = md.symbolic_min.subs(it.dim, md_sub)
+                    for d, v in hse.loc_indices.items():
+                        if v in it.uindices:
+                            v_sub = it.start
+                            raw_loc_indices[d] = v.symbolic_min.subs(it.dim, v_sub)
                         else:
-                            raw_loc_indices[d] = md
+                            raw_loc_indices[d] = v
 
                     hse = hse._rebuild(loc_indices=frozendict(raw_loc_indices))
                     hs1.halo_scheme.fmapper[f] = hse
@@ -151,10 +149,8 @@ def _merge_halospots(iet):
     """
 
     # Analysis
-    cond_mapper = _make_cond_mapper(iet)
-
     mapper = {}
-
+    cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
     for it, halo_spots in iter_mapper.items():
@@ -164,7 +160,7 @@ def _merge_halospots(iet):
 
         for hs1 in halo_spots[1:]:
 
-            if _ensure_control_flow(hs0, hs1, cond_mapper):
+            if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
             for f, v in hs1.fmapper.items():
@@ -370,7 +366,7 @@ def _make_cond_mapper(iet):
             for hs, v in cond_mapper.items()}
 
 
-def _ensure_control_flow(hs0, hs1, cond_mapper):
+def _check_control_flow(hs0, hs1, cond_mapper):
     """
     If there are Conditionals involved, both `hs0` and `hs1` must be
     within the same Conditional, otherwise we would break control flow
