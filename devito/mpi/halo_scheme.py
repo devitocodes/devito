@@ -9,6 +9,7 @@ import sympy
 from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
+from devito.ir.iet.nodes import HaloMixin
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
                           frozendict, is_integer, filter_sorted, OrderedSet)
@@ -62,7 +63,7 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
-class HaloScheme:
+class HaloScheme(HaloMixin):
 
     """
     A HaloScheme describes a set of halo exchanges through a mapper:
@@ -119,16 +120,6 @@ class HaloScheme:
             ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
-
-    def __repr__(self):
-        fstrings = []
-        for f in self.fmapper:
-            loc_indices = OrderedSet(*(self._mapper[f].loc_indices.values()))
-            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-            fstrings.append("%s%s" % (f.name, loc_indices_str))
-
-        functions = ",".join(fstrings)
-        return "<%s(%s)>" % (self.__class__.__name__, functions)
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and

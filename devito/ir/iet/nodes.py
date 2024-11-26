@@ -1438,8 +1438,20 @@ BlankLine = CBlankLine()
 
 # Nodes required for distributed-memory halo exchange
 
+class HaloMixin:
 
-class HaloSpot(Node):
+    def __repr__(self):
+        fstrings = []
+        for f in self.fmapper.keys():
+            loc_indices = OrderedSet(*(self.fmapper[f].loc_indices.values()))
+            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
+            fstrings.append("%s%s" % (f.name, loc_indices_str))
+
+        functions = ",".join(fstrings)
+        return "<%s(%s)>" % (self.__class__.__name__, functions)
+
+
+class HaloSpot(HaloMixin, Node):
 
     """
     A halo exchange operation (e.g., send, recv, wait, ...) required to
@@ -1463,16 +1475,6 @@ class HaloSpot(Node):
             raise ValueError("`body` is expected to be a single Node")
 
         self._halo_scheme = halo_scheme
-
-    def __repr__(self):
-        fstrings = []
-        for f in self.functions:
-            loc_indices = OrderedSet(*(self.halo_scheme.fmapper[f].loc_indices.values()))
-            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-            fstrings.append("%s%s" % (f.name, loc_indices_str))
-
-        functions = ",".join(fstrings)
-        return "<%s(%s)>" % (self.__class__.__name__, functions)
 
     @property
     def halo_scheme(self):
