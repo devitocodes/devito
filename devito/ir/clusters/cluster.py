@@ -193,6 +193,8 @@ class Cluster:
     def grid(self):
         grids = set(f.grid for f in self.functions if f.is_AbstractFunction)
         grids.discard(None)
+        # Some Functions are defined on a SubDomain: use the parent Grid
+        grids = {g.grid if g.is_SubDomain else g for g in grids}
         if len(grids) == 0:
             return None
         elif len(grids) == 1:
