@@ -176,7 +176,7 @@ def _extend_dimension_map(expr, mapper):
 
     functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
     for f in functions:
-        updated_mapper.update({d: mapper[d.root] for d in f.dimensions})
+        updated_mapper.update({d: mapper[d.root] for d in f.space_dimensions if d.is_Sub})
 
     return frozendict(updated_mapper)
 
