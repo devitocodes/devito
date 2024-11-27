@@ -12,7 +12,7 @@ from devito.ir.support import Forward, Scope
 from devito.ir.iet.nodes import HaloMixin
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted, OrderedSet)
+                          frozendict, is_integer, filter_sorted)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
