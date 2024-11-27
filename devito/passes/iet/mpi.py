@@ -34,10 +34,8 @@ def optimize_halospots(iet, **kwargs):
 
 def _drop_reduction_halospots(iet):
     """
-    Remove HaloSpots that:
-
-        * Would be used to compute Increments (in which case, a halo exchange
-          is actually unnecessary)
+    Remove HaloSpots that are used to compute Increments
+    (in which case, a halo exchange is actually unnecessary)
     """
     mapper = defaultdict(set)
 
