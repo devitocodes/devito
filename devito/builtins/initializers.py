@@ -77,7 +77,7 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
                                          symbolic_max=d.symbolic_max + h.right)
         eqs = [eq.xreplace(subs) for eq in eqs]
 
-    op = dv.Operator(eqs, name=name, **kwargs)
+    op = dv.Operator(eqs, name=name, opt=('advanced', {'index-mode': 'int64'}), **kwargs)
     try:
         op()
     except ValueError:
