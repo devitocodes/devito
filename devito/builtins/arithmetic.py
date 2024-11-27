@@ -33,7 +33,8 @@ def norm(f, order=2):
 
     op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
                      [dv.Inc(s, dv.Abs(Pow(p, order))), dv.Eq(n[0], s)],
-                     name='norm%d' % order)
+                     name='norm%d' % order,
+                     opt=('advanced', {'index-mode': 'int64'}))
     op.apply(**kwargs)
 
     v = np.power(n.data[0], 1/order)
