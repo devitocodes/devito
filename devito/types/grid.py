@@ -9,7 +9,7 @@ from devito import configuration
 from devito.data import LEFT, RIGHT
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDistributor
-from devito.tools import ReducerMap, as_tuple, memoized_meth
+from devito.tools import ReducerMap, as_tuple
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -403,9 +403,6 @@ class AbstractSubDomain(CartesianDiscretization):
     name = None
     """A unique name for the SubDomain."""
 
-    # Track instances of SubDomains for dimension labelling
-    _subdomain_registry = {}
-
     def __init__(self, *args, **kwargs):
         if self.name is None:
             self.name = self.__class__.__name__
@@ -472,16 +469,6 @@ class AbstractSubDomain(CartesianDiscretization):
         Return the difference of two subdomains as a new subdomain.
         """
         raise NotImplementedError
-
-    @memoized_meth
-    def _counter(self, grid):
-        """The counter for a SubDomain"""
-        try:
-            self._subdomain_registry[grid].add(id(self))
-        except KeyError:
-            self._subdomain_registry[grid] = {id(self)}
-
-        return len(self._subdomain_registry[grid]) - 1
 
     @property
     def dimension_map(self):
@@ -585,8 +572,6 @@ class SubDomain(AbstractSubDomain):
     """
 
     def __subdomain_finalize__(self):
-        # FIXME: Will want some identifier for SubDomains which can have a Function
-        # FIXME: defined on them
         self.__subdomain_finalize_legacy__(self.grid)
         self._distributor = SubDistributor(self)
 
