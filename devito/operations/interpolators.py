@@ -16,7 +16,7 @@ from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT, CondEq
 from devito.tools import as_tuple, flatten, filter_ordered, Pickable
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, SubFunction)
+                          CustomDimension, SubFunction, Constant)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -74,9 +74,13 @@ def adjust_interp_indices(subdomain, mapper, smapper, cdmapper):
     # expression, and so must be inserted here.
     # FIXME: The resultant switch isn't super obvious in generated code and
     # results in different code between ranks.
+    # rank_populated = Constant(name='rank_populated', dtype=np.int8,
+    #                           value=int(not(subdomain.distributor.loc_empty)))
+    rank_populated = subdomain.distributor.rank_populated
     # FIXME: This could be checked for the rank before looping over sparse
-    # footprint
-    rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
+    # footprint -> Can one nest ConditionalDimensions?
+    # FIXME: This is also only needed if the function is distributed
+    # rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
 
     for d, cd in list(mapper.items()):
         cond = cd.condition.subs(subs)
@@ -317,18 +321,16 @@ class WeightedInterpolator(GenericInterpolator):
         smapper = {}
         # Substitution from ConditionalDimensions to rebuilt dimensions
         cdmapper = {}
-        # Need to adjust bounds if Function defined on a SubDomain
-        if subdomain:
-            adjust_interp_indices(subdomain, mapper, smapper, cdmapper)
 
         # Index substitution to make in variables
         i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
+
         if subdomain:  # Add subdimension substitutions if necessary
+            # Need to adjust bounds if Function defined on a SubDomain
+            adjust_interp_indices(subdomain, mapper, smapper, cdmapper)
             i_subs.update({k: c + p for ((k, c), p) in zip(smapper.items(), pos)})
 
-        idx_subs = {v: v.subs({k: c + p
-                    for ((k, c), p) in zip(mapper.items(), pos)})
-                    for v in variables}
+        idx_subs = {v: v.subs(i_subs) for v in variables}
 
         # Add the mapping from old ConditionalDimension to rebuilt ConditionalDimension
         idx_subs.update(cdmapper)
