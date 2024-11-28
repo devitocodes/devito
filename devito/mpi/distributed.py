@@ -15,7 +15,7 @@ from devito.data import LEFT, CENTER, RIGHT, Decomposition
 from devito.parameters import configuration
 from devito.tools import (EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered,
                           frozendict)
-from devito.types import CompositeObject, Object
+from devito.types import CompositeObject, Object, Constant
 from devito.types.utils import DimensionTuple
 
 
@@ -307,6 +307,12 @@ class DenseDistributor(AbstractDistributor):
         in the decomposed grid.
         """
         return MPINeighborhood(self.neighborhood)
+
+    @cached_property
+    def rank_populated(self):
+        """Constant symbol for a switch indicating that data is allocated on this rank"""
+        return Constant(name='rank_populated', dtype=np.int8,
+                        value=int(not(self.loc_empty)))
 
 
 class Distributor(DenseDistributor):
@@ -688,6 +694,12 @@ class SubDistributor(DenseDistributor):
                 ret[i] = self.comm.Get_cart_rank(neighbor)
 
         return ret
+
+    @cached_property
+    def rank_populated(self):
+        """Switch for a rank which is populated"""
+        # Needs to use this value but be prepared elsewhere
+        return self.parent.rank_populated
 
 
 class SparseDistributor(AbstractDistributor):
