@@ -232,6 +232,7 @@ def _(expr, mapper, rebuilt, sregistry):
     # a SubDimension, it gets concretised with the SubDimension.
     thicknesses = {i for i in expr.free_symbols if isinstance(i, Thickness)}
     symbols = expr.free_symbols.difference(thicknesses)
+
     for d in tuple(symbols) + tuple(thicknesses):
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 
