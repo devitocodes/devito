@@ -867,6 +867,12 @@ class Device(Platform):
             'max-block-dims': 3,
         }
 
+    def supports(self, query, language=None):
+        """
+        Check if the device supports a given feature.
+        """
+        return False
+
 
 class IntelDevice(Device):
 
@@ -894,6 +900,20 @@ class NvidiaDevice(Device):
             if 'tesla' in architecture.lower():
                 return 'tesla'
         return None
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        cc = get_nvidia_cc()
+        if query == 'async-loads' and cc >= 80:
+            # Asynchronous pipeline loads -- introduced in Ampere
+            return True
+        elif query == 'tma' and cc >= 90:
+            # Tensor Memory Acceleratory -- introduced in Hopper
+            return True
+        else:
+            return False
 
 
 class AmdDevice(Device):
