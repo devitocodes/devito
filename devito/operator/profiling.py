@@ -454,12 +454,13 @@ class PerformanceSummary(OrderedDict):
         ops = sum(v.ops for v in self.input.values())
         traffic = sum(v.traffic for v in self.input.values())
 
-        if np.isnan(traffic) or traffic == 0:
-            return
-
         gflops = float(ops)/10**9
         gflopss = gflops/time
-        oi = float(ops/traffic)
+
+        if np.isnan(traffic) or traffic == 0:
+            oi = None
+        else:
+            oi = float(ops/traffic)
 
         self.globals[key] = PerfEntry(time, gflopss, None, oi, None, None)
 
