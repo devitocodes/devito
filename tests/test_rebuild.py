@@ -43,6 +43,27 @@ class TestFunction:
         assert f3.dimensions == dims0
         assert np.all(f3.data[:] == 1)
 
+    def test_w_more_dims(self):
+        grid = Grid(shape=(4, 4))
+        d = Dimension('d')
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        with pytest.raises(ValueError):
+            # Expected shape to be passed in too
+            f._rebuild(dimensions=(d, *f.dimensions))
+
+        f0 = f._rebuild(dimensions=(d, *f.dimensions), shape=(1, 4, 4))
+        assert f0.dimensions == (d, *f.dimensions)
+        assert f0.shape == (1, 4, 4)
+        assert f0.halo == ((0, 0), (2, 2), (2, 2))
+
+        f1 = f._rebuild(dimensions=(d, *f.dimensions), shape=(1, 4, 4),
+                        halo=((1, 1), (0, 0), (0, 0)))
+        assert f1.dimensions == (d, *f.dimensions)
+        assert f1.shape == (1, 4, 4)
+        assert f1.halo == ((1, 1), (0, 0), (0, 0))
+
 
 class TestDimension:
 
