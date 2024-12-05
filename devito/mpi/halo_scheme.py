@@ -36,8 +36,8 @@ class HaloSchemeEntry(Reconstructable):
     def __init__(self, loc_indices, loc_dirs, halos, dims):
         self.loc_indices = frozendict(loc_indices)
         self.loc_dirs = frozendict(loc_dirs)
-        self.halos = halos
-        self.dims = dims
+        self.halos = frozenset(halos)
+        self.dims = frozenset(dims)
 
     def __eq__(self, other):
         if not isinstance(other, HaloSchemeEntry):
@@ -48,10 +48,10 @@ class HaloSchemeEntry(Reconstructable):
                 self.dims == other.dims)
 
     def __hash__(self):
-        return hash((frozenset(self.loc_indices.items()),
-                     frozenset(self.loc_dirs.items()),
-                     frozenset(self.halos),
-                     frozenset(self.dims)))
+        return hash((tuple(self.loc_indices.items()),
+                     tuple(self.loc_dirs.items()),
+                     self.halos,
+                     self.dims))
 
     def __repr__(self):
         return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
