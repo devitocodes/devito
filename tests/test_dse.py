@@ -11,7 +11,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     SparseTimeFunction, Dimension, SubDimension,
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
-                    centered, first_derivative, solve, transpose, Abs, cos,
+                    first_derivative, solve, transpose, Abs, cos,
                     sin, sqrt, floor, Ge, Lt, Derivative)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,

@@ -16,7 +16,7 @@ from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC
                                Forward, WithLock, PrefetchUpdate, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          ctypes_to_cstr)
+                          ctypes_to_cstr, OrderedSet)
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
@@ -616,6 +616,14 @@ class Iteration(Node):
         _max = _max if _max is not None else self.limits[1]
 
         return (_min, _max)
+
+    @property
+    def start(self):
+        """The start value."""
+        if self.direction is Forward:
+            return self.dim.symbolic_min
+        else:
+            return self.dim.symbolic_max
 
     @property
     def step(self):
@@ -1430,8 +1438,20 @@ BlankLine = CBlankLine()
 
 # Nodes required for distributed-memory halo exchange
 
+class HaloMixin:
 
-class HaloSpot(Node):
+    def __repr__(self):
+        fstrings = []
+        for f in self.fmapper.keys():
+            loc_indices = OrderedSet(*(self.fmapper[f].loc_indices.values()))
+            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
+            fstrings.append("%s%s" % (f.name, loc_indices_str))
+
+        functions = ",".join(fstrings)
+        return "<%s(%s)>" % (self.__class__.__name__, functions)
+
+
+class HaloSpot(HaloMixin, Node):
 
     """
     A halo exchange operation (e.g., send, recv, wait, ...) required to
@@ -1455,10 +1475,6 @@ class HaloSpot(Node):
             raise ValueError("`body` is expected to be a single Node")
 
         self._halo_scheme = halo_scheme
-
-    def __repr__(self):
-        functions = "(%s)" % ",".join(i.name for i in self.functions)
-        return "<%s%s>" % (self.__class__.__name__, functions)
 
     @property
     def halo_scheme(self):
