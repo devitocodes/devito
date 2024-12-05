@@ -965,7 +965,8 @@ class Operator(Callable):
             if v is not None:
                 if v.oi is not None:
                     metrics.append("OI=%.2f" % fround(v.oi))
-                metrics.append("%.2f GFlops/s" % fround(v.gflopss))
+                if v.gflopss is not None:
+                    metrics.append("%.2f GFlops/s" % fround(v.gflopss))
 
             v = summary.globals.get('fdlike')
             if v is not None:
