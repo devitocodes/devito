@@ -877,7 +877,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         name = kwargs.get('name')
         alias = kwargs.get('alias')
         function = kwargs.get('function')
-        if alias or (function and function.name != name):
+        if alias is True or (function and function.name != name):
             function = kwargs['function'] = None
 
         # If same name/indices and `function` isn't None, then it's
