@@ -259,6 +259,9 @@ class Interval(AbstractInterval):
     def zero(self):
         return Interval(self.dim, 0, 0, self.stamp)
 
+    def set_upper(self, v=0):
+        return Interval(self.dim, self.lower, v, self.stamp)
+
     def flip(self):
         return Interval(self.dim, self.upper, self.lower, self.stamp)
 
@@ -495,6 +498,11 @@ class IntervalGroup(Ordering):
         intervals = [i.zero() if i.dim in d else i for i in self]
 
         return IntervalGroup(intervals, relations=self.relations, mode=self.mode)
+
+    def set_upper(self, d, v=0):
+        dims = as_tuple(d)
+        return IntervalGroup([i.set_upper(v) if i.dim in dims else i for i in self],
+                             relations=self.relations, mode=self.mode)
 
     def lift(self, d=None, v=None):
         d = set(self.dimensions if d is None else as_tuple(d))
