@@ -9,10 +9,9 @@ import sympy
 from devito import configuration
 from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
-from devito.ir.iet.nodes import HaloMixin
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted)
+                          frozendict, is_integer, filter_sorted, OrderedSet)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -36,8 +35,8 @@ class HaloSchemeEntry(Reconstructable):
     def __init__(self, loc_indices, loc_dirs, halos, dims):
         self.loc_indices = frozendict(loc_indices)
         self.loc_dirs = frozendict(loc_dirs)
-        self.halos = halos
-        self.dims = dims
+        self.halos = frozenset(halos)
+        self.dims = frozenset(dims)
 
     def __eq__(self, other):
         if not isinstance(other, HaloSchemeEntry):
@@ -48,10 +47,10 @@ class HaloSchemeEntry(Reconstructable):
                 self.dims == other.dims)
 
     def __hash__(self):
-        return hash((frozenset(self.loc_indices.items()),
-                     frozenset(self.loc_dirs.items()),
-                     frozenset(self.halos),
-                     frozenset(self.dims)))
+        return hash((tuple(self.loc_indices.items()),
+                     tuple(self.loc_dirs.items()),
+                     self.halos,
+                     self.dims))
 
     def __repr__(self):
         return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
@@ -63,7 +62,7 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
-class HaloScheme(HaloMixin):
+class HaloScheme():
 
     """
     A HaloScheme describes a set of halo exchanges through a mapper:
@@ -120,6 +119,18 @@ class HaloScheme(HaloMixin):
             ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
+
+    def __reprfuncs__(self):
+        fstrings = []
+        for f in self.fmapper.keys():
+            loc_indices = OrderedSet(*(self.fmapper[f].loc_indices.values()))
+            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
+            fstrings.append("%s%s" % (f.name, loc_indices_str))
+
+        return ",".join(fstrings)
+
+    def __repr__(self):
+        return "<%s(%s)>" % (self.__class__.__name__, self.__reprfuncs__())
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
