@@ -12,7 +12,7 @@ from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.tools import generator, frozendict
+from devito.tools import generator
 
 __all__ = ['mpiize']
 
@@ -94,7 +94,6 @@ def _hoist_invariant(iet):
                 continue
 
             for f, v in hs1.fmapper.items():
-
                 if f not in hs0.functions:
                     continue
 
@@ -114,7 +113,7 @@ def _hoist_invariant(iet):
                         else:
                             raw_loc_indices[d] = v
 
-                    hse = hse._rebuild(loc_indices=frozendict(raw_loc_indices))
+                    hse = hse._rebuild(loc_indices=raw_loc_indices)
                     hs1.halo_scheme.fmapper[f] = hse
 
                     hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
@@ -348,20 +347,27 @@ def _filter_iter_mapper(iet):
     Given an IET, return a mapper from Iterations to the HaloSpots.
     Additionally, filter out Iterations that are not of interest.
     """
-    iter_mapper = MapNodes(Iteration, HaloSpot, 'immediate').visit(iet)
-    iter_mapper = {k: [hs for hs in v if not hs.halo_scheme.is_void]
-                   for k, v in iter_mapper.items()}
-    iter_mapper = {k: v for k, v in iter_mapper.items() if k is not None}
-    iter_mapper = {k: v for k, v in iter_mapper.items() if len(v) > 1}
+    iter_mapper = {}
+    for k, v in MapNodes(Iteration, HaloSpot, 'immediate').visit(iet).items():
+        filtered_hs = [hs for hs in v if not hs.halo_scheme.is_void]
+        if k is not None and len(filtered_hs) > 1:
+            iter_mapper[k] = filtered_hs
 
     return iter_mapper
 
 
 def _make_cond_mapper(iet):
-    cond_mapper = MapHaloSpots().visit(iet)
-    return {hs: {i for i in v if i.is_Conditional and
-                 not isinstance(i.condition, GuardFactorEq)}
-            for hs, v in cond_mapper.items()}
+
+    cond_mapper = {}
+    for hs, v in MapHaloSpots().visit(iet).items():
+        conditionals = set()
+        for i in v:
+            if i.is_Conditional and not isinstance(i.condition, GuardFactorEq):
+                conditionals.add(i)
+
+        cond_mapper[hs] = conditionals
+
+    return cond_mapper
 
 
 def _check_control_flow(hs0, hs1, cond_mapper):
