@@ -16,7 +16,7 @@ from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC
                                Forward, WithLock, PrefetchUpdate, detect_io)
 from devito.symbolics import ListInitializer, CallFromPointer, ccode
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          ctypes_to_cstr, OrderedSet)
+                          ctypes_to_cstr)
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
@@ -1438,20 +1438,7 @@ BlankLine = CBlankLine()
 
 # Nodes required for distributed-memory halo exchange
 
-class HaloMixin:
-
-    def __repr__(self):
-        fstrings = []
-        for f in self.fmapper.keys():
-            loc_indices = OrderedSet(*(self.fmapper[f].loc_indices.values()))
-            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-            fstrings.append("%s%s" % (f.name, loc_indices_str))
-
-        functions = ",".join(fstrings)
-        return "<%s(%s)>" % (self.__class__.__name__, functions)
-
-
-class HaloSpot(HaloMixin, Node):
+class HaloSpot(Node):
 
     """
     A halo exchange operation (e.g., send, recv, wait, ...) required to
@@ -1508,6 +1495,9 @@ class HaloSpot(HaloMixin, Node):
     def functions(self):
         return tuple(self.fmapper)
 
+    def __repr__(self):
+        funcs = self.halo_scheme.__reprfuncs__()
+        return "<%s(%s)>" % (self.__class__.__name__, funcs)
 
 # Utility classes
 
