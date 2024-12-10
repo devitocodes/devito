@@ -101,19 +101,18 @@ def _hoist_invariant(iet):
                     if not any(r(dep, hs1, v.loc_indices) for r in rules):
                         break
                 else:
-                    # hs1 can be hoisted out of `it`, but we need to infer valid
+                    # `hs1`` can be hoisted out of `it`, but we need to infer valid
                     # loc_indices
                     hse = hs1.halo_scheme.fmapper[f]
-                    raw_loc_indices = {}
+                    loc_indices = {}
 
                     for d, v in hse.loc_indices.items():
                         if v in it.uindices:
-                            v_sub = it.start
-                            raw_loc_indices[d] = v.symbolic_min.subs(it.dim, v_sub)
+                            loc_indices[d] = v.symbolic_min.subs(it.dim, it.start)
                         else:
-                            raw_loc_indices[d] = v
+                            loc_indices[d] = v
 
-                    hse = hse._rebuild(loc_indices=raw_loc_indices)
+                    hse = hse._rebuild(loc_indices=loc_indices)
                     hs1.halo_scheme.fmapper[f] = hse
 
                     hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
@@ -357,14 +356,11 @@ def _filter_iter_mapper(iet):
 
 
 def _make_cond_mapper(iet):
-
+    "Return a mapper from HaloSpots to the Conditionals that contain them."
     cond_mapper = {}
     for hs, v in MapHaloSpots().visit(iet).items():
-        conditionals = set()
-        for i in v:
-            if i.is_Conditional and not isinstance(i.condition, GuardFactorEq):
-                conditionals.add(i)
-
+        conditionals = {i for i in v if i.is_Conditional and
+                        not isinstance(i.condition, GuardFactorEq)}
         cond_mapper[hs] = conditionals
 
     return cond_mapper

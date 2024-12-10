@@ -1437,7 +1437,6 @@ BlankLine = CBlankLine()
 
 
 # Nodes required for distributed-memory halo exchange
-
 class HaloSpot(Node):
 
     """
@@ -1462,6 +1461,10 @@ class HaloSpot(Node):
             raise ValueError("`body` is expected to be a single Node")
 
         self._halo_scheme = halo_scheme
+
+    def __repr__(self):
+        functions = "(%s)" % ",".join(i.name for i in self.functions)
+        return "<%s%s>" % (self.__class__.__name__, functions)
 
     @property
     def halo_scheme(self):
@@ -1494,10 +1497,6 @@ class HaloSpot(Node):
     @property
     def functions(self):
         return tuple(self.fmapper)
-
-    def __repr__(self):
-        funcs = self.halo_scheme.__reprfuncs__()
-        return "<%s(%s)>" % (self.__class__.__name__, funcs)
 
 # Utility classes
 
