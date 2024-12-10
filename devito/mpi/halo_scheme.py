@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted, OrderedSet)
+                          frozendict, is_integer, filter_sorted)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -62,7 +62,7 @@ Halo = namedtuple('Halo', 'dim side')
 OMapper = namedtuple('OMapper', 'core owned')
 
 
-class HaloScheme():
+class HaloScheme:
 
     """
     A HaloScheme describes a set of halo exchanges through a mapper:
@@ -120,17 +120,9 @@ class HaloScheme():
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
 
-    def __reprfuncs__(self):
-        fstrings = []
-        for f in self.fmapper.keys():
-            loc_indices = OrderedSet(*(self.fmapper[f].loc_indices.values()))
-            loc_indices_str = str(list(loc_indices)) if loc_indices else ""
-            fstrings.append("%s%s" % (f.name, loc_indices_str))
-
-        return ",".join(fstrings)
-
     def __repr__(self):
-        return "<%s(%s)>" % (self.__class__.__name__, self.__reprfuncs__())
+        fnames = ",".join(i.name for i in set(self._mapper))
+        return "HaloScheme<%s>" % fnames
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -545,8 +537,6 @@ def classify(exprs, ispace):
 
         loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                     ispace.directions)
-        halos = frozenset(halos)
-        dims = frozenset(dims)
 
         mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 

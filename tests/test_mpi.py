@@ -1299,7 +1299,7 @@ class TestCodeGeneration:
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
     @pytest.mark.parallel(mode=1)
-    def test_merge_haloupdate_if_diff_locindices_v0(self, mode):
+    def test_merge_haloupdate_if_diff_locindices(self, mode):
         grid = Grid(shape=(101, 101))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -1320,11 +1320,12 @@ class TestCodeGeneration:
         op.cfunction
 
     @pytest.mark.parallel(mode=2)
-    def test_merge_haloupdate_if_diff_locindices_v1(self, mode):
+    def test_merge_and_hoist_haloupdate_if_diff_locindices(self, mode):
         """
         This test is a revisited, more complex version of
-        `test_merge_haloupdate_if_diff_locindices_v0`. And in addition to
-        checking the generated code, it also checks the numerical output.
+        `test_merge_haloupdate_if_diff_locindices`, also checking hoisting.
+        And in addition to checking the generated code,
+        it also checks the numerical output.
 
         In the Operator there are three Eqs:
 
