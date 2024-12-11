@@ -31,6 +31,8 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'POWER8', 'POWER9',
            # Generic GPUs
            'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+           # Nvidia GPUs
+           'AMPERE',
            # Intel GPUs
            'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
 
@@ -916,6 +918,38 @@ class NvidiaDevice(Device):
             return False
 
 
+class Volta(NvidiaDevice):
+    pass
+
+
+class Ampere(Volta):
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        if query == 'async-loads':
+            return True
+
+        return super().supports(query, language)
+
+
+class Hopper(Ampere):
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        if query == 'tma':
+            return True
+
+        return super().supports(query, language)
+
+
+class Blackwell(Hopper):
+    pass
+
+
 class AmdDevice(Device):
 
     max_mem_trans_nbytes = 256
@@ -983,6 +1017,10 @@ POWER9 = Power('power9')
 ANYGPU = Cpu64('gpu')
 
 NVIDIAX = NvidiaDevice('nvidiaX')
+VOLTA = Volta('volta')
+AMPERE = Ampere('ampere')
+HOPPER = Hopper('hopper')
+BLACKWELL = Blackwell('blackwell')
 
 AMDGPUX = AmdDevice('amdgpuX')
 

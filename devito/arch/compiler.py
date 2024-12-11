@@ -13,8 +13,8 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
-from devito.arch import (AMDGPUX, Cpu64, AppleArm, NVIDIAX, POWER8, POWER9, Graviton,
-                         IntelDevice, get_nvidia_cc, check_cuda_runtime,
+from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
+                         Graviton, IntelDevice, get_nvidia_cc, check_cuda_runtime,
                          get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
@@ -487,7 +487,7 @@ class ClangCompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if platform is NVIDIAX:
+        if isinstance(platform, NvidiaDevice):
             self.cflags.remove('-std=c99')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
@@ -555,7 +555,7 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        if platform is NVIDIAX:
+        if isinstance(platform, NvidiaDevice):
             self.cflags.remove('-std=c99')
         elif platform is AMDGPUX:
             self.cflags.remove('-std=c99')
@@ -607,7 +607,7 @@ class PGICompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if platform is NVIDIAX:
+        if isinstance(platform, NvidiaDevice):
             if self.version >= Version("24.9"):
                 self.cflags.append('-gpu=mem:separate:pinnedalloc')
             else:
@@ -843,7 +843,7 @@ class OneapiCompiler(IntelCompiler):
                 self.ldflags.remove('-qopenmp')
                 self.ldflags.append('-fopenmp')
 
-            if platform is NVIDIAX:
+            if isinstance(platform, NvidiaDevice):
                 self.cflags.append('-fopenmp-targets=nvptx64-cuda')
             elif isinstance(platform, IntelDevice):
                 self.cflags.append('-fiopenmp')
@@ -900,7 +900,7 @@ class SyclCompiler(OneapiCompiler):
 
         if isinstance(platform, Cpu64):
             pass
-        elif platform is NVIDIAX:
+        elif isinstance(platform, NvidiaDevice):
             self.cflags.append('-fsycl-targets=nvptx64-cuda')
         elif isinstance(platform, IntelDevice):
             self.cflags.append('-fsycl-targets=spir64')
@@ -931,7 +931,7 @@ class CustomCompiler(Compiler):
             _base = ClangCompiler
         elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler
-        elif platform is NVIDIAX:
+        elif isinstance(platform, NvidiaDevice):
             if language == 'cuda':
                 _base = CudaCompiler
             else:
