@@ -873,7 +873,6 @@ class MapNodes(Visitor):
         the nodes of type ``child_types`` retrieved by the search. This behaviour
         can be changed through this parameter. Accepted values are:
         - 'immediate': only the closest matching ancestor is mapped.
-        - 'groupby': the matching ancestors are grouped together as a single key.
     """
 
     def __init__(self, parent_type=None, child_types=None, mode=None):
@@ -886,7 +885,7 @@ class MapNodes(Visitor):
             assert issubclass(parent_type, Node)
             self.parent_type = parent_type
         self.child_types = as_tuple(child_types) or (Call, Expression)
-        assert mode in (None, 'immediate', 'groupby')
+        assert mode in (None, 'immediate')
         self.mode = mode
 
     def visit_object(self, o, ret=None, **kwargs):
@@ -903,9 +902,7 @@ class MapNodes(Visitor):
         if parents is None:
             parents = []
         if isinstance(o, self.child_types):
-            if self.mode == 'groupby':
-                ret.setdefault(as_tuple(parents), []).append(o)
-            elif self.mode == 'immediate':
+            if self.mode == 'immediate':
                 if in_parent:
                     ret.setdefault(parents[-1], []).append(o)
                 else:

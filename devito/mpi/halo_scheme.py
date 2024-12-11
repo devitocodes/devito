@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted)
+                          frozendict, is_integer, filter_sorted, EnrichedTuple)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -28,7 +28,22 @@ IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
 
-HaloSchemeEntry = namedtuple('HaloSchemeEntry', 'loc_indices loc_dirs halos dims')
+class HaloSchemeEntry(EnrichedTuple):
+
+    __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
+
+    def __init__(self, loc_indices, loc_dirs, halos, dims, getters=None):
+        self.loc_indices = frozendict(loc_indices)
+        self.loc_dirs = frozendict(loc_dirs)
+        self.halos = frozenset(halos)
+        self.dims = frozenset(dims)
+
+    def __hash__(self):
+        return hash((self.loc_indices,
+                     self.loc_dirs,
+                     self.halos,
+                     self.dims))
+
 
 Halo = namedtuple('Halo', 'dim side')
 
@@ -121,7 +136,10 @@ class HaloScheme:
         Create a new HaloScheme from the union of a set of HaloSchemes.
         """
         halo_schemes = [hs for hs in halo_schemes if hs is not None]
-        if not halo_schemes:
+
+        if len(halo_schemes) == 1:
+            return halo_schemes[0]
+        elif not halo_schemes:
             return None
 
         fmapper = {}
@@ -366,6 +384,10 @@ class HaloScheme:
         return set().union(*[i.loc_indices.keys() for i in self.fmapper.values()])
 
     @cached_property
+    def loc_values(self):
+        return set().union(*[i.loc_indices.values() for i in self.fmapper.values()])
+
+    @cached_property
     def arguments(self):
         return self.dimensions | set(flatten(self.honored.values()))
 
@@ -503,8 +525,6 @@ def classify(exprs, ispace):
 
         loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                     ispace.directions)
-        halos = frozenset(halos)
-        dims = frozenset(dims)
 
         mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
@@ -556,7 +576,7 @@ def process_loc_indices(raw_loc_indices, directions):
     known = set().union(*[i._defines for i in loc_indices])
     loc_dirs = {d: v for d, v in directions.items() if d in known}
 
-    return frozendict(loc_indices), frozendict(loc_dirs)
+    return loc_indices, loc_dirs
 
 
 class HaloTouch(sympy.Function, Reconstructable):
@@ -634,9 +654,7 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
                     # Nope, let's try with the next Indexed, if any
                     continue
 
-                hse = HaloSchemeEntry(frozendict(loc_indices),
-                                      frozendict(loc_dirs),
-                                      hse0.halos, hse0.dims)
+                hse = hse0._rebuild(loc_indices=loc_indices, loc_dirs=loc_dirs)
 
             else:
                 continue
