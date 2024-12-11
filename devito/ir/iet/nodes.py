@@ -1437,6 +1437,8 @@ BlankLine = CBlankLine()
 
 
 # Nodes required for distributed-memory halo exchange
+
+
 class HaloSpot(Node):
 
     """
@@ -1497,6 +1499,7 @@ class HaloSpot(Node):
     @property
     def functions(self):
         return tuple(self.fmapper)
+
 
 # Utility classes
 
