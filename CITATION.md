@@ -35,7 +35,20 @@ If you publish results using Devito, we would be grateful if you would cite the 
 }
 ```
 
+Additionally, if you use Devito for distributed runs, you may want to cite the following paper as well:
+```
+@misc{bisbas2024automatedmpixcodegeneration,
+      title={Automated MPI-X code generation for scalable finite-difference solvers}, 
+      author={George Bisbas and Rhodri Nelson and Mathias Louboutin and Fabio Luporini and Paul H. J. Kelly and Gerard Gorman},
+      year={2024},
+      eprint={2312.13094},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2312.13094}, 
+}
+```
+
 ## Citing a specific release of Devito through Zenodo
 
-To cite a specific release of Devito through Zenodo you can follow this link pointing to the latest release:
+To cite a specific release of Devito through Zenodo, you can follow this link pointing to the latest release:
 https://doi.org/10.5281/zenodo.597277 .
