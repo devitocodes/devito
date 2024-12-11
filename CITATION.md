@@ -2,7 +2,7 @@
 
 If you publish results using Devito, we would be grateful if you would cite the following papers:
 
-```
+```bibtex
 @article{devito-compiler,
   author = {Luporini, Fabio and Louboutin, Mathias and Lange, Michael and Kukreja, Navjot and Witte, Philipp and H\"{u}ckelheim, Jan and Yount, Charles and Kelly, Paul H. J. and Herrmann, Felix J. and Gorman, Gerard J.},
   title = {Architecture and Performance of Devito, a System for Automated Stencil Computation},
@@ -36,7 +36,7 @@ If you publish results using Devito, we would be grateful if you would cite the 
 ```
 
 Additionally, if you use Devito for distributed runs, you may want to cite the following paper as well:
-```
+```bibtex
 @misc{bisbas2024automatedmpixcodegeneration,
       title={Automated MPI-X code generation for scalable finite-difference solvers}, 
       author={George Bisbas and Rhodri Nelson and Mathias Louboutin and Fabio Luporini and Paul H. J. Kelly and Gerard Gorman},
