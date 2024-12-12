@@ -1,7 +1,8 @@
 from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
 from devito.tools import memoized_meth
 from examples.seismic.acoustic.operators import (
-    ForwardOperator, AdjointOperator, GradientOperator, BornOperator, create_snapshot_time_function
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator,
+    create_snapshot_time_function
 )
 
 
@@ -72,7 +73,11 @@ class AcousticWaveSolver:
                             kernel=self.kernel, space_order=self.space_order,
                             **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, model=None, save=None, factor=None, **kwargs):
+    def forward(
+        self, src=None, rec=None, u=None, usnaps=None,
+        model=None, save=None, factor=None,
+        **kwargs
+    ):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -92,7 +97,7 @@ class AcousticWaveSolver:
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
         factor : int, optional
-        Downsampling factor to save snapshots of the wavefield.
+            Downsampling factor to save snapshots of the wavefield.
 
         Returns
         -------
@@ -100,28 +105,38 @@ class AcousticWaveSolver:
         """
         # Source term is read-only, so re-use the default
         src = src or self.geometry.src
-        # Create a new receiver object to store the result 
+        # Create a new receiver object to store the result
         rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
+        save_value = self.geometry.nt if save and factor is None else None
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                                save=self.geometry.nt if save and factor is None else None,
-                                time_order=2, space_order=self.space_order)
-        if factor: # Create snapshots of the forward wavefield
-            usnaps = create_snapshot_time_function(self.model, 'usnaps', self.geometry, self.space_order, factor)
-        
+                              save=save_value,
+                              time_order=2, space_order=self.space_order)
+
+        # Create snapshots of the forward wavefield
+        usnaps = usnaps or create_snapshot_time_function(
+            self.model, 'usnaps', self.geometry, self.space_order, factor
+        )
+
         model = model or self.model
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
-        if factor: # Return snapshots of the forward wavefield
-            summary = self.op_fwd(save, factor).apply(src=src, rec=rec, u=u, usnaps=usnaps,
-                                        dt=kwargs.pop('dt', self.dt), **kwargs)
+        if factor:
+            # Return snapshots of the forward wavefield
+            summary = self.op_fwd(save, factor).apply(
+                src=src, rec=rec, u=u, usnaps=usnaps,
+                dt=kwargs.pop('dt', self.dt), **kwargs
+            )
             return rec, usnaps, summary
-        else:# Return the full forward wavefield
-            summary = self.op_fwd(save, factor).apply(src=src, rec=rec, u=u,
-                                        dt=kwargs.pop('dt', self.dt), **kwargs)
+        else:
+            # Return the full forward wavefield
+            summary = self.op_fwd(save, factor).apply(
+                src=src, rec=rec, u=u,
+                dt=kwargs.pop('dt', self.dt), **kwargs
+            )
             return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, model=None, **kwargs):
@@ -154,7 +169,7 @@ class AcousticWaveSolver:
         # Create the adjoint wavefield if not provided
         v = v or TimeFunction(name='v', grid=self.model.grid,
                               time_order=2, space_order=self.space_order)
-        
+
         model = model or self.model
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
@@ -187,8 +202,8 @@ class AcousticWaveSolver:
             Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
-        checkpointing : boolean, optional 
-            Flag to enable checkpointing (default False). 
+        checkpointing : boolean, optional
+            Flag to enable checkpointing (default False).
             Cannot be used with snapshotting.
         factor : int, optional
             Downsampling factor for the saved snapshots of the wavefield `u`.
@@ -201,7 +216,10 @@ class AcousticWaveSolver:
         dt = kwargs.pop('dt', self.dt)
         # Check that snapshotting and checkpointing are not used together
         if factor is not None and checkpointing:
-            raise ValueError("Cannot use snapshotting (factor) and checkpointing simultaneously.")
+            raise ValueError(
+                "Cannot use snapshotting (factor) and "
+                "checkpointing simultaneously."
+            )
 
         # Gradient symbol
         grad = grad or Function(name='grad', grid=self.model.grid)
@@ -230,8 +248,9 @@ class AcousticWaveSolver:
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:
-            summary = self.op_grad(factor=factor).apply(rec=rec, grad=grad, v=v, u=u, dt=dt,
-                                           **kwargs)
+            summary = self.op_grad(factor=factor).apply(
+                rec=rec, grad=grad, v=v, u=u, dt=dt, **kwargs
+            )
 
         return grad, summary
 
