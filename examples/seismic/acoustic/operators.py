@@ -1,4 +1,6 @@
-from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign, ConditionalDimension
+from devito import (
+    Eq, Operator, Function, TimeFunction, Inc, solve, sign, ConditionalDimension
+)
 from devito.symbolics import retrieve_functions, INT, retrieve_derivatives
 
 
@@ -106,14 +108,58 @@ def iso_stencil(field, model, kernel, **kwargs):
         eqns.append(freesurface(model, Eq(unext, eq_time)))
     return eqns
 
-def create_snapshot_time_function(model, name, geometry, space_order, factor, save=True):
-    nsnaps = (geometry.nt + factor - 1) // factor
-    time_subsampled = ConditionalDimension('t_sub', 
-                                            parent=model.grid.time_dim, factor=factor)
-    u_ = TimeFunction(name=name, grid=model.grid, 
-                        time_order=2, space_order=space_order,
-                        save=nsnaps if save else None, time_dim=time_subsampled)
-    return u_
+
+def create_snapshot_time_function(model, name, geometry, space_order, factor=None):
+    """
+    Create a TimeFunction to store snapshots of the wavefield during simulation.
+
+    Parameters
+    ----------
+    model : Model
+        Object containing the physical parameters.
+    name : str
+        The name of the snapshot TimeFunction.
+    geometry : AcquisitionGeometry
+        Geometry object that contains the source (SparseTimeFunction) and
+        receivers (SparseTimeFunction) and their position.
+    space_order : int
+        Space discretization order.
+    factor : int, optional
+        Downsampling factor for snapshot storage. If provided, snapshots are saved
+        every `factor` time steps. Defaults to None, which disables snapshot saving.
+
+    Returns
+    -------
+    TimeFunction configured to store snapshots of the wavefield.
+    The snapshots are saved based on the provided downsampling factor.
+
+    Notes
+    -----
+    - If `factor` is provided, snapshots will be saved every `factor` time steps.
+      The number of snapshots (`nsnaps`) is calculated as:
+      `(geometry.nt + factor - 1) // factor`.
+    - If `factor` is None, the snapshot storage is disabled (`save=None`).
+    - The `time_dim` of the TimeFunction is subsampled using a ConditionalDimension.
+    """
+    if factor is not None:
+        nsnaps = (geometry.nt + factor - 1) // factor
+    else:
+        nsnaps = None
+
+    time_subsampled = ConditionalDimension(
+        't_sub', parent=model.grid.time_dim, factor=factor
+    )
+
+    usnaps = TimeFunction(
+        name=name,
+        grid=model.grid,
+        time_order=2,
+        space_order=space_order,
+        save=nsnaps,
+        time_dim=time_subsampled
+    )
+    return usnaps
+
 
 def ForwardOperator(model, geometry, space_order=4,
                     save=False, kernel='OT2', factor=None, **kwargs):
@@ -140,10 +186,11 @@ def ForwardOperator(model, geometry, space_order=4,
     m = model.m
 
     # Create symbols for forward wavefield, source and receivers
+    save_value = geometry.nt if save and factor is None else None
     u = TimeFunction(name='u', grid=model.grid,
-                     save=geometry.nt if save and factor is None else None,
+                     save=save_value,
                      time_order=2, space_order=space_order)
-    
+
     src = geometry.src
     rec = geometry.rec
 
@@ -159,12 +206,13 @@ def ForwardOperator(model, geometry, space_order=4,
     # Build operator equations
     equations = eqn + src_term + rec_term
 
+    usnaps = create_snapshot_time_function(model, 'usnaps', geometry, space_order, factor)
+
     if factor:
         # Add equation to save snapshots
-        usnaps = create_snapshot_time_function(model, 'usnaps', geometry, space_order, factor)
         snapshot_eq = Eq(usnaps, u)
         equations += [snapshot_eq]
-    
+
     # Substitute spacing terms to reduce flops
     return Operator(equations, subs=model.spacing_map, name='Forward', **kwargs)
 
@@ -232,31 +280,34 @@ def GradientOperator(model, geometry, space_order=4, save=True,
 
     # Gradient symbol and wavefield symbols
     grad = Function(name='grad', grid=model.grid)
-    if factor: # Apply the imaging condition at the snapshots of the full wavefield
+
+    if factor:
+        # Apply the imaging condition at the snapshots of the full wavefield
         u = create_snapshot_time_function(model, 'u', geometry, space_order, factor)
-    else:# Apply the imaging condition at every time step of the full wavefield
+    else:
+        # Apply the imaging condition at every time step of the full wavefield
         u = TimeFunction(name='u', grid=model.grid,
                          save=geometry.nt if save else None,
-                         time_order=2, space_order=space_order) 
-    v = TimeFunction(name='v', grid=model.grid, save=None, 
+                         time_order=2, space_order=space_order)
+
+    v = TimeFunction(name='v', grid=model.grid, save=None,
                      time_order=2, space_order=space_order)
     rec = geometry.rec
 
     s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, model, kernel, forward=False)
-    
+
     if kernel == 'OT2':
         gradient_update = Inc(grad, - u * v.dt2)
     elif kernel == 'OT4':
-        gradient_update = Inc(grad, - u * v.dt2
-                                - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
-        
-     # Add expression for receiver injection
+        gradient_update = Inc(grad, - u * v.dt2 - s**2 / 12.0 * u.biharmonic(m**(-2)) * v)
+
+    # Add expression for receiver injection
     receivers = rec.inject(field=v.backward, expr=rec * s**2 / m)
-    
+
     # Substitute spacing terms to reduce flops
     return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
-                  name='Gradient', **kwargs)
+                    name='Gradient', **kwargs)
 
 
 def BornOperator(model, geometry, space_order=4,
