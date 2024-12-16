@@ -838,7 +838,8 @@ class IndexDerivative(IndexSum):
         n1 = self.__class__
         n2 = other.__class__
         if n1.__name__ == n2.__name__:
-            return self.base.compare(other.base)
+            return (self.weights.compare(other.weights) or
+                    self.base.compare(other.base))
         else:
             return super().compare(other)
 
