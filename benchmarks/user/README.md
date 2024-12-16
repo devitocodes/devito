@@ -87,18 +87,17 @@ DEVITO_LANGUAGE=openmp python benchmark.py ...
 
 ## Enabling MPI
 
-To switch on MPI, one should set
+To switch on MPI, one can select from a number of available modes as shown in:
+[DEVITO_MPI](https://github.com/devitocodes/devito/blob/master/FAQ.md#devito_mpi)
+
 ```bash
 DEVITO_MPI=1
 ```
 and run with `mpirun -n number_of_processes python benchmark.py ...`
 
-Devito supports multiple MPI schemes for halo exchange.
-
 * Devito's most prevalent MPI modes are three: `basic`, `diag2` and `full`.
 and are respectively activated e.g., via `DEVITO_MPI=basic`.
-These modes may perform better under different factors such as arithmetic intensity,
-or number of fields used in the computation.
+These modes may perform better under different factors such as arithmetic intensity or number of fields used in the computation.
 
 ## The optimization level
 

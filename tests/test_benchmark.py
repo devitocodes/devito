@@ -38,8 +38,7 @@ def test_bench(mode, problem, op):
     command_bench = [pyversion, benchpath, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
                      '%d' % tn, '-op', op]
-    if mode == "bench":
-        command_bench.extend(['-x', '1'])
+
     check_call(command_bench)
 
     dir_name = 'results/'
