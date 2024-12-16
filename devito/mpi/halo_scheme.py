@@ -11,7 +11,7 @@ from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted)
+                          frozendict, is_integer, filter_sorted, EnrichedTuple)
 from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
@@ -28,33 +28,21 @@ IDENTITY = HaloLabel('identity')
 STENCIL = HaloLabel('stencil')
 
 
-class HaloSchemeEntry(Reconstructable):
+class HaloSchemeEntry(EnrichedTuple):
 
     __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
 
-    def __init__(self, loc_indices, loc_dirs, halos, dims):
+    def __init__(self, loc_indices, loc_dirs, halos, dims, getters=None):
         self.loc_indices = frozendict(loc_indices)
         self.loc_dirs = frozendict(loc_dirs)
         self.halos = frozenset(halos)
         self.dims = frozenset(dims)
 
-    def __eq__(self, other):
-        if not isinstance(other, HaloSchemeEntry):
-            return False
-        return (self.loc_indices == other.loc_indices and
-                self.loc_dirs == other.loc_dirs and
-                self.halos == other.halos and
-                self.dims == other.dims)
-
     def __hash__(self):
-        return hash((tuple(self.loc_indices.items()),
-                     tuple(self.loc_dirs.items()),
+        return hash((self.loc_indices,
+                     self.loc_dirs,
                      self.halos,
                      self.dims))
-
-    def __repr__(self):
-        return (f"HaloSchemeEntry(loc_indices={self.loc_indices}, "
-                f"loc_dirs={self.loc_dirs}, halos={self.halos}, dims={self.dims})")
 
 
 Halo = namedtuple('Halo', 'dim side')

@@ -356,7 +356,9 @@ def _filter_iter_mapper(iet):
 
 
 def _make_cond_mapper(iet):
-    "Return a mapper from HaloSpots to the Conditionals that contain them."
+    """
+    Return a mapper from HaloSpots to the Conditionals that contain them.
+    """
     cond_mapper = {}
     for hs, v in MapHaloSpots().visit(iet).items():
         conditionals = {i for i in v if i.is_Conditional and
