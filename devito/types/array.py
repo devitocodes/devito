@@ -555,3 +555,7 @@ class ComponentAccess(Expr, Reconstructable):
     @property
     def dtype(self):
         return self.function.dtype
+
+    # Default assumptions correspond to those of the `base`
+    for i in ('is_real', 'is_imaginary', 'is_commutative'):
+        locals()[i] = property(lambda self, v=i: getattr(self.base, v))
