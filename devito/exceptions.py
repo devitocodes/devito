@@ -18,7 +18,7 @@ class CompilationError(DevitoError):
     """
 
 
-class InvalidArgument(DevitoError):
+class InvalidArgument(ValueError, DevitoError):
     """
     Raised by the runtime system when an `op.apply(...)` argument, either a
     default argument or a user-provided one ("override"), is not valid.
