@@ -697,6 +697,18 @@ class Operator(Callable):
             raise ExecutionError("Detected nan/inf in some output Functions")
         elif retval == error_mapper['KernelLaunch']:
             raise ExecutionError("Kernel launch failed")
+        elif retval == error_mapper['KernelLaunchOutOfResources']:
+            raise ExecutionError(
+                "Kernel launch failed due to insufficient resources. This may be "
+                "due to excessive register pressure in one of the Operator "
+                "kernels. Try supplying a smaller `par-tile` value."
+            )
+        elif retval == error_mapper['KernelLaunchUnknown']:
+            raise ExecutionError(
+                "Kernel launch failed due to an unknown error. This might "
+                "simply indicate memory corruption, but also, in a more unlikely "
+                "case, a hardware issue. Please report this issue to the "
+                "Devito team.")
         else:
             raise ExecutionError("An error occurred during execution")
 
