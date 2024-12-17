@@ -374,8 +374,8 @@ class CireDerivatives(CireTransformerLegacy):
                 return variants[self.opt_schedule_strategy]
             except IndexError:
                 raise CompilationError(
-                    "Illegal schedule %d; generated %d schedules in total"
-                    % (self.opt_schedule_strategy, len(variants))
+                    f"Illegal schedule {self.opt_schedule_strategy}; "
+                    f"generated {len(variants)} schedules in total"
                 )
 
         return pick_best(variants)

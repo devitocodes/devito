@@ -1375,8 +1375,8 @@ class TimeFunction(Function):
         required_mem = np.dtype(self.dtype).itemsize * self.size
         if required_mem > available_mem:
             raise MemoryError(
-                "Trying to allocate more memory (%s) for `%s` than available (%s)"
-                % (humanbytes(required_mem), self.name, humanbytes(available_mem))
+                f"Trying to allocate more memory ({humanbytes(required_mem)}) "
+                f"for `{self.name}` than available ({humanbytes(available_mem)})"
             )
         if not isinstance(self.time_order, int):
             raise TypeError("`time_order` must be int")

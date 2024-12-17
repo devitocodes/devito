@@ -312,8 +312,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
         dims = [d for d in f.dimensions if d not in bdims]
         if len(dims) != 1:
-            raise CompilationError("Unsupported multi-dimensional `buffering` "
-                                   "required by `%s`" % f)
+            raise CompilationError(f"Unsupported multi-dimensional `buffering` "
+                                   f"required by `{f}`")
         dim = dims.pop()
 
         if is_buffering(exprs):
