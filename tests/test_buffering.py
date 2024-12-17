@@ -6,7 +6,7 @@ from devito import (Constant, Grid, TimeFunction, Operator, Eq, SubDimension,
                     SubDomain, ConditionalDimension, configuration, switchconfig)
 from devito.arch.archinfo import AppleArm
 from devito.ir import FindSymbols, retrieve_iteration_tree
-from devito.exceptions import InvalidOperator
+from devito.exceptions import CompilationError
 
 
 def test_read_write():
@@ -353,7 +353,7 @@ def test_over_two_subdomains_illegal():
 
     try:
         Operator(eqns, opt='buffering')
-    except InvalidOperator:
+    except CompilationError:
         assert True
     except:
         assert False
