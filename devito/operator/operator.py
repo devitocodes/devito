@@ -11,7 +11,8 @@ import numpy as np
 
 from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
-from devito.exceptions import CompilationError, ExecutionError
+from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
+                               InvalidOperator)
 from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
 from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
@@ -553,7 +554,7 @@ class Operator(Callable):
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
-                    raise ValueError("Unrecognized argument %s=%s" % (k, v))
+                    raise InvalidArgument("Unrecognized argument %s=%s" % (k, v))
 
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
@@ -583,8 +584,10 @@ class Operator(Callable):
             try:
                 args.reduce_inplace()
             except ValueError:
-                raise ValueError("Override `%s` is incompatible with overrides `%s`" %
-                                 (p, [i for i in overrides if i.name in args]))
+                raise InvalidArgument(
+                    "Override `%s` is incompatible with overrides `%s`" %
+                    (p, [i for i in overrides if i.name in args])
+                )
 
         # Process data-carrier defaults
         for p in defaults:
@@ -604,10 +607,11 @@ class Operator(Callable):
                     # `fact` is supplied w/o overriding `usave`; that's legal
                     pass
                 elif is_integer(args[k]) and not contains_val(args[k], v):
-                    raise ValueError("Default `%s` is incompatible with other args as "
-                                     "`%s=%s`, while `%s=%s` is expected. Perhaps you "
-                                     "forgot to override `%s`?" %
-                                     (p, k, v, k, args[k], p))
+                    raise InvalidArgument(
+                        "Default `%s` is incompatible with other args as `%s=%s`, "
+                        "while `%s=%s` is expected. Perhaps you forgot to override "
+                        "`%s`?" % (p, k, v, k, args[k], p)
+                    )
 
         args = kwargs['args'] = args.reduce_all()
 
@@ -726,7 +730,7 @@ class Operator(Callable):
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
-                raise ValueError("No value found for parameter %s" % p.name)
+                raise InvalidArgument("No value found for parameter %s" % p.name)
         return args
 
     # Code generation and JIT compilation
