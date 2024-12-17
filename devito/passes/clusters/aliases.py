@@ -5,6 +5,7 @@ from itertools import groupby
 import numpy as np
 import sympy
 
+from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
                        IterationSpace, Interval, Cluster, ExprGeometry, Queue,
@@ -372,9 +373,10 @@ class CireDerivatives(CireTransformerLegacy):
             try:
                 return variants[self.opt_schedule_strategy]
             except IndexError:
-                raise ValueError("Illegal schedule %d; "
-                                 "generated %d schedules in total"
-                                 % (self.opt_schedule_strategy, len(variants)))
+                raise CompilationError(
+                    "Illegal schedule %d; generated %d schedules in total"
+                    % (self.opt_schedule_strategy, len(variants))
+                )
 
         return pick_best(variants)
 

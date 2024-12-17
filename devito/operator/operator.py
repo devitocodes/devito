@@ -11,7 +11,7 @@ import numpy as np
 
 from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
-from devito.exceptions import InvalidOperator, ExecutionError
+from devito.exceptions import CompilationError, ExecutionError
 from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
 from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
@@ -188,7 +188,8 @@ class Operator(Callable):
 
         for i in expressions:
             if not isinstance(i, Evaluable):
-                raise InvalidOperator("`%s` is not an `Evaluable` object" % str(i))
+                raise CompilationError("`%s` is not an Evaluable object, "
+                                       "check again your Equation" % str(i))
 
         return expressions
 
