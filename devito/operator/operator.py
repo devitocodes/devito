@@ -189,8 +189,8 @@ class Operator(Callable):
 
         for i in expressions:
             if not isinstance(i, Evaluable):
-                raise CompilationError("`%s` is not an Evaluable object, "
-                                       "check again your Equation" % str(i))
+                raise CompilationError(f"`{i!s}` is not an Evaluable object; "
+                                       "check your equation again")
 
         return expressions
 
@@ -554,7 +554,7 @@ class Operator(Callable):
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
                 if k not in self._known_arguments:
-                    raise InvalidArgument("Unrecognized argument %s=%s" % (k, v))
+                    raise InvalidArgument(f"Unrecognized argument `{k}={v}`")
 
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
@@ -584,9 +584,9 @@ class Operator(Callable):
             try:
                 args.reduce_inplace()
             except ValueError:
+                v = [i for i in overrides if i.name in args]
                 raise InvalidArgument(
-                    "Override `%s` is incompatible with overrides `%s`" %
-                    (p, [i for i in overrides if i.name in args])
+                    f"Override `{p}` is incompatible with overrides `{v}`"
                 )
 
         # Process data-carrier defaults
@@ -608,9 +608,9 @@ class Operator(Callable):
                     pass
                 elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise InvalidArgument(
-                        "Default `%s` is incompatible with other args as `%s=%s`, "
-                        "while `%s=%s` is expected. Perhaps you forgot to override "
-                        "`%s`?" % (p, k, v, k, args[k], p)
+                        f"Default `{p}` is incompatible with other args as "
+                        f"`{k}={v}`, while `{k}={args[k]}` is expected. Perhaps "
+                        f"you forgot to override `{p}`?"
                     )
 
         args = kwargs['args'] = args.reduce_all()
@@ -742,7 +742,7 @@ class Operator(Callable):
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
-                raise InvalidArgument("No value found for parameter %s" % p.name)
+                raise InvalidArgument(f"No value found for parameter `{p.name}`")
         return args
 
     # Code generation and JIT compilation
