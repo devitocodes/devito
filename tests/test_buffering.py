@@ -351,12 +351,8 @@ def test_over_two_subdomains_illegal():
     eqns = [Eq(u.forward, u + 1, subdomain=s_d0),
             Eq(u.forward, u.forward + 1, subdomain=s_d1)]
 
-    try:
+    with pytest.raises(CompilationError):
         Operator(eqns, opt='buffering')
-    except CompilationError:
-        assert True
-    except:
-        assert False
 
 
 @pytest.mark.xfail(reason="Cannot deal with non-overlapping SubDimensions yet")

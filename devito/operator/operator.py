@@ -742,7 +742,7 @@ class Operator(Callable):
         # Check all arguments are present
         for p in self.parameters:
             if args.get(p.name) is None:
-                raise InvalidArgument(f"No value found for parameter `{p.name}`")
+                raise InvalidArgument(f"No value found for parameter {p.name}")
         return args
 
     # Code generation and JIT compilation
