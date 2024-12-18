@@ -4,7 +4,8 @@ from functools import cached_property
 
 from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, Dimension, ConditionalDimension, div,
+                    SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
+                    Dimension, ConditionalDimension, div, solve, diag, grad,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
                     PrecomputedSparseFunction, DefaultDimension, Buffer)
@@ -19,6 +20,7 @@ from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
 from examples.seismic.acoustic import acoustic_setup
+from tests.test_dse import TestTTI
 
 
 class TestDistributor:
@@ -980,6 +982,7 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        assert calls[0].functions[0] is f
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_if_distr_but_sequential(self, mode):
@@ -1220,7 +1223,7 @@ class TestCodeGeneration:
         assert np.all(f.data[:] == 2.)
 
     @pytest.mark.parallel(mode=2)
-    def test_avoid_haloudate_if_flowdep_along_other_dim(self, mode):
+    def test_avoid_haloupdate_if_flowdep_along_other_dim(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1296,7 +1299,7 @@ class TestCodeGeneration:
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
 
     @pytest.mark.parallel(mode=1)
-    def test_merge_haloupdate_if_diff_locindices_v0(self, mode):
+    def test_merge_haloupdate_if_diff_locindices(self, mode):
         grid = Grid(shape=(101, 101))
         x, y = grid.dimensions
         t = grid.stepping_dim
@@ -1317,11 +1320,12 @@ class TestCodeGeneration:
         op.cfunction
 
     @pytest.mark.parallel(mode=2)
-    def test_merge_haloupdate_if_diff_locindices_v1(self, mode):
+    def test_merge_and_hoist_haloupdate_if_diff_locindices(self, mode):
         """
         This test is a revisited, more complex version of
-        `test_merge_haloupdate_if_diff_locindices_v0`. And in addition to
-        checking the generated code, it also checks the numerical output.
+        `test_merge_haloupdate_if_diff_locindices`, also checking hoisting.
+        And in addition to checking the generated code,
+        it also checks the numerical output.
 
         In the Operator there are three Eqs:
 
@@ -1333,8 +1337,10 @@ class TestCodeGeneration:
 
         * the second and third Eqs cannot be fused in the same loop
 
-        In the IET we end up with *one* HaloSpots, placed right before the
-        second Eq. The third Eq will seamlessy find its halo up-to-date.
+        In the IET we end up with *two* HaloSpots, one placed before the
+        time loop, and one placed before the second Eq. The third Eq,
+        reading from f[t0], will seamlessy find its halo up-to-date,
+        due to the f[t1] being updated in the previous time iteration.
         """
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
@@ -1357,9 +1363,15 @@ class TestCodeGeneration:
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
-        assert len(calls) == 1
+        assert len(calls) == 2
+        assert calls[0].arguments[3].args[0] is t.symbolic_min
+
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[2])) == 0
 
         op.apply(time_M=1)
+
         glb_pos_map = f.grid.distributor.glb_pos_map
         R = 1e-07  # Can't use np.all due to rounding error at the tails
         if LEFT in glb_pos_map[x]:
@@ -2390,7 +2402,6 @@ class TestOperatorAdvanced:
         op = Operator(eqns)
 
         op(time_M=2)
-
         # Expected norms computed "manually" from sequential runs
         assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
         assert np.isclose(norm(uxx), 78902.21, rtol=1.e-4)
@@ -2725,6 +2736,245 @@ class TestIsotropicAcoustic:
         practically scale up to higher process counts.
         """
         self.run_adjoint_F(3)
+
+
+class TestElasticLike:
+
+    @pytest.mark.parallel(mode=[(1, 'diag')])
+    def test_elastic_structure(self, mode):
+
+        so = 4
+        grid = Grid(shape=(3, 3))
+
+        v = VectorTimeFunction(name='v', grid=grid, space_order=so)
+        tau = TensorTimeFunction(name='t', grid=grid, space_order=so)
+
+        damp = Function(name='damp', grid=grid)
+        l = Function(name='lam', grid=grid)
+        mu = Function(name='mu', grid=grid)
+        ro = Function(name='b', grid=grid)
+
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=10)
+        rec_term = rec.interpolate(expr=v[0] + v[1])
+
+        # First order elastic wave equation
+        pde_v = v.dt - ro * div(tau)
+        pde_tau = (tau.dt - l * diag(div(v.forward)) -
+                   mu * (grad(v.forward) + grad(v.forward).transpose(inner=False)))
+
+        # Time update
+        u_v = Eq(v.forward, damp * solve(pde_v, v.forward))
+        u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
+
+        op = Operator([u_v] + [u_t] + rec_term)
+        assert len(op._func_table) == 11
+
+        calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 5
+
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[2])) == 0
+
+        assert calls[0].arguments[0] is v[0]
+        assert calls[0].arguments[1] is v[1]
+        assert calls[1].arguments[0] is tau[0, 0]
+        assert calls[2].arguments[0] is tau[0, 1]
+        assert calls[3].arguments[0] is tau[1, 1]
+        assert calls[4].arguments[0] is v[0]
+        assert calls[4].arguments[1] is v[1]
+
+    @pytest.fixture
+    def setup(self):
+        """
+        This fixture sets up the grid, fields, elastic-like
+        equations and receivers for test_issue_2448_*.
+        """
+        shape = (2,)
+        so = 2
+        tn = 30
+
+        grid = Grid(shape=shape)
+
+        # Velocity and pressure fields
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+        tau = TimeFunction(name='tau', grid=grid, space_order=so)
+
+        # First order elastic-like dependencies equations
+        pde_v = v.dt - (tau.dx)
+        pde_tau = tau.dt - ((v.forward).dx)
+        u_v = Eq(v.forward, solve(pde_v, v.forward))
+        u_tau = Eq(tau.forward, solve(pde_tau, tau.forward))
+
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=tn)
+        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=1)
+
+        return grid, v, tau, u_v, u_tau, rec
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_v0(self, mode, setup):
+        _, v, tau, u_v, u_tau, rec = setup
+
+        rec_term0 = rec.interpolate(expr=v)
+
+        op0 = Operator([u_v, u_tau, rec_term0])
+
+        calls = [i for i in FindNodes(Call).visit(op0) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[1])) == 2
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is tau
+        assert calls[2].arguments[0] is v
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_v1(self, mode, setup):
+        _, v, tau, u_v, u_tau, rec = setup
+
+        rec_term1 = rec.interpolate(expr=v.forward)
+
+        op1 = Operator([u_v, u_tau, rec_term1])
+
+        calls = [i for i in FindNodes(Call).visit(op1) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[0])) == 0
+        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[1])) == 3
+        assert calls[0].arguments[0] is tau
+        assert calls[1].arguments[0] is v
+        assert calls[2].arguments[0] is v
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_v2(self, mode, setup):
+        grid, v, tau, u_v, u_tau, rec = setup
+
+        # Additional velocity and pressure fields
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2)
+        tau2 = TimeFunction(name='tau2', grid=grid, space_order=2)
+
+        # First order elastic-like dependencies equations
+        pde_v2 = v2.dt - (tau2.dx)
+        pde_tau2 = tau2.dt - ((v2.forward).dx)
+        u_v2 = Eq(v2.forward, solve(pde_v2, v2.forward))
+        u_tau2 = Eq(tau2.forward, solve(pde_tau2, tau2.forward))
+
+        rec2 = SparseTimeFunction(name="rec2", grid=grid, npoint=1, nt=30)
+        rec2.coordinates.data[:, 0] = np.linspace(0., grid.shape[0], num=1)
+
+        rec_term0 = rec.interpolate(expr=v)
+        rec_term2 = rec2.interpolate(expr=v2)
+
+        op2 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term2])
+
+        calls = [i for i in FindNodes(Call).visit(op2) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 5
+        assert len(FindNodes(HaloUpdateCall).visit(op2.body.body[1].body[1].body[0])) == 2
+        assert len(FindNodes(HaloUpdateCall).visit(op2.body.body[1].body[1].body[1])) == 3
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is v2
+        assert calls[2].arguments[0] is tau
+        assert calls[2].arguments[1] is tau2
+        assert calls[3].arguments[0] is v
+        assert calls[4].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_v3(self, mode, setup):
+        grid, v, tau, u_v, u_tau, rec = setup
+
+        # Additional velocity and pressure fields
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2)
+        tau2 = TimeFunction(name='tau2', grid=grid, space_order=2)
+
+        # First order elastic-like dependencies equations
+        pde_v2 = v2.dt - (tau2.dx)
+        pde_tau2 = tau2.dt - ((v2.forward).dx)
+        u_v2 = Eq(v2.forward, solve(pde_v2, v2.forward))
+        u_tau2 = Eq(tau2.forward, solve(pde_tau2, tau2.forward))
+
+        rec2 = SparseTimeFunction(name="rec2", grid=grid, npoint=1, nt=30)
+        rec2.coordinates.data[:, 0] = np.linspace(0., grid.shape[0], num=1)
+
+        rec_term0 = rec.interpolate(expr=v)
+        rec_term3 = rec2.interpolate(expr=v2.forward)
+
+        op3 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term3])
+
+        calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 5
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 4
+        assert calls[0].arguments[0] is v
+        assert calls[1].arguments[0] is tau
+        assert calls[1].arguments[1] is tau2
+        assert calls[2].arguments[0] is v
+        assert calls[3].arguments[0] is v2
+        assert calls[4].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_issue_2448_backward(self, mode):
+        '''
+        Similar to test_issue_2448, but with backward instead of forward
+        so that the hoisted halo has different starting point
+        '''
+        shape = (2,)
+        so = 2
+
+        grid = Grid(shape=shape)
+        t = grid.stepping_dim
+
+        tn = 7
+
+        # Velocity and pressure fields
+        v = TimeFunction(name='v', grid=grid, space_order=so)
+        v.data_with_halo[0, :] = 1.
+        v.data_with_halo[1, :] = 3.
+
+        tau = TimeFunction(name='tau', grid=grid, space_order=so)
+        tau.data_with_halo[:] = 1.
+
+        # First order elastic-like dependencies equations
+        pde_v = v.dt - (tau.dx)
+        pde_tau = tau.dt - ((v.backward).dx)
+
+        u_v = Eq(v.backward, solve(pde_v, v))
+        u_tau = Eq(tau.backward, solve(pde_tau, tau))
+
+        # Test two variants of receiver interpolation
+        nrec = 1
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=nrec, nt=tn)
+        rec.coordinates.data[:, 0] = np.linspace(0., shape[0], num=nrec)
+
+        # Test receiver interpolation 0, here we have a halo exchange hoisted
+        op0 = Operator([u_v] + [u_tau] + rec.interpolate(expr=v))
+
+        calls = [i for i in FindNodes(Call).visit(op0)
+                 if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(op0.body.body[1].body[1].body[1])) == 2
+        assert calls[0].arguments[0] is v
+        assert calls[0].arguments[3].args[0] is t.symbolic_max
+        assert calls[1].arguments[0] is tau
+        assert calls[2].arguments[0] is v
+
+
+class TestTTIOp:
+
+    @pytest.mark.parallel(mode=1)
+    def test_halo_structure(self, mode):
+        solver = TestTTI().tti_operator(opt='advanced', space_order=8)
+        op = solver.op_fwd(save=False)
+
+        calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
+
+        assert len(calls) == 1
+        assert calls[0].functions[0].name == 'u'
+        assert calls[0].functions[1].name == 'v'
 
 
 if __name__ == "__main__":

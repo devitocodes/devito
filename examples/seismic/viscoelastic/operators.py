@@ -64,4 +64,4 @@ def ForwardOperator(model, geometry, space_order=4, save=False, **kwargs):
 
     # Substitute spacing terms to reduce flops
     return Operator([u_v, u_r, u_t] + src_rec_expr, subs=model.spacing_map,
-                    name='Forward', **kwargs)
+                    name='ViscoIsoElasticForward', **kwargs)

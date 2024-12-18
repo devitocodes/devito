@@ -524,7 +524,7 @@ def ForwardOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
 
     # Substitute spacing terms to reduce flops
     return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
-                    name='Forward', **kwargs)
+                    name='ViscoIsoAcousticForward', **kwargs)
 
 
 def AdjointOperator(model, geometry, space_order=4, kernel='SLS', time_order=2, **kwargs):
