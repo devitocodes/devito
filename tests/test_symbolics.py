@@ -562,6 +562,31 @@ def test_minmax():
     assert np.all(f.data == 4)
 
 
+@pytest.mark.parametrize('dtype,expected', [
+    (np.float32, ("fmaxf", "fminf")),
+    (np.float64, ("fmax", "fmin")),
+])
+def test_minmax_precision(dtype, expected):
+    grid = Grid(shape=(5, 5), dtype=dtype)
+
+    f = Function(name="f", grid=grid)
+    g = Function(name="g", grid=grid)
+
+    eqn = Eq(f, Min(g, 4.0) + Max(g, 2.0))
+
+    op = Operator(eqn)
+
+    g.data[:] = 3.0
+
+    op.apply()
+
+    # Check generated code -- ensure it's using the fp64 versions of min/max,
+    # that is fminf/fmaxf
+    assert all(i in str(op) for i in expected)
+
+    assert np.all(f.data == 6.0)
+
+
 class TestRelationsWithAssumptions:
 
     def test_multibounds_op(self):
