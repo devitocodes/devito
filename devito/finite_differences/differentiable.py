@@ -749,6 +749,12 @@ class Weights(Array):
 
         super().__init_finalize__(*args, **kwargs)
 
+    @classmethod
+    def class_key(cls):
+        # Ensure Weights appear before any other AbstractFunction
+        p, v, _ = Array.class_key()
+        return p, v - 1, cls.__name__
+
     def __eq__(self, other):
         return (isinstance(other, Weights) and
                 self.name == other.name and

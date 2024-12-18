@@ -2,7 +2,7 @@ from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
 from functools import cached_property
 
 import numpy as np
-from sympy import Expr
+from sympy import Expr, cacheit
 
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
@@ -555,6 +555,10 @@ class ComponentAccess(Expr, Reconstructable):
     @property
     def dtype(self):
         return self.function.dtype
+
+    @cacheit
+    def sort_key(self, order=None):
+        return self.base.sort_key(order=order)
 
     # Default assumptions correspond to those of the `base`
     for i in ('is_real', 'is_imaginary', 'is_commutative'):

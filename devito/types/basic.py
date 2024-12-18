@@ -1527,6 +1527,12 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     func = Pickable._rebuild
 
+    @sympy.cacheit
+    def sort_key(self, order=None):
+        class_key, args, exp, coeff = super().sort_key(order=order)
+        args = (self.function.class_key(), *args)
+        return class_key, args, exp, coeff
+
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
         return Indexed(self, *as_tuple(indices))
