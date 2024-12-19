@@ -443,10 +443,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             if d in fixed:
                 continue
 
-            name = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
-            rpeer = FieldFromPointer(name, nb)
-            name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
-            lpeer = FieldFromPointer(name, nb)
+            rpeer, lpeer = self._make_peers(d, distributor, nb)
 
             if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
@@ -490,6 +487,14 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             mapper[(d0, side, region)] = (sizes, ofs)
 
         return mapper
+
+    def _make_peers(self, d, distributor, nb):
+        rname = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
+        rpeer = FieldFromPointer(rname, nb)
+        lname = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
+        lpeer = FieldFromPointer(lname, nb)
+
+        return rpeer, lpeer
 
     def _call_haloupdate(self, name, f, hse, *args):
         comm = f.grid.distributor._obj_comm
@@ -537,7 +542,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
 
     """
-    A BasicHaloExchangeBuilder making use of pre-allocated buffers for
+    A BasicHaloExchangeBuilder using pre-allocated buffers for
     message size.
 
     Generates:
@@ -616,10 +621,7 @@ class Basic2HaloExchangeBuilder(BasicHaloExchangeBuilder):
             if d in fixed:
                 continue
 
-            name = ''.join('r' if i is d else 'c' for i in distributor.dimensions)
-            rpeer = FieldFromPointer(name, nb)
-            name = ''.join('l' if i is d else 'c' for i in distributor.dimensions)
-            lpeer = FieldFromPointer(name, nb)
+            rpeer, lpeer = self._make_peers(d, distributor, nb)
 
             if (d, LEFT) in hse.halos:
                 # Sending to left, receiving from right
@@ -1297,6 +1299,7 @@ class MPIMsgBase(CompositeObject):
             return int(subs_op_args(v, args))
 
     def _allocate_buffers(self, f, shape, entry):
+        # Allocate the send/recv buffers
         entry.sizes = (c_int*len(shape))(*shape)
         size = reduce(mul, shape)*dtype_len(self.target.dtype)
         ctype = dtype_to_ctype(f.dtype)
@@ -1429,21 +1432,12 @@ class MPIMsgBasic2(MPIMsgBase):
             if d in fixed:
                 continue
 
-            if (d, LEFT) in self.halos:
-                entry = self.value[i]
-                i = i + 1
-                # Sending to left, receiving from right
-                shape = mapper[(d, LEFT, OWNED)]
-                # Allocate the send/recv buffers
-                self._allocate_buffers(f, shape, entry)
-
-            if (d, RIGHT) in self.halos:
-                entry = self.value[i]
-                i = i + 1
-                # Sending to right, receiving from left
-                shape = mapper[(d, RIGHT, OWNED)]
-                # Allocate the send/recv buffers
-                self._allocate_buffers(f, shape, entry)
+            for side in (LEFT, RIGHT):
+                if (d, side) in self.halos:
+                    entry = self.value[i]
+                    i += 1
+                    shape = mapper[(d, side, OWNED)]
+                    self._allocate_buffers(f, shape, entry)
 
         return {self.name: self.value}
 

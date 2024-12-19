@@ -2289,7 +2289,7 @@ class TestOperatorAdvanced:
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag2'), (4, 'overlap2')])
     def test_cire(self, mode):
         """
         Check correctness when the DSE extracts aliases and places them
