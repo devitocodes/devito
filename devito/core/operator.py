@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from functools import cached_property
 
 from devito.core.autotuning import autotune
-from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.exceptions import InvalidOperator
 from devito.ir import FindSymbols
 from devito.logger import warning
 from devito.mpi.routines import mpi_registry
@@ -170,15 +170,15 @@ class BasicOperator(Operator):
             raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
 
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
-            raise InvalidArgument("Illegal `cse-algo` value")
+            raise InvalidOperator("Illegal `cse-algo` value")
 
         if oo['deriv-schedule'] not in ('basic', 'smart'):
-            raise InvalidArgument("Illegal `deriv-schedule` value")
+            raise InvalidOperator("Illegal `deriv-schedule` value")
         if oo['deriv-unroll'] not in (False, 'inner', 'full'):
-            raise InvalidArgument("Illegal `deriv-unroll` value")
+            raise InvalidOperator("Illegal `deriv-unroll` value")
 
         if oo['errctl'] not in (None, False, 'basic', 'max'):
-            raise InvalidArgument("Illegal `errctl` value")
+            raise InvalidOperator("Illegal `errctl` value")
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

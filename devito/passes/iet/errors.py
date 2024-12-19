@@ -108,4 +108,6 @@ class Retval(LocalObject, Expr):
 error_mapper = {
     'Stability': 100,
     'KernelLaunch': 200,
+    'KernelLaunchOutOfResources': 201,
+    'KernelLaunchUnknown': 202,
 }

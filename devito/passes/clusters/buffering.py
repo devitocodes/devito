@@ -8,7 +8,7 @@ import numpy as np
 from devito.ir import (Cluster, Backward, Forward, GuardBound, Interval,
                        IntervalGroup, IterationSpace, Properties, Queue, Vector,
                        InitArray, lower_exprs, vmax, vmin)
-from devito.exceptions import InvalidOperator
+from devito.exceptions import CompilationError
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
 from devito.symbolics import IntDiv, retrieve_functions, uxreplace
@@ -312,8 +312,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
         dims = [d for d in f.dimensions if d not in bdims]
         if len(dims) != 1:
-            raise InvalidOperator("Unsupported multi-dimensional `buffering` "
-                                  "required by `%s`" % f)
+            raise CompilationError(f"Unsupported multi-dimensional `buffering` "
+                                   f"required by `{f}`")
         dim = dims.pop()
 
         if is_buffering(exprs):
@@ -397,8 +397,8 @@ class BufferDescriptor:
             ispaces = {i.lift(self.bdims, v=stamp) for i in ispaces}
 
             if len(ispaces) > 1:
-                raise InvalidOperator("Unsupported `buffering` over different "
-                                      "IterationSpaces")
+                raise CompilationError("Unsupported `buffering` over different "
+                                       "IterationSpaces")
 
         assert len(ispaces) == 1, "Unexpected form of `buffering`"
         self.ispace = ispaces.pop()
