@@ -734,7 +734,7 @@ class Cpu64(Platform):
     def numa_domains(self):
         try:
             return int(lscpu()['NUMA node(s)'])
-        except KeyError:
+        except (ValueError, TypeError, KeyError):
             warning("NUMA domain count autodetection failed")
             return 1
 
