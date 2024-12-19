@@ -101,20 +101,25 @@ class CodePrinter(C99CodePrinter):
     def _print_math_func(self, expr, nest=False, known=None):
         cls = type(expr)
         name = cls.__name__
-        if name not in self._prec_funcs:
-            return super()._print_math_func(expr, nest=nest, known=known)
 
         try:
             cname = self.known_functions[name]
         except KeyError:
             return super()._print_math_func(expr, nest=nest, known=known)
 
+        if cname not in self._prec_funcs:
+            return super()._print_math_func(expr, nest=nest, known=known)
+
         if self.single_prec(expr):
             cname = '%sf' % cname
 
-        args = ', '.join((self._print(arg) for arg in expr.args))
+        if nest and len(expr.args) > 2:
+            args = ', '.join([self._print(expr.args[0]),
+                              self._print_math_func(cls(*expr.args[1:]))])
+        else:
+            args = ', '.join([self._print(arg) for arg in expr.args])
 
-        return '%s(%s)' % (cname, args)
+        return f'{cname}({args})'
 
     def _print_Pow(self, expr):
         # Need to override because of issue #1627
