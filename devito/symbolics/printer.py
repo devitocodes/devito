@@ -135,7 +135,7 @@ class CodePrinter(C99CodePrinter):
             return f'{self._print_Float(Float(1.0))}/' + \
                 f'{self.parenthesize(expr.base, PREC)}'
         elif equal_valued(expr.exp, 0.5):
-            return f'{self._ns}sqrt{suffix}({self._print(expr.base)}'
+            return f'{self._ns}sqrt{suffix}({self._print(expr.base)})'
         elif expr.exp == S.One/3 and self.standard != 'C89':
             return f'{self._ns}cbrt{suffix}({self._print(expr.base)})'
         else:
