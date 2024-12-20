@@ -6,7 +6,8 @@ import devito as dv
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args']
+__all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args',
+           'check_args']
 
 
 accumulator_mapper = {
@@ -129,5 +130,25 @@ def abstract_args(func):
             processed.append(a)
 
         return func(*processed, argmap=argmap, **kwargs)
+
+    return wrapper
+
+
+def check_args(func):
+    """
+    Perform checks on the arguments supplied to a builtin.
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        for i in args:
+            try:
+                if i.is_transient:
+                    raise ValueError(f"Cannot apply `{func.__name__}` to transient "
+                                     "function `{i.name}`")
+            except AttributeError:
+                pass
+
+        return func(*args, **kwargs)
 
     return wrapper

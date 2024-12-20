@@ -518,3 +518,11 @@ class TestBuiltinsResult:
         assert type(v1) is np.int32
         assert type(v2) is np.float32
         assert type(v3) is np.float64
+
+    def test_is_transient(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, is_transient=True)
+
+        with pytest.raises(ValueError):
+            assign(f, 4)
