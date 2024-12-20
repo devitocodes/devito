@@ -6,7 +6,7 @@ from devito import (Constant, Grid, TimeFunction, Operator, Eq, SubDimension,
                     SubDomain, ConditionalDimension, configuration, switchconfig)
 from devito.arch.archinfo import AppleArm
 from devito.ir import FindSymbols, retrieve_iteration_tree
-from devito.exceptions import InvalidOperator
+from devito.exceptions import CompilationError
 
 
 def test_read_write():
@@ -351,12 +351,8 @@ def test_over_two_subdomains_illegal():
     eqns = [Eq(u.forward, u + 1, subdomain=s_d0),
             Eq(u.forward, u.forward + 1, subdomain=s_d1)]
 
-    try:
+    with pytest.raises(CompilationError):
         Operator(eqns, opt='buffering')
-    except InvalidOperator:
-        assert True
-    except:
-        assert False
 
 
 @pytest.mark.xfail(reason="Cannot deal with non-overlapping SubDimensions yet")
