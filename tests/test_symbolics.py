@@ -566,8 +566,8 @@ def test_minmax():
 
 
 @pytest.mark.parametrize('dtype,expected', [
-    (np.float32, ("fmaxf", "fminf")),
-    (np.float64, ("fmax", "fmin")),
+    (np.float32, ("fmaxf(", "fminf(")),
+    (np.float64, ("fmax(", "fmin(")),
 ])
 def test_minmax_precision(dtype, expected):
     grid = Grid(shape=(5, 5), dtype=dtype)
@@ -591,8 +591,8 @@ def test_minmax_precision(dtype, expected):
 
 
 @pytest.mark.parametrize('dtype,expected', [
-    (np.float32, "powf"),
-    (np.float64, "pow"),
+    (np.float32, "powf("),
+    (np.float64, "pow("),
 ])
 def test_pow_precision(dtype, expected):
     grid = Grid(shape=(5, 5), dtype=dtype)
@@ -613,8 +613,8 @@ def test_pow_precision(dtype, expected):
 
 
 @pytest.mark.parametrize('dtype,expected', [
-    (np.float32, "absf"),
-    (np.float64, "abs"),
+    (np.float32, "fabsf("),
+    (np.float64, "fabs("),
 ])
 def test_abs_precision(dtype, expected):
     grid = Grid(shape=(5, 5), dtype=dtype)
