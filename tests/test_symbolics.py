@@ -298,7 +298,10 @@ def test_extended_sympy_arithmetic():
 def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
-    assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1F)"
+    assert ccode(Abs(i1 - .5)) == "fabsf(i1 - 5.0e-1F)"
+    assert ccode(
+        Abs(i1 - Constant('half', dtype=np.float64, default_value=0.5))
+    ) == "fabs(i1 - half)"
 
 
 def test_cos_vs_cosf():
@@ -585,6 +588,50 @@ def test_minmax_precision(dtype, expected):
     assert all(i in str(op) for i in expected)
 
     assert np.all(f.data == 6.0)
+
+
+@pytest.mark.parametrize('dtype,expected', [
+    (np.float32, "powf"),
+    (np.float64, "pow"),
+])
+def test_pow_precision(dtype, expected):
+    grid = Grid(shape=(5, 5), dtype=dtype)
+
+    f = Function(name="f", grid=grid)
+    g = Function(name="g", grid=grid)
+
+    eqn = Eq(f, g**1.5)
+
+    op = Operator(eqn)
+
+    g.data[:] = 4.0
+
+    op.apply()
+
+    assert expected in str(op)
+    assert np.all(f.data == 8.0)
+
+
+@pytest.mark.parametrize('dtype,expected', [
+    (np.float32, "absf"),
+    (np.float64, "abs"),
+])
+def test_abs_precision(dtype, expected):
+    grid = Grid(shape=(5, 5), dtype=dtype)
+
+    f = Function(name="f", grid=grid)
+    g = Function(name="g", grid=grid)
+
+    eqn = Eq(f, abs(g))
+
+    op = Operator(eqn)
+
+    g.data[:] = -1.0
+
+    op.apply()
+
+    assert expected in str(op)
+    assert np.all(f.data == 1.0)
 
 
 class TestRelationsWithAssumptions:
