@@ -9,7 +9,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
                     SubDimension, SubDomain, SubDomainSet, TimeFunction,
                     Operator, configuration, switchconfig, TensorTimeFunction,
-                    Buffer)
+                    Buffer, assign)
 from devito.arch import get_gpu_info, get_cpu_info, Device, Cpu64
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -1490,6 +1490,14 @@ class TestMisc:
         new_op = pickle.loads(pkl_op)
 
         assert str(op) == str(new_op)
+
+    def test_is_transient_w_builtins(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, is_transient=True)
+
+        with pytest.raises(ValueError):
+            assign(f, 4)
 
 
 class TestEdgeCases:
