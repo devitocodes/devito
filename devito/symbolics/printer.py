@@ -132,15 +132,14 @@ class CodePrinter(C99CodePrinter):
         PREC = precedence(expr)
         suffix = 'f' if self.single_prec(expr) else ''
         if equal_valued(expr.exp, -1):
-            return f'{self._print_Float(Float(1.0))}/' + \
-                f'{self.parenthesize(expr.base, PREC)}'
+            return self._print_Float(Float(1.0)) + '/' + \
+                self.parenthesize(expr.base, PREC)
         elif equal_valued(expr.exp, 0.5):
-            return f'{self._ns}sqrt{suffix}({self._print(expr.base)})'
+            return f'sqrt{suffix}({self._print(expr.base)})'
         elif expr.exp == S.One/3 and self.standard != 'C89':
-            return f'{self._ns}cbrt{suffix}({self._print(expr.base)})'
+            return f'cbrt{suffix}({self._print(expr.base)})'
         else:
-            return f'{self._ns}pow{suffix}({self._print(expr.base)}, ' + \
-                f'{self._print(expr.exp)})'
+            return f'pow{suffix}({self._print(expr.base)}, {self._print(expr.exp)})'
 
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
