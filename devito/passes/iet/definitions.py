@@ -168,11 +168,7 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        # Allocating a mapped Array on the high bandwidth memory requires
-        # multiple statements, hence we implement it as a generic Callable
-        # to minimize code size, since different arrays will ultimately be
-        # able to reuse the same abstract Callable
-
+        # Allocate the Array struct
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
@@ -181,10 +177,12 @@ class DataManager:
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
+        # Allocate the underlying host data
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp0), '**')
         allocs.append(self.lang['host-alloc-pin'](memptr, alignment, nbytes_param))
 
+        # Initialize the Array struct
         ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
         init0 = DummyExpr(ffp1, nbytes_param)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
@@ -193,8 +191,7 @@ class DataManager:
         frees = [self.lang['host-free-pin'](ffp0),
                  self.lang['host-free'](obj._C_symbol)]
 
-        # Not all backends require explicit allocation/deallocation of the
-        # `dmap` field
+        # Allocate the underlying device data, if required by the backend
         alloc, free = self._make_dmap_allocfree(obj, nbytes_param)
 
         # Chain together all allocs and frees
@@ -203,6 +200,8 @@ class DataManager:
 
         ret = Return(obj._C_symbol)
 
+        # Wrap everything in a Callable so that we can reuse the same code
+        # for equivalent Array structs
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, *allocs, init0, init1, ret)
         efunc0 = make_callable(name, body, retval=obj)
@@ -210,6 +209,7 @@ class DataManager:
         args[args.index(nbytes_param)] = nbytes_arg
         alloc = Call(name, args, retobj=obj)
 
+        # Same story for the frees
         name = self.sregistry.make_name(prefix='free')
         efunc1 = make_callable(name, frees)
         free = Call(name, efunc1.parameters)
@@ -222,6 +222,7 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        # Allocate the Bundle struct
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
@@ -230,6 +231,7 @@ class DataManager:
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
 
+        # Initialize the Bundle struct
         ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
         init0 = DummyExpr(ffp1, nbytes_param)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
@@ -239,6 +241,8 @@ class DataManager:
 
         ret = Return(obj._C_symbol)
 
+        # Wrap everything in a Callable so that we can reuse the same code
+        # for equivalent Bundle structs
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, alloc, init0, init1, ret)
         efunc0 = make_callable(name, body, retval=obj)

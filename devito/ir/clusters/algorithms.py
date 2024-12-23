@@ -5,7 +5,7 @@ from itertools import groupby
 import numpy as np
 import sympy
 
-from devito.exceptions import InvalidOperator
+from devito.exceptions import CompilationError
 from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
                                pull_dims, null_ispace)
@@ -306,8 +306,8 @@ class Stepper(Queue):
                 elif len(sis) == 1:
                     si = sis.pop()
                 else:
-                    raise InvalidOperator("Cannot use multiple SteppingDimensions "
-                                          "to index into a Function")
+                    raise CompilationError("Cannot use multiple SteppingDimensions "
+                                           "to index into a Function")
                 size = i.function.shape_allocated[d]
                 assert is_integer(size)
 

@@ -13,7 +13,7 @@ import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
 
-from devito.exceptions import VisitorException
+from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
 from devito.ir.support.space import Backward
@@ -1188,7 +1188,7 @@ class Transformer(Visitor):
             elif isinstance(handle, Iterable):
                 # Iterable -> inject `handle` into `o`'s children
                 if not o.children:
-                    raise VisitorException
+                    raise CompilationError("Cannot inject nodes in a leaf node")
                 if self.nested:
                     children = [self._visit(i, **kwargs) for i in o.children]
                 else:

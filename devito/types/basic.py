@@ -984,10 +984,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         assert self._space in ['local', 'mapped', 'host']
 
         # If True, the AbstractFunction is treated by the compiler as a "transient
-        # field", meaning that its content is only useful within an Operator
-        # execution, but the final data is not expected to be read back in
-        # Python-land by the user. This allows the compiler/run-time to apply
-        # certain optimizations, such as avoiding memory copies
+        # field", meaning that its content cannot be accessed by the user in
+        # Python-land. This allows the compiler/run-time to apply certain
+        # optimizations, such as avoiding memory copies across different Operator
+        # executions
         self._is_transient = kwargs.get('is_transient', False)
 
         # Averaging mode for off the grid evaluation
@@ -1273,6 +1273,16 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_transient(self):
         return self._is_transient
+
+    @property
+    def is_persistent(self):
+        """
+        True if the AbstractFunction is persistent, i.e., its data is guaranteed
+        to exist across multiple Operator invocations, False otherwise.
+        By default, transient AbstractFunctions are not persistent. However,
+        subclasses may override this behavior.
+        """
+        return not self.is_transient
 
     @cached_property
     def properties(self):
