@@ -1,12 +1,13 @@
 import numpy as np
 
 import devito as dv
-from devito.builtins.utils import make_retval
+from devito.builtins.utils import make_retval, check_builtins_args
 
 __all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def norm(f, order=2):
     """
     Compute the norm of a Function.
@@ -41,6 +42,7 @@ def norm(f, order=2):
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def sum(f, dims=None):
     """
     Compute the sum of the Function data over specified dimensions.
@@ -94,6 +96,7 @@ def sum(f, dims=None):
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def sumall(f):
     """
     Compute the sum of all Function data.
@@ -123,6 +126,7 @@ def sumall(f):
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def inner(f, g):
     """
     Inner product of two Functions.
@@ -177,6 +181,7 @@ def inner(f, g):
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def mmin(f):
     """
     Retrieve the minimum.
@@ -200,6 +205,7 @@ def mmin(f):
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def mmax(f):
     """
     Retrieve the maximum.

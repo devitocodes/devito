@@ -2,12 +2,13 @@ import numpy as np
 
 import devito as dv
 from devito.tools import as_tuple, as_list
-from devito.builtins.utils import nbl_to_padsize, pad_outhalo
+from devito.builtins.utils import check_builtins_args, nbl_to_padsize, pad_outhalo
 
 __all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
 
 
 @dv.switchconfig(log_level='ERROR')
+@check_builtins_args
 def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
     """
     Assign a list of RHSs to a list of Functions.
@@ -85,6 +86,7 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
         op(time_M=f._time_size)
 
 
+@check_builtins_args
 def smooth(f, g, axis=None):
     """
     Smooth a Function through simple moving average.
@@ -114,6 +116,7 @@ def smooth(f, g, axis=None):
         dv.Operator(dv.Eq(f, g.avg(dims=axis)), name='smoother')()
 
 
+@check_builtins_args
 def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     """
     Gaussian smooth function.
@@ -273,6 +276,7 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
     return lhs, rhs, options
 
 
+@check_builtins_args
 def initialize_function(function, data, nbl, mapper=None, mode='constant',
                         name=None, pad_halo=True, **kwargs):
     """
