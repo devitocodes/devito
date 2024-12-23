@@ -148,7 +148,7 @@ def check_builtins_args(func):
 
         for i in args:
             try:
-                if i.is_transient:
+                if not i.is_persistent:
                     raise ValueError(f"Cannot apply `{func.__name__}` to transient "
                                      f"function `{i.name}` on backend `{platform}`")
             except AttributeError:
