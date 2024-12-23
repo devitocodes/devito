@@ -6,7 +6,7 @@ from devito import Grid, Eq, Function, TimeFunction, Operator, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindNodes, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, printAST, Iteration)
+                           Conditional, printAST, Iteration, MapNodes, Call)
 from devito.types import SpaceDimension, Array
 
 
@@ -376,3 +376,22 @@ def test_find_symbols_with_duplicates():
     # So we expect FindSymbols to catch five Indexeds in total
     symbols = FindSymbols('indexeds').visit(op)
     assert len(symbols) == 5
+
+
+def test_map_nodes(block1):
+    """
+    Tests MapNodes visitor. When MapNodes is created with mode='groupby',
+    matching ancestors are grouped together under a single key.
+    This can be useful, for example, when applying transformations to the
+    outermost Iteration containing a specific node.
+    """
+    map_nodes = MapNodes(Iteration, Expression, mode='groupby').visit(block1)
+
+    assert len(map_nodes.keys()) == 1
+
+    for iters, (expr,) in map_nodes.items():
+        # Replace the outermost `Iteration` with a `Call`
+        callback = Callable('solver', iters[0], 'void', ())
+        processed = Transformer({iters[0]: Call(callback.name)}).visit(block1)
+
+    assert str(processed) == 'solver();'
