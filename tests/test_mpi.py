@@ -8,7 +8,8 @@ from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     Dimension, ConditionalDimension, div, solve, diag, grad,
                     SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer)
+                    PrecomputedSparseFunction, DefaultDimension, Buffer,
+                    CustomDimension)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
@@ -1009,7 +1010,7 @@ class TestCodeGeneration:
         assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_haloupdate_with_subdims(self, mode):
+    def test_avoid_haloupdate_with_local_subdims(self, mode):
         grid = Grid(shape=(4,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1033,6 +1034,22 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_haloupdate_with_local_customdim(self, mode):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+
+        d = CustomDimension(name='d', symbolic_min=1, symbolic_max=3, parent=y)
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u.forward.subs(y, -d), u.subs(y, d - 1) + 1)
+
+        op = Operator(eq)
+
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 0
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_constant_index(self, mode):

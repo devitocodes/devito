@@ -1342,14 +1342,16 @@ class CustomDimension(BasicDimension):
 
     is_Custom = True
 
-    __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent')
+    __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent',
+                   'local')
 
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
-                          symbolic_size=None, parent=None, **kwargs):
+                          symbolic_size=None, parent=None, local=True, **kwargs):
         self._symbolic_min = symbolic_min
         self._symbolic_max = symbolic_max
         self._symbolic_size = symbolic_size
         self._parent = parent or BOTTOM
+        self._local = local
         super().__init_finalize__(name)
 
     @property
@@ -1383,11 +1385,19 @@ class CustomDimension(BasicDimension):
             return self._spacing
 
     @property
+    def local(self):
+        return self._local
+
+    @property
     def bound_symbols(self):
         ret = {self.symbolic_min, self.symbolic_max, self.symbolic_size}
         if self.is_Derived:
             ret.update(self.parent.bound_symbols)
         return frozenset(i for i in ret if i.is_Symbol)
+
+    @property
+    def _maybe_distributed(self):
+        return not self.local
 
     @cached_property
     def _defines(self):
