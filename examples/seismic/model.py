@@ -308,9 +308,6 @@ class SeismicModel(GenericModel):
             vs = kwargs.pop('vs')
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order,
                                             is_param=True)
-            # Need to add small value to avoid division by zero
-            if isinstance(vs, np.ndarray):
-                vs = vs + 1e-12
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order, is_param=True,
                                            avg_mode='harmonic')
         else:

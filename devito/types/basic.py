@@ -1161,18 +1161,22 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Base function
         if self._avg_mode == 'harmonic':
-            retval = 1 / self.function
+            from devito.finite_differences.differentiable import SafeInv
+            retval = SafeInv(self.function)
         else:
             retval = self.function
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
             retval = retval.diff(d, deriv_order=0, fd_order=2, x0={d: i})
-        if self._avg_mode == 'harmonic':
-            retval = 1 / retval
 
         # Evaluate. Since we used `self.function` it will be on the grid when evaluate
         # is called again within FD
-        return retval.evaluate.expand()
+        if self._avg_mode == 'harmonic':
+            retval = SafeInv(retval.evaluate.expand())
+        else:
+            retval = retval.evaluate.expand()
+
+        return retval
 
     @property
     def shape(self):

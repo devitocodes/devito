@@ -117,7 +117,8 @@ estimate_values = {
     'div': 5,
     'Abs': 5,
     'floor': 1,
-    'ceil': 1
+    'ceil': 1,
+    'SafeDiv': 10,
 }
 
 
