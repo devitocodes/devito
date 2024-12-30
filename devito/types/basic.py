@@ -1161,8 +1161,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Base function
         if self._avg_mode == 'harmonic':
-            from devito.finite_differences.differentiable import SafeInv
-            retval = SafeInv(self.function)
+            retval = 1 / self.function
         else:
             retval = self.function
         # Apply interpolation from inner most dim
@@ -1172,9 +1171,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Evaluate. Since we used `self.function` it will be on the grid when evaluate
         # is called again within FD
         if self._avg_mode == 'harmonic':
-            retval = SafeInv(retval.evaluate.expand())
+            from devito.finite_differences.differentiable import SafeInv
+            retval = SafeInv(retval.evaluate, base=self.function)
         else:
-            retval = retval.evaluate.expand()
+            retval = retval.evaluate
 
         return retval
 

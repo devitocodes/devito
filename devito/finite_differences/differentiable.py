@@ -626,8 +626,8 @@ class Mod(DifferentiableOp, sympy.Mod):
 class SafeInv(Differentiable, sympy.core.function.Application):
     _fd_priority = 0
 
-    def __new__(cls, *args, **kwargs):
-        newobj = super().__new__(cls, *args)
+    def __new__(cls, val, base, **kwargs):
+        newobj = super().__new__(cls, val, base)
         return newobj
 
     def _evaluate(self, **kwargs):
@@ -635,6 +635,10 @@ class SafeInv(Differentiable, sympy.core.function.Application):
 
     def _subs(self, old, new, **hints):
         return self.func(*[i._subs(old, new, **hints) for i in self.args])
+
+    @property
+    def base(self):
+        return self.args[1]
 
 
 class IndexSum(sympy.Expr, Evaluable):

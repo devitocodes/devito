@@ -143,7 +143,9 @@ class CodePrinter(C99CodePrinter):
 
     def _print_SafeInv(self, expr):
         """Print a SafeInv as a C-like division with a check for zero."""
-        return f'SAFEINV({self._print(expr.args[0])})'
+        base = self._print(expr.base)
+        val = self._print(expr.args[0])
+        return f'SAFEINV({val}, {base})'
 
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""

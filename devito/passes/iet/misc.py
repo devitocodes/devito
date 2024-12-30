@@ -228,7 +228,7 @@ def _(expr):
 
 @_lower_macro_math.register(SafeInv)
 def _(expr):
-    return (('SAFEINV(a)', '((a) == 0 ? 0 : 1 / (a))'),)
+    return (('SAFEINV(a, b)', '(((a) < 1e-12 || (b) < 1e-12) ? (0.0F) : (1.0F / (a)))'),)
 
 
 @iet_pass
