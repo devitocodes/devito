@@ -294,16 +294,11 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
-        # Are there any ClusterGroups that could potentially be fused? If
-        # not, do not waste time computing a new topological ordering
+        # Are there any ClusterGroups that could potentially be topologically
+        # reordered? If not, do not waste time
         counter = Counter(self._key(cg).strict for cg in cgroups)
-        if not any(v > 1 for it, v in counter.most_common()):
-            return ClusterGroup(cgroups, prefix)
-
-        # Similarly, if all ClusterGroups have the same exact prefix and
-        # use the same form of synchronization (if any at all), no need to
-        # attempt a topological sorting
-        if len(counter.most_common()) == 1:
+        if len(counter.most_common()) == 1 or \
+           not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
