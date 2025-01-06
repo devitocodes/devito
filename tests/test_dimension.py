@@ -231,6 +231,25 @@ class TestBufferedDimension:
 
         assert np.all(u.data == 10)
 
+    def test_default_timeM(self):
+        """
+        MFE for issue #2235
+        """
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=5)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        assert op.arguments()['time_M'] == 4
+        op.apply()
+
+        assert all(np.all(usave.data[i] == i) for i in range(4))
+
 
 class TestSubDimension:
 
