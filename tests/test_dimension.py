@@ -2070,7 +2070,7 @@ class TestConcretization:
         ix = SubDimension.middle('ix', x, 2, 2)
 
         u = Function(name='u', grid=grid)
-        eq = Eq(u, ix.ltkn)
+        eq = Eq(u, ix + ix.ltkn + ix.rtkn)
 
         kwargs = {'sregistry': SymbolRegistry(), 'concretize_mapper': {}}
 

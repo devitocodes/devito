@@ -1,4 +1,4 @@
 matplotlib
 pyrevolve==2.2.4
-scipy
+scipy>=1.13.0
 distributed
