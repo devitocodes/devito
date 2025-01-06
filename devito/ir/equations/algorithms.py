@@ -254,7 +254,7 @@ def _(d, mapper, rebuilt, sregistry):
 
         if any(v in mapper for v in d.condition.free_symbols):
             # Substitute into condition
-            kwargs['condition'] = d.condition.subs(mapper)
+            kwargs['condition'] = d.condition.xreplace(mapper)
 
     if kwargs:
         # Rebuild if parent or condition need replacing
