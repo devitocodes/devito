@@ -289,7 +289,6 @@ class DenseDistributor(AbstractDistributor):
         ret = []
         for i in self.all_numb:
             # In cases where ranks are empty, return a range(0, 0)
-            # FIXME: Not sure I like this, seems hacky
             ret.append(EnrichedTuple(*[range(min(j), max(j) + 1) if len(j) > 0
                                        else range(0, 0) for j in i],
                                      getters=self.dimensions))
@@ -307,12 +306,6 @@ class DenseDistributor(AbstractDistributor):
         in the decomposed grid.
         """
         return MPINeighborhood(self.neighborhood)
-
-    @cached_property
-    def rank_populated(self):
-        """Constant symbol for a switch indicating that data is allocated on this rank"""
-        return Constant(name='rank_populated', dtype=np.int8,
-                        value=int(not(self.loc_empty)))
 
 
 class Distributor(DenseDistributor):
@@ -498,15 +491,14 @@ class SubDistributor(DenseDistributor):
     def __init__(self, subdomain):
         # Does not keep reference to the SubDomain since SubDomain will point to
         # this SubDistributor and Distributor does not point to the Grid
-
         super().__init__(subdomain.shape, subdomain.dimensions)
 
+        self._subdomain_name = subdomain.name
         self._dimension_map = frozendict({pd: sd for pd, sd
                                           in zip(subdomain.grid.dimensions,
                                                  subdomain.dimensions)})
 
         self._parent = subdomain.grid.distributor
-
         self._comm = self.parent.comm
         self._topology = self.parent.topology
 
@@ -525,7 +517,7 @@ class SubDistributor(DenseDistributor):
                 # Interval containing two or more indices. Min and max are ends.
                 return interval.start, interval.end
             else:
-                # Interval where start == end defaults to FiniteSet.
+                # Interval where start == end defaults to FiniteSet
                 # Repeat this value for min and max
                 return interval.args[0], interval.args[0]
 
@@ -697,9 +689,9 @@ class SubDistributor(DenseDistributor):
 
     @cached_property
     def rank_populated(self):
-        """Switch for a rank which is populated"""
-        # Needs to use this value but be prepared elsewhere
-        return self.parent.rank_populated
+        """Constant symbol for a switch indicating that data is allocated on this rank"""
+        return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
+                        value=int(not(self.loc_empty)))
 
 
 class SparseDistributor(AbstractDistributor):
