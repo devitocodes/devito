@@ -13,10 +13,10 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, ccode, uxreplace,
-                              retrieve_derivatives)
+                              retrieve_derivatives, sympy_dtype)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
-                          Symbol as dSymbol)
+                          Symbol as dSymbol, CompositeObject)
 from devito.types.basic import AbstractSymbol
 
 
@@ -248,6 +248,17 @@ def test_field_from_pointer():
     # Free symbols
     assert ffp1.free_symbols == {s}
 
+    # Test dtype
+    f = dSymbol('f')
+    pfields = [(f._C_name, f._C_ctype)]
+    struct = CompositeObject('s1', 'myStruct', pfields)
+    ffp4 = FieldFromPointer(f, struct)
+    assert str(ffp4) == 's1->f'
+    assert ffp4.dtype == f.dtype
+    expr = 1/ffp4
+    dtype = sympy_dtype(expr)
+    assert dtype == f.dtype
+
 
 def test_field_from_composite():
     s = Symbol('s')
@@ -292,7 +303,7 @@ def test_extended_sympy_arithmetic():
     # noncommutative
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
-    assert ccode(-1 + bar) == '-1 + o->bar'
+    assert ccode(-1 + bar) == 'o->bar - 1'
 
 
 def test_integer_abs():
