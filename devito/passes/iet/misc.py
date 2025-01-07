@@ -247,7 +247,7 @@ def minimize_symbols(iet):
     """
     iet = remove_redundant_moddims(iet)
     iet = simplify_iteration_headers(iet)
-    # iet = abridge_dim_names(iet)
+    iet = abridge_dim_names(iet)
 
     return iet, {}
 

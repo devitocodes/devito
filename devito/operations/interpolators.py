@@ -13,10 +13,10 @@ except ImportError:
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
-from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT, CondEq
+from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
 from devito.tools import as_tuple, flatten, filter_ordered, Pickable
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, SubFunction, Constant)
+                          CustomDimension, SubFunction)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -72,15 +72,7 @@ def adjust_interp_indices(subdomain, mapper, smapper, cdmapper):
     # Insert a check to catch cases where interpolation/injection is
     # into an empty rank. This depends on the injection field or interpolated
     # expression, and so must be inserted here.
-    # FIXME: The resultant switch isn't super obvious in generated code and
-    # results in different code between ranks.
-    # rank_populated = Constant(name='rank_populated', dtype=np.int8,
-    #                           value=int(not(subdomain.distributor.loc_empty)))
     rank_populated = subdomain.distributor.rank_populated
-    # FIXME: This could be checked for the rank before looping over sparse
-    # footprint -> Can one nest ConditionalDimensions?
-    # FIXME: This is also only needed if the function is distributed
-    # rank_populated = CondEq(int(subdomain.distributor.loc_empty), 0)
 
     for d, cd in list(mapper.items()):
         cond = cd.condition.subs(subs)
