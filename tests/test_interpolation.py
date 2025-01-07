@@ -990,7 +990,6 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f1.data, check1))
 
     @pytest.mark.parallel(mode=4)
-    # @pytest.mark.parallel(mode=2)
     def test_interpolate_subdomain_mpi(self, mode):
         """
         Test interpolation off of a Function defined on a SubDomain with MPI.
@@ -1034,9 +1033,6 @@ class TestSubDomainInterpolation:
 
         op = Operator([rec0, rec1, rec2, rec3])
 
-        if grid.distributor.myrank == 0:
-            print(op.ccode)
-
         op.apply()
 
         if grid.distributor.myrank == 0:
@@ -1055,15 +1051,10 @@ class TestSubDomainInterpolation:
             assert np.all(np.isclose(sr2.data, [0., 16.5]))
             assert np.all(np.isclose(sr3.data, [30., 0.]))
         elif grid.distributor.myrank == 3:
-            print(sr0.data)
-            print(sr1.data)
-            print(sr2.data)
-            print(sr3.data)
-            # FIXME: Fails on this last rank
-            assert np.all(np.isclose(sr0.data, [6.75, 0.]))  # Fails
-            assert np.all(np.isclose(sr1.data, [0., 48.75]))  # Fails
-            assert np.all(np.isclose(sr2.data, [0., 112.5]))  # Fails
-            assert np.all(np.isclose(sr3.data, [0., 0.]))  # Works
+            assert np.all(np.isclose(sr0.data, [6.75, 0.]))
+            assert np.all(np.isclose(sr1.data, [0., 48.75]))
+            assert np.all(np.isclose(sr2.data, [0., 112.5]))
+            assert np.all(np.isclose(sr3.data, [0., 0.]))
 
     @pytest.mark.parallel(mode=4)
     def test_inject_subdomain_mpi(self, mode):
