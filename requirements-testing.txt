@@ -4,5 +4,5 @@ pytest-cov
 codecov
 flake8>=2.1.0
 nbval
-scipy>=1.13.0
+scipy
 pooch; python_version >= "3.8"
