@@ -65,9 +65,6 @@ class ElementalFunction(Callable):
                  dynamic_parameters=None):
         super().__init__(name, body, retval, parameters, prefix)
 
-        print("Parameters", parameters)
-        print("Dynamic parameters", dynamic_parameters)
-
         self._mapper = {}
         for i in as_tuple(dynamic_parameters):
             if i.is_Dimension:
