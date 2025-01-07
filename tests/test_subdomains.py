@@ -37,7 +37,8 @@ class TestSubdomains:
         with timed_region('x'):
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
-                                         sregistry=SymbolRegistry())[0]
+                                         sregistry=SymbolRegistry(),
+                                         concretize_mapper={})[0]
         assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
 
     def test_multiple_middle(self):
