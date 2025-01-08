@@ -228,9 +228,8 @@ def _(d, mapper, rebuilt, sregistry):
         # Already have a substitution for this dimension
         return
 
-    tkns = tuple(t._rebuild(name=sregistry.make_name(prefix=t.name)) for t in d.tkns)
-    mapper.update({tkn0: tkn1 for tkn0, tkn1 in zip(d.tkns, tkns)})
-    mapper[d] = d._rebuild(thickness=tkns)
+    _concretize_subdims(d.tkns, mapper, rebuilt, sregistry)
+    mapper[d] = d._rebuild(thickness=tuple(mapper[tkn] for tkn in d.tkns))
 
 
 @_concretize_subdims.register(ConditionalDimension)
@@ -254,7 +253,7 @@ def _(d, mapper, rebuilt, sregistry):
 
         if any(v in mapper for v in d.condition.free_symbols):
             # Substitute into condition
-            kwargs['condition'] = d.condition.subs(mapper)
+            kwargs['condition'] = d.condition.xreplace(mapper)
 
     if kwargs:
         # Rebuild if parent or condition need replacing
