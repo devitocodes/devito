@@ -129,6 +129,62 @@ def relax_properties(properties):
     return frozenset(properties - {PARALLEL_INDEP})
 
 
+def tailor_properties(properties, ispace):
+    """
+    Create a new Properties object off `properties` that retains all and only
+    the iteration dimensions in `ispace`.
+    """
+    for i in properties:
+        for d in as_tuple(i):
+            if d not in ispace.itdims:
+                properties = properties.drop(d)
+
+    for d in ispace.itdims:
+        properties = properties.add(d)
+
+    return properties
+
+
+def update_properties(properties, exprs):
+    """
+    Create a new Properties object off `properties` augmented with properties
+    discovered from `exprs` or with properties removed if they are incompatible
+    with `exprs`.
+    """
+    exprs = as_tuple(exprs)
+
+    if not exprs:
+        return properties
+
+    # Auto-detect prefetchable Dimensions
+    dims = set()
+    flag = False
+    for e in as_tuple(exprs):
+        w, r = e.args
+
+        # Ensure it's in the form `Indexed = Indexed`
+        try:
+            wf, rf = w.function, r.function
+        except AttributeError:
+            break
+
+        if not wf._mem_shared:
+            break
+        dims.update({d.parent for d in wf.dimensions if d.parent in properties})
+
+        if not rf._mem_heap:
+            break
+    else:
+        flag = True
+
+    if flag:
+        properties = properties.prefetchable(dims)
+    else:
+        properties = properties.drop(dims, PREFETCHABLE)
+
+    return properties
+
+
 class Properties(frozendict):
 
     """
@@ -232,7 +288,9 @@ class Properties(frozendict):
     def is_blockable_small(self, d):
         return TILABLE_SMALL in self.get(d, set())
 
-    def is_prefetchable(self, dims):
+    def is_prefetchable(self, dims=None):
+        if dims is None:
+            dims = list(self)
         return any(PREFETCHABLE in self.get(d, set()) for d in as_tuple(dims))
 
     @property
