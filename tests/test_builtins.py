@@ -1,7 +1,10 @@
 import pytest
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from scipy.misc import ascent
+try:
+    from scipy.datasets import ascent
+except ImportError:
+    from scipy.misc import ascent
 
 from devito import ConditionalDimension, Grid, Function, TimeFunction, switchconfig
 from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
