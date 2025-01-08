@@ -242,15 +242,12 @@ class Fusion(Queue):
             any(f._mem_shared for f in c.scope.reads)
         ])
 
-        # Promoting adjacency of IndexDerivatives will maximize their reuse
-        #TODO: use search(e, IndexDerivative)...
-        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
-
         # Prefetchable Clusters should get merged, if possible
         weak.append(c.properties.is_prefetchable())
 
-        #TODO
-        weak.append(not guards)
+        # Promoting adjacency of IndexDerivatives will maximize their reuse
+        #TODO: use search(e, IndexDerivative)...
+        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
 
         key = self.Key(itintervals, guards, syncs, weak)
 
@@ -320,10 +317,12 @@ class Fusion(Queue):
             candidates = [i for i in queue if m[i].itintervals == k.itintervals]
 
             if k.guards:
-                candidates = [i for i in candidates if m[i].guards == k.guards]
+                compatible = [i for i in candidates if m[i].guards == k.guards]
+                candidates = compatible or candidates
 
             if k.syncs:
-                candidates = [i for i in candidates if m[i].syncs == k.syncs]
+                compatible = [i for i in candidates if m[i].syncs == k.syncs]
+                candidates = compatible or candidates
 
             # Process the `weak` part of the key
             for i in reversed(range(len(k.weak) + 1)):
