@@ -124,11 +124,6 @@ class Fusion(Queue):
         return clusters
 
     def callback(self, cgroups, prefix):
-        ## Do not waste time if definitely nothing to do
-        #if len(cgroups) == 1:
-        #    from IPython import embed; embed()
-        #    return cgroups
-
         # Toposort to maximize fusion
         if self.toposort:
             clusters = self._toposort(cgroups, prefix)
@@ -226,20 +221,23 @@ class Fusion(Queue):
         weak = [c.is_halo_touch]
 
         # If there are writes to thread-shared object, make it part of the key.
-        # This will promote fusion of non-adjacent Clusters writing to (some form of)
-        # shared memory, which in turn will minimize the number of necessary barriers
-        # Same story for reads from thread-shared objects
+        # This will promote fusion of non-adjacent Clusters writing to (some
+        # form of) shared memory, which in turn will minimize the number of
+        # necessary barriers Same story for reads from thread-shared objects
         weak.extend([
             any(f._mem_shared for f in c.scope.writes),
             any(f._mem_shared for f in c.scope.reads)
         ])
 
         # Prefetchable Clusters should get merged, if possible
-        weak.append(c.properties.is_prefetchable())
+        weak.append(c.properties.is_prefetchable_shm())
 
         # Promoting adjacency of IndexDerivatives will maximize their reuse
         #TODO: use search(e, IndexDerivative)...
         weak.append(any(e.find(IndexDerivative) for e in c.exprs))
+
+        #TODO
+        weak.append(c.guards)
 
         key = self.Key(itintervals, guards, syncs, weak)
 
