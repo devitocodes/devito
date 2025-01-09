@@ -453,7 +453,6 @@ def test_canonical_ordering_of_weights():
     x, y, z = grid.dimensions
 
     f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
 
     i = StencilDimension('i0', 0, 2)
     w = Weights(name='w0', dimensions=i, initvalue=[1.0, 2.0, 3.0])
