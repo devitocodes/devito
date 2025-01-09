@@ -1288,6 +1288,20 @@ class TestConditionalDimension:
         op = Operator(eq)
         op.cfunction
 
+    @pytest.mark.parametrize('value', [0, 1])
+    def test_constant_as_condition(self, value):
+        x = Dimension('x')
+
+        c = Constant(name="c", dtype=np.int8, value=value)
+        cd = ConditionalDimension(name="cd", parent=x, condition=c)
+
+        f = Function(name='f', dimensions=(x,), shape=(11,), dtype=np.int32)
+
+        op = Operator(Eq(f, 1, implicit_dims=cd))
+        op.apply()
+
+        assert np.all(f.data == value)
+
     def test_symbolic_factor(self):
         """
         Test ConditionalDimension with symbolic factor (provided as a Constant).
