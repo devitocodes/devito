@@ -491,17 +491,14 @@ class SubDistributor(DenseDistributor):
     def __init__(self, subdomain):
         # Does not keep reference to the SubDomain since SubDomain will point to
         # this SubDistributor and Distributor does not point to the Grid
-
         super().__init__(subdomain.shape, subdomain.dimensions)
 
         self._subdomain_name = subdomain.name
-
         self._dimension_map = frozendict({pd: sd for pd, sd
                                           in zip(subdomain.grid.dimensions,
                                                  subdomain.dimensions)})
 
         self._parent = subdomain.grid.distributor
-
         self._comm = self.parent.comm
         self._topology = self.parent.topology
 
@@ -520,7 +517,7 @@ class SubDistributor(DenseDistributor):
                 # Interval containing two or more indices. Min and max are ends.
                 return interval.start, interval.end
             else:
-                # Interval where start == end defaults to FiniteSet.
+                # Interval where start == end defaults to FiniteSet
                 # Repeat this value for min and max
                 return interval.args[0], interval.args[0]
 
