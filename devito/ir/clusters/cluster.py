@@ -14,7 +14,7 @@ from devito.ir.support import (
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, infer_dtype
+from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import Fence, WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -484,16 +484,17 @@ class ClusterGroup(tuple):
 
     @cached_property
     def guards(self):
-        """The guards of each Cluster in self."""
-        #TODO: CREATE A CUMULATIVE GUARD??
-        return tuple(i.guards for i in self)
+        """
+        A view of the ClusterGroup's guards.
+        """
+        return tuple(filter_ordered(i.guards for i in self))
 
     @cached_property
     def syncs(self):
         """
         A view of the ClusterGroup's synchronization operations.
         """
-        return normalize_syncs(*[c.syncs for c in self])
+        return normalize_syncs(*[c.syncs for c in self], strict=False)
 
     @cached_property
     def dspace(self):
