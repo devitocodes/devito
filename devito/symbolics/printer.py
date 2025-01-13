@@ -170,12 +170,12 @@ class CodePrinter(C99CodePrinter):
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler):
             return "fabs(%s)" % self._print(expr.args[0])
-        # Check if argument is an integer
-        if has_integer_args(*expr.args[0].args):
+        # Check if argument (always exactly one!) is an integer
+        if has_integer_args(expr.args[0]):
             func = "abs"
-        elif self.single_prec(expr):
+        elif self.single_prec(expr.args[0]):
             func = "fabsf"
-        elif any([isinstance(a, Real) for a in expr.args[0].args]):
+        elif isinstance(expr.args[0], Real):
             # The previous condition isn't sufficient to detect case with
             # Python `float`s in that case, fall back to the "default"
             func = "fabsf" if self.single_prec() else "fabs"
