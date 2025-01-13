@@ -6,7 +6,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
                                WithLock, InitArray, SyncArray, PrefetchUpdate)
 from devito.passes.clusters.utils import in_critical_region
-from devito.symbolics import pow_to_mul
+from devito.symbolics import pow_to_mul, search
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
 
@@ -166,17 +166,15 @@ class Fusion(Queue):
         two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
         identical.
 
-        A Key contains several elements that can logically be split into two
-        groups -- the `strict` and the `weak` components of the Key.
-        Two Clusters (ClusterGroups) having same `strict` but different `weak` parts
-        are, as by definition, not fusible; however, since at least their `strict`
-        parts match, they can at least be topologically reordered.
+        A Key contains elements that can logically be split into two groups -- the
+        `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
+        having same `strict` but different `weak` parts are, by definition, not
+        fusible; however, since at least their `strict` parts match, they can at
+        least be topologically reordered.
         """
 
         def __new__(cls, itintervals, guards, syncs, weak):
-            #TODO refactor
             strict = [itintervals, guards, syncs]
-
             obj = super().__new__(cls, strict + weak)
 
             obj.itintervals = itintervals
@@ -190,6 +188,7 @@ class Fusion(Queue):
 
     def _key(self, c):
         itintervals = frozenset(c.ispace.itintervals)
+        #TODO: just use c.guards ?
         guards = c.guards if any(c.guards) else None
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
@@ -212,7 +211,6 @@ class Fusion(Queue):
                     mapper[d].add(type(s))
                 else:
                     mapper[d].add(s)
-
             if d in mapper:
                 mapper[d] = frozenset(mapper[d])
         syncs = frozendict(mapper)
@@ -233,10 +231,9 @@ class Fusion(Queue):
         weak.append(c.properties.is_prefetchable_shm())
 
         # Promoting adjacency of IndexDerivatives will maximize their reuse
-        #TODO: use search(e, IndexDerivative)...
-        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
+        weak.append(any(search(c.exprs, IndexDerivative)))
 
-        #TODO
+        # Promote adjacency of Clusters with same guard
         weak.append(c.guards)
 
         key = self.Key(itintervals, guards, syncs, weak)

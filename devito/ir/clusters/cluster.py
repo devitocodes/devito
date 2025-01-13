@@ -494,7 +494,7 @@ class ClusterGroup(tuple):
         """
         A view of the ClusterGroup's synchronization operations.
         """
-        return normalize_syncs(*[c.syncs for c in self])
+        return normalize_syncs(*[c.syncs for c in self], strict=False)
 
     @cached_property
     def dspace(self):
