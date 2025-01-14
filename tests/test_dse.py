@@ -11,7 +11,7 @@ from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
                     SparseTimeFunction, Dimension, SubDimension,
                     ConditionalDimension, DefaultDimension, Grid, Operator,
                     norm, grad, div, dimensions, switchconfig, configuration,
-                    first_derivative, solve, transpose, Abs, cos,
+                    first_derivative, solve, transpose, Abs, cos, exp,
                     sin, sqrt, floor, Ge, Lt, Derivative)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
@@ -326,6 +326,23 @@ class TestLifting:
         assert len(trees) == 2
         assert_structure(op, ['t,x,y', 't'], 'txy')
         assert trees[1].dimensions == [time]
+
+    def test_scalar_cond(self):
+        grid = Grid(shape=(5, 5))
+        time = grid.time_dim
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        bt = ConditionalDimension(name="bt", parent=time, condition=Ge(time, 2))
+
+        W = (1 - exp(-(time - 5)/5))
+        eqns = [Eq(u.forward, 1),
+                Eq(u.forward, u.forward * (1 - W) + W * u, implicit_dims=bt)]
+        op = Operator(eqns)
+
+        trees = retrieve_iteration_tree(op)
+
+        assert len(trees) == 3
+        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
+        assert trees[0].dimensions == [time]
 
 
 class TestAliases:
@@ -2108,8 +2125,8 @@ class TestAliases:
 
             # Also check against expected operation count to make sure
             # all redundancies have been detected correctly
-            for i, exp in enumerate(as_tuple(exp_ops[n])):
-                assert summary[('section%d' % i, None)].ops == exp
+            for i, expected in enumerate(as_tuple(exp_ops[n])):
+                assert summary[('section%d' % i, None)].ops == expected
 
     def test_derivatives_from_different_levels(self):
         """

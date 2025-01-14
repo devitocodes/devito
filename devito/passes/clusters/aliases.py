@@ -262,13 +262,11 @@ class CireInvariants(CireTransformerLegacy, Queue):
 
             if made:
                 idx = processed.index(g[0])
-
                 for n, c in enumerate(g, -len(g)):
                     processed[processed.index(c)] = made.pop(n)
+                processed[idx:idx] = made
 
                 xtracted.extend(made)
-                while made:
-                    processed.insert(idx, made.pop(-1))
 
         return processed
 
