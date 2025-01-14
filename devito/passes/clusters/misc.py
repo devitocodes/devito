@@ -188,7 +188,6 @@ class Fusion(Queue):
 
     def _key(self, c):
         itintervals = frozenset(c.ispace.itintervals)
-        #TODO: just use c.guards ?
         guards = c.guards if any(c.guards) else None
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
