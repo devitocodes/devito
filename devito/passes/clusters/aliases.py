@@ -261,9 +261,10 @@ class CireInvariants(CireTransformerLegacy, Queue):
             made = self._aliases_from_clusters(g, exclude, ak)
 
             if made:
+                idx = processed.index(g[0])
                 for n, c in enumerate(g, -len(g)):
                     processed[processed.index(c)] = made.pop(n)
-                processed = made + processed
+                processed[idx:idx] = made
 
                 xtracted.extend(made)
 
