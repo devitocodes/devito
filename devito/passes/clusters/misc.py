@@ -97,7 +97,8 @@ class Lift(Queue):
 
             # Lifted scalar clusters cannot be guarded
             # as they would not be in the scope of the guarded clusters
-            if c.is_scalar:
+            # unless the guard is for an outer dimension
+            if c.is_scalar and not (prefix[:-1] and c.guards):
                 guards = {}
             else:
                 guards = c.guards
