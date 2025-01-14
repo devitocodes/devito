@@ -21,7 +21,10 @@ from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
 from examples.seismic.acoustic import acoustic_setup
-from tests.test_dse import TestTTI
+try:
+    from tests.test_dse import TestTTI
+except ImportError:
+    TestTTI = None
 
 
 class TestDistributor:
@@ -2982,6 +2985,7 @@ class TestElasticLike:
 
 class TestTTIOp:
 
+    @pytest.mark.skipif(TestTTI is None, reason="Requires installing the tests")
     @pytest.mark.parallel(mode=1)
     def test_halo_structure(self, mode):
         solver = TestTTI().tti_operator(opt='advanced', space_order=8)

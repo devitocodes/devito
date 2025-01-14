@@ -4,16 +4,17 @@ from functools import cached_property
 import numpy as np
 
 from devito.ir.equations import ClusterizedEq
-from devito.ir.support import (PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext,
-                               Forward, Interval, IntervalGroup, IterationSpace,
-                               DataSpace, Guards, Properties, Scope, WaitLock,
-                               WithLock, PrefetchUpdate, detect_accesses, detect_io,
-                               normalize_properties, normalize_syncs, minimum,
-                               maximum, null_ispace)
+from devito.ir.support import (
+    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward, Interval, IntervalGroup,
+    IterationSpace, DataSpace, Guards, Properties, Scope, WaitLock, WithLock,
+    PrefetchUpdate, detect_accesses, detect_io, normalize_properties,
+    tailor_properties, update_properties, normalize_syncs, minimum, maximum,
+    null_ispace
+)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
-from devito.tools import as_tuple, flatten, infer_dtype
+from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import Fence, WeakFence, CriticalRegion
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -52,7 +53,8 @@ class Cluster:
         self._syncs = normalize_syncs(syncs or {})
 
         properties = Properties(properties or {})
-        self._properties = tailor_properties(properties, ispace)
+        properties = tailor_properties(properties, ispace)
+        self._properties = update_properties(properties, self.exprs)
 
         self._halo_scheme = halo_scheme
 
@@ -482,15 +484,17 @@ class ClusterGroup(tuple):
 
     @cached_property
     def guards(self):
-        """The guards of each Cluster in self."""
-        return tuple(i.guards for i in self)
+        """
+        A view of the ClusterGroup's guards.
+        """
+        return tuple(filter_ordered(i.guards for i in self))
 
     @cached_property
     def syncs(self):
         """
         A view of the ClusterGroup's synchronization operations.
         """
-        return normalize_syncs(*[c.syncs for c in self])
+        return normalize_syncs(*[c.syncs for c in self], strict=False)
 
     @cached_property
     def dspace(self):
@@ -540,19 +544,3 @@ def reduce_properties(clusters):
             properties[d] = normalize_properties(properties.get(d, v), v)
 
     return Properties(properties)
-
-
-def tailor_properties(properties, ispace):
-    """
-    Create a new Properties object off `properties` that retains all and only
-    the iteration dimensions in `ispace`.
-    """
-    for i in properties:
-        for d in as_tuple(i):
-            if d not in ispace.itdims:
-                properties = properties.drop(d)
-
-    for d in ispace.itdims:
-        properties = properties.add(d)
-
-    return properties

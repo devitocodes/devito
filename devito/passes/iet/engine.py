@@ -11,8 +11,8 @@ from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
-                          Indirection, Pointer, SharedData, ThreadArray, Temp,
-                          NPThreads, NThreadsBase, Wildcard)
+                          ModuloDimension, Indirection, Pointer, SharedData,
+                          ThreadArray, Temp, NPThreads, NThreadsBase, Wildcard)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -533,6 +533,7 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(IncrDimension)
+@abstract_object.register(ModuloDimension)
 def _(i, mapper, sregistry):
     try:
         p = mapper[i.parent]

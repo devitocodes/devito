@@ -2,7 +2,7 @@ from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
 from functools import cached_property
 
 import numpy as np
-from sympy import Expr
+from sympy import Expr, cacheit
 
 from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
@@ -555,3 +555,15 @@ class ComponentAccess(Expr, Reconstructable):
     @property
     def dtype(self):
         return self.function.dtype
+
+    @cacheit
+    def sort_key(self, order=None):
+        # Ensure that the ComponentAccess is sorted as the base
+        # Also ensure that e.g. `fg[x+1].x` appears before `fg[x+1].y`
+        class_key, args, exp, coeff = self.base.sort_key(order=order)
+        args = (len(args[1]) + 1, args[1] + (self.index,))
+        return class_key, args, exp, coeff
+
+    # Default assumptions correspond to those of the `base`
+    for i in ('is_real', 'is_imaginary', 'is_commutative'):
+        locals()[i] = property(lambda self, v=i: getattr(self.base, v))

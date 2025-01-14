@@ -6,7 +6,7 @@ from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
                                WithLock, InitArray, SyncArray, PrefetchUpdate)
 from devito.passes.clusters.utils import in_critical_region
-from devito.symbolics import pow_to_mul
+from devito.symbolics import pow_to_mul, search
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
 
@@ -174,79 +174,76 @@ class Fusion(Queue):
         two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
         identical.
 
-        A Key contains several elements that can logically be split into two
-        groups -- the `strict` and the `weak` components of the Key.
-        Two Clusters (ClusterGroups) having same `strict` but different `weak` parts
-        are, as by definition, not fusible; however, since at least their `strict`
-        parts match, they can at least be topologically reordered.
+        A Key contains elements that can logically be split into two groups -- the
+        `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
+        having same `strict` but different `weak` parts are, by definition, not
+        fusible; however, since at least their `strict` parts match, they can at
+        least be topologically reordered.
         """
 
-        def __new__(cls, strict, weak):
+        def __new__(cls, itintervals, guards, syncs, weak):
+            strict = [itintervals, guards, syncs]
             obj = super().__new__(cls, strict + weak)
+
+            obj.itintervals = itintervals
+            obj.guards = guards
+            obj.syncs = syncs
+
             obj.strict = tuple(strict)
             obj.weak = tuple(weak)
 
             return obj
 
     def _key(self, c):
-        strict = []
-
-        strict.extend([
-            frozenset(c.ispace.itintervals),
-            c.guards if any(c.guards) else None
-        ])
+        itintervals = frozenset(c.ispace.itintervals)
+        guards = c.guards if any(c.guards) else None
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
-        if isinstance(c, Cluster):
-            syncs = (c.syncs,)
-        else:
-            syncs = tuple(i.syncs for i in c)
-        for i in syncs:
-            mapper = defaultdict(set)
-            for k, v in i.items():
-                for s in v:
-                    if isinstance(s, PrefetchUpdate):
-                        continue
-
-                    if isinstance(s, WaitLock) and not self.fusetasks:
-                        # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
-                        # be fused, as in the worst case scenario the WaitLocks
-                        # get "hoisted" above the first Cluster in the sequence
-                        continue
-
-                    if isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
-                        mapper[k].add(type(s))
-                    elif isinstance(s, WithLock) and self.fusetasks:
-                        # NOTE: Different WithLocks aren't fused unless the user
-                        # explicitly asks for it
-                        mapper[k].add(type(s))
-                    else:
-                        mapper[k].add(s)
-
-                if k in mapper:
-                    mapper[k] = frozenset(mapper[k])
-
-            strict.append(frozendict(mapper))
-
-        weak = []
+        mapper = defaultdict(set)
+        for d, v in c.syncs.items():
+            for s in v:
+                if isinstance(s, PrefetchUpdate):
+                    continue
+                elif isinstance(s, WaitLock) and not self.fusetasks:
+                    # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
+                    # be fused, as in the worst case scenario the WaitLocks
+                    # get "hoisted" above the first Cluster in the sequence
+                    continue
+                elif isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
+                    mapper[d].add(type(s))
+                elif isinstance(s, WithLock) and self.fusetasks:
+                    # NOTE: Different WithLocks aren't fused unless the user
+                    # explicitly asks for it
+                    mapper[d].add(type(s))
+                else:
+                    mapper[d].add(s)
+            if d in mapper:
+                mapper[d] = frozenset(mapper[d])
+        syncs = frozendict(mapper)
 
         # Clusters representing HaloTouches should get merged, if possible
-        weak.append(c.is_halo_touch)
+        weak = [c.is_halo_touch]
 
         # If there are writes to thread-shared object, make it part of the key.
-        # This will promote fusion of non-adjacent Clusters writing to (some form of)
-        # shared memory, which in turn will minimize the number of necessary barriers
-        # Same story for reads from thread-shared objects
+        # This will promote fusion of non-adjacent Clusters writing to (some
+        # form of) shared memory, which in turn will minimize the number of
+        # necessary barriers Same story for reads from thread-shared objects
         weak.extend([
             any(f._mem_shared for f in c.scope.writes),
             any(f._mem_shared for f in c.scope.reads)
         ])
 
-        # Promoting adjacency of IndexDerivatives will maximize their reuse
-        weak.append(any(e.find(IndexDerivative) for e in c.exprs))
+        # Prefetchable Clusters should get merged, if possible
+        weak.append(c.properties.is_prefetchable_shm())
 
-        key = self.Key(strict, weak)
+        # Promoting adjacency of IndexDerivatives will maximize their reuse
+        weak.append(any(search(c.exprs, IndexDerivative)))
+
+        # Promote adjacency of Clusters with same guard
+        weak.append(c.guards)
+
+        key = self.Key(itintervals, guards, syncs, weak)
 
         return key
 
@@ -294,16 +291,11 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
-        # Are there any ClusterGroups that could potentially be fused? If
-        # not, do not waste time computing a new topological ordering
+        # Are there any ClusterGroups that could potentially be topologically
+        # reordered? If not, do not waste time
         counter = Counter(self._key(cg).strict for cg in cgroups)
-        if not any(v > 1 for it, v in counter.most_common()):
-            return ClusterGroup(cgroups, prefix)
-
-        # Similarly, if all ClusterGroups have the same exact prefix and
-        # use the same form of synchronization (if any at all), no need to
-        # attempt a topological sorting
-        if len(counter.most_common()) == 1:
+        if len(counter.most_common()) == 1 or \
+           not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
@@ -312,21 +304,33 @@ class Fusion(Queue):
             if not scheduled:
                 return queue.pop()
 
-            # Heuristic: let `k0` be the key of the last scheduled node; then out of
-            # the possible schedulable nodes we pick the one with key `k1` such that
-            # `max_i : k0[:i] == k1[:i]` (i.e., the one with "the most similar key")
-            key = self._key(scheduled[-1])
-            for i in reversed(range(len(key) + 1)):
-                candidates = [e for e in queue if self._key(e)[:i] == key[:i]]
+            k = self._key(scheduled[-1])
+            m = {i: self._key(i) for i in queue}
+
+            # Process the `strict` part of the key
+            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
+
+            compatible = [i for i in candidates if m[i].guards == k.guards]
+            candidates = compatible or candidates
+
+            compatible = [i for i in candidates if m[i].syncs == k.syncs]
+            candidates = compatible or candidates
+
+            # Process the `weak` part of the key
+            for i in range(len(k.weak), -1, -1):
+                choosable = [e for e in candidates if m[e].weak[:i] == k.weak[:i]]
                 try:
                     # Ensure stability
-                    e = min(candidates, key=lambda i: cgroups.index(i))
+                    e = min(choosable, key=lambda i: cgroups.index(i))
                 except ValueError:
                     continue
                 queue.remove(e)
                 return e
 
-            assert False
+            # Fallback
+            e = min(queue, key=lambda i: cgroups.index(i))
+            queue.remove(e)
+            return e
 
         return ClusterGroup(dag.topological_sort(choose_element), prefix)
 
