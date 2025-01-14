@@ -310,16 +310,14 @@ class Fusion(Queue):
             # Process the `strict` part of the key
             candidates = [i for i in queue if m[i].itintervals == k.itintervals]
 
-            if k.guards:
-                compatible = [i for i in candidates if m[i].guards == k.guards]
-                candidates = compatible or candidates
+            compatible = [i for i in candidates if m[i].guards == k.guards]
+            candidates = compatible or candidates
 
-            if k.syncs:
-                compatible = [i for i in candidates if m[i].syncs == k.syncs]
-                candidates = compatible or candidates
+            compatible = [i for i in candidates if m[i].syncs == k.syncs]
+            candidates = compatible or candidates
 
             # Process the `weak` part of the key
-            for i in reversed(range(len(k.weak) + 1)):
+            for i in range(len(k.weak), -1, -1):
                 choosable = [e for e in candidates if m[e].weak[:i] == k.weak[:i]]
                 try:
                     # Ensure stability
