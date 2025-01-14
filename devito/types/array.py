@@ -558,7 +558,11 @@ class ComponentAccess(Expr, Reconstructable):
 
     @cacheit
     def sort_key(self, order=None):
-        return self.base.sort_key(order=order)
+        # Ensure that the ComponentAccess is sorted as the base
+        # Also ensure that e.g. `fg[x+1].x` appears before `fg[x+1].y`
+        class_key, args, exp, coeff = self.base.sort_key(order=order)
+        args = (len(args[1]) + 1, args[1] + (self.index,))
+        return class_key, args, exp, coeff
 
     # Default assumptions correspond to those of the `base`
     for i in ('is_real', 'is_imaginary', 'is_commutative'):
