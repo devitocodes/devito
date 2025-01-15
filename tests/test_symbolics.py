@@ -313,7 +313,7 @@ def test_cos_vs_cosf():
 
     # Doesn't make much sense, but it's legal
     c = dSymbol('c', dtype=np.int32)
-    assert ccode(cos(c)) == "cos(c)"
+    assert ccode(cos(c)) == "cosf(c)"
 
 
 def test_intdiv():
