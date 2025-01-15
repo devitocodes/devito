@@ -3,11 +3,13 @@ from functools import singledispatch
 import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
+from sympy.core.numbers import ImaginaryUnit
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
-from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
+from devito.symbolics.extended_dtypes import INT
+from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
@@ -167,6 +169,7 @@ def _(expr, estimate, seen):
     return 0, True
 
 
+@_estimate_cost.register(ImaginaryUnit)
 @_estimate_cost.register(Number)
 @_estimate_cost.register(ReservedWord)
 def _(expr, estimate, seen):
@@ -189,6 +192,8 @@ def _(expr, estimate, seen):
     flops, flags = _estimate_cost.registry[object](expr, estimate, seen)
     if {S.One, S.NegativeOne}.intersection(expr.args):
         flops -= 1
+    if ImaginaryUnit in expr.args:
+        flops *= 2
     return flops, flags
 
 
@@ -300,4 +305,12 @@ def sympy_dtype(expr, base=None):
             dtypes.add(i.dtype)
         except AttributeError:
             pass
-    return infer_dtype(dtypes)
+
+    dtype = infer_dtype(dtypes)
+
+    # Promote if we missed complex number, i.e f + I
+    is_im = np.issubdtype(dtype, np.complexfloating)
+    if expr.has(ImaginaryUnit) and not is_im:
+        dtype = np.promote_types(dtype, np.complex64).type
+
+    return dtype

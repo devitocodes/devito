@@ -2,6 +2,8 @@ from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics.printer import _DevitoPrinterBase
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
@@ -19,7 +21,9 @@ class CBB(LangBB):
         'host-free-pin': lambda i:
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
-            Call('memcpy', (i, j, k))
+            Call('memcpy', (i, j, k)),
+        # Complex and float16
+        'header-complex': 'complex.h',
     }
 
 
@@ -29,3 +33,12 @@ class CDataManager(DataManager):
 
 class COrchestrator(Orchestrator):
     lang = CBB
+
+
+class CDevitoPrinter(_DevitoPrinterBase):
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**_DevitoPrinterBase.type_mappings,
+                     c_complex: 'float _Complex',
+                     c_double_complex: 'double _Complex'}

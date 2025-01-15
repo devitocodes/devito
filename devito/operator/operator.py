@@ -477,6 +477,8 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+
+        # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -752,13 +754,19 @@ class Operator(Callable):
         """A unique name for the shared object resulting from JIT compilation."""
         return Signer._digest(self, configuration)
 
+    @property
+    def printer(self):
+        return self._Target.Printer
+
     @cached_property
     def ccode(self):
         try:
-            return self._ccode_handler(compiler=self._compiler).visit(self)
+            return self._ccode_handler(compiler=self._compiler,
+                                       printer=self.printer).visit(self)
         except (AttributeError, TypeError):
             from devito.ir.iet.visitors import CGen
-            return CGen(compiler=self._compiler).visit(self)
+            return CGen(compiler=self._compiler,
+                        printer=self.printer).visit(self)
 
     def _jit_compile(self):
         """
@@ -1385,7 +1393,8 @@ def parse_kwargs(**kwargs):
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
-                                                         mpi=configuration['mpi'])
+                                                         mpi=configuration['mpi'],
+                                                         name=compiler)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],

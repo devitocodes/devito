@@ -11,8 +11,8 @@ from .utils import as_tuple
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
-           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
-           'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
+           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_alloc_ctype', 'dtype_to_mpitype',
+           'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype', 'CustomDtype']
 
 
@@ -133,6 +133,9 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
+    if isinstance(dtype, CustomDtype):
+        return dtype
+
     try:
         return ctypes_vector_mapper[dtype]
     except KeyError:
@@ -146,6 +149,32 @@ def dtype_to_ctype(dtype):
         return dtype
     else:
         return np.ctypeslib.as_ctypes_type(dtype)
+
+
+def dtype_alloc_ctype(dtype):
+    """
+    Translate numpy.dtype to (ctype, int): type and scale for correct C allocation size.
+    """
+    if isinstance(dtype, CustomDtype):
+        return dtype, 1
+
+    try:
+        return ctypes_vector_mapper[dtype], 1
+    except KeyError:
+        pass
+
+    if issubclass(dtype, ctypes._SimpleCData):
+        return dtype, 1
+
+    if dtype == np.float16:
+        # Allocate half float as unsigned short
+        return ctypes.c_uint16, 1
+
+    if np.issubdtype(dtype, np.complexfloating):
+        # For complex float, allocate twice the size of real/imaginary part
+        return np.ctypeslib.as_ctypes_type(dtype(0).real.__class__), 2
+
+    return np.ctypeslib.as_ctypes_type(dtype), 1
 
 
 def dtype_to_mpitype(dtype):
@@ -232,7 +261,6 @@ def ctypes_to_cstr(ctype, toarray=None):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
-
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
@@ -303,7 +331,8 @@ def infer_dtype(dtypes):
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
 
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
+               np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:

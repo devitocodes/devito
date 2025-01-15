@@ -11,18 +11,20 @@ from numbers import Real
 
 from sympy.core import S
 from sympy.core.numbers import equal_valued, Float
+from sympy.printing.c import C99CodePrinter
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
-from sympy.printing.c import C99CodePrinter
 
+from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
+from devito.tools import ctypes_to_cstr
 
 __all__ = ['ccode']
 
 
-class CodePrinter(C99CodePrinter):
+class _DevitoPrinterBase(C99CodePrinter):
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.
@@ -37,20 +39,52 @@ class CodePrinter(C99CodePrinter):
 
     @property
     def dtype(self):
-        return self._settings['dtype']
+        try:
+            return self._settings['dtype'].nptype
+        except AttributeError:
+            return self._settings['dtype']
 
     @property
     def compiler(self):
-        return self._settings['compiler']
+        return self._settings['compiler'] or configuration['compiler']
 
-    def single_prec(self, expr=None):
+    def doprint(self, expr, assign_to=None):
+        """
+        The sympy code printer does a lot of extra we do not need as we handle all of
+        it in the compiler so we directly defaults to `_print`
+        """
+        return self._print(expr)
+
+    def single_prec(self, expr=None, with_f=False):
+        no_f = self.compiler._cpp and not with_f
+        if no_f and expr is not None:
+            return False
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return dtype in [np.float32, np.float16]
+        return any(issubclass(dtype, d) for d in [np.float32, np.complex64])
+
+    def half_prec(self, expr=None, with_f=False):
+        no_f = self.compiler._cpp and not with_f
+        if no_f and expr is not None:
+            return False
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return issubclass(dtype, np.float16)
+
+    def complex_prec(self, expr=None):
+        if self.compiler._cpp:
+            return False
+        dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        return np.issubdtype(dtype, np.complexfloating)
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
             return "(%s)" % self._print(item)
         return super().parenthesize(item, level, strict=strict)
+
+    def _print_type(self, expr):
+        try:
+            return self.type_mappings[expr]
+        except KeyError:
+            return ctypes_to_cstr(expr)
 
     def _print_Function(self, expr):
         if isinstance(expr, AbstractFunction):
@@ -113,8 +147,10 @@ class CodePrinter(C99CodePrinter):
         if cname not in self._prec_funcs:
             return super()._print_math_func(expr, nest=nest, known=known)
 
-        if self.single_prec(expr):
+        if self.single_prec(expr) or self.half_prec(expr):
             cname = '%sf' % cname
+        if self.complex_prec(expr):
+            cname = 'c%s' % cname
 
         if nest and len(expr.args) > 2:
             args = ', '.join([self._print(expr.args[0]),
@@ -230,13 +266,24 @@ class CodePrinter(C99CodePrinter):
 
         if self.single_prec():
             rv = '%sF' % rv
+        elif self.half_prec():
+            rv = '%sF16' % rv
 
         return rv
+
+    def _print_ImaginaryUnit(self, expr):
+        if self.compiler._cpp:
+            if self.single_prec(with_f=True) or self.half_prec(with_f=True):
+                return '1if'
+            else:
+                return '1i'
+        else:
+            return '_Complex_I'
 
     def _print_Differentiable(self, expr):
         return "(%s)" % self._print(expr._expr)
 
-    _print_EvalDerivative = C99CodePrinter._print_Add
+    _print_EvalDerivative = _print_Add
 
     def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
@@ -284,8 +331,12 @@ class CodePrinter(C99CodePrinter):
 
     def _print_TrigonometricFunction(self, expr):
         func_name = str(expr.func)
-        if self.single_prec():
+
+        if self.single_prec() or self.half_prec():
             func_name = '%sf' % func_name
+        if self.complex_prec():
+            func_name = 'c%s' % func_name
+
         return '%s(%s)' % (func_name, self._print(*expr.args))
 
     def _print_DefFunction(self, expr):
@@ -312,7 +363,7 @@ class CodePrinter(C99CodePrinter):
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
 for k in ('exp log sin cos tan ceiling floor').split():
-    setattr(CodePrinter, '_print_%s' % k, CodePrinter._print_math_func)
+    setattr(_DevitoPrinterBase, '_print_%s' % k, _DevitoPrinterBase._print_math_func)
 
 
 # Always parenthesize IntDiv and InlineIf within expressions
@@ -336,10 +387,10 @@ def ccode(expr, **settings):
         The resulting code as a C++ string. If something went south, returns
         the input ``expr`` itself.
     """
-    return CodePrinter(settings=settings).doprint(expr, None)
+    return _DevitoPrinterBase(settings=settings).doprint(expr, None)
 
 
 # Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', CodePrinter._print_Add)
+    setattr(sympy.printing.str.StrPrinter, '_print_Add', _DevitoPrinterBase._print_Add)

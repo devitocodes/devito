@@ -13,8 +13,9 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
+                          frozendict, memoized_meth, sympy_mutex, CustomDtype,
+                          Reconstructable)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
@@ -84,6 +85,9 @@ class CodeSymbol:
         The type of the object in the generated code as a `str`.
         """
         _type = self._C_ctype
+        if isinstance(_type, CustomDtype):
+            return _type
+
         while issubclass(_type, _Pointer):
             _type = _type._type_
 
@@ -91,7 +95,7 @@ class CodeSymbol:
         if _type is c_char_p:
             _type = c_char
 
-        return ctypes_to_cstr(_type)
+        return _type
 
     @abc.abstractproperty
     def _C_ctype(self):
@@ -877,6 +881,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         name = kwargs.get('name')
         alias = kwargs.get('alias')
         function = kwargs.get('function')
+        dtype = kwargs.get('dtype')
         if alias is True or (function and function.name != name):
             function = kwargs['function'] = None
 
@@ -884,7 +889,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # definitely a reconstruction
         if function is not None and \
            function.name == name and \
-           function.indices == indices:
+           function.indices == indices and \
+           function.dtype == dtype:
             # Special case: a syntactically identical alias of `function`, so
             # let's just return `function` itself
             return function
@@ -1225,7 +1231,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def indexed(self):
         """The wrapped IndexedData object."""
-        return IndexedData(self.name, shape=self._shape, function=self.function)
+        return IndexedData(self.name, shape=self._shape, function=self.function,
+                           dtype=self.dtype)
 
     @cached_property
     def dmap(self):
@@ -1500,13 +1507,14 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     __rargs__ = ('label', 'shape')
     __rkwargs__ = ('function',)
 
-    def __new__(cls, label, shape, function=None):
+    def __new__(cls, label, shape, function=None, dtype=None):
         # Make sure `label` is a devito.Symbol, not a sympy.Symbol
         if isinstance(label, str):
             label = Symbol(name=label, dtype=None)
         with sympy_mutex:
             obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
+        obj._dtype = dtype or function.dtype
         return obj
 
     func = Pickable._rebuild
@@ -1540,7 +1548,7 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     @property
     def dtype(self):
-        return self.function.dtype
+        return self._dtype
 
     @cached_property
     def free_symbols(self):
@@ -1602,7 +1610,7 @@ class BoundSymbol(AbstractSymbol):
         return self.function._C_ctype
 
 
-class Indexed(sympy.Indexed):
+class Indexed(sympy.Indexed, Reconstructable):
 
     # The two type flags have changed in upstream sympy as of version 1.1,
     # but the below interpretation is used throughout the compiler to
@@ -1613,6 +1621,17 @@ class Indexed(sympy.Indexed):
     is_Atom = False
 
     is_Dimension = False
+
+    __rargs__ = ('base', 'indices')
+    __rkwargs__ = ('dtype',)
+
+    def __new__(cls, base, *indices, dtype=None, **kwargs):
+        if len(indices) == 1:
+            indices = as_tuple(indices[0])
+        newobj = sympy.Indexed.__new__(cls, base, *indices)
+        newobj._dtype = dtype or base.dtype
+
+        return newobj
 
     @memoized_meth
     def __str__(self):
@@ -1635,7 +1654,7 @@ class Indexed(sympy.Indexed):
 
     @property
     def dtype(self):
-        return self.function.dtype
+        return self._dtype
 
     @property
     def name(self):
