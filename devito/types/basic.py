@@ -13,7 +13,7 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
+from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
                           frozendict, memoized_meth, sympy_mutex, CustomDtype,
                           Reconstructable)
 from devito.types.args import ArgProvider
@@ -95,7 +95,7 @@ class CodeSymbol:
         if _type is c_char_p:
             _type = c_char
 
-        return ctypes_to_cstr(_type)
+        return _type
 
     @abc.abstractproperty
     def _C_ctype(self):

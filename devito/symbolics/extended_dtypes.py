@@ -3,11 +3,10 @@ import numpy as np
 
 from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
-                          int2, int3, int4)
+                          int2, int3, int4, ctypes_vector_mapper)
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',
-           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
-           'c_half', 'c_half_p', 'Float16P']
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',  # noqa
+           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
 
 
 limits_mapper = {
@@ -50,34 +49,8 @@ class c_double_complex(NoDeclStruct):
         return cls(val.real, val.imag)
 
 
-class c_half(ctypes.c_uint16):
-    """Ctype for non-scalar half floats"""
-
-    @classmethod
-    def from_param(cls, val):
-        return cls(np.float16(val).view(np.uint16))
-
-
-class c_half_p(ctypes.POINTER(c_half)):
-    """
-    Ctype for half scalars; we can't directly pass _Float16 values so
-    we use a pointer and dereference (see `passes.iet.dtypes`)
-    """
-
-    @classmethod
-    def from_param(cls, val):
-        arr = np.array(val, dtype=np.float16)
-        return arr.ctypes.data_as(cls)
-
-
-class Float16P(np.float16):
-    """
-    Dummy dtype for a scalar half value that has been mapped to a pointer.
-    This is needed because we can't directly pass in the values; we map to
-    pointers and dereference in the kernel. See `passes.iet.dtypes`.
-    """
-
-    pass
+ctypes_vector_mapper.update({np.complex64: c_complex,
+                             np.complex128: c_double_complex})
 
 
 class CustomType(ReservedWord):

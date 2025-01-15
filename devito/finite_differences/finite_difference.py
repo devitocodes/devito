@@ -143,11 +143,6 @@ def first_derivative(expr, dim, fd_order, **kwargs):
     return generic_derivative(expr, dim, fd_order, 1, **kwargs)
 
 
-# Backward compatibility
-def first_derivative(expr, dim, fd_order, **kwargs):
-    return generic_derivative(expr, dim, fd_order, 1, **kwargs)
-
-
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
                     expand, weights=None):
     # Always expand time derivatives to avoid issue with buffering and streaming.

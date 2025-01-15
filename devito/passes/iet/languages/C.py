@@ -1,21 +1,11 @@
-import numpy as np
-
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import (Float16P, c_complex, c_double_complex,
-                                              c_half, c_half_p)
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics.printer import _DevitoPrinterBase
 
-
-__all__ = ['CBB', 'CDataManager', 'COrchestrator', 'c_float16', 'c_float16_p']
-
-
-c99_complex = type('_Complex float', (c_complex,), {})
-c99_double_complex = type('_Complex double', (c_double_complex,), {})
-
-c_float16 = type('_Float16', (c_half,), {})
-c_float16_p = type('_Float16 *', (c_half_p,), {'_type_': c_float16})
+__all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
 
 class CBB(LangBB):
@@ -34,10 +24,6 @@ class CBB(LangBB):
             Call('memcpy', (i, j, k)),
         # Complex and float16
         'header-complex': 'complex.h',
-        'types': {np.complex128: c99_double_complex,
-                  np.complex64: c99_complex,
-                  np.float16: c_float16,
-                  Float16P: c_float16_p}
     }
 
 
@@ -47,3 +33,12 @@ class CDataManager(DataManager):
 
 class COrchestrator(Orchestrator):
     lang = CBB
+
+
+class CDevitoPrinter(_DevitoPrinterBase):
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**_DevitoPrinterBase.type_mappings,
+                     c_complex: 'float _Complex',
+                     c_double_complex: 'double _Complex'}

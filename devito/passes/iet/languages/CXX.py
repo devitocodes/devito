@@ -1,9 +1,9 @@
-import numpy as np
+from sympy.printing.cxx import CXX11CodePrinter
 
 from devito.ir import Call, UsingNamespace
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.languages.C import c_float16, c_float16_p
-from devito.symbolics.extended_dtypes import Float16P, c_complex, c_double_complex
+from devito.symbolics.printer import _DevitoPrinterBase
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 
 __all__ = ['CXXBB']
 
@@ -45,10 +45,6 @@ std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
 """
 
 
-cxx_complex = type('std::complex<float>', (c_complex,), {})
-cxx_double_complex = type('std::complex<double>', (c_double_complex,), {})
-
-
 class CXXBB(LangBB):
 
     mapper = {
@@ -67,8 +63,16 @@ class CXXBB(LangBB):
         'header-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
         'def-complex': std_arith,
-        "types": {np.complex128: cxx_double_complex,
-                  np.complex64: cxx_complex,
-                  np.float16: c_float16,
-                  Float16P: c_float16_p}
     }
+
+
+class CXXDevitoPrinter(_DevitoPrinterBase, CXX11CodePrinter):
+
+    _default_settings = {**_DevitoPrinterBase._default_settings,
+                         **CXX11CodePrinter._default_settings}
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {c_complex: 'std::complex<float>',
+                     c_double_complex: 'std::complex<float>',
+                     **CXX11CodePrinter.type_mappings}

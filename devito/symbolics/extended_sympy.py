@@ -762,8 +762,21 @@ class CastStar:
 # Some other utility objects
 Null = Macro('NULL')
 
+
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
-SizeOf = lambda *args: DefFunction('sizeof', tuple(args))
+class SizeOf(DefFunction):
+
+    __rargs__ = ('intype',)
+
+    def __new__(cls, intype, **kwargs):
+        newobj = super().__new__(cls, 'sizeof', arguments=[str(intype)], **kwargs)
+        newobj.intype = intype
+
+        return newobj
+
+    @property
+    def arguments(self):
+        return (self.intype,)
 
 
 def rfunc(func, item, *args):

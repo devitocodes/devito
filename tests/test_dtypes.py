@@ -4,12 +4,10 @@ import re
 import sympy
 
 from devito import Constant, Eq, Function, Grid, Operator
-from devito.ir.iet.nodes import Dereference
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openacc import AccBB
 from devito.passes.iet.languages.openmp import OmpBB
-from devito.symbolics.extended_dtypes import Float16P
 from devito.tools import ctypes_to_cstr
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
@@ -52,7 +50,7 @@ _configs: list[dict[str, str]] = [
 ]
 
 
-@pytest.mark.parametrize('dtype', [np.float16, np.complex64, np.complex128])
+@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs)
 def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
     """
@@ -79,7 +77,7 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> N
     assert _c._C_ctype == lang_types[_c.dtype]
 
 
-@pytest.mark.parametrize('dtype', [np.float16, np.complex64, np.complex128])
+@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs)
 def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
     """
@@ -106,39 +104,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
     assert match.group(1) == ctypes_to_cstr(lang_types[dtype])
 
 
-def test_half_params() -> None:
-    """
-    Tests float16 input parameters: scalars should be lowered to pointers
-    and dereferenced; other parameters should keep the original dtype.
-    """
-
-    grid = Grid(shape=(5, 5), dtype=np.float16)
-    x, y = grid.dimensions
-
-    c = Constant(name='c', dtype=np.float16)
-    u = Function(name='u', grid=grid)
-    eq = Eq(u, x * x.spacing + c * y * y.spacing)
-    op = Operator(eq)
-
-    # Check that lowered parameters have the correct dtypes
-    params: dict[str, Basic] = {p.name: p for p in op.parameters}
-    _u, _c, _dx, _dy = params['u'], params['c'], params['h_x'], params['h_y']
-
-    assert _u.dtype == np.float16
-    assert _c.dtype == Float16P
-    assert _dx.dtype == Float16P
-    assert _dy.dtype == Float16P
-
-    # Ensure the mapped pointer-to-half symbols are dereferenced
-    derefs: set[Symbol] = {n.pointer for n in op.body.body
-                           if isinstance(n, Dereference)}
-    assert _c in derefs
-    assert _dx in derefs
-    assert _dy in derefs
-
-
-@pytest.mark.parametrize('dtype', [np.float16, np.float32,
-                                   np.complex64, np.complex128])
+@pytest.mark.parametrize('dtype', [np.float32, np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs)
 def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
     np.dtype
@@ -192,7 +158,7 @@ def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
     assert unit_str in str(op)
 
 
-@pytest.mark.parametrize('dtype', [np.float16, np.float32, np.float64,
+@pytest.mark.parametrize('dtype', [np.float32, np.float64,
                                    np.complex64, np.complex128])
 @pytest.mark.parametrize(['sym', 'fun'], [(sympy.exp, np.exp),
                                           (sympy.log, np.log),
@@ -246,30 +212,6 @@ def test_complex_override(dtype: np.dtype[np.complexfloating]) -> None:
                          np.linspace(0, 4, 5, dtype=dtype))
     expected = xx * dx + yy * dy * dtype(2.0 + 1.0j)
     assert np.allclose(u.data.T, expected)
-
-
-def test_half_time_deriv() -> None:
-    """
-    Tests taking the time derivative of a float16 function.
-    """
-
-    grid = Grid(shape=(5, 5))
-    x, y = grid.dimensions
-    t = grid.time_dim
-
-    f = TimeFunction(name='f', grid=grid, space_order=2, dtype=np.float16)
-    g = Function(name='g', grid=grid, dtype=np.float16)
-    eqns = [Eq(f.forward, t * x * x.spacing +
-               y * y.spacing),
-            Eq(g, f.dt)]
-    op = Operator(eqns)
-    op.apply(time=10, dt=1.0)
-
-    # Check against expected result
-    dx = grid.spacing_map[x.spacing]
-    xx = np.repeat(np.linspace(0, 4, 5, dtype=np.float16)[np.newaxis, :], 5, axis=0)
-    expected = xx * np.float16(dx)
-    assert np.allclose(g.data.T, expected)
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
