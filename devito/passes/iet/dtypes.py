@@ -3,25 +3,25 @@ import numpy as np
 
 from devito.arch.compiler import Compiler
 from devito.ir import Callable, FindSymbols, SymbolRegistry
+from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 
 __all__ = ['lower_dtypes']
 
 
-def lower_dtypes(iet: Callable, lang: type[LangBB], compiler: Compiler,
-                 sregistry: SymbolRegistry) -> tuple[Callable, dict]:
+def lower_dtypes(graph: Callable, lang: type[LangBB] = None, compiler: Compiler = None,
+                 sregistry: SymbolRegistry = None, **kwargs) -> tuple[Callable, dict]:
     """
     Lowers float16 scalar types to pointers since we can't directly pass their
     value. Also includes headers for complex arithmetic if needed.
     """
     # Complex numbers
-    iet, metadata = _complex_includes(iet, lang, compiler)
-
-    return iet, metadata
+    _complex_includes(graph, lang=lang, compiler=compiler)
 
 
-def _complex_includes(iet: Callable, lang: type[LangBB],
-                      compiler: Compiler) -> tuple[Callable, dict]:
+@iet_pass
+def _complex_includes(iet: Callable, lang: type[LangBB] = None,
+                      compiler: Compiler = None) -> tuple[Callable, dict]:
     """
     Includes complex arithmetic headers for the given language, if needed.
     """

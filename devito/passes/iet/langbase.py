@@ -203,14 +203,6 @@ class LangTransformer(ABC):
         """
         return iet, {}
 
-    @iet_pass
-    def make_langtypes(self, iet):
-        """
-        An `iet_pass` which transforms an IET such that the target language
-        types are introduced.
-        """
-        return iet, {}
-
     @property
     def Region(self):
         return self.lang.Region

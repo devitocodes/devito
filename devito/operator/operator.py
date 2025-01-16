@@ -27,6 +27,7 @@ from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
+from devito.passes.iet.dtypes import lower_dtypes
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
@@ -494,6 +495,9 @@ class Operator(Callable):
 
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph, **kwargs)
+
+        # Add type specific metadata
+        lower_dtypes(graph, lang=cls._Target.lang, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
