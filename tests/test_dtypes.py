@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
-import re
 import sympy
 
 from devito import Constant, Eq, Function, Grid, Operator
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.openacc import AccBB
+from devito.passes.iet.languages.C import CBB, CDevitoPrinter
+from devito.passes.iet.languages.openacc import AccBB, AccDevitoPrinter
 from devito.passes.iet.languages.openmp import OmpBB
-from devito.tools import ctypes_to_cstr
+from devito.symbolics.extended_dtypes import ctypes_vector_mapper
+from devito.symbolics.printer import _DevitoPrinterBase
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 
@@ -20,12 +20,27 @@ _languages: dict[str, type[LangBB]] = {
 }
 
 
+_printers: dict[str, type[_DevitoPrinterBase]] = {
+    'C': CDevitoPrinter,
+    'openmp': CDevitoPrinter,
+    'openacc': AccDevitoPrinter
+}
+
+
 def _get_language(language: str, **_) -> type[LangBB]:
     """
     Gets the language building block type from parametrized kwargs.
     """
 
     return _languages[language]
+
+
+def _get_printer(language: str, **_) -> type[_DevitoPrinterBase]:
+    """
+    Gets the printer building block type from parametrized kwargs.
+    """
+
+    return _printers[language]
 
 
 def _config_kwargs(platform: str, language: str, compiler: str) -> dict[str, str]:
@@ -58,9 +73,6 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> N
     strings in generated code.
     """
 
-    # Retrieve the language-specific type mapping
-    lang_types: dict[np.dtype, type] = _get_language(**kwargs).get('types')
-
     # Set up an operator
     grid = Grid(shape=(3, 3))
     x, y = grid.dimensions
@@ -73,8 +85,8 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> N
     # Check ctypes of the mapped parameters
     params: dict[str, Basic] = {p.name: p for p in op.parameters}
     _u, _c = params['u'], params['c']
-    assert _u.indexed._C_ctype._type_ == lang_types[_u.dtype]
-    assert _c._C_ctype == lang_types[_c.dtype]
+    assert type(_u.indexed._C_ctype._type_()) == ctypes_vector_mapper[dtype]
+    assert _c._C_ctype == ctypes_vector_mapper[dtype]
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
@@ -86,7 +98,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
     """
 
     # Retrieve the language-specific type mapping
-    lang_types: dict[np.dtype, type] = _get_language(**kwargs).get('types')
+    printer: type[_DevitoPrinterBase] = _get_printer(**kwargs)
 
     # Set up an operator
     grid = Grid(shape=(3, 3))
@@ -99,9 +111,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
     op = Operator(eq, **kwargs)
 
     # Ensure the CSE'd variable has the correct type
-    match = re.search(r'[^\S\n\r]*(.*\S)\sr0 = ', str(op))
-    assert match is not None
-    assert match.group(1) == ctypes_to_cstr(lang_types[dtype])
+    assert f'{printer()._print(ctypes_vector_mapper[dtype])} r0' in str(op)
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.complex64, np.complex128])
