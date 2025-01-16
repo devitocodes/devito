@@ -296,10 +296,13 @@ def has_integer_args(*args):
     return res
 
 
-def sympy_dtype(expr, base=None):
+def sympy_dtype(expr, base=None, default=None):
     """
     Infer the dtype of the expression.
     """
+    if expr is None:
+        return default
+
     dtypes = {base} - {None}
     for i in expr.free_symbols:
         try:
@@ -313,7 +316,7 @@ def sympy_dtype(expr, base=None):
     is_im = np.issubdtype(dtype, np.complexfloating)
     if expr.has(ImaginaryUnit) and not is_im:
         if dtype is None:
-            dtype = np.complex64
+            dtype = default or np.complex64
         else:
             dtype = np.promote_types(dtype, np.complex64).type
 
