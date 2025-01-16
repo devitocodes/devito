@@ -25,7 +25,6 @@ __all__ = ['ccode']
 
 
 _prec_litterals = {np.float16: 'F16', np.float32: 'F', np.complex64: 'F'}
-_func_litterals = {np.float32: 'f', np.complex64: 'f', Real: 'f'}
 
 
 class _DevitoPrinterBase(C99CodePrinter):
@@ -42,6 +41,7 @@ class _DevitoPrinterBase(C99CodePrinter):
                          **C99CodePrinter._default_settings}
 
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
+    _func_litterals = {np.float32: 'f', np.complex64: 'f', Real: 'f'}
 
     @property
     def dtype(self):
@@ -62,7 +62,7 @@ class _DevitoPrinterBase(C99CodePrinter):
         return self._print(expr)
 
     def _prec(self, expr):
-        dtype = sympy_dtype(expr) if expr is not None else None
+        dtype = sympy_dtype(expr, default=self.dtype)
         if dtype is None or np.issubdtype(dtype, np.integer):
             real = any(isinstance(i, Float) for i in expr.atoms())
             stype = self.dtype if real else np.int32
@@ -74,7 +74,7 @@ class _DevitoPrinterBase(C99CodePrinter):
         return _prec_litterals.get(self._prec(expr), '')
 
     def func_literal(self, expr):
-        return _func_litterals.get(self._prec(expr), '')
+        return self._func_litterals.get(self._prec(expr), '')
 
     def func_prefix(self, expr, abs=False):
         prefix = self._func_prefix.get(self._prec(expr), '')

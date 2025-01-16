@@ -71,12 +71,13 @@ class CXXDevitoPrinter(_DevitoPrinterBase, CXX11CodePrinter):
     _default_settings = {**_DevitoPrinterBase._default_settings,
                          **CXX11CodePrinter._default_settings}
     _ns = "std::"
+    _func_litterals = {}
 
     # These cannot go through _print_xxx because they are classes not
     # instances
     type_mappings = {**_DevitoPrinterBase.type_mappings,
                      c_complex: 'std::complex<float>',
-                     c_double_complex: 'std::complex<float>',
+                     c_double_complex: 'std::complex<double>',
                      **CXX11CodePrinter.type_mappings}
 
     def _print_ImaginaryUnit(self, expr):

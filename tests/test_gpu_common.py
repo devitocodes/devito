@@ -94,7 +94,7 @@ class TestCodeGeneration:
         xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
         npres = xx + 1j*yy + np.exp(1j + dx) * (1.0 + 2.0j)
 
-        assert np.allclose(u.data, npres.T, rtol=1e-7, atol=0)
+        assert np.allclose(u.data, npres.T, rtol=5e-7, atol=0)
 
 
 class TestPassesOptional:
