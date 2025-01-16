@@ -1,3 +1,5 @@
+import numpy as np
+
 from devito.ir import Call
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
@@ -42,3 +44,9 @@ class CDevitoPrinter(_DevitoPrinterBase):
     type_mappings = {**_DevitoPrinterBase.type_mappings,
                      c_complex: 'float _Complex',
                      c_double_complex: 'double _Complex'}
+
+    _func_prefix = {**_DevitoPrinterBase._func_prefix, np.complex64: 'c',
+                    np.complex128: 'c'}
+
+    def _print_ImaginaryUnit(self, expr):
+        return '_Complex_I'

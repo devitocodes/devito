@@ -769,15 +769,17 @@ class SizeOf(DefFunction):
     __rargs__ = ('intype', 'stars')
 
     def __new__(cls, intype, stars=None, **kwargs):
-        newobj = super().__new__(cls, 'sizeof', arguments=[str(intype)], **kwargs)
+        stars = stars or ''
+        argument = Keyword(f'{intype}{stars}')
+        newobj = super().__new__(cls, 'sizeof', arguments=(argument,), **kwargs)
         newobj.intype = intype
-        newobj.stars = stars or ''
+        newobj.stars = stars
 
         return newobj
 
     @property
     def arguments(self):
-        return (self.intype,)
+        return self.args
 
     @property
     def args(self):

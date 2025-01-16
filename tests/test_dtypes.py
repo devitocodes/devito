@@ -43,7 +43,7 @@ def _get_printer(language: str, **_) -> type[_DevitoPrinterBase]:
     return _printers[language]
 
 
-def _config_kwargs(platform: str, language: str, compiler: str) -> dict[str, str]:
+def _config_kwargs(platform: str, language: str) -> dict[str, str]:
     """
     Generates kwargs for Operator to test language-specific behavior.
     """
@@ -51,16 +51,15 @@ def _config_kwargs(platform: str, language: str, compiler: str) -> dict[str, str
     return {
         'platform': platform,
         'language': language,
-        'compiler': compiler
     }
 
 
 # List of pararmetrized operator kwargs for testing language-specific behavior
 _configs: list[dict[str, str]] = [
     _config_kwargs(*cfg) for cfg in [
-        ('cpu64', 'C', 'gcc'),
-        ('cpu64', 'openmp', 'gcc'),
-        ('nvidiaX', 'openacc', 'nvc')
+        ('cpu64', 'C'),
+        ('cpu64', 'openmp'),
+        ('nvidiaX', 'openacc')
     ]
 ]
 
@@ -146,10 +145,9 @@ def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
     """
     Tests that the correct literal is used for the imaginary unit.
     """
-
     # Determine the expected imaginary unit string
     unit_str: str
-    if kwargs['compiler'] == 'gcc':
+    if kwargs['platform'] == 'cpu64':
         # In C we multiply by the _Complex_I macro constant
         unit_str = '_Complex_I'
     else:

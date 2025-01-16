@@ -24,6 +24,10 @@ from devito.tools import ctypes_to_cstr
 __all__ = ['ccode']
 
 
+_prec_litterals = {np.float16: 'F16', np.float32: 'F', np.complex64: 'F'}
+_func_litterals = {np.float32: 'f', np.complex64: 'f', Real: 'f'}
+
+
 class _DevitoPrinterBase(C99CodePrinter):
 
     """
@@ -36,6 +40,8 @@ class _DevitoPrinterBase(C99CodePrinter):
     """
     _default_settings = {'compiler': None, 'dtype': np.float32,
                          **C99CodePrinter._default_settings}
+
+    _func_prefix = {np.float32: 'f', np.float64: 'f'}
 
     @property
     def dtype(self):
@@ -55,25 +61,27 @@ class _DevitoPrinterBase(C99CodePrinter):
         """
         return self._print(expr)
 
-    def single_prec(self, expr=None, with_f=False):
-        no_f = self.compiler._cpp and not with_f
-        if no_f and expr is not None:
-            return False
-        dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return any(issubclass(dtype, d) for d in [np.float32, np.complex64])
+    def _prec(self, expr):
+        dtype = sympy_dtype(expr) if expr is not None else None
+        if dtype is None or np.issubdtype(dtype, np.integer):
+            real = any(isinstance(i, Float) for i in expr.atoms())
+            stype = self.dtype if real else np.int32
+            return np.result_type(dtype or stype, stype).type
+        else:
+            return dtype or self.dtype
 
-    def half_prec(self, expr=None, with_f=False):
-        no_f = self.compiler._cpp and not with_f
-        if no_f and expr is not None:
-            return False
-        dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return issubclass(dtype, np.float16)
+    def prec_literal(self, expr):
+        return _prec_litterals.get(self._prec(expr), '')
 
-    def complex_prec(self, expr=None):
-        if self.compiler._cpp:
-            return False
-        dtype = sympy_dtype(expr) if expr is not None else self.dtype
-        return np.issubdtype(dtype, np.complexfloating)
+    def func_literal(self, expr):
+        return _func_litterals.get(self._prec(expr), '')
+
+    def func_prefix(self, expr, abs=False):
+        prefix = self._func_prefix.get(self._prec(expr), '')
+        if abs:
+            return prefix
+        else:
+            return '' if prefix == 'f' else prefix
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
@@ -147,10 +155,7 @@ class _DevitoPrinterBase(C99CodePrinter):
         if cname not in self._prec_funcs:
             return super()._print_math_func(expr, nest=nest, known=known)
 
-        if self.single_prec(expr) or self.half_prec(expr):
-            cname = '%sf' % cname
-        if self.complex_prec(expr):
-            cname = 'c%s' % cname
+        cname = f'{self.func_prefix(expr)}{cname}{self.func_literal(expr)}'
 
         if nest and len(expr.args) > 2:
             args = ', '.join([self._print(expr.args[0]),
@@ -158,7 +163,7 @@ class _DevitoPrinterBase(C99CodePrinter):
         else:
             args = ', '.join([self._print(arg) for arg in expr.args])
 
-        return f'{cname}({args})'
+        return f'{self._ns}{cname}({args})'
 
     def _print_Pow(self, expr):
         # Completely reimplement `_print_Pow` from sympy, since it doesn't
@@ -166,16 +171,17 @@ class _DevitoPrinterBase(C99CodePrinter):
         if "Pow" in self.known_functions:
             return self._print_Function(expr)
         PREC = precedence(expr)
-        suffix = 'f' if self.single_prec(expr) else ''
+        suffix = self.func_literal(expr)
+        base = self._print(expr.base)
         if equal_valued(expr.exp, -1):
             return self._print_Float(Float(1.0)) + '/' + \
                 self.parenthesize(expr.base, PREC)
         elif equal_valued(expr.exp, 0.5):
-            return f'sqrt{suffix}({self._print(expr.base)})'
+            return f'{self._ns}sqrt{suffix}({base})'
         elif expr.exp == S.One/3 and self.standard != 'C89':
-            return f'cbrt{suffix}({self._print(expr.base)})'
+            return f'{self._ns}cbrt{suffix}({base})'
         else:
-            return f'pow{suffix}({self._print(expr.base)}, {self._print(expr.exp)})'
+            return f'{self._ns}pow{suffix}({base}, {self._print(expr.exp)})'
 
     def _print_SafeInv(self, expr):
         """Print a SafeInv as a C-like division with a check for zero."""
@@ -209,18 +215,8 @@ class _DevitoPrinterBase(C99CodePrinter):
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler):
             return "fabs(%s)" % self._print(expr.args[0])
-        # Check if argument is an integer
-        if has_integer_args(*expr.args[0].args):
-            func = "abs"
-        elif self.single_prec(expr):
-            func = "fabsf"
-        elif any([isinstance(a, Real) for a in expr.args[0].args]):
-            # The previous condition isn't sufficient to detect case with
-            # Python `float`s in that case, fall back to the "default"
-            func = "fabsf" if self.single_prec() else "fabs"
-        else:
-            func = "fabs"
-        return f"{func}({self._print(expr.args[0])})"
+        func = f'{self.func_prefix(expr, abs=True)}abs{self.func_literal(expr)}'
+        return f"{self._ns}{func}({self._print(expr.args[0])})"
 
     def _print_Add(self, expr, order=None):
         """"
@@ -270,21 +266,7 @@ class _DevitoPrinterBase(C99CodePrinter):
         if 'e' not in rv:
             rv = rv.rstrip('0') + "0"
 
-        if self.single_prec():
-            rv = '%sF' % rv
-        elif self.half_prec():
-            rv = '%sF16' % rv
-
-        return rv
-
-    def _print_ImaginaryUnit(self, expr):
-        if self.compiler._cpp:
-            if self.single_prec(with_f=True) or self.half_prec(with_f=True):
-                return '1if'
-            else:
-                return '1i'
-        else:
-            return '_Complex_I'
+        return f'{rv}{self.prec_literal(expr)}'
 
     def _print_Differentiable(self, expr):
         return "(%s)" % self._print(expr._expr)
@@ -334,16 +316,6 @@ class _DevitoPrinterBase(C99CodePrinter):
 
     def _print_ComponentAccess(self, expr):
         return "%s.%s" % (self._print(expr.base), expr.sindex)
-
-    def _print_TrigonometricFunction(self, expr):
-        func_name = str(expr.func)
-
-        if self.single_prec() or self.half_prec():
-            func_name = '%sf' % func_name
-        if self.complex_prec():
-            func_name = 'c%s' % func_name
-
-        return '%s(%s)' % (func_name, self._print(*expr.args))
 
     def _print_DefFunction(self, expr):
         arguments = [self._print(i) for i in expr.arguments]
