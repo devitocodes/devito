@@ -312,6 +312,9 @@ def sympy_dtype(expr, base=None):
     # Promote if we missed complex number, i.e f + I
     is_im = np.issubdtype(dtype, np.complexfloating)
     if expr.has(ImaginaryUnit) and not is_im:
-        dtype = np.promote_types(dtype, np.complex64).type
+        if dtype is None:
+            dtype = np.complex64
+        else:
+            dtype = np.promote_types(dtype, np.complex64).type
 
     return dtype
