@@ -183,7 +183,10 @@ class Compiler(GCCToolchain):
     _cpp = False
 
     def __init__(self, **kwargs):
-        self._name = kwargs.pop('name', self.__class__.__name__)
+        _name = kwargs.pop('name', self.__class__.__name__)
+        if isinstance(_name, Compiler):
+            _name = _name.name
+        self._name = _name
 
         super().__init__(**kwargs)
 
@@ -986,15 +989,19 @@ class CompilerRegistry(dict):
     """
 
     def __getitem__(self, key):
+        if isinstance(key, Compiler):
+            key = key.name
+
         if key.startswith('gcc-'):
             i = key.split('-')[1]
             return partial(GNUCompiler, suffix=i)
+
         return super().__getitem__(key)
 
-    def __contains__(self, k):
-        if isinstance(k, Compiler):
-            k = k.name
-        return k in self.keys() or k.startswith('gcc-')
+    def __contains__(self, key):
+        if isinstance(key, Compiler):
+            key = key.name
+        return key in self.keys() or key.startswith('gcc-')
 
 
 _compiler_registry = {
