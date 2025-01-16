@@ -74,6 +74,7 @@ def test_scheduling_after_rewrite():
     ('sqrt(fa[x]**4)', 'sqrt(fa[x]*fa[x]*fa[x]*fa[x])'),
     ('sqrt(fa[x])**2', 'fa[x]'),
     ('fa[x]**-2', '1/(fa[x]*fa[x])'),
+    ('cos(fa[x]*fa[x])*cos(fa[x]*fa[x])', 'cos(fa[x]*fa[x])*cos(fa[x]*fa[x])'),
 ])
 def test_pow_to_mul(expr, expected):
     grid = Grid((4, 5))

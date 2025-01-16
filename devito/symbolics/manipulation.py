@@ -334,7 +334,7 @@ def pow_to_mul(expr):
             # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return Mul(*[base]*int(exp), evaluate=False)
+            return Mul(*[pow_to_mul(base)]*int(exp), evaluate=False)
         else:
             # SymPy represents 1/x as Pow(x,-1). Also, it represents
             # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
