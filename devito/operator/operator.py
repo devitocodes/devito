@@ -497,7 +497,7 @@ class Operator(Callable):
         generate_macros(graph, **kwargs)
 
         # Add type specific metadata
-        lower_dtypes(graph, lang=cls._Target.lang, **kwargs)
+        lower_dtypes(graph, lang=cls._Target.lang(), **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)

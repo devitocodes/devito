@@ -779,6 +779,10 @@ class SizeOf(DefFunction):
     def arguments(self):
         return (self.intype,)
 
+    @property
+    def args(self):
+        return super().args[1]
+
 
 def rfunc(func, item, *args):
     """

@@ -21,10 +21,7 @@ from devito.mpi.distributed import CustomTopology
 from devito.tools import Bunch
 
 from examples.seismic.acoustic import acoustic_setup
-try:
-    from tests.test_dse import TestTTI
-except ImportError:
-    TestTTI = None
+from test_dse import TestTTI
 
 
 class TestDistributor:
