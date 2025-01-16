@@ -299,7 +299,8 @@ def test_extended_sympy_arithmetic():
 def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
-    assert ccode(Abs(i1 - .5)) == "fabsf(i1 - 5.0e-1F)"
+    # .5 is a standard python Float, i.e an np.float64
+    assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1)"
     assert ccode(
         Abs(i1 - Constant('half', dtype=np.float64, default_value=0.5))
     ) == "fabs(i1 - half)"
