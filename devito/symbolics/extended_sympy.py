@@ -766,11 +766,12 @@ Null = Macro('NULL')
 # DefFunction, unlike sympy.Function, generates e.g. `sizeof(float)`, not `sizeof(float_)`
 class SizeOf(DefFunction):
 
-    __rargs__ = ('intype',)
+    __rargs__ = ('intype', 'stars')
 
-    def __new__(cls, intype, **kwargs):
+    def __new__(cls, intype, stars=None, **kwargs):
         newobj = super().__new__(cls, 'sizeof', arguments=[str(intype)], **kwargs)
         newobj.intype = intype
+        newobj.stars = stars or ''
 
         return newobj
 

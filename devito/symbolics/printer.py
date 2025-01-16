@@ -353,6 +353,9 @@ class _DevitoPrinterBase(C99CodePrinter):
             template = ''
         return "%s%s(%s)" % (expr.name, template, ','.join(arguments))
 
+    def _print_SizeOf(self, expr):
+        return f'sizeof({self._print(expr.intype)}{self._print(expr.stars)})'
+
     _print_MathFunction = _print_DefFunction
 
     def _print_Fallback(self, expr):
@@ -365,7 +368,6 @@ class _DevitoPrinterBase(C99CodePrinter):
     _print_IndexSum = _print_Fallback
     _print_ReservedWord = _print_Fallback
     _print_Basic = _print_Fallback
-    _print_SizeOf = _print_DefFunction
 
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
