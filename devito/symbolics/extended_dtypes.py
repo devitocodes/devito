@@ -83,7 +83,7 @@ def cast_mapper(arg):
 FLOAT = cast_mapper(np.float32)
 DOUBLE = cast_mapper(np.float64)
 ULONG = cast_mapper(np.uint64)
-UINTP = cast_mapper(np.uint32)
+UINTP = cast_mapper((np.uint32, '*'))
 
 
 # Standard ones, needed as class for e.g. single dispatch
