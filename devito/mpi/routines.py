@@ -16,7 +16,7 @@ from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
-from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype,
+from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_alloc_ctype,
                           flatten, generator, is_integer, split)
 from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
@@ -1204,8 +1204,8 @@ class MPIMsg(CompositeObject):
             entry.sizes = (c_int*len(shape))(*shape)
 
             # Allocate the send/recv buffers
-            size = reduce(mul, shape)*dtype_len(self.target.dtype)
-            ctype = dtype_to_ctype(f.dtype)
+            ctype, c_scale = dtype_alloc_ctype(f.dtype)
+            size = int(reduce(mul, shape) * c_scale) * dtype_len(self.target.dtype)
             entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
 

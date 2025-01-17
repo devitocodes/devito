@@ -796,17 +796,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # Gather send data
                 data = self._data_in_region(OWNED, d, i)
                 sendbuf = np.ascontiguousarray(data)
+                if self.dtype == np.float16:
+                    sendbuf = sendbuf.view(np.uint16)
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
                 recvbuf = np.ndarray(shape=shape, dtype=self.dtype)
+                if self.dtype == np.float16:
+                    recvbuf = recvbuf.view(np.uint16)
 
                 # Communication
                 comm.Sendrecv(sendbuf, dest=dest, recvbuf=recvbuf, source=source)
 
                 # Scatter received data
                 if recvbuf is not None and source != MPI.PROC_NULL:
-                    self._data_in_region(HALO, d, i.flip())[:] = recvbuf
+                    self._data_in_region(HALO, d, i.flip())[:] = recvbuf.view(self.dtype)
 
         self._is_halo_dirty = False
 

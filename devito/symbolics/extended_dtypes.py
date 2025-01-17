@@ -1,7 +1,7 @@
 import ctypes
 import numpy as np
 
-from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueLimit
+from devito.symbolics.extended_sympy import ReservedWord, Cast, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4, ctypes_vector_mapper)
 
@@ -64,7 +64,7 @@ for base_name in ['int', 'float', 'double']:
         cls = type(v.upper(), (Cast,), {'_base_typ': v})
         globals()[cls.__name__] = cls
 
-        clsp = type('%sP' % v.upper(), (CastStar,), {'base': cls})
+        clsp = type('%sP' % v.upper(), (Cast,), {'base': cls})
         globals()[clsp.__name__] = clsp
 
 
@@ -75,7 +75,7 @@ def no_dtype(kwargs):
 def cast_mapper(arg):
     try:
         assert len(arg) == 2 and arg[1] == '*'
-        return lambda v, **kw: CastStar(v, dtype=arg[0], **no_dtype(kw))
+        return lambda v, **kw: Cast(v, dtype=arg[0], stars=arg[1], **no_dtype(kw))
     except TypeError:
         return lambda v, **kw: Cast(v, dtype=arg, **no_dtype(kw))
 

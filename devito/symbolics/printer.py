@@ -219,7 +219,8 @@ class _DevitoPrinterBase(CodePrinter):
         # Unary function, single argument
         arg = expr.args[0]
         # AOMPCC errors with abs, always use fabs
-        if isinstance(self.compiler, AOMPCompiler):
+        if isinstance(self.compiler, AOMPCompiler) and \
+                not np.issubdtype(self._prec(expr), np.integer):
             return "fabs(%s)" % self._print(arg)
         func = f'{self.func_prefix(arg, abs=True)}abs{self.func_literal(arg)}'
         return f"{self._ns}{func}({self._print(arg)})"

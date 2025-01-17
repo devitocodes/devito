@@ -581,8 +581,8 @@ class TestBasic:
 
         eq = Eq(f, f+1, implicit_dims=xs)
 
-        pkl_eq = pickle0.dumps(eq)
-        new_eq = pickle0.loads(pkl_eq)
+        pkl_eq = pickle.dumps(eq)
+        new_eq = pickle.loads(pkl_eq)
 
         assert new_eq.lhs.name == f.name
         assert str(new_eq.rhs) == 'f(x) + 1'

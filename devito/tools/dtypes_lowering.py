@@ -21,6 +21,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
 # NOTE: the following is inspired by pyopencl.cltypes
 
 mapper = {
+    "half": np.float16,
     "int": np.int32,
     "float": np.float32,
     "double": np.float64
@@ -189,7 +190,8 @@ def dtype_to_mpitype(dtype):
         np.int32: 'MPI_INT',
         np.float32: 'MPI_FLOAT',
         np.int64: 'MPI_LONG',
-        np.float64: 'MPI_DOUBLE'
+        np.float64: 'MPI_DOUBLE',
+        np.float16: 'MPI_UNSIGNED_SHORT'
     }[dtype]
 
 
@@ -222,6 +224,8 @@ class c_restrict_void_p(ctypes.c_void_p):
 
 ctypes_vector_mapper = {}
 for base_name, base_dtype in mapper.items():
+    if base_dtype is np.float16:
+        continue
     base_ctype = dtype_to_ctype(base_dtype)
 
     for count in counts:

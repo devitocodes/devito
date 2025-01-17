@@ -393,7 +393,7 @@ def normalize_args(args):
     for k, v in args.items():
         try:
             retval[k] = sympify(v, strict=True)
-        except SympifyError:
+        except (TypeError, SympifyError):
             continue
 
     return retval
