@@ -3,7 +3,7 @@ import pytest
 
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
-                    cos, sin)
+                    Coefficient, Substitutions, cos, sin)
 from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
@@ -75,6 +75,30 @@ class TestSymbolicCoeffs:
         functions = FindSymbols().visit(op)
         weights = {f for f in functions if isinstance(f, Weights)}
         assert len(weights) == expected
+
+    def test_legacy_api(self):
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        so = 16
+
+        u = TimeFunction(name='u', grid=grid, space_order=so,
+                         coefficients='symbolic')
+
+        w0 = np.arange(so + 1)
+        w1 = np.arange(so + 1)*2
+        w2 = np.arange(so + 1)*3
+
+        coeffs_x_p1 = Coefficient(1, u, x, w0)
+        coeffs_y_p1 = Coefficient(1, u, y, w1)
+        coeffs_x_p2 = Coefficient(2, u, x, w2)
+
+        coeffs = Substitutions(coeffs_x_p1, coeffs_y_p1, coeffs_x_p2)
+
+        eqn = Eq(u, u.dx.dy + u.dx2 + .37, coefficients=coeffs)
+
+        op = Operator(eqn, opt=('advanced', {'expand': False}))
+        print(op)
 
 
 class Test1Pass:
