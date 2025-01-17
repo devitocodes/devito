@@ -768,14 +768,6 @@ class Rvalue(sympy.Expr, Pickable):
     __repr__ = __str__
 
 
-# *** Casting
-
-class CastStar:
-
-    def __new__(cls, base, dtype=None, ase=''):
-        return Cast(base, dtype=dtype, stars='*')
-
-
 # Some other utility objects
 Null = Macro('NULL')
 
@@ -789,7 +781,7 @@ class SizeOf(DefFunction):
         stars = stars or ''
         argument = Keyword(f'{intype}{stars}')
         newobj = super().__new__(cls, 'sizeof', arguments=(argument,), **kwargs)
-        newobj.intype = intype
+        newobj.intype = Cast.__process_dtype__(intype)
         newobj.stars = stars
 
         return newobj
