@@ -5,6 +5,7 @@ from devito.arch.compiler import Compiler
 from devito.ir import Callable, FindSymbols, SymbolRegistry
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
+from devito.tools import as_tuple
 
 __all__ = ['lower_dtypes']
 
@@ -29,7 +30,7 @@ def _complex_includes(iet: Callable, lang: type[LangBB] = None,
         return iet, {}
 
     metadata = {}
-    lib = (lang['header-complex'],)
+    lib = as_tuple(lang['header-complex'])
 
     if lang.get('complex-namespace') is not None:
         metadata['namespaces'] = lang['complex-namespace']
