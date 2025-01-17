@@ -314,11 +314,16 @@ class _DevitoPrinterBase(CodePrinter):
         PREC = precedence(expr)
         return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
 
-    def _print_UnaryOp(self, expr):
-        if expr.base.is_Symbol:
-            return "%s%s" % (expr._op, self._print(expr.base))
-        else:
-            return "%s(%s)" % (expr._op, self._print(expr.base))
+    def _print_UnaryOp(self, expr, op=None):
+        op = op or expr._op
+        base = self._print(expr.base)
+        if not expr.base.is_Symbol:
+            base = f'({base})'
+        return f'{op}{base}'
+
+    def _print_Cast(self, expr):
+        cast = f'({self._print(expr.dtype)}{self._print(expr.stars)})'
+        return self._print_UnaryOp(expr, op=cast)
 
     def _print_ComponentAccess(self, expr):
         return "%s.%s" % (self._print(expr.base), expr.sindex)
