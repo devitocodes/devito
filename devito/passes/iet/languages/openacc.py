@@ -9,7 +9,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
-from devito.passes.iet.languages.CXX import CXXBB, CXXDevitoPrinter
+from devito.passes.iet.languages.CXX import CXXBB
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
 from devito.tools import filter_ordered, UnboundTuple
@@ -263,8 +263,3 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
 class AccOrchestrator(Orchestrator):
     lang = AccBB
-
-
-class AccDevitoPrinter(CXXDevitoPrinter):
-
-    pass

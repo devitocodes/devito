@@ -23,7 +23,7 @@ from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
-from devito.parameters import configuration
+from devito.parameters import configuration, switchconfig
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
@@ -772,19 +772,14 @@ class Operator(Callable):
         """A unique name for the shared object resulting from JIT compilation."""
         return Signer._digest(self, configuration)
 
-    @property
-    def printer(self):
-        return self._Target.Printer
-
     @cached_property
     def ccode(self):
-        try:
-            return self._ccode_handler(compiler=self._compiler,
-                                       printer=self.printer).visit(self)
-        except (AttributeError, TypeError):
-            from devito.ir.iet.visitors import CGen
-            return CGen(compiler=self._compiler,
-                        printer=self.printer).visit(self)
+        with switchconfig(compiler=self._compiler, language=self._language):
+            try:
+                return self._ccode_handler().visit(self)
+            except (AttributeError, TypeError):
+                from devito.ir.iet.visitors import CGen
+                return CGen().visit(self)
 
     def _jit_compile(self):
         """

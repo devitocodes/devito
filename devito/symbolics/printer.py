@@ -7,17 +7,19 @@ import sympy
 
 from mpmath.libmp import prec_to_dps, to_str
 from packaging.version import Version
-from numbers import Real
 
 from sympy.core import S
 from sympy.core.numbers import equal_valued, Float
+from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.c import C99CodePrinter
+from sympy.printing.cxx import CXX11CodePrinter
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.types.basic import AbstractFunction
 from devito.tools import ctypes_to_cstr
 
@@ -27,7 +29,7 @@ __all__ = ['ccode']
 _prec_litterals = {np.float16: 'F16', np.float32: 'F', np.complex64: 'F'}
 
 
-class _DevitoPrinterBase(C99CodePrinter):
+class _DevitoPrinterBase(CodePrinter):
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.
@@ -38,10 +40,10 @@ class _DevitoPrinterBase(C99CodePrinter):
         Options for code printing.
     """
     _default_settings = {'compiler': None, 'dtype': np.float32,
-                         **C99CodePrinter._default_settings}
+                         **CodePrinter._default_settings}
 
-    _func_prefix = {np.float32: 'f', np.float64: 'f'}
-    _func_litterals = {np.float32: 'f', np.complex64: 'f', Real: 'f'}
+    _func_prefix = {}
+    _func_litterals = {}
 
     @property
     def dtype(self):
@@ -65,8 +67,10 @@ class _DevitoPrinterBase(C99CodePrinter):
         dtype = sympy_dtype(expr, default=self.dtype)
         if dtype is None or np.issubdtype(dtype, np.integer):
             real = any(isinstance(i, Float) for i in expr.atoms())
-            stype = self.dtype if real else np.int32
-            return np.result_type(dtype or stype, stype).type
+            if real:
+                return self.dtype
+            else:
+                return dtype or self.dtype
         else:
             return dtype or self.dtype
 
@@ -212,11 +216,13 @@ class _DevitoPrinterBase(C99CodePrinter):
 
     def _print_Abs(self, expr):
         """Print an absolute value. Use `abs` if can infer it is an Integer"""
+        # Unary function, single argument
+        arg = expr.args[0]
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler):
-            return "fabs(%s)" % self._print(expr.args[0])
-        func = f'{self.func_prefix(expr, abs=True)}abs{self.func_literal(expr)}'
-        return f"{self._ns}{func}({self._print(expr.args[0])})"
+            return "fabs(%s)" % self._print(arg)
+        func = f'{self.func_prefix(arg, abs=True)}abs{self.func_literal(arg)}'
+        return f"{self._ns}{func}({self._print(arg)})"
 
     def _print_Add(self, expr, order=None):
         """"
@@ -352,6 +358,58 @@ PRECEDENCE_VALUES['IntDiv'] = 1
 PRECEDENCE_VALUES['InlineIf'] = 1
 
 
+# Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
+# to always use the correct one from our printer
+if Version(sympy.__version__) >= Version("1.11"):
+    setattr(sympy.printing.str.StrPrinter, '_print_Add', _DevitoPrinterBase._print_Add)
+
+
+class CDevitoPrinter(_DevitoPrinterBase, C99CodePrinter):
+
+    _default_settings = {**_DevitoPrinterBase._default_settings,
+                         **C99CodePrinter._default_settings}
+    _func_litterals = {np.float32: 'f', np.complex64: 'f'}
+    _func_prefix = {np.float32: 'f', np.float64: 'f',
+                    np.complex64: 'c', np.complex128: 'c'}
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**C99CodePrinter.type_mappings,
+                     c_complex: 'float _Complex',
+                     c_double_complex: 'double _Complex'}
+
+    def _print_ImaginaryUnit(self, expr):
+        return '_Complex_I'
+
+
+class CXXDevitoPrinter(_DevitoPrinterBase, CXX11CodePrinter):
+
+    _default_settings = {**_DevitoPrinterBase._default_settings,
+                         **CXX11CodePrinter._default_settings}
+    _ns = "std::"
+    _func_litterals = {}
+    _func_prefix = {np.float32: 'f', np.float64: 'f'}
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**CXX11CodePrinter.type_mappings,
+                     c_complex: 'std::complex<float>',
+                     c_double_complex: 'std::complex<double>'}
+
+    def _print_ImaginaryUnit(self, expr):
+        return f'1i{self.prec_literal(expr).lower()}'
+
+
+class AccDevitoPrinter(CXXDevitoPrinter):
+
+    pass
+
+
+printer_registry: dict[str, type[_DevitoPrinterBase]] = {
+    'C': CDevitoPrinter, 'openmp': CDevitoPrinter,
+    'openacc': AccDevitoPrinter}
+
+
 def ccode(expr, **settings):
     """Generate C++ code from an expression.
 
@@ -368,10 +426,5 @@ def ccode(expr, **settings):
         The resulting code as a C++ string. If something went south, returns
         the input ``expr`` itself.
     """
-    return _DevitoPrinterBase(settings=settings).doprint(expr, None)
-
-
-# Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
-# to always use the correct one from our printer
-if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', _DevitoPrinterBase._print_Add)
+    printer = printer_registry.get(configuration['language'], CDevitoPrinter)
+    return printer(settings=settings).doprint(expr, None)

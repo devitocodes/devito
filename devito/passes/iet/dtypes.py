@@ -9,16 +9,6 @@ from devito.passes.iet.langbase import LangBB
 __all__ = ['lower_dtypes']
 
 
-def lower_dtypes(graph: Callable, lang: type[LangBB] = None, compiler: Compiler = None,
-                 sregistry: SymbolRegistry = None, **kwargs) -> tuple[Callable, dict]:
-    """
-    Lowers float16 scalar types to pointers since we can't directly pass their
-    value. Also includes headers for complex arithmetic if needed.
-    """
-    # Complex numbers
-    _complex_includes(graph, lang=lang, compiler=compiler)
-
-
 @iet_pass
 def _complex_includes(iet: Callable, lang: type[LangBB] = None,
                       compiler: Compiler = None) -> tuple[Callable, dict]:
@@ -50,3 +40,17 @@ def _complex_includes(iet: Callable, lang: type[LangBB] = None,
     metadata['includes'] = lib
 
     return iet, metadata
+
+
+dtype_passes = [_complex_includes]
+
+
+def lower_dtypes(graph: Callable, lang: type[LangBB] = None, compiler: Compiler = None,
+                 sregistry: SymbolRegistry = None, **kwargs) -> tuple[Callable, dict]:
+    """
+    Lowers float16 scalar types to pointers since we can't directly pass their
+    value. Also includes headers for complex arithmetic if needed.
+    """
+
+    for dtype_pass in dtype_passes:
+        dtype_pass(graph, lang=lang, compiler=compiler)

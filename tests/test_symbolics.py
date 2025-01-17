@@ -13,7 +13,7 @@ from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
-                              ReservedWord, ListInitializer, ccode, uxreplace,
+                              ReservedWord, ListInitializer, uxreplace, ccode,
                               retrieve_derivatives)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
@@ -299,8 +299,7 @@ def test_extended_sympy_arithmetic():
 def test_integer_abs():
     i1 = Dimension(name="i1")
     assert ccode(Abs(i1 - 1)) == "abs(i1 - 1)"
-    # .5 is a standard python Float, i.e an np.float64
-    assert ccode(Abs(i1 - .5)) == "fabs(i1 - 5.0e-1)"
+    assert ccode(Abs(i1 - .5)) == "fabsf(i1 - 5.0e-1F)"
     assert ccode(
         Abs(i1 - Constant('half', dtype=np.float64, default_value=0.5))
     ) == "fabs(i1 - half)"
