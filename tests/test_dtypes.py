@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import sympy
 
-from devito import Constant, Eq, Function, Grid, Operator
+from devito import Constant, Eq, Function, Grid, Operator, exp, log, sin
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openacc import AccBB
@@ -161,9 +161,9 @@ def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64,
                                    np.complex64, np.complex128])
-@pytest.mark.parametrize(['sym', 'fun'], [(sympy.exp, np.exp),
-                                          (sympy.log, np.log),
-                                          (sympy.sin, np.sin)])
+@pytest.mark.parametrize(['sym', 'fun'], [(exp, np.exp),
+                                          (log, np.log),
+                                          (sin, np.sin)])
 def test_math_functions(dtype: np.dtype[np.inexact],
                         sym: sympy.Function, fun: np.ufunc) -> None:
     """
