@@ -1,4 +1,3 @@
-import ctypes
 import numpy as np
 
 from devito.arch.compiler import Compiler
@@ -18,15 +17,16 @@ def _complex_includes(iet: Callable, lang: type[LangBB] = None,
     """
 
     # Check if there are complex numbers that always take dtype precedence
-    types = set()
+    is_complex = False
     for f in FindSymbols().visit(iet):
         try:
-            if not issubclass(f.dtype, ctypes._Pointer):
-                types.add(f.dtype)
+            if np.issubdtype(f.dtype, np.complexfloating):
+                is_complex = True
+                break
         except TypeError:
-            pass
+            continue
 
-    if not any(np.issubdtype(d, np.complexfloating) for d in types):
+    if not is_complex:
         return iet, {}
 
     metadata = {}
