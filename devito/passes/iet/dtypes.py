@@ -17,8 +17,13 @@ def _complex_includes(iet: Callable, lang: type[LangBB] = None,
     """
 
     # Check if there are complex numbers that always take dtype precedence
-    types = {f.dtype for f in FindSymbols().visit(iet)
-             if not issubclass(f.dtype, ctypes._Pointer)}
+    types = set()
+    for f in FindSymbols().visit(iet):
+        try:
+            if not issubclass(f.dtype, ctypes._Pointer):
+                types.add(f.dtype)
+        except TypeError:
+            pass
 
     if not any(np.issubdtype(d, np.complexfloating) for d in types):
         return iet, {}

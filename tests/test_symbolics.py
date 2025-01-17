@@ -14,7 +14,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, ccode,
-                              retrieve_derivatives)
+                              retrieve_derivatives, BaseCast)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -409,8 +409,8 @@ def test_rvalue():
 def test_cast():
     s = Symbol(name='s', dtype=np.float32)
 
-    class BarCast(Cast):
-        _base_typ = 'bar'
+    class BarCast(BaseCast):
+        _dtype = 'bar'
 
     v = BarCast(s, '**')
     assert ccode(v) == '(bar**)s'

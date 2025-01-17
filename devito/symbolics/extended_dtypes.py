@@ -5,7 +5,7 @@ from devito.symbolics.extended_sympy import ReservedWord, Cast, CastStar, ValueL
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4, ctypes_vector_mapper)
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT',  # noqa
+__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
 
 
@@ -68,94 +68,37 @@ for base_name in ['int', 'float', 'double']:
         globals()[clsp.__name__] = clsp
 
 
-class CHAR(Cast):
-    _base_typ = 'char'
+def no_dtype(kwargs):
+    return {k: v for k, v in kwargs.items() if k != 'dtype'}
 
 
-class SHORT(Cast):
-    _base_typ = 'short'
+def cast_mapper(arg):
+    try:
+        assert len(arg) == 2 and arg[1] == '*'
+        return lambda v, **kw: CastStar(v, dtype=arg[0], **no_dtype(kw))
+    except TypeError:
+        return lambda v, **kw: Cast(v, dtype=arg, **no_dtype(kw))
 
 
-class USHORT(Cast):
-    _base_typ = 'unsigned short'
+FLOAT = cast_mapper(np.float32)
+DOUBLE = cast_mapper(np.float64)
+ULONG = cast_mapper(np.uint64)
+UINTP = cast_mapper(np.uint32)
 
 
-class UCHAR(Cast):
-    _base_typ = 'unsigned char'
+# Standard ones, needed as class for e.g. single dispatch
+class BaseCast(Cast):
+
+    def __new__(cls, base, stars=None, **kwargs):
+        kwargs['dtype'] = cls._dtype
+        return super().__new__(cls, base, stars=stars, **kwargs)
 
 
-class LONG(Cast):
-    _base_typ = 'long'
+class VOID(BaseCast):
+
+    _dtype = type('void', (ctypes.c_int,), {})
 
 
-class ULONG(Cast):
-    _base_typ = 'unsigned long'
+class INT(BaseCast):
 
-
-class CFLOAT(Cast):
-    _base_typ = 'float'
-
-
-class CDOUBLE(Cast):
-    _base_typ = 'double'
-
-
-class VOID(Cast):
-    _base_typ = 'void'
-
-
-class CHARP(CastStar):
-    base = CHAR
-
-
-class UCHARP(CastStar):
-    base = UCHAR
-
-
-class SHORTP(CastStar):
-    base = SHORT
-
-
-class USHORTP(CastStar):
-    base = USHORT
-
-
-class CFLOATP(CastStar):
-    base = CFLOAT
-
-
-class CDOUBLEP(CastStar):
-    base = CDOUBLE
-
-
-cast_mapper = {
-    np.int8: CHAR,
-    np.uint8: UCHAR,
-    np.int16: SHORT,  # noqa
-    np.uint16: USHORT,  # noqa
-    int: INT,  # noqa
-    np.int32: INT,  # noqa
-    np.int64: LONG,
-    np.uint64: ULONG,
-    np.float32: FLOAT,  # noqa
-    float: DOUBLE,  # noqa
-    np.float64: DOUBLE,  # noqa
-
-    (np.int8, '*'): CHARP,
-    (np.uint8, '*'): UCHARP,
-    (int, '*'): INTP,  # noqa
-    (np.uint16, '*'): USHORTP,  # noqa
-    (np.int16, '*'): SHORTP,  # noqa
-    (np.int32, '*'): INTP,  # noqa
-    (np.int64, '*'): INTP,  # noqa
-    (np.float32, '*'): FLOATP,  # noqa
-    (float, '*'): DOUBLEP,  # noqa
-    (np.float64, '*'): DOUBLEP,  # noqa
-}
-
-for base_name in ['int', 'float', 'double']:
-    for i in [2, 3, 4]:
-        v = '%s%d' % (base_name, i)
-        cls = locals()[v]
-        cast_mapper[cls] = locals()[v.upper()]
-        cast_mapper[(cls, '*')] = locals()['%sP' % v.upper()]
+    _dtype = np.int32

@@ -605,7 +605,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return MPIMsg('msg%d' % key, f, halos)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
         comm = f.grid.distributor._obj_comm
 
         bufg = FieldFromPointer(msg._C_field_bufg, msg)
@@ -671,7 +671,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
     def _make_wait(self, f, hse, key, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
 
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
@@ -772,7 +772,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return
 
     def _make_haloupdate(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
         comm = f.grid.distributor._obj_comm
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
@@ -819,7 +819,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return HaloUpdateCall(name, args)
 
     def _make_halowait(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
