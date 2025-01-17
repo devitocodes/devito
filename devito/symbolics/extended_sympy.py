@@ -396,7 +396,7 @@ class Cast(UnaryOp):
         except (NameError, SyntaxError):
             # E.g., `_base_typ` is "char" or "unsigned long"
             pass
-        except TypeError:
+        except (ValueError, TypeError):
             # `base` ain't a number
             pass
 
