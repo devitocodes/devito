@@ -836,7 +836,7 @@ class OneapiCompiler(IntelCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language == 'sycl':
-            raise ValueError("Use SyclCompiler to jit-compile sycl")
+            warning("Use SyclCompiler to jit-compile sycl")
 
         elif language == 'openmp':
             # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
@@ -892,7 +892,7 @@ class SyclCompiler(OneapiCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language != 'sycl':
-            raise ValueError("Expected language sycl with SyclCompiler")
+            warning("Expected language sycl with SyclCompiler")
 
         self.cflags.remove('-std=c99')
         self.cflags.append('-fsycl')

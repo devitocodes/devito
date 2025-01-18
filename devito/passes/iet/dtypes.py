@@ -10,8 +10,8 @@ __all__ = ['lower_dtypes']
 
 
 @iet_pass
-def _complex_includes(iet: Callable, lang: type[LangBB] = None,
-                      compiler: Compiler = None) -> tuple[Callable, dict]:
+def _complex_includes(iet: Callable, lang: type[LangBB], compiler: Compiler,
+                      sregistry: SymbolRegistry) -> tuple[Callable, dict]:
     """
     Includes complex arithmetic headers for the given language, if needed.
     """
@@ -59,4 +59,4 @@ def lower_dtypes(graph: Callable, lang: type[LangBB] = None, compiler: Compiler 
     """
 
     for dtype_pass in dtype_passes:
-        dtype_pass(graph, lang=lang, compiler=compiler)
+        dtype_pass(graph, lang=lang, compiler=compiler, sregistry=sregistry)
