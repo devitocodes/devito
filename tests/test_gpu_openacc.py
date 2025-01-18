@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator,
-                    norm, solve)
+                    norm, solve, Max)
 from conftest import skipif, assert_blocking, opts_device_tiling
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
@@ -170,6 +170,17 @@ class TestCodeGeneration:
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == len(v)
             assert all(i.step == j for i, j in zip(iters, v))
+
+    def test_std_max(self):
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        u = Function(name='u', grid=grid)
+
+        op = Operator(Eq(u, Max(1.2 * x / y, 2.3 * y / x)),
+                      platform='nvidiaX', language='openacc')
+
+        assert '<algorithm>' in str(op)
 
 
 class TestOperator:
