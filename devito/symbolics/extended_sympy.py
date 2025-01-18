@@ -386,15 +386,11 @@ class Cast(UnaryOp):
     __rkwargs__ = ('stars', 'dtype')
 
     def __new__(cls, base, dtype=None, stars=None, **kwargs):
-        # Attempt simplifcation
         # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
         try:
-            if isinstance(dtype, str):
-                return sympify(eval(dtype)(base))
-            else:
-                return sympify(dtype(base))
+            base = sympify(dtype(base))
         except (NameError, SyntaxError):
-            # E.g., `_base_typ` is "char" or "unsigned long"
+            # E.g., `dtype` is "char" or "unsigned long"
             pass
         except (ValueError, TypeError):
             # `base` ain't a number
