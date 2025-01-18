@@ -144,7 +144,7 @@ def generate_macros(graph, **kwargs):
 
 
 @iet_pass
-def _generate_macros(iet, tracker=None, **kwargs):
+def _generate_macros(iet, tracker=None, lang=None, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
 
@@ -152,7 +152,8 @@ def _generate_macros(iet, tracker=None, **kwargs):
     headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    headers.extend(_generate_macros_math(iet))
+    mheaders, includes = _generate_macros_math(iet, lang=lang)
+    headers.extend(mheaders)
 
     # Remove redundancies while preserving the order
     headers = filter_ordered(headers)
@@ -160,7 +161,6 @@ def _generate_macros(iet, tracker=None, **kwargs):
     # Some special Symbols may represent Macros defined in standard libraries,
     # so we need to include the respective includes
     limits = FindApplications(ValueLimit).visit(iet)
-    includes = set()
     if limits & (set(limits_mapper[np.int32]) | set(limits_mapper[np.int64])):
         includes.add('limits.h')
     elif limits & (set(limits_mapper[np.float32]) | set(limits_mapper[np.float64])):
@@ -195,35 +195,38 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
-def _generate_macros_math(iet):
+def _generate_macros_math(iet, lang=None):
     headers = []
+    includes = []
     for i in FindApplications().visit(iet):
-        headers.extend(_lower_macro_math(i))
+        header, include = _lower_macro_math(i, lang)
+        headers.extend(header)
+        includes.extend(include)
 
-    return headers
+    return headers, set(includes) - {None}
 
 
 @singledispatch
-def _lower_macro_math(expr):
-    return ()
+def _lower_macro_math(expr, lang):
+    return (), {}
 
 
 @_lower_macro_math.register(Min)
 @_lower_macro_math.register(sympy.Min)
-def _(expr):
+def _(expr, lang):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),)
+        return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
-        return ()
+        return (), (lang.get('header-algorithm'),)
 
 
 @_lower_macro_math.register(Max)
 @_lower_macro_math.register(sympy.Max)
-def _(expr):
+def _(expr, lang):
     if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),)
+        return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
-        return ()
+        return (), (lang.get('header-algorithm'),)
 
 
 @_lower_macro_math.register(SafeInv)
