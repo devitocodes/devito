@@ -45,6 +45,7 @@ class CXXBB(LangBB):
 
     mapper = {
         'header-memcpy': 'string.h',
+        'header-algorithm': 'algorithm',
         'host-alloc': lambda i, j, k:
             Call('posix_memalign', (i, j, k)),
         'host-alloc-pin': lambda i, j, k:

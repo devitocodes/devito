@@ -476,6 +476,7 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
+        lang = cls._Target.lang()
 
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
@@ -494,10 +495,10 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, **kwargs)
+        generate_macros(graph, lang=lang, **kwargs)
 
         # Add type specific metadata
-        lower_dtypes(graph, lang=cls._Target.lang(), **kwargs)
+        lower_dtypes(graph, lang=lang, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
