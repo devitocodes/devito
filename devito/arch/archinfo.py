@@ -32,7 +32,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            # Generic GPUs
            'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
            # Nvidia GPUs
-           'AMPERE',
+           'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
            # Intel GPUs
            'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
 
@@ -912,7 +912,7 @@ class NvidiaDevice(Device):
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
         elif query == 'tma' and cc >= 90:
-            # Tensor Memory Acceleratory -- introduced in Hopper
+            # Tensor Memory Accelerator -- introduced in Hopper
             return True
         else:
             return False
