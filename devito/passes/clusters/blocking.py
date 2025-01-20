@@ -354,7 +354,7 @@ class SynthesizeBlocking(Queue):
             except KeyError:
                 pass
 
-        base = self.sregistry.make_name(prefix=d.name)
+        base = self.sregistry.make_name(prefix=d.root.name)
 
         name = self.sregistry.make_name(prefix="%s_blk" % base)
         bd = BlockDimension(name, d, d.symbolic_min, d.symbolic_max, step)
@@ -366,7 +366,7 @@ class SynthesizeBlocking(Queue):
             bd = BlockDimension(name, bd, bd, bd + bd.step - 1, size=step)
             block_dims.append(bd)
 
-        bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=step)
+        bd = BlockDimension(d.root.name, bd, bd, bd + bd.step - 1, 1, size=step)
         block_dims.append(bd)
 
         retval = self.mapper[k] = tuple(block_dims), bd
