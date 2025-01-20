@@ -4,7 +4,8 @@ import sympy
 import pytest
 
 from devito import Function, Grid, Differentiable, NODE
-from devito.finite_differences.differentiable import Add, Mul, Pow, diffify, interp_for_fd
+from devito.finite_differences.differentiable import (Add, Mul, Pow, diffify,
+                                                      interp_for_fd, SafeInv)
 
 
 def test_differentiable():
@@ -113,4 +114,7 @@ def test_avg_mode(ndim):
     assert sympy.simplify(a_avg - 0.5**ndim * sum(a.subs(arg) for arg in args)) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
-    assert sympy.simplify(b_avg - 1/(0.5**ndim * sum(1/b.subs(arg) for arg in args))) == 0
+    expected = 1/(0.5**ndim * sum(1/b.subs(arg) for arg in args))
+    assert sympy.simplify(1/b_avg.args[0] - expected) == 0
+    assert isinstance(b_avg, SafeInv)
+    assert b_avg.base == b

@@ -894,6 +894,13 @@ class Operator(Callable):
         >>> op = Operator(Eq(u3.forward, u3 + 1))
         >>> summary = op.apply(time_M=10)
         """
+        # Compile the operator before building the arguments list
+        # to avoid out of memory with greedy compilers
+        try:
+            cfunction = self.cfunction
+        except Exception as e:
+            raise CompilationError(f"Failed to compile the Operator {self.name}") from e
+
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
             args = self.arguments(**kwargs)
@@ -901,7 +908,6 @@ class Operator(Callable):
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
         try:
-            cfunction = self.cfunction
             with self._profiler.timer_on('apply', comm=args.comm):
                 retval = cfunction(*arg_values)
         except ctypes.ArgumentError as e:

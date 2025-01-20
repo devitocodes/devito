@@ -627,18 +627,16 @@ class SafeInv(Differentiable, sympy.core.function.Application):
     _fd_priority = 0
 
     def __new__(cls, val, base, **kwargs):
-        newobj = super().__new__(cls, val, base)
-        return newobj
-
-    def _evaluate(self, **kwargs):
-        return self.func(*[i._evaluated(**kwargs) for i in self.args])
-
-    def _subs(self, old, new, **hints):
-        return self.func(*[i._subs(old, new, **hints) for i in self.args])
+        return super().__new__(cls, val, base)
 
     @property
     def base(self):
         return self.args[1]
+
+    def __str__(self):
+        return f'1/({self.args[0]})'
+
+    __repr__ = __str__
 
 
 class IndexSum(sympy.Expr, Evaluable):
@@ -692,6 +690,8 @@ class IndexSum(sympy.Expr, Evaluable):
 
     def _sympystr(self, printer):
         return str(self)
+
+    _latex = _sympystr
 
     def _hashable_content(self):
         return super()._hashable_content() + (self.dimensions,)
