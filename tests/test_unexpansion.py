@@ -3,7 +3,7 @@ import pytest
 
 from conftest import assert_structure, get_params, get_arrays, check_array
 from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
-                    cos, sin)
+                    Coefficient, Substitutions, cos, sin)
 from devito.finite_differences import Weights
 from devito.arch.compiler import OneapiCompiler
 from devito.ir import Expression, FindNodes, FindSymbols
@@ -75,6 +75,35 @@ class TestSymbolicCoeffs:
         functions = FindSymbols().visit(op)
         weights = {f for f in functions if isinstance(f, Weights)}
         assert len(weights) == expected
+
+    @pytest.mark.parametrize('order', [1, 2])
+    @pytest.mark.parametrize('nweight', [None, +4, -4])
+    def test_legacy_api(self, order, nweight):
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        nweight = 0 if nweight is None else nweight
+        so = 8
+
+        u = TimeFunction(name='u', grid=grid, space_order=so,
+                         coefficients='symbolic')
+
+        w0 = np.arange(so + 1 + nweight) + 1
+        wstr = '{' + ', '.join([f"{w:1.1f}F" for w in w0]) + '}'
+        wdef = f'[{so + 1 + nweight}] __attribute__ ((aligned (64)))'
+
+        coeffs_x_p1 = Coefficient(order, u, x, w0)
+
+        coeffs = Substitutions(coeffs_x_p1)
+
+        eqn = Eq(u, u.dx.dy + u.dx2 + .37, coefficients=coeffs)
+
+        if nweight > 0:
+            with pytest.raises(ValueError):
+                op = Operator(eqn, opt=('advanced', {'expand': False}))
+        else:
+            op = Operator(eqn, opt=('advanced', {'expand': False}))
+            assert f'{wdef} = {wstr}' in str(op)
 
 
 class Test1Pass:
