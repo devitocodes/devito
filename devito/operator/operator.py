@@ -896,10 +896,7 @@ class Operator(Callable):
         """
         # Compile the operator before building the arguments list
         # to avoid out of memory with greedy compilers
-        try:
-            cfunction = self.cfunction
-        except Exception as e:
-            raise CompilationError(f"Failed to compile the Operator {self.name}") from e
+        cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):

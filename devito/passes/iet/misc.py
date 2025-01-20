@@ -228,7 +228,9 @@ def _(expr):
 
 @_lower_macro_math.register(SafeInv)
 def _(expr):
-    return (('SAFEINV(a, b)', '(((a) < 1e-12 || (b) < 1e-12) ? (0.0F) : (1.0F / (a)))'),)
+    eps = np.finfo(np.float32).resolution**2
+    return (('SAFEINV(a, b)',
+             f'(((a) < {eps} || (b) < {eps}) ? (0.0F) : (1.0F / (a)))'),)
 
 
 @iet_pass

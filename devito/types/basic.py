@@ -1172,7 +1172,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # is called again within FD
         if self._avg_mode == 'harmonic':
             from devito.finite_differences.differentiable import SafeInv
-            retval = SafeInv(retval.evaluate, base=self.function)
+            retval = SafeInv(retval.evaluate, self.function)
         else:
             retval = retval.evaluate
 

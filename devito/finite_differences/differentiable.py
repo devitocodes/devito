@@ -626,15 +626,16 @@ class Mod(DifferentiableOp, sympy.Mod):
 class SafeInv(Differentiable, sympy.core.function.Application):
     _fd_priority = 0
 
-    def __new__(cls, val, base, **kwargs):
-        return super().__new__(cls, val, base)
-
     @property
     def base(self):
         return self.args[1]
 
+    @property
+    def val(self):
+        return self.args[0]
+
     def __str__(self):
-        return f'1/({self.args[0]})'
+        return Pow(self.args[0], -1).__str__()
 
     __repr__ = __str__
 
