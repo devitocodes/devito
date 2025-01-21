@@ -307,7 +307,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self in subs:
             new = subs.pop(self)
             try:
-                return new._xreplace(subs)
+                new, flag = new._xreplace(subs)
+                return new, True
             except AttributeError:
                 return new, True
 

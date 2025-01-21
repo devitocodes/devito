@@ -265,7 +265,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
     if nweights > 0:
         do, dw = order + 1 + order % 2, nweights
         if do < dw:
-            raise ValueError(f"More weights ({nweights}) provided than the maximum"
+            raise ValueError(f"More weights ({nweights}) provided than the maximum "
                              f"stencil size ({order + 1}) for order {order} scheme")
         elif do > dw:
             warning(f"Less weights ({nweights}) provided than the stencil size"
