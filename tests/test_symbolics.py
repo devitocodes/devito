@@ -8,6 +8,7 @@ from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max)
+from devito.finite_differences.differentiable import SafeInv
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
@@ -343,6 +344,20 @@ def test_intdiv():
 
     v = b*IntDiv(a + b, 2) + 3
     assert ccode(v) == 'b*((a + b) / 2) + 3'
+
+
+def test_safeinv():
+    grid = Grid(shape=(11, 11))
+    x, y = grid.dimensions
+
+    u1 = Function(name='u', grid=grid)
+    u2 = Function(name='u', grid=grid, dtype=np.float64)
+
+    op1 = Operator(Eq(u1, SafeInv(u1, u1)))
+    op2 = Operator(Eq(u2, SafeInv(u2, u2)))
+
+    assert 'SAFEINV' in str(op1)
+    assert 'SAFEINV' in str(op2)
 
 
 def test_def_function():

@@ -5,6 +5,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import Max, Min
+from devito.finite_differences.differentiable import SafeInv
 from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
                        FindApplications, FindNodes, FindSymbols, Transformer,
                        Uxreplace, filter_iterations, retrieve_iteration_tree,
@@ -223,6 +224,13 @@ def _(expr):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),)
     else:
         return ()
+
+
+@_lower_macro_math.register(SafeInv)
+def _(expr):
+    eps = np.finfo(np.float32).resolution**2
+    return (('SAFEINV(a, b)',
+             f'(((a) < {eps} || (b) < {eps}) ? (0.0F) : (1.0F / (a)))'),)
 
 
 @iet_pass

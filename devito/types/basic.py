@@ -1167,12 +1167,16 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
             retval = retval.diff(d, deriv_order=0, fd_order=2, x0={d: i})
-        if self._avg_mode == 'harmonic':
-            retval = 1 / retval
 
         # Evaluate. Since we used `self.function` it will be on the grid when evaluate
         # is called again within FD
-        return retval.evaluate.expand()
+        if self._avg_mode == 'harmonic':
+            from devito.finite_differences.differentiable import SafeInv
+            retval = SafeInv(retval.evaluate, self.function)
+        else:
+            retval = retval.evaluate
+
+        return retval
 
     @property
     def shape(self):
@@ -1450,12 +1454,19 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Indices after substitutions
         indices = []
         for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
-            if d in a.free_symbols:
+            if a.is_Function and len(a.args) == 1:
+                # E.g. Abs(expr)
+                arg = a.args[0]
+                func = a.func
+            else:
+                arg = a
+                func = lambda x: x
+            if d in arg.free_symbols:
                 # Shift by origin d -> d - o.
-                indices.append(sympy.sympify(a.subs(d, d - o).xreplace(s)))
+                indices.append(func(sympy.sympify(arg.subs(d, d - o).xreplace(s))))
             else:
                 # Dimension has been removed, e.g. u[10], plain shift by origin
-                indices.append(sympy.sympify(a - o).xreplace(s))
+                indices.append(func(sympy.sympify(arg - o).xreplace(s)))
 
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
