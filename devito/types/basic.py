@@ -1106,7 +1106,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         f(x) : origin = 0
         f(x + hx/2) : origin = hx/2
         """
-        return DimensionTuple(*(r - d for d, r in zip(self.dimensions, self.indices_ref)),
+        return DimensionTuple(*(r - d + o for d, r, o
+                                in zip(self.dimensions, self.indices_ref,
+                                       self._offset_subdomain)),
                               getters=self.dimensions)
 
     @property
