@@ -1184,6 +1184,41 @@ class TestSubDomainFunctions:
         assert np.all(np.isclose(fdx.data[:], gdx.data[2:-2, 3:-1]))
         assert np.all(np.isclose(fdy.data[:], gdy.data[2:-2, 3:-1]))
 
+    def test_operator_shortcuts(self):
+        """
+        Test that shortcuts for Laplacian, divergence, etc all work with Functions
+        on SubDomains.
+        """
+
+        class Middle(SubDomain):
+
+            name = 'middle'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 2, 2), y: ('middle', 3, 1), z: ('middle', 1, 3)}
+
+        grid = Grid(shape=(10, 10, 10), extent=(9., 9., 9.))
+        mid = Middle(grid=grid)
+
+        f = Function(name='f', grid=mid, space_order=2)
+        g = VectorFunction(name='g', grid=mid, space_order=2)
+        h = TensorFunction(name='h', grid=mid, space_order=2)
+
+        # Check these shortcuts work
+        _ = f.laplacian()
+        _ = f.grad()
+        _ = f.div()
+        _ = f.biharmonic()
+
+        _ = g.laplacian()
+        _ = g.grad()
+        _ = g.div()
+        _ = g.curl()
+
+        _ = h.laplacian()
+        _ = h.div()
+
 
 class TestSubDomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""

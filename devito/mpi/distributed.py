@@ -373,7 +373,7 @@ class Distributor(DenseDistributor):
         """
         MPI rank interfaces with the boundary of the domain.
         """
-        return any([True if i == 0 or i == j-1 else False for i, j in
+        return any([i == 0 or i == j-1 for i, j in
                    zip(self.mycoords, self.topology)])
 
     @cached_property
