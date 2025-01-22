@@ -477,7 +477,7 @@ class CGen(Visitor):
     def visit_Return(self, o):
         v = 'return'
         if o.value is not None:
-            v += ' %s' % o.value
+            v += f' {ccode(o.value)}'
         return c.Statement(v)
 
     def visit_Definition(self, o):
