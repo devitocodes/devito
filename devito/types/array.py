@@ -216,8 +216,6 @@ class ArrayMapped(Array):
                                           (_C_field_dmap, c_void_p),
                                           (_C_field_size, c_uint64)]}))
 
-    _C_typedata = 'struct ' + _C_structname
-
 
 class ArrayObject(ArrayBasic):
 

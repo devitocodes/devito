@@ -64,7 +64,10 @@ class _DevitoPrinterBase(CodePrinter):
         return self._print(expr)
 
     def _prec(self, expr):
-        dtype = sympy_dtype(expr, default=self.dtype)
+        try:
+            dtype = sympy_dtype(expr, default=self.dtype)
+        except TypeError:
+            return self.dtype
         if dtype is None or np.issubdtype(dtype, np.integer):
             real = any(isinstance(i, Float) for i in expr.atoms())
             if real:
@@ -200,7 +203,11 @@ class _DevitoPrinterBase(CodePrinter):
 
     def _print_Mul(self, expr):
         term = super()._print_Mul(expr)
-        return term.replace("(-1)*", "-")
+        # avoid (-1)*...
+        term = term.replace("(-1)*", "-")
+        # Avoid (-1) / ...
+        term = term.replace("(-1)/", f"-{self._prec(expr)(1)}/")
+        return term
 
     def _print_Min(self, expr):
         if has_integer_args(*expr.args) and len(expr.args) == 2:
@@ -323,7 +330,7 @@ class _DevitoPrinterBase(CodePrinter):
         return f'{op}{base}'
 
     def _print_Cast(self, expr):
-        cast = f'({self._print(expr.dtype)}{self._print(expr.stars)})'
+        cast = f'({self._print(expr._C_ctype)}{self._print(expr.stars)})'
         return self._print_UnaryOp(expr, op=cast)
 
     def _print_ComponentAccess(self, expr):

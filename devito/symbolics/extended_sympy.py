@@ -383,35 +383,20 @@ class Cast(UnaryOp):
     """
 
     __rargs__ = ('base', )
-    __rkwargs__ = ('stars', 'dtype')
+    __rkwargs__ = ('dtype', 'stars')
 
     def __new__(cls, base, dtype=None, stars=None, **kwargs):
-        # E.g., `FLOAT(32) -> 32.0` of type `sympy.Float`
         try:
-            base = sympify(dtype(base))
-        except (NameError, SyntaxError):
-            # E.g., `dtype` is "char" or "unsigned long"
-            pass
-        except (ValueError, TypeError):
-            # `base` ain't a number
+            if issubclass(dtype, np.generic) and sympify(base).is_Number:
+                base = sympify(dtype(base))
+        except TypeError:
+            # E.g. void
             pass
 
         obj = super().__new__(cls, base)
         obj._stars = stars or ''
-        obj._dtype = cls.__process_dtype__(dtype)
+        obj._dtype = dtype
         return obj
-
-    @classmethod
-    def __process_dtype__(cls, dtype):
-        if isinstance(dtype, str):
-            return dtype
-        dtype = ctypes_vector_mapper.get(dtype, dtype)
-        try:
-            dtype = ctypes_to_cstr(dtype_to_ctype(dtype))
-        except:
-            pass
-
-        return dtype
 
     def _hashable_content(self):
         return super()._hashable_content() + (self._stars,)
@@ -427,12 +412,18 @@ class Cast(UnaryOp):
         return self._dtype
 
     @property
-    def typ(self):
-        return '%s%s' % (self.dtype, self.stars or '')
+    def _C_ctype(self):
+        ctype = ctypes_vector_mapper.get(self.dtype, self.dtype)
+        try:
+            ctype = dtype_to_ctype(ctype)
+        except:
+            pass
+
+        return ctype
 
     @property
     def _op(self):
-        return '(%s)' % self.typ
+        return '(%s)' % self._C_ctype
 
 
 class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
@@ -775,16 +766,20 @@ class SizeOf(DefFunction):
 
     def __new__(cls, intype, stars=None, **kwargs):
         stars = stars or ''
-        argument = Keyword(f'{intype}{stars}')
-        newobj = super().__new__(cls, 'sizeof', arguments=(argument,), **kwargs)
-        newobj.intype = Cast.__process_dtype__(intype)
+
+        if not isinstance(intype, (str, ReservedWord)):
+            intype = dtype_to_ctype(intype)
+            if intype in ctypes_vector_mapper.values():
+                idx = list(ctypes_vector_mapper.values()).index(intype)
+                intype = list(ctypes_vector_mapper.keys())[idx]
+            else:
+                intype = ctypes_to_cstr(intype)
+
+        newobj = super().__new__(cls, 'sizeof', arguments=f'{intype}{stars}', **kwargs)
         newobj.stars = stars
+        newobj.intype = intype
 
         return newobj
-
-    @property
-    def arguments(self):
-        return self.args
 
     @property
     def args(self):
