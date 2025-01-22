@@ -113,17 +113,7 @@ def lower_exprs(expressions, subs=None, **kwargs):
 def _lower_exprs(expressions, subs):
     processed = []
     for expr in as_tuple(expressions):
-        try:
-            dimension_map = expr.subdomain.dimension_map
-            # The indices of a Function defined on a SubDomain will all be the
-            # SubDimensions of that SubDomain. Thus extend the dimension_map mapper with
-            # `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the
-            # Function is defined, and `ix_i` is the SubDimension associated with the
-            # iterator.
-            dimension_map = _extend_dimension_map(expr, dimension_map)
-        except AttributeError:
-            # Some Relationals may be pure SymPy objects, thus lacking the subdomain
-            dimension_map = {}
+        dimension_map = make_dimension_map(expr)
 
         # Handle Functions (typical case)
         mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
@@ -167,18 +157,23 @@ def _lower_exprs(expressions, subs):
         return processed.pop()
 
 
-def _extend_dimension_map(expr, mapper):
-    """
-    Extend the dimension map for a SubDomain to include mappings for any
-    Functions defined on SubDomains.
-    """
-    updated_mapper = {**mapper}
+def make_dimension_map(expr):
+    try:
+        # The indices of a Function defined on a SubDomain will all be the
+        # SubDimensions of that SubDomain. Thus extend the dimension_map mapper with
+        # `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the
+        # Function is defined, and `ix_i` is the SubDimension to be iterated over.
+        dimension_map = {**expr.subdomain.dimension_map}
 
-    functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
-    for f in functions:
-        updated_mapper.update({d: mapper[d.root] for d in f.space_dimensions if d.is_Sub})
+        functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
+        for f in functions:
+            dimension_map.update({d: expr.subdomain.dimension_map[d.root]
+                                  for d in f.space_dimensions if d.is_Sub})
+    except AttributeError:
+        # Some Relationals may be pure SymPy objects, thus lacking the SubDomain
+        dimension_map = {}
 
-    return frozendict(updated_mapper)
+    return frozendict(dimension_map)
 
 
 def concretize_subdims(exprs, **kwargs):
