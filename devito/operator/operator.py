@@ -560,44 +560,31 @@ class Operator(Callable):
 
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
         # turn could be Grids or SubDomains. Both may provide arguments
-        discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
-        discretizations.update({getattr(p, 'grid', None) for p in defaults})
-        discretizations.discard(None)
+        discretizations = {getattr(kwargs.get(p.name, p), 'grid', None)
+                           for p in self.input} - {None}
 
         # Remove subgrids if multiple Grids
-        if len(discretizations) > 1:
-            discretizations = {g for g in discretizations
-                               if not any(d.is_Derived for d in g.dimensions)
-                               or g.is_SubDomain}
+        # if len(discretizations) > 1:
+        #     # NOTE: Fairly sure this is unnecessary
+        #     discretizations = {g for g in discretizations
+        #                        if not any(d.is_Derived for d in g.dimensions)
+        #                        or g.is_SubDomain}
 
         # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if i.is_Grid}
-        # Some Functions may be defined on SubDomains.
-        # These SubDomains must be on this Grid.
-        subdomains = {i for i in discretizations if i.is_SubDomain}
-        parent_grids = {i.grid for i in subdomains}
+        grids = {i.root for i in discretizations}
 
-        if len(grids.union(parent_grids)) > 1:
+        if len(grids) > 1 and configuration['mpi']:
             # We loosely tolerate multiple Grids for backwards compatibility
             # with spatial subsampling, which should be revisited however. And
             # With MPI it would definitely break!
-            if configuration['mpi']:
-                raise ValueError("Multiple Grids found")
+            raise ValueError("Multiple Grids found")
 
+        nodes = set(self.dimensions)
         if grids:
             grid = grids.pop()
-        elif parent_grids:
-            grid = parent_grids.pop()
+            nodes.update(grid.dimensions)
         else:
             grid = None
-
-        # Dimensions in the discretisations
-        if grid:
-            nodes = set(grid.dimensions)
-        else:
-            nodes = set()
-        nodes.update({d for s in subdomains for d in s.dimensions})
-        nodes.update(set(self.dimensions))
 
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
