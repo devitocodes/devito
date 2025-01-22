@@ -158,11 +158,16 @@ def _lower_exprs(expressions, subs):
 
 
 def make_dimension_map(expr):
+    """
+    Make the dimension_map for an expression. In the basic case, this is extracted
+    directly from the SubDomain attached to the expression.
+
+    The indices of a Function defined on a SubDomain will all be the SubDimensions of
+    that SubDomain. In this case, the dimension_map should be extended with
+    `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the Function is
+    defined, and `ix_i` is the SubDimension to be iterated over.
+    """
     try:
-        # The indices of a Function defined on a SubDomain will all be the
-        # SubDimensions of that SubDomain. Thus extend the dimension_map mapper with
-        # `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the
-        # Function is defined, and `ix_i` is the SubDimension to be iterated over.
         dimension_map = {**expr.subdomain.dimension_map}
 
         functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
