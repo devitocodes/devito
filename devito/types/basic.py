@@ -1,7 +1,7 @@
 import abc
 import inspect
 from collections import namedtuple
-from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
+from ctypes import POINTER, _Pointer, c_char_p, c_char
 from functools import reduce, cached_property
 from operator import mul
 
@@ -81,7 +81,7 @@ class CodeSymbol:
     @property
     def _C_typedata(self):
         """
-        The type of the object in the generated code as a `str`.
+        The type of the object's data in the generated code.
         """
         _type = self._C_ctype
         if isinstance(_type, CustomDtype):
@@ -93,10 +93,6 @@ class CodeSymbol:
         # `ctypes` treats C strings specially
         if _type is c_char_p:
             _type = c_char
-
-        # ctypes Structures such as dense/array use directly the struct name
-        if issubclass(_type, Structure):
-            _type = f'struct {_type.__name__}'
 
         return _type
 

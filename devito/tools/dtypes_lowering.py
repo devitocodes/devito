@@ -144,7 +144,7 @@ def dtype_to_ctype(dtype):
 
     if isinstance(dtype, CustomDtype):
         return dtype
-    elif issubclass(dtype, ctypes._SimpleCData):
+    elif issubclass(dtype, (ctypes._Pointer, ctypes.Structure, ctypes._SimpleCData)):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
         return dtype
