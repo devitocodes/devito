@@ -1,7 +1,6 @@
 """
 Utilities to turn SymPy objects into C strings.
 """
-
 import numpy as np
 import sympy
 
