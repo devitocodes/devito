@@ -261,16 +261,16 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
-            # Get grid dimensions from the variables supplied
+            # Get Grid Dimensions from the variables supplied
             edims = []
             for v in extras:
                 try:
-                    edims += [d for d in v.grid.dimensions]
+                    edims.extend(v.grid.dimensions)
                 except AttributeError:
-                    # Not on a grid, grab its space dimensions instead
-                    edims += [d for d in v.dimensions]
+                    # Not on a Grid, use the variable's Dimensions instead
+                    edims.extend(v.dimensions)
 
-            gdims = set([*edims, *self._gdims])
+            gdims = filter_ordered(edims + list(self._gdims))
             extra = filter_ordered([i for v in extras for i in v.dimensions
                                     if i not in gdims and
                                     i not in self.sfunction.dimensions])
@@ -311,13 +311,14 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Subsitution from SubDimensions to ConditionalDimensions
         smapper = {}
-        # Substitution from ConditionalDimensions to rebuilt dimensions
+        # Substitution from ConditionalDimensions to rebuilt Dimensions
         cdmapper = {}
 
         # Index substitution to make in variables
         i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
 
-        if subdomain:  # Add subdimension substitutions if necessary
+        # Add SubDimension substitutions if necessary
+        if subdomain:
             # Need to adjust bounds if Function defined on a SubDomain
             adjust_interp_indices(subdomain, mapper, smapper, cdmapper)
             i_subs.update({k: c + p for ((k, c), p) in zip(smapper.items(), pos)})
