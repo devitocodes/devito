@@ -68,16 +68,12 @@ for base_name in ['int', 'float', 'double']:
         globals()[clsp.__name__] = clsp
 
 
-def no_dtype(kwargs):
-    return {k: v for k, v in kwargs.items() if k != 'dtype'}
-
-
 def cast_mapper(arg):
     try:
         assert len(arg) == 2 and arg[1] == '*'
-        return lambda v, **kw: Cast(v, dtype=arg[0], stars=arg[1], **no_dtype(kw))
+        return lambda v, dtype=None, **kw: Cast(v, dtype=arg[0], stars=arg[1], **kw)
     except TypeError:
-        return lambda v, **kw: Cast(v, dtype=arg, **no_dtype(kw))
+        return lambda v, dtype=None, **kw: Cast(v, dtype=arg, **kw)
 
 
 FLOAT = cast_mapper(np.float32)
@@ -96,7 +92,7 @@ class BaseCast(Cast):
 
 class VOID(BaseCast):
 
-    _dtype = type('void', (ctypes.c_int,), {})
+    _dtype = 'void'
 
 
 class INT(BaseCast):
