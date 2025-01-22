@@ -1458,7 +1458,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     @cached_property
     def _offset_subdomain(self):
-        """Offset of subdomain incides versus the global index."""
+        """Offset of subdomain indices versus the global index."""
         # If defined on a SubDomain, then need to offset indices accordingly
         if not self._is_on_subdomain:
             return (0,)*len(self.dimensions)
