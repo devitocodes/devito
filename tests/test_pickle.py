@@ -1,3 +1,4 @@
+import ctypes
 import pickle as pickle0
 import cloudpickle as pickle1
 
@@ -22,7 +23,7 @@ from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
 from devito.types.basic import BoundSymbol, AbstractSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
-                              CallFromPointer, DefFunction)
+                              CallFromPointer, DefFunction, Cast, SizeOf)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -588,6 +589,25 @@ class TestBasic:
         assert str(new_eq.rhs) == 'f(x) + 1'
         assert new_eq.implicit_dims[0].name == 'xs'
         assert new_eq.implicit_dims[0].factor.data == 4
+
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    def test_Cast(self, pickle, typ):
+        a = Symbol('a')
+        un = Cast(a, dtype=typ)
+
+        pkl_un = pickle.dumps(un)
+        new_un = pickle.loads(pkl_un)
+
+        assert un == new_un
+
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    def test_SizeOf(self, pickle, typ):
+        un = SizeOf(typ)
+
+        pkl_un = pickle.dumps(un)
+        new_un = pickle.loads(pkl_un)
+
+        assert un == new_un
 
 
 class TestAdvanced:
