@@ -418,7 +418,6 @@ class Cast(UnaryOp):
             ctype = dtype_to_ctype(ctype)
         except:
             pass
-
         return ctype
 
     @property
