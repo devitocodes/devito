@@ -62,6 +62,10 @@ class CartesianDiscretization(ABC):
         """
         return self._dtype
 
+    @property
+    def root(self):
+        return self
+
 
 class Grid(CartesianDiscretization, ArgProvider):
 
@@ -477,6 +481,10 @@ class AbstractSubDomain(CartesianDiscretization):
     @property
     def grid(self):
         return self._grid
+
+    @property
+    def root(self):
+        return self.grid.root
 
     @property
     def time_dim(self):
