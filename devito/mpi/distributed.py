@@ -508,25 +508,12 @@ class SubDistributor(DenseDistributor):
         """
         Set up the decomposition, aligned with that of the parent Distributor.
         """
-        def interval_bounds(interval):
-            """Extract SubDimension Interval bounds."""
-            if interval.is_empty:
-                # SubDimension has no indices. Min and max are NaN.
-                return np.NaN, np.NaN
-            elif interval.is_Interval:
-                # Interval containing two or more indices. Min and max are ends.
-                return interval.start, interval.end
-            else:
-                # Interval where start == end defaults to FiniteSet
-                # Repeat this value for min and max
-                return interval.args[0], interval.args[0]
-
         decompositions = []
         for dec, i in zip(self.parent._decomposition, self.subdomain_interval):
             if i is None:
                 decompositions.append(dec)
             else:
-                start, end = interval_bounds(i)
+                start, end = _interval_bounds(i)
                 decompositions.append([d[np.logical_and(d >= start, d <= end)]
                                        for d in dec])
 
@@ -538,15 +525,7 @@ class SubDistributor(DenseDistributor):
         """The parent distributor of this SubDistributor."""
         return self._parent
 
-    @property
-    def par_shape(self):
-        """Shape of the parent decomposition."""
-        return self.parent.glb_shape
-
-    @property
-    def par_dimensions(self):
-        """Dimensions of the parent decomposition."""
-        return self.parent.dimensions
+    p = parent  # Shortcut for convenience
 
     @property
     def par_slices(self):
@@ -564,15 +543,15 @@ class SubDistributor(DenseDistributor):
     def domain_interval(self):
         """The interval spanned by this MPI rank."""
         return tuple(Interval(self.par_slices[d].start, self.par_slices[d].stop-1)
-                     for d in self.par_dimensions)
+                     for d in self.p.dimensions)
 
     @cached_property
     def subdomain_interval(self):
         """The interval spanned by the SubDomain."""
         # Assumes no override of x_m and x_M supplied to operator
-        bounds_map = {d.symbolic_min: 0 for d in self.par_dimensions}
-        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.par_dimensions,
-                                                               self.par_shape)})
+        bounds_map = {d.symbolic_min: 0 for d in self.p.dimensions}
+        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.p.dimensions,
+                                                               self.p.glb_shape)})
 
         sd_interval = []  # The Interval of SubDimension indices
         for d in self.dimensions:
@@ -692,6 +671,20 @@ class SubDistributor(DenseDistributor):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
                         value=int(not(self.loc_empty)))
+
+
+def _interval_bounds(interval):
+    """Extract SubDimension Interval bounds."""
+    if interval.is_empty:
+        # SubDimension has no indices. Min and max are +ve and -ve inf respectively.
+        return np.inf, -np.inf
+    elif interval.is_Interval:
+        # Interval containing two or more indices. Min and max are ends.
+        return interval.start, interval.end
+    else:
+        # Interval where start == end defaults to FiniteSet
+        # Repeat this value for min and max
+        return interval.args[0], interval.args[0]
 
 
 class SparseDistributor(AbstractDistributor):
