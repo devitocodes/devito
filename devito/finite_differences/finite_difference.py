@@ -162,7 +162,11 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
     # Enforce fixed precision FD coefficients to avoid variations in results
-    weights = [sympify(w).evalf(_PRECISION) for w in weights]
+    if scale:
+        scale = dim.spacing**(-deriv_order)
+    else:
+        scale = 1
+    weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:
@@ -207,8 +211,5 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
             terms.append(term)
 
         deriv = EvalDerivative(*terms, base=expr)
-
-    if scale:
-        deriv = dim.spacing**(-deriv_order) * deriv
 
     return deriv
