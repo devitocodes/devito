@@ -20,7 +20,7 @@ from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.types.basic import AbstractFunction
-from devito.tools import ctypes_to_cstr
+from devito.tools import ctypes_to_cstr, dtype_to_ctype
 
 __all__ = ['ccode']
 
@@ -95,6 +95,10 @@ class _DevitoPrinterBase(CodePrinter):
         return super().parenthesize(item, level, strict=strict)
 
     def _print_type(self, expr):
+        try:
+            expr = dtype_to_ctype(expr)
+        except TypeError:
+            pass
         try:
             return self.type_mappings[expr]
         except KeyError:
@@ -422,7 +426,7 @@ printer_registry: dict[str, type[_DevitoPrinterBase]] = {
     'openacc': AccDevitoPrinter}
 
 
-def ccode(expr, **settings):
+def ccode(expr, language=None, **settings):
     """Generate C++ code from an expression.
 
     Parameters
@@ -438,5 +442,6 @@ def ccode(expr, **settings):
         The resulting code as a C++ string. If something went south, returns
         the input ``expr`` itself.
     """
-    printer = printer_registry.get(configuration['language'], CDevitoPrinter)
+    lang = language or configuration['language']
+    printer = printer_registry.get(lang, CDevitoPrinter)
     return printer(settings=settings).doprint(expr, None)
