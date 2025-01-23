@@ -23,7 +23,7 @@ from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
-from devito.parameters import configuration, switchconfig
+from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
@@ -485,8 +485,6 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
-
-        # Specialize
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
@@ -775,12 +773,11 @@ class Operator(Callable):
 
     @cached_property
     def ccode(self):
-        with switchconfig(compiler=self._compiler, language=self._language):
-            try:
-                return self._ccode_handler().visit(self)
-            except (AttributeError, TypeError):
-                from devito.ir.iet.visitors import CGen
-                return CGen().visit(self)
+        try:
+            return self._ccode_handler(language=self._language).visit(self)
+        except (AttributeError, TypeError):
+            from devito.ir.iet.visitors import CGen
+            return CGen(language=self._language).visit(self)
 
     def _jit_compile(self):
         """
@@ -918,7 +915,8 @@ class Operator(Callable):
         """
         # Compile the operator before building the arguments list
         # to avoid out of memory with greedy compilers
-        cfunction = self.cfunction
+        with self._profiler.timer_on('jit-compile'):
+            cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
