@@ -34,6 +34,8 @@ class c_complex(NoDeclStruct):
 
     _fields_ = [('real', ctypes.c_float), ('imag', ctypes.c_float)]
 
+    _base_dtype = True
+
     @classmethod
     def from_param(cls, val):
         return cls(val.real, val.imag)
@@ -43,6 +45,8 @@ class c_double_complex(NoDeclStruct):
     """Structure for passing complex double to C/C++"""
 
     _fields_ = [('real', ctypes.c_double), ('imag', ctypes.c_double)]
+
+    _base_dtype = True
 
     @classmethod
     def from_param(cls, val):
