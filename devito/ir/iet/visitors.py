@@ -176,8 +176,9 @@ class CGen(Visitor):
     Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, language=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.language = language
 
     # The following mappers may be customized by subclasses (that is,
     # backend-specific CGen-erators)
@@ -188,6 +189,9 @@ class CGen(Visitor):
         '_mem_shared': '',
     }
     _restrict_keyword = 'restrict'
+
+    def ccode(self, expr, **kwargs):
+        return ccode(expr, language=self.language, **kwargs)
 
     def _gen_struct_decl(self, obj, masked=()):
         """
@@ -222,7 +226,7 @@ class CGen(Visitor):
             try:
                 entries.append(self._gen_value(i, 0, masked=('const',)))
             except AttributeError:
-                cstr = ccode(ct)
+                cstr = self.ccode(ct)
                 if ct is c_restrict_void_p:
                     cstr = '%srestrict' % cstr
                 entries.append(c.Value(cstr, n))
@@ -244,10 +248,10 @@ class CGen(Visitor):
                       if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
-            strtype = ccode(obj._C_typedata)
-            strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
+            strtype = self.ccode(obj._C_typedata)
+            strshape = ''.join('[%s]' % self.ccode(i) for i in obj.symbolic_shape)
         else:
-            strtype = ccode(obj._C_ctype)
+            strtype = self.ccode(obj._C_ctype)
             strshape = ''
             if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
                 if not obj._mem_stack:
@@ -261,7 +265,7 @@ class CGen(Visitor):
         strobj = '%s%s' % (strname, strshape)
 
         if obj.is_LocalObject and obj.cargs and mode == 1:
-            arguments = [ccode(i) for i in obj.cargs]
+            arguments = [self.ccode(i) for i in obj.cargs]
             strobj = MultilineCall(strobj, arguments, True)
 
         value = c.Value(strtype, strobj)
@@ -275,9 +279,9 @@ class CGen(Visitor):
         if obj.is_Array and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
-                value = c.Initializer(value, ccode(init))
+                value = c.Initializer(value, self.ccode(init))
         elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
-            value = c.Initializer(value, ccode(obj.initvalue))
+            value = c.Initializer(value, self.ccode(obj.initvalue))
 
         return value
 
@@ -311,7 +315,7 @@ class CGen(Visitor):
                 else:
                     ret.append(i._C_name)
             except AttributeError:
-                ret.append(ccode(i))
+                ret.append(self.ccode(i))
         return ret
 
     def _gen_signature(self, o, is_declaration=False):
@@ -388,7 +392,7 @@ class CGen(Visitor):
     def visit_PointerCast(self, o):
         f = o.function
         i = f.indexed
-        cstr = ccode(i._C_typedata)
+        cstr = self.ccode(i._C_typedata)
 
         if f.is_PointerArray:
             # lvalue
@@ -410,7 +414,7 @@ class CGen(Visitor):
             else:
                 v = f.name
             if o.flat is None:
-                shape = ''.join("[%s]" % ccode(i) for i in o.castshape)
+                shape = ''.join("[%s]" % self.ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
                 lvalue = c.Value(cstr, '(*restrict %s)%s' % (v, shape))
             else:
@@ -443,9 +447,9 @@ class CGen(Visitor):
         a0, a1 = o.functions
         if a1.is_PointerArray or a1.is_TempFunction:
             i = a1.indexed
-            cstr = ccode(i._C_typedata)
+            cstr = self.ccode(i._C_typedata)
             if o.flat is None:
-                shape = ''.join("[%s]" % ccode(i) for i in a0.symbolic_shape[1:])
+                shape = ''.join("[%s]" % self.ccode(i) for i in a0.symbolic_shape[1:])
                 rvalue = '(%s (*)%s) %s[%s]' % (cstr, shape, a1.name,
                                                 a1.dim.name)
                 lvalue = c.Value(cstr, '(*restrict %s)%s' % (a0.name, shape))
@@ -484,8 +488,8 @@ class CGen(Visitor):
         return self._gen_value(o.function)
 
     def visit_Expression(self, o):
-        lhs = ccode(o.expr.lhs, dtype=o.dtype)
-        rhs = ccode(o.expr.rhs, dtype=o.dtype)
+        lhs = self.ccode(o.expr.lhs, dtype=o.dtype)
+        rhs = self.ccode(o.expr.rhs, dtype=o.dtype)
 
         if o.init:
             code = c.Initializer(self._gen_value(o.expr.lhs, 0), rhs)
@@ -498,8 +502,8 @@ class CGen(Visitor):
         return code
 
     def visit_AugmentedExpression(self, o):
-        c_lhs = ccode(o.expr.lhs, dtype=o.dtype)
-        c_rhs = ccode(o.expr.rhs, dtype=o.dtype)
+        c_lhs = self.ccode(o.expr.lhs, dtype=o.dtype)
+        c_rhs = self.ccode(o.expr.rhs, dtype=o.dtype)
         code = c.Statement("%s %s= %s" % (c_lhs, o.op, c_rhs))
         if o.pragmas:
             code = c.Module(self._visit(o.pragmas) + (code,))
@@ -518,7 +522,7 @@ class CGen(Visitor):
                                  o.templates)
             if retobj.is_Indexed or \
                isinstance(retobj, (FieldFromComposite, FieldFromPointer)):
-                return c.Assign(ccode(retobj), call)
+                return c.Assign(self.ccode(retobj), call)
             else:
                 return c.Initializer(c.Value(rettype, retobj._C_name), call)
 
@@ -532,9 +536,9 @@ class CGen(Visitor):
         then_body = c.Block(self._visit(then_body))
         if else_body:
             else_body = c.Block(self._visit(else_body))
-            return c.If(ccode(o.condition), then_body, else_body)
+            return c.If(self.ccode(o.condition), then_body, else_body)
         else:
-            return c.If(ccode(o.condition), then_body)
+            return c.If(self.ccode(o.condition), then_body)
 
     def visit_Iteration(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
@@ -544,23 +548,23 @@ class CGen(Visitor):
 
         # For backward direction flip loop bounds
         if o.direction == Backward:
-            loop_init = 'int %s = %s' % (o.index, ccode(_max))
-            loop_cond = '%s >= %s' % (o.index, ccode(_min))
+            loop_init = 'int %s = %s' % (o.index, self.ccode(_max))
+            loop_cond = '%s >= %s' % (o.index, self.ccode(_min))
             loop_inc = '%s -= %s' % (o.index, o.limits[2])
         else:
-            loop_init = 'int %s = %s' % (o.index, ccode(_min))
-            loop_cond = '%s <= %s' % (o.index, ccode(_max))
+            loop_init = 'int %s = %s' % (o.index, self.ccode(_min))
+            loop_cond = '%s <= %s' % (o.index, self.ccode(_max))
             loop_inc = '%s += %s' % (o.index, o.limits[2])
 
         # Append unbounded indices, if any
         if o.uindices:
-            uinit = ['%s = %s' % (i.name, ccode(i.symbolic_min)) for i in o.uindices]
+            uinit = ['%s = %s' % (i.name, self.ccode(i.symbolic_min)) for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
 
             ustep = []
             for i in o.uindices:
                 op = '=' if i.is_Modulo else '+='
-                ustep.append('%s %s %s' % (i.name, op, ccode(i.symbolic_incr)))
+                ustep.append('%s %s %s' % (i.name, op, self.ccode(i.symbolic_incr)))
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
@@ -577,7 +581,7 @@ class CGen(Visitor):
         return c.Pragma(o._generate)
 
     def visit_While(self, o):
-        condition = ccode(o.condition)
+        condition = self.ccode(o.condition)
         if o.body:
             body = flatten(self._visit(i) for i in o.children)
             return c.While(condition, c.Block(body))

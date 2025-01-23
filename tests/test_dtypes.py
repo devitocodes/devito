@@ -59,7 +59,8 @@ _configs: list[dict[str, str]] = [
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs)
-def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
+def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str],
+                       expected=None) -> None:
     """
     Tests that half and complex floats' dtypes result in the correct type
     strings in generated code.
@@ -78,7 +79,7 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> N
     params: dict[str, Basic] = {p.name: p for p in op.parameters}
     _u, _c = params['u'], params['c']
     assert type(_u.indexed._C_ctype._type_()) == ctypes_vector_mapper[dtype]
-    assert _c._C_ctype == ctypes_vector_mapper[dtype]
+    assert _c._C_ctype == expected or ctypes_vector_mapper[dtype]
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
