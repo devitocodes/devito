@@ -153,7 +153,7 @@ class Node(Signer):
         return ()
 
     def _signature_items(self):
-        return (str(self.ccode),)
+        return (str(self),)
 
 
 class ExprStmt:
