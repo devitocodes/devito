@@ -51,7 +51,7 @@ class TestSymbolicCoeffs:
         Operator(Eq(u, (v*u.dx).dy(weights=w)), opt=opt).cfunction
 
     @pytest.mark.parametrize('coeffs,expected', [
-        ((7, 7, 7), 1),  # We've had a bug triggered by identical coeffs
+        ((7, 7, 7), 3),  # We've had a bug triggered by identical coeffs
         ((5, 7, 9), 3),
     ])
     def test_multiple_cross_derivs(self, coeffs, expected):
@@ -89,7 +89,8 @@ class TestSymbolicCoeffs:
                          coefficients='symbolic')
 
         w0 = np.arange(so + 1 + nweight) + 1
-        wstr = '{' + ', '.join([f"{w:1.1f}F" for w in w0]) + '}'
+        s = f'({x.spacing}*{x.spacing})' if order == 2 else f'{x.spacing}'
+        wstr = f'{{{w0[0]:1.1f}F/{s},'
         wdef = f'[{so + 1 + nweight}] __attribute__ ((aligned (64)))'
 
         coeffs_x_p1 = Coefficient(order, u, x, w0)
