@@ -202,8 +202,8 @@ class TestSC:
 
         eq_f = Eq(f, f.dx2(weights=weights))
 
-        expected = 'Eq(f(x + h_x/2), (1.0*f(x - h_x/2) - 2.0*f(x + h_x/2)'\
-            ' + 1.0*f(x + 3*h_x/2))/h_x**2)'
+        expected = 'Eq(f(x + h_x/2), 1.0*f(x - h_x/2)/h_x**2 - 2.0*f(x + h_x/2)/h_x**2 '\
+            '+ 1.0*f(x + 3*h_x/2)/h_x**2)'
         assert(str(eq_f.evaluate) == expected)
 
     @pytest.mark.parametrize('stagger', [True, False])
