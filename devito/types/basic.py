@@ -87,17 +87,20 @@ class CodeSymbol:
         if isinstance(_type, CustomDtype):
             return _type
 
-        _pointer = False
         while issubclass(_type, _Pointer):
-            _pointer = True
             _type = _type._type_
 
         # `ctypes` treats C strings specially
         if _type is c_char_p:
             _type = c_char
 
-        if issubclass(_type, Structure) and _pointer:
-            _type = f'struct {_type.__name__}'
+        try:
+            # We have internal types such as c_complex that are
+            # Structure too but should be treated as plain c_type
+            _type._base_dtype
+        except AttributeError:
+            if issubclass(_type, Structure):
+                _type = f'struct {_type.__name__}'
 
         return _type
 
