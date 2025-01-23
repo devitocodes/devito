@@ -10,7 +10,8 @@ from sympy.core.decorators import call_highest_priority
 from devito.finite_differences.elementary import Min, Max
 from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
                           float3, float4, double2, double3, double4, int2, int3,
-                          int4, dtype_to_ctype, ctypes_to_cstr, ctypes_vector_mapper)
+                          int4, dtype_to_ctype, ctypes_to_cstr, ctypes_vector_mapper,
+                          ctypes_to_cstr)
 from devito.types import Symbol
 from devito.types.basic import Basic
 
@@ -422,7 +423,10 @@ class Cast(UnaryOp):
 
     @property
     def _op(self):
-        return '(%s)' % self._C_ctype
+        return '(%s)' % ctypes_to_cstr(self._C_ctype)
+
+    def __str__(self):
+        return "%s%s" % (self._op, self.base)
 
 
 class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
