@@ -98,7 +98,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         if not mapper:
             return expr
 
-        return expr.xreplace(mapper)
+        return expr.subs(mapper)
 
     def _evaluate(self, **kwargs):
         """
