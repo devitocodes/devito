@@ -1,7 +1,7 @@
 import abc
 import inspect
 from collections import namedtuple
-from ctypes import POINTER, _Pointer, c_char_p, c_char
+from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
 from functools import reduce, cached_property
 from operator import mul
 
@@ -87,12 +87,17 @@ class CodeSymbol:
         if isinstance(_type, CustomDtype):
             return _type
 
+        _pointer = False
         while issubclass(_type, _Pointer):
+            _pointer = True
             _type = _type._type_
 
         # `ctypes` treats C strings specially
         if _type is c_char_p:
             _type = c_char
+
+        if issubclass(_type, Structure) and _pointer:
+            _type = f'struct {_type.__name__}'
 
         return _type
 
