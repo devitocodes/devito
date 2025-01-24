@@ -24,7 +24,6 @@ def _get_language(language: str, **_) -> type[LangBB]:
     """
     Gets the language building block type from parametrized kwargs.
     """
-
     return _languages[language]
 
 
@@ -32,7 +31,6 @@ def _get_printer(language: str, **_) -> type[_DevitoPrinterBase]:
     """
     Gets the printer building block type from parametrized kwargs.
     """
-
     return printer_registry[language]
 
 
@@ -40,7 +38,6 @@ def _config_kwargs(platform: str, language: str) -> dict[str, str]:
     """
     Generates kwargs for Operator to test language-specific behavior.
     """
-
     return {
         'platform': platform,
         'language': language,
@@ -57,15 +54,19 @@ _configs: list[dict[str, str]] = [
 ]
 
 
+def kw_id(kwargs):
+    # For more readable log
+    return "-".join(f'{k}' for k in kwargs.values())
+
+
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-@pytest.mark.parametrize('kwargs', _configs)
+@pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str],
                        expected=None) -> None:
     """
     Tests that half and complex floats' dtypes result in the correct type
     strings in generated code.
     """
-
     # Set up an operator
     grid = Grid(shape=(3, 3))
     x, y = grid.dimensions
@@ -83,13 +84,12 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str],
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-@pytest.mark.parametrize('kwargs', _configs)
+@pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
     """
     Tests that variables introduced by CSE have the correct type strings in
     the generated code.
     """
-
     # Retrieve the language-specific type mapping
     printer: type[_DevitoPrinterBase] = _get_printer(**kwargs)
 
@@ -108,14 +108,13 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.complex64, np.complex128])
-@pytest.mark.parametrize('kwargs', _configs)
+@pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
     np.dtype
     """
     Tests that the correct complex headers are included when complex dtypes
     are present in the operator, and omitted otherwise.
     """
-
     # Set up an operator
     grid = Grid(shape=(3, 3))
     x, y = grid.dimensions
@@ -134,7 +133,7 @@ def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) ->
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-@pytest.mark.parametrize('kwargs', _configs)
+@pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
     """
     Tests that the correct literal is used for the imaginary unit.
@@ -172,7 +171,6 @@ def test_math_functions(dtype: np.dtype[np.inexact],
     and assigned appropriately for different float precisions and for
     complex floats/doubles.
     """
-
     # Get the expected function call string
     call_str = str(sym)
     if np.issubdtype(dtype, np.complexfloating):
@@ -198,7 +196,6 @@ def test_complex_override(dtype: np.dtype[np.complexfloating]) -> None:
     """
     Tests overriding complex values in op.apply().
     """
-
     grid = Grid(shape=(5, 5))
     x, y = grid.dimensions
 
@@ -221,7 +218,6 @@ def test_complex_time_deriv(dtype: np.dtype[np.complexfloating]) -> None:
     """
     Tests taking the time derivative of a complex-valued function.
     """
-
     grid = Grid(shape=(5, 5))
     x, y = grid.dimensions
     t = grid.time_dim
@@ -248,7 +244,6 @@ def test_complex_space_deriv(dtype: np.dtype[np.complexfloating]) -> None:
     Tests taking the space derivative of a complex-valued function, with
     respect to the real and imaginary axes.
     """
-
     grid = Grid(shape=(7, 7), dtype=dtype)
     x, y = grid.dimensions
 
