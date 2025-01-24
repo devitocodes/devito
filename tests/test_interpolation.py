@@ -931,8 +931,6 @@ class TestSubDomainInterpolation:
 
         op = Operator([rec0, rec1, rec2])
 
-        # print(op.ccode)
-
         op.apply()
 
         # Note that interpolation points can go into the halo by
