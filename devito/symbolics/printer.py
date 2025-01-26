@@ -422,8 +422,8 @@ class AccDevitoPrinter(CXXDevitoPrinter):
 
 
 printer_registry: dict[str, type[_DevitoPrinterBase]] = {
-    'C': CDevitoPrinter, 'openmp': CDevitoPrinter,
-    'openacc': AccDevitoPrinter}
+    'C': CDevitoPrinter, 'CXX': CXXDevitoPrinter,
+    'openmp': CDevitoPrinter, 'openacc': AccDevitoPrinter}
 
 
 def ccode(expr, language=None, **settings):
@@ -443,5 +443,8 @@ def ccode(expr, language=None, **settings):
         the input ``expr`` itself.
     """
     lang = language or configuration['language']
+    cpp = settings.get('compiler', configuration['compiler'])._cpp
+    if lang in ['C', 'openmp'] and cpp:
+        lang = 'CXX'
     printer = printer_registry.get(lang, CDevitoPrinter)
     return printer(settings=settings).doprint(expr, None)
