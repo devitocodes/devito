@@ -1,5 +1,9 @@
-from devito.ir import Call, UsingNamespace
+import numpy as np
+from sympy.printing.cxx import CXX11CodePrinter
+
+from devito.ir import Call, UsingNamespace, BasePrinter, printer_registry
 from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 
 __all__ = ['CXXBB']
 
@@ -61,3 +65,25 @@ class CXXBB(LangBB):
         'complex-namespace': [UsingNamespace('std::complex_literals')],
         'def-complex': std_arith,
     }
+
+
+class CXXPrinter(BasePrinter, CXX11CodePrinter):
+
+    _default_settings = {**BasePrinter._default_settings,
+                         **CXX11CodePrinter._default_settings}
+    _ns = "std::"
+    _func_litterals = {}
+    _func_prefix = {np.float32: 'f', np.float64: 'f'}
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**CXX11CodePrinter.type_mappings,
+                     c_complex: 'std::complex<float>',
+                     c_double_complex: 'std::complex<double>'}
+
+    def _print_ImaginaryUnit(self, expr):
+        return f'1i{self.prec_literal(expr).lower()}'
+
+
+printer_registry['CXX'] = CXXPrinter
+printer_registry['CXXopenmp'] = CXXPrinter

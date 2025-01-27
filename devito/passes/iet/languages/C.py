@@ -1,7 +1,11 @@
-from devito.ir import Call
+import numpy as np
+from sympy.printing.c import C99CodePrinter
+
+from devito.ir import Call, BasePrinter, printer_registry
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
+from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
@@ -31,3 +35,26 @@ class CDataManager(DataManager):
 
 class COrchestrator(Orchestrator):
     lang = CBB
+
+
+class CPrinter(BasePrinter, C99CodePrinter):
+
+    _default_settings = {**BasePrinter._default_settings,
+                         **C99CodePrinter._default_settings}
+    _func_litterals = {np.float32: 'f', np.complex64: 'f'}
+    _func_prefix = {np.float32: 'f', np.float64: 'f',
+                    np.complex64: 'c', np.complex128: 'c'}
+
+    # These cannot go through _print_xxx because they are classes not
+    # instances
+    type_mappings = {**C99CodePrinter.type_mappings,
+                     c_complex: 'float _Complex',
+                     c_double_complex: 'double _Complex'}
+
+    def _print_ImaginaryUnit(self, expr):
+        return '_Complex_I'
+
+
+printer_registry['C'] = CPrinter
+printer_registry['openmp'] = CPrinter
+printer_registry['Copenmp'] = CPrinter

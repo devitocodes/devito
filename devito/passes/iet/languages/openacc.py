@@ -2,14 +2,15 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
+                       ParallelTree, Pragma, Return, FindSymbols, make_callable,
+                       printer_registry)
 from devito.passes import needs_transfer, is_on_device
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
-from devito.passes.iet.languages.CXX import CXXBB
+from devito.passes.iet.languages.CXX import CXXBB, CXXPrinter
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
 from devito.symbolics import FieldFromPointer, Macro, cast_mapper
 from devito.tools import filter_ordered, UnboundTuple
@@ -263,3 +264,11 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
 class AccOrchestrator(Orchestrator):
     lang = AccBB
+
+
+class AccPrinter(CXXPrinter):
+
+    pass
+
+
+printer_registry['openacc'] = AccPrinter

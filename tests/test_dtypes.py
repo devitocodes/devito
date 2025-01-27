@@ -8,7 +8,7 @@ from devito.passes.iet.languages.C import CBB
 from devito.passes.iet.languages.openacc import AccBB
 from devito.passes.iet.languages.openmp import OmpBB
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.symbolics.printer import printer_registry, _DevitoPrinterBase
+from devito.symbolics.printer import printer_registry, BasePrinter
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 
@@ -27,7 +27,7 @@ def _get_language(language: str, **_) -> type[LangBB]:
     return _languages[language]
 
 
-def _get_printer(language: str, **_) -> type[_DevitoPrinterBase]:
+def _get_printer(language: str, **_) -> type[BasePrinter]:
     """
     Gets the printer building block type from parametrized kwargs.
     """
@@ -91,7 +91,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
     the generated code.
     """
     # Retrieve the language-specific type mapping
-    printer: type[_DevitoPrinterBase] = _get_printer(**kwargs)
+    printer: type[BasePrinter] = _get_printer(**kwargs)
 
     # Set up an operator
     grid = Grid(shape=(3, 3))

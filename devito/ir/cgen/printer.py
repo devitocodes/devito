@@ -10,25 +10,22 @@ from packaging.version import Version
 from sympy.core import S
 from sympy.core.numbers import equal_valued, Float
 from sympy.printing.codeprinter import CodePrinter
-from sympy.printing.c import C99CodePrinter
-from sympy.printing.cxx import CXX11CodePrinter
 from sympy.logic.boolalg import BooleanFunction
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 from devito.types.basic import AbstractFunction
 from devito.tools import ctypes_to_cstr, dtype_to_ctype
 
-__all__ = ['ccode']
+__all__ = ['BasePrinter', 'printer_registry', 'ccode']
 
 
 _prec_litterals = {np.float16: 'F16', np.float32: 'F', np.complex64: 'F'}
 
 
-class _DevitoPrinterBase(CodePrinter):
+class BasePrinter(CodePrinter):
 
     """
     Decorator for sympy.printing.ccode.CCodePrinter.
@@ -366,7 +363,7 @@ class _DevitoPrinterBase(CodePrinter):
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
 for k in ('exp log sin cos tan ceiling floor').split():
-    setattr(_DevitoPrinterBase, '_print_%s' % k, _DevitoPrinterBase._print_math_func)
+    setattr(BasePrinter, '_print_%s' % k, BasePrinter._print_math_func)
 
 
 # Always parenthesize IntDiv and InlineIf within expressions
@@ -377,53 +374,10 @@ PRECEDENCE_VALUES['InlineIf'] = 1
 # Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', _DevitoPrinterBase._print_Add)
+    setattr(sympy.printing.str.StrPrinter, '_print_Add', BasePrinter._print_Add)
 
 
-class CDevitoPrinter(_DevitoPrinterBase, C99CodePrinter):
-
-    _default_settings = {**_DevitoPrinterBase._default_settings,
-                         **C99CodePrinter._default_settings}
-    _func_litterals = {np.float32: 'f', np.complex64: 'f'}
-    _func_prefix = {np.float32: 'f', np.float64: 'f',
-                    np.complex64: 'c', np.complex128: 'c'}
-
-    # These cannot go through _print_xxx because they are classes not
-    # instances
-    type_mappings = {**C99CodePrinter.type_mappings,
-                     c_complex: 'float _Complex',
-                     c_double_complex: 'double _Complex'}
-
-    def _print_ImaginaryUnit(self, expr):
-        return '_Complex_I'
-
-
-class CXXDevitoPrinter(_DevitoPrinterBase, CXX11CodePrinter):
-
-    _default_settings = {**_DevitoPrinterBase._default_settings,
-                         **CXX11CodePrinter._default_settings}
-    _ns = "std::"
-    _func_litterals = {}
-    _func_prefix = {np.float32: 'f', np.float64: 'f'}
-
-    # These cannot go through _print_xxx because they are classes not
-    # instances
-    type_mappings = {**CXX11CodePrinter.type_mappings,
-                     c_complex: 'std::complex<float>',
-                     c_double_complex: 'std::complex<double>'}
-
-    def _print_ImaginaryUnit(self, expr):
-        return f'1i{self.prec_literal(expr).lower()}'
-
-
-class AccDevitoPrinter(CXXDevitoPrinter):
-
-    pass
-
-
-printer_registry: dict[str, type[_DevitoPrinterBase]] = {
-    'C': CDevitoPrinter, 'CXX': CXXDevitoPrinter,
-    'openmp': CDevitoPrinter, 'openacc': AccDevitoPrinter}
+printer_registry: dict[str, type[BasePrinter]] = {'default': BasePrinter}
 
 
 def ccode(expr, language=None, **settings):
@@ -443,8 +397,5 @@ def ccode(expr, language=None, **settings):
         the input ``expr`` itself.
     """
     lang = language or configuration['language']
-    cpp = settings.get('compiler', configuration['compiler'])._cpp
-    if lang in ['C', 'openmp'] and cpp:
-        lang = 'CXX'
-    printer = printer_registry.get(lang, CDevitoPrinter)
+    printer = printer_registry.get(lang, BasePrinter)
     return printer(settings=settings).doprint(expr, None)
