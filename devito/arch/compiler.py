@@ -180,7 +180,7 @@ class Compiler(GCCToolchain):
     """
 
     fields = {'cc', 'ld'}
-    _cpp = False
+    default_cpp = False
 
     def __init__(self, **kwargs):
         _name = kwargs.pop('name', self.__class__.__name__)
@@ -191,6 +191,7 @@ class Compiler(GCCToolchain):
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
+        self._cpp = kwargs.get('cpp', self.default_cpp)
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
@@ -201,7 +202,7 @@ class Compiler(GCCToolchain):
             self.cc = self.MPICC if self._cpp is False else self.MPICXX
         self.ld = self.cc  # Wanted by the superclass
 
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', f'-std={self.std}']
         self.ldflags = ['-shared']
 
         self.include_dirs = []
@@ -252,6 +253,10 @@ class Compiler(GCCToolchain):
             version = sniff_compiler_version(self.CC, allow_fail=allow_fail)
 
         return version
+
+    @property
+    def std(self):
+        return 'c++14' if self._cpp else 'c99'
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -492,8 +497,8 @@ class ClangCompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if isinstance(platform, NvidiaDevice):
-            self.cflags.remove('-std=c99')
+        if platform is NVIDIAX:
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 cc = get_nvidia_cc()
@@ -501,7 +506,7 @@ class ClangCompiler(Compiler):
                     self.cflags += ['-Xopenmp-target', '-march=sm_%s' % cc]
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         elif platform is AMDGPUX:
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
@@ -560,10 +565,10 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        if isinstance(platform, NvidiaDevice):
-            self.cflags.remove('-std=c99')
+        if platform is NVIDIAX:
+            self.cflags.remove(f'-std={self.std}')
         elif platform is AMDGPUX:
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
@@ -599,15 +604,15 @@ class DPCPPCompiler(Compiler):
 
 class PGICompiler(Compiler):
 
-    _cpp = True
+    default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove('-std=c99')
+        self.cflags.remove(f'-std={self.std}')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
 
-        self.cflags.append('-std=c++14')
+        self.cflags.append(f'-std={self.std}')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -650,14 +655,14 @@ class NvidiaCompiler(PGICompiler):
 
 class CudaCompiler(Compiler):
 
-    _cpp = True
+    default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove('-std=c99')
+        self.cflags.remove(f'-std={self.std}')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
+        self.cflags.extend([f'-std={self.std}', '-Xcompiler', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `nvcc` to compile MPI, but for this we have to
@@ -724,14 +729,14 @@ class CudaCompiler(Compiler):
 
 class HipCompiler(Compiler):
 
-    _cpp = True
+    default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove('-std=c99')
+        self.cflags.remove(f'-std={self.std}')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.extend(['-std=c++14', '-fPIC'])
+        self.cflags.extend([f'-std={self.std}', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
@@ -885,7 +890,7 @@ class OneapiCompiler(IntelCompiler):
 
 class SyclCompiler(OneapiCompiler):
 
-    _cpp = True
+    default_cpp = True
 
     def __init_finalize__(self, **kwargs):
         IntelCompiler.__init_finalize__(self, **kwargs)
@@ -896,7 +901,7 @@ class SyclCompiler(OneapiCompiler):
         if language != 'sycl':
             warning("Expected language sycl with SyclCompiler")
 
-        self.cflags.remove('-std=c99')
+        self.cflags.remove(f'-std={self.std}')
         self.cflags.append('-fsycl')
 
         self.cflags.remove('-g')  # -g disables some optimizations in IGC
@@ -952,7 +957,7 @@ class CustomCompiler(Compiler):
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
         obj._base = kwargs.pop('base', _base)
-        obj._cpp = obj._base._cpp
+        obj.default_cpp = obj._base.default_cpp
 
         return obj
 

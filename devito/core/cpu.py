@@ -78,7 +78,7 @@ class Cpu64OperatorMixin:
 
         # Misc
         o['opt-comms'] = oo.pop('opt-comms', True)
-        o['linearize'] = oo.pop('linearize', False)
+        o['linearize'] = oo.pop('linearize', cls.LINEARIZE)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
@@ -318,6 +318,11 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
 
+class Cpu64CXXCustomOperator(Cpu64CustomOperator):
+
+    _Target = CXXTarget
+    LINEARIZE = True
+
 # Language level
 
 
@@ -325,21 +330,51 @@ class Cpu64NoopCOperator(Cpu64NoopOperator):
     _Target = CTarget
 
 
+class Cpu64CXXNoopCOperator(Cpu64NoopOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64NoopOmpOperator(Cpu64NoopOperator):
     _Target = COmpTarget
+
+
+class Cpu64CXXNoopOmpOperator(Cpu64NoopOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True
 
 
 class Cpu64AdvCOperator(Cpu64AdvOperator):
     _Target = CTarget
 
 
+class Cpu64AdvCXXOperator(Cpu64AdvOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64AdvOmpOperator(Cpu64AdvOperator):
     _Target = COmpTarget
+
+
+class Cpu64CXXAdvOmpOperator(Cpu64AdvOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True
 
 
 class Cpu64FsgCOperator(Cpu64FsgOperator):
     _Target = CTarget
 
 
+class Cpu64CXXFsgCOperator(Cpu64FsgOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64FsgOmpOperator(Cpu64FsgOperator):
     _Target = COmpTarget
+
+
+class Cpu64CXXFsgOmpOperator(Cpu64FsgOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True
