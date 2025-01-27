@@ -287,7 +287,9 @@ def has_integer_args(*args):
     res = True
     for a in args:
         try:
-            if len(a.args) > 0:
+            if isinstance(a, INT):
+                res = res and True
+            elif len(a.args) > 0:
                 res = res and has_integer_args(*a.args)
             else:
                 res = res and has_integer_args(a)

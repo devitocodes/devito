@@ -3,12 +3,12 @@ import pytest
 import sympy
 
 from devito import Constant, Eq, Function, Grid, Operator, exp, log, sin
+from devito.ir.cgen.printer import BasePrinter
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.openacc import AccBB
+from devito.passes.iet.languages.C import CBB, CPrinter
+from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import OmpBB
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.symbolics.printer import printer_registry, BasePrinter
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 
@@ -17,6 +17,12 @@ _languages: dict[str, type[LangBB]] = {
     'C': CBB,
     'openmp': OmpBB,
     'openacc': AccBB
+}
+
+_printers: dict[str, type[BasePrinter]] = {
+    'C': CPrinter,
+    'openmp': CPrinter,
+    'openacc': AccPrinter
 }
 
 
@@ -31,7 +37,7 @@ def _get_printer(language: str, **_) -> type[BasePrinter]:
     """
     Gets the printer building block type from parametrized kwargs.
     """
-    return printer_registry[language]
+    return _printers[language]
 
 
 def _config_kwargs(platform: str, language: str) -> dict[str, str]:

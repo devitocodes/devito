@@ -1,7 +1,7 @@
 import numpy as np
 from sympy.printing.c import C99CodePrinter
 
-from devito.ir import Call, BasePrinter, printer_registry
+from devito.ir import Call, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
@@ -44,6 +44,8 @@ class CPrinter(BasePrinter, C99CodePrinter):
     _func_litterals = {np.float32: 'f', np.complex64: 'f'}
     _func_prefix = {np.float32: 'f', np.float64: 'f',
                     np.complex64: 'c', np.complex128: 'c'}
+    _prec_litterals = {**BasePrinter._prec_litterals, np.float16: 'F16'}
+    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances
@@ -53,8 +55,3 @@ class CPrinter(BasePrinter, C99CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return '_Complex_I'
-
-
-printer_registry['C'] = CPrinter
-printer_registry['openmp'] = CPrinter
-printer_registry['Copenmp'] = CPrinter

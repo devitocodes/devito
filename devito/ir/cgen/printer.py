@@ -19,10 +19,7 @@ from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
 from devito.tools import ctypes_to_cstr, dtype_to_ctype
 
-__all__ = ['BasePrinter', 'printer_registry', 'ccode']
-
-
-_prec_litterals = {np.float16: 'F16', np.float32: 'F', np.complex64: 'F'}
+__all__ = ['BasePrinter', 'ccode']
 
 
 class BasePrinter(CodePrinter):
@@ -40,6 +37,19 @@ class BasePrinter(CodePrinter):
 
     _func_prefix = {}
     _func_litterals = {}
+
+    _qualifiers_mapper = {
+        'is_const': 'const',
+        'is_volatile': 'volatile',
+        '_mem_constant': 'static',
+        '_mem_shared': '',
+    }
+
+    _prec_litterals = {np.float32: 'F', np.complex64: 'F'}
+
+    _restrict_keyword = 'restrict'
+
+    _default_includes = []
 
     @property
     def dtype(self):
@@ -74,7 +84,7 @@ class BasePrinter(CodePrinter):
             return dtype or self.dtype
 
     def prec_literal(self, expr):
-        return _prec_litterals.get(self._prec(expr), '')
+        return self._prec_litterals.get(self._prec(expr), '')
 
     def func_literal(self, expr):
         return self._func_litterals.get(self._prec(expr), '')
@@ -209,17 +219,30 @@ class BasePrinter(CodePrinter):
         term = term.replace("(-1)/", f"-{self._prec(expr)(1)}/")
         return term
 
+    def _print_fmath_func(self, name, expr):
+        args = ",".join([self._print(i) for i in expr.args])
+        func = f'{self.func_prefix(expr, abs=True)}{name}{self.func_literal(expr)}'
+        return f"{self._ns}{func}({args})"
+
     def _print_Min(self, expr):
-        if has_integer_args(*expr.args) and len(expr.args) == 2:
+        if len(expr.args) > 2:
+            return self._print_Min(expr.func(expr.args[0],
+                                             expr.func(*expr.args[1:]),
+                                             evaluate=False))
+        elif has_integer_args(*expr.args) and len(expr.args) == 2:
             return "MIN(%s)" % self._print(expr.args)[1:-1]
         else:
-            return super()._print_Min(expr)
+            return self._print_fmath_func('min', expr)
 
     def _print_Max(self, expr):
-        if has_integer_args(*expr.args) and len(expr.args) == 2:
+        if len(expr.args) > 2:
+            return self._print_Max(expr.func(expr.args[0],
+                                             expr.func(*expr.args[1:]),
+                                             evaluate=False))
+        elif has_integer_args(*expr.args) and len(expr.args) == 2:
             return "MAX(%s)" % self._print(expr.args)[1:-1]
         else:
-            return super()._print_Max(expr)
+            return self._print_fmath_func('max', expr)
 
     def _print_Abs(self, expr):
         """Print an absolute value. Use `abs` if can infer it is an Integer"""
@@ -229,8 +252,7 @@ class BasePrinter(CodePrinter):
         if isinstance(self.compiler, AOMPCompiler) and \
                 not np.issubdtype(self._prec(expr), np.integer):
             return "fabs(%s)" % self._print(arg)
-        func = f'{self.func_prefix(arg, abs=True)}abs{self.func_literal(arg)}'
-        return f"{self._ns}{func}({self._print(arg)})"
+        return self._print_fmath_func('abs', expr)
 
     def _print_Add(self, expr, order=None):
         """"
@@ -377,10 +399,7 @@ if Version(sympy.__version__) >= Version("1.11"):
     setattr(sympy.printing.str.StrPrinter, '_print_Add', BasePrinter._print_Add)
 
 
-printer_registry: dict[str, type[BasePrinter]] = {'default': BasePrinter}
-
-
-def ccode(expr, language=None, **settings):
+def ccode(expr, printer=None, **settings):
     """Generate C++ code from an expression.
 
     Parameters
@@ -396,6 +415,7 @@ def ccode(expr, language=None, **settings):
         The resulting code as a C++ string. If something went south, returns
         the input ``expr`` itself.
     """
-    lang = language or configuration['language']
-    printer = printer_registry.get(lang, BasePrinter)
+    if printer is None:
+        from devito.passes.iet.languages.C import CPrinter
+        printer = CPrinter
     return printer(settings=settings).doprint(expr, None)
