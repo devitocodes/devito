@@ -9,12 +9,12 @@ from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression,
                        ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
                        ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
-                       IsPerfectIteration, OpInc, filter_iterations,
+                       IsPerfectIteration, OpInc, filter_iterations, ccode,
                        retrieve_iteration_tree, IMask, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         ShmTransformer, make_sections_from_imask)
-from devito.symbolics import INT, ccode
+from devito.symbolics import INT
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -292,7 +292,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
                                       **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
-            value = INT(Max(niters / (nthreads*self.chunk_nonaffine), 1))
+            value = INT(Max(INT(niters / (nthreads*self.chunk_nonaffine)), 1))
             prefix = [Expression(DummyEq(chunk_size, value, dtype=np.int32))]
 
         # Create a ParallelTree
