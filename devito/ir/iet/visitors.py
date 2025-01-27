@@ -19,7 +19,6 @@ from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
 from devito.ir.support.space import Backward
 from devito.symbolics import (FieldFromComposite, FieldFromPointer,
                               ListInitializer, uxreplace)
-from devito.symbolics.printer import ccode
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
@@ -176,22 +175,23 @@ class CGen(Visitor):
     Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.
     """
 
-    def __init__(self, *args, language=None, **kwargs):
+    def __init__(self, *args, printer=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.language = language
-
-    # The following mappers may be customized by subclasses (that is,
-    # backend-specific CGen-erators)
-    _qualifiers_mapper = {
-        'is_const': 'const',
-        'is_volatile': 'volatile',
-        '_mem_constant': 'static',
-        '_mem_shared': '',
-    }
-    _restrict_keyword = 'restrict'
+        if printer is None:
+            from devito.passes.iet.languages.C import CPrinter
+            printer = CPrinter
+        self.printer = printer
 
     def ccode(self, expr, **kwargs):
-        return ccode(expr, language=self.language, **kwargs)
+        return self.printer(settings=kwargs).doprint(expr, None)
+
+    @property
+    def _qualifiers_mapper(self):
+        return self.printer._qualifiers_mapper
+
+    @property
+    def _restrict_keyword(self):
+        return self.printer._restrict_keyword
 
     def _gen_struct_decl(self, obj, masked=()):
         """
@@ -228,7 +228,7 @@ class CGen(Visitor):
             except AttributeError:
                 cstr = self.ccode(ct)
                 if ct is c_restrict_void_p:
-                    cstr = '%srestrict' % cstr
+                    cstr = f'{cstr}{self._restrict_keyword}'
                 entries.append(c.Value(cstr, n))
 
         return c.Struct(ctype.__name__, entries)
@@ -416,7 +416,7 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join("[%s]" % self.ccode(i) for i in o.castshape)
                 rshape = '(*)%s' % shape
-                lvalue = c.Value(cstr, '(*restrict %s)%s' % (v, shape))
+                lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {v}){shape}')
             else:
                 rshape = '*'
                 lvalue = c.Value(cstr, '*%s' % v)
@@ -452,10 +452,10 @@ class CGen(Visitor):
                 shape = ''.join("[%s]" % self.ccode(i) for i in a0.symbolic_shape[1:])
                 rvalue = '(%s (*)%s) %s[%s]' % (cstr, shape, a1.name,
                                                 a1.dim.name)
-                lvalue = c.Value(cstr, '(*restrict %s)%s' % (a0.name, shape))
+                lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {a0.name}){shape}')
             else:
                 rvalue = '(%s *) %s[%s]' % (cstr, a1.name, a1.dim.name)
-                lvalue = c.Value(cstr, '*restrict %s' % a0.name)
+                lvalue = c.Value(cstr, f'*{self._restrict_keyword} {a0.name}')
             if a0._data_alignment:
                 lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
         else:
@@ -481,7 +481,7 @@ class CGen(Visitor):
     def visit_Return(self, o):
         v = 'return'
         if o.value is not None:
-            v += f' {ccode(o.value)}'
+            v += f' {self.ccode(o.value)}'
         return c.Statement(v)
 
     def visit_Definition(self, o):
