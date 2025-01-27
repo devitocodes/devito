@@ -11,11 +11,12 @@ import cgen as c
 from sympy import IndexedBase, sympify
 
 from devito.data import FULL
+from devito.ir.cgen import ccode
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
 from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
                                PARALLEL_IF_PVT, VECTORIZED, AFFINE, Property,
                                Forward, WithLock, PrefetchUpdate, detect_io)
-from devito.symbolics import ListInitializer, CallFromPointer, ccode
+from devito.symbolics import ListInitializer, CallFromPointer
 from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
                           ctypes_to_cstr)
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
@@ -61,12 +62,6 @@ class Node(Signer):
     :attr:`_traversable`. The traversable fields of the Node; that is, fields
     walked over by a Visitor. All arguments in __init__ whose name
     appears in this list are treated as traversable fields.
-    """
-
-    _ccode_handler = None
-    """
-    Customizable by subclasses, in particular Operator subclasses which define
-    backend-specific nodes and, as such, require node-specific handlers.
     """
 
     def __new__(cls, *args, **kwargs):

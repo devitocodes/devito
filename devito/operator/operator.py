@@ -145,7 +145,6 @@ class Operator(Callable):
     """
 
     _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
     _default_namespaces = []
 
@@ -194,6 +193,11 @@ class Operator(Callable):
                                        "check your equation again")
 
         return expressions
+
+    @classmethod
+    @property
+    def _default_includes(cls):
+        return cls._Target.Printer._default_includes
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -493,7 +497,7 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, lang=lang, **kwargs)
+        generate_macros(graph, lang=lang, printer=cls._Target.Printer, **kwargs)
 
         # Add type specific metadata
         lower_dtypes(graph, lang=lang, **kwargs)
@@ -772,12 +776,13 @@ class Operator(Callable):
         return Signer._digest(self, configuration)
 
     @cached_property
+    def _printer(self):
+        return self._Target.Printer
+
+    @cached_property
     def ccode(self):
-        try:
-            return self._ccode_handler(language=self._language).visit(self)
-        except (AttributeError, TypeError):
-            from devito.ir.iet.visitors import CGen
-            return CGen(language=self._language).visit(self)
+        from devito.ir.iet.visitors import CGen
+        return CGen(printer=self._printer).visit(self)
 
     def _jit_compile(self):
         """
@@ -1417,6 +1422,12 @@ def parse_kwargs(**kwargs):
                                                    mpi=configuration['mpi'])
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
+
+    # Make sure compiler and language are compatible
+    if kwargs['compiler']._cpp and kwargs['language'] in ['C', 'openmp']:
+        kwargs['language'] = 'CXX' if kwargs['language'] == 'C' else 'CXXopenmp'
+    if 'CXX' in kwargs['language'] and not kwargs['compiler']._cpp:
+        kwargs['compiler'] = kwargs['compiler'].__new_with__(cpp=True)
 
     # `allocator`
     kwargs['allocator'] = default_allocator(

@@ -2,8 +2,7 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelTree, Pragma, Return, FindSymbols, make_callable,
-                       printer_registry)
+                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
 from devito.passes import needs_transfer, is_on_device
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
@@ -269,6 +268,3 @@ class AccOrchestrator(Orchestrator):
 class AccPrinter(CXXPrinter):
 
     pass
-
-
-printer_registry['openacc'] = AccPrinter

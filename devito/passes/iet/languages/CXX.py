@@ -1,7 +1,7 @@
 import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
-from devito.ir import Call, UsingNamespace, BasePrinter, printer_registry
+from devito.ir import Call, UsingNamespace, BasePrinter
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 
@@ -74,6 +74,8 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _ns = "std::"
     _func_litterals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
+    _restrict_keyword = '__restrict'
+    _default_includes = ['stdlib.h', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances
@@ -83,7 +85,3 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
-
-
-printer_registry['CXX'] = CXXPrinter
-printer_registry['CXXopenmp'] = CXXPrinter
