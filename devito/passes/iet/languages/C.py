@@ -44,7 +44,6 @@ class CPrinter(BasePrinter, C99CodePrinter):
     _func_litterals = {np.float32: 'f', np.complex64: 'f'}
     _func_prefix = {np.float32: 'f', np.float64: 'f',
                     np.complex64: 'c', np.complex128: 'c'}
-    _prec_litterals = {**BasePrinter._prec_litterals, np.float16: 'F16'}
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not

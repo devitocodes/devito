@@ -16,7 +16,8 @@ from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator']
+           'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
+           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator']
 
 
 class Cpu64OperatorMixin:
@@ -318,7 +319,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
 
-class Cpu64CXXCustomOperator(Cpu64CustomOperator):
+class Cpu64CustomCXXOperator(Cpu64CustomOperator):
 
     _Target = CXXTarget
     LINEARIZE = True
@@ -357,7 +358,7 @@ class Cpu64AdvOmpOperator(Cpu64AdvOperator):
     _Target = COmpTarget
 
 
-class Cpu64CXXAdvOmpOperator(Cpu64AdvOperator):
+class Cpu64AdvCXXOmpOperator(Cpu64AdvOperator):
     _Target = CXXOmpTarget
     LINEARIZE = True
 
@@ -366,7 +367,7 @@ class Cpu64FsgCOperator(Cpu64FsgOperator):
     _Target = CTarget
 
 
-class Cpu64CXXFsgCOperator(Cpu64FsgOperator):
+class Cpu64FsgCXXOperator(Cpu64FsgOperator):
     _Target = CXXTarget
     LINEARIZE = True
 
@@ -375,6 +376,6 @@ class Cpu64FsgOmpOperator(Cpu64FsgOperator):
     _Target = COmpTarget
 
 
-class Cpu64CXXFsgOmpOperator(Cpu64FsgOperator):
+class Cpu64FsgCXXOmpOperator(Cpu64FsgOperator):
     _Target = CXXOmpTarget
     LINEARIZE = True
