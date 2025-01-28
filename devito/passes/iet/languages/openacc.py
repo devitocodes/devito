@@ -236,11 +236,11 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
             dpf = List(body=[
                 self.lang.mapper['map-serial-present'](hp, tdp),
-                Block(body=DummyExpr(tdp, cast_mapper(tdp.dtype)(hp)))
+                Block(body=DummyExpr(tdp, cast_mapper(tdp.dtype)(hp, reinterpret=True)))
             ])
 
             ffp = FieldFromPointer(f._C_field_dmap, f._C_symbol)
-            ctdp = cast_mapper((hp.dtype, '*'))(tdp)
+            ctdp = cast_mapper((hp.dtype, '*'))(tdp, reinterpret=True)
             cast = DummyExpr(ffp, ctdp)
 
             ret = Return(ctdp)

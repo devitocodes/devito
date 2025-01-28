@@ -181,6 +181,8 @@ class Compiler(GCCToolchain):
 
     fields = {'cc', 'ld'}
     default_cpp = False
+    _cxxstd = 'c++14'
+    _cstd = 'c99'
 
     def __init__(self, **kwargs):
         _name = kwargs.pop('name', self.__class__.__name__)
@@ -255,7 +257,7 @@ class Compiler(GCCToolchain):
 
     @property
     def std(self):
-        return 'c++14' if self._cpp else 'c99'
+        return self._cxxstd if self._cpp else self._cstd
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -491,7 +493,7 @@ class ClangCompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if platform is NvidiaDevice:
+        if isinstance(platform, NvidiaDevice):
             self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
