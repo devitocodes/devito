@@ -86,6 +86,14 @@ is used for iteration spaces that are larger than the data space.
 """
 
 PREFETCHABLE = Property('prefetchable')
+"""
+A Dimension along which prefetching is feasible and beneficial.
+"""
+
+PREFETCHABLE_SHM = Property('prefetchable-shm')
+"""
+A Dimension along which shared-memory prefetching is feasible and beneficial.
+"""
 
 
 # Bundles
@@ -127,6 +135,62 @@ def normalize_properties(*args):
 
 def relax_properties(properties):
     return frozenset(properties - {PARALLEL_INDEP})
+
+
+def tailor_properties(properties, ispace):
+    """
+    Create a new Properties object off `properties` that retains all and only
+    the iteration dimensions in `ispace`.
+    """
+    for i in properties:
+        for d in as_tuple(i):
+            if d not in ispace.itdims:
+                properties = properties.drop(d)
+
+    for d in ispace.itdims:
+        properties = properties.add(d)
+
+    return properties
+
+
+def update_properties(properties, exprs):
+    """
+    Create a new Properties object off `properties` augmented with properties
+    discovered from `exprs` or with properties removed if they are incompatible
+    with `exprs`.
+    """
+    exprs = as_tuple(exprs)
+
+    if not exprs:
+        return properties
+
+    # Auto-detect prefetchable Dimensions
+    dims = set()
+    flag = False
+    for e in as_tuple(exprs):
+        w, r = e.args
+
+        # Ensure it's in the form `Indexed = Indexed`
+        try:
+            wf, rf = w.function, r.function
+        except AttributeError:
+            break
+
+        if not wf._mem_shared:
+            break
+        dims.update({d.parent for d in wf.dimensions if d.parent in properties})
+
+        if not rf._mem_heap:
+            break
+    else:
+        flag = True
+
+    if flag:
+        properties = properties.prefetchable_shm(dims)
+    else:
+        properties = properties.drop(properties=PREFETCHABLE_SHM)
+
+    return properties
 
 
 class Properties(frozendict):
@@ -183,11 +247,14 @@ class Properties(frozendict):
             m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
         return Properties(m)
 
-    def prefetchable(self, dims):
+    def prefetchable(self, dims, v=PREFETCHABLE):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = self.get(d, set()) | {PREFETCHABLE}
+            m[d] = self.get(d, set()) | {v}
         return Properties(m)
+
+    def prefetchable_shm(self, dims):
+        return self.prefetchable(dims, PREFETCHABLE_SHM)
 
     def block(self, dims, kind='default'):
         if kind == 'default':
@@ -232,8 +299,13 @@ class Properties(frozendict):
     def is_blockable_small(self, d):
         return TILABLE_SMALL in self.get(d, set())
 
-    def is_prefetchable(self, dims):
-        return any(PREFETCHABLE in self.get(d, set()) for d in as_tuple(dims))
+    def is_prefetchable(self, dims=None, v=PREFETCHABLE):
+        if dims is None:
+            dims = list(self)
+        return any(v in self.get(d, set()) for d in as_tuple(dims))
+
+    def is_prefetchable_shm(self, dims=None):
+        return self.is_prefetchable(dims, PREFETCHABLE_SHM)
 
     @property
     def nblockable(self):

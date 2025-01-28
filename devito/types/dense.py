@@ -205,6 +205,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         return True
 
     @property
+    def _mem_heap(self):
+        return True
+
+    @property
     def staggered(self):
         return self._staggered
 

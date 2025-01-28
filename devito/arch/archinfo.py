@@ -31,6 +31,8 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'POWER8', 'POWER9',
            # Generic GPUs
            'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+           # Nvidia GPUs
+           'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
            # Intel GPUs
            'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
 
@@ -867,6 +869,12 @@ class Device(Platform):
             'max-block-dims': 3,
         }
 
+    def supports(self, query, language=None):
+        """
+        Check if the device supports a given feature.
+        """
+        return False
+
 
 class IntelDevice(Device):
 
@@ -894,6 +902,52 @@ class NvidiaDevice(Device):
             if 'tesla' in architecture.lower():
                 return 'tesla'
         return None
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        cc = get_nvidia_cc()
+        if query == 'async-loads' and cc >= 80:
+            # Asynchronous pipeline loads -- introduced in Ampere
+            return True
+        elif query == 'tma' and cc >= 90:
+            # Tensor Memory Accelerator -- introduced in Hopper
+            return True
+        else:
+            return False
+
+
+class Volta(NvidiaDevice):
+    pass
+
+
+class Ampere(Volta):
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        if query == 'async-loads':
+            return True
+
+        return super().supports(query, language)
+
+
+class Hopper(Ampere):
+
+    def supports(self, query, language=None):
+        if language != 'cuda':
+            return False
+
+        if query == 'tma':
+            return True
+
+        return super().supports(query, language)
+
+
+class Blackwell(Hopper):
+    pass
 
 
 class AmdDevice(Device):
@@ -963,6 +1017,10 @@ POWER9 = Power('power9')
 ANYGPU = Cpu64('gpu')
 
 NVIDIAX = NvidiaDevice('nvidiaX')
+VOLTA = Volta('volta')
+AMPERE = Ampere('ampere')
+HOPPER = Hopper('hopper')
+BLACKWELL = Blackwell('blackwell')
 
 AMDGPUX = AmdDevice('amdgpuX')
 

@@ -814,22 +814,22 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     There are five relevant AbstractFunction sub-types: ::
 
-        * Array: A function that does not carry data.
+        * Array: A compiler-generated object that does not carry data.
         * Function: A space-varying discrete function, which carries user data.
         * TimeFunction: A time- and space-varying discrete function, which carries
                         user data.
         * SparseFunction: A space-varying discrete function representing "sparse"
                           points, i.e. points that are not aligned with the
                           computational grid.
-        * SparseTimeFunction: A time- and space-varying function representing "sparse"
-                          points, i.e. points that are not aligned with the
-                          computational grid.
-        * PrecomputedSparseFunction: A SparseFunction that uses a custom interpolation
-                                     scheme, instead of linear interpolators.
+        * SparseTimeFunction: A time- and space-varying function representing
+                              "sparse" points, i.e. points that are not aligned
+                              with the computational grid.
+        * PrecomputedSparseFunction: A SparseFunction that uses a custom
+                                     interpolation scheme, instead of linear
+                                     interpolators.
         * PrecomputedSparseTimeFunction: A SparseTimeFunction that uses a custom
                                          interpolation scheme, instead of linear
                                          interpolators.
-
     """
 
     # SymPy attributes, explicitly say these are not Matrices
@@ -890,12 +890,17 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return function
 
         # If dimensions have been replaced, then it is necessary to set `function`
-        # to None. It is also necessary to remove halo and padding kwargs so that
+        # to None. It may also be necessary to remove halo and padding so that
         # they are rebuilt with the new dimensions
         if function is not None and function.dimensions != dimensions:
             function = kwargs['function'] = None
-            kwargs.pop('padding', None)
-            kwargs.pop('halo', None)
+            for i in ('halo', 'padding'):
+                if len(kwargs[i]) != len(dimensions):
+                    kwargs.pop(i)
+                else:
+                    # Downcast from DimensionTuple so that the new `dimensions`
+                    # are used down the line
+                    kwargs[i] = tuple(kwargs[i])
 
         with sympy_mutex:
             # Go straight through Basic, thus bypassing caching and machinery
@@ -1521,6 +1526,12 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
         return obj
 
     func = Pickable._rebuild
+
+    @sympy.cacheit
+    def sort_key(self, order=None):
+        class_key, args, exp, coeff = super().sort_key(order=order)
+        args = (self.function.class_key(), *args)
+        return class_key, args, exp, coeff
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""

@@ -164,7 +164,7 @@ class Ops(frozendict):
         return Ops(m)
 
 
-def normalize_syncs(*args):
+def normalize_syncs(*args, strict=True):
     if not args:
         return {}
 
@@ -175,12 +175,13 @@ def normalize_syncs(*args):
 
     syncs = {k: tuple(filter_ordered(v)) for k, v in syncs.items()}
 
-    for v in syncs.values():
-        waitlocks = [s for s in v if isinstance(s, WaitLock)]
-        withlocks = [s for s in v if isinstance(s, WithLock)]
+    if strict:
+        for v in syncs.values():
+            waitlocks = [s for s in v if isinstance(s, WaitLock)]
+            withlocks = [s for s in v if isinstance(s, WithLock)]
 
-        if waitlocks and withlocks:
-            # We do not allow mixing up WaitLock and WithLock ops
-            raise ValueError("Incompatible SyncOps")
+            if waitlocks and withlocks:
+                # We do not allow mixing up WaitLock and WithLock ops
+                raise ValueError("Incompatible SyncOps")
 
     return Ops(syncs)

@@ -8,7 +8,7 @@ from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max)
-from devito.finite_differences.differentiable import SafeInv
+from devito.finite_differences.differentiable import SafeInv, Weights
 from devito.ir import Expression, FindNodes
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
@@ -17,7 +17,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               retrieve_derivatives)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
-                          Symbol as dSymbol)
+                          ComponentAccess, StencilDimension, Symbol as dSymbol)
 from devito.types.basic import AbstractSymbol
 
 
@@ -446,6 +446,25 @@ def test_findexed():
     assert new_fi.accessor.name == 'fL'
     assert new_fi.indices == fi.indices
     assert new_fi.strides_map == strides_map
+
+
+def test_canonical_ordering_of_weights():
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+
+    i = StencilDimension('i0', 0, 2)
+    w = Weights(name='w0', dimensions=i, initvalue=[1.0, 2.0, 3.0])
+
+    fi = f[x, y + i, z]
+    wi = w[i]
+    cf = ComponentAccess(fi, 0)
+
+    assert (ccode(1.0*f[x, y, z] + 2.0*f[x, y + 1, z] + 3.0*f[x, y + 2, z]) ==
+            '1.0F*f[x][y][z] + 2.0F*f[x][y + 1][z] + 3.0F*f[x][y + 2][z]')
+    assert ccode(fi*wi) == 'w0[i0]*f[x][y + i0][z]'
+    assert ccode(cf*wi) == 'w0[i0]*f[x][y + i0][z].x'
 
 
 def test_symbolic_printing():
