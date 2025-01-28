@@ -1424,7 +1424,8 @@ def parse_kwargs(**kwargs):
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 
     # Make sure compiler and language are compatible
-    if kwargs['compiler']._cpp and kwargs['language'] in ['C', 'openmp']:
+    if compiler is not None and kwargs['compiler']._cpp and \
+            kwargs['language'] in ['C', 'openmp']:
         kwargs['language'] = 'CXX' if kwargs['language'] == 'C' else 'CXXopenmp'
     if 'CXX' in kwargs['language'] and not kwargs['compiler']._cpp:
         kwargs['compiler'] = kwargs['compiler'].__new_with__(cpp=True)

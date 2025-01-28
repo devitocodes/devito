@@ -384,9 +384,9 @@ class Cast(UnaryOp):
     """
 
     __rargs__ = ('base', )
-    __rkwargs__ = ('dtype', 'stars')
+    __rkwargs__ = ('dtype', 'stars', 'reinterpret')
 
-    def __new__(cls, base, dtype=None, stars=None, **kwargs):
+    def __new__(cls, base, dtype=None, stars=None, reinterpret=False, **kwargs):
         try:
             if issubclass(dtype, np.generic) and sympify(base).is_Number:
                 base = sympify(dtype(base))
@@ -397,6 +397,7 @@ class Cast(UnaryOp):
         obj = super().__new__(cls, base)
         obj._stars = stars or ''
         obj._dtype = dtype
+        obj._reinterpret = reinterpret
         return obj
 
     def _hashable_content(self):
@@ -411,6 +412,10 @@ class Cast(UnaryOp):
     @property
     def dtype(self):
         return self._dtype
+
+    @property
+    def reinterpret(self):
+        return self._reinterpret
 
     @property
     def _C_ctype(self):

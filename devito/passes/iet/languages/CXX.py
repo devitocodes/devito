@@ -91,5 +91,6 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
         tstr = self._print(expr._C_ctype)
         if 'void' in tstr:
             return super()._print_Cast(expr)
-        cast = f'static_cast<{tstr}{self._print(expr.stars)}>'
+        caster = 'reinterpret_cast' if expr.reinterpret else 'static_cast'
+        cast = f'{caster}<{tstr}{self._print(expr.stars)}>'
         return self._print_UnaryOp(expr, op=cast, parenthesize=True)
