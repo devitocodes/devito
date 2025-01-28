@@ -85,3 +85,11 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
+
+    def _print_Cast(self, expr):
+        # The CXX recommended way to cast is to use static_cast
+        tstr = self._print(expr._C_ctype)
+        if 'void' in tstr:
+            return super()._print_Cast(expr)
+        cast = f'static_cast<{tstr}{self._print(expr.stars)}>'
+        return self._print_UnaryOp(expr, op=cast, parenthesize=True)
